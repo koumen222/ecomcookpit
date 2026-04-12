@@ -5,7 +5,7 @@ import { ChevronLeft, ChevronRight, Star } from 'lucide-react';
  * Carrousel horizontal de témoignages pour pages produits
  * Autoplay + swipe mobile + navigation par boutons
  */
-export default function ProductTestimonials({ testimonials = [], productImage = null, groupImage = null, socialProofImage = null }) {
+export default function ProductTestimonials({ testimonials = [], productImage = null, groupImage = null, socialProofImage = null, visualTheme = null }) {
   const scrollRef = useRef(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(true);
@@ -80,7 +80,17 @@ export default function ProductTestimonials({ testimonials = [], productImage = 
   if (!validTestimonials.length) return null;
 
   return (
-    <div style={{ margin: '32px 0', overflow: 'hidden', maxWidth: '100%' }}>
+    <div style={{
+      margin: '32px 0', overflow: 'hidden', maxWidth: '100%',
+      '--ai-primary': visualTheme?.primary || 'var(--s-section-social-proof, var(--s-primary))',
+      '--ai-gradient': visualTheme?.gradient || 'linear-gradient(135deg, var(--s-section-social-proof, var(--s-primary)), var(--s-section-social-proof, var(--s-primary)))',
+      '--ai-soft-gradient': visualTheme?.softGradient || 'var(--s-section-social-proof-soft, var(--s-bg))',
+      '--ai-soft-border': visualTheme?.softBorder || 'var(--s-section-social-proof-border, var(--s-border))',
+      '--ai-shadow': visualTheme?.shadow || 'var(--s-section-social-proof-shadow, 0 2px 8px rgba(0,0,0,0.06))',
+      '--ai-text': visualTheme?.text || 'var(--s-text)',
+      '--ai-muted': visualTheme?.mutedText || 'var(--s-text2)',
+      '--ai-surface': visualTheme?.surface || 'var(--s-bg)',
+    }}>
 
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, padding: '0 4px' }}>

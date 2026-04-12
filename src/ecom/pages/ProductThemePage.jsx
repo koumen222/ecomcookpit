@@ -288,10 +288,20 @@ const DEFAULT_DESIGN = {
   stickyAddToCart: true, imageZoom: true,
 };
 
+const DEFAULT_SECTION_COLORS = {
+  socialProof: '#7C3AED',
+  benefits: '#0F6B4F',
+  trust: '#2563EB',
+  problem: '#DC2626',
+  solution: '#059669',
+  faq: '#7C3AED',
+};
+
 const ProductThemePage = () => {
   const [currentTheme, setCurrentTheme] = useState('classic');
   const [design, setDesign] = useState({ ...DEFAULT_DESIGN });
-  const [originalData, setOriginalData] = useState({ theme: 'classic', design: { ...DEFAULT_DESIGN } });
+  const [sectionColors, setSectionColors] = useState({ ...DEFAULT_SECTION_COLORS });
+  const [originalData, setOriginalData] = useState({ theme: 'classic', design: { ...DEFAULT_DESIGN }, sectionColors: { ...DEFAULT_SECTION_COLORS } });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -322,14 +332,20 @@ const ProductThemePage = () => {
   useEffect(() => {
     (async () => {
       try {
-        const res = await storeManageApi.getStoreConfig();
-        const raw = res.data?.data || res.data || {};
+        const [configRes, themeRes] = await Promise.all([
+          storeManageApi.getStoreConfig(),
+          storeManageApi.getTheme(),
+        ]);
+        const raw = configRes.data?.data || configRes.data || {};
         const config = raw.storeSettings?.productPageConfig || raw.productPageConfig || {};
-        const savedTheme = config.theme || 'classic';
+        const themeData = themeRes.data?.data || {};
+        const savedTheme = themeData.template || 'classic';
         const savedDesign = { ...DEFAULT_DESIGN, ...(config.design || {}) };
+        const savedSectionColors = { ...DEFAULT_SECTION_COLORS, ...(themeData.sectionColors || {}) };
         setCurrentTheme(savedTheme);
         setDesign(savedDesign);
-        setOriginalData({ theme: savedTheme, design: { ...savedDesign } });
+        setSectionColors(savedSectionColors);
+        setOriginalData({ theme: savedTheme, design: { ...savedDesign }, sectionColors: { ...savedSectionColors } });
       } catch (e) {
         console.error('Failed to load theme:', e);
       } finally {
@@ -342,19 +358,34 @@ const ProductThemePage = () => {
   const updateDesign = useCallback((key, value) => { setDesign(prev => ({ ...prev, [key]: value })); setSaved(false); }, []);
   const applyColorPreset = useCallback((preset) => {
     setDesign(prev => ({ ...prev, buttonColor: preset.accent, ctaButtonColor: preset.cta || preset.accent, backgroundColor: preset.bg, textColor: preset.text, badgeColor: preset.badge }));
+    setSectionColors({
+      socialProof: preset.accent,
+      benefits: preset.cta || preset.accent,
+      trust: preset.accent,
+      problem: preset.badge,
+      solution: preset.cta || preset.accent,
+      faq: preset.accent,
+    });
     setSaved(false);
   }, []);
 
   const handleSave = async () => {
     setSaving(true);
     try {
-      const res = await storeManageApi.getStoreConfig();
-      const raw = res.data?.data || res.data || {};
+      const [configRes, themeRes] = await Promise.all([
+        storeManageApi.getStoreConfig(),
+        storeManageApi.getTheme(),
+      ]);
+      const raw = configRes.data?.data || configRes.data || {};
       const existingConfig = raw.storeSettings?.productPageConfig || raw.productPageConfig || {};
-      await storeManageApi.updateStoreConfig({
-        productPageConfig: { ...existingConfig, theme: currentTheme, design: { ...existingConfig.design, ...design } },
-      });
-      setOriginalData({ theme: currentTheme, design: { ...design } });
+      const existingTheme = themeRes.data?.data || {};
+      await Promise.all([
+        storeManageApi.updateTheme({ ...existingTheme, template: currentTheme, sectionColors }),
+        storeManageApi.updateStoreConfig({
+          productPageConfig: { ...existingConfig, design: { ...existingConfig.design, ...design } },
+        }),
+      ]);
+      setOriginalData({ theme: currentTheme, design: { ...design }, sectionColors: { ...sectionColors } });
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch (e) {
@@ -364,7 +395,7 @@ const ProductThemePage = () => {
     }
   };
 
-  const hasChanges = currentTheme !== originalData.theme || JSON.stringify(design) !== JSON.stringify(originalData.design);
+  const hasChanges = currentTheme !== originalData.theme || JSON.stringify(design) !== JSON.stringify(originalData.design) || JSON.stringify(sectionColors) !== JSON.stringify(originalData.sectionColors);
 
   if (loading) {
     return (
@@ -576,13 +607,27 @@ const ProductThemePage = () => {
             )}
 
             {colorTab === 'custom' && (
-              <div className="bg-white rounded-2xl border border-gray-200 p-5">
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-                  <ColorInput label="Bouton principal" value={design.buttonColor} onChange={v => updateDesign('buttonColor', v)} />
-                  <ColorInput label="Bouton CTA" value={design.ctaButtonColor || design.buttonColor} onChange={v => updateDesign('ctaButtonColor', v)} />
-                  <ColorInput label="Fond de page" value={design.backgroundColor} onChange={v => updateDesign('backgroundColor', v)} />
-                  <ColorInput label="Texte principal" value={design.textColor} onChange={v => updateDesign('textColor', v)} />
-                  <ColorInput label="Badge promo" value={design.badgeColor} onChange={v => updateDesign('badgeColor', v)} />
+              <div className="space-y-5">
+                <div className="bg-white rounded-2xl border border-gray-200 p-5">
+                  <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-4">Couleurs globales</h3>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+                    <ColorInput label="Bouton principal" value={design.buttonColor} onChange={v => updateDesign('buttonColor', v)} />
+                    <ColorInput label="Bouton CTA" value={design.ctaButtonColor || design.buttonColor} onChange={v => updateDesign('ctaButtonColor', v)} />
+                    <ColorInput label="Fond de page" value={design.backgroundColor} onChange={v => updateDesign('backgroundColor', v)} />
+                    <ColorInput label="Texte principal" value={design.textColor} onChange={v => updateDesign('textColor', v)} />
+                    <ColorInput label="Badge promo" value={design.badgeColor} onChange={v => updateDesign('badgeColor', v)} />
+                  </div>
+                </div>
+                <div className="bg-white rounded-2xl border border-gray-200 p-5">
+                  <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-4">Couleurs des sections</h3>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 gap-4">
+                    <ColorInput label="Preuve sociale" value={sectionColors.socialProof} onChange={v => { setSectionColors(prev => ({ ...prev, socialProof: v })); setSaved(false); }} />
+                    <ColorInput label="Bénéfices" value={sectionColors.benefits} onChange={v => { setSectionColors(prev => ({ ...prev, benefits: v })); setSaved(false); }} />
+                    <ColorInput label="Réassurance" value={sectionColors.trust} onChange={v => { setSectionColors(prev => ({ ...prev, trust: v })); setSaved(false); }} />
+                    <ColorInput label="Problème" value={sectionColors.problem} onChange={v => { setSectionColors(prev => ({ ...prev, problem: v })); setSaved(false); }} />
+                    <ColorInput label="Solution" value={sectionColors.solution} onChange={v => { setSectionColors(prev => ({ ...prev, solution: v })); setSaved(false); }} />
+                    <ColorInput label="FAQ" value={sectionColors.faq} onChange={v => { setSectionColors(prev => ({ ...prev, faq: v })); setSaved(false); }} />
+                  </div>
                 </div>
               </div>
             )}

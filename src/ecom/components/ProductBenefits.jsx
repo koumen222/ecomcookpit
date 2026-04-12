@@ -4,7 +4,7 @@ import React from 'react';
  * Composant pour afficher les bénéfices produit avec emojis
  * Format optimisé pour mobile et marché africain
  */
-export default function ProductBenefits({ benefits = [], title = "💥 Les bénéfices", compact = false }) {
+export default function ProductBenefits({ benefits = [], title = "💥 Les bénéfices", compact = false, accentColor = 'var(--s-section-benefits, var(--s-primary))', borderColor = 'var(--s-section-benefits-border, var(--s-border))', surfaceColor = 'var(--s-section-benefits-soft, var(--s-bg))', textColor = 'var(--s-text)' }) {
   if (!benefits || benefits.length === 0) return null;
 
   return (
@@ -44,9 +44,9 @@ export default function ProductBenefits({ benefits = [], title = "💥 Les bén�
                 alignItems: 'flex-start',
                 gap: compact ? 10 : 12,
                 padding: compact ? '8px 10px' : '14px 16px',
-                backgroundColor: 'var(--s-bg, #fff)',
+                backgroundColor: surfaceColor,
                 borderRadius: compact ? 10 : 12,
-                border: '1px solid var(--s-border, #e5e7eb)',
+                border: `1px solid ${borderColor}`,
                 transition: 'all 0.2s',
               }}
               className="benefit-item"
@@ -55,7 +55,7 @@ export default function ProductBenefits({ benefits = [], title = "💥 Les bén�
                 width: compact ? 20 : 24,
                 height: compact ? 20 : 24,
                 borderRadius: '50%',
-                background: 'var(--s-primary, #16a34a)',
+                background: accentColor,
                 color: '#fff',
                 display: 'flex',
                 alignItems: 'center',
@@ -70,7 +70,7 @@ export default function ProductBenefits({ benefits = [], title = "💥 Les bén�
               <p style={{
                 fontSize: compact ? 13 : 15,
                 lineHeight: compact ? 1.45 : 1.6,
-                color: 'var(--s-text)',
+                color: textColor,
                 margin: 0,
                 fontFamily: 'var(--s-font)',
                 fontWeight: 500,

@@ -154,11 +154,12 @@ const mergeProductSections = (stored) => {
 
 const LEGACY_PRODUCT_GALLERY_TITLE = 'Ils nous font confiance';
 const LEGACY_PRODUCT_GALLERY_SUBTITLE = 'Découvrez les retours de nos clients satisfaits';
+const SOCIAL_PROOF_GALLERY_TITLE = 'Ces clients nous ont fait confiance';
 
 const PRODUCT_GALLERY_DEFAULTS = {
-  title: '',
+  title: SOCIAL_PROOF_GALLERY_TITLE,
   subtitle: '',
-  showHeader: false,
+  showHeader: true,
   useProductImages: true,
   images: [],
   mainImageHeight: 420,
@@ -173,9 +174,9 @@ const normalizeProductGalleryConfig = (content = {}) => {
     && subtitle === LEGACY_PRODUCT_GALLERY_SUBTITLE;
 
   if (hasLegacyHeader) {
-    normalized.title = '';
+    normalized.title = SOCIAL_PROOF_GALLERY_TITLE;
     normalized.subtitle = '';
-    normalized.showHeader = false;
+    normalized.showHeader = true;
   }
 
   return normalized;
@@ -192,6 +193,34 @@ const resolveProductGalleryImages = (content = {}, fallbackImages = []) => {
     return fallbackImages;
   }
   return [];
+};
+
+const buildSocialProofGalleryImages = (product) => {
+  const pageData = product?._pageData || {};
+  const entries = [];
+  const seen = new Set();
+  const push = (entry, fallbackAlt) => {
+    if (!entry) return;
+    const url = typeof entry === 'string' ? entry : entry.url;
+    if (!url || seen.has(url)) return;
+    seen.add(url);
+    entries.push(typeof entry === 'string' ? { url, alt: fallbackAlt } : { ...entry, url, alt: entry.alt || fallbackAlt });
+  };
+
+  (pageData.socialProofImages || []).forEach((image, index) => {
+    push(image, `${product?.name || 'Produit'} — preuve sociale ${index + 1}`);
+  });
+
+  if (!entries.length) {
+    (pageData.peoplePhotos || []).forEach((image, index) => {
+      push(image, `${product?.name || 'Produit'} — client ${index + 1}`);
+    });
+    (pageData.beforeAfterImages?.length ? pageData.beforeAfterImages : (pageData.beforeAfterImage ? [pageData.beforeAfterImage] : [])).forEach((image, index) => {
+      push(image, `${product?.name || 'Produit'} — avant/après ${index + 1}`);
+    });
+  }
+
+  return entries;
 };
 
 const clampDisplayAspectRatio = (ratio) => {
@@ -372,9 +401,7 @@ const ImageGallery = ({ images = [], design = {} }) => {
 const InlinePhotoCarousel = ({ images = [], accentColor = 'var(--s-primary)', config = {} }) => {
   const [activeIndex, setActiveIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
-  const [ratios, setRatios] = useState({});
   const gallery = { ...PRODUCT_GALLERY_DEFAULTS, ...config };
-  const thumbnailSize = Math.max(48, Number.parseInt(gallery.thumbnailSize, 10) || 72);
   const mainImageHeight = Math.max(220, Number.parseInt(gallery.mainImageHeight, 10) || 420);
 
   const canNavigate = images.length > 1;
@@ -409,8 +436,6 @@ const InlinePhotoCarousel = ({ images = [], accentColor = 'var(--s-primary)', co
   if (!images.length) return null;
 
   const activeImage = images[activeIndex] || images[0];
-  const activeImageSrc = activeImage?.url || '';
-  const activeAspectRatio = clampDisplayAspectRatio(ratios[activeImageSrc] || 1);
 
   const navButtonStyle = {
     width: 34,
@@ -483,27 +508,18 @@ const InlinePhotoCarousel = ({ images = [], accentColor = 'var(--s-primary)', co
           background: '#fff',
         }}
       >
-        <div style={{ position: 'relative', aspectRatio: activeAspectRatio, minHeight: 'min(260px, 68vw)', maxHeight: `${mainImageHeight}px`, background: '#f4f4f5' }}>
+        <div style={{ position: 'relative', aspectRatio: 1, minHeight: 'min(260px, 68vw)', maxHeight: `${mainImageHeight}px`, background: '#f4f4f5' }}>
           <img
             key={`${activeImage.url}-${activeIndex}`}
             src={activeImage.url}
             alt={activeImage.alt || 'Client satisfait'}
             loading={activeIndex === 0 ? 'eager' : 'lazy'}
-            onLoad={(e) => {
-              const img = e.currentTarget;
-              const w = img.naturalWidth || 0;
-              const h = img.naturalHeight || 0;
-              if (!activeImageSrc || !w || !h) return;
-              const ratio = w / h;
-              if (!Number.isFinite(ratio) || ratio <= 0) return;
-              setRatios((prev) => (prev[activeImageSrc] ? prev : { ...prev, [activeImageSrc]: ratio }));
-            }}
             style={{
               position: 'absolute',
               inset: 0,
               width: '100%',
               height: '100%',
-              objectFit: 'contain',
+              objectFit: 'cover',
               objectPosition: 'center',
               display: 'block',
             }}
@@ -545,49 +561,6 @@ const InlinePhotoCarousel = ({ images = [], accentColor = 'var(--s-primary)', co
         )}
       </div>
 
-      {canNavigate && (
-        <div className="sf-no-scrollbar" style={{
-          display: 'flex',
-          gap: 6,
-          overflowX: 'auto',
-          paddingTop: 10,
-          scrollbarWidth: 'none',
-          msOverflowStyle: 'none',
-          maxWidth: '100%',
-        }}>
-          {images.map((image, index) => {
-            const active = index === activeIndex;
-            const thumbSz = Math.min(thumbnailSize, 64);
-            return (
-              <button
-                key={`${image.url}-${index}`}
-                type="button"
-                onClick={() => pauseAndGo(index)}
-                style={{
-                  border: active ? `2px solid ${accentColor}` : '1px solid var(--s-border)',
-                  borderRadius: 12,
-                  padding: 0,
-                  overflow: 'hidden',
-                  minWidth: thumbSz,
-                  width: thumbSz,
-                  height: thumbSz,
-                  background: '#fff',
-                  cursor: 'pointer',
-                  boxShadow: active ? '0 6px 18px rgba(0,0,0,0.10)' : 'none',
-                  flexShrink: 0,
-                }}
-              >
-                <img
-                  src={image.url}
-                  alt={image.alt || `Témoignage ${index + 1}`}
-                  loading="lazy"
-                  style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-                />
-              </button>
-            );
-          })}
-        </div>
-      )}
     </div>
   );
 };
@@ -971,34 +944,34 @@ const OfferBlock = ({ block, visualTheme = null }) => {
   );
 };
 
-const ProductFaqAccordion = ({ items = [] }) => {
+const ProductFaqAccordion = ({ items = [], visualTheme = null }) => {
   const [openIndex, setOpenIndex] = useState(null);
 
   if (!items.length) return null;
 
   return (
     <div style={{ marginTop: 28, paddingTop: 20, borderTop: '1px solid var(--s-border)' }}>
-      <h2 style={{ margin: '0 0 18px', fontSize: 20, fontWeight: 800, color: 'var(--s-text)', fontFamily: 'var(--s-font)' }}>
+      <h2 style={{ margin: '0 0 18px', fontSize: 20, fontWeight: 800, color: visualTheme?.primary || 'var(--s-section-faq, var(--s-primary))', fontFamily: 'var(--s-font)' }}>
         Questions fréquentes
       </h2>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {items.map((item, index) => {
           const opened = openIndex === index;
           return (
-            <div key={`${item.question}-${index}`} style={{ borderRadius: 14, border: '1px solid', overflow: 'hidden', borderColor: opened ? 'var(--ai-primary, var(--s-primary))' : 'var(--ai-soft-border, var(--s-border))', background: opened ? 'var(--ai-soft-gradient, #FAFFFE)' : 'var(--ai-surface, #fff)', boxShadow: opened ? 'var(--ai-shadow, none)' : 'none' }}>
+            <div key={`${item.question}-${index}`} style={{ borderRadius: 14, border: '1px solid', overflow: 'hidden', borderColor: opened ? (visualTheme?.primary || 'var(--s-section-faq, var(--s-primary))') : (visualTheme?.softBorder || 'var(--s-section-faq-border, var(--s-border))'), background: opened ? (visualTheme?.softGradient || 'var(--s-section-faq-soft, #FAFFFE)') : (visualTheme?.surface || 'var(--s-bg)'), boxShadow: opened ? (visualTheme?.shadow || 'none') : 'none' }}>
               <button
                 onClick={() => setOpenIndex(opened ? null : index)}
                 style={{ width: '100%', padding: '18px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left' }}
               >
-                <span style={{ fontSize: 14.5, fontWeight: 700, color: 'var(--s-text)', lineHeight: 1.45, fontFamily: 'var(--s-font)' }}>
+                <span style={{ fontSize: 14.5, fontWeight: 700, color: opened ? (visualTheme?.primary || 'var(--s-section-faq, var(--s-primary))') : 'var(--s-text)', lineHeight: 1.45, fontFamily: 'var(--s-font)' }}>
                   {item.question}
                 </span>
-                <span style={{ flexShrink: 0, color: opened ? 'var(--ai-primary, var(--s-primary))' : 'var(--ai-muted, var(--s-text2))' }}>
+                <span style={{ flexShrink: 0, color: opened ? (visualTheme?.primary || 'var(--s-section-faq, var(--s-primary))') : 'var(--s-text2)' }}>
                   {opened ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
                 </span>
               </button>
               {opened && (
-                <div style={{ padding: '0 18px 18px', fontSize: 14, color: 'var(--ai-muted, var(--s-text2))', lineHeight: 1.7, fontFamily: 'var(--s-font)' }}>
+                <div style={{ padding: '0 18px 18px', fontSize: 14, color: visualTheme?.mutedText || 'var(--s-text2)', lineHeight: 1.7, fontFamily: 'var(--s-font)' }}>
                   {item.answer || item.reponse}
                 </div>
               )}
@@ -1011,7 +984,7 @@ const ProductFaqAccordion = ({ items = [] }) => {
 };
 
 // ── Trust Badges ─────────────────────────────────────────────────────────────
-const TrustBadges = ({ compact = false }) => (
+const TrustBadges = ({ compact = false, accentColor = 'var(--s-section-trust, var(--s-primary))' }) => (
   <div style={{
     display: 'flex', gap: 8,
     marginTop: compact ? 24 : 28,
@@ -1034,7 +1007,7 @@ const TrustBadges = ({ compact = false }) => (
         flex: '0 1 auto',
         minWidth: 0,
       }}>
-        <span style={{ width: 24, height: 24, borderRadius: '50%', background: 'var(--ai-gradient, var(--s-primary))', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{icon}</span>
+        <span style={{ width: 24, height: 24, borderRadius: '50%', background: accentColor, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{icon}</span>
         <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--s-text2)', fontFamily: 'var(--s-font)' }}>
           {text}
         </span>
@@ -1077,13 +1050,10 @@ const withAlpha = (color, alphaHex, fallback) => {
   return fallback;
 };
 
-const buildAiVisualTheme = (pageData = null) => {
-  const templateTheme = pageData?.templateTheme;
-  if (!templateTheme) return null;
-
-  const primary = pageData?.titleColor || templateTheme.primary || '#0f6b4f';
-  const accent = templateTheme.accent || primary;
-  const text = pageData?.contentColor || templateTheme.text || '#111827';
+const buildAiVisualTheme = ({ store = null, design = {} } = {}) => {
+  const primary = design?.ctaButtonColor || design?.buttonColor || store?.accentColor || store?.primaryColor || '#0f6b4f';
+  const accent = design?.badgeColor || store?.accentColor || primary;
+  const text = design?.textColor || store?.textColor || '#111827';
 
   return {
     primary,
@@ -1099,6 +1069,19 @@ const buildAiVisualTheme = (pageData = null) => {
     shadow: `0 18px 44px ${withAlpha(primary, '22', 'rgba(15,107,79,0.14)')}`,
   };
 };
+
+const buildSectionVisualTheme = (sectionKey, { useTextAsTitle = false } = {}) => ({
+  primary: `var(--s-section-${sectionKey}, var(--s-primary))`,
+  accent: `var(--s-section-${sectionKey}, var(--s-primary))`,
+  text: useTextAsTitle ? `var(--s-section-${sectionKey}, var(--s-text))` : 'var(--s-text)',
+  mutedText: 'var(--s-text2)',
+  gradient: `linear-gradient(135deg, var(--s-section-${sectionKey}, var(--s-primary)) 0%, var(--s-section-${sectionKey}, var(--s-primary)) 100%)`,
+  softGradient: `var(--s-section-${sectionKey}-soft, var(--s-bg))`,
+  border: `var(--s-section-${sectionKey}-border, var(--s-border))`,
+  softBorder: `var(--s-section-${sectionKey}-border, var(--s-border))`,
+  shadow: `var(--s-section-${sectionKey}-shadow, none)`,
+  surface: 'var(--s-bg)',
+});
 
 const buildAiGalleryImages = (product) => {
   const seen = new Set();
@@ -1126,8 +1109,6 @@ const buildAiGalleryImages = (product) => {
   (pageData.beforeAfterImages?.length ? pageData.beforeAfterImages : (pageData.beforeAfterImage ? [pageData.beforeAfterImage] : [])).forEach((photo, index) => {
     pushImage(photo, `${product?.name || 'Produit'} — avant/après ${index + 1}`);
   });
-  // WhatsApp testimony
-  pushImage(pageData.whatsappTestimony, `${product?.name || 'Produit'} — témoignage WhatsApp`);
   // Angles/affiches marketing ensuite
   (pageData.angles || []).forEach((angle, index) => {
     pushImage(angle?.poster_url, angle?.titre_angle || `${product?.name || 'Produit'} ${index + 1}`);
@@ -1313,7 +1294,7 @@ const StoreProductPage = () => {
       } : {}),
     },
   };
-  const ppTheme = productPageConfig?.theme || 'classic';
+  const ppTheme = store?.template || storePC?.theme || productPageConfig?.theme || 'classic';
   const ppGeneral = productPageConfig?.general || {};
   const ppDesign = productPageConfig?.design || {};
   const ppButton = productPageConfig?.button || {};
@@ -1327,7 +1308,13 @@ const StoreProductPage = () => {
   const ctaAnimation = ppButton.animation || 'none';
   const ppFormType = ppGeneral.formType || 'popup';
   const spacingPreset = SPACING_PRESETS[ppDesign.spacing] || SPACING_PRESETS.normal;
-  const aiVisualTheme = buildAiVisualTheme(product?._pageData);
+  const aiVisualTheme = buildAiVisualTheme({ store, design: ppDesign });
+  const socialProofTheme = buildSectionVisualTheme('socialProof');
+  const benefitsTheme = buildSectionVisualTheme('benefits');
+  const trustTheme = buildSectionVisualTheme('trust');
+  const problemTheme = buildSectionVisualTheme('problem', { useTextAsTitle: true });
+  const solutionTheme = buildSectionVisualTheme('solution', { useTextAsTitle: true });
+  const faqTheme = buildSectionVisualTheme('faq');
   const ctaBtnColor = ppDesign.ctaButtonColor || ppDesign.buttonColor || aiVisualTheme?.primary || 'var(--s-primary)';
   const ctaBorderRadius = ppDesign.ctaBorderRadius || ppDesign.borderRadius || '14px';
   const ctaButtonStyle = ppDesign.buttonStyle || 'filled';
@@ -1997,7 +1984,7 @@ const StoreProductPage = () => {
 
                     case 'productGallery': {
                       const galleryConfig = normalizeProductGalleryConfig(sectionContentMap.productGallery || {});
-                      const galleryImages = resolveProductGalleryImages(galleryConfig, images);
+                      const galleryImages = resolveProductGalleryImages(galleryConfig, buildSocialProofGalleryImages(product));
                       return (
                         <InlinePhotoCarousel
                           key={sectionId}
@@ -2031,7 +2018,7 @@ const StoreProductPage = () => {
                       }
 
                     case 'trustBadges':
-                      return <TrustBadges key={sectionId} compact />;
+                      return <TrustBadges key={sectionId} compact accentColor={trustTheme.primary} />;
 
                     case 'secureBadge':
                       {
@@ -2041,7 +2028,7 @@ const StoreProductPage = () => {
                             <div style={secureCardStyle.container}>
                               <div style={secureCardStyle.content}>
                                 <div style={secureCardStyle.iconWrap}>
-                                  <Shield size={16} color={aiVisualTheme?.primary || ctaBtnColor} />
+                                  <Shield size={16} color={trustTheme.primary} />
                                 </div>
                                 <div style={{ minWidth: 0 }}>
                                   <div style={secureCardStyle.title}>Paiement 100% sécurisé</div>
@@ -2061,7 +2048,7 @@ const StoreProductPage = () => {
                             <div style={deliveryCardStyle.container}>
                               <div style={deliveryCardStyle.content}>
                                 <div style={deliveryCardStyle.iconWrap}>
-                                  <Truck size={16} color={aiVisualTheme?.primary || ctaBtnColor} />
+                                  <Truck size={16} color={trustTheme.primary} />
                                 </div>
                                 <div style={{ minWidth: 0 }}>
                                   <div style={deliveryCardStyle.title}>Livraison estimée : 2 à 4 jours</div>
@@ -2109,7 +2096,7 @@ const StoreProductPage = () => {
                       const customStats = sectionContentMap.statsBar?.stats?.filter(st => st.value && st.label);
                       const statsData = customStats?.length > 0 ? customStats : product._pageData?.stats_bar;
                       return statsData?.length > 0
-                        ? <StatsBar key={sectionId} stats={statsData} visualTheme={aiVisualTheme} />
+                        ? <StatsBar key={sectionId} stats={statsData} visualTheme={socialProofTheme} />
                         : null;
                     }
 
@@ -2171,7 +2158,7 @@ const StoreProductPage = () => {
                       const customBullets = sectionContentMap.benefitsBullets?.items?.filter(Boolean);
                       const bulletsData = customBullets?.length > 0 ? customBullets : product._pageData?.benefits_bullets;
                       return bulletsData?.length > 0 ? (
-                        <ProductBenefits key={sectionId} benefits={bulletsData} title="" compact />
+                        <ProductBenefits key={sectionId} benefits={bulletsData} title="" compact accentColor={benefitsTheme.primary} borderColor={benefitsTheme.softBorder} surfaceColor={benefitsTheme.softGradient} textColor={benefitsTheme.text} />
                       ) : null;
                     }
 
@@ -2179,7 +2166,7 @@ const StoreProductPage = () => {
                       const cbCustom = sectionContentMap.conversionBlocks?.items?.filter(b => b?.text);
                       const cbData = cbCustom?.length > 0 ? cbCustom : product._pageData?.conversion_blocks;
                       return cbData?.length > 0 ? (
-                        <ConversionBlocks key={sectionId} blocks={cbData} compact />
+                        <ConversionBlocks key={sectionId} blocks={cbData} compact iconColor={trustTheme.primary} borderColor={trustTheme.softBorder} backgroundColor={trustTheme.softGradient} textColor={trustTheme.text} />
                       ) : null;
                     }
 
@@ -2190,7 +2177,7 @@ const StoreProductPage = () => {
                         offer_label: sc.offerLabel || aiBlock?.offer_label || 'Offre spéciale',
                         guarantee_text: sc.guaranteeText || aiBlock?.guarantee_text,
                       } : null;
-                      return mergedBlock ? <OfferBlock key={sectionId} block={mergedBlock} visualTheme={aiVisualTheme} /> : null;
+                      return mergedBlock ? <OfferBlock key={sectionId} block={mergedBlock} visualTheme={trustTheme} /> : null;
                     }
 
                     case 'description': {
@@ -2214,7 +2201,7 @@ const StoreProductPage = () => {
                         title: sc.title || aiSection?.title || 'Le problème',
                         pain_points: customPainPoints?.length > 0 ? customPainPoints : aiSection?.pain_points,
                       } : null;
-                      return mergedSection ? <ProblemSection key={sectionId} section={mergedSection} visualTheme={aiVisualTheme} /> : null;
+                      return mergedSection ? <ProblemSection key={sectionId} section={mergedSection} visualTheme={problemTheme} /> : null;
                     }
 
                     case 'solutionSection': {
@@ -2224,7 +2211,7 @@ const StoreProductPage = () => {
                         title: sc.title || aiSection?.title || 'La solution',
                         description: sc.description || aiSection?.description,
                       } : null;
-                      return mergedSection ? <SolutionSection key={sectionId} section={mergedSection} visualTheme={aiVisualTheme} /> : null;
+                      return mergedSection ? <SolutionSection key={sectionId} section={mergedSection} visualTheme={solutionTheme} /> : null;
                     }
 
                     case 'faq': {
@@ -2237,7 +2224,7 @@ const StoreProductPage = () => {
                           ? product.faq
                           : (hasHtml2 ? extractFaqItemsFromHtml(raw2) : []);
                       return faqItems.length > 0
-                        ? <ProductFaqAccordion key={sectionId} items={faqItems} />
+                        ? <ProductFaqAccordion key={sectionId} items={faqItems} visualTheme={faqTheme} />
                         : null;
                     }
 
@@ -2276,7 +2263,7 @@ const StoreProductPage = () => {
         const socialImg = product?._pageData?.testimonialsSocialProofImage || null;
         return (
           <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 16px', overflow: 'hidden' }}>
-            <ProductTestimonials testimonials={t} productImage={prodImg} groupImage={groupImg} socialProofImage={socialImg} />
+            <ProductTestimonials testimonials={t} productImage={prodImg} groupImage={groupImg} socialProofImage={socialImg} visualTheme={socialProofTheme} />
           </div>
         );
       })()}

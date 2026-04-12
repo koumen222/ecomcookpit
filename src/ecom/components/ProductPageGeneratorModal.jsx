@@ -277,7 +277,7 @@ function FinalPagePreview({ product, templateTheme, selectedTemplate }) {
           </div>
           <div>
             <p className="text-sm font-bold text-gray-900">Boutique preview</p>
-            <p className="text-[11px] text-gray-500">Rendu final avec le template {selectedTemplate.label.toLowerCase()}</p>
+            <p className="text-[11px] text-gray-500">Rendu final avec la direction visuelle {selectedTemplate.label.toLowerCase()}</p>
           </div>
         </div>
         <div className="rounded-full border border-gray-200 px-3 py-1 text-[11px] font-semibold text-gray-600">
@@ -479,7 +479,7 @@ function FinalPagePreview({ product, templateTheme, selectedTemplate }) {
           </div>
 
           <div className="border-t px-4 py-4 text-center text-xs text-gray-500 sm:px-6" style={{ borderColor: `${templateTheme.accent}24` }}>
-            Aperçu storefront généré avec le template {selectedTemplate.label.toLowerCase()}.
+            Aperçu storefront généré avec la direction visuelle {selectedTemplate.label.toLowerCase()}.
           </div>
         </div>
       </div>
@@ -488,7 +488,7 @@ function FinalPagePreview({ product, templateTheme, selectedTemplate }) {
 }
 
 const PRODUCT_SUBSTEPS = [
-  { id: 1, label: 'Template', title: 'Template visuel', description: 'Choisis le type de produit - chaque template a son propre style d\'images et de mise en page.', icon: Layers },
+  { id: 1, label: 'Direction', title: 'Direction visuelle', description: 'Choisis l\'univers visuel des affiches et visuels générés. Le thème final de la page suivra celui de la boutique.', icon: Layers },
   { id: 2, label: 'Source', title: 'Source du produit', description: 'Choisis le mode puis ajoute le lien ou la description à analyser.', icon: Globe },
   { id: 3, label: 'Photos', title: 'Photos réelles du produit', description: 'Ajoute les photos réelles qui serviront de base aux visuels générés.', icon: Upload },
 ];
@@ -519,6 +519,19 @@ const COPYWRITING_APPROACHES = [
 
 const COPYWRITING_SUBSTEPS = ['Méthode'];
 const TARGETING_SUBSTEPS = ['Avatar', 'Problème'];
+
+const IMAGE_GENERATION_MODES = [
+  {
+    id: 'standard',
+    label: 'Visuels IA classiques',
+    description: 'Le modèle génère les visuels dans un cadrage standard, plus polyvalent pour la boutique.',
+  },
+  {
+    id: 'ad_4_5',
+    label: 'Visuels IA en 4:5',
+    description: 'Le modèle génère les visuels en vertical 4:5, plus adaptés aux creatives publicitaires.',
+  },
+];
 
 const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
   const [phase, setPhase] = useState('input');
@@ -553,6 +566,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
   const [targetAvatar, setTargetAvatar] = useState('');
   const [mainProblem, setMainProblem] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [imageGenerationMode, setImageGenerationMode] = useState('ad_4_5');
   
   // AI Store Builder states
   const [buildStep, setBuildStep] = useState(0); // 0-4
@@ -643,21 +657,25 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
             }) || [];
             const peoplePhotos = Array.isArray(imgs.peoplePhotos) ? imgs.peoplePhotos : (prev.peoplePhotos || []);
             const beforeAfterImages = Array.isArray(imgs.beforeAfterImages) ? imgs.beforeAfterImages : (prev.beforeAfterImages || []);
+            const socialProofImages = Array.isArray(imgs.socialProofImages)
+              ? imgs.socialProofImages
+              : [...peoplePhotos, ...beforeAfterImages].filter((value, index, array) => value && array.indexOf(value) === index);
             const allImages = [
               ...peoplePhotos,
               ...(imgs.heroImage ? [imgs.heroImage] : []),
+              ...(imgs.heroPosterImage ? [imgs.heroPosterImage] : []),
               ...beforeAfterImages,
-              ...(imgs.whatsappTestimony ? [imgs.whatsappTestimony] : []),
               ...newAngles.map(a => a.poster_url).filter(Boolean)
             ];
             return {
               ...prev,
               heroImage: imgs.heroImage || prev.heroImage,
+              heroPosterImage: imgs.heroPosterImage || prev.heroPosterImage || newAngles.find(a => a.poster_url)?.poster_url || null,
               beforeAfterImage: imgs.beforeAfterImage || prev.beforeAfterImage,
               beforeAfterImages,
-              whatsappTestimony: imgs.whatsappTestimony || prev.whatsappTestimony,
               angles: newAngles,
               peoplePhotos,
+              socialProofImages,
               allImages: [...(prev.allImages || []), ...allImages].filter((v, i, a) => v && a.indexOf(v) === i),
             };
           });
@@ -911,13 +929,12 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
     }
     
     formData.append('withImages', 'true');
+    formData.append('imageGenerationMode', imageGenerationMode);
+    formData.append('imageAspectRatio', imageGenerationMode === 'ad_4_5' ? '4:5' : '1:1');
     formData.append('marketingApproach', marketingApproach);
     formData.append('visualTemplate', visualTemplate);
     if (heroVisualDirection.trim()) formData.append('heroVisualDirection', heroVisualDirection.trim());
     if (decorationDirection.trim()) formData.append('decorationDirection', decorationDirection.trim());
-    formData.append('titleColor', templateTheme.primary);
-    formData.append('contentColor', templateTheme.text);
-    
     // Paramètres copywriting simplifiés
     formData.append('tone', tone);
     formData.append('language', 'français');
@@ -930,9 +947,9 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
     abortRef.current = controller;
     const safetyTimer = setTimeout(() => {
       controller.abort();
-      setError('Timeout: La génération a pris trop de temps (10 minutes max)');
+      setError('Timeout: La génération a pris trop de temps (25 minutes max)');
       setPhase('input');
-    }, 600000);
+    }, 1500000);
 
     try {
       console.log('🚀 Starting Product Page Generation:', { url: url.trim(), photosCount: photos.length });
@@ -1049,21 +1066,25 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
             }) || [];
             const peoplePhotos = Array.isArray(imgs.peoplePhotos) ? imgs.peoplePhotos : (prev.peoplePhotos || []);
             const beforeAfterImages = Array.isArray(imgs.beforeAfterImages) ? imgs.beforeAfterImages : (prev.beforeAfterImages || []);
+            const socialProofImages = Array.isArray(imgs.socialProofImages)
+              ? imgs.socialProofImages
+              : [...peoplePhotos, ...beforeAfterImages].filter((value, index, array) => value && array.indexOf(value) === index);
             const allImages = [
               ...peoplePhotos,
               ...(imgs.heroImage ? [imgs.heroImage] : []),
+              ...(imgs.heroPosterImage ? [imgs.heroPosterImage] : []),
               ...beforeAfterImages,
-              ...(imgs.whatsappTestimony ? [imgs.whatsappTestimony] : []),
               ...newAngles.map(a => a.poster_url).filter(Boolean)
             ];
             return {
               ...prev,
               heroImage: imgs.heroImage || prev.heroImage,
+              heroPosterImage: imgs.heroPosterImage || prev.heroPosterImage || newAngles.find(a => a.poster_url)?.poster_url || null,
               beforeAfterImage: imgs.beforeAfterImage || prev.beforeAfterImage,
               beforeAfterImages,
-              whatsappTestimony: imgs.whatsappTestimony || prev.whatsappTestimony,
               angles: newAngles,
               peoplePhotos,
+              socialProofImages,
               allImages: [...(prev.allImages || []), ...allImages].filter((v, i, a) => v && a.indexOf(v) === i),
             };
           });
@@ -1194,10 +1215,13 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
     const descriptionContentColor = templateTheme.text;
     const descriptionAccentColor = templateTheme.accent;
     const descriptionSurfaceColor = templateTheme.surface;
-    const descriptionTitleSoft = `${descriptionTitleColor}10`;
-    const descriptionTitleBorder = `${descriptionTitleColor}33`;
-    const descriptionAccentBorder = `${descriptionAccentColor}40`;
-    const descriptionContentSoft = `${descriptionContentColor}CC`;
+    const themePrimaryToken = `var(--s-primary, ${descriptionTitleColor})`;
+    const themeTextToken = `var(--s-text, ${descriptionContentColor})`;
+    const themeMutedToken = `var(--s-text2, ${descriptionContentColor}CC)`;
+    const themeSurfaceToken = `var(--s-bg, ${descriptionSurfaceColor})`;
+    const themeSoftBackground = `color-mix(in srgb, ${themePrimaryToken} 8%, white)`;
+    const themeSoftBorder = `color-mix(in srgb, ${themePrimaryToken} 18%, white)`;
+    const themeBorderToken = `var(--s-border, ${descriptionAccentColor}40)`;
     
     // Build rich HTML description: 5 angles (H3 + desc + image) → testimonials → FAQ
     let descHtml = '';
@@ -1206,15 +1230,15 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
 
     // ── 5 Arguments marketing : H3 gras + description 3-4 lignes + image ─────
     if (product.angles?.length) {
-      descHtml += `<div style="margin:32px 0;color:${descriptionContentColor};">`;
+      descHtml += `<div style="margin:32px 0;color:${themeTextToken};">`;
       product.angles.slice(0, 5).forEach((angle, idx) => {
-        descHtml += `<div style="margin-bottom:40px;padding-bottom:40px;${idx < product.angles.length - 1 ? `border-bottom:1px solid ${descriptionAccentBorder};` : ''}">`;
+        descHtml += `<div style="margin-bottom:40px;padding-bottom:40px;${idx < product.angles.length - 1 ? `border-bottom:1px solid ${themeBorderToken};` : ''}">`;
         // H3 bold title
-        descHtml += `<h3 style="font-size:20px;font-weight:800;color:${descriptionTitleColor};margin:0 0 12px;line-height:1.3;"><strong>${angle.titre_angle}</strong></h3>`;
+        descHtml += `<h3 style="font-size:20px;font-weight:800;color:${themePrimaryToken};margin:0 0 12px;line-height:1.3;"><strong>${angle.titre_angle}</strong></h3>`;
         // 3-4 line description
         const explication = angle.explication || angle.message_principal || '';
         if (explication) {
-          descHtml += `<p style="font-size:15px;line-height:1.75;color:${descriptionContentSoft};margin:0 0 16px;">${explication}</p>`;
+          descHtml += `<p style="font-size:15px;line-height:1.75;color:${themeMutedToken};margin:0 0 16px;">${explication}</p>`;
         }
         // Image UGC (also in carousel)
         if (angle.poster_url) {
@@ -1233,11 +1257,11 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
 
     // ── Raisons d'acheter ──────────────────────────────────────────────────────
     if (product.raisons_acheter?.length) {
-      descHtml += `<div style="margin:32px 0;padding:24px;background:${descriptionTitleSoft};border-radius:16px;border:1px solid ${descriptionTitleBorder};">`;
-      descHtml += `<h3 style="font-size:18px;font-weight:800;color:${descriptionTitleColor};margin:0 0 16px;"><strong>✅ Pourquoi choisir ce produit ?</strong></h3>`;
+      descHtml += `<div style="margin:32px 0;padding:24px;background:${themeSoftBackground};border-radius:16px;border:1px solid ${themeSoftBorder};">`;
+      descHtml += `<h3 style="font-size:18px;font-weight:800;color:${themePrimaryToken};margin:0 0 16px;"><strong>✅ Pourquoi choisir ce produit ?</strong></h3>`;
       descHtml += `<ul style="margin:0;padding:0;list-style:none;">`;
       product.raisons_acheter.forEach(r => {
-        descHtml += `<li style="display:flex;align-items:flex-start;gap:10px;margin-bottom:10px;font-size:14px;color:${descriptionContentColor};"><span style="margin-top:2px;flex-shrink:0;color:${descriptionTitleColor};">✓</span><span>${r}</span></li>`;
+        descHtml += `<li style="display:flex;align-items:flex-start;gap:10px;margin-bottom:10px;font-size:14px;color:${themeTextToken};"><span style="margin-top:2px;flex-shrink:0;color:${themePrimaryToken};">✓</span><span>${r}</span></li>`;
       });
       descHtml += `</ul></div>`;
     }
@@ -1245,14 +1269,14 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
     // ── Guide d'utilisation (si applicable) ───────────────────────────────────
     if (product.guide_utilisation?.applicable !== false && product.guide_utilisation?.etapes?.length) {
       const g = product.guide_utilisation;
-      descHtml += `<div style="margin:40px 0;padding:28px;background:${descriptionTitleSoft};border-radius:20px;border:1px solid ${descriptionAccentBorder};">`;
-      descHtml += `<h3 style="font-size:20px;font-weight:800;color:${descriptionTitleColor};margin:0 0 20px;"><strong>📋 ${g.titre || 'Comment utiliser ce produit'}</strong></h3>`;
+      descHtml += `<div style="margin:40px 0;padding:28px;background:${themeSoftBackground};border-radius:20px;border:1px solid ${themeSoftBorder};">`;
+      descHtml += `<h3 style="font-size:20px;font-weight:800;color:${themePrimaryToken};margin:0 0 20px;"><strong>📋 ${g.titre || 'Comment utiliser ce produit'}</strong></h3>`;
       descHtml += `<div style="display:flex;flex-direction:column;gap:14px;">`;
       g.etapes.forEach((e) => {
         descHtml += `<div style="display:flex;align-items:flex-start;gap:14px;">`;
-        descHtml += `<div style="min-width:32px;height:32px;border-radius:50%;background:${descriptionTitleColor};color:#fff;font-weight:800;font-size:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">${e.numero}</div>`;
-        descHtml += `<div><p style="margin:0 0 4px;font-weight:700;font-size:15px;color:${descriptionTitleColor};">${e.action}</p>`;
-        if (e.detail) descHtml += `<p style="margin:0;font-size:13px;color:${descriptionContentColor};line-height:1.5;">${e.detail}</p>`;
+        descHtml += `<div style="min-width:32px;height:32px;border-radius:50%;background:${themePrimaryToken};color:#fff;font-weight:800;font-size:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">${e.numero}</div>`;
+        descHtml += `<div><p style="margin:0 0 4px;font-weight:700;font-size:15px;color:${themePrimaryToken};">${e.action}</p>`;
+        if (e.detail) descHtml += `<p style="margin:0;font-size:13px;color:${themeTextToken};line-height:1.5;">${e.detail}</p>`;
         descHtml += `</div></div>`;
       });
       descHtml += `</div></div>`;
@@ -1261,104 +1285,65 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
     // ── Garantie / Réassurance ─────────────────────────────────────────────────
     if (product.reassurance?.titre) {
       const r = product.reassurance;
-      descHtml += `<div style="margin:40px 0;padding:28px;background:${descriptionSurfaceColor};border-radius:20px;border:1px solid ${descriptionAccentBorder};">`;
-      descHtml += `<h3 style="font-size:20px;font-weight:800;color:${descriptionTitleColor};margin:0 0 12px;"><strong>🛡️ ${r.titre}</strong></h3>`;
-      if (r.texte) descHtml += `<p style="font-size:15px;color:${descriptionContentColor};line-height:1.7;margin:0 0 16px;">${r.texte}</p>`;
+      descHtml += `<div style="margin:40px 0;padding:28px;background:${themeSurfaceToken};border-radius:20px;border:1px solid ${themeBorderToken};">`;
+      descHtml += `<h3 style="font-size:20px;font-weight:800;color:${themePrimaryToken};margin:0 0 12px;"><strong>🛡️ ${r.titre}</strong></h3>`;
+      if (r.texte) descHtml += `<p style="font-size:15px;color:${themeTextToken};line-height:1.7;margin:0 0 16px;">${r.texte}</p>`;
       if (r.points?.length) {
         descHtml += `<ul style="margin:0;padding:0;list-style:none;">`;
         r.points.forEach(p => {
-          descHtml += `<li style="display:flex;align-items:flex-start;gap:10px;margin-bottom:10px;font-size:14px;color:${descriptionContentColor};font-weight:600;"><span style="flex-shrink:0;color:${descriptionTitleColor};">✅</span><span>${p}</span></li>`;
+          descHtml += `<li style="display:flex;align-items:flex-start;gap:10px;margin-bottom:10px;font-size:14px;color:${themeTextToken};font-weight:600;"><span style="flex-shrink:0;color:${themePrimaryToken};">✅</span><span>${p}</span></li>`;
         });
         descHtml += `</ul>`;
       }
       descHtml += `</div>`;
     }
     
-    // Collect all images - CORRECTED: Include ALL generated images in gallery
-    const allImages = [];
+    const productImages = [];
+    const socialProofImages = [];
 
-    // 0. People lifestyle photos — personnes réelles tenant le produit (haute conversion)
+    const pushUniqueImage = (target, url, alt, type) => {
+      if (!url || target.find((image) => image.url === url)) return;
+      target.push({ url, alt, order: target.length, type });
+    };
+
+    // Social proof images only for the dedicated carousel.
     if (product.peoplePhotos?.length) {
       product.peoplePhotos.forEach((imgUrl, i) => {
-        if (imgUrl && !allImages.find(img => img.url === imgUrl)) {
-          allImages.push({
-            url: imgUrl,
-            alt: `${product.title || 'Produit'} — client ${i + 1}`,
-            order: allImages.length,
-            type: 'lifestyle-photo',
-          });
-        }
+        pushUniqueImage(socialProofImages, imgUrl, `${product.title || 'Produit'} — client ${i + 1}`, 'social-proof-lifestyle');
       });
     }
 
-    // 1. Hero image - always first if available
+    // Hero and native product visuals stay in product images.
     if (product.heroImage) {
-      allImages.push({ url: product.heroImage, alt: product.title || 'Image Hero principale', order: allImages.length });
+      pushUniqueImage(productImages, product.heroImage, product.title || 'Image Hero principale', 'hero');
     }
 
-    // 1b. Hero poster (affiche graphique) - second
-    if (product.heroPosterImage) {
-      allImages.push({ url: product.heroPosterImage, alt: `Affiche — ${product.title || 'Produit'}`, order: 1 });
-    }
-
-    // 2. Before/After images (array of 2) - with backward compat
+    // Social proof before/after visuals go only to the social proof carousel.
     if (product.beforeAfterImages?.length) {
       product.beforeAfterImages.forEach((imgUrl, i) => {
-        if (imgUrl && !allImages.find(img => img.url === imgUrl)) {
-          allImages.push({
-            url: imgUrl,
-            alt: `Avant / Après ${i + 1} — Résultats visibles`,
-            order: allImages.length,
-            type: 'before-after',
-          });
-        }
+        pushUniqueImage(socialProofImages, imgUrl, `Avant / Après ${i + 1} — Résultats visibles`, 'social-proof-before-after');
       });
     } else if (product.beforeAfterImage) {
-      allImages.push({ url: product.beforeAfterImage, alt: 'Avant / Après - Résultats visibles', order: 2, type: 'before-after' });
-    }
-
-    // 2b. WhatsApp testimony
-    if (product.whatsappTestimony) {
-      allImages.push({
-        url: product.whatsappTestimony,
-        alt: 'Témoignage client WhatsApp',
-        order: allImages.length,
-        type: 'whatsapp-testimony',
-      });
+      pushUniqueImage(socialProofImages, product.beforeAfterImage, 'Avant / Après - Résultats visibles', 'social-proof-before-after');
     }
     
-    // 3. Real photos uploaded by user
+    // Real uploaded product photos stay on the product itself.
     if (product.realPhotos?.length) {
       product.realPhotos.forEach((imgUrl, i) => {
-        if (imgUrl && !allImages.find(img => img.url === imgUrl)) {
-          allImages.push({ 
-            url: imgUrl, 
-            alt: product.title || `Photo réelle ${i + 1}`, 
-            order: allImages.length,
-            type: 'real-photo'
-          });
-        }
+        pushUniqueImage(productImages, imgUrl, product.title || `Photo réelle ${i + 1}`, 'real-photo');
       });
     }
-    
-    // 4. IMPORTANT: All 4 marketing posters from angles - THESE ARE THE MISSING IMAGES
-    if (product.angles?.length) {
-      product.angles.forEach((angle, i) => {
-        if (angle.poster_url && !allImages.find(img => img.url === angle.poster_url)) {
-          allImages.push({ 
-            url: angle.poster_url, 
-            alt: angle.titre_angle || `Affiche marketing ${i + 1}`, 
-            order: allImages.length,
-            type: 'marketing-poster'
-          });
-        }
-      });
-    }
+    const finalSocialProofImages = (product.socialProofImages || []).length
+      ? (product.socialProofImages || []).reduce((acc, url, index) => {
+          pushUniqueImage(acc, url, `${product.title || 'Produit'} — preuve sociale ${index + 1}`, 'social-proof');
+          return acc;
+        }, [])
+      : socialProofImages;
     
     onApply({
       name: product.title || '',
       description: descHtml,
-      images: allImages,
+      images: productImages,
       currency: product.currency || '',
       targetMarket: product.targetMarket || product.country || '',
       country: product.country || '',
@@ -1366,11 +1351,9 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
       locale: product.locale || '',
       _pageData: {
         ...product,
-        templateTheme,
+        socialProofImages: finalSocialProofImages.map((image) => image.url),
         heroVisualDirection: heroVisualDirection.trim(),
         decorationDirection: decorationDirection.trim(),
-        titleColor: templateTheme.primary,
-        contentColor: templateTheme.text,
       }
     });
   };
@@ -1875,6 +1858,44 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
                       <span className="text-sm font-bold text-slate-800">Optionnel</span>
                     </div>
                     <p className="text-xs text-gray-500">Ces infos aident l'IA a mieux cibler ta page produit</p>
+                  </div>
+
+                  <div className="space-y-3 rounded-xl border border-[#D8CFC4] bg-white p-4 mb-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1.5 flex items-center gap-1.5">
+                        <ImageIcon className="h-3.5 w-3.5 text-scalor-green" />
+                        Visuels de la page
+                      </label>
+                      <p className="text-xs text-gray-500">Choisis le type de visuels que le modèle doit générer pour cette page produit.</p>
+                    </div>
+
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {IMAGE_GENERATION_MODES.map((mode) => {
+                        const isActive = imageGenerationMode === mode.id;
+                        return (
+                          <button
+                            key={mode.id}
+                            type="button"
+                            onClick={() => setImageGenerationMode(mode.id)}
+                            className={`rounded-xl border p-4 text-left transition ${isActive ? 'border-[#96C7B5] bg-[#E6F2ED]' : 'border-stone-200 bg-stone-50 hover:border-[#D8CFC4] hover:bg-white'}`}
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <p className="text-sm font-semibold text-slate-900">{mode.label}</p>
+                                <p className="mt-1 text-xs leading-5 text-gray-500">{mode.description}</p>
+                              </div>
+                              <div className={`mt-0.5 h-4 w-4 rounded-full border ${isActive ? 'border-[#0F6B4F] bg-[#0F6B4F]' : 'border-stone-300 bg-white'}`} />
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {imageGenerationMode === 'ad_4_5' && (
+                      <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                        Le modèle gardera une composition verticale 4:5 sur les visuels générés pour le hero, les affiches et les images marketing.
+                      </div>
+                    )}
                   </div>
 
                   {/* Avatar cible */}
@@ -2589,7 +2610,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
                     </div>
                   )}
                   {/* Visuels IA galerie principale */}
-                  {(product.heroImage || product.heroPosterImage || product.beforeAfterImage || product.beforeAfterImages?.length || product.whatsappTestimony) && (
+                  {(product.heroImage || product.heroPosterImage) && (
                     <div>
                       <p className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-[#0A5740]"><ImageIcon className="h-3.5 w-3.5" />Visuels galerie principale</p>
                       <div className="grid grid-cols-2 gap-3">
@@ -2605,18 +2626,25 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
                             <p className="text-xs text-center text-gray-400 mt-1">Affiche publicitaire</p>
                           </div>
                         )}
-                        {(product.beforeAfterImages?.length ? product.beforeAfterImages : (product.beforeAfterImage ? [product.beforeAfterImage] : [])).map((imgUrl, i) => (
-                          <div key={`ba-${i}`}>
-                            <ImagePreview src={imgUrl} label={`Avant / Après ${i + 1}`} className="aspect-square" />
-                            <p className="text-xs text-center text-gray-400 mt-1">Transformation {i + 1}</p>
+                      </div>
+                    </div>
+                  )}
+                  {((product.socialProofImages || []).length > 0 || (product.peoplePhotos || []).length > 0 || product.beforeAfterImage || product.beforeAfterImages?.length) && (
+                    <div>
+                      <p className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-[#0A5740]"><Users className="h-3.5 w-3.5" />Preuve sociale générée</p>
+                      <div className="grid grid-cols-2 gap-3">
+                        {((product.socialProofImages || []).length > 0
+                          ? product.socialProofImages
+                          : [
+                              ...(product.peoplePhotos || []),
+                              ...((product.beforeAfterImages?.length ? product.beforeAfterImages : (product.beforeAfterImage ? [product.beforeAfterImage] : []))),
+                            ]
+                        ).map((imgUrl, i) => (
+                          <div key={`sp-${i}`}>
+                            <ImagePreview src={imgUrl} label={`Preuve sociale ${i + 1}`} className="aspect-square" />
+                            <p className="text-xs text-center text-gray-400 mt-1">Carré 1:1 pour le carousel</p>
                           </div>
                         ))}
-                        {product.whatsappTestimony && (
-                          <div>
-                            <ImagePreview src={product.whatsappTestimony} label="Témoignage WhatsApp" className="aspect-square" />
-                            <p className="text-xs text-center text-gray-400 mt-1">Preuve sociale WhatsApp</p>
-                          </div>
-                        )}
                       </div>
                     </div>
                   )}
