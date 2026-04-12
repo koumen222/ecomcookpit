@@ -4,6 +4,7 @@ import { EcomAuthProvider } from './hooks/useEcomAuth.jsx';
 import { CurrencyProvider } from './contexts/CurrencyContext.jsx';
 import { ThemeProvider } from './contexts/ThemeContext.jsx';
 import { StoreProvider } from './contexts/StoreContext.jsx';
+import { useStore } from './contexts/StoreContext.jsx';
 import { useEcomAuth } from './hooks/useEcomAuth.jsx';
 // analytics imported lazily in PageViewTracker — keeps axios out of the critical bundle
 import { usePosthogPageViews } from './hooks/usePosthogPageViews.js';
@@ -350,6 +351,27 @@ const ProtectedRoute = ({ children, requiredRole, requireRitaAgentAccess = false
   return children;
 };
 
+const RequireStore = ({ children }) => {
+  const location = useLocation();
+  const { workspace } = useEcomAuth();
+  const { stores, loading: storesLoading } = useStore();
+
+  if (storesLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="w-8 h-8 border-4 border-gray-200 rounded-full animate-spin" style={{ borderTopColor: '#0F6B4F' }} />
+      </div>
+    );
+  }
+
+  if (workspace?._id && stores.length === 0) {
+    const from = `${location.pathname}${location.search}`;
+    return <Navigate to="/ecom/boutique/wizard" replace state={{ from }} />;
+  }
+
+  return children;
+};
+
 const DashboardRedirect = () => {
   const { user, isAuthenticated } = useEcomAuth();
   const hasLocalSession = !!localStorage.getItem('ecomToken') && !!localStorage.getItem('ecomUser');
@@ -654,9 +676,9 @@ const EcomApp = () => {
                 <Route path="/ecom/boutique/wizard" element={<ProtectedRoute requiredRole="ecom_admin"><StoreCreationWizard /></ProtectedRoute>} />
                 <Route path="/ecom/boutique/nouvelle" element={<ProtectedRoute requiredRole="ecom_admin"><StoreCreationWizard /></ProtectedRoute>} />
                 {/* Builder — full screen, outside BoutiqueLayout */}
-                <Route path="/ecom/boutique/products/generator" element={<ProtectedRoute requiredRole="ecom_admin"><ProductPageGeneratorWizard /></ProtectedRoute>} />
-                <Route path="/ecom/boutique/products/:id/builder" element={<ProtectedRoute requiredRole="ecom_admin"><ProductPageBuilder /></ProtectedRoute>} />
-                <Route element={<ProtectedRoute requiredRole="ecom_admin"><BoutiqueLayout /></ProtectedRoute>}>
+                <Route path="/ecom/boutique/products/generator" element={<ProtectedRoute requiredRole="ecom_admin"><RequireStore><ProductPageGeneratorWizard /></RequireStore></ProtectedRoute>} />
+                <Route path="/ecom/boutique/products/:id/builder" element={<ProtectedRoute requiredRole="ecom_admin"><RequireStore><ProductPageBuilder /></RequireStore></ProtectedRoute>} />
+                <Route element={<ProtectedRoute requiredRole="ecom_admin"><RequireStore><BoutiqueLayout /></RequireStore></ProtectedRoute>}>
                   <Route path="/ecom/boutique" element={<StoreDashboard />} />
                   <Route path="/ecom/boutique/analytics" element={<StoreDashboard />} />
                   <Route path="/ecom/boutique/products" element={<StoreProductsList />} />

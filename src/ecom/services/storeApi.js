@@ -64,8 +64,8 @@ export const storeProductsApi = {
   // ─── Product Page Builder ─────────────────────────────────────────────
   savePageBuilder: (id, pageBuilder) =>
     ecomApi.put(`/store-products/${id}`, { pageBuilder }),
-  duplicateProduct: (id) =>
-    ecomApi.post(`/store-products/${id}/duplicate`),
+  duplicateProduct: (id, data = {}) =>
+    ecomApi.post(`/store-products/${id}/duplicate`, data),
 };
 
 export const storeOrdersApi = {

@@ -177,34 +177,6 @@ ABSOLUTELY NO TEXT on the image. No title, no headline, no words, no labels. Pur
 NO logo, NO watermark, NO price, NO CTA button.`;
 }
 
-/**
- * Build prompt for "why choose us" section image — person wearing branded t-shirt.
- * Shows the store logo on t-shirt if logo URL is provided, otherwise store name text on t-shirt.
- */
-function buildWhyChooseUsImagePrompt(s) {
-  const storeName = s.storeName || 'Notre Boutique';
-  const hasLogo = !!(s.storeLogo || s.logo);
-
-  const brandingInstruction = hasLogo
-    ? `The t-shirt prominently displays the store LOGO — a clear, visible, professional brand logo printed on the front chest area of the t-shirt.`
-    : `The t-shirt prominently displays the store name "${storeName}" — printed in bold, clean, modern typography on the front chest area of the t-shirt. The text "${storeName}" must be clearly readable and centered on the t-shirt.`;
-
-  return `Ultra-realistic 4K professional brand photography.
-
-SCENE: A smiling, confident Black African person wearing a clean, modern CREW-NECK T-SHIRT. ${brandingInstruction}
-
-T-SHIRT DETAILS: Clean solid-color t-shirt (white, black, or brand-colored). The branding/text is sharp, centered, well-sized (not too small, not too large). The t-shirt fits well, looks premium quality.
-
-PERSON: Authentic Black African person with natural features, warm genuine smile, confident posture. Arms relaxed or slightly crossed. Modern stylish appearance — NOT traditional clothing.
-
-SETTING: MODERN UPSCALE environment — clean neutral background, modern studio, or soft-focus contemporary interior. Professional studio lighting with warm tones.
-
-COMPOSITION: Perfect square 1:1 composition, person from waist up, t-shirt clearly visible and fully in frame. The branding on the t-shirt is the focal point. Do not crop the t-shirt branding or the subject.
-
-ABSOLUTELY NO additional text on the image. No headline, no overlay text, no labels. Only the branding on the t-shirt itself.
-NO watermark, NO price, NO CTA button.`;
-}
-
 function buildLogoPrompt({ storeName = 'Boutique', productType = 'autre', themeColor = '#0F6B4F', tone = '', variant = 'wordmark' }) {
   const productTypeLabel = PRODUCT_TYPE_LABELS[productType] || 'retail';
   const toneHint = TONE_LABELS[tone]?.split('—')[0]?.trim() || 'premium';
@@ -270,16 +242,14 @@ async function downloadImageBuffer(url) {
  * Non-blocking: if image generation fails, returns null for that image.
  */
 async function generateHomepageImages(s) {
-  const results = { heroImageUrl: null, storyImageUrl: null };
+  const results = { heroImageUrl: null };
 
   try {
-    // Generate both images in parallel
-    const [heroResult, storyResult] = await Promise.allSettled([
+    const [heroResult] = await Promise.allSettled([
       (async () => {
         console.log('🎨 [Homepage] Generating AI hero image...');
         const heroPrompt = buildHomepageHeroImagePrompt(s);
         const heroTempUrl = await generateNanoBananaImage(heroPrompt, '16:9');
-        // Download and upload to R2 for permanent storage
         const heroBuffer = await downloadImageBuffer(heroTempUrl);
         const heroR2 = await uploadToR2(heroBuffer, `homepage-hero-${Date.now()}.jpg`, 'image/jpeg');
         if (heroR2.success) {
@@ -289,30 +259,12 @@ async function generateHomepageImages(s) {
         console.warn('⚠️ [Homepage] Hero R2 upload failed, using temp URL');
         return heroTempUrl;
       })(),
-      (async () => {
-        console.log('🎨 [Homepage] Generating AI "Notre Histoire" image...');
-        const storyPrompt = buildWhyChooseUsImagePrompt(s);
-        const storyTempUrl = await generateNanoBananaImage(storyPrompt, '1:1');
-        // Download and upload to R2 for permanent storage
-        const storyBuffer = await downloadImageBuffer(storyTempUrl);
-        const storyR2 = await uploadToR2(storyBuffer, `homepage-story-${Date.now()}.jpg`, 'image/jpeg');
-        if (storyR2.success) {
-          console.log('✅ [Homepage] Story image generated and uploaded to R2');
-          return storyR2.url;
-        }
-        console.warn('⚠️ [Homepage] Story R2 upload failed, using temp URL');
-        return storyTempUrl;
-      })(),
     ]);
 
     results.heroImageUrl = heroResult.status === 'fulfilled' ? heroResult.value : null;
-    results.storyImageUrl = storyResult.status === 'fulfilled' ? storyResult.value : null;
 
     if (heroResult.status === 'rejected') {
       console.warn('⚠️ [Homepage] Hero image generation failed:', heroResult.reason?.message);
-    }
-    if (storyResult.status === 'rejected') {
-      console.warn('⚠️ [Homepage] Story image generation failed:', storyResult.reason?.message);
     }
   } catch (err) {
     console.warn('⚠️ [Homepage] Image generation error:', err.message);
@@ -326,13 +278,8 @@ async function generateHomepageImages(s) {
  */
 function injectAIImages(sections, images) {
   return sections.map(sec => {
-    // Hero background image
     if (sec.type === 'hero' && images.heroImageUrl) {
       return { ...sec, config: { ...sec.config, backgroundImage: images.heroImageUrl } };
-    }
-    // Story image on the "Notre Histoire" section
-    if (sec.type === 'image_text' && images.storyImageUrl) {
-      return { ...sec, config: { ...sec.config, image: images.storyImageUrl } };
     }
     return sec;
   });
@@ -438,23 +385,6 @@ function buildFallbackSections(s) {
       }
     },
     {
-      id: 'image-text-1', type: 'image_text', visible: true,
-      config: {
-        layout: 'text_left',
-        title: 'Notre Histoire',
-        subtitle: 'QUI SOMMES-NOUS',
-        content: `Chez ${storeName}, nous croyons en la qualité et l'authenticité. Chaque produit est soigneusement sélectionné pour vous offrir le meilleur.\n\nNotre mission : vous proposer des ${productType.toLowerCase()} exceptionnels, livrés directement chez vous avec soin et rapidité.`,
-        ctaText: 'En savoir plus',
-        ctaLink: '/products',
-        image: '',
-        items: [
-          { icon: '⭐', title: 'Qualité premium' },
-          { icon: '🚚', title: 'Livraison rapide' },
-          { icon: '💬', title: 'Support réactif' },
-        ],
-      }
-    },
-    {
       id: 'banner-1', type: 'banner', visible: true,
       config: {
         title: '🔥 Offre de lancement — Livraison GRATUITE !',
@@ -513,7 +443,6 @@ EXIGENCES COPYWRITING AVANCÉES:
 - Utilise des chiffres concrets et des preuves sociales quand possible ("Plus de 500 client(e)s satisfait(e)s", "Livraison en 24h à Douala")
 - Les témoignages doivent être hyper-spécifiques : mentionner le produit exact, le résultat obtenu, le délai, la ville
 - Les FAQ doivent adresser les vraies objections d'un client africain : authenticité du produit, fiabilité de la livraison, retour possible, modes de paiement locaux
-- Le storytelling (image_text) doit raconter l'histoire du fondateur ou de la marque avec un ancrage local réel
 - Le banner doit créer un sentiment d'urgence CRÉDIBLE (offre limitée, stock limité, bonus temporaire)
 
 Génère la page en JSON: {"sections": [...]}
@@ -529,31 +458,28 @@ config: { items: [ 4 badges de confiance {icon: "emoji", title: "3-4 mots", desc
 3. TYPE "products"
 config: { title (angle niche), subtitle (accroche produits), layout: "grid", columns: 3, showPrice: true, showAddToCart: true, limit: 6 }
 
-4. TYPE "image_text"
-config: { layout: "text_left", title: "Notre Histoire" ou angle storytelling lié à la marque, subtitle: "QUI SOMMES-NOUS" ou label court, content: "2-3 paragraphes storytelling sur la marque, sa mission, pourquoi elle existe, séparés par \\n\\n", ctaText: "En savoir plus", ctaLink: "/products", image: "", items: [ 3 points clés {icon: "emoji", title: "2-4 mots"} ex: qualité, rapidité, support ] }
-
-5. TYPE "features"
+4. TYPE "features"
 config: { title (pourquoi nous, ancré dans la réalité africaine), subtitle, items: [ 4 avantages {icon: "emoji", title, desc (2 phrases spécifiques à la boutique et au marché local)} ] }
 
-6. TYPE "testimonials"
+5. TYPE "testimonials"
 config: { title: "Ils nous font confiance", items: [ 3 {name: "prénom+nom africain authentique", location: "ville réelle ${regions}", content: "témoignage vivant 50-80 mots, ton naturel africain, mentionne un bénéfice concret", rating: 5} ] }
 
-7. TYPE "banner"
+6. TYPE "banner"
 config: { title: "🔥 Offre de lancement — Livraison GRATUITE !" ou promo attractive, content: "1-2 phrases urgence offre limitée", ctaText: "En profiter maintenant", ctaLink: "/products", backgroundImage: "" }
 
-8. TYPE "faq"
+7. TYPE "faq"
 config: { title: "Vos questions, nos réponses", items: [ 4 {question: "vraie question client africain", answer: "réponse claire, rassurante, mentionne Mobile Money/livraison locale si pertinent"} ] }
 
-9. TYPE "contact"
+8. TYPE "contact"
 config: { title: "Parlons-en sur WhatsApp", subtitle: "On vous répond en moins de 10 minutes !", whatsapp: "${s.storeWhatsApp || ''}", address: "${s.city || ''}${s.city && s.country ? ', ' : ''}${s.country || ''}", showForm: false }
 
-10. TYPE "newsletter"
+9. TYPE "newsletter"
 config: { title: "Restez informé(e) !", subtitle: "Inscrivez-vous pour recevoir nos offres exclusives et nouveautés en avant-première.", placeholder: "Votre adresse email", buttonText: "S'inscrire" }
 
 RÈGLES:
 - 100% français, zéro anglais
 - Ton: ${toneLabel.split('—')[0].trim()}
-- IDs: "hero-1", "badges-1", "products-1", "image-text-1", "features-1", "testimonials-1", "banner-1", "faq-1", "contact-1", "newsletter-1"
+- IDs: "hero-1", "badges-1", "products-1", "features-1", "testimonials-1", "banner-1", "faq-1", "contact-1", "newsletter-1"
 - visible: true
 - JSON pur uniquement, sans markdown`;
 }
@@ -625,7 +551,7 @@ RÈGLES DE QUALITÉ NON-NÉGOCIABLES:
 
     // Inject AI-generated images (overrides Unsplash fallback)
     const aiImages = imagesResult.status === 'fulfilled' ? imagesResult.value : {};
-    if (aiImages.heroImageUrl || aiImages.storyImageUrl) {
+    if (aiImages.heroImageUrl) {
       sections = injectAIImages(sections, aiImages);
     }
 

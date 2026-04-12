@@ -186,11 +186,18 @@ const StoreProductsList = () => {
 
   const handleDuplicate = async (product) => {
     try {
-      const res = await storeProductsApi.duplicateProduct(product._id);
+      const res = await storeProductsApi.duplicateProduct(product._id, {
+        targetMarket: product.targetMarket || '',
+        country: product.country || '',
+        city: product.city || '',
+        currency: product.currency || '',
+        locale: product.locale || '',
+      });
       const cloned = res.data?.data;
       if (cloned) {
         setProducts(prev => [cloned, ...prev]);
         setPagination(prev => ({ ...prev, total: prev.total + 1 }));
+        navigate(`${basePath}/products/${cloned._id}/edit`);
       }
     } catch (err) {
       setError('Erreur lors de la duplication');

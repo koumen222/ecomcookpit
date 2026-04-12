@@ -766,13 +766,50 @@ router.post('/:id/duplicate', requireEcomAuth, requireWorkspace, requireStoreOwn
       return res.status(404).json({ success: false, message: 'Produit introuvable' });
     }
 
+    const {
+      name,
+      price,
+      compareAtPrice,
+      currency,
+      targetMarket,
+      country,
+      city,
+      locale,
+      stock,
+      category,
+      tags,
+      isPublished,
+      images,
+      _pageData,
+      productPageConfig
+    } = req.body || {};
+
     const { _id, createdAt, updatedAt, slug, ...rest } = original;
-    const clonedName = `${rest.name} (copie)`;
+    const clonedName = String(name || '').trim() || `${rest.name} (copie)`;
 
     const cloned = new StoreProduct({
       ...rest,
       name: clonedName,
-      isPublished: false,
+      ...(price !== undefined ? { price: Number(price) } : {}),
+      ...(compareAtPrice !== undefined ? { compareAtPrice: compareAtPrice ? Number(compareAtPrice) : null } : {}),
+      ...(currency !== undefined ? { currency: String(currency || '').trim().toUpperCase() } : {}),
+      ...(targetMarket !== undefined ? { targetMarket } : {}),
+      ...(country !== undefined ? { country } : {}),
+      ...(city !== undefined ? { city } : {}),
+      ...(locale !== undefined ? { locale } : {}),
+      ...(stock !== undefined ? { stock: Number(stock) || 0 } : {}),
+      ...(category !== undefined ? { category } : {}),
+      ...(tags !== undefined ? { tags: Array.isArray(tags) ? tags : [] } : {}),
+      ...(images !== undefined ? {
+        images: (Array.isArray(images) ? images : []).filter((image) => image?.url).map((image, index) => ({
+          url: image.url,
+          alt: image.alt || '',
+          order: image.order ?? index,
+        }))
+      } : {}),
+      ...(_pageData !== undefined ? { _pageData } : {}),
+      ...(productPageConfig !== undefined ? { productPageConfig } : {}),
+      isPublished: isPublished === true ? true : false,
       storeId: req.activeStoreId || original.storeId || null,
       createdBy: req.user._id,
       workspaceId: req.workspaceId,

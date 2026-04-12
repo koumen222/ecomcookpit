@@ -1422,6 +1422,18 @@ const SECTION_TYPE_LABELS = {
   spacer: 'Espacement',
 };
 
+const isLegacyStorySection = (section) => {
+  const id = String(section?.id || '').trim().toLowerCase();
+  const title = String(section?.config?.title || '').trim().toLowerCase();
+  const subtitle = String(section?.config?.subtitle || '').trim().toLowerCase();
+
+  return section?.type === 'image_text' && (
+    id === 'image-text-1'
+    || title.includes('notre histoire')
+    || subtitle.includes('qui sommes-nous')
+  );
+};
+
 // ─── Section Renderer ─────────────────────────────────────────────────────────
 const SectionRenderer = ({ section, store, products, prefix }) => {
   if (!section?.type) return null;
@@ -3130,7 +3142,7 @@ const PublicStorefrontInner = () => {
       <StorefrontHeader store={store} cartCount={cartCount} prefix={prefix} />
 
       {hasSections ? (
-        sections.filter(s => isEditMode || s.visible !== false).map(section => (
+        sections.filter(s => (isEditMode || s.visible !== false) && !isLegacyStorySection(s)).map(section => (
           <SectionRenderer key={section.id || section.type} section={section} store={store} products={products} prefix={prefix} />
         ))
       ) : (
