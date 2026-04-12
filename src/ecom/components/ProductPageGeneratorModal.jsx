@@ -1407,14 +1407,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
       target.push({ url, alt, order: target.length, type });
     };
 
-    // Social proof images only for the dedicated carousel.
-    if (product.peoplePhotos?.length) {
-      product.peoplePhotos.forEach((imgUrl, i) => {
-        pushUniqueImage(socialProofImages, imgUrl, `${product.title || 'Produit'} — client ${i + 1}`, 'social-proof-lifestyle');
-      });
-    }
-
-    // Hero visuals only: keep the generated hero simple and editable.
+    // Main carousel: generated visuals should always be available there first.
     if (product.heroImage) {
       pushUniqueImage(productImages, product.heroImage, product.title || 'Image Hero principale', 'hero');
     }
@@ -1422,12 +1415,34 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
       pushUniqueImage(productImages, product.heroPosterImage, `Affiche — ${product.title || 'Produit'}`, 'hero-poster');
     }
 
-    // Social proof before/after visuals go only to the social proof carousel.
+    if (product.angles?.length) {
+      product.angles.forEach((angle, index) => {
+        if (angle?.poster_url) {
+          pushUniqueImage(productImages, angle.poster_url, angle.titre_angle || `${product.title || 'Produit'} — argument ${index + 1}`, 'angle-poster');
+        }
+      });
+    }
+
+    if ((product.socialProofImages || []).length) {
+      (product.socialProofImages || []).forEach((url, index) => {
+        pushUniqueImage(productImages, url, `${product.title || 'Produit'} — preuve sociale ${index + 1}`, 'social-proof');
+      });
+    }
+
+    if (product.peoplePhotos?.length) {
+      product.peoplePhotos.forEach((imgUrl, i) => {
+        pushUniqueImage(productImages, imgUrl, `${product.title || 'Produit'} — client ${i + 1}`, 'social-proof-lifestyle');
+        pushUniqueImage(socialProofImages, imgUrl, `${product.title || 'Produit'} — client ${i + 1}`, 'social-proof-lifestyle');
+      });
+    }
+
     if (product.beforeAfterImages?.length) {
       product.beforeAfterImages.forEach((imgUrl, i) => {
+        pushUniqueImage(productImages, imgUrl, `Avant / Après ${i + 1} — Résultats visibles`, 'social-proof-before-after');
         pushUniqueImage(socialProofImages, imgUrl, `Avant / Après ${i + 1} — Résultats visibles`, 'social-proof-before-after');
       });
     } else if (product.beforeAfterImage) {
+      pushUniqueImage(productImages, product.beforeAfterImage, 'Avant / Après - Résultats visibles', 'social-proof-before-after');
       pushUniqueImage(socialProofImages, product.beforeAfterImage, 'Avant / Après - Résultats visibles', 'social-proof-before-after');
     }
     

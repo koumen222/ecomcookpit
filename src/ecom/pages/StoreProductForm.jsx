@@ -18,11 +18,11 @@ function markdownImagesToHtml(md) {
   );
 }
 
-function buildSimpleHeroImages(productData = {}, fallbackName = '') {
+function buildProductCarouselImages(productData = {}, fallbackName = '') {
   const seen = new Set();
   const output = [];
 
-  const push = (entry, fallbackAlt) => {
+  const push = (entry, fallbackAlt, type = '') => {
     const url = typeof entry === 'string' ? entry : entry?.url;
     if (!url || seen.has(url)) return;
     seen.add(url);
@@ -30,16 +30,47 @@ function buildSimpleHeroImages(productData = {}, fallbackName = '') {
       url,
       alt: typeof entry === 'string' ? fallbackAlt : (entry?.alt || fallbackAlt),
       order: output.length,
+      ...(type ? { type } : {}),
     });
   };
 
-  push(productData.heroImage, productData.name || fallbackName || 'Image hero');
-  push(productData.heroPosterImage, productData.name || fallbackName || 'Affiche hero');
+  const productName = productData.name || productData.title || fallbackName || 'Produit';
+  const incomingImages = Array.isArray(productData.images) ? productData.images : [];
+  const socialProofImages = Array.isArray(productData.socialProofImages) ? productData.socialProofImages : [];
+  const peoplePhotos = Array.isArray(productData.peoplePhotos) ? productData.peoplePhotos : [];
+  const beforeAfterImages = Array.isArray(productData.beforeAfterImages) && productData.beforeAfterImages.length > 0
+    ? productData.beforeAfterImages
+    : (productData.beforeAfterImage ? [productData.beforeAfterImage] : []);
+  const anglePosters = Array.isArray(productData.angles)
+    ? productData.angles.map((angle) => angle?.poster_url).filter(Boolean)
+    : [];
+
+  incomingImages.forEach((image, index) => {
+    push(image, `${productName} — image ${index + 1}`, image?.type || 'product');
+  });
+
+  push(productData.heroImage, productName, 'hero');
+  push(productData.heroPosterImage, `${productName} — visuel principal`, 'hero-poster');
+
+  anglePosters.forEach((imageUrl, index) => {
+    push(imageUrl, `${productName} — argument ${index + 1}`, 'angle-poster');
+  });
+
+  socialProofImages.forEach((image, index) => {
+    push(image, `${productName} — preuve sociale ${index + 1}`, 'social-proof');
+  });
+
+  peoplePhotos.forEach((image, index) => {
+    push(image, `${productName} — client ${index + 1}`, 'social-proof-lifestyle');
+  });
+
+  beforeAfterImages.forEach((image, index) => {
+    push(image, `${productName} — avant / après ${index + 1}`, 'social-proof-before-after');
+  });
 
   if (!output.length) {
-    const incomingImages = Array.isArray(productData.images) ? productData.images : [];
     incomingImages.slice(0, 2).forEach((image, index) => {
-      push(image, productData.name || fallbackName || `Image produit ${index + 1}`);
+      push(image, `${productName} — image ${index + 1}`, image?.type || 'product');
     });
   }
 
@@ -160,7 +191,7 @@ const StoreProductForm = () => {
       });
     }
     
-    const nextImages = buildSimpleHeroImages(aiGenerated, aiGenerated.name || form.name);
+    const nextImages = buildProductCarouselImages(aiGenerated, aiGenerated.name || form.name);
 
     syncHeroWithImages(prev => ({
       ...prev,
@@ -197,7 +228,7 @@ const StoreProductForm = () => {
       });
     }
     
-    const simpleHeroImages = buildSimpleHeroImages(productData, productData.name || form.name);
+    const simpleHeroImages = buildProductCarouselImages(productData, productData.name || form.name);
 
     syncHeroWithImages(prev => ({
       ...prev,

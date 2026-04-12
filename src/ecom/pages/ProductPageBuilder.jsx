@@ -132,6 +132,56 @@ const normalizeProductGalleryContent = (content = {}) => {
   return normalized;
 };
 
+const mergeProductGalleryImages = (...lists) => {
+  const seen = new Set();
+  const merged = [];
+  lists.forEach((list) => {
+    (Array.isArray(list) ? list : []).forEach((entry) => {
+      const url = typeof entry === 'string' ? entry : entry?.url;
+      if (!url || seen.has(url)) return;
+      seen.add(url);
+      merged.push(typeof entry === 'string'
+        ? { url, alt: '', order: merged.length }
+        : { ...entry, url, alt: entry.alt || '', order: entry.order ?? merged.length });
+    });
+  });
+  return merged.map((entry, index) => ({ ...entry, order: index }));
+};
+
+const buildProductGalleryFallbackImages = (product) => {
+  const nativeImages = Array.isArray(product?.images)
+    ? product.images
+        .map((image, index) => ({
+          url: image?.url || '',
+          alt: image?.alt || `${product?.name || 'Produit'} — image ${index + 1}`,
+          order: image?.order ?? index,
+        }))
+        .filter((image) => image.url)
+    : [];
+  const pageData = product?._pageData || {};
+  const socialProof = mergeProductGalleryImages(
+    pageData.socialProofImages,
+    pageData.peoplePhotos,
+    Array.isArray(pageData.beforeAfterImages) && pageData.beforeAfterImages.length > 0
+      ? pageData.beforeAfterImages
+      : (pageData.beforeAfterImage ? [pageData.beforeAfterImage] : [])
+  ).map((image, index) => ({
+    ...image,
+    alt: image.alt || `${product?.name || 'Produit'} — preuve ${index + 1}`,
+  }));
+
+  return mergeProductGalleryImages(nativeImages, socialProof);
+};
+
+const resolveEditorGalleryImages = (gallery, customImages, fallbackImages) => {
+  if (customImages.length > 0) {
+    return gallery.useProductImages !== false
+      ? mergeProductGalleryImages(customImages, fallbackImages)
+      : customImages;
+  }
+  return gallery.useProductImages !== false ? fallbackImages : [];
+};
+
 const MAIN_IMAGE_HEIGHT_OPTIONS = [240, 320, 420, 520, 640, 760, 900];
 const THUMBNAIL_SIZE_OPTIONS = [48, 56, 64, 72, 80, 96, 112, 128, 144, 160];
 
@@ -384,35 +434,20 @@ const SectionContentEditor = ({ section, onChange, product }) => {
     const gallery = normalizeProductGalleryContent(content);
     const customImages = Array.isArray(gallery.images) ? gallery.images : [];
     const validCustomImages = customImages.filter((image) => image?.url);
-    const pageData = product?._pageData || {};
-    const socialProofSource = Array.isArray(pageData.socialProofImages) && pageData.socialProofImages.length > 0
-      ? pageData.socialProofImages
-      : [
-          ...(Array.isArray(pageData.peoplePhotos) ? pageData.peoplePhotos : []),
-          ...(Array.isArray(pageData.beforeAfterImages) && pageData.beforeAfterImages.length > 0
-            ? pageData.beforeAfterImages
-            : (pageData.beforeAfterImage ? [pageData.beforeAfterImage] : [])),
-        ];
-    const productImages = Array.isArray(socialProofSource)
-      ? socialProofSource
-          .map((image) => (typeof image === 'string'
-            ? { url: image, alt: '' }
-            : { url: image?.url || '', alt: image?.alt || '' }))
-          .filter((image) => image.url)
-      : [];
-    const usingNativeImages = validCustomImages.length === 0 && gallery.useProductImages !== false && productImages.length > 0;
-    const images = usingNativeImages ? productImages : customImages;
+    const fallbackImages = buildProductGalleryFallbackImages(product);
+    const usingNativeImages = validCustomImages.length === 0 && gallery.useProductImages !== false && fallbackImages.length > 0;
+    const images = resolveEditorGalleryImages(gallery, validCustomImages, fallbackImages);
     const mainImageHeight = normalizeToPreset(gallery.mainImageHeight, MAIN_IMAGE_HEIGHT_OPTIONS, PRODUCT_GALLERY_DEFAULTS.mainImageHeight);
     const thumbnailSize = normalizeToPreset(gallery.thumbnailSize, THUMBNAIL_SIZE_OPTIONS, PRODUCT_GALLERY_DEFAULTS.thumbnailSize);
-    const saveImages = (nextImages, nextUseProductImages = false) => {
+    const saveImages = (nextImages, nextUseProductImages = gallery.useProductImages !== false) => {
       const validNextImages = Array.isArray(nextImages) ? nextImages.filter((image) => image?.url) : [];
-      const shouldRestoreProductImages = validNextImages.length === 0 && productImages.length > 0;
+      const shouldRestoreProductImages = validNextImages.length === 0 && fallbackImages.length > 0;
       onChange({
         ...section,
         content: {
           ...content,
           ...gallery,
-          images: nextImages,
+          images: validNextImages.map((image, index) => ({ ...image, order: index })),
           useProductImages: shouldRestoreProductImages ? true : nextUseProductImages,
         },
       });
@@ -420,10 +455,10 @@ const SectionContentEditor = ({ section, onChange, product }) => {
     const updateImage = (index, key, val) => {
       const nextImages = [...images];
       nextImages[index] = { ...nextImages[index], [key]: val };
-      saveImages(nextImages, false);
+      saveImages(nextImages);
     };
-    const addImage = () => saveImages([...images, { url: '', alt: '' }], false);
-    const removeImage = (index) => saveImages(images.filter((_, idx) => idx !== index), false);
+    const addImage = () => saveImages([...images, { url: '', alt: '' }]);
+    const removeImage = (index) => saveImages(images.filter((_, idx) => idx !== index));
     const uploadImages = async (files, replaceIndex = null) => {
       if (!files?.length) return;
       setGalleryUploading(true);
@@ -445,7 +480,7 @@ const SectionContentEditor = ({ section, onChange, product }) => {
           return;
         }
 
-        saveImages([...images, ...urls.map((url) => ({ url, alt: '' }))], false);
+        saveImages([...images, ...urls.map((url) => ({ url, alt: '' }))]);
       } catch (error) {
         console.error('Gallery image upload failed:', error);
         const msg = error?.response?.data?.message || error?.message || 'Erreur inconnue';
@@ -459,7 +494,7 @@ const SectionContentEditor = ({ section, onChange, product }) => {
       if (target < 0 || target >= images.length) return;
       const nextImages = [...images];
       [nextImages[index], nextImages[target]] = [nextImages[target], nextImages[index]];
-      saveImages(nextImages, false);
+      saveImages(nextImages);
     };
     return (
       <div className="space-y-3">

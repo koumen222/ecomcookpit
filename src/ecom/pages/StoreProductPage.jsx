@@ -182,17 +182,29 @@ const normalizeProductGalleryConfig = (content = {}) => {
   return normalized;
 };
 
+const mergeGalleryImageEntries = (...lists) => {
+  const seen = new Set();
+  const merged = [];
+  lists.forEach((list) => {
+    (Array.isArray(list) ? list : []).forEach((entry, index) => {
+      const url = typeof entry === 'string' ? entry : entry?.url;
+      if (!url || seen.has(url)) return;
+      seen.add(url);
+      merged.push(typeof entry === 'string'
+        ? { url, alt: '', order: merged.length }
+        : { ...entry, url, alt: entry.alt || '', order: entry.order ?? merged.length ?? index });
+    });
+  });
+  return merged.map((entry, index) => ({ ...entry, order: index }));
+};
+
 const resolveProductGalleryImages = (content = {}, fallbackImages = []) => {
   const customImages = (content.images || []).filter(image => image?.url);
-  // Custom images from page builder ALWAYS take priority over AI/product images
+  const shouldUseFallback = content.useProductImages !== false;
   if (customImages.length > 0) {
-    return customImages;
+    return shouldUseFallback ? mergeGalleryImageEntries(customImages, fallbackImages) : customImages;
   }
-  // Only use product/AI images as fallback when no custom images exist
-  if (content.useProductImages !== false && fallbackImages.length > 0) {
-    return fallbackImages;
-  }
-  return [];
+  return shouldUseFallback ? fallbackImages : [];
 };
 
 const buildSocialProofGalleryImages = (product) => {
@@ -222,6 +234,11 @@ const buildSocialProofGalleryImages = (product) => {
 
   return entries;
 };
+
+const buildProductGalleryFallbackImages = (product) => mergeGalleryImageEntries(
+  buildAiGalleryImages(product),
+  buildSocialProofGalleryImages(product)
+);
 
 const clampDisplayAspectRatio = (ratio) => {
   if (!Number.isFinite(ratio) || ratio <= 0) return 1;
@@ -401,6 +418,7 @@ const ImageGallery = ({ images = [], design = {} }) => {
 const InlinePhotoCarousel = ({ images = [], accentColor = 'var(--s-primary)', config = {} }) => {
   const [activeIndex, setActiveIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
+  const [ratios, setRatios] = useState({});
   const gallery = { ...PRODUCT_GALLERY_DEFAULTS, ...config };
   const mainImageHeight = Math.max(220, Number.parseInt(gallery.mainImageHeight, 10) || 420);
 
@@ -436,6 +454,8 @@ const InlinePhotoCarousel = ({ images = [], accentColor = 'var(--s-primary)', co
   if (!images.length) return null;
 
   const activeImage = images[activeIndex] || images[0];
+  const activeSrc = activeImage?.url || activeImage;
+  const activeRatio = clampDisplayAspectRatio(ratios[activeSrc] || 1);
 
   const navButtonStyle = {
     width: 34,
@@ -508,18 +528,27 @@ const InlinePhotoCarousel = ({ images = [], accentColor = 'var(--s-primary)', co
           background: '#fff',
         }}
       >
-        <div style={{ position: 'relative', aspectRatio: 1, minHeight: 'min(260px, 68vw)', maxHeight: `${mainImageHeight}px`, background: '#f4f4f5' }}>
+        <div style={{ position: 'relative', aspectRatio: activeRatio, minHeight: 'min(260px, 68vw)', maxHeight: `${mainImageHeight}px`, background: '#f4f4f5' }}>
           <img
-            key={`${activeImage.url}-${activeIndex}`}
-            src={activeImage.url}
+            key={`${activeSrc}-${activeIndex}`}
+            src={activeSrc}
             alt={activeImage.alt || 'Client satisfait'}
             loading={activeIndex === 0 ? 'eager' : 'lazy'}
+            onLoad={(event) => {
+              const img = event.currentTarget;
+              const width = img.naturalWidth || 0;
+              const height = img.naturalHeight || 0;
+              if (!activeSrc || !width || !height) return;
+              const ratio = width / height;
+              if (!Number.isFinite(ratio) || ratio <= 0) return;
+              setRatios((prev) => (prev[activeSrc] ? prev : { ...prev, [activeSrc]: ratio }));
+            }}
             style={{
               position: 'absolute',
               inset: 0,
               width: '100%',
               height: '100%',
-              objectFit: 'cover',
+              objectFit: 'contain',
               objectPosition: 'center',
               display: 'block',
             }}
@@ -1958,7 +1987,7 @@ const StoreProductPage = () => {
 
                     case 'productGallery': {
                       const galleryConfig = normalizeProductGalleryConfig(sectionContentMap.productGallery || {});
-                      const galleryImages = resolveProductGalleryImages(galleryConfig, buildSocialProofGalleryImages(product));
+                      const galleryImages = resolveProductGalleryImages(galleryConfig, buildProductGalleryFallbackImages(product));
                       return (
                         <InlinePhotoCarousel
                           key={sectionId}
