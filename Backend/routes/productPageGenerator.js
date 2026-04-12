@@ -1825,7 +1825,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
     const axios = (await import('axios')).default;
 
     // Helper pour générer et uploader une image — avec 1 retry automatique
-    const generateAndUpload = async (prompt, baseBuffer, filename, mode = 'scene', aspectRatio = '1:1') => {
+    const generateAndUpload = async (prompt, baseBuffer, filename, mode = 'scene', aspectRatio = '4:5') => {
       if (!prompt) return null;
 
       const attempt = async () => {
@@ -1944,7 +1944,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
 
     // ── Hero PRO — African FB-ads template (LEFT: product | RIGHT: person + problem) ──
     imageTasks.push(
-      () => generateAndUpload(buildHeroPrompt(gptResult, !!baseImageBuffer, visualTemplate, visualContext), baseImageBuffer, `hero-${Date.now()}.png`, 'hero', '1:1')
+      () => generateAndUpload(buildHeroPrompt(gptResult, !!baseImageBuffer, visualTemplate, visualContext), baseImageBuffer, `hero-${Date.now()}.png`, 'hero', '4:5')
         .then(url => ({ type: 'hero', url }))
     );
 
@@ -1952,13 +1952,13 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
     const beforeAfterPrompt1 = gptResult.prompt_avant_apres || null;
     if (beforeAfterPrompt1) {
       imageTasks.push(
-        () => generateAndUpload(beforeAfterPrompt1, baseImageBuffer, `before-after-1-${Date.now()}.png`, 'before_after', '1:1')
+        () => generateAndUpload(beforeAfterPrompt1, baseImageBuffer, `before-after-1-${Date.now()}.png`, 'before_after', '4:5')
           .then(url => ({ type: 'before_after', index: 0, url }))
       );
     }
     const beforeAfterPrompt2 = buildSecondBeforeAfterPrompt(gptResult);
     imageTasks.push(
-      () => generateAndUpload(beforeAfterPrompt2, baseImageBuffer, `before-after-2-${Date.now()}.png`, 'before_after', '1:1')
+      () => generateAndUpload(beforeAfterPrompt2, baseImageBuffer, `before-after-2-${Date.now()}.png`, 'before_after', '4:5')
         .then(url => ({ type: 'before_after', index: 1, url }))
     );
 
@@ -1983,7 +1983,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
         : flash.prompt + africanRealism;
 
       imageTasks.push(
-        () => generateAndUpload(anglePrompt, baseImageBuffer, `flash-${i + 1}-${Date.now()}.png`, 'scene', '1:1')
+        () => generateAndUpload(anglePrompt, baseImageBuffer, `flash-${i + 1}-${Date.now()}.png`, 'scene', '4:5')
           .then(url => ({ type: 'poster', index: i, url, angle, flashType: flash.type }))
       );
     }
@@ -1992,7 +1992,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
     const peoplePhotoPrompts = buildPeopleHoldingProductPrompts(gptResult, visualContext);
     peoplePhotoPrompts.forEach((peoplePrompt, idx) => {
       imageTasks.push(
-        () => generateAndUpload(peoplePrompt, baseImageBuffer, `people-${idx + 1}-${Date.now()}.png`, 'scene', '1:1')
+        () => generateAndUpload(peoplePrompt, baseImageBuffer, `people-${idx + 1}-${Date.now()}.png`, 'scene', '4:5')
           .then(url => ({ type: 'people_photo', index: idx, url }))
       );
     });
@@ -2000,7 +2000,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
     // ── WhatsApp testimony — 1 screenshot de témoignage WhatsApp ──
     const whatsappPrompt = buildWhatsAppTestimonyPrompt(gptResult);
     imageTasks.push(
-      () => generateAndUpload(whatsappPrompt, baseImageBuffer, `whatsapp-testimony-${Date.now()}.png`, 'scene', '1:1')
+      () => generateAndUpload(whatsappPrompt, baseImageBuffer, `whatsapp-testimony-${Date.now()}.png`, 'scene', '4:5')
         .then(url => ({ type: 'whatsapp_testimony', url }))
     );
 

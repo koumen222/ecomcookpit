@@ -165,6 +165,8 @@ export function useStoreData(subdomain) {
   const [sections, setSections] = useState(cached?.sections ?? null);
   const [products, setProducts] = useState(cached?.products || []);
   const [pixels, setPixels] = useState(cached?.pixels || null);
+  const [footer, setFooter] = useState(cached?.footer || null);
+  const [legalPages, setLegalPages] = useState(cached?.legalPages || null);
   const [loading, setLoading] = useState(!cached);
   const [error, setError] = useState(null);
 
@@ -189,13 +191,17 @@ export function useStoreData(subdomain) {
         const productsData = data.products || [];
 
         const pixelsData = data.pixels || null;
-        if (cacheKey) writeCache(cacheKey, { store: storeData, sections: sectionsData, products: productsData, pixels: pixelsData });
+        const footerData = data.footer || null;
+        const legalPagesData = data.legalPages || null;
+        if (cacheKey) writeCache(cacheKey, { store: storeData, sections: sectionsData, products: productsData, pixels: pixelsData, footer: footerData, legalPages: legalPagesData });
 
         injectStoreCssVars(storeData);
         setStore(storeData);
         setSections(sectionsData);
         setProducts(productsData);
         setPixels(pixelsData);
+        setFooter(footerData);
+        setLegalPages(legalPagesData);
       } catch (err) {
         if (cancelled) return;
         // Only show error if there's nothing to show from cache
@@ -209,7 +215,7 @@ export function useStoreData(subdomain) {
     return () => { cancelled = true; };
   }, [subdomain]);
 
-  return { store, sections, products, pixels, loading, error };
+  return { store, sections, products, pixels, footer, legalPages, loading, error };
 }
 
 // ─── useStoreProduct ──────────────────────────────────────────────────────────
@@ -222,6 +228,7 @@ export function useStoreProduct(subdomain, slug) {
 
   const [store, setStore] = useState(cachedStore?.store || null);
   const [pixels, setPixels] = useState(cachedStore?.pixels || null);
+  const [storeFooter, setStoreFooter] = useState(cachedStore?.footer || null);
   const [product, setProduct] = useState(previewProduct);
   const [related, setRelated] = useState([]);
   const [loading, setLoading] = useState(!previewProduct);
@@ -257,22 +264,27 @@ export function useStoreProduct(subdomain, slug) {
 
         let storeData = cachedStore?.store;
         let pixelsData = cachedStore?.pixels || null;
+        let footerData = cachedStore?.footer || null;
         if (storeRes) {
           const data = storeRes.data?.data || {};
           storeData = data.store || data;
           pixelsData = data.pixels || null;
+          footerData = data.footer || null;
           // Cache store data for future navigations
           if (storeCacheKey) writeCache(storeCacheKey, {
             store: storeData,
             sections: data.sections ?? null,
             products: data.products || [],
             pixels: pixelsData,
+            footer: footerData,
+            legalPages: data.legalPages || null,
           });
         }
 
         injectStoreCssVars(storeData);
         setStore(storeData);
         setPixels(pixelsData);
+        setStoreFooter(footerData);
         setProduct(productData);
 
         // Related products — non-blocking, doesn't delay paint

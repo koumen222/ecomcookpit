@@ -42,49 +42,49 @@ const CREATIVE_FORMATS = [
   {
     id: 'hero-benefits',
     label: 'Bénéfices Clés',
-    aspectRatio: '1:1',
+    aspectRatio: '4:5',
     slideType: 'benefits',
     description: 'Produit centré + icônes bénéfices autour (style "Potent & Effective")',
   },
   {
     id: 'target-promise',
     label: 'Cible & Promesse',
-    aspectRatio: '1:1',
+    aspectRatio: '4:5',
     slideType: 'target',
     description: 'Public cible + produit + promesse de transformation',
   },
   {
     id: 'problem-solution',
     label: 'Problème / Solution',
-    aspectRatio: '1:1',
+    aspectRatio: '4:5',
     slideType: 'problem-solution',
     description: 'Le problème du client → le produit comme solution',
   },
   {
     id: 'how-to-use',
     label: 'Comment Utiliser',
-    aspectRatio: '1:1',
+    aspectRatio: '4:5',
     slideType: 'how-to-use',
     description: 'Mode d\'emploi étape par étape + lifestyle photo',
   },
   {
     id: 'ingredients-trust',
     label: 'Confiance & Qualité',
-    aspectRatio: '1:1',
+    aspectRatio: '4:5',
     slideType: 'trust',
     description: 'Badges certifications (GMO Free, Paraben Free, etc.)',
   },
   {
     id: 'comparison',
     label: 'Comparaison',
-    aspectRatio: '1:1',
+    aspectRatio: '4:5',
     slideType: 'comparison',
     description: 'Notre produit vs Autres — tableau ✓ / ✗',
   },
   {
     id: 'social-proof',
     label: 'Preuve Sociale',
-    aspectRatio: '1:1',
+    aspectRatio: '4:5',
     slideType: 'social-proof',
     description: 'Plusieurs clients satisfaits avec le produit',
   },
@@ -424,7 +424,7 @@ AMBIANCE GLOBALE: ${style.mood}
   const slidePrompts = {
     // ── 1. Problème / Solution ──────────────────────────────────────────────────
     'problem-solution': `
-Generate a ULTRA HD square 1:1 professional e-commerce listing image for "${name}" (category: ${category || 'général'}) — Before/After split screen. Ultra-sharp, photorealistic, print-quality.
+Generate a ULTRA HD vertical 4:5 (1080×1350) professional e-commerce listing image for "${name}" (category: ${category || 'général'}) — Before/After split screen. Ultra-sharp, photorealistic, print-quality.
 
 LAYOUT STYLE: ${layoutStyle} — SPLIT SCREEN vertical, 2 equal halves
 
@@ -458,7 +458,7 @@ ${COMMON_RULES}`,
 
     // ── 2. Bénéfices ────────────────────────────────────────────────────────────
     'benefits': `
-Generate a ULTRA HD square 1:1 professional e-commerce listing image for "${name}" (category: ${category || 'général'}) — key benefits lifestyle style. Ultra-sharp, photorealistic, print-quality.
+Generate a ULTRA HD vertical 4:5 (1080×1350) professional e-commerce listing image for "${name}" (category: ${category || 'général'}) — key benefits lifestyle style. Ultra-sharp, photorealistic, print-quality.
 
 LAYOUT STYLE: ${layoutStyle} — hero product + person + 4 benefit icons
 
@@ -489,7 +489,7 @@ ${COMMON_RULES}`,
 
     // ── 3. Situations d'usage (grille 2×2) ─────────────────────────────────────
     'target': `
-Generate a ULTRA HD square 1:1 professional e-commerce listing image for "${name}" (category: ${category || 'général'}) — 4 real-life usage situations grid. Ultra-sharp, photorealistic, print-quality.
+Generate a ULTRA HD vertical 4:5 (1080×1350) professional e-commerce listing image for "${name}" (category: ${category || 'général'}) — 4 real-life usage situations grid. Ultra-sharp, photorealistic, print-quality.
 
 LAYOUT STYLE: ${layoutStyle} — 2×2 grid showing product in context
 
@@ -527,7 +527,7 @@ ${COMMON_RULES}`,
 
     // ── 4. Mode d'emploi ────────────────────────────────────────────────────────
     'how-to-use': `
-Generate a ULTRA HD square 1:1 professional e-commerce listing image for "${name}" (category: ${category || 'général'}) — step-by-step how-to-use. Ultra-sharp, photorealistic, print-quality.
+Generate a ULTRA HD vertical 4:5 (1080×1350) professional e-commerce listing image for "${name}" (category: ${category || 'général'}) — step-by-step how-to-use. Ultra-sharp, photorealistic, print-quality.
 
 LAYOUT STYLE: ${layoutStyle} — numbered steps with product + person
 
@@ -555,7 +555,7 @@ ${COMMON_RULES}`,
 
     // ── 5. Confiance & Qualité ──────────────────────────────────────────────────
     'trust': `
-Generate a ULTRA HD square 1:1 professional e-commerce listing image for "${name}" (category: ${category || 'général'}) — trust, quality, certification style. Ultra-sharp, photorealistic, print-quality.
+Generate a ULTRA HD vertical 4:5 (1080×1350) professional e-commerce listing image for "${name}" (category: ${category || 'général'}) — trust, quality, certification style. Ultra-sharp, photorealistic, print-quality.
 
 LAYOUT STYLE: ${layoutStyle} — centered product surrounded by certification badges
 
@@ -583,7 +583,7 @@ ${COMMON_RULES}`,
 
     // ── 6. Comparaison ──────────────────────────────────────────────────────────
     'comparison': `
-Generate a ULTRA HD square 1:1 professional e-commerce listing image for "${name}" (category: ${category || 'général'}) — vs competition comparison table. Ultra-sharp, photorealistic, print-quality.
+Generate a ULTRA HD vertical 4:5 (1080×1350) professional e-commerce listing image for "${name}" (category: ${category || 'général'}) — vs competition comparison table. Ultra-sharp, photorealistic, print-quality.
 
 LAYOUT STYLE: ${layoutStyle} — comparison split
 
@@ -620,7 +620,7 @@ ${COMMON_RULES}`,
 
     // ── 7. Preuve sociale ───────────────────────────────────────────────────────
     'social-proof': `
-Generate a ULTRA HD square 1:1 professional e-commerce listing image for "${name}" (category: ${category || 'général'}) — customer testimonials social proof. Ultra-sharp, photorealistic, print-quality.
+Generate a ULTRA HD vertical 4:5 (1080×1350) professional e-commerce listing image for "${name}" (category: ${category || 'général'}) — customer testimonials social proof. Ultra-sharp, photorealistic, print-quality.
 
 LAYOUT STYLE: ${layoutStyle} — testimonial grid
 

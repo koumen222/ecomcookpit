@@ -590,6 +590,168 @@ RÈGLES DE QUALITÉ NON-NÉGOCIABLES:
   }
 }
 
+// ─── Footer + Pages Légales — Génération IA ──────────────────────────────────
+
+function buildFooterAndLegalPrompt(s) {
+  const storeName = s.storeName || 'Notre Boutique';
+  const country = s.country || 'Cameroun';
+  const city = s.city || '';
+  const whatsapp = s.storeWhatsApp || '';
+  const email = s.storeEmail || '';
+  const description = s.storeDescription || '';
+  const productType = PRODUCT_TYPE_LABELS[s.productType] || s.productType || 'Produits divers';
+
+  return `Tu es un expert en création de boutiques e-commerce pour le marché africain (paiement à la livraison).
+
+BOUTIQUE:
+- Nom: ${storeName}
+- Catégorie: ${productType}
+- Description: ${description}
+- Pays cible: ${country}
+- Ville: ${city || 'Non précisée'}
+- WhatsApp: ${whatsapp}
+- Email: ${email}
+- Paiement: Paiement à la livraison (Cash on Delivery)
+- Délai livraison: 24h à 72h
+
+Génère en JSON un objet avec 2 clés: "footer" et "legalPages".
+
+═══ 1. FOOTER ═══
+Un footer professionnel et optimisé conversion. Objet JSON:
+{
+  "description": "Description courte orientée bénéfice client (1-2 phrases, simple et rassurante)",
+  "quickLinks": [
+    { "label": "Accueil", "href": "/" },
+    { "label": "Nos Produits", "href": "/products" },
+    { "label": "Suivi de commande", "href": "/track" }
+  ],
+  "legalLinks": [
+    { "label": "Politique de confidentialité", "href": "/legal/confidentialite" },
+    { "label": "Conditions Générales de Vente", "href": "/legal/cgv" },
+    { "label": "Mentions légales", "href": "/legal/mentions" },
+    { "label": "Politique de remboursement", "href": "/legal/remboursement" }
+  ],
+  "paymentMethods": ["Paiement à la livraison", "Mobile Money"],
+  "deliveryInfo": "Livraison rapide en 24h à 72h dans tout le ${country}"
+}
+
+═══ 2. PAGES LÉGALES ═══
+Objet JSON avec 4 clés. Chaque page est un objet { "title": "...", "content": "..." }.
+Le content est du HTML simple (h2, h3, p, ul/li) — PAS de markdown.
+Le langage doit être SIMPLE, accessible, compréhensible en Afrique francophone.
+Style professionnel mais PAS de termes juridiques compliqués.
+Adapté au pays: ${country}.
+
+{
+  "confidentialite": {
+    "title": "Politique de Confidentialité",
+    "content": "HTML avec sections: Données collectées (nom, téléphone, adresse de livraison), Utilisation des données (traitement commande, livraison, communication marketing), Protection des données, Partage avec partenaires (livreurs uniquement), Contact (WhatsApp/email de la boutique)"
+  },
+  "cgv": {
+    "title": "Conditions Générales de Vente",
+    "content": "HTML avec sections: Objet (vente en ligne avec livraison au ${country}), Processus de commande (commande via site/WhatsApp, confirmation, préparation, livraison), Paiement à la livraison (le client paie en espèces ou Mobile Money à la réception), Prix (en devise locale, TTC), Délais de livraison (24h à 72h selon la zone), Refus de commande (droit de refus si produit non conforme), Responsabilités, Litiges (résolution amiable par WhatsApp)"
+  },
+  "mentions": {
+    "title": "Mentions Légales",
+    "content": "HTML avec: Nom de la marque (${storeName}), Activité (vente en ligne de ${productType}), Contact (${whatsapp || email || 'WhatsApp de la boutique'}), Localisation (${city ? city + ', ' : ''}${country}), Hébergement (site hébergé par Scalor)"
+  },
+  "remboursement": {
+    "title": "Politique de Remboursement",
+    "content": "HTML avec sections: Principe (pas de paiement en ligne, paiement à la livraison uniquement), Vérification à la livraison (le client vérifie le produit avant de payer), Conditions de retour (produit défectueux ou erreur de commande uniquement), Procédure (contacter le support WhatsApp dans les 48h), Cas acceptés (produit défectueux, produit différent de la commande, colis endommagé), Cas non acceptés (changement d'avis après paiement, produit utilisé), Délai de traitement (remplacement ou remboursement sous 7 jours)"
+  }
+}
+
+RÈGLES:
+- 100% français simple et naturel
+- Adapté au contexte e-commerce africain (COD, Mobile Money, WhatsApp)
+- Le HTML doit être propre: h2 pour les titres de section, h3 pour sous-titres, p pour paragraphes, ul/li pour listes
+- Pas de CSS inline dans le HTML
+- Remplace les placeholders par les vraies infos de la boutique
+- JSON pur uniquement, sans markdown ni texte autour`;
+}
+
+function buildFallbackFooterAndLegal(s) {
+  const storeName = s.storeName || 'Notre Boutique';
+  const country = s.country || 'Cameroun';
+  const city = s.city || '';
+  const whatsapp = s.storeWhatsApp || '';
+  const email = s.storeEmail || '';
+  const productType = PRODUCT_TYPE_LABELS[s.productType] || s.productType || 'Produits divers';
+  const contact = whatsapp || email || 'notre support';
+
+  return {
+    footer: {
+      description: `${storeName} — Votre boutique de confiance pour des produits de qualité livrés directement chez vous.`,
+      quickLinks: [
+        { label: 'Accueil', href: '/' },
+        { label: 'Nos Produits', href: '/products' },
+        { label: 'Suivi de commande', href: '/track' },
+      ],
+      legalLinks: [
+        { label: 'Politique de confidentialité', href: '/legal/confidentialite' },
+        { label: 'Conditions Générales de Vente', href: '/legal/cgv' },
+        { label: 'Mentions légales', href: '/legal/mentions' },
+        { label: 'Politique de remboursement', href: '/legal/remboursement' },
+      ],
+      paymentMethods: ['Paiement à la livraison', 'Mobile Money'],
+      deliveryInfo: `Livraison rapide en 24h à 72h dans tout le ${country}`,
+    },
+    legalPages: {
+      confidentialite: {
+        title: 'Politique de Confidentialité',
+        content: `<h2>Politique de Confidentialité</h2><p>${storeName} s'engage à protéger vos données personnelles.</p><h3>Données collectées</h3><p>Nous collectons uniquement les informations nécessaires au traitement de votre commande : nom, prénom, numéro de téléphone et adresse de livraison.</p><h3>Utilisation des données</h3><ul><li>Traitement et suivi de votre commande</li><li>Livraison de vos produits</li><li>Communication concernant votre commande</li></ul><h3>Protection</h3><p>Vos données sont stockées de manière sécurisée et ne sont jamais vendues à des tiers.</p><h3>Partage</h3><p>Vos informations de livraison sont partagées uniquement avec nos partenaires livreurs pour assurer la bonne réception de votre colis.</p><h3>Contact</h3><p>Pour toute question, contactez-nous via ${contact}.</p>`
+      },
+      cgv: {
+        title: 'Conditions Générales de Vente',
+        content: `<h2>Conditions Générales de Vente</h2><h3>Objet</h3><p>Les présentes conditions régissent la vente en ligne de ${productType} par ${storeName} au ${country}.</p><h3>Commande</h3><p>Vous pouvez passer commande via notre site ou par WhatsApp. Chaque commande est confirmée par un message de notre équipe.</p><h3>Paiement</h3><p>Le paiement se fait à la livraison (Cash on Delivery). Vous payez en espèces ou par Mobile Money au moment de la réception de votre colis.</p><h3>Livraison</h3><p>Nous livrons dans un délai de 24h à 72h selon votre zone${city ? ` (${city} et environs)` : ''}. Les frais de livraison sont indiqués lors de la commande.</p><h3>Refus</h3><p>Vous avez le droit de refuser votre commande à la livraison si le produit n'est pas conforme à votre commande.</p><h3>Litiges</h3><p>En cas de problème, contactez-nous via ${contact}. Nous privilégions toujours la résolution amiable.</p>`
+      },
+      mentions: {
+        title: 'Mentions Légales',
+        content: `<h2>Mentions Légales</h2><h3>Identité</h3><p>Nom de la marque : ${storeName}</p><p>Activité : Vente en ligne de ${productType}</p><h3>Contact</h3><p>${whatsapp ? `WhatsApp : ${whatsapp}` : ''}${whatsapp && email ? '<br/>' : ''}${email ? `Email : ${email}` : ''}</p><h3>Localisation</h3><p>${city ? city + ', ' : ''}${country}</p><h3>Hébergement</h3><p>Ce site est hébergé par Scalor (scalor.net).</p>`
+      },
+      remboursement: {
+        title: 'Politique de Remboursement',
+        content: `<h2>Politique de Remboursement</h2><h3>Principe</h3><p>Chez ${storeName}, vous payez uniquement à la réception de votre commande. Aucun paiement en ligne n'est requis.</p><h3>Vérification</h3><p>À la livraison, vous pouvez vérifier votre produit avant de payer. Si le produit ne correspond pas à votre commande, vous pouvez le refuser.</p><h3>Cas acceptés pour un retour</h3><ul><li>Produit défectueux ou endommagé</li><li>Produit différent de ce qui a été commandé</li><li>Colis endommagé pendant le transport</li></ul><h3>Cas non acceptés</h3><ul><li>Changement d'avis après paiement et réception</li><li>Produit déjà utilisé</li></ul><h3>Procédure</h3><p>Contactez notre support via ${contact} dans les 48h suivant la réception. Nous vous proposerons un remplacement ou un remboursement sous 7 jours.</p>`
+      }
+    }
+  };
+}
+
+async function generateFooterAndLegalPages(s) {
+  const groq = getGroq();
+  if (!groq) return buildFallbackFooterAndLegal(s);
+
+  try {
+    const prompt = buildFooterAndLegalPrompt(s);
+    const response = await groq.chat.completions.create({
+      model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
+      messages: [
+        {
+          role: 'system',
+          content: `Tu génères UNIQUEMENT du JSON valide. Pas de texte en dehors du JSON. Le JSON contient un objet avec 2 clés: "footer" (configuration du footer) et "legalPages" (4 pages légales en HTML simple). Le contenu doit être adapté au e-commerce africain avec paiement à la livraison.`
+        },
+        { role: 'user', content: prompt }
+      ],
+      max_tokens: 5000,
+      temperature: 0.6,
+      response_format: { type: 'json_object' }
+    });
+
+    const raw = response.choices[0]?.message?.content || '{}';
+    const parsed = JSON.parse(raw);
+
+    if (!parsed.footer || !parsed.legalPages) {
+      throw new Error('Structure footer/legalPages invalide');
+    }
+
+    console.log('✅ Footer + pages légales générés par IA');
+    return parsed;
+  } catch (err) {
+    console.warn('⚠️ Footer/Legal generation failed, using fallback:', err.message);
+    return buildFallbackFooterAndLegal(s);
+  }
+}
+
 const router = express.Router();
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -972,10 +1134,23 @@ router.post('/generate-homepage', requireEcomAuth, requireWorkspace, async (req,
 
     // Merge req.body over DB settings so wizard data always takes priority
     const s = { ...(workspace.storeSettings || {}), ...req.body };
-    const sections = await generateAIHomepageSections(s);
 
-    console.log(`✅ AI homepage generated: ${sections.length} sections for workspace ${req.workspaceId}`);
-    res.json({ success: true, sections });
+    // Générer homepage + footer/legal en parallèle
+    const [sections, footerAndLegal] = await Promise.all([
+      generateAIHomepageSections(s),
+      generateFooterAndLegalPages(s),
+    ]);
+
+    // Sauvegarder footer + pages légales en base
+    const updateFields = {};
+    if (footerAndLegal.footer) updateFields.storeFooter = footerAndLegal.footer;
+    if (footerAndLegal.legalPages) updateFields.storeLegalPages = footerAndLegal.legalPages;
+    if (Object.keys(updateFields).length > 0) {
+      await EcomWorkspace.findByIdAndUpdate(req.workspaceId, { $set: updateFields });
+    }
+
+    console.log(`✅ AI homepage generated: ${sections.length} sections + footer + legal pages for workspace ${req.workspaceId}`);
+    res.json({ success: true, sections, footer: footerAndLegal.footer, legalPages: footerAndLegal.legalPages });
   } catch (error) {
     console.error('Erreur POST /store-manage/generate-homepage:', error.message);
     res.status(500).json({ success: false, message: 'Erreur lors de la génération de la page' });
@@ -1006,18 +1181,28 @@ router.post('/regenerate-homepage', requireEcomAuth, requireWorkspace, async (re
 
     // Merge req.body over DB settings so caller data always takes priority
     const s = { ...(workspace.storeSettings || {}), ...req.body };
-    const sections = await generateAIHomepageSections(s);
 
-    // Save the new sections — to Store if available, else Workspace
+    // Générer homepage + footer/legal en parallèle
+    const [sections, footerAndLegal] = await Promise.all([
+      generateAIHomepageSections(s),
+      generateFooterAndLegalPages(s),
+    ]);
+
+    // Save the new sections + footer + legal — to Store if available, else Workspace
     const activeStore = await getActiveStore(req);
+    const updateFields = {
+      storePages: { sections },
+      storeFooter: footerAndLegal.footer || null,
+      storeLegalPages: footerAndLegal.legalPages || null,
+    };
     if (activeStore) {
-      await Store.findByIdAndUpdate(activeStore._id, { $set: { storePages: { sections } } });
+      await Store.findByIdAndUpdate(activeStore._id, { $set: updateFields });
     } else {
-      await EcomWorkspace.findByIdAndUpdate(req.workspaceId, { $set: { storePages: { sections } } });
+      await EcomWorkspace.findByIdAndUpdate(req.workspaceId, { $set: updateFields });
     }
 
-    console.log(`✅ Homepage regenerated: ${sections.length} sections for workspace ${req.workspaceId}`);
-    res.json({ success: true, sections });
+    console.log(`✅ Homepage regenerated: ${sections.length} sections + footer + legal for workspace ${req.workspaceId}`);
+    res.json({ success: true, sections, footer: footerAndLegal.footer, legalPages: footerAndLegal.legalPages });
   } catch (error) {
     console.error('Erreur POST /store-manage/regenerate-homepage:', error.message);
     res.status(500).json({ success: false, message: 'Erreur lors de la régénération' });

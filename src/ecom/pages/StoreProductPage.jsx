@@ -225,6 +225,7 @@ const ImageGallery = ({ images = [], design = {} }) => {
         style={{
           position: 'relative', paddingBottom: heroPaddingBottomPct,
           backgroundColor: '#f4f4f5', overflow: 'hidden', borderRadius,
+          maxHeight: '75vh',
           cursor: zoomEnabled ? 'zoom-in' : 'default',
         }}
         onClick={zoomEnabled ? () => setZoomed(true) : undefined}
@@ -452,7 +453,7 @@ const InlinePhotoCarousel = ({ images = [], accentColor = 'var(--s-primary)', co
           background: '#fff',
         }}
       >
-        <div style={{ position: 'relative', paddingBottom: '100%', background: '#f4f4f5' }}>
+        <div style={{ position: 'relative', paddingBottom: '125%', maxHeight: '75vh', background: '#f4f4f5' }}>
           {images.map((image, index) => (
             <img
               key={`${image.url}-${index}`}
@@ -1694,7 +1695,7 @@ const StoreProductPage = () => {
         .theme-classic .product-info { padding:var(--pp-mobile-info-padding) var(--pp-mobile-info-padding) 48px; }
         @media(min-width:769px){
           .product-grid.theme-classic { grid-template-columns:1fr 1fr; gap:var(--pp-gap); }
-          .theme-classic .product-gallery { position:sticky; top:72px; }
+          .theme-classic .product-gallery { position:sticky; top:72px; max-height:75vh; }
           .theme-classic .product-info { padding:0 var(--pp-desktop-info-padding) 48px 0; }
         }
 
@@ -1722,7 +1723,7 @@ const StoreProductPage = () => {
         .theme-landing .ai-desc img { border-radius:16px; margin:32px 0 !important; box-shadow:0 12px 32px rgba(0,0,0,0.08); }
         .theme-landing .order-btn-wrapper button { min-height:72px !important; font-size:20px !important; border-radius:100px !important; }
         @media(min-width:769px){
-          .theme-landing .product-gallery { height:85vh; }
+          .theme-landing .product-gallery { height:75vh; }
           .theme-landing .product-info { padding:0 calc(var(--pp-landing-padding) + 8px) 100px; margin-top:-20vh; }
         }
         /* Hide navbar completely for landing pages to remove distractions */

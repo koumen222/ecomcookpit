@@ -115,7 +115,7 @@ async function resolveStore(subdomain) {
     isActive: true,
     'storeSettings.isStoreEnabled': true
   })
-  .select('_id workspaceId name subdomain storeSettings storeTheme storePages storePixels storePayments storeDomains storeDeliveryZones whatsappAutoConfirm whatsappOrderTemplate whatsappAutoInstanceId whatsappAutoImageUrl whatsappAutoAudioUrl whatsappAutoVideoUrl whatsappAutoDocumentUrl whatsappAutoSendOrder whatsappAutoProductMediaRules')
+  .select('_id workspaceId name subdomain storeSettings storeTheme storePages storeFooter storeLegalPages storePixels storePayments storeDomains storeDeliveryZones whatsappAutoConfirm whatsappOrderTemplate whatsappAutoInstanceId whatsappAutoImageUrl whatsappAutoAudioUrl whatsappAutoVideoUrl whatsappAutoDocumentUrl whatsappAutoSendOrder whatsappAutoProductMediaRules')
   .lean();
 
   if (store) {
@@ -130,7 +130,7 @@ async function resolveStore(subdomain) {
     isActive: true,
     'storeSettings.isStoreEnabled': true
   })
-  .select('_id name subdomain storeSettings storeTheme storePages storePixels storePayments storeDomains storeDeliveryZones whatsappAutoConfirm whatsappOrderTemplate whatsappAutoInstanceId whatsappAutoImageUrl whatsappAutoAudioUrl whatsappAutoVideoUrl whatsappAutoDocumentUrl whatsappAutoSendOrder whatsappAutoProductMediaRules')
+  .select('_id name subdomain storeSettings storeTheme storePages storeFooter storeLegalPages storePixels storePayments storeDomains storeDeliveryZones whatsappAutoConfirm whatsappOrderTemplate whatsappAutoInstanceId whatsappAutoImageUrl whatsappAutoAudioUrl whatsappAutoVideoUrl whatsappAutoDocumentUrl whatsappAutoSendOrder whatsappAutoProductMediaRules')
   .lean();
 
   if (workspace) {
@@ -310,6 +310,10 @@ router.get('/:subdomain', readLimiter, async (req, res) => {
         },
         // Page sections: null = never configured (use defaults), [] = builder empty page
         sections: pages ? (pages.sections ?? null) : null,
+        // Footer config (AI-generated)
+        footer: workspace.storeFooter || null,
+        // Legal pages content (AI-generated)
+        legalPages: workspace.storeLegalPages || null,
         // Pixel IDs for tracking injection
         pixels: {
           metaPixelId: pixels.metaPixelId || '',

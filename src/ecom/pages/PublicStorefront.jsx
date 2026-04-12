@@ -2791,7 +2791,7 @@ export const StoreAllProducts = () => {
           </div>
         )}
       </div>
-      <SharedStorefrontFooter store={store} prefix={prefix} />
+      <SharedStorefrontFooter store={store} prefix={prefix} footer={footer} />
     </div>
   );
 };
@@ -2804,7 +2804,7 @@ const PublicStorefrontInner = () => {
   const subdomain = paramSubdomain || detectedSubdomain;
   const prefix = isStoreDomain ? '' : (subdomain ? `/store/${subdomain}` : '');
 
-  const { store, sections, products, pixels: innerPixels, loading, error } = useStoreData(subdomain);
+  const { store, sections, products, pixels: innerPixels, footer, legalPages, loading, error } = useStoreData(subdomain);
   const { cartCount } = useStoreCart(subdomain);
   const { isEditMode } = useEditMode();
   const [activeCategory, setActiveCategory] = useState('all');
@@ -2923,7 +2923,7 @@ const PublicStorefrontInner = () => {
         </>
       )}
 
-      <SharedStorefrontFooter store={store} prefix={prefix} />
+      <SharedStorefrontFooter store={store} prefix={prefix} footer={footer} />
       
       {/* Mobile Bottom Navigation (visible uniquement sur mobile) */}
       <MobileBottomNav prefix={prefix} cartCount={cartCount} store={store} />
@@ -2960,6 +2960,57 @@ const PublicStorefront = () => {
     <EditModeProvider storeId={subdomain} isOwner={isOwner}>
       <PublicStorefrontInner />
     </EditModeProvider>
+  );
+};
+
+// ── Legal Page Component ─────────────────────────────────────────────────────
+export const StoreLegalPage = () => {
+  const { subdomain: paramSubdomain, pageType } = useParams();
+  const { subdomain: detectedSubdomain, isStoreDomain } = useSubdomain();
+  const subdomain = paramSubdomain || detectedSubdomain;
+  const prefix = isStoreDomain ? '' : (subdomain ? `/store/${subdomain}` : '');
+
+  const { store, footer, legalPages, loading } = useStoreData(subdomain);
+  const { cartCount } = useStoreCart(subdomain);
+
+  const validPages = ['confidentialite', 'cgv', 'mentions', 'remboursement'];
+  const page = validPages.includes(pageType) ? legalPages?.[pageType] : null;
+
+  if (loading) return (
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ width: 32, height: 32, border: '3px solid #E5E7EB', borderTopColor: 'var(--s-primary, #0F6B4F)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+      <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
+    </div>
+  );
+
+  return (
+    <div style={{ minHeight: '100vh', backgroundColor: 'var(--s-bg, #fff)', fontFamily: 'var(--s-font, Inter, sans-serif)', color: 'var(--s-text, #111)' }}>
+      <StorefrontHeader store={store} cartCount={cartCount} prefix={prefix} />
+
+      <div style={{ maxWidth: 800, margin: '0 auto', padding: 'clamp(40px, 6vw, 80px) 20px' }}>
+        {page ? (
+          <>
+            <h1 style={{ fontSize: 'clamp(24px, 4vw, 36px)', fontWeight: 800, marginBottom: 32, color: 'var(--s-text)' }}>
+              {page.title}
+            </h1>
+            <div
+              style={{ fontSize: 15, lineHeight: 1.8, color: '#374151' }}
+              dangerouslySetInnerHTML={{ __html: page.content }}
+            />
+          </>
+        ) : (
+          <div style={{ textAlign: 'center', padding: '80px 20px' }}>
+            <h1 style={{ fontSize: 24, fontWeight: 700, marginBottom: 12 }}>Page introuvable</h1>
+            <p style={{ color: '#6B7280', marginBottom: 24 }}>Cette page légale n'est pas disponible.</p>
+            <Link to={`${prefix}/`} style={{ color: 'var(--s-primary)', fontWeight: 600, textDecoration: 'none' }}>
+              Retour à l'accueil
+            </Link>
+          </div>
+        )}
+      </div>
+
+      <SharedStorefrontFooter store={store} prefix={prefix} footer={footer} />
+    </div>
   );
 };
 

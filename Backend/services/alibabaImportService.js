@@ -232,7 +232,7 @@ export async function generateMarketingImages(productName, description) {
         model: 'dall-e-3',
         prompt: prompts[i],
         n: 1,
-        size: '1024x1024',
+        size: '1024x1792',
         quality: 'hd', // HD quality for more realistic images
         style: 'vivid' // More vibrant and realistic
       });
@@ -251,7 +251,7 @@ export async function generateMarketingImages(productName, description) {
             model: 'dall-e-3',
             prompt: prompts[i],
             n: 1,
-            size: '1024x1024',
+            size: '1024x1792',
             quality: 'standard',
             style: 'vivid'
           });

@@ -189,9 +189,24 @@ export const StorefrontHeader = ({ store, cartCount = 0, prefix = '' }) => {
 };
 
 // ── Shared Footer (full, professional) ──────────────────────────────────────
-export const StorefrontFooter = ({ store, prefix = '' }) => {
+export const StorefrontFooter = ({ store, prefix = '', footer = null }) => {
   const whatsapp = store?.whatsapp?.replace(/\D/g, '');
   const waLink = whatsapp ? `https://wa.me/${whatsapp}` : null;
+
+  // Liens rapides : utiliser le footer généré ou fallback
+  const quickLinks = footer?.quickLinks || [
+    { label: 'Accueil', href: '/' },
+    { label: 'Nos Produits', href: '/products' },
+  ];
+  const legalLinks = footer?.legalLinks || [
+    { label: 'Confidentialité', href: '/legal/confidentialite' },
+    { label: 'CGV', href: '/legal/cgv' },
+    { label: 'Mentions légales', href: '/legal/mentions' },
+    { label: 'Remboursement', href: '/legal/remboursement' },
+  ];
+  const paymentMethods = footer?.paymentMethods || ['Paiement à la livraison', 'Mobile Money'];
+  const footerDesc = footer?.description || store?.description || '';
+  const deliveryInfo = footer?.deliveryInfo || '';
 
   return (
     <footer style={{
@@ -224,25 +239,27 @@ export const StorefrontFooter = ({ store, prefix = '' }) => {
             )}
             <span style={{ fontWeight: 700, fontSize: 17, color: '#fff' }}>{store?.name}</span>
           </div>
-          {store?.description && (
+          {footerDesc && (
             <p style={{ fontSize: 13, lineHeight: 1.65, margin: '0 0 16px', maxWidth: 340, color: 'rgba(255,255,255,0.55)' }}>
-              {store.description}
+              {footerDesc}
             </p>
           )}
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {[
-              { icon: <CreditCard size={14} />, label: 'Carte' },
-              { icon: <MessageCircle size={14} />, label: 'Mobile Money' },
-            ].map((m, i) => (
+            {paymentMethods.map((m, i) => (
               <div key={i} style={{
                 display: 'flex', alignItems: 'center', gap: 5,
                 padding: '5px 10px', backgroundColor: 'rgba(255,255,255,0.08)',
                 borderRadius: 5, fontSize: 11, color: 'rgba(255,255,255,0.6)',
               }}>
-                {m.icon}<span>{m.label}</span>
+                <CreditCard size={14} /><span>{m}</span>
               </div>
             ))}
           </div>
+          {deliveryInfo && (
+            <p style={{ fontSize: 12, margin: '12px 0 0', color: 'rgba(255,255,255,0.45)' }}>
+              {deliveryInfo}
+            </p>
+          )}
         </div>
 
         {/* Navigation */}
@@ -251,11 +268,8 @@ export const StorefrontFooter = ({ store, prefix = '' }) => {
             Navigation
           </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {[
-              { label: 'Accueil', href: `${prefix}/` },
-              { label: 'Tous nos produits', href: `${prefix}/products` },
-            ].map(link => (
-              <Link key={link.label} to={link.href} style={{
+            {quickLinks.map(link => (
+              <Link key={link.label} to={`${prefix}${link.href}`} style={{
                 fontSize: 13, color: 'rgba(255,255,255,0.6)', textDecoration: 'none',
                 display: 'flex', alignItems: 'center', gap: 5,
               }}>
@@ -305,6 +319,23 @@ export const StorefrontFooter = ({ store, prefix = '' }) => {
             )}
           </div>
         </div>
+
+        {/* Informations légales */}
+        <div>
+          <p style={{ fontWeight: 700, fontSize: 12, color: '#fff', margin: '0 0 16px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+            Informations
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {legalLinks.map(link => (
+              <Link key={link.label} to={`${prefix}${link.href}`} style={{
+                fontSize: 13, color: 'rgba(255,255,255,0.6)', textDecoration: 'none',
+                display: 'flex', alignItems: 'center', gap: 5,
+              }}>
+                <ChevronRight size={13} />{link.label}
+              </Link>
+            ))}
+          </div>
+        </div>
       </div>
 
       {/* Bottom bar */}
@@ -314,7 +345,7 @@ export const StorefrontFooter = ({ store, prefix = '' }) => {
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           flexWrap: 'wrap', gap: 12, fontSize: 12, color: 'rgba(255,255,255,0.4)',
         }}>
-          <span>© {new Date().getFullYear()} {store?.name}</span>
+          <span>© {new Date().getFullYear()} {store?.name}. Tous droits réservés.</span>
           <span>
             Propulsé par{' '}
             <a href="https://scalor.net" target="_blank" rel="noreferrer" style={{

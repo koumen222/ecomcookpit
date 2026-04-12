@@ -133,6 +133,7 @@ const StoreAnalytics = lazy(() => import('./pages/StoreAnalytics.jsx'));
 const StoreDashboard = lazy(() => import('./pages/StoreDashboard.jsx'));
 const StoreOrdersDashboard = lazy(() => import('./pages/StoreOrdersDashboard.jsx'));
 const PublicStorefront = lazy(preloadPublicStorefrontRoute);
+const StoreLegalPage = lazy(() => import('./pages/PublicStorefront.jsx').then(m => ({ default: m.StoreLegalPage })));
 const StoreAllProducts = lazy(() => preloadStoreAllProductsRoute().then((module) => ({ default: module.StoreAllProducts })));
 const StoreProductPage = lazy(preloadStoreProductRoute);
 const StoreCheckout = lazy(preloadStoreCheckoutRoute);
@@ -485,6 +486,7 @@ const StoreApp = () => {
             <Route path="/" element={<PublicStorefront />} />
             <Route path="/products" element={<StoreAllProducts />} />
             <Route path="/product/:slug" element={<StoreProductPage />} />
+            <Route path="/legal/:pageType" element={<StoreLegalPage />} />
             <Route path="/checkout" element={<StoreCheckout />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
@@ -711,6 +713,7 @@ const EcomApp = () => {
               {/* Public Store Routes (no auth, for iframe previews & dev) */}
               <Route path="/store/:subdomain" element={<Suspense fallback={<PageLoader storeMode />}><PublicStorefront /></Suspense>} />
               <Route path="/store/:subdomain/product/:slug" element={<Suspense fallback={<PageLoader storeMode />}><StoreProductPage /></Suspense>} />
+              <Route path="/store/:subdomain/legal/:pageType" element={<Suspense fallback={<PageLoader storeMode />}><StoreLegalPage /></Suspense>} />
               <Route path="/store/:subdomain/checkout" element={<Suspense fallback={<PageLoader storeMode />}><StoreCheckout /></Suspense>} />
 
               {/* Catch-all */}
