@@ -107,10 +107,8 @@ async function submitGrokImagineTask(prompt, imageUrls = [], aspectRatio = '1:1'
     resolution: '1K',
     output_format: 'jpg',
   };
-  // image_input is optional for nano-banana-2 (supports text-to-image)
-  if (imageUrls.length > 0) {
-    input.image_input = imageUrls.slice(0, 14);
-  }
+  // image_input — always present (image-to-image mode obligatoire)
+  input.image_input = imageUrls.length > 0 ? imageUrls.slice(0, 14) : [];
 
   const body = { model: NANOBANANA_MODEL, input };
 
