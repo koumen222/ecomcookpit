@@ -93,6 +93,7 @@ const emailCampaignSchema = new mongoose.Schema({
   },
   // Per-recipient results (capped at 500 for perf)
   results: [{
+    recipientToken: String,
     email: String,
     name: String,
     status: { type: String, enum: ['pending', 'sent', 'failed'], default: 'pending' },
@@ -101,11 +102,13 @@ const emailCampaignSchema = new mongoose.Schema({
     resendId: String,
     openedAt: Date,
     opened: { type: Boolean, default: false },
+    openCount: { type: Number, default: 0 },
     clicks: [{
       url: String,
       clickedAt: Date
     }],
-    uniqueClicks: { type: Number, default: 0 }
+    uniqueClicks: { type: Number, default: 0 },
+    lastClickedAt: Date
   }],
   tags: [{ type: String, trim: true }]
 }, {

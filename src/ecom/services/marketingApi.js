@@ -10,7 +10,7 @@ export const marketingApi = {
   sendCampaign: (id, data = {}) => ecomApi.post(`marketing/campaigns/${id}/send`, data),
   testCampaign: (id, testEmail) => ecomApi.post(`marketing/campaigns/${id}/test`, { testEmail }),
   duplicateCampaign: (id) => ecomApi.post(`marketing/campaigns/${id}/duplicate`),
-  getCampaignResults: (id) => ecomApi.get(`marketing/campaigns/${id}/results`),
+  getCampaignResults: (id, params = {}) => ecomApi.get(`marketing/campaigns/${id}/results`, { params }),
 
   // Stats
   getStats: () => ecomApi.get('marketing/stats'),

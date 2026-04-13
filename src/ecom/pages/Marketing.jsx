@@ -52,6 +52,7 @@ export default function Marketing() {
   const [sendId, setSendId] = useState(null);
   const [resId, setResId] = useState(null);
   const [resData, setResData] = useState(null);
+  const [resPage, setResPage] = useState(1);
   const [delId, setDelId] = useState(null);
   const [sendConf, setSendConf] = useState(null);
   const [waInstances, setWaInstances] = useState([]);
@@ -76,7 +77,22 @@ export default function Marketing() {
   }, [fStatus]);
 
   const loadStats = useCallback(async () => {
-    try { const r = await marketingApi.getStats(); setStats(r.data.data); } catch {}
+    try {
+      const r = await marketingApi.getStats();
+      const data = r.data?.data || {};
+      const totals = data.totals || {};
+      setStats({
+        totalCampaigns: data.total || 0,
+        totalSent: totals.totalSent || 0,
+        totalFailed: totals.totalFailed || 0,
+        totalTargeted: totals.totalTargeted || 0,
+        totalOpened: totals.totalOpened || 0,
+        totalClicked: totals.totalClicked || 0,
+        openRate: totals.openRate || 0,
+        clickRate: totals.clickRate || 0,
+        byStatus: data.byStatus || {}
+      });
+    } catch {}
   }, []);
 
   useEffect(() => {
@@ -166,9 +182,14 @@ export default function Marketing() {
     catch { flash('Erreur', 'err'); }
   };
 
-  const openRes = async (id) => {
-    setResId(id); setResData(null);
-    try { const r = await marketingApi.getCampaignResults(id); setResData(r.data.data); }
+  const openRes = async (id, page = 1) => {
+    setResId(id);
+    setResPage(page);
+    setResData(null);
+    try {
+      const r = await marketingApi.getCampaignResults(id, { page, limit: 100 });
+      setResData(r.data.data);
+    }
     catch { setResData({ error: true }); }
   };
 
@@ -254,8 +275,12 @@ export default function Marketing() {
         {[
           { label: 'Total campagnes', value: stats?.totalCampaigns ?? '—', icon: '📧' },
           { label: 'Emails envoyés', value: fmtN(stats?.totalSent), icon: '✅' },
+          { label: 'Ouvertures', value: fmtN(stats?.totalOpened), icon: '👀' },
+          { label: 'Clics uniques', value: fmtN(stats?.totalClicked), icon: '🖱️' },
+          { label: 'Taux ouverture', value: `${stats?.openRate || 0}%`, icon: '📬' },
+          { label: 'Taux clic', value: `${stats?.clickRate || 0}%`, icon: '📈' },
           { label: 'Échecs', value: fmtN(stats?.totalFailed), icon: '❌' },
-          { label: 'Taux de succès', value: stats?.totalSent ? `${Math.round((stats.totalSent / (stats.totalSent + stats.totalFailed)) * 100)}%` : '—', icon: '📈' },
+          { label: 'Taux de succès', value: stats?.totalSent ? `${Math.round((stats.totalSent / (stats.totalSent + stats.totalFailed)) * 100)}%` : '—', icon: '🏁' },
         ].map((s, i) => (
           <div key={i} className="bg-white rounded-xl border border-gray-200 p-5">
             <div className="flex items-center gap-3">
@@ -400,7 +425,7 @@ export default function Marketing() {
         </Dlg>
 
         {/* Results modal */}
-        <Dlg open={!!resId} onClose={() => setResId(null)} title="📊 Statistiques détaillées de la campagne" w="max-w-4xl">
+        <Dlg open={!!resId} onClose={() => setResId(null)} title="📊 Statistiques détaillées de la campagne" w="max-w-5xl">
           {!resData ? <Spin /> : resData.error ? <p className="text-red-500">Erreur de chargement</p> : (
             <div className="space-y-6">
               {/* Campaign info */}
@@ -443,10 +468,26 @@ export default function Marketing() {
                 </div>
               </div>
 
+              {resData.topLinks?.length > 0 && (
+                <div className="bg-white border border-gray-200 rounded-lg p-4">
+                  <h4 className="text-sm font-medium text-gray-700 mb-3">Top liens cliqués</h4>
+                  <div className="space-y-2 max-h-40 overflow-y-auto">
+                    {resData.topLinks.map((link, idx) => (
+                      <div key={`${link.url}-${idx}`} className="flex items-center justify-between gap-3 text-xs">
+                        <p className="text-gray-700 truncate">{link.url}</p>
+                        <p className="text-gray-500 whitespace-nowrap">{link.clicks} clics • {link.uniqueRecipients} pers.</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Recipients table */}
               {resData.recipients?.length > 0 && (
                 <div>
-                  <h4 className="text-sm font-medium text-gray-700 mb-3">Détails par destinataire ({resData.recipients.length})</h4>
+                  <h4 className="text-sm font-medium text-gray-700 mb-3">
+                    Détails par destinataire ({resData.pagination?.total || resData.recipients.length})
+                  </h4>
                   <div className="max-h-80 overflow-y-auto border border-gray-200 rounded-lg">
                     <table className="w-full text-xs">
                       <thead>
@@ -455,6 +496,7 @@ export default function Marketing() {
                           <th className="px-3 py-2 text-center">Statut</th>
                           <th className="px-3 py-2 text-center">Ouvert</th>
                           <th className="px-3 py-2 text-center">Clics</th>
+                          <th className="px-3 py-2 text-left">Erreur</th>
                           <th className="px-3 py-2 text-left">Date envoi</th>
                         </tr>
                       </thead>
@@ -479,7 +521,7 @@ export default function Marketing() {
                             <td className="px-3 py-2 text-center">
                               {r.opened ? (
                                 <div>
-                                  <span className="text-green-600 font-medium">✅</span>
+                                  <span className="text-green-600 font-medium">✅ ({r.openCount || 1})</span>
                                   {r.openedAt && (
                                     <p className="text-xs text-gray-500">{new Date(r.openedAt).toLocaleDateString('fr-FR')}</p>
                                   )}
@@ -500,6 +542,7 @@ export default function Marketing() {
                                 <span className="text-gray-400">0</span>
                               )}
                             </td>
+                            <td className="px-3 py-2 text-gray-500 max-w-[220px] truncate" title={r.error || ''}>{r.error || '—'}</td>
                             <td className="px-3 py-2 text-gray-600">
                               {r.sentAt ? fmtDate(r.sentAt) : '—'}
                             </td>
@@ -508,6 +551,27 @@ export default function Marketing() {
                       </tbody>
                     </table>
                   </div>
+                  {resData.pagination?.pages > 1 && (
+                    <div className="flex items-center justify-between mt-3">
+                      <p className="text-xs text-gray-500">Page {resData.pagination.page}/{resData.pagination.pages}</p>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => openRes(resId, resPage - 1)}
+                          disabled={resPage <= 1}
+                          className="px-3 py-1 text-xs border rounded-lg disabled:opacity-40 hover:bg-gray-50"
+                        >
+                          ← Préc.
+                        </button>
+                        <button
+                          onClick={() => openRes(resId, resPage + 1)}
+                          disabled={resPage >= resData.pagination.pages}
+                          className="px-3 py-1 text-xs border rounded-lg disabled:opacity-40 hover:bg-gray-50"
+                        >
+                          Suiv. →
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

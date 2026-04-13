@@ -186,7 +186,7 @@ function buildLogoPrompt({ storeName = 'Boutique', productType = 'autre', themeC
     monogram: 'Create a minimalist monogram or symbol-led logo using the initials or essence of the store name, paired with a small elegant wordmark.',
   };
 
-  return `Create a professional ecommerce logo on a clean square canvas.
+  return `Create a premium, ultra-high-quality professional ecommerce logo on a clean square canvas. This must look like a real brand logo designed by a top-tier agency.
 
 Brand name: ${storeName}
 Category: ${productTypeLabel}
@@ -196,16 +196,18 @@ Primary brand color: ${themeColor}
 ${variantInstructions[variant] || variantInstructions.wordmark}
 
 Rules:
-- Square 1:1 logo presentation
-- Clean premium brand identity for a modern ecommerce store
-- White or very light neutral background only
-- Use ${themeColor} as the main accent color
-- Keep the logo centered, balanced, and fully visible
+- Square 1:1 logo presentation, ultra-sharp, pixel-perfect
+- Premium luxury brand identity for a modern ecommerce store
+- Pure white or very light neutral background only
+- Use ${themeColor} as the dominant accent color throughout the design
+- Keep the logo perfectly centered, balanced, and fully visible
+- Typography must be bold, modern, and extremely readable
+- The logo should look like it belongs to a $1M+ brand
+- Ultra-clean lines, professional vector-quality appearance
 - No mockup on wall, no t-shirt, no business card, no 3D scene
 - No extra decorative objects, no people, no environment
-- No watermark, no fake UI, no pricing
-- Typography must be sharp and readable if text is present
-- Final result should look like a real finished brand logo proposal, not clipart`;
+- No watermark, no fake UI, no pricing, no gradients unless intentional
+- Final result: a stunning, professional finished brand logo`;
 }
 
 async function generateLogoOption({ storeName, productType, themeColor, tone, variant = 'wordmark' }) {
@@ -741,7 +743,7 @@ router.get('/config', requireEcomAuth, requireWorkspace, async (req, res) => {
   try {
     // Try Store first (multi-store), fallback to Workspace (legacy)
     const store = await getActiveStore(req);
-    const workspace = await EcomWorkspace.findById(req.workspaceId).select('name subdomain storeSettings').lean();
+    const workspace = await EcomWorkspace.findById(req.workspaceId).select('name subdomain storeSettings storePages').lean();
 
     if (!workspace) {
       return res.status(404).json({ success: false, message: 'Workspace introuvable' });
@@ -749,6 +751,7 @@ router.get('/config', requireEcomAuth, requireWorkspace, async (req, res) => {
 
     const source = store || workspace;
     const subdomain = store?.subdomain || workspace?.subdomain || null;
+    const hasHomepage = !!(source.storePages?.sections?.length > 0);
     const defaultSettings = {
       isStoreEnabled: false, storeName: '', storeDescription: '', storeLogo: '', storeBanner: '',
       storePhone: '', storeWhatsApp: '', storeThemeColor: '#0F6B4F', storeCurrency: 'XAF',
@@ -765,6 +768,7 @@ router.get('/config', requireEcomAuth, requireWorkspace, async (req, res) => {
         storeId: store?._id || null,
         name: source.name || workspace.name,
         subdomain,
+        hasHomepage,
         storeSettings: source.storeSettings || defaultSettings,
         storeUrl: subdomain ? `https://${subdomain}.scalor.net` : null
       }

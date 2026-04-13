@@ -36,11 +36,13 @@ const BoutiqueDashboard = () => {
       try {
         const configRes = await storeManageApi.getStoreConfig().catch(() => null);
         const subdomain = configRes?.data?.data?.subdomain;
+        const hasHomepage = configRes?.data?.data?.hasHomepage;
         const storeUrlFromApi = configRes?.data?.data?.storeUrl;
 
         if (!isMounted) return;
 
-        setHasStore(!!subdomain);
+        // Show wizard if no store OR no homepage generated yet
+        setHasStore(!!subdomain && hasHomepage !== false);
 
         if (storeUrlFromApi) {
           setStoreUrl(storeUrlFromApi);
