@@ -409,7 +409,16 @@ router.post('/', requireEcomAuth, validateEcomAccess('orders', 'write'), async (
       return res.status(400).json({ success: false, message: 'Nom client ou téléphone requis' });
     }
     const phoneValue = clientPhone || '';
-    const normalizedPhone = normalizePhone(phoneValue, '237');
+    // Déterminer le préfixe pays depuis la devise du workspace (pas hardcodé Cameroun)
+    const workspace = await EcomWorkspace.findById(req.workspaceId).select('settings storeSettings').lean();
+    const wkCurrency = (workspace?.storeSettings?.storeCurrency || workspace?.settings?.currency || 'XAF').toUpperCase();
+    const CURRENCY_PREFIX_MAP = {
+      XAF: '237', FCFA: '237', XOF: '225', CDF: '243',
+      NGN: '234', GHS: '233', MAD: '212', TND: '216',
+      DZD: '213', EUR: '33', USD: '1', GNF: '224',
+    };
+    const defaultPhonePrefix = CURRENCY_PREFIX_MAP[wkCurrency] || '237';
+    const normalizedPhone = normalizePhone(phoneValue, defaultPhonePrefix);
     const order = new Order({
       workspaceId: req.workspaceId,
       orderId: `#MAN_${Date.now().toString(36)}`,
