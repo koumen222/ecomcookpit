@@ -100,40 +100,86 @@ export default function AffiliatesAdmin() {
               <p className="text-xs text-gray-500">Commission de base actuelle: {fmt(config?.baseCommissionValue)} {config?.baseCommissionType === 'fixed' ? 'FCFA' : '%'}</p>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="bg-white border border-gray-200 rounded-xl p-4">
+            <div className="bg-white border border-gray-200 rounded-xl p-4">
                 <h2 className="text-sm font-semibold text-gray-700 mb-3">Créer un affilié</h2>
-                <form onSubmit={createAffiliate} className="space-y-3">
-                  <input value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} placeholder="Nom" required className="w-full px-3 py-2 border rounded-lg" />
-                  <input value={form.email} onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))} placeholder="Email" type="email" required className="w-full px-3 py-2 border rounded-lg" />
-                  <input value={form.password} onChange={(e) => setForm((p) => ({ ...p, password: e.target.value }))} placeholder="Mot de passe initial" className="w-full px-3 py-2 border rounded-lg" />
-                  <div className="grid grid-cols-2 gap-3">
-                    <select value={form.commissionType} onChange={(e) => setForm((p) => ({ ...p, commissionType: e.target.value }))} className="px-3 py-2 border rounded-lg">
-                      <option value="fixed">Fixe</option>
-                      <option value="percentage">%</option>
-                    </select>
-                    <input value={form.commissionValue} onChange={(e) => setForm((p) => ({ ...p, commissionValue: Number(e.target.value || 0) }))} type="number" className="px-3 py-2 border rounded-lg" />
-                  </div>
+                <form onSubmit={createAffiliate} className="grid grid-cols-1 md:grid-cols-6 gap-3 items-end">
+                  <input value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} placeholder="Nom" required className="px-3 py-2 border rounded-lg" />
+                  <input value={form.email} onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))} placeholder="Email" type="email" required className="px-3 py-2 border rounded-lg" />
+                  <input value={form.password} onChange={(e) => setForm((p) => ({ ...p, password: e.target.value }))} placeholder="Mot de passe initial" className="px-3 py-2 border rounded-lg" />
+                  <select value={form.commissionType} onChange={(e) => setForm((p) => ({ ...p, commissionType: e.target.value }))} className="px-3 py-2 border rounded-lg">
+                    <option value="fixed">Fixe</option>
+                    <option value="percentage">%</option>
+                  </select>
+                  <input value={form.commissionValue} onChange={(e) => setForm((p) => ({ ...p, commissionValue: Number(e.target.value || 0) }))} type="number" className="px-3 py-2 border rounded-lg" />
                   <button className="px-4 py-2 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-800">Créer affilié</button>
                 </form>
-              </div>
+            </div>
 
               <div className="bg-white border border-gray-200 rounded-xl p-4">
                 <h2 className="text-sm font-semibold text-gray-700 mb-3">Affiliés ({affiliates.length})</h2>
-                <div className="space-y-2 max-h-80 overflow-y-auto">
-                  {affiliates.map((a) => (
-                    <div key={a.id || a._id} className="p-3 border rounded-lg text-sm">
-                      <p className="font-semibold text-gray-800">{a.name} • {a.referralCode}</p>
-                      <p className="text-xs text-gray-500">{a.email}</p>
-                      <p className="text-xs text-gray-500">Commission: {a.commissionValue} {a.commissionType === 'fixed' ? 'FCFA' : '%'}</p>
-                      <div className="mt-2 flex items-center gap-2">
-                        <button onClick={() => updateAffiliate(a, { isActive: !a.isActive })} className="px-2 py-1 text-xs rounded border">{a.isActive ? 'Désactiver' : 'Activer'}</button>
+                <div className="space-y-3 max-h-[600px] overflow-y-auto">
+                  {affiliates.map((a) => {
+                    const s = a.stats || {};
+                    return (
+                      <div key={a.id || a._id} className="p-4 border rounded-lg text-sm">
+                        <div className="flex items-center justify-between mb-2">
+                          <div>
+                            <p className="font-semibold text-gray-800">{a.name} • <span className="font-mono text-xs bg-gray-100 px-1.5 py-0.5 rounded">{a.referralCode}</span></p>
+                            <p className="text-xs text-gray-500">{a.email}</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${a.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+                              {a.isActive ? 'Actif' : 'Inactif'}
+                            </span>
+                            <button onClick={() => updateAffiliate(a, { isActive: !a.isActive })} className="px-2 py-1 text-xs rounded border hover:bg-gray-50">
+                              {a.isActive ? 'Désactiver' : 'Activer'}
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3">
+                          <div className="bg-blue-50 rounded-lg p-2 text-center">
+                            <p className="text-lg font-bold text-blue-700">{fmt(s.totalClicks)}</p>
+                            <p className="text-[10px] text-blue-600">Clics</p>
+                          </div>
+                          <div className="bg-purple-50 rounded-lg p-2 text-center">
+                            <p className="text-lg font-bold text-purple-700">{fmt(s.totalConversions)}</p>
+                            <p className="text-[10px] text-purple-600">Conversions</p>
+                          </div>
+                          <div className="bg-amber-50 rounded-lg p-2 text-center">
+                            <p className="text-lg font-bold text-amber-700">{fmt(s.totalSales)}</p>
+                            <p className="text-[10px] text-amber-600">Ventes (FCFA)</p>
+                          </div>
+                          <div className="bg-emerald-50 rounded-lg p-2 text-center">
+                            <p className="text-lg font-bold text-emerald-700">{fmt(s.totalCommissions)}</p>
+                            <p className="text-[10px] text-emerald-600">Commissions (FCFA)</p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-3 mt-2 text-[10px] text-gray-500">
+                          <span>{s.totalLinks || 0} lien{(s.totalLinks || 0) > 1 ? 's' : ''}</span>
+                          <span>•</span>
+                          <span>Commission: {a.commissionValue} {a.commissionType === 'fixed' ? 'FCFA' : '%'}</span>
+                          {s.totalConversions > 0 && s.totalClicks > 0 && (
+                            <>
+                              <span>•</span>
+                              <span>Taux conversion: {((s.totalConversions / s.totalClicks) * 100).toFixed(1)}%</span>
+                            </>
+                          )}
+                        </div>
+
+                        {(s.pendingCommissions > 0 || s.approvedCommissions > 0 || s.paidCommissions > 0) && (
+                          <div className="flex items-center gap-3 mt-1 text-[10px]">
+                            {s.pendingCommissions > 0 && <span className="text-yellow-600">En attente: {fmt(s.pendingCommissions)}</span>}
+                            {s.approvedCommissions > 0 && <span className="text-blue-600">Approuvées: {fmt(s.approvedCommissions)}</span>}
+                            {s.paidCommissions > 0 && <span className="text-emerald-600">Payées: {fmt(s.paidCommissions)}</span>}
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
-            </div>
 
             <div className="bg-white border border-gray-200 rounded-xl p-4">
               <h2 className="text-sm font-semibold text-gray-700 mb-3">Conversions ({conversions.length})</h2>

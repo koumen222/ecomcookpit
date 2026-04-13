@@ -177,6 +177,15 @@ const workspaceSchema = new mongoose.Schema({
     type: Boolean,
     default: true
   },
+  // ─── Subscription Warning Banner ─────────────────────────────────────────
+  // Red banner displayed to workspace users (24h to renew subscription)
+  subscriptionWarning: {
+    active: { type: Boolean, default: true },
+    message: { type: String, default: 'Votre abonnement expire bientôt. Vous avez 24h pour renouveler afin de conserver l\'accès à votre compte.' },
+    deadline: { type: Date, default: () => new Date(Date.now() + 24 * 60 * 60 * 1000) },
+    activatedAt: { type: Date, default: () => new Date() },
+    activatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'EcomUser', default: null }
+  },
   // ─── Billing / Plan ──────────────────────────────────────────────────────
   plan: {
     type: String,

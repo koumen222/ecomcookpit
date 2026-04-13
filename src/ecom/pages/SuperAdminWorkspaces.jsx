@@ -2,7 +2,7 @@
 import {
   Building2, Users, CheckCircle2, XCircle, Copy, Calendar,
   Mail, Power, PowerOff, AlertCircle, Loader2,
-  Shield, Zap, Building, Crown, ChevronDown, Search
+  Shield, Zap, Building, Crown, ChevronDown, Search, Bell, BellOff
 } from 'lucide-react';
 import ecomApi from '../services/ecommApi.js';
 import { getContextualError } from '../utils/errorMessages';
@@ -27,6 +27,14 @@ const SuperAdminWorkspaces = () => {
   const handleToggle = async (wsId) => {
     try { const res = await ecomApi.put(`/super-admin/workspaces/${wsId}/toggle`); setSuccess(res.data.message); fetchWorkspaces(); }
     catch (err) { setError(getContextualError(err, 'update_settings')); }
+  };
+
+  const handleSubscriptionWarning = async (wsId, currentlyActive) => {
+    try {
+      const res = await ecomApi.put(`/super-admin/workspaces/${wsId}/subscription-warning`, { active: !currentlyActive });
+      setSuccess(res.data.message);
+      fetchWorkspaces();
+    } catch (err) { setError(getContextualError(err, 'update_settings')); }
   };
 
   const handleSetPlan = async (wsId, plan) => {
@@ -355,6 +363,27 @@ const SuperAdminWorkspaces = () => {
                       </div>
                     )}
                   </div>
+
+                  {/* Subscription Warning toggle */}
+                  <button
+                    onClick={() => handleSubscriptionWarning(ws._id, ws.subscriptionWarning?.active)}
+                    className={`w-full inline-flex items-center justify-center gap-2 py-2.5 text-xs font-bold rounded-xl transition-all duration-300 ring-2 ring-inset ${
+                      ws.subscriptionWarning?.active
+                        ? 'bg-red-50 text-red-700 hover:bg-red-100 ring-red-600/20'
+                        : 'bg-orange-50 text-orange-700 hover:bg-orange-100 ring-orange-600/20'
+                    }`}
+                  >
+                    {ws.subscriptionWarning?.active ? (
+                      <><BellOff className="w-3.5 h-3.5" /> Désactiver alerte renouvellement</>
+                    ) : (
+                      <><Bell className="w-3.5 h-3.5" /> Activer alerte renouvellement (24h)</>
+                    )}
+                  </button>
+                  {ws.subscriptionWarning?.active && (
+                    <p className="text-[10px] text-red-500 text-center -mt-1">
+                      Alerte active — expire {new Date(ws.subscriptionWarning.deadline).toLocaleString('fr-FR')}
+                    </p>
+                  )}
 
                   {/* Action button */}
                   <button

@@ -625,6 +625,20 @@ const IMAGE_GENERATION_MODES = [
 ];
 
 const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initialTaskId = null }) => {
+  // Helper to extract workspaceId from ecomWorkspace JSON in localStorage
+  const getWsId = () => {
+    try { const ws = JSON.parse(localStorage.getItem('ecomWorkspace') || 'null'); return ws?._id || ws?.id || ''; }
+    catch { return ''; }
+  };
+  const getAuthHeaders = () => {
+    const token = localStorage.getItem('ecomToken');
+    const wsId = getWsId();
+    const h = {};
+    if (token) h['Authorization'] = `Bearer ${token}`;
+    if (wsId) h['X-Workspace-Id'] = wsId;
+    return h;
+  };
+
   const [phase, setPhase] = useState('input');
   const [step, setStep] = useState(1); // 1: Base info, 2: Copywriting, 3: Advanced (optional)
   const [productSubstep, setProductSubstep] = useState(1);
@@ -733,16 +747,12 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
     if (!imageJobId || phase !== 'preview') return;
     setImagesLoading(true);
     let cancelled = false;
-    const token = localStorage.getItem('ecomToken');
-    const wsId = localStorage.getItem('workspaceId');
+    const authHeaders = getAuthHeaders();
 
     const poll = async () => {
       try {
         const resp = await fetch(`${API_ORIGIN}/api/ai/product-generator/images/${imageJobId}`, {
-          headers: {
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            ...(wsId ? { 'X-Workspace-Id': wsId } : {})
-          }
+          headers: authHeaders
         });
         if (!resp.ok || cancelled) return;
         const data = await resp.json();
@@ -802,17 +812,13 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
 
   // Fetch background tasks on mount & poll active ones
   useEffect(() => {
-    const token = localStorage.getItem('ecomToken');
-    const wsId = localStorage.getItem('workspaceId');
-    if (!token || !wsId) return;
+    const authHeaders = getAuthHeaders();
+    if (!authHeaders.Authorization) return;
 
     const fetchTasks = async () => {
       try {
         const resp = await fetch(`${API_ORIGIN}/api/ai/product-generator/tasks`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'X-Workspace-Id': wsId,
-          },
+          headers: authHeaders,
         });
         if (!resp.ok) return;
         const data = await resp.json();
@@ -832,40 +838,18 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
 
   // Handler: continue generation in background
   const handleContinueInBackground = () => {
-    // Stop polling images in foreground
+    // Stop polling images in foreground — backend continues generating
     abortRef.current?.abort();
     isGeneratingRef.current = false;
-    // Reset UI
-    setPhase('input');
-    setBuildStep(0);
-    setBuildProgress(0);
-    setBuildMessage('');
-    setShowConfetti(false);
-    setProduct(null);
-    // Refresh task list to show the new task
-    const token = localStorage.getItem('ecomToken');
-    const wsId = localStorage.getItem('workspaceId');
-    if (token && wsId) {
-      fetch(`${API_ORIGIN}/api/ai/product-generator/tasks`, {
-        headers: { Authorization: `Bearer ${token}`, 'X-Workspace-Id': wsId },
-      })
-        .then(r => r.json())
-        .then(data => { if (data.success) setBackgroundTasks(data.tasks || []); })
-        .catch(() => {});
-    }
-    setShowTaskList(true);
+    // Navigate to Generations page where user can track progress
+    if (onClose) onClose();
   };
 
   // Handler: load completed task into preview
   const handleLoadTask = async (taskId) => {
-    const token = localStorage.getItem('ecomToken');
-    const wsId = localStorage.getItem('workspaceId');
     try {
       const resp = await fetch(`${API_ORIGIN}/api/ai/product-generator/tasks/${taskId}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'X-Workspace-Id': wsId,
-        },
+        headers: getAuthHeaders(),
       });
       if (!resp.ok) throw new Error('Erreur chargement');
       const data = await resp.json();
@@ -889,14 +873,10 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
 
   // Fetch credit info on mount
   useEffect(() => {
-    const token = localStorage.getItem('ecomToken');
-    const wsId = localStorage.getItem('workspaceId');
-    if (!token || !wsId) return;
+    const authHeaders = getAuthHeaders();
+    if (!authHeaders.Authorization) return;
     fetch(`${API_ORIGIN}/api/ai/product-generator/info`, {
-      headers: {
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        ...(wsId ? { 'X-Workspace-Id': wsId } : {})
-      }
+      headers: authHeaders
     })
       .then(r => r.json())
       .then(data => {
@@ -1105,7 +1085,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
     isGeneratingRef.current = true;
 
     const token = localStorage.getItem('ecomToken');
-    const wsId = localStorage.getItem('workspaceId');
+    const wsId = getWsId();
 
     const formData = new FormData();
     
@@ -1356,15 +1336,14 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
     setPaymentLoading(true);
     
     try {
-      const token = localStorage.getItem('ecomToken');
-      const wsId = localStorage.getItem('workspaceId');
+      const wsId = getWsId();
+      const authHeaders = getAuthHeaders();
 
       const response = await fetch(`${API_ORIGIN}/api/ecom/billing/buy-generation`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          ...(wsId ? { 'X-Workspace-Id': wsId } : {})
+          ...authHeaders
         },
         body: JSON.stringify({
           quantity: selectedPack === 'pack3' ? 3 : 1,
@@ -2360,15 +2339,13 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
                   </div>
 
                   <div className="mt-5 flex items-center justify-center gap-4">
-                    {currentTaskId && (
-                      <button
-                        type="button"
-                        onClick={handleContinueInBackground}
-                        className="rounded-lg bg-[#0F6B4F] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#0A5740]"
-                      >
-                        Continuer en arrière-plan
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      onClick={handleContinueInBackground}
+                      className="rounded-lg bg-[#0F6B4F] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#0A5740]"
+                    >
+                      Continuer en arrière-plan
+                    </button>
                     <button
                       type="button"
                       onClick={() => { 
@@ -2434,15 +2411,13 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
                   </div>
 
                   <div className="flex items-center justify-center gap-4 mt-4">
-                    {currentTaskId && (
-                      <button
-                        type="button"
-                        onClick={handleContinueInBackground}
-                        className="rounded-lg bg-scalor-green px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90"
-                      >
-                        Continuer en arrière-plan
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      onClick={handleContinueInBackground}
+                      className="rounded-lg bg-scalor-green px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90"
+                    >
+                      Continuer en arrière-plan
+                    </button>
                     <button
                       type="button"
                       onClick={() => { 

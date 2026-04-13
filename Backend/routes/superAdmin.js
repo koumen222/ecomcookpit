@@ -379,6 +379,43 @@ router.put('/workspaces/:id/toggle',
   }
 );
 
+// PUT /api/ecom/super-admin/workspaces/:id/subscription-warning - Toggle subscription warning banner
+router.put('/workspaces/:id/subscription-warning',
+  requireEcomAuth,
+  requireSuperAdmin,
+  async (req, res) => {
+    try {
+      const workspace = await Workspace.findById(req.params.id);
+      if (!workspace) {
+        return res.status(404).json({ success: false, message: 'Espace non trouvé' });
+      }
+
+      const { active, message } = req.body || {};
+      const isActive = active !== undefined ? Boolean(active) : !workspace.subscriptionWarning?.active;
+
+      workspace.subscriptionWarning = {
+        active: isActive,
+        message: message || workspace.subscriptionWarning?.message || 'Votre abonnement expire bientôt. Vous avez 24h pour renouveler afin de conserver l\'accès à votre compte.',
+        deadline: isActive ? new Date(Date.now() + 24 * 60 * 60 * 1000) : null,
+        activatedAt: isActive ? new Date() : null,
+        activatedBy: isActive ? req.ecomUser._id : null
+      };
+
+      await workspace.save();
+      await logAudit(req, 'SUBSCRIPTION_WARNING', `${isActive ? 'Activation' : 'Désactivation'} alerte abonnement pour ${workspace.name}`, 'workspace', workspace._id);
+
+      res.json({
+        success: true,
+        message: isActive ? 'Alerte abonnement activée (24h)' : 'Alerte abonnement désactivée',
+        data: workspace
+      });
+    } catch (error) {
+      console.error('Erreur super-admin subscription-warning:', error);
+      res.status(500).json({ success: false, message: 'Erreur serveur' });
+    }
+  }
+);
+
 // GET /api/ecom/super-admin/audit-logs - Consulter les logs d'audit (immuables)
 router.get('/audit-logs',
   requireEcomAuth,
