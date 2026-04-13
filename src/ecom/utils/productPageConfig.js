@@ -4,6 +4,22 @@ const clone = (value) => JSON.parse(JSON.stringify(value));
 
 const cloneOrFallback = (value, fallback) => clone(value ?? fallback);
 
+const mergeSection = (baseSection = {}, overrideSection = {}) => {
+  const merged = {
+    ...baseSection,
+    ...overrideSection,
+  };
+
+  if (baseSection.content || overrideSection.content) {
+    merged.content = {
+      ...(baseSection.content || {}),
+      ...(overrideSection.content || {}),
+    };
+  }
+
+  return merged;
+};
+
 const mergeSectionCollection = (storedSections, fallbackSections = defaultConfig.general.sections) => {
   const defaults = cloneOrFallback(fallbackSections, []);
   if (!Array.isArray(storedSections) || storedSections.length === 0) {
@@ -12,7 +28,7 @@ const mergeSectionCollection = (storedSections, fallbackSections = defaultConfig
 
   const merged = storedSections.map((section) => {
     const base = defaults.find((candidate) => candidate.id === section.id);
-    return base ? { ...base, ...section } : cloneOrFallback(section, {});
+    return base ? mergeSection(base, section) : cloneOrFallback(section, {});
   });
 
   defaults.forEach((base) => {
@@ -24,17 +40,8 @@ const mergeSectionCollection = (storedSections, fallbackSections = defaultConfig
   return merged;
 };
 
-const stripStoreSectionContent = (sections) => {
-  if (!Array.isArray(sections)) return [];
-  return clone(sections).map((section) => {
-    const next = { ...section };
-    delete next.content;
-    return next;
-  });
-};
-
 export function mergeInheritedProductPageSections(storeSections, productSections) {
-  const inheritedSections = mergeSectionCollection(stripStoreSectionContent(storeSections));
+  const inheritedSections = mergeSectionCollection(storeSections);
 
   if (!Array.isArray(productSections) || productSections.length === 0) {
     return inheritedSections;
@@ -44,7 +51,7 @@ export function mergeInheritedProductPageSections(storeSections, productSections
   const merged = clone(productSections).map((productSection) => {
     const inheritedIndex = remaining.findIndex((section) => section.id === productSection.id);
     const inheritedBase = inheritedIndex >= 0 ? remaining.splice(inheritedIndex, 1)[0] : null;
-    return inheritedBase ? { ...inheritedBase, ...productSection } : productSection;
+    return inheritedBase ? mergeSection(inheritedBase, productSection) : productSection;
   });
 
   return [...merged, ...remaining];
