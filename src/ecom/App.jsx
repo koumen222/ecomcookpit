@@ -139,6 +139,7 @@ const StoreProductsList = lazy(() => import('./pages/StoreProductsList.jsx'));
 const StoreProductForm = lazy(() => import('./pages/StoreProductForm.jsx'));
 const ProductPageGeneratorWizard = lazy(() => import('./pages/ProductPageGeneratorWizard.jsx'));
 const ProductPageBuilder = lazy(() => import('./pages/ProductPageBuilder.jsx'));
+const GenerationsPage = lazy(() => import('./pages/GenerationsPage.jsx'));
 const StoreAnalytics = lazy(() => import('./pages/StoreAnalytics.jsx'));
 const StoreDashboard = lazy(() => import('./pages/StoreDashboard.jsx'));
 const StoreOrdersDashboard = lazy(() => import('./pages/StoreOrdersDashboard.jsx'));
@@ -703,6 +704,7 @@ const EcomApp = () => {
                 <Route element={<ProtectedRoute requiredRole="ecom_admin"><RequireStore><BoutiqueLayout /></RequireStore></ProtectedRoute>}>
                   <Route path="/ecom/boutique" element={<StoreDashboard />} />
                   <Route path="/ecom/boutique/analytics" element={<StoreDashboard />} />
+                  <Route path="/ecom/boutique/generations" element={<GenerationsPage />} />
                   <Route path="/ecom/boutique/products" element={<StoreProductsList />} />
                   <Route path="/ecom/boutique/products/categories" element={<StoreProductsList />} />
                   <Route path="/ecom/boutique/products/stock" element={<StoreProductsList />} />

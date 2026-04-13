@@ -624,7 +624,7 @@ const IMAGE_GENERATION_MODES = [
   },
 ];
 
-const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
+const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initialTaskId = null }) => {
   const [phase, setPhase] = useState('input');
   const [step, setStep] = useState(1); // 1: Base info, 2: Copywriting, 3: Advanced (optional)
   const [productSubstep, setProductSubstep] = useState(1);
@@ -879,6 +879,13 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
       setError(err.message);
     }
   };
+
+  // Auto-load a specific task on mount (from GenerationsPage)
+  useEffect(() => {
+    if (initialTaskId) {
+      handleLoadTask(initialTaskId);
+    }
+  }, [initialTaskId]);
 
   // Fetch credit info on mount
   useEffect(() => {
