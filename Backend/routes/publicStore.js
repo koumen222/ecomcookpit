@@ -11,7 +11,20 @@ import { memCache } from '../services/memoryCache.js';
 import { notifyNewOrder } from '../services/notificationHelper.js';
 import { sendClientOrderConfirmation } from '../services/shopifyWhatsappService.js';
 import { normalizeCity } from '../utils/cityNormalizer.js';
+import { normalizePhone } from '../utils/phoneUtils.js';
 import { resolveStoreBySubdomain } from '../middleware/storeAuth.js';
+
+/**
+ * Map store currency → default phone prefix (digits only, no +).
+ * Used to normalize phone numbers based on the market/store currency.
+ */
+const CURRENCY_TO_PREFIX = {
+  XAF: '237', FCFA: '237', XOF: '225', CDF: '243',
+  NGN: '234', GHS: '233', MAD: '212', TND: '216',
+  DZD: '213', EUR: '33', USD: '1', GNF: '224',
+  MGA: '261', RWF: '250', KES: '254', UGX: '256',
+  TZS: '255', ZAR: '27',
+};
 
 const router = express.Router();
 
@@ -405,7 +418,11 @@ router.post('/:subdomain/orders', orderLimiter, resolveStoreBySubdomain, async (
           return `${p.name}${qty}`;
         }).join(', ');
 
-        const normalizedPhone = (order.phone || '').replace(/\D/g, '');
+        // Déterminer le préfixe pays depuis le phoneCode de la commande, ou la devise du store
+        const orderPhoneCode = (order.phoneCode || '').replace(/\D/g, '');
+        const storeCurrency = (req.store?.storeSettings?.storeCurrency || req.store?.storeSettings?.currency || 'XAF').toUpperCase();
+        const defaultPrefix = orderPhoneCode || CURRENCY_TO_PREFIX[storeCurrency] || '237';
+        const normalizedPhone = normalizePhone(order.phone, defaultPrefix) || (order.phone || '').replace(/\D/g, '');
         const normalizedCityVal = normalizeCity(order.city || '') || order.city;
 
         const mainOrder = new Order({

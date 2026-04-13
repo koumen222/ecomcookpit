@@ -274,6 +274,7 @@ const StoreCheckout = () => {
       const res = await publicStoreApi.placeOrder(subdomain, {
         customerName: form.customerName.trim(),
         phone: fullPhone,
+        phoneCode: phoneCode,
         email: form.email.trim(),
         address: form.address.trim(),
         city: form.city.trim(),
