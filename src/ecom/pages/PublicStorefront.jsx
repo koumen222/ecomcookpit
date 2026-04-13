@@ -1,5 +1,5 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
-import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams, useLocation } from 'react-router-dom';
 import {
   ShoppingCart, MessageCircle, ArrowRight, ShoppingBag, Star,
   ChevronDown, ChevronUp, Truck, ShieldCheck, Package, RotateCcw,
