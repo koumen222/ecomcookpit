@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useEcomAuth } from '../hooks/useEcomAuth';
+import { useStore } from '../contexts/StoreContext.jsx';
 import api from '../../lib/api';
 
 // DNS target constants (mirrors backend env)
@@ -44,6 +45,7 @@ const STEPS = ['Entrer votre domaine', 'Configurer le DNS', 'Vérifier et connec
 
 const BoutiqueDomains = () => {
   const { workspace } = useEcomAuth();
+  const { refreshStores } = useStore();
   const [subdomain, setSubdomain] = useState('');
   const [customDomain, setCustomDomain] = useState('');
   const [sslStatus, setSslStatus] = useState('none');
@@ -117,7 +119,10 @@ const BoutiqueDomains = () => {
   const handleSave = async () => {
     setSaving(true);
     try {
-      await api.put('/store/domains', { subdomain: subdomain.trim().toLowerCase(), customDomain: customDomain.trim() });
+      const res = await api.put('/store/domains', { subdomain: subdomain.trim().toLowerCase(), customDomain: customDomain.trim() });
+      const savedSubdomain = res.data?.data?.subdomain;
+      if (typeof savedSubdomain === 'string') setSubdomain(savedSubdomain);
+      await refreshStores();
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch (err) {
@@ -165,7 +170,10 @@ const BoutiqueDomains = () => {
     if (!confirm('Déconnecter ce domaine personnalisé ?')) return;
     setSaving(true);
     try {
-      await api.put('/store/domains', { subdomain: subdomain.trim().toLowerCase(), customDomain: '' });
+      const res = await api.put('/store/domains', { subdomain: subdomain.trim().toLowerCase(), customDomain: '' });
+      const savedSubdomain = res.data?.data?.subdomain;
+      if (typeof savedSubdomain === 'string') setSubdomain(savedSubdomain);
+      await refreshStores();
       setCustomDomain('');
       setDomainInput('');
       setDnsVerified(false);
@@ -182,7 +190,10 @@ const BoutiqueDomains = () => {
   const saveDomainAndNext = async () => {
     setSaving(true);
     try {
-      await api.put('/store/domains', { subdomain: subdomain.trim().toLowerCase(), customDomain: customDomain.trim() });
+      const res = await api.put('/store/domains', { subdomain: subdomain.trim().toLowerCase(), customDomain: customDomain.trim() });
+      const savedSubdomain = res.data?.data?.subdomain;
+      if (typeof savedSubdomain === 'string') setSubdomain(savedSubdomain);
+      await refreshStores();
     } catch { /* handled */ } finally {
       setSaving(false);
     }

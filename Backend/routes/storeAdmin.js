@@ -552,6 +552,10 @@ router.put('/domains', requireEcomAuth, requireWorkspace, async (req, res) => {
     console.log('🌐 Request body:', { subdomain, customDomain });
 
     const update = {};
+    const activeStore = req.activeStoreId
+      ? await Store.findOne({ _id: req.activeStoreId, workspaceId: req.workspaceId, isActive: true }).select('_id subdomain').lean()
+      : null;
+    const previousSubdomain = activeStore?.subdomain || null;
 
     if (subdomain !== undefined) {
       // Sanitize
@@ -568,8 +572,14 @@ router.put('/domains', requireEcomAuth, requireWorkspace, async (req, res) => {
 
       // Check uniqueness
       if (subdomain) {
-        const existing = await Workspace.findOne({ subdomain, _id: { $ne: req.workspaceId } }).select('_id').lean();
-        if (existing) {
+        const [existingWorkspace, existingStore] = await Promise.all([
+          Workspace.findOne({ subdomain, _id: { $ne: req.workspaceId } }).select('_id').lean(),
+          Store.findOne({
+            subdomain,
+            ...(activeStore ? { _id: { $ne: activeStore._id } } : {}),
+          }).select('_id').lean(),
+        ]);
+        if (existingWorkspace || existingStore) {
           return res.status(409).json({ success: false, message: 'Ce sous-domaine est déjà pris' });
         }
       }
@@ -584,16 +594,37 @@ router.put('/domains', requireEcomAuth, requireWorkspace, async (req, res) => {
 
     if (customDomain !== undefined) update['storeDomains.customDomain'] = customDomain;
 
-    await Workspace.findByIdAndUpdate(
-      req.workspaceId,
-      { $set: update },
-      { new: true }
-    );
+    if (activeStore) {
+      await Store.findByIdAndUpdate(activeStore._id, { $set: update }, { new: true });
+
+      const workspace = await Workspace.findById(req.workspaceId).select('primaryStoreId').lean();
+      if (String(workspace?.primaryStoreId) === String(activeStore._id) && subdomain !== undefined) {
+        await Workspace.findByIdAndUpdate(req.workspaceId, { $set: { subdomain: update.subdomain } }, { new: true });
+      }
+    } else {
+      await Workspace.findByIdAndUpdate(
+        req.workspaceId,
+        { $set: update },
+        { new: true }
+      );
+    }
+
+    if (previousSubdomain && previousSubdomain !== update.subdomain) {
+      invalidateStoreCache(previousSubdomain);
+    }
+    if (update.subdomain) {
+      invalidateStoreCache(update.subdomain);
+    }
 
     console.log('✅ Domains updated successfully');
     res.json({
       success: true,
-      message: 'Domains updated'
+      message: 'Domains updated',
+      data: {
+        subdomain: update.subdomain ?? previousSubdomain ?? '',
+        customDomain: customDomain ?? '',
+        storeUrl: update.subdomain ? `https://${update.subdomain}.scalor.net` : null,
+      }
     });
   } catch (error) {
     if (error.code === 11000) {

@@ -37,6 +37,7 @@ const DATE_PRESETS = [
   { key: 'ytd', label: 'Année en cours',      compute: () => { const s = new Date(); s.setMonth(0, 1); s.setHours(0,0,0,0); return { start: s, end: new Date() }; } },
   { key: 'custom', label: 'Personnalisé' },
 ];
+const TODAY_AUTO_REFRESH_MS = 15000;
 
 const fmtNumber   = (n) => new Intl.NumberFormat('fr-FR').format(n || 0);
 const fmtPct      = (n) => `${Number.isFinite(n) ? (Math.round((n || 0) * 100) / 100) : 0}%`;
@@ -73,6 +74,7 @@ export default function StoreAnalytics() {
   const [boutiqueSalesDetails, setBoutiqueSalesDetails] = useState(null);
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const pickerRef = useRef(null);
+  const isTodayActive = presetKey === 'today';
 
   // Store currency from API response (all revenues are already converted server-side)
   const storeCurrency = data?.storeCurrency
@@ -99,22 +101,40 @@ export default function StoreAnalytics() {
     setDatePickerOpen(false);
   };
 
+  const buildAnalyticsParams = () => {
+    const params = { workspaceId, sourceId: 'scalor' };
+
+    if (presetKey === 'today') {
+      const now = new Date();
+      const start = new Date(now);
+      start.setHours(0, 0, 0, 0);
+      params.startDate = start.toISOString();
+      params.endDate = now.toISOString();
+      return params;
+    }
+
+    params.startDate = startDate;
+    params.endDate = endDate;
+    return params;
+  };
+
   useEffect(() => {
     if (!workspaceId) return;
     let cancelled = false;
     (async () => {
       try {
         setLoading(true);
+        const analyticsParams = buildAnalyticsParams();
         const [analyticsRes, salesRes] = await Promise.all([
           ecomApi.get('/store-analytics/dashboard', {
-            params: { workspaceId, startDate, endDate },
+            params: analyticsParams,
           }),
           ecomApi.get('/orders/stats/detailed', {
-            params: { workspaceId, startDate, endDate },
+            params: analyticsParams,
           }).catch(() => null),
         ]);
         const boutiqueOrdersRes = await ecomApi.get('/orders', {
-          params: { workspaceId, startDate, endDate, sourceId: 'scalor', limit: 1000 },
+          params: { ...analyticsParams, limit: 1000 },
         }).catch(() => null);
         if (cancelled) return;
         const payload = analyticsRes.data?.data || analyticsRes.data || {};
@@ -158,6 +178,25 @@ export default function StoreAnalytics() {
     })();
     return () => { cancelled = true; };
   }, [workspaceId, startDate, endDate]);
+
+  useEffect(() => {
+    if (!workspaceId || !isTodayActive) return undefined;
+
+    const refreshTodayStats = () => {
+      if (document.visibilityState === 'visible') {
+        const now = new Date();
+        setEndDate(toDateInput(now));
+      }
+    };
+
+    const intervalId = window.setInterval(refreshTodayStats, TODAY_AUTO_REFRESH_MS);
+    window.addEventListener('focus', refreshTodayStats);
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener('focus', refreshTodayStats);
+    };
+  }, [workspaceId, isTodayActive]);
 
   const overview = data?.analytics?.overview || {};
   const orders   = data?.orders || {};

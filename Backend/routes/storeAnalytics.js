@@ -8,6 +8,25 @@ import { requireEcomAuth } from '../middleware/ecomAuth.js';
 import { convertCurrency } from '../utils/currencyConvert.js';
 
 const router = express.Router();
+const SCALOR_ORDER_SOURCES = ['skelor', 'boutique'];
+
+function hasExplicitTimeComponent(value) {
+  return typeof value === 'string' && value.includes('T');
+}
+
+function parseDateParam(value, boundary = 'start') {
+  if (!value) return null;
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+
+  if (!hasExplicitTimeComponent(value)) {
+    if (boundary === 'end') parsed.setHours(23, 59, 59, 999);
+    else parsed.setHours(0, 0, 0, 0);
+  }
+
+  return parsed;
+}
 
 /**
  * POST /api/ecom/store-analytics/track
@@ -111,20 +130,15 @@ router.get('/dashboard', requireEcomAuth, async (req, res) => {
 
     // Calculer les dates
     let start;
-    let end = endDate ? new Date(endDate) : new Date();
     const now = new Date();
+    let end = parseDateParam(endDate, 'end') || now;
 
     if (startDate) {
-      start = new Date(startDate);
-      start.setHours(0, 0, 0, 0);
-      if (endDate) {
-        end.setHours(23, 59, 59, 999);
-      }
+      start = parseDateParam(startDate, 'start') || new Date(now);
     } else if (period === 'today') {
       start = new Date(now);
       start.setHours(0, 0, 0, 0);
       end = new Date(now);
-      end.setHours(23, 59, 59, 999);
     } else if (period === 'yesterday') {
       start = new Date(now);
       start.setDate(start.getDate() - 1);
@@ -132,8 +146,6 @@ router.get('/dashboard', requireEcomAuth, async (req, res) => {
       end = new Date(start);
       end.setHours(23, 59, 59, 999);
     } else {
-      if (endDate) end.setHours(23, 59, 59, 999);
-
       const periodMap = {
         '24h': 1,
         '7d': 7,
@@ -169,9 +181,19 @@ router.get('/dashboard', requireEcomAuth, async (req, res) => {
     // Build filters scoped to active store if set
     const internalFilter = {
       workspaceId: wsObjectId,
-      $or: [
-        { date: { $gte: start, $lte: end } },
-        { date: { $exists: false }, createdAt: { $gte: start, $lte: end } },
+      $and: [
+        {
+          $or: [
+            { date: { $gte: start, $lte: end } },
+            { date: { $exists: false }, createdAt: { $gte: start, $lte: end } },
+          ],
+        },
+        {
+          $or: [
+            { source: { $in: SCALOR_ORDER_SOURCES } },
+            { storeOrderId: { $exists: true, $ne: null } },
+          ],
+        },
       ],
     };
     const storeOrderFilter = {

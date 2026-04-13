@@ -1155,27 +1155,89 @@ router.get('/', requireEcomAuth, async (req, res) => {
 // GET /api/ecom/orders/stats/detailed - Statistiques détaillées pour la page stats
 router.get('/stats/detailed', requireEcomAuth, async (req, res) => {
   try {
-    const { startDate, endDate } = req.query;
+    const { startDate, endDate, sourceId } = req.query;
+    const hasExplicitTimeComponent = (value) => typeof value === 'string' && value.includes('T');
+    const parseDateParam = (value, boundary = 'start') => {
+      if (!value) return null;
+      const parsed = new Date(value);
+      if (Number.isNaN(parsed.getTime())) return null;
+      if (!hasExplicitTimeComponent(value)) {
+        if (boundary === 'end') parsed.setHours(23, 59, 59, 999);
+        else parsed.setHours(0, 0, 0, 0);
+      }
+      return parsed;
+    };
+
     // Pour .find()/.countDocuments() Mongoose cast auto string→ObjectId
     const wsFilter = { workspaceId: req.workspaceId };
     // Pour .aggregate() il faut un vrai ObjectId sinon ça ne matche pas
     const wsFilterAgg = { workspaceId: new mongoose.Types.ObjectId(req.workspaceId) };
+
+    if (sourceId) {
+      const sourceTypeMap = await loadSourceTypeMap(req.workspaceId);
+      const sourceCondition = buildSourceCondition(sourceId, sourceTypeMap);
+
+      if (sourceCondition) {
+        Object.assign(wsFilter, sourceCondition);
+        Object.assign(wsFilterAgg, sourceCondition);
+      }
+    }
     
     // Date filter
     if (startDate || endDate) {
       wsFilter.date = {};
       wsFilterAgg.date = {};
       if (startDate) {
-        wsFilter.date.$gte = new Date(startDate);
-        wsFilterAgg.date.$gte = new Date(startDate);
+        const parsedStart = parseDateParam(startDate, 'start');
+        if (parsedStart) {
+          wsFilter.date.$gte = parsedStart;
+          wsFilterAgg.date.$gte = parsedStart;
+        }
       }
       if (endDate) {
-        const end = new Date(endDate);
-        end.setHours(23, 59, 59, 999);
-        wsFilter.date.$lte = end;
-        const endAgg = new Date(endDate);
-        endAgg.setHours(23, 59, 59, 999);
-        wsFilterAgg.date.$lte = endAgg;
+        const parsedEnd = parseDateParam(endDate, 'end');
+        if (parsedEnd) {
+          wsFilter.date.$lte = parsedEnd;
+          wsFilterAgg.date.$lte = parsedEnd;
+        }
+      }
+
+      if (!Object.keys(wsFilter.date).length) delete wsFilter.date;
+      if (!Object.keys(wsFilterAgg.date).length) delete wsFilterAgg.date;
+    }
+
+    if (startDate || endDate) {
+      const createdAtFilter = {};
+      const createdAtFilterAgg = {};
+      if (startDate) {
+        const parsedStart = parseDateParam(startDate, 'start');
+        if (parsedStart) {
+          createdAtFilter.$gte = parsedStart;
+          createdAtFilterAgg.$gte = parsedStart;
+        }
+      }
+      if (endDate) {
+        const parsedEnd = parseDateParam(endDate, 'end');
+        if (parsedEnd) {
+          createdAtFilter.$lte = parsedEnd;
+          createdAtFilterAgg.$lte = parsedEnd;
+        }
+      }
+
+      if (Object.keys(createdAtFilter).length) {
+        wsFilter.$or = [
+          { date: createdAtFilter },
+          { date: { $exists: false }, createdAt: createdAtFilter },
+        ];
+        delete wsFilter.date;
+      }
+
+      if (Object.keys(createdAtFilterAgg).length) {
+        wsFilterAgg.$or = [
+          { date: createdAtFilterAgg },
+          { date: { $exists: false }, createdAt: createdAtFilterAgg },
+        ];
+        delete wsFilterAgg.date;
       }
     }
 

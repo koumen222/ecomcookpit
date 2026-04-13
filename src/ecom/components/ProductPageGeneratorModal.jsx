@@ -1356,9 +1356,13 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
         // H3 bold title
         descHtml += `<h3 style="font-size:20px;font-weight:800;color:${themePrimaryToken};margin:0 0 12px;line-height:1.3;"><strong>${angle.titre_angle}</strong></h3>`;
         // 3-4 line description
-        const explication = angle.explication || angle.message_principal || '';
-        if (explication) {
-          descHtml += `<p style="font-size:15px;line-height:1.75;color:${themeMutedToken};margin:0 0 16px;">${explication}</p>`;
+        const textParts = [angle.message_principal, angle.explication, angle.promesse]
+          .map((value) => String(value || '').trim())
+          .filter(Boolean)
+          .filter((value, index, array) => array.indexOf(value) === index);
+        const descriptionText = textParts.join(' ');
+        if (descriptionText) {
+          descHtml += `<p style="font-size:15px;line-height:1.78;color:${themeMutedToken};margin:0 0 16px;">${descriptionText}</p>`;
         }
         // Image UGC (also in carousel)
         if (angle.poster_url) {
