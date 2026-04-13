@@ -883,12 +883,44 @@ router.get('/dashboard/stats',
       const workspaceObjectId = new mongoose.Types.ObjectId(req.workspaceId);
       const periodRaw = parseInt(req.query?.period, 10);
       const periodDays = Math.min(120, Math.max(1, Number.isFinite(periodRaw) ? periodRaw : 30));
+      const hasExplicitRange = Boolean(req.query?.startDate || req.query?.endDate);
 
-      const daysAgo = new Date();
-      daysAgo.setDate(daysAgo.getDate() - periodDays);
+      const normalizeStartOfDay = (value) => {
+        const date = value ? new Date(value) : new Date();
+        date.setHours(0, 0, 0, 0);
+        return date;
+      };
 
-      const prevDaysAgo = new Date();
-      prevDaysAgo.setDate(prevDaysAgo.getDate() - (periodDays * 2));
+      const normalizeEndOfDay = (value) => {
+        const date = value ? new Date(value) : new Date();
+        date.setHours(23, 59, 59, 999);
+        return date;
+      };
+
+      let rangeStart;
+      let rangeEnd;
+      let prevRangeStart;
+      let prevRangeEnd;
+
+      if (hasExplicitRange) {
+        rangeStart = normalizeStartOfDay(req.query?.startDate);
+        rangeEnd = normalizeEndOfDay(req.query?.endDate);
+
+        const spanMs = Math.max(24 * 60 * 60 * 1000, rangeEnd.getTime() - rangeStart.getTime() + 1);
+        prevRangeEnd = new Date(rangeStart.getTime() - 1);
+        prevRangeStart = new Date(prevRangeEnd.getTime() - spanMs + 1);
+        prevRangeStart.setHours(0, 0, 0, 0);
+      } else {
+        rangeEnd = new Date();
+        rangeStart = new Date();
+        rangeStart.setDate(rangeStart.getDate() - periodDays + 1);
+        rangeStart.setHours(0, 0, 0, 0);
+
+        prevRangeEnd = new Date(rangeStart.getTime() - 1);
+        prevRangeStart = new Date(rangeStart);
+        prevRangeStart.setDate(prevRangeStart.getDate() - periodDays);
+        prevRangeStart.setHours(0, 0, 0, 0);
+      }
 
       const buildSummaryPipeline = (matchStage) => ([
         { $match: matchStage },
@@ -955,12 +987,12 @@ router.get('/dashboard/stats',
 
       const currentMatch = {
         workspaceId: workspaceObjectId,
-        createdAt: { $gte: daysAgo }
+        createdAt: { $gte: rangeStart, $lte: rangeEnd }
       };
 
       const prevMatch = {
         workspaceId: workspaceObjectId,
-        createdAt: { $gte: prevDaysAgo, $lt: daysAgo }
+        createdAt: { $gte: prevRangeStart, $lte: prevRangeEnd }
       };
 
       const [currentAgg, prevAgg, topProductsAgg] = await Promise.all([

@@ -61,7 +61,7 @@ const getPresetSelection = (key, referenceDate = new Date()) => {
         type: 'range',
         start: todayStart,
         end: todayEnd,
-        period: '24h',
+        period: 'today',
         label: "Aujourd'hui",
       };
     case 'yesterday': {
@@ -71,7 +71,7 @@ const getPresetSelection = (key, referenceDate = new Date()) => {
         type: 'range',
         start: startOfDay(yesterday),
         end: endOfDay(yesterday),
-        period: '24h',
+        period: 'yesterday',
         label: 'Hier',
       };
     }
@@ -184,7 +184,13 @@ export default function StoreDashboard() {
   const applyCustomRange = (start, end, options = {}) => {
     const normalizedStart = startOfDay(start);
     const normalizedEnd = endOfDay(end);
-    const nextPeriod = options.period || (isSameCalendarDay(normalizedStart, normalizedEnd) ? '24h' : 'custom');
+    let derivedPeriod = 'custom';
+    if (isSameCalendarDay(normalizedStart, normalizedEnd)) {
+      if (isSameCalendarDay(normalizedStart, new Date())) derivedPeriod = 'today';
+      else if (isSameCalendarDay(normalizedStart, addDays(new Date(), -1))) derivedPeriod = 'yesterday';
+      else derivedPeriod = 'custom';
+    }
+    const nextPeriod = options.period || derivedPeriod;
 
     setDateRange({
       start: normalizedStart.toISOString(),

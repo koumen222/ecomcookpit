@@ -110,15 +110,30 @@ router.get('/dashboard', requireEcomAuth, async (req, res) => {
     }
 
     // Calculer les dates
-    let start, end;
-    end = endDate ? new Date(endDate) : new Date();
-    if (endDate) end.setHours(23, 59, 59, 999);
-    
+    let start;
+    let end = endDate ? new Date(endDate) : new Date();
+    const now = new Date();
+
     if (startDate) {
       start = new Date(startDate);
       start.setHours(0, 0, 0, 0);
+      if (endDate) {
+        end.setHours(23, 59, 59, 999);
+      }
+    } else if (period === 'today') {
+      start = new Date(now);
+      start.setHours(0, 0, 0, 0);
+      end = new Date(now);
+      end.setHours(23, 59, 59, 999);
+    } else if (period === 'yesterday') {
+      start = new Date(now);
+      start.setDate(start.getDate() - 1);
+      start.setHours(0, 0, 0, 0);
+      end = new Date(start);
+      end.setHours(23, 59, 59, 999);
     } else {
-      // Période par défaut
+      if (endDate) end.setHours(23, 59, 59, 999);
+
       const periodMap = {
         '24h': 1,
         '7d': 7,

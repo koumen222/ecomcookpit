@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Package, Plus, Search, Edit, Trash2, Eye, EyeOff, ChevronLeft, ChevronRight, Loader2, AlertCircle, Image, Sparkles, ExternalLink, Zap, Layers, Copy } from 'lucide-react';
+import { Package, Plus, Search, Edit, Trash2, Eye, EyeOff, ChevronLeft, ChevronRight, Loader2, AlertCircle, Image, Sparkles, ExternalLink, Zap, Layers, Copy, Download, Upload } from 'lucide-react';
 import { storeProductsApi, storeManageApi } from '../services/storeApi.js';
 import ecomApi from '../services/ecommApi.js';
 import { formatMoney } from '../utils/currency.js';
@@ -66,6 +66,8 @@ const StoreProductsList = () => {
   const [selectedStockIds, setSelectedStockIds] = useState([]);
   const [stockDrafts, setStockDrafts] = useState({});
   const [stockSaving, setStockSaving] = useState(false);
+  const [csvBusy, setCsvBusy] = useState(false);
+  const fileInputRef = useRef(null);
 
   // Récupérer le subdomain du store pour l'aperçu
   useEffect(() => {
@@ -105,6 +107,84 @@ const StoreProductsList = () => {
         from: `${basePath}/products`,
       },
     });
+  };
+
+  const handleExportCsv = async () => {
+    setCsvBusy(true);
+    setError('');
+    try {
+      const response = await storeProductsApi.exportCsv({
+        ...(search ? { search } : {}),
+      });
+      const blob = new Blob([response.data], { type: 'text/csv;charset=utf-8;' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `pages-produits-${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      setError('Impossible d’exporter le CSV');
+    } finally {
+      setCsvBusy(false);
+    }
+  };
+
+  const handleTriggerImport = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleImportCsv = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setCsvBusy(true);
+    setError('');
+    try {
+      const response = await storeProductsApi.importCsv(file);
+      const stats = response.data?.data;
+      if (response.data?.success === false && !stats?.created && !stats?.updated) {
+        const rowErrors = Array.isArray(stats?.errors) && stats.errors.length
+          ? `\n${stats.errors.slice(0, 3).join('\n')}`
+          : '';
+        setError(`${response.data?.message || 'Import CSV échoué'}${rowErrors}`);
+        return;
+      }
+      await fetchProducts(1, search);
+      window.alert(
+        stats
+          ? `Import terminé\nCréés: ${stats.created}\nMis à jour: ${stats.updated}\nIgnorés: ${stats.skipped}${stats.errors?.length ? `\nErreurs: ${stats.errors.length}` : ''}`
+          : 'Import CSV terminé'
+      );
+    } catch (err) {
+      setError(err?.response?.data?.message || 'Impossible d’importer le CSV');
+    } finally {
+      event.target.value = '';
+      setCsvBusy(false);
+    }
+  };
+
+  const handleExportSingleProductCsv = async (product) => {
+    setCsvBusy(true);
+    setError('');
+    try {
+      const response = await storeProductsApi.exportProductCsv(product._id);
+      const blob = new Blob([response.data], { type: 'text/csv;charset=utf-8;' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `page-produit-${product.slug || product._id}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      setError('Impossible d’exporter ce produit en CSV');
+    } finally {
+      setCsvBusy(false);
+    }
   };
 
   const fetchProducts = useCallback(async (page = 1, searchTerm = '') => {
@@ -653,6 +733,35 @@ const StoreProductsList = () => {
             </div>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            {viewMode === 'catalog' && (
+              <>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".csv,text/csv"
+                  className="hidden"
+                  onChange={handleImportCsv}
+                />
+                <button
+                  type="button"
+                  onClick={handleTriggerImport}
+                  disabled={csvBusy}
+                  className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <Upload className="h-4 w-4" />
+                  Importer CSV
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExportCsv}
+                  disabled={csvBusy}
+                  className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <Download className="h-4 w-4" />
+                  Exporter CSV
+                </button>
+              </>
+            )}
             {viewMode !== 'categories' && (
               <button
                 onClick={handleOpenPageGenerator}
@@ -1342,6 +1451,14 @@ const StoreProductsList = () => {
                           <Copy className="w-4 h-4" />
                         </button>
                         <button
+                          type="button"
+                          onClick={() => handleExportSingleProductCsv(product)}
+                          className="rounded-xl border border-transparent p-2 text-gray-400 transition hover:border-slate-100 hover:bg-slate-50 hover:text-slate-700"
+                          title="Exporter ce produit en CSV"
+                        >
+                          <Download className="w-4 h-4" />
+                        </button>
+                        <button
                           onClick={() => navigate(`${basePath}/products/${product._id}/edit`)}
                           className="rounded-xl border border-transparent p-2 text-gray-400 transition hover:border-emerald-100 hover:bg-emerald-50 hover:text-emerald-600"
                           title="Modifier"
@@ -1408,6 +1525,7 @@ const StoreProductsList = () => {
                   </button>
                   <button onClick={() => navigate(`${basePath}/products/${product._id}/builder`)} className={`rounded-xl px-3 py-2 text-xs font-medium ${product.pageBuilder?.enabled ? 'bg-indigo-50 text-indigo-700' : 'bg-gray-100 text-gray-600'}`}>Builder</button>
                   <button onClick={() => handleDuplicate(product)} className="rounded-xl bg-amber-50 px-3 py-2 text-xs font-medium text-amber-700">Copier</button>
+                  <button onClick={() => handleExportSingleProductCsv(product)} className="rounded-xl bg-gray-100 px-3 py-2 text-xs font-medium text-gray-700">Exporter CSV</button>
                   <button onClick={() => navigate(`${basePath}/products/${product._id}/edit`)} className="rounded-xl bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-700">Modifier</button>
                   <button onClick={() => handleDelete(product._id)} className="rounded-xl bg-red-50 px-3 py-2 text-xs font-medium text-red-600">Supprimer</button>
                 </div>

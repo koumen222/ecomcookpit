@@ -675,9 +675,10 @@ const EcomApp = () => {
               <Route element={<StoreProvider />}>
                 <Route path="/ecom/boutique/wizard" element={<ProtectedRoute requiredRole="ecom_admin"><StoreCreationWizard /></ProtectedRoute>} />
                 <Route path="/ecom/boutique/nouvelle" element={<ProtectedRoute requiredRole="ecom_admin"><StoreCreationWizard /></ProtectedRoute>} />
-                {/* Builder — full screen, outside BoutiqueLayout */}
+                {/* Builders — full screen, outside BoutiqueLayout */}
                 <Route path="/ecom/boutique/products/generator" element={<ProtectedRoute requiredRole="ecom_admin"><RequireStore><ProductPageGeneratorWizard /></RequireStore></ProtectedRoute>} />
                 <Route path="/ecom/boutique/products/:id/builder" element={<ProtectedRoute requiredRole="ecom_admin"><RequireStore><ProductPageBuilder /></RequireStore></ProtectedRoute>} />
+                <Route path="/ecom/boutique/pages" element={<ProtectedRoute requiredRole="ecom_admin"><RequireStore><BoutiquePages /></RequireStore></ProtectedRoute>} />
                 <Route element={<ProtectedRoute requiredRole="ecom_admin"><RequireStore><BoutiqueLayout /></RequireStore></ProtectedRoute>}>
                   <Route path="/ecom/boutique" element={<StoreDashboard />} />
                   <Route path="/ecom/boutique/analytics" element={<StoreDashboard />} />
@@ -689,7 +690,6 @@ const EcomApp = () => {
                   <Route path="/ecom/boutique/orders" element={<StoreOrdersDashboard />} />
                   <Route path="/ecom/boutique/old-analytics" element={<StoreAnalytics />} />
                   <Route path="/ecom/boutique/analyses" element={<StoreAnalytics />} />
-                  <Route path="/ecom/boutique/pages" element={<BoutiquePages />} />
                   <Route path="/ecom/boutique/pixel" element={<BoutiquePixel />} />
                   <Route path="/ecom/boutique/payments" element={<BoutiquePayments />} />
                   <Route path="/ecom/boutique/domains" element={<BoutiqueDomains />} />

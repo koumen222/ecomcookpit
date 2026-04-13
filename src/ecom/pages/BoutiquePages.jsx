@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef, useLayoutEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { storeManageApi } from '../services/storeApi.js';
 import RichTextEditor from '../components/RichTextEditor.jsx';
@@ -196,6 +196,7 @@ const SectionCard = ({
 }) => {
   const typeInfo = SECTION_TYPES[section.type] || SECTION_TYPES.custom;
   const itemCount = section.config?.items?.length;
+  const title = section.config?.title || typeInfo.label;
   
   return (
     <div
@@ -214,66 +215,75 @@ const SectionCard = ({
         onDrop?.(section.id);
       }}
       onDragEnd={onDragEnd}
-      className={`group bg-white rounded-xl border-2 transition-all cursor-pointer ${
+      className={`group rounded-xl border transition-all cursor-pointer ${
         isActive
-          ? 'border-[#0F6B4F] shadow-md shadow-[#0F6B4F]/10'
+          ? 'border-[#3b82f6] bg-[#eff6ff] shadow-sm'
           : section.visible !== false
-            ? 'border-gray-200 hover:border-[#4D9F82]'
-            : 'border-gray-100 opacity-60'
-      } ${isDragging ? 'opacity-50 scale-[0.99]' : ''} ${isDragOver ? 'ring-2 ring-[#0F6B4F] ring-offset-1' : ''}`}
+            ? 'border-transparent bg-white hover:border-gray-200 hover:bg-gray-50'
+            : 'border-transparent opacity-60 bg-gray-50/70'
+      } ${isDragging ? 'opacity-50 scale-[0.99]' : ''} ${isDragOver ? 'ring-2 ring-[#3b82f6] ring-offset-1' : ''}`}
       onClick={() => onSelect?.(section)}
     >
-      <div className="flex items-center gap-3 px-4 py-3">
-        {/* Drag handle */}
-        <div className="cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 transition">
-          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+      <div className="flex items-center gap-2.5 px-2.5 py-2">
+        <div className="cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 transition flex-shrink-0">
+          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
             <path d="M8 6h2v2H8V6zm6 0h2v2h-2V6zM8 11h2v2H8v-2zm6 0h2v2h-2v-2zm-6 5h2v2H8v-2zm6 0h2v2h-2v-2z" />
           </svg>
         </div>
 
-        {/* Icon + label */}
-        <span className={`w-8 h-8 rounded-lg flex items-center justify-center text-base flex-shrink-0 ${typeInfo.color}`}>
+        <span className={`w-7 h-7 rounded-lg flex items-center justify-center text-sm flex-shrink-0 ${typeInfo.color}`}>
           {typeInfo.icon}
         </span>
+
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-gray-900 truncate">{section.config?.title || typeInfo.label}</p>
-          <p className="text-[10px] text-gray-400 uppercase font-medium">
-            {typeInfo.label}
-            {itemCount ? ` · ${itemCount} éléments` : ''}
+          <div className="flex items-center gap-2 min-w-0">
+            <p className="text-[12px] font-semibold text-gray-900 truncate">{title}</p>
+            {section.visible === false && (
+              <span className="inline-flex rounded-full bg-gray-200 px-2 py-0.5 text-[10px] font-semibold text-gray-500 flex-shrink-0">
+                Masquée
+              </span>
+            )}
+          </div>
+          <p className="mt-0.5 text-[10px] text-gray-400 font-medium truncate">
+            {typeInfo.label}{itemCount ? ` · ${itemCount} éléments` : ''}
           </p>
         </div>
 
-        {/* Actions */}
-        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition">
-          <button onClick={(e) => { e.stopPropagation(); onMove(index, -1); }} disabled={index === 0} className="p-1.5 rounded-lg hover:bg-gray-100 disabled:opacity-30 transition" title="Monter">
-            <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" /></svg>
+        <div className="flex items-center gap-0.5 flex-shrink-0">
+          <button
+            onClick={(e) => { e.stopPropagation(); onMove(index, -1); }}
+            disabled={index === 0}
+            className="hidden group-hover:inline-flex p-1 rounded-md hover:bg-gray-100 disabled:opacity-30 transition"
+            title="Monter"
+          >
+            <svg className="w-3.5 h-3.5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" /></svg>
           </button>
-          <button onClick={(e) => { e.stopPropagation(); onMove(index, 1); }} disabled={index === total - 1} className="p-1.5 rounded-lg hover:bg-gray-100 disabled:opacity-30 transition" title="Descendre">
-            <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+          <button
+            onClick={(e) => { e.stopPropagation(); onMove(index, 1); }}
+            disabled={index === total - 1}
+            className="hidden group-hover:inline-flex p-1 rounded-md hover:bg-gray-100 disabled:opacity-30 transition"
+            title="Descendre"
+          >
+            <svg className="w-3.5 h-3.5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
           </button>
-          <button onClick={(e) => { e.stopPropagation(); onEdit(section); }} className="p-1.5 rounded-lg hover:bg-[#E6F2ED] transition" title="Modifier">
-            <svg className="w-4 h-4 text-[#0F6B4F]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+          <button
+            onClick={(e) => { e.stopPropagation(); onToggle(section.id); }}
+            className={`relative w-9 h-5 rounded-full transition-colors ${section.visible !== false ? 'bg-[#111827]' : 'bg-gray-300'}`}
+            title={section.visible !== false ? 'Masquer' : 'Afficher'}
+          >
+            <span className={`absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${section.visible !== false ? 'translate-x-4' : ''}`} />
           </button>
-          <button onClick={(e) => { e.stopPropagation(); onDelete(section.id); }} className="p-1.5 rounded-lg hover:bg-red-50 transition" title="Supprimer">
-            <svg className="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+          <button
+            onClick={(e) => { e.stopPropagation(); onDelete(section.id); }}
+            className="hidden group-hover:inline-flex p-1 rounded-md hover:bg-red-50 transition"
+            title="Supprimer"
+          >
+            <svg className="w-3.5 h-3.5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
           </button>
+          <svg className="w-3.5 h-3.5 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
         </div>
-
-        {/* Toggle visibility */}
-        <button
-          onClick={(e) => { e.stopPropagation(); onToggle(section.id); }}
-          className={`relative w-10 h-5 rounded-full transition-colors flex-shrink-0 ${
-            section.visible !== false ? 'bg-[#0F6B4F]' : 'bg-gray-300'
-          }`}
-        >
-          <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${
-            section.visible !== false ? 'translate-x-5' : ''
-          }`} />
-        </button>
-
-        <svg className="w-4 h-4 text-gray-300 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-        </svg>
       </div>
     </div>
   );
@@ -687,6 +697,7 @@ const AddSectionModal = ({ onAdd, onClose }) => {
 const BoutiquePages = () => {
   const [sections, setSections] = useState([]);
   const [storeUrl, setStoreUrl] = useState(null);
+  const [storeSubdomain, setStoreSubdomain] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState(null);
@@ -698,7 +709,37 @@ const BoutiquePages = () => {
   const [sidebarMode, setSidebarMode] = useState('sections');
   const [dragFromId, setDragFromId] = useState(null);
   const [dragOverId, setDragOverId] = useState(null);
+  const [previewLoading, setPreviewLoading] = useState(true);
+  const [undoStack, setUndoStack] = useState([]);
+  const [redoStack, setRedoStack] = useState([]);
   const saveTimer = useRef(null);
+  const previewViewportRef = useRef(null);
+  const previewIframeRef = useRef(null);
+  const [previewScale, setPreviewScale] = useState(1);
+
+  const cloneSections = useCallback((value) => {
+    try {
+      return JSON.parse(JSON.stringify(value || []));
+    } catch {
+      return Array.isArray(value) ? [...value] : [];
+    }
+  }, []);
+
+  const sectionsAreEqual = useCallback((left, right) => {
+    return JSON.stringify(left || []) === JSON.stringify(right || []);
+  }, []);
+
+  const syncActiveSection = useCallback((nextSections, currentActiveId = activeSection?.id) => {
+    const nextActive = currentActiveId
+      ? nextSections.find((section) => section.id === currentActiveId) || nextSections[0] || null
+      : nextSections[0] || null;
+
+    setActiveSection(nextActive);
+
+    if (!nextActive) {
+      setSidebarMode('sections');
+    }
+  }, [activeSection?.id]);
 
   // Load sections
   useEffect(() => {
@@ -711,14 +752,25 @@ const BoutiquePages = () => {
         
         const data = pagesRes.data?.data || pagesRes.data;
         if (Array.isArray(data?.sections)) {
-          const normalized = normalizeHomepageSections(data.sections);
+          const normalized = normalizeHomepageSections(data.sections) || [];
           setSections(normalized);
           setActiveSection(normalized[0] || null);
+        } else {
+          setSections([]);
+          setActiveSection(null);
         }
+
+        setSidebarMode('sections');
+    setSidebarOpen(true);
+    setUndoStack([]);
+    setRedoStack([]);
         
         const subdomain = configRes.data?.data?.subdomain;
         if (subdomain) {
+          setStoreSubdomain(subdomain);
           setStoreUrl(`https://${subdomain}.scalor.net`);
+        } else {
+          setStoreSubdomain(null);
         }
       } catch (err) {
         console.error('Failed to load pages:', err);
@@ -736,7 +788,6 @@ const BoutiquePages = () => {
       try {
         await storeManageApi.updatePages({ sections: nextSections });
         setSaveStatus('saved');
-        setIframeKey((current) => current + 1);
         setTimeout(() => setSaveStatus(null), 2200);
       } catch (err) {
         console.error('Autosave failed:', err);
@@ -767,11 +818,13 @@ const BoutiquePages = () => {
       if (newIndex < 0 || newIndex >= prev.length) return prev;
       const next = [...prev];
       [next[index], next[newIndex]] = [next[newIndex], next[index]];
+      setUndoStack((stack) => [...stack, cloneSections(prev)]);
+      setRedoStack([]);
       autoSave(next);
       return next;
     });
     setSaveStatus('saving');
-  }, [autoSave]);
+  }, [autoSave, cloneSections]);
 
   // Toggle visibility
   const handleToggle = useCallback((id) => {
@@ -779,26 +832,35 @@ const BoutiquePages = () => {
       const next = prev.map(s => 
         s.id === id ? { ...s, visible: s.visible === false ? true : false } : s
       );
+      if (sectionsAreEqual(prev, next)) return prev;
+      setUndoStack((stack) => [...stack, cloneSections(prev)]);
+      setRedoStack([]);
       autoSave(next);
       return next;
     });
-  }, [autoSave]);
+  }, [autoSave, cloneSections, sectionsAreEqual]);
 
   // Update section
   const handleUpdate = useCallback((updated) => {
     setSections(prev => {
       const next = prev.map(s => s.id === updated.id ? updated : s);
+      if (sectionsAreEqual(prev, next)) return prev;
+      setUndoStack((stack) => [...stack, cloneSections(prev)]);
+      setRedoStack([]);
       autoSave(next);
       return next;
     });
     setActiveSection(updated);
-  }, [autoSave]);
+  }, [autoSave, cloneSections, sectionsAreEqual]);
 
   // Delete section
   const handleDelete = useCallback((id) => {
     if (!confirm('Supprimer cette section ?')) return;
     setSections(prev => {
       const next = prev.filter(s => s.id !== id);
+      if (sectionsAreEqual(prev, next)) return prev;
+      setUndoStack((stack) => [...stack, cloneSections(prev)]);
+      setRedoStack([]);
       autoSave(next);
       if (activeSection?.id === id) {
         setActiveSection(next[0] || null);
@@ -806,7 +868,7 @@ const BoutiquePages = () => {
       }
       return next;
     });
-  }, [activeSection?.id, autoSave]);
+  }, [activeSection?.id, autoSave, cloneSections, sectionsAreEqual]);
 
   const handleDragDrop = useCallback((fromId, toId) => {
     if (!fromId || !toId || fromId === toId) return;
@@ -817,10 +879,12 @@ const BoutiquePages = () => {
       const next = [...prev];
       const [moved] = next.splice(fromIndex, 1);
       next.splice(toIndex, 0, moved);
+      setUndoStack((stack) => [...stack, cloneSections(prev)]);
+      setRedoStack([]);
       autoSave(next);
       return next;
     });
-  }, [autoSave]);
+  }, [autoSave, cloneSections]);
 
   const handleDragStart = useCallback((id) => {
     setDragFromId(id);
@@ -872,13 +936,37 @@ const BoutiquePages = () => {
     };
     setSections(prev => {
       const next = [...prev, newSection];
+      setUndoStack((stack) => [...stack, cloneSections(prev)]);
+      setRedoStack([]);
       autoSave(next);
       return next;
     });
     setActiveSection(newSection);
     setSidebarMode('editor');
     setSidebarOpen(true);
-  }, [autoSave]);
+  }, [autoSave, cloneSections]);
+
+  const handleUndo = useCallback(() => {
+    if (undoStack.length === 0) return;
+    const previousSections = cloneSections(undoStack[undoStack.length - 1]);
+    setUndoStack((stack) => stack.slice(0, -1));
+    setRedoStack((stack) => [...stack, cloneSections(sections)]);
+    setSections(previousSections);
+    syncActiveSection(previousSections);
+    autoSave(previousSections);
+    setSaveStatus('saving');
+  }, [autoSave, cloneSections, sections, syncActiveSection, undoStack]);
+
+  const handleRedo = useCallback(() => {
+    if (redoStack.length === 0) return;
+    const nextSections = cloneSections(redoStack[redoStack.length - 1]);
+    setRedoStack((stack) => stack.slice(0, -1));
+    setUndoStack((stack) => [...stack, cloneSections(sections)]);
+    setSections(nextSections);
+    syncActiveSection(nextSections);
+    autoSave(nextSections);
+    setSaveStatus('saving');
+  }, [autoSave, cloneSections, redoStack, sections, syncActiveSection]);
 
   // Save
   const handleSave = async () => {
@@ -886,7 +974,6 @@ const BoutiquePages = () => {
     try {
       await storeManageApi.updatePages({ sections });
       setSaveStatus('saved');
-      setIframeKey((current) => current + 1);
       setTimeout(() => setSaveStatus(null), 2500);
     } catch (err) {
       alert('Erreur lors de la sauvegarde');
@@ -904,12 +991,16 @@ const BoutiquePages = () => {
       const res = await storeManageApi.regenerateHomepage();
       const newSections = res.data?.sections;
       if (Array.isArray(newSections) && newSections.length > 0) {
-        const normalizedSections = normalizeHomepageSections(newSections);
+        const normalizedSections = normalizeHomepageSections(newSections) || [];
+        if (!sectionsAreEqual(sections, normalizedSections)) {
+          setUndoStack((stack) => [...stack, cloneSections(sections)]);
+          setRedoStack([]);
+        }
         setSections(normalizedSections);
         setActiveSection(normalizedSections[0] || null);
         await storeManageApi.updatePages({ sections: normalizedSections });
         setSaveStatus('saved');
-        setIframeKey((current) => current + 1);
+        setSidebarOpen(false);
       }
     } catch (err) {
       alert('Erreur lors de la régénération');
@@ -918,11 +1009,62 @@ const BoutiquePages = () => {
     }
   };
 
-  const previewFrameClass = useMemo(() => {
-    if (previewDevice === 'mobile') return 'w-[390px] h-[780px]';
-    if (previewDevice === 'tablet') return 'w-[820px] h-[920px]';
-    return 'w-full h-[920px]';
+  const previewFrameSize = useMemo(() => {
+    if (previewDevice === 'mobile') return { width: 390, height: 844 };
+    if (previewDevice === 'tablet') return { width: 834, height: 1112 };
+    return { width: 1440, height: 980 };
   }, [previewDevice]);
+
+  useLayoutEffect(() => {
+    const element = previewViewportRef.current;
+    if (!element) return undefined;
+
+    const updateScale = () => {
+      const rect = element.getBoundingClientRect();
+      const availableWidth = Math.max(rect.width - 24, 320);
+      const availableHeight = Math.max(rect.height - 24, 320);
+      const nextScale = Math.min(
+        availableWidth / previewFrameSize.width,
+        availableHeight / previewFrameSize.height,
+        1
+      );
+      setPreviewScale(Number.isFinite(nextScale) ? nextScale : 1);
+    };
+
+    updateScale();
+
+    const observer = new ResizeObserver(() => updateScale());
+    observer.observe(element);
+    window.addEventListener('resize', updateScale);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', updateScale);
+    };
+  }, [previewFrameSize, sidebarOpen]);
+
+  const previewSrc = useMemo(() => {
+    if (!storeSubdomain) return null;
+    return `/store/${storeSubdomain}?builderPreview=${iframeKey}`;
+  }, [storeSubdomain, iframeKey]);
+
+  const pushPreviewSections = useCallback((nextSections = sections) => {
+    const iframeWindow = previewIframeRef.current?.contentWindow;
+    if (!iframeWindow) return;
+
+    iframeWindow.postMessage(
+      {
+        type: 'storefront-builder:update-sections',
+        sections: nextSections,
+      },
+      window.location.origin
+    );
+  }, [sections]);
+
+  useEffect(() => {
+    if (!previewSrc) return;
+    pushPreviewSections(sections);
+  }, [sections, previewSrc, pushPreviewSections]);
 
   if (loading) {
     return (
@@ -933,26 +1075,59 @@ const BoutiquePages = () => {
   }
 
   return (
-    <div className="p-4 lg:p-6 space-y-6">
-      <div className="flex flex-col gap-4 rounded-[28px] border border-gray-200 bg-white p-4 shadow-sm lg:p-5">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex items-start gap-3">
+    <div className="h-screen min-h-0 w-full bg-[#f3f4f6] flex flex-col overflow-hidden">
+      <div className="h-14 border-b border-gray-200 bg-white px-4 lg:px-6 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <Link
+            to="/ecom/boutique"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 transition hover:bg-gray-50"
+            title="Retour au dashboard boutique"
+          >
+            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+          </Link>
+          <div className="flex items-center gap-1.5">
             <button
               onClick={() => setSidebarOpen((current) => !current)}
-              className="mt-0.5 inline-flex h-10 w-10 items-center justify-center rounded-xl border border-gray-200 text-gray-600 transition hover:bg-gray-50"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 transition hover:bg-gray-50"
               title={sidebarOpen ? 'Fermer le panneau' : 'Ouvrir le panneau'}
             >
               <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={sidebarOpen ? 'M15 19l-7-7 7-7' : 'M9 5l7 7-7 7'} />
               </svg>
             </button>
-            <div>
-              <h1 className="text-xl font-bold text-gray-900">Homepage Builder</h1>
-              <p className="text-sm text-gray-500 mt-0.5">Mode Shopify: sidebar repliable, édition structurée et aperçu boutique en direct.</p>
-            </div>
+            <div className="h-9 w-px bg-gray-200" />
+            <button
+              onClick={handleUndo}
+              disabled={undoStack.length === 0}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+              title="Retour en arrière"
+            >
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 14l-4-4m0 0l4-4m-4 4h11a4 4 0 110 8h-1" />
+              </svg>
+            </button>
+            <button
+              onClick={handleRedo}
+              disabled={redoStack.length === 0}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+              title="Aller en avant"
+            >
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 14l4-4m0 0l-4-4m4 4H8a4 4 0 100 8h1" />
+              </svg>
+            </button>
+            <div className="h-9 w-px bg-gray-200" />
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center bg-gray-100 rounded-xl p-1">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-gray-900 truncate">Page d'accueil</p>
+            <p className="text-[11px] text-gray-400 truncate">Builder boutique style Shopify</p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <div className="hidden md:flex items-center bg-gray-100 rounded-xl p-1">
               {['desktop', 'tablet', 'mobile'].map((device) => (
                 <button
                   key={device}
@@ -962,41 +1137,35 @@ const BoutiquePages = () => {
                   {device === 'desktop' ? 'Desktop' : device === 'tablet' ? 'Tablette' : 'Mobile'}
                 </button>
               ))}
-            </div>
-            <button
-              onClick={() => setIframeKey((current) => current + 1)}
-              className="px-3 py-2 rounded-xl text-xs font-semibold bg-gray-100 text-gray-600 hover:bg-gray-200 transition"
-            >
-              Recharger
-            </button>
-            <button
-              onClick={openLibrary}
-              className="inline-flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-semibold text-[#0F6B4F] bg-[#E6F2ED] hover:bg-[#D1E8DC] transition"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              Ajouter une section
-            </button>
+          </div>
           {storeUrl && (
             <a
               href={storeUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-[#0F6B4F] bg-[#E6F2ED] hover:bg-[#D1E8DC] transition"
+              className="hidden md:flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold text-gray-600 border border-gray-200 hover:bg-gray-50 transition"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
               </svg>
-              Voir ma boutique
+              Voir
             </a>
           )}
           <button
+            onClick={() => {
+              setPreviewLoading(true);
+              setIframeKey((current) => current + 1);
+            }}
+            className="px-3 py-2 rounded-lg text-xs font-semibold bg-gray-100 text-gray-600 hover:bg-gray-200 transition"
+          >
+            Recharger
+          </button>
+          <button
             onClick={handleSave}
             disabled={saving}
-            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-white transition shadow-md ${
-              saveStatus === 'saved' ? 'bg-green-500' : saveStatus === 'error' ? 'bg-red-500' : 'bg-[#0F6B4F] hover:bg-[#0A5740]'
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold text-white transition shadow-sm ${
+              saveStatus === 'saved' ? 'bg-green-500' : saveStatus === 'error' ? 'bg-red-500' : 'bg-[#111827] hover:bg-[#000000]'
             } disabled:opacity-60`}
           >
             {saving ? (
@@ -1019,54 +1188,14 @@ const BoutiquePages = () => {
           </button>
         </div>
       </div>
-      </div>
 
-      {storeUrl && (
-        <div className="bg-gradient-to-r from-[#0F6B4F] to-[#0A5740] rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="text-white text-center sm:text-left">
-            <p className="text-xs font-medium opacity-80">Votre boutique en ligne</p>
-            <p className="text-sm font-mono font-bold">{storeUrl}</p>
-          </div>
-          <button
-            onClick={handleRegenerate}
-            disabled={regenerating}
-            className="px-4 py-2 bg-white/20 text-white text-sm font-semibold rounded-lg hover:bg-white/30 transition flex items-center gap-2 border border-white/30 disabled:opacity-60"
-          >
-            {regenerating ? (
-              <>
-                <svg className="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-                Régénération...
-              </>
-            ) : (
-              <>
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-                Régénérer avec l'IA
-              </>
-            )}
-          </button>
-        </div>
-      )}
-
-      <div className="bg-[#E6F2ED] border border-[#96C7B5] rounded-2xl p-4 flex items-start gap-3">
-        <svg className="w-4 h-4 text-[#0F6B4F] flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-        <p className="text-xs text-[#0A5740]">
-          <strong>Builder homepage</strong> : glissez-déposez l'ordre des sections dans le panneau, éditez chaque bloc dans le sidebar et fermez le panneau pour travailler en plein aperçu.
-        </p>
-      </div>
-
-      <div className="overflow-hidden rounded-[28px] border border-gray-200 bg-white shadow-sm">
-        <div className="flex min-h-[760px] bg-gray-50">
+      <div className="flex-1 min-h-0 overflow-hidden">
+        <div className="flex h-full bg-[#f3f4f6]">
           {sidebarOpen && (
-            <aside className="w-full max-w-[360px] flex-shrink-0 border-r border-gray-200 bg-white flex flex-col">
+            <aside className="w-full max-w-[284px] flex-shrink-0 border-r border-gray-200 bg-white flex flex-col">
               {sidebarMode === 'editor' && activeSection ? (
                 <>
-                  <div className="flex items-center justify-between gap-3 border-b border-gray-100 px-4 py-3 bg-gray-50">
+                  <div className="flex items-center justify-between gap-3 border-b border-gray-200 px-4 py-3 bg-white">
                     <button
                       onClick={backToSections}
                       className="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-gray-900 transition"
@@ -1097,7 +1226,7 @@ const BoutiquePages = () => {
                 </>
               ) : sidebarMode === 'library' ? (
                 <>
-                  <div className="flex items-center justify-between gap-3 border-b border-gray-100 px-4 py-3 bg-gray-50">
+                  <div className="flex items-center justify-between gap-3 border-b border-gray-200 px-4 py-3 bg-white">
                     <button
                       onClick={backToSections}
                       className="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-gray-900 transition"
@@ -1118,12 +1247,18 @@ const BoutiquePages = () => {
                     </button>
                   </div>
                   <div className="flex-1 overflow-y-auto p-4">
+                    <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 flex items-start gap-2">
+                      <svg className="w-4 h-4 text-amber-600 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <p className="text-[11px] text-amber-800">Ajoutez les sections dans le modèle de votre page d'accueil puis réorganisez-les dans la liste.</p>
+                    </div>
                     <div className="grid grid-cols-1 gap-2.5">
                       {Object.entries(SECTION_TYPES).map(([type, info]) => (
                         <button
                           key={type}
                           onClick={() => handleAdd(type)}
-                          className={`flex items-center gap-3 rounded-2xl border px-4 py-3 text-left transition hover:border-[#4D9F82] hover:shadow-sm ${info.color}`}
+                          className={`flex items-center gap-3 rounded-xl border px-4 py-3 text-left transition hover:border-[#4D9F82] hover:shadow-sm ${info.color}`}
                         >
                           <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/80">{info.icon}</span>
                           <span className="text-sm font-semibold">{info.label}</span>
@@ -1137,81 +1272,111 @@ const BoutiquePages = () => {
                 </>
               ) : (
                 <>
-                  <div className="flex items-center justify-between gap-3 border-b border-gray-100 px-4 py-3 bg-gray-50">
-                    <div>
-                      <p className="text-sm font-bold text-gray-900">Sections</p>
-                      <p className="text-xs text-gray-400">{sections.length} blocs sur la page d'accueil</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={openLibrary}
-                        className="inline-flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-semibold text-[#0F6B4F] bg-[#E6F2ED] hover:bg-[#D1E8DC] transition"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                        </svg>
-                        Ajouter
-                      </button>
-                      <button
-                        onClick={() => setSidebarOpen(false)}
-                        className="inline-flex h-9 w-9 items-center justify-center rounded-lg hover:bg-gray-200 transition"
-                      >
-                        <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 12H5" />
-                        </svg>
-                      </button>
+                  <div className="border-b border-gray-200 bg-white flex-shrink-0">
+                    <div className="px-4 py-3">
+                      <p className="text-sm font-semibold text-gray-900">Page d'accueil</p>
                     </div>
                   </div>
 
-                  <div className="flex-1 overflow-y-auto p-3 space-y-2">
-                    {sections.length === 0 ? (
-                      <div className="text-center py-10 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200">
-                        <p className="text-gray-500 mb-4">Aucune section configurée</p>
-                        <div className="flex justify-center gap-2">
+                  <div className="flex-1 min-h-0 overflow-y-auto bg-white">
+                    <div className="px-4 py-3 space-y-1">
+                      <div className="flex items-center gap-2 rounded-lg px-2 py-2 text-[13px] text-gray-500 hover:bg-gray-50 transition">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                        </svg>
+                        En-tête
+                      </div>
+                      <div className="rounded-lg border border-gray-200 bg-gray-50/80">
+                        <div className="flex items-center justify-between px-2.5 py-2 border-b border-gray-200/80">
+                          <div>
+                            <p className="text-[12px] font-semibold text-gray-800">Modèle</p>
+                            <p className="text-[10px] text-gray-400">{sections.length} sections</p>
+                          </div>
                           <button
                             onClick={openLibrary}
-                            className="px-4 py-2.5 bg-[#0F6B4F] text-white rounded-xl font-semibold hover:bg-[#0A5740] transition"
+                            className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-semibold text-[#2563eb] hover:bg-blue-50 transition"
                           >
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                            </svg>
                             Ajouter une section
                           </button>
+                        </div>
+                        <div className="p-2 space-y-1.5">
+                          {sections.length === 0 ? (
+                            <div className="rounded-lg border border-dashed border-gray-200 bg-white px-3 py-5 text-center text-xs text-gray-400">
+                              Aucune section dans le modèle.
+                            </div>
+                          ) : (
+                            sections.map((section, idx) => (
+                              <SectionCard
+                                key={section.id}
+                                section={section}
+                                index={idx}
+                                total={sections.length}
+                                onMove={handleMove}
+                                onToggle={handleToggle}
+                                onEdit={openEditor}
+                                onDelete={handleDelete}
+                                isActive={activeSection?.id === section.id}
+                                onSelect={openEditor}
+                                onDragStart={handleDragStart}
+                                onDragOver={handleDragOver}
+                                onDrop={handleDrop}
+                                onDragEnd={handleDragEnd}
+                                isDragging={dragFromId === section.id}
+                                isDragOver={dragOverId === section.id && dragFromId !== section.id}
+                              />
+                            ))
+                          )}
                           <button
-                            onClick={handleRegenerate}
-                            disabled={regenerating}
-                            className="px-4 py-2.5 bg-gray-100 text-gray-700 rounded-xl font-semibold hover:bg-gray-200 transition"
+                            onClick={openLibrary}
+                            className="w-full flex items-center gap-2 rounded-lg border border-dashed border-gray-200 bg-white px-3 py-3 text-[12px] font-medium text-[#2563eb] hover:bg-blue-50 hover:border-blue-200 transition"
                           >
-                            {regenerating ? 'Génération...' : 'Générer IA'}
+                            <span className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-current">+</span>
+                            Ajouter une section
                           </button>
                         </div>
                       </div>
-                    ) : (
-                      sections.map((section, idx) => (
-                        <SectionCard
-                          key={section.id}
-                          section={section}
-                          index={idx}
-                          total={sections.length}
-                          onMove={handleMove}
-                          onToggle={handleToggle}
-                          onEdit={openEditor}
-                          onDelete={handleDelete}
-                          isActive={activeSection?.id === section.id}
-                          onSelect={openEditor}
-                          onDragStart={handleDragStart}
-                          onDragOver={handleDragOver}
-                          onDrop={handleDrop}
-                          onDragEnd={handleDragEnd}
-                          isDragging={dragFromId === section.id}
-                          isDragOver={dragOverId === section.id && dragFromId !== section.id}
-                        />
-                      ))
-                    )}
+                      <div className="flex items-center gap-2 rounded-lg px-2 py-2 text-[13px] text-gray-500 hover:bg-gray-50 transition">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M6 10h12M8 14h8M10 18h4" />
+                        </svg>
+                        Pied de page
+                      </div>
+                    </div>
+                    <div className="px-2 pt-3 border-t border-gray-100 flex items-center justify-between gap-3 sticky bottom-0 bg-white/95 backdrop-blur">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Actions</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={handleRegenerate}
+                          disabled={regenerating}
+                          className="inline-flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 transition disabled:opacity-60"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                          </svg>
+                          IA
+                        </button>
+                        <button
+                          onClick={() => setSidebarOpen(false)}
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-lg hover:bg-gray-200 transition"
+                        >
+                          <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 12H5" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </>
               )}
             </aside>
           )}
 
-          <div className="flex-1 min-w-0 bg-[#e8eaed] p-3 lg:p-4 overflow-hidden relative">
+          <div className="flex-1 min-w-0 bg-[#eceff3] p-3 lg:p-4 overflow-hidden relative">
             {!sidebarOpen && (
               <button
                 onClick={() => setSidebarOpen(true)}
@@ -1224,69 +1389,80 @@ const BoutiquePages = () => {
               </button>
             )}
 
-            <div className="h-full rounded-[26px] bg-white shadow-xl overflow-hidden border border-gray-200 flex flex-col">
-              <div className="h-10 bg-gray-100 border-b border-gray-200 flex items-center px-3 gap-2 select-none shrink-0">
+            <div className="h-full rounded-[20px] bg-white shadow-lg overflow-hidden border border-gray-200 flex flex-col">
+              <div className="h-10 bg-[#f7f7f8] border-b border-gray-200 flex items-center px-3 gap-2 select-none shrink-0">
                 <div className="flex gap-1.5">
                   <div className="w-2.5 h-2.5 rounded-full bg-red-400" />
                   <div className="w-2.5 h-2.5 rounded-full bg-yellow-400" />
                   <div className="w-2.5 h-2.5 rounded-full bg-green-400" />
                 </div>
                 <div className="flex-1 bg-white rounded px-2 py-1 text-[10px] text-gray-400 font-mono border border-gray-200 truncate">
-                  {storeUrl ? `${storeUrl}${storeUrl.includes('?') ? '&' : '?'}builderPreview=${iframeKey}` : 'Aperçu indisponible'}
+                  {previewSrc ? `${window.location.origin}${previewSrc}` : 'Aperçu indisponible'}
                 </div>
               </div>
 
-              <div className="flex-1 bg-[#f3f4f6] overflow-auto p-3">
-                {storeUrl ? (
-                  <div className={`${previewDevice === 'desktop' ? 'h-full' : 'flex justify-center'} min-w-full`}>
-                    <iframe
-                      key={iframeKey}
-                      src={`${storeUrl}${storeUrl.includes('?') ? '&' : '?'}builderPreview=${iframeKey}`}
-                      title="Aperçu boutique"
-                      className={`${previewFrameClass} rounded-[20px] border border-gray-200 bg-white shadow-sm`}
-                    />
+              <div ref={previewViewportRef} className="flex-1 bg-[#eceff3] overflow-hidden p-3 lg:p-4">
+                {previewSrc ? (
+                  <div className="h-full w-full flex items-start justify-center overflow-auto">
+                    <div
+                      className="relative"
+                      style={{
+                        width: `${previewFrameSize.width * previewScale}px`,
+                        height: `${previewFrameSize.height * previewScale}px`,
+                        minWidth: `${previewFrameSize.width * previewScale}px`,
+                      }}
+                    >
+                      {previewLoading && (
+                        <div className="absolute inset-0 z-10 flex items-center justify-center rounded-[16px] border border-gray-200 bg-white/92 backdrop-blur-sm shadow-sm">
+                          <div className="flex flex-col items-center gap-3 text-center px-6">
+                            <div className="h-10 w-10 rounded-full border-4 border-gray-200 border-t-[#0F6B4F] animate-spin" />
+                            <div>
+                              <p className="text-sm font-semibold text-gray-900">Chargement de l'aperçu</p>
+                              <p className="text-xs text-gray-500 mt-1">La page d'accueil se charge dans le canvas builder.</p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      <div
+                        style={{
+                          width: `${previewFrameSize.width}px`,
+                          height: `${previewFrameSize.height}px`,
+                          transform: `scale(${previewScale})`,
+                          transformOrigin: 'top left',
+                        }}
+                      >
+                        <iframe
+                          ref={previewIframeRef}
+                          key={iframeKey}
+                          src={previewSrc}
+                          title="Aperçu boutique"
+                          onLoad={() => {
+                            setPreviewLoading(false);
+                            pushPreviewSections(sections);
+                          }}
+                          className="rounded-[16px] border border-gray-200 bg-white shadow-sm"
+                          style={{ width: `${previewFrameSize.width}px`, height: `${previewFrameSize.height}px` }}
+                        />
+                      </div>
+                    </div>
                   </div>
                 ) : (
-                  <div className="h-full min-h-[640px] flex items-center justify-center text-sm text-gray-400 bg-white rounded-[20px] border border-gray-200">
-                    L'aperçu sera disponible dès qu'un sous-domaine sera configuré.
+                  <div className="h-full min-h-[640px] flex items-center justify-center bg-white rounded-[20px] border border-gray-200">
+                    <div className="max-w-md text-center px-8">
+                      <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gray-100 text-gray-500">
+                        <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M3 5h18M7 3v4m10-4v4M6 9h12a2 2 0 012 2v7a2 2 0 01-2 2H6a2 2 0 01-2-2v-7a2 2 0 012-2z" />
+                        </svg>
+                      </div>
+                      <p className="text-base font-semibold text-gray-900">Aperçu indisponible</p>
+                      <p className="mt-2 text-sm text-gray-500">Configurez d'abord un sous-domaine pour afficher votre page d'accueil dans un canvas professionnel.</p>
+                    </div>
                   </div>
                 )}
               </div>
             </div>
           </div>
         </div>
-      </div>
-
-      {/* Quick links */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 pt-4 border-t border-gray-200">
-        <Link
-          to="/ecom/boutique/theme"
-          className="flex items-center gap-3 px-4 py-3 rounded-xl border border-gray-200 text-sm font-semibold text-gray-700 hover:border-[#4D9F82] hover:bg-[#E6F2ED] transition"
-        >
-          <span className="text-lg">🎨</span>
-          Modifier le thème
-        </Link>
-        <Link
-          to="/ecom/boutique/products"
-          className="flex items-center gap-3 px-4 py-3 rounded-xl border border-gray-200 text-sm font-semibold text-gray-700 hover:border-[#4D9F82] hover:bg-[#E6F2ED] transition"
-        >
-          <span className="text-lg">📦</span>
-          Gérer les produits
-        </Link>
-        <Link
-          to="/ecom/boutique/settings"
-          className="flex items-center gap-3 px-4 py-3 rounded-xl border border-gray-200 text-sm font-semibold text-gray-700 hover:border-[#4D9F82] hover:bg-[#E6F2ED] transition"
-        >
-          <span className="text-lg">⚙️</span>
-          Paramètres
-        </Link>
-        <Link
-          to="/ecom/boutique"
-          className="flex items-center gap-3 px-4 py-3 rounded-xl border border-gray-200 text-sm font-semibold text-gray-700 hover:border-[#4D9F82] hover:bg-[#E6F2ED] transition"
-        >
-          <span className="text-lg">📊</span>
-          Dashboard
-        </Link>
       </div>
 
     </div>

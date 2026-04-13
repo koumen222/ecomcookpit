@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import { ArrowLeft, Save, Image, Plus, X, Loader2, AlertCircle, CheckCircle, Search, PackageSearch, Link, Sparkles, Globe, FileText, ChevronDown, ChevronUp, ShoppingBag, Layers, ChevronRight, Target, Lightbulb, BarChart3, Star, Shield, Zap, BookOpen, Type, Trash2 } from 'lucide-react';
+import { ArrowLeft, Save, Image, Plus, X, Loader2, AlertCircle, CheckCircle, Search, PackageSearch, Link, Sparkles, Globe, FileText, ChevronDown, ChevronUp, ShoppingBag, Layers, ChevronRight, Target, Lightbulb, BarChart3, Star, Shield, Zap, BookOpen, Type, Trash2, Download } from 'lucide-react';
 import { storeProductsApi } from '../services/storeApi.js';
 import AlibabaImportModal from '../components/AlibabaImportModal.jsx';
 import RichTextEditor from '../components/RichTextEditor.jsx';
@@ -132,6 +132,7 @@ const StoreProductForm = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [uploading, setUploading] = useState(false);
+  const [csvBusy, setCsvBusy] = useState(false);
 
   // ─── System product picker state ────────────────────────────────────────
   const [showPicker, setShowPicker] = useState(false);
@@ -465,6 +466,28 @@ const StoreProductForm = () => {
     setImageUrlInput('');
   };
 
+  const handleExportProductCsv = async () => {
+    if (!id) return;
+    setCsvBusy(true);
+    setError('');
+    try {
+      const response = await storeProductsApi.exportProductCsv(id);
+      const blob = new Blob([response.data], { type: 'text/csv;charset=utf-8;' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `page-produit-${form.slug || id}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      setError('Impossible d’exporter ce produit en CSV');
+    } finally {
+      setCsvBusy(false);
+    }
+  };
+
   const handleDrop = (e) => {
     e.preventDefault();
     setDragOver(false);
@@ -684,14 +707,25 @@ const StoreProductForm = () => {
         </div>
         <div className="flex items-center gap-2">
           {isEdit && (
-            <button
-              type="button"
-              onClick={() => navigate(`${basePath}/products/${id}/builder`)}
-              className="inline-flex items-center gap-2 px-3 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition shadow-sm"
-            >
-              <Layers className="w-4 h-4" />
-              <span className="hidden sm:inline">Page Builder</span>
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={handleExportProductCsv}
+                disabled={csvBusy}
+                className="inline-flex items-center gap-2 px-3 py-2 border border-gray-200 bg-white text-sm font-medium text-gray-700 rounded-lg hover:bg-gray-50 transition disabled:opacity-50"
+              >
+                <Download className="w-4 h-4" />
+                <span className="hidden sm:inline">Exporter CSV</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate(`${basePath}/products/${id}/builder`)}
+                className="inline-flex items-center gap-2 px-3 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition shadow-sm"
+              >
+                <Layers className="w-4 h-4" />
+                <span className="hidden sm:inline">Page Builder</span>
+              </button>
+            </>
           )}
           <button
             type="submit"

@@ -12,6 +12,7 @@ import { prefetchStoreProduct, useStoreData } from '../hooks/useStoreData';
 import { useStoreCart } from '../hooks/useStoreCart';
 import { setDocumentMeta } from '../utils/pageMeta';
 import { preloadStoreCheckoutRoute, preloadStoreProductRoute } from '../utils/routePrefetch';
+import { normalizeHomepageSections } from '../utils/homepageSections';
 import { EditModeProvider, useEditMode } from '../contexts/EditModeContext';
 import { EditableWrapper, EditToolbar } from '../components/storefront/EditableWrapper';
 import { useStoreAnalytics } from '../hooks/useStoreAnalytics';
@@ -3073,15 +3074,33 @@ const PublicStorefrontInner = () => {
   const { subdomain: detectedSubdomain, isStoreDomain } = useSubdomain();
   const subdomain = paramSubdomain || detectedSubdomain;
   const prefix = isStoreDomain ? '' : (subdomain ? `/store/${subdomain}` : '');
+  const isBuilderPreview = searchParams.get('builderPreview') !== null;
 
   const { store, sections, products, pixels: innerPixels, footer, legalPages, loading, error } = useStoreData(subdomain);
   const { cartCount } = useStoreCart(subdomain);
   const { isEditMode } = useEditMode();
   const [activeCategory, setActiveCategory] = useState('all');
+  const [previewSections, setPreviewSections] = useState(null);
 
   const categories = Array.from(new Set(products.map(p => p.category).filter(Boolean)));
   const filtered = activeCategory === 'all' ? products : products.filter(p => p.category === activeCategory);
-  const hasSections = Array.isArray(sections) && sections.length > 0;
+  const renderedSections = previewSections || sections;
+  const hasSections = Array.isArray(renderedSections) && renderedSections.length > 0;
+
+  useEffect(() => {
+    if (!isBuilderPreview) return undefined;
+
+    const handleBuilderMessage = (event) => {
+      if (event.origin !== window.location.origin) return;
+      const payload = event.data;
+      if (!payload || payload.type !== 'storefront-builder:update-sections') return;
+      const normalizedSections = normalizeHomepageSections(payload.sections ?? null) || [];
+      setPreviewSections(normalizedSections);
+    };
+
+    window.addEventListener('message', handleBuilderMessage);
+    return () => window.removeEventListener('message', handleBuilderMessage);
+  }, [isBuilderPreview]);
 
   useEffect(() => {
     if (!store?.name) return;
@@ -3142,7 +3161,7 @@ const PublicStorefrontInner = () => {
       <StorefrontHeader store={store} cartCount={cartCount} prefix={prefix} />
 
       {hasSections ? (
-        sections.filter(s => (isEditMode || s.visible !== false) && !isLegacyStorySection(s)).map(section => (
+        renderedSections.filter(s => (isEditMode || s.visible !== false) && !isLegacyStorySection(s)).map(section => (
           <SectionRenderer key={section.id || section.type} section={section} store={store} products={products} prefix={prefix} />
         ))
       ) : (
