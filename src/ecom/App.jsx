@@ -698,7 +698,7 @@ const EcomApp = () => {
                 <Route path="/ecom/boutique/wizard" element={<ProtectedRoute requiredRole="ecom_admin"><StoreCreationWizard /></ProtectedRoute>} />
                 <Route path="/ecom/boutique/nouvelle" element={<ProtectedRoute requiredRole="ecom_admin"><StoreCreationWizard /></ProtectedRoute>} />
                 {/* Builders — full screen, outside BoutiqueLayout */}
-                <Route path="/ecom/boutique/products/generator" element={<ProtectedRoute requiredRole="ecom_admin"><RequireStore><ProductPageGeneratorWizard /></RequireStore></ProtectedRoute>} />
+                <Route path="/ecom/boutique/products/generator" element={<ProtectedRoute requiredRole="ecom_admin"><ProductPageGeneratorWizard /></ProtectedRoute>} />
                 <Route path="/ecom/boutique/products/:id/builder" element={<ProtectedRoute requiredRole="ecom_admin"><RequireStore><ProductPageBuilder /></RequireStore></ProtectedRoute>} />
                 <Route path="/ecom/boutique/pages" element={<ProtectedRoute requiredRole="ecom_admin"><RequireStore><BoutiquePages /></RequireStore></ProtectedRoute>} />
                 <Route element={<ProtectedRoute requiredRole="ecom_admin"><RequireStore><BoutiqueLayout /></RequireStore></ProtectedRoute>}>

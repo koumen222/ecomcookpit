@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useEcomAuth } from '../hooks/useEcomAuth';
 import { Sparkles, Trash2, Eye, ArrowRight, Loader2, AlertCircle, Clock, CheckCircle, XCircle, RefreshCw, Plus } from 'lucide-react';
 
 const API_ORIGIN = import.meta.env.DEV ? '' : (import.meta.env.VITE_API_URL || '');
@@ -14,20 +15,22 @@ const statusConfig = {
 
 export default function GenerationsPage() {
   const navigate = useNavigate();
+  const { user } = useEcomAuth();
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(null);
   const [creditsInfo, setCreditsInfo] = useState(null);
 
   const token = localStorage.getItem('ecomToken');
-  const wsId = localStorage.getItem('workspaceId');
+  const wsId = (() => { try { const ws = JSON.parse(localStorage.getItem('ecomWorkspace') || 'null'); return ws?._id || ws?.id || ''; } catch { return ''; } })();
+
+  const headers = { Authorization: `Bearer ${token}` };
+  if (wsId) headers['X-Workspace-Id'] = wsId;
 
   const fetchTasks = useCallback(async () => {
-    if (!token || !wsId) return;
+    if (!token) return;
     try {
-      const resp = await fetch(`${API_ORIGIN}/api/ai/product-generator/tasks`, {
-        headers: { Authorization: `Bearer ${token}`, 'X-Workspace-Id': wsId },
-      });
+      const resp = await fetch(`${API_ORIGIN}/api/ai/product-generator/tasks`, { headers });
       if (!resp.ok) return;
       const data = await resp.json();
       if (data.success) setTasks(data.tasks || []);
@@ -35,11 +38,9 @@ export default function GenerationsPage() {
   }, [token, wsId]);
 
   const fetchCredits = useCallback(async () => {
-    if (!token || !wsId) return;
+    if (!token) return;
     try {
-      const resp = await fetch(`${API_ORIGIN}/api/ai/product-generator/info`, {
-        headers: { Authorization: `Bearer ${token}`, 'X-Workspace-Id': wsId },
-      });
+      const resp = await fetch(`${API_ORIGIN}/api/ai/product-generator/info`, { headers });
       if (!resp.ok) return;
       const data = await resp.json();
       if (data.success) setCreditsInfo(data.generations);
@@ -64,7 +65,7 @@ export default function GenerationsPage() {
     try {
       const resp = await fetch(`${API_ORIGIN}/api/ai/product-generator/tasks/${taskId}`, {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}`, 'X-Workspace-Id': wsId },
+        headers,
       });
       if (resp.ok) {
         setTasks(prev => prev.filter(t => t._id !== taskId));
