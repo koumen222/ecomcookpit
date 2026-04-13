@@ -163,6 +163,28 @@ const orderSchema = new mongoose.Schema({
     ref: 'StoreOrder',
     default: null
   },
+  affiliateId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'AffiliateUser',
+    default: null,
+    index: true
+  },
+  affiliateCode: {
+    type: String,
+    trim: true,
+    uppercase: true,
+    default: ''
+  },
+  affiliateLinkCode: {
+    type: String,
+    trim: true,
+    uppercase: true,
+    default: ''
+  },
+  affiliateCommissionAmount: {
+    type: Number,
+    default: 0
+  },
   rawData: {
     type: mongoose.Schema.Types.Mixed,
     default: {}

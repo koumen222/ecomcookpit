@@ -99,6 +99,15 @@ const Commissions = lazy(() => import('./pages/Commissions.jsx'));
 const SuppliersList = lazy(() => import('./pages/SuppliersList.jsx'));
 const SuperAdminAnalytics = lazy(() => import('./pages/SuperAdminAnalytics.jsx'));
 const Marketing = lazy(() => import('./pages/Marketing.jsx'));
+const EmailAnalytics = lazy(() => import('./pages/EmailAnalytics.jsx'));
+const EmailCampaignResults = lazy(() => import('./pages/EmailCampaignResults.jsx'));
+const AffiliateLogin = lazy(() => import('./pages/AffiliateLogin.jsx'));
+const AffiliateRegister = lazy(() => import('./pages/AffiliateRegister.jsx'));
+const AffiliateDashboard = lazy(() => import('./pages/AffiliateDashboard.jsx'));
+const AffiliateLinks = lazy(() => import('./pages/AffiliateLinks.jsx'));
+const AffiliateConversions = lazy(() => import('./pages/AffiliateConversions.jsx'));
+const AffiliateCommissions = lazy(() => import('./pages/AffiliateCommissions.jsx'));
+const AffiliatesAdmin = lazy(() => import('./pages/AffiliatesAdmin.jsx'));
 const SuperAdminWhatsAppPostulations = lazy(() => import('./pages/SuperAdminWhatsAppPostulations.jsx'));
 const SuperAdminWhatsAppLogs = lazy(() => import('./pages/SuperAdminWhatsAppLogs.jsx'));
 const SuperAdminPushCenter = lazy(() => import('./pages/SuperAdminPushCenter.jsx'));
@@ -245,6 +254,15 @@ const PLATFORM_TITLE_RULES = [
   { path: '/ecom/stats-rapports', title: 'Stats Rapports' },
   { path: '/ecom/chat', title: 'Chat équipe' },
   { path: '/ecom/marketing', title: 'Marketing' },
+  { path: '/ecom/marketing/analytics', title: 'Analytics Email' },
+  { path: '/ecom/marketing/campaigns/:id/results', title: 'Résultats campagne email' },
+  { path: '/ecom/affiliates', title: 'Programme affiliation' },
+  { path: '/affiliate/login', title: 'Connexion affilié' },
+  { path: '/affiliate/register', title: 'Inscription affilié' },
+  { path: '/affiliate/dashboard', title: 'Dashboard affilié' },
+  { path: '/affiliate/links', title: 'Mes liens affilié' },
+  { path: '/affiliate/conversions', title: 'Conversions affilié' },
+  { path: '/affiliate/commissions', title: 'Commissions affilié' },
   { path: '/ecom/super-admin/users/:id', title: 'Détail utilisateur' },
   { path: '/ecom/super-admin/users', title: 'Utilisateurs super admin' },
   { path: '/ecom/super-admin/workspaces', title: 'Workspaces super admin' },
@@ -655,6 +673,9 @@ const EcomApp = () => {
 
               {/* Route marketing */}
               <Route path="/ecom/marketing" element={<LayoutRoute requiredRole="super_admin"><Marketing /></LayoutRoute>} />
+              <Route path="/ecom/marketing/analytics" element={<LayoutRoute requiredRole="super_admin"><EmailAnalytics /></LayoutRoute>} />
+              <Route path="/ecom/marketing/campaigns/:id/results" element={<LayoutRoute requiredRole="super_admin"><EmailCampaignResults /></LayoutRoute>} />
+              <Route path="/ecom/affiliates" element={<LayoutRoute requiredRole="super_admin"><AffiliatesAdmin /></LayoutRoute>} />
 
               {/* Routes Super Admin */}
               <Route path="/ecom/super-admin" element={<LayoutRoute requiredRole="super_admin"><SuperAdminDashboard /></LayoutRoute>} />
@@ -738,6 +759,14 @@ const EcomApp = () => {
               <Route path="/store/:subdomain/product/:slug" element={<Suspense fallback={null}><StoreProductPage /></Suspense>} />
               <Route path="/store/:subdomain/legal/:pageType" element={<Suspense fallback={<PageLoader storeMode />}><StoreLegalPage /></Suspense>} />
               <Route path="/store/:subdomain/checkout" element={<Suspense fallback={<PageLoader storeMode />}><StoreCheckout /></Suspense>} />
+
+              {/* Affiliate Portal Routes */}
+              <Route path="/affiliate/login" element={<AffiliateLogin />} />
+              <Route path="/affiliate/register" element={<AffiliateRegister />} />
+              <Route path="/affiliate/dashboard" element={<AffiliateDashboard />} />
+              <Route path="/affiliate/links" element={<AffiliateLinks />} />
+              <Route path="/affiliate/conversions" element={<AffiliateConversions />} />
+              <Route path="/affiliate/commissions" element={<AffiliateCommissions />} />
 
               {/* Catch-all */}
               <Route path="*" element={<Navigate to="/ecom/login" replace />} />

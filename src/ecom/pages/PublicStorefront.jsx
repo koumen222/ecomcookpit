@@ -19,6 +19,7 @@ import { useStoreAnalytics } from '../hooks/useStoreAnalytics';
 import { StorefrontFooter as SharedStorefrontFooter } from '../components/StorefrontShared';
 import { formatMoney } from '../utils/currency.js';
 import { trackStorefrontEvent } from '../utils/pixelTracking.js';
+import { captureAffiliateAttributionFromSearch } from '../utils/affiliateAttribution.js';
 
 // Lazy load des sections below-the-fold pour performance
 const TestimonialsCarousel = lazy(() => import('../components/TestimonialsCarousel'));
@@ -3236,8 +3237,13 @@ const PublicStorefrontInner = () => {
 const PublicStorefront = () => {
   const { subdomain: paramSubdomain } = useParams();
   const [searchParams] = useSearchParams();
+  const location = useLocation();
   const { subdomain: detectedSubdomain } = useSubdomain();
   const subdomain = paramSubdomain || detectedSubdomain;
+
+  useEffect(() => {
+    captureAffiliateAttributionFromSearch(location.search);
+  }, [location.search]);
   
   // Vérifier si on est en mode édition via URL (pour le propriétaire connecté)
   const editParam = searchParams.get('edit') === 'true';

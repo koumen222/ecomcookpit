@@ -3,7 +3,7 @@ import {
   X, Sparkles, Loader2, CheckCircle, AlertCircle, Upload,
   Image as ImageIcon, Copy, ExternalLink, Zap, Package, ArrowRight, ArrowLeft, Star,
   Globe, FileText, Search, Layers, Shield, Smartphone, Megaphone, Crown,
-  Users, AlertTriangle, User, Phone, Target, Lock, Clock3, RefreshCw
+  Users, AlertTriangle, User, Phone, Target, Lock, Clock3, RefreshCw, ChevronRight
 } from 'lucide-react';
 import TestimonialsCarousel from './TestimonialsCarousel';
 
@@ -668,10 +668,14 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
   const [showConfetti, setShowConfetti] = useState(false);
   const [imageJobId, setImageJobId] = useState(null);
   const [imagesLoading, setImagesLoading] = useState(false);
+  const [currentTaskId, setCurrentTaskId] = useState(null);
+  const [backgroundTasks, setBackgroundTasks] = useState([]);
+  const [showTaskList, setShowTaskList] = useState(false);
   const fileInputRef = useRef(null);
   const abortRef = useRef(null);
   const readerRef = useRef(null);
   const isGeneratingRef = useRef(false);
+  const taskPollRef = useRef(null);
 
   const isValidUrl = url.trim().length > 10 && (url.startsWith('http://') || url.startsWith('https://'));
   const hasValidDescription = description.trim().length > 20;
@@ -795,6 +799,86 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
     const timer = setTimeout(poll, 5000);
     return () => { cancelled = true; clearTimeout(timer); };
   }, [imageJobId, phase]);
+
+  // Fetch background tasks on mount & poll active ones
+  useEffect(() => {
+    const token = localStorage.getItem('ecomToken');
+    const wsId = localStorage.getItem('workspaceId');
+    if (!token || !wsId) return;
+
+    const fetchTasks = async () => {
+      try {
+        const resp = await fetch(`${API_ORIGIN}/api/ai/product-generator/tasks`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'X-Workspace-Id': wsId,
+          },
+        });
+        if (!resp.ok) return;
+        const data = await resp.json();
+        if (data.success) setBackgroundTasks(data.tasks || []);
+      } catch {}
+    };
+
+    fetchTasks();
+    // Poll tasks every 10s if there are active ones
+    const interval = setInterval(() => {
+      if (backgroundTasks.some(t => !['done', 'error'].includes(t.status))) {
+        fetchTasks();
+      }
+    }, 10000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Handler: continue generation in background
+  const handleContinueInBackground = () => {
+    // Stop polling images in foreground
+    abortRef.current?.abort();
+    isGeneratingRef.current = false;
+    // Reset UI
+    setPhase('input');
+    setBuildStep(0);
+    setBuildProgress(0);
+    setBuildMessage('');
+    setShowConfetti(false);
+    setProduct(null);
+    // Refresh task list to show the new task
+    const token = localStorage.getItem('ecomToken');
+    const wsId = localStorage.getItem('workspaceId');
+    if (token && wsId) {
+      fetch(`${API_ORIGIN}/api/ai/product-generator/tasks`, {
+        headers: { Authorization: `Bearer ${token}`, 'X-Workspace-Id': wsId },
+      })
+        .then(r => r.json())
+        .then(data => { if (data.success) setBackgroundTasks(data.tasks || []); })
+        .catch(() => {});
+    }
+    setShowTaskList(true);
+  };
+
+  // Handler: load completed task into preview
+  const handleLoadTask = async (taskId) => {
+    const token = localStorage.getItem('ecomToken');
+    const wsId = localStorage.getItem('workspaceId');
+    try {
+      const resp = await fetch(`${API_ORIGIN}/api/ai/product-generator/tasks/${taskId}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'X-Workspace-Id': wsId,
+        },
+      });
+      if (!resp.ok) throw new Error('Erreur chargement');
+      const data = await resp.json();
+      if (data.success && data.task?.product) {
+        setProduct(data.task.product);
+        setShowTaskList(false);
+        setPhase('preview');
+        setActiveTab('page');
+      }
+    } catch (err) {
+      setError(err.message);
+    }
+  };
 
   // Fetch credit info on mount
   useEffect(() => {
@@ -1048,11 +1132,6 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
     
     const controller = new AbortController();
     abortRef.current = controller;
-    const safetyTimer = setTimeout(() => {
-      controller.abort();
-      setError('Timeout: La génération a pris trop de temps (25 minutes max)');
-      setPhase('input');
-    }, 1500000);
 
     try {
       console.log('🚀 Starting Product Page Generation:', { url: url.trim(), photosCount: photos.length });
@@ -1084,7 +1163,6 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
             setSelectedPack('unit');
             setError(errorData.message || 'Limite de générations atteinte');
             setPhase('input');
-            clearTimeout(safetyTimer);
             abortRef.current = null;
             isGeneratingRef.current = false;
             return;
@@ -1109,6 +1187,9 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
 
         // Store product in state but DON'T switch to preview yet
         setProduct(result.product);
+
+        // Store taskId for background tracking
+        if (result.taskId) setCurrentTaskId(result.taskId);
 
         // If there's an image job, wait for all images before showing preview
         if (result.imageJobId) {
@@ -1250,7 +1331,6 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
       setBuildMessage('');
       setShowConfetti(false);
     } finally {
-      clearTimeout(safetyTimer);
       abortRef.current = null;
       isGeneratingRef.current = false;
     }
@@ -1624,6 +1704,59 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
           {/* ─── INPUT PHASE ─── */}
           {phase === 'input' && (
             <div className="p-6 space-y-5">
+
+              {/* Background tasks indicator */}
+              {backgroundTasks.length > 0 && (
+                <div
+                  className="flex items-center justify-between rounded-xl border border-[#96C7B5] bg-[#E6F2ED] px-4 py-3 cursor-pointer transition hover:bg-[#D1E8DD]"
+                  onClick={() => setShowTaskList(!showTaskList)}
+                >
+                  <div className="flex items-center gap-2">
+                    <div className="relative">
+                      <Sparkles className="w-5 h-5 text-[#0F6B4F]" />
+                      {backgroundTasks.some(t => !['done', 'error'].includes(t.status)) && (
+                        <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-orange-400 rounded-full animate-pulse" />
+                      )}
+                    </div>
+                    <span className="text-sm font-semibold text-[#0A5740]">
+                      {backgroundTasks.filter(t => !['done', 'error'].includes(t.status)).length > 0
+                        ? `${backgroundTasks.filter(t => !['done', 'error'].includes(t.status)).length} génération(s) en cours`
+                        : 'Générations terminées'}
+                    </span>
+                  </div>
+                  <ChevronRight className={`w-4 h-4 text-[#0F6B4F] transition-transform ${showTaskList ? 'rotate-90' : ''}`} />
+                </div>
+              )}
+
+              {/* Task list panel */}
+              {showTaskList && backgroundTasks.length > 0 && (
+                <div className="rounded-xl border border-gray-200 bg-white divide-y divide-gray-100 overflow-hidden shadow-sm">
+                  {backgroundTasks.map(task => (
+                    <div key={task._id} className="flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-gray-900 truncate">{task.productName || 'Produit'}</p>
+                        <p className="text-xs text-gray-500">
+                          {task.status === 'done' ? '✅ Terminé' :
+                           task.status === 'error' ? '❌ Erreur' :
+                           `⏳ ${task.currentStep || 'En cours'} — ${task.progressPercent || 0}%`}
+                        </p>
+                      </div>
+                      {task.status === 'done' && (
+                        <button
+                          type="button"
+                          onClick={() => handleLoadTask(task._id)}
+                          className="ml-3 shrink-0 rounded-lg bg-[#0F6B4F] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#0A5740]"
+                        >
+                          Voir la page
+                        </button>
+                      )}
+                      {task.status === 'error' && (
+                        <span className="ml-3 text-xs text-red-500">{task.errorMessage || 'Erreur'}</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
 
               {/* ÉTAPE 1: Informations produit */}
               {step === 1 && (
@@ -2219,20 +2352,31 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
                     ))}
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => { 
-                      abortRef.current?.abort(); 
-                      setPhase('input');
-                      setBuildStep(0);
-                      setBuildProgress(0);
-                      setBuildMessage('');
-                      setShowConfetti(false);
-                    }}
-                    className="mt-5 text-sm text-gray-500 underline transition hover:text-gray-800"
-                  >
-                    Annuler
-                  </button>
+                  <div className="mt-5 flex items-center justify-center gap-4">
+                    {currentTaskId && (
+                      <button
+                        type="button"
+                        onClick={handleContinueInBackground}
+                        className="rounded-lg bg-[#0F6B4F] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#0A5740]"
+                      >
+                        Continuer en arrière-plan
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => { 
+                        abortRef.current?.abort(); 
+                        setPhase('input');
+                        setBuildStep(0);
+                        setBuildProgress(0);
+                        setBuildMessage('');
+                        setShowConfetti(false);
+                      }}
+                      className="text-sm text-gray-500 underline transition hover:text-gray-800"
+                    >
+                      Annuler
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <>
@@ -2282,20 +2426,31 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
                     ))}
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => { 
-                      abortRef.current?.abort(); 
-                      setPhase('input');
-                      setBuildStep(0);
-                      setBuildProgress(0);
-                      setBuildMessage('');
-                      setShowConfetti(false);
-                    }}
-                    className="text-sm text-gray-400 hover:text-gray-600 underline transition mt-4"
-                  >
-                    Annuler
-                  </button>
+                  <div className="flex items-center justify-center gap-4 mt-4">
+                    {currentTaskId && (
+                      <button
+                        type="button"
+                        onClick={handleContinueInBackground}
+                        className="rounded-lg bg-scalor-green px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90"
+                      >
+                        Continuer en arrière-plan
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => { 
+                        abortRef.current?.abort(); 
+                        setPhase('input');
+                        setBuildStep(0);
+                        setBuildProgress(0);
+                        setBuildMessage('');
+                        setShowConfetti(false);
+                      }}
+                      className="text-sm text-gray-400 hover:text-gray-600 underline transition"
+                    >
+                      Annuler
+                    </button>
+                  </div>
                 </>
               )}
             </div>

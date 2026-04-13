@@ -14,6 +14,7 @@ export const marketingApi = {
 
   // Stats
   getStats: () => ecomApi.get('marketing/stats'),
+  getDailyAnalytics: (params = {}) => ecomApi.get('marketing/analytics/daily', { params }),
 
   // Audience preview
   previewAudience: (data) => ecomApi.post('marketing/audience-preview', data),

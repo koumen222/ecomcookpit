@@ -1058,6 +1058,174 @@ router.get('/stats', requireMarketingAccess, async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// GET /api/ecom/marketing/analytics/daily — daily email analytics
+// ─────────────────────────────────────────────────────────────────────────────
+router.get('/analytics/daily', requireMarketingAccess, async (req, res) => {
+  try {
+    const days = Math.min(Math.max(parseInt(req.query.days, 10) || 30, 7), 180);
+    const campaignId = req.query.campaignId ? String(req.query.campaignId) : '';
+
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    start.setDate(start.getDate() - (days - 1));
+
+    const baseLogMatch = {
+      sentAt: { $gte: start }
+    };
+
+    if (campaignId) {
+      baseLogMatch.campaignId = campaignId;
+    }
+
+    if (req.ecomUser.role === 'ecom_admin' && req.workspaceId) {
+      baseLogMatch.workspaceId = req.workspaceId;
+    }
+
+    const openMatch = { openedAt: { $gte: start } };
+    if (campaignId) openMatch.campaignId = campaignId;
+    if (req.ecomUser.role === 'ecom_admin' && req.workspaceId) openMatch.workspaceId = req.workspaceId;
+
+    const clickMatch = { 'clicks.clickedAt': { $gte: start } };
+    if (campaignId) clickMatch.campaignId = campaignId;
+    if (req.ecomUser.role === 'ecom_admin' && req.workspaceId) clickMatch.workspaceId = req.workspaceId;
+
+    const [sendDaily, openDaily, clickDaily] = await Promise.all([
+      EmailCampaignRecipientLog.aggregate([
+        { $match: baseLogMatch },
+        {
+          $group: {
+            _id: {
+              date: { $dateToString: { format: '%Y-%m-%d', date: '$sentAt' } }
+            },
+            sent: { $sum: { $cond: [{ $eq: ['$status', 'sent'] }, 1, 0] } },
+            failed: { $sum: { $cond: [{ $eq: ['$status', 'failed'] }, 1, 0] } },
+            targeted: { $sum: 1 }
+          }
+        },
+        { $sort: { '_id.date': 1 } }
+      ]),
+      EmailCampaignRecipientLog.aggregate([
+        { $match: openMatch },
+        {
+          $group: {
+            _id: {
+              date: { $dateToString: { format: '%Y-%m-%d', date: '$openedAt' } }
+            },
+            opened: { $sum: 1 }
+          }
+        },
+        { $sort: { '_id.date': 1 } }
+      ]),
+      EmailCampaignRecipientLog.aggregate([
+        { $match: clickMatch },
+        { $unwind: '$clicks' },
+        { $match: { 'clicks.clickedAt': { $gte: start } } },
+        {
+          $group: {
+            _id: {
+              date: { $dateToString: { format: '%Y-%m-%d', date: '$clicks.clickedAt' } }
+            },
+            totalClicks: { $sum: 1 },
+            uniqueClickers: { $addToSet: '$email' }
+          }
+        },
+        {
+          $project: {
+            _id: 1,
+            totalClicks: 1,
+            uniqueClicked: { $size: '$uniqueClickers' }
+          }
+        },
+        { $sort: { '_id.date': 1 } }
+      ])
+    ]);
+
+    const byDate = new Map();
+    for (let i = 0; i < days; i++) {
+      const d = new Date(start);
+      d.setDate(start.getDate() + i);
+      const key = d.toISOString().slice(0, 10);
+      byDate.set(key, {
+        date: key,
+        label: d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }),
+        targeted: 0,
+        sent: 0,
+        failed: 0,
+        opened: 0,
+        uniqueClicked: 0,
+        totalClicks: 0,
+        openRate: 0,
+        clickRate: 0
+      });
+    }
+
+    sendDaily.forEach((row) => {
+      const key = row._id?.date;
+      if (!byDate.has(key)) return;
+      const item = byDate.get(key);
+      item.targeted = row.targeted || 0;
+      item.sent = row.sent || 0;
+      item.failed = row.failed || 0;
+    });
+
+    openDaily.forEach((row) => {
+      const key = row._id?.date;
+      if (!byDate.has(key)) return;
+      const item = byDate.get(key);
+      item.opened = row.opened || 0;
+    });
+
+    clickDaily.forEach((row) => {
+      const key = row._id?.date;
+      if (!byDate.has(key)) return;
+      const item = byDate.get(key);
+      item.totalClicks = row.totalClicks || 0;
+      item.uniqueClicked = row.uniqueClicked || 0;
+    });
+
+    const series = Array.from(byDate.values()).map((item) => {
+      const openRate = item.sent > 0 ? Number(((item.opened / item.sent) * 100).toFixed(1)) : 0;
+      const clickRate = item.sent > 0 ? Number(((item.uniqueClicked / item.sent) * 100).toFixed(1)) : 0;
+      return {
+        ...item,
+        openRate,
+        clickRate
+      };
+    });
+
+    const totals = series.reduce((acc, item) => {
+      acc.targeted += item.targeted;
+      acc.sent += item.sent;
+      acc.failed += item.failed;
+      acc.opened += item.opened;
+      acc.uniqueClicked += item.uniqueClicked;
+      acc.totalClicks += item.totalClicks;
+      return acc;
+    }, { targeted: 0, sent: 0, failed: 0, opened: 0, uniqueClicked: 0, totalClicks: 0 });
+
+    totals.openRate = totals.sent > 0 ? Number(((totals.opened / totals.sent) * 100).toFixed(1)) : 0;
+    totals.clickRate = totals.sent > 0 ? Number(((totals.uniqueClicked / totals.sent) * 100).toFixed(1)) : 0;
+
+    res.json({
+      success: true,
+      data: {
+        days,
+        campaignId: campaignId || null,
+        range: {
+          from: series[0]?.date || null,
+          to: series[series.length - 1]?.date || null
+        },
+        totals,
+        series
+      }
+    });
+  } catch (err) {
+    console.error('marketing/analytics/daily:', err);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // GET /api/ecom/marketing/variables — list available substitution variables
 // ─────────────────────────────────────────────────────────────────────────────
 router.get('/variables', requireMarketingAccess, async (req, res) => {

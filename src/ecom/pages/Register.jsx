@@ -17,6 +17,7 @@ const Register = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const joinMode = new URLSearchParams(location.search).get('mode') === 'join';
+  const affiliateCode = new URLSearchParams(location.search).get('aff') || '';
   const { register, googleLogin } = useEcomAuth();
 
   const [step, setStep] = useState(1);
@@ -58,7 +59,7 @@ const Register = () => {
 
     setLoading(true); setError('');
     try {
-      const result = await googleLogin(response.credential);
+      const result = await googleLogin(response.credential, affiliateCode || undefined);
       console.log('\u2705 [Google Auth] Login réussi (Register):', { user: result.data?.user?.email });
       const u = result.data?.user;
       navigate(u?.workspaceId ? '/ecom/dashboard' : '/ecom/workspace-setup');
@@ -148,7 +149,7 @@ const Register = () => {
     if (!canSubmit) return;
     setLoading(true); setError('');
     try {
-      await register({ email, password: formData.password, name: formData.name.trim(), phone: formData.phone.trim(), acceptPrivacy: true });
+      await register({ email, password: formData.password, name: formData.name.trim(), phone: formData.phone.trim(), acceptPrivacy: true, affiliateCode: affiliateCode || undefined });
       navigate('/ecom/dashboard');
     } catch (err) {
       setError(getContextualError(err, 'register'));

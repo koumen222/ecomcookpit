@@ -9,6 +9,8 @@ import { generateEcomToken, generatePermanentToken, requireEcomAuth } from '../m
 import { validateEmail, validatePassword } from '../middleware/validation.js';
 import { logAudit } from '../middleware/security.js';
 import AnalyticsEvent from '../models/AnalyticsEvent.js';
+import AffiliateUser from '../models/AffiliateUser.js';
+import AffiliateConversion from '../models/AffiliateConversion.js';
 import {
   notifyUserRegistered,
   notifyForgotPassword,
@@ -46,6 +48,30 @@ function trackEvent(req, eventType, userId, extra = {}) {
 
 // Rate limiting simple pour forgot-password (anti-abus)
 const forgotPasswordAttempts = new Map();
+
+/**
+ * Fire-and-forget: credit 500 FCFA signup commission to the referring affiliate.
+ */
+async function creditSignupCommission(affiliateCode, referredUserId) {
+  try {
+    const affiliate = await AffiliateUser.findOne({ referralCode: affiliateCode.toUpperCase(), isActive: true });
+    if (!affiliate) return;
+    await AffiliateConversion.create({
+      affiliateId: affiliate._id,
+      affiliateCode: affiliate.referralCode,
+      conversionType: 'signup',
+      referredUserId,
+      commissionType: 'fixed',
+      commissionValue: 500,
+      commissionAmount: 500,
+      status: 'approved',
+      statusNote: 'Bonus inscription automatique'
+    });
+    console.log(`[affiliate] 500 FCFA signup commission for affiliate ${affiliate.referralCode} (referred user ${referredUserId})`);
+  } catch (err) {
+    console.warn('[affiliate] signup commission error:', err.message);
+  }
+}
 const FORGOT_PASSWORD_LIMIT = 3; // max 3 demandes
 const FORGOT_PASSWORD_WINDOW = 15 * 60 * 1000; // par 15 minutes
 
@@ -492,7 +518,7 @@ router.post('/verify-otp', async (req, res) => {
 // POST /api/ecom/auth/register - Création d'un compte (sans workspace ni rôle)
 router.post('/register', validateEmail, validatePassword, async (req, res) => {
   try {
-    const { email, password, name, phone, superAdmin, acceptPrivacy } = req.body;
+    const { email, password, name, phone, superAdmin, acceptPrivacy, affiliateCode } = req.body;
 
     // Vérifier l'acceptation de la politique de confidentialité
     if (!superAdmin && !acceptPrivacy) {
@@ -543,9 +569,15 @@ router.post('/register', validateEmail, validatePassword, async (req, res) => {
       name: name?.trim() || '',
       phone: phone?.trim() || '',
       role: null,
-      workspaceId: null
+      workspaceId: null,
+      referredByAffiliateCode: affiliateCode?.trim().toUpperCase() || null
     });
     await user.save();
+
+    // Credit 500 FCFA signup commission to referring affiliate (non-blocking)
+    if (user.referredByAffiliateCode) {
+      creditSignupCommission(user.referredByAffiliateCode, user._id);
+    }
 
     const token = generateEcomToken(user);
 
@@ -587,7 +619,7 @@ router.get('/health', (req, res) => {
 // POST /api/ecom/auth/google - Connexion / inscription via Google
 router.post('/google', async (req, res) => {
   try {
-    const { credential } = req.body;
+    const { credential, affiliateCode } = req.body;
     if (!credential) {
       return res.status(400).json({ success: false, message: 'Token Google manquant' });
     }
@@ -661,10 +693,16 @@ router.post('/google', async (req, res) => {
         name: name || '',
         avatar: picture || '',
         role: null,
-        workspaceId: null
+        workspaceId: null,
+        referredByAffiliateCode: affiliateCode?.trim().toUpperCase() || null
       });
       await user.save();
       isNewUser = true;
+
+      // Credit 500 FCFA signup commission to referring affiliate (non-blocking)
+      if (user.referredByAffiliateCode) {
+        creditSignupCommission(user.referredByAffiliateCode, user._id);
+      }
 
       // Email de bienvenue
       notifyUserRegistered(user, null).catch(err => console.warn('[notif] google-register:', err.message));
