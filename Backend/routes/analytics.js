@@ -2,6 +2,9 @@ import express from 'express';
 import AnalyticsEvent from '../models/AnalyticsEvent.js';
 import AnalyticsSession from '../models/AnalyticsSession.js';
 import EcomUser from '../models/EcomUser.js';
+import Store from '../models/Store.js';
+import StoreOrder from '../models/StoreOrder.js';
+import StoreProduct from '../models/StoreProduct.js';
 import Workspace from '../models/Workspace.js';
 import { requireEcomAuth, requireSuperAdmin } from '../middleware/ecomAuth.js';
 
@@ -858,6 +861,235 @@ router.get('/users-activity',
       const totalWorkspaces = await Workspace.countDocuments();
       const inactiveWorkspaces = Math.max(0, totalWorkspaces - activeWorkspaceIds.length);
 
+      // ── Store activity by user (all-time business metrics) ──
+      const [users, workspaces, stores, orderStats, productStats] = await Promise.all([
+        EcomUser.find({}, {
+          email: 1,
+          name: 1,
+          role: 1,
+          workspaceId: 1,
+          workspaces: 1,
+          isActive: 1,
+          lastLogin: 1,
+          createdAt: 1,
+        }).lean(),
+        Workspace.find({}, {
+          name: 1,
+          slug: 1,
+          owner: 1,
+          subdomain: 1,
+          primaryStoreId: 1,
+          createdAt: 1,
+          storeSettings: 1,
+          isActive: 1,
+        }).lean(),
+        Store.find({}, {
+          workspaceId: 1,
+          name: 1,
+          subdomain: 1,
+          createdBy: 1,
+          createdAt: 1,
+          isActive: 1,
+          storeSettings: 1,
+        }).lean(),
+        StoreOrder.aggregate([
+          {
+            $group: {
+              _id: {
+                workspaceId: '$workspaceId',
+                storeId: '$storeId',
+              },
+              totalOrders: { $sum: 1 },
+              totalRevenue: { $sum: { $ifNull: ['$total', 0] } },
+              lastOrderAt: { $max: '$createdAt' },
+            }
+          }
+        ]),
+        StoreProduct.aggregate([
+          {
+            $group: {
+              _id: {
+                workspaceId: '$workspaceId',
+                storeId: '$storeId',
+              },
+              totalProducts: { $sum: 1 },
+              publishedProducts: {
+                $sum: { $cond: [{ $eq: ['$isPublished', true] }, 1, 0] }
+              },
+              lastProductAt: { $max: '$createdAt' },
+              productNames: { $push: '$name' },
+              productSlugs: { $push: '$slug' },
+            }
+          }
+        ]),
+      ]);
+
+      const storeKey = (workspaceId, storeId) => `${String(workspaceId || '')}:${String(storeId || 'legacy')}`;
+
+      const orderStatsMap = new Map(
+        orderStats.map((entry) => [
+          storeKey(entry._id?.workspaceId, entry._id?.storeId),
+          entry,
+        ])
+      );
+
+      const productStatsMap = new Map(
+        productStats.map((entry) => [
+          storeKey(entry._id?.workspaceId, entry._id?.storeId),
+          entry,
+        ])
+      );
+
+      const usersById = new Map(users.map((user) => [String(user._id), user]));
+      const workspacesById = new Map(workspaces.map((workspace) => [String(workspace._id), workspace]));
+      const storesByWorkspace = new Map();
+      stores.forEach((store) => {
+        const key = String(store.workspaceId);
+        if (!storesByWorkspace.has(key)) storesByWorkspace.set(key, []);
+        storesByWorkspace.get(key).push(store);
+      });
+
+      const boutiqueRecords = [];
+
+      stores.forEach((store) => {
+        const workspace = workspacesById.get(String(store.workspaceId));
+        if (!workspace) return;
+
+        const statsKey = storeKey(workspace._id, store._id);
+        const storeOrders = orderStatsMap.get(statsKey);
+        const storeProducts = productStatsMap.get(statsKey);
+        const storeSubdomain = store.subdomain || workspace.subdomain || '';
+        const attributedUserId = store.createdBy ? String(store.createdBy) : String(workspace.owner || '');
+
+        boutiqueRecords.push({
+          attributedUserId,
+          workspaceId: String(workspace._id),
+          _id: String(store._id),
+          workspaceName: workspace.name,
+          workspaceSlug: workspace.slug || '',
+          name: store.storeSettings?.storeName || store.name || workspace.name,
+          currency: store.storeSettings?.storeCurrency || workspace.storeSettings?.storeCurrency || 'XAF',
+          subdomain: storeSubdomain,
+          url: storeSubdomain ? `https://${storeSubdomain}.scalor.net` : '',
+          isActive: store.isActive !== false && store.storeSettings?.isStoreEnabled !== false,
+          isLegacyStore: false,
+          createdAt: store.createdAt,
+          totalOrders: storeOrders?.totalOrders || 0,
+          totalRevenue: storeOrders?.totalRevenue || 0,
+          totalProducts: storeProducts?.totalProducts || 0,
+          publishedProducts: storeProducts?.publishedProducts || 0,
+          lastOrderAt: storeOrders?.lastOrderAt || null,
+          lastProductAt: storeProducts?.lastProductAt || null,
+          productPreviews: ((storeProducts?.productNames || []).slice(0, 5)).map((name, index) => ({
+            name,
+            slug: (storeProducts?.productSlugs || [])[index] || '',
+            url: (storeSubdomain && (storeProducts?.productSlugs || [])[index])
+              ? `https://${storeSubdomain}.scalor.net/product/${(storeProducts?.productSlugs || [])[index]}`
+              : '',
+          })),
+        });
+      });
+
+      workspaces.forEach((workspace) => {
+        const workspaceHasStore = (storesByWorkspace.get(String(workspace._id)) || []).length > 0;
+        if (workspaceHasStore || !workspace.subdomain) return;
+
+        const legacyKey = storeKey(workspace._id, null);
+        const legacyOrders = orderStatsMap.get(legacyKey);
+        const legacyProducts = productStatsMap.get(legacyKey);
+        const attributedUserId = String(workspace.owner || '');
+
+        boutiqueRecords.push({
+          attributedUserId,
+          workspaceId: String(workspace._id),
+          _id: `legacy-${workspace._id}`,
+          workspaceName: workspace.name,
+          workspaceSlug: workspace.slug || '',
+          name: workspace.storeSettings?.storeName || workspace.name,
+          currency: workspace.storeSettings?.storeCurrency || 'XAF',
+          subdomain: workspace.subdomain,
+          url: `https://${workspace.subdomain}.scalor.net`,
+          isActive: workspace.isActive !== false && workspace.storeSettings?.isStoreEnabled !== false,
+          isLegacyStore: true,
+          createdAt: workspace.createdAt,
+          totalOrders: legacyOrders?.totalOrders || 0,
+          totalRevenue: legacyOrders?.totalRevenue || 0,
+          totalProducts: legacyProducts?.totalProducts || 0,
+          publishedProducts: legacyProducts?.publishedProducts || 0,
+          lastOrderAt: legacyOrders?.lastOrderAt || null,
+          lastProductAt: legacyProducts?.lastProductAt || null,
+          productPreviews: ((legacyProducts?.productNames || []).slice(0, 5)).map((name, index) => ({
+            name,
+            slug: (legacyProducts?.productSlugs || [])[index] || '',
+            url: (workspace.subdomain && (legacyProducts?.productSlugs || [])[index])
+              ? `https://${workspace.subdomain}.scalor.net/product/${(legacyProducts?.productSlugs || [])[index]}`
+              : '',
+          })),
+        });
+      });
+
+      const activityByUser = new Map();
+      boutiqueRecords.forEach((record) => {
+        if (!record.attributedUserId) return;
+        if (!activityByUser.has(record.attributedUserId)) activityByUser.set(record.attributedUserId, []);
+        activityByUser.get(record.attributedUserId).push(record);
+      });
+
+      const boutiqueActivity = Array.from(activityByUser.entries()).map(([userId, userStores]) => {
+        const user = usersById.get(userId);
+        const workspaceCount = new Set(userStores.map((store) => String(store.workspaceId))).size;
+        const totals = userStores.reduce((accumulator, store) => ({
+          boutiqueCount: accumulator.boutiqueCount + 1,
+          totalOrders: accumulator.totalOrders + (store.totalOrders || 0),
+          totalRevenue: accumulator.totalRevenue + (store.totalRevenue || 0),
+          totalProducts: accumulator.totalProducts + (store.totalProducts || 0),
+          publishedProducts: accumulator.publishedProducts + (store.publishedProducts || 0),
+        }), {
+          boutiqueCount: 0,
+          totalOrders: 0,
+          totalRevenue: 0,
+          totalProducts: 0,
+          publishedProducts: 0,
+        });
+
+        return {
+          userId,
+          email: user?.email || '',
+          name: user?.name || '',
+          role: user?.role || null,
+          isActive: user?.isActive !== false,
+          createdAt: user?.createdAt || null,
+          lastLogin: user?.lastLogin || null,
+          workspaceCount,
+          ...totals,
+          stores: userStores.sort((left, right) => {
+            const revenueDiff = (right.totalRevenue || 0) - (left.totalRevenue || 0);
+            if (revenueDiff !== 0) return revenueDiff;
+            return new Date(right.createdAt || 0) - new Date(left.createdAt || 0);
+          }),
+        };
+      }).filter((user) => user.boutiqueCount > 0).sort((left, right) => {
+        const boutiqueDiff = (right.boutiqueCount || 0) - (left.boutiqueCount || 0);
+        if (boutiqueDiff !== 0) return boutiqueDiff;
+        const revenueDiff = (right.totalRevenue || 0) - (left.totalRevenue || 0);
+        if (revenueDiff !== 0) return revenueDiff;
+        return new Date(right.createdAt || 0) - new Date(left.createdAt || 0);
+      });
+
+      const boutiqueTotals = boutiqueActivity.reduce((accumulator, user) => ({
+        usersWithBoutiques: accumulator.usersWithBoutiques + (user.boutiqueCount > 0 ? 1 : 0),
+        totalBoutiques: accumulator.totalBoutiques + (user.boutiqueCount || 0),
+        totalOrders: accumulator.totalOrders + (user.totalOrders || 0),
+        totalRevenue: accumulator.totalRevenue + (user.totalRevenue || 0),
+        totalProducts: accumulator.totalProducts + (user.totalProducts || 0),
+      }), {
+        usersWithBoutiques: 0,
+        totalBoutiques: 0,
+        totalOrders: 0,
+        totalRevenue: 0,
+        totalProducts: 0,
+      });
+
       res.json({
         success: true,
         data: {
@@ -867,6 +1099,8 @@ router.get('/users-activity',
           noWorkspace,
           inactiveWorkspaces,
           totalWorkspaces,
+          boutiqueActivity,
+          boutiqueTotals,
           pagination: {
             page: parseInt(page),
             limit: parseInt(limit),
