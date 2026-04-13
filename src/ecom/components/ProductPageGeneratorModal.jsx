@@ -261,18 +261,36 @@ const buildTemplateTheme = (templateId) => ({
   ...(TEMPLATE_THEME_PRESETS[templateId] || TEMPLATE_THEME_PRESETS.general),
 });
 
+const buildGeneratedProductPageConfig = (templateTheme, product = {}) => ({
+  design: {
+    buttonColor: templateTheme.primary,
+    ctaButtonColor: templateTheme.primary,
+    badgeColor: templateTheme.accent,
+    backgroundColor: templateTheme.background,
+    textColor: templateTheme.text,
+    fieldTextColor: templateTheme.text,
+    fieldBgColor: templateTheme.surface,
+  },
+  button: {
+    text: product.hero_cta || templateTheme.cta || 'Commander maintenant',
+  },
+});
+
 function FinalPagePreview({ product, templateTheme, selectedTemplate }) {
   if (!product) return null;
 
   const descriptionTitleColor = templateTheme.primary;
   const descriptionContentColor = templateTheme.text;
+  const beforeAfterGallery = Array.isArray(product.beforeAfterImages) && product.beforeAfterImages.length > 0
+    ? product.beforeAfterImages.map((url, index) => ({ url, alt: `Avant / Après ${index + 1}` }))
+    : (product.beforeAfterImage ? [{ url: product.beforeAfterImage, alt: 'Avant / Après' }] : []);
 
   const gallery = [
     ...(product.heroImage ? [{ url: product.heroImage, alt: product.title || 'Hero' }] : []),
+    ...beforeAfterGallery,
     ...(product.heroPosterImage ? [{ url: product.heroPosterImage, alt: `Affiche ${product.title || 'Produit'}` }] : []),
-    ...(product.beforeAfterImage ? [{ url: product.beforeAfterImage, alt: 'Avant / Après' }] : []),
-    ...((product.realPhotos || []).map((url, index) => ({ url, alt: `Photo ${index + 1}` }))),
     ...((product.angles || []).filter((angle) => angle.poster_url).map((angle, index) => ({ url: angle.poster_url, alt: angle.titre_angle || `Angle ${index + 1}` }))),
+    ...((product.realPhotos || []).map((url, index) => ({ url, alt: `Photo ${index + 1}` }))),
   ].filter((image, index, array) => image?.url && array.findIndex((entry) => entry.url === image.url) === index);
 
   const stats = Array.isArray(product.stats_bar) ? product.stats_bar.slice(0, 3) : [];
@@ -1401,16 +1419,24 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
     
     const productImages = [];
     const socialProofImages = [];
+    const beforeAfterImages = Array.isArray(product.beforeAfterImages) && product.beforeAfterImages.length > 0
+      ? product.beforeAfterImages
+      : (product.beforeAfterImage ? [product.beforeAfterImage] : []);
+    const generatedProductPageConfig = buildGeneratedProductPageConfig(templateTheme, product);
 
     const pushUniqueImage = (target, url, alt, type) => {
       if (!url || target.find((image) => image.url === url)) return;
       target.push({ url, alt, order: target.length, type });
     };
 
-    // Main carousel: generated visuals should always be available there first.
+    // Main carousel order: hero, before/after, then generated visuals.
     if (product.heroImage) {
       pushUniqueImage(productImages, product.heroImage, product.title || 'Image Hero principale', 'hero');
     }
+    beforeAfterImages.forEach((imgUrl, index) => {
+      pushUniqueImage(productImages, imgUrl, `Avant / Après ${index + 1} — Résultats visibles`, 'social-proof-before-after');
+      pushUniqueImage(socialProofImages, imgUrl, `Avant / Après ${index + 1} — Résultats visibles`, 'social-proof-before-after');
+    });
     if (product.heroPosterImage) {
       pushUniqueImage(productImages, product.heroPosterImage, `Affiche — ${product.title || 'Produit'}`, 'hero-poster');
     }
@@ -1435,16 +1461,6 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
         pushUniqueImage(socialProofImages, imgUrl, `${product.title || 'Produit'} — client ${i + 1}`, 'social-proof-lifestyle');
       });
     }
-
-    if (product.beforeAfterImages?.length) {
-      product.beforeAfterImages.forEach((imgUrl, i) => {
-        pushUniqueImage(productImages, imgUrl, `Avant / Après ${i + 1} — Résultats visibles`, 'social-proof-before-after');
-        pushUniqueImage(socialProofImages, imgUrl, `Avant / Après ${i + 1} — Résultats visibles`, 'social-proof-before-after');
-      });
-    } else if (product.beforeAfterImage) {
-      pushUniqueImage(productImages, product.beforeAfterImage, 'Avant / Après - Résultats visibles', 'social-proof-before-after');
-      pushUniqueImage(socialProofImages, product.beforeAfterImage, 'Avant / Après - Résultats visibles', 'social-proof-before-after');
-    }
     
     const finalSocialProofImages = (product.socialProofImages || []).length
       ? (product.socialProofImages || []).reduce((acc, url, index) => {
@@ -1462,8 +1478,11 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
       country: product.country || '',
       city: product.city || '',
       locale: product.locale || '',
+      productPageConfig: generatedProductPageConfig,
       _pageData: {
         ...product,
+        visualTemplate: visualTemplate,
+        visualTemplateLabel: selectedTemplate.label,
         socialProofImages: finalSocialProofImages.map((image) => image.url),
         descriptionGifs: descriptionGifs.map((gif) => gif.url),
         heroVisualDirection: heroVisualDirection.trim(),

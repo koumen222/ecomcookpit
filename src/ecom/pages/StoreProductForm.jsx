@@ -50,6 +50,9 @@ function buildProductCarouselImages(productData = {}, fallbackName = '') {
   });
 
   push(productData.heroImage, productName, 'hero');
+  beforeAfterImages.forEach((image, index) => {
+    push(image, `${productName} — avant / après ${index + 1}`, 'social-proof-before-after');
+  });
   push(productData.heroPosterImage, `${productName} — visuel principal`, 'hero-poster');
 
   anglePosters.forEach((imageUrl, index) => {
@@ -62,10 +65,6 @@ function buildProductCarouselImages(productData = {}, fallbackName = '') {
 
   peoplePhotos.forEach((image, index) => {
     push(image, `${productName} — client ${index + 1}`, 'social-proof-lifestyle');
-  });
-
-  beforeAfterImages.forEach((image, index) => {
-    push(image, `${productName} — avant / après ${index + 1}`, 'social-proof-before-after');
   });
 
   if (!output.length) {
@@ -243,7 +242,8 @@ const StoreProductForm = () => {
       images: simpleHeroImages.length > 0 ? simpleHeroImages : prev.images,
       testimonials: productData._pageData?.testimonials?.length > 0 ? productData._pageData.testimonials : prev.testimonials,
       faq: productData._pageData?.faq?.length > 0 ? productData._pageData.faq : prev.faq,
-      _pageData: productData._pageData || prev._pageData
+      _pageData: productData._pageData || prev._pageData,
+      productPageConfig: productData.productPageConfig || prev.productPageConfig,
     }));
   };
 
@@ -267,7 +267,8 @@ const StoreProductForm = () => {
     linkedProductId: null,
     testimonials: navState?._pageData?.testimonials || [],
     faq: navState?._pageData?.faq || [],
-    _pageData: navState?._pageData || null
+    _pageData: navState?._pageData || null,
+    productPageConfig: navState?.productPageConfig || null,
   });
 
   // Load product for edit mode
@@ -298,7 +299,8 @@ const StoreProductForm = () => {
             linkedProductId: p.linkedProductId || null,
             testimonials: p.testimonials || [],
             faq: p.faq || [],
-            _pageData: p._pageData || null
+            _pageData: p._pageData || null,
+            productPageConfig: p.productPageConfig || null,
           });
           if (p.linkedProductId) {
             setLinkedProduct({ _id: p.linkedProductId, name: p.name });
@@ -659,6 +661,7 @@ const StoreProductForm = () => {
       seoDescription: form.seoDescription.trim(),
       images: form.images,
       linkedProductId: form.linkedProductId || null,
+      ...(form.productPageConfig && { productPageConfig: form.productPageConfig }),
       ...(form.testimonials?.length > 0 && { testimonials: form.testimonials }),
       ...(form.faq?.length > 0 && { faq: form.faq }),
       ...(syncedPageData && { _pageData: syncedPageData })
