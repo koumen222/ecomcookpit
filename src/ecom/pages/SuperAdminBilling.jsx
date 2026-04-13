@@ -124,6 +124,73 @@ function PlanBadge({ plan }) {
   );
 }
 
+function PaymentTypeBadge({ type }) {
+  const map = {
+    plan: { label: 'Abonnement', cls: 'bg-blue-100 text-blue-700' },
+    generation: { label: 'Credits pages', cls: 'bg-violet-100 text-violet-700' },
+  };
+  const info = map[type] || { label: 'Paiement', cls: 'bg-slate-100 text-slate-600' };
+  return (
+    <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md ${info.cls}`}>
+      {info.label}
+    </span>
+  );
+}
+
+function getPaymentMetaLabel(payment) {
+  if (payment.paymentType === 'generation') {
+    const qty = payment.quantity || 0;
+    const unitPrice = payment.pricePerGeneration || 0;
+    return `${qty} credit${qty > 1 ? 's' : ''}${unitPrice ? ` · ${fmtMoney(unitPrice)} F/u` : ''}`;
+  }
+
+  return `${payment.durationMonths || 0} mois`;
+}
+
+function getPaymentTypeLabel(type) {
+  if (type === 'generation') return 'Credits pages produits';
+  if (type === 'plan') return 'Abonnements';
+  if (type === 'starter') return 'Plan Scalor';
+  if (type === 'pro') return 'Plan Scalor + IA';
+  if (type === 'ultra') return 'Plan Scalor IA Pro';
+  return type || 'Autre';
+}
+
+function getPaymentMethodLabel(method) {
+  if (!method) return 'Non renseignee';
+  const map = {
+    orange: 'Orange Money',
+    mtn: 'MTN Money',
+    moov: 'Moov Money',
+    wave: 'Wave',
+    card: 'Carte',
+  };
+  return map[String(method).toLowerCase()] || String(method);
+}
+
+function buildDefaultEmailDraft(templateKey, workspaceName, ownerName, hoursLeft = null, planName = '') {
+  const greeting = ownerName ? `Bonjour ${ownerName},` : 'Bonjour,';
+
+  if (templateKey === 'trial_expiring') {
+    return {
+      subject: `Votre essai Scalor expire bientot`,
+      message: `${greeting}\n\nVotre essai gratuit pour ${workspaceName} expire bientot${hoursLeft ? `, dans environ ${hoursLeft}h` : ''}.\n\nPour continuer a utiliser vos fonctionnalites et garder vos agents actifs, passez a une offre payante depuis Scalor.\n\nCordialement,\nEquipe Scalor`
+    };
+  }
+
+  if (templateKey === 'trial_expired') {
+    return {
+      subject: `Votre essai Scalor est termine`,
+      message: `${greeting}\n\nVotre essai gratuit pour ${workspaceName} est termine. Certaines fonctionnalites ont ete desactivees.\n\nVous pouvez passer a une offre payante quand vous voulez pour reactiver votre compte.\n\nCordialement,\nEquipe Scalor`
+    };
+  }
+
+  return {
+    subject: `Votre plan ${planName || 'Scalor'} a expire`,
+    message: `${greeting}\n\nVotre abonnement ${planName || 'Scalor'} pour ${workspaceName} a expire.\n\nRenouvelez votre offre pour continuer a utiliser les fonctionnalites payantes de Scalor.\n\nCordialement,\nEquipe Scalor`
+  };
+}
+
 // ─── Section header ───────────────────────────────────────────────────────────
 
 function SectionHead({ icon: Icon, title, subtitle, color = 'from-emerald-600 to-teal-600', children }) {
@@ -184,13 +251,14 @@ const SuperAdminBilling = () => {
   const [sendingNotif, setSendingNotif] = useState(null); // 'wsId-channel'
   const [notifSuccess, setNotifSuccess] = useState('');
   const [deactivatingTrial, setDeactivatingTrial] = useState(null); // wsId
+  const [emailComposer, setEmailComposer] = useState(null);
 
-  const handleNotify = async (workspaceId, channel, templateKey) => {
+  const handleNotify = async (workspaceId, channel, templateKey, customEmail = null) => {
     const key = `${workspaceId}-${channel}`;
     setSendingNotif(key);
     setNotifSuccess('');
     try {
-      const res = await ecomApi.post('/super-admin/notify-workspace', { workspaceId, channel, templateKey });
+      const res = await ecomApi.post('/super-admin/notify-workspace', { workspaceId, channel, templateKey, customEmail });
       if (res.data?.success) {
         setNotifSuccess(`${channel === 'email' ? 'Email' : channel === 'push' ? 'Push' : 'Email + Push'} envoyé à ${res.data.email}`);
         setTimeout(() => setNotifSuccess(''), 4000);
@@ -204,6 +272,35 @@ const SuperAdminBilling = () => {
     } finally {
       setSendingNotif(null);
     }
+  };
+
+  const openEmailComposer = (workspace, templateKey) => {
+    const ownerName = workspace?.owner?.name || '';
+    const planName = workspace?.plan === 'pro' ? 'Pro' : workspace?.plan === 'ultra' ? 'Ultra' : 'Scalor';
+    const hoursLeft = workspace?.trialEndsAt
+      ? Math.max(1, Math.round((new Date(workspace.trialEndsAt) - new Date()) / (60 * 60 * 1000)))
+      : null;
+
+    setEmailComposer({
+      workspaceId: workspace._id,
+      workspaceName: workspace.name,
+      recipientEmail: workspace?.owner?.email || '',
+      templateKey,
+      ...buildDefaultEmailDraft(templateKey, workspace.name, ownerName, hoursLeft, planName),
+    });
+  };
+
+  const sendComposedEmail = async () => {
+    if (!emailComposer?.subject?.trim() || !emailComposer?.message?.trim()) {
+      setError('Sujet et message requis');
+      return;
+    }
+
+    await handleNotify(emailComposer.workspaceId, 'email', emailComposer.templateKey, {
+      subject: emailComposer.subject,
+      message: emailComposer.message,
+    });
+    setEmailComposer(null);
   };
 
   const handleDeactivateTrial = async (workspaceId, workspaceName) => {
@@ -251,6 +348,15 @@ const SuperAdminBilling = () => {
   // ─── Derived data ──────────────────────────────────────────────────────────
 
   const revenue = data?.revenue || {};
+  const paymentsByType = data?.paymentsByType || [];
+  const paymentMethods = data?.paymentMethods || [];
+  const revenueByTypeMap = useMemo(() => {
+    const entries = {};
+    (revenue.byType || []).forEach(item => {
+      entries[item._id] = item;
+    });
+    return entries;
+  }, [revenue.byType]);
   const statusMap = useMemo(() => {
     const m = {};
     (data?.statusBreakdown || []).forEach(s => { m[s._id] = s; });
@@ -370,7 +476,7 @@ const SuperAdminBilling = () => {
             icon={DollarSign}
             label="Revenu total"
             value={`${fmtMoney(revenue.total)} F`}
-            sub={`${revenue.paidCount || 0} paiement${(revenue.paidCount || 0) > 1 ? 's' : ''} confirmes`}
+            sub={`${revenue.paidCount || 0} paiement${(revenue.paidCount || 0) > 1 ? 's' : ''} confirmes · ${revenueByTypeMap.generation?.count || 0} achat${(revenueByTypeMap.generation?.count || 0) > 1 ? 's' : ''} credits`}
             accent="emerald"
           />
           <KpiCard
@@ -502,6 +608,56 @@ const SuperAdminBilling = () => {
               })}
             </div>
 
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="bg-white rounded-2xl ring-2 ring-slate-100 p-6">
+                <SectionHead icon={CreditCard} title="Flux de paiements Scalor" subtitle="Tous les achats suivis dans la plateforme" color="from-slate-700 to-slate-900" />
+                <div className="space-y-4 mt-4">
+                  {paymentsByType.map(item => (
+                    <div key={item._id} className="flex items-center gap-4">
+                      {item._id === 'plan' || item._id === 'generation' ? (
+                        <PaymentTypeBadge type={item._id} />
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700">
+                          {getPaymentTypeLabel(item._id)}
+                        </span>
+                      )}
+                      <div className="flex-1">
+                        <div className="flex items-baseline justify-between gap-3">
+                          <span className="text-sm font-bold text-slate-700">{getPaymentTypeLabel(item._id)}</span>
+                          <span className="text-lg font-black text-slate-800">{item.count}</span>
+                        </div>
+                        <div className="flex items-center justify-between mt-1 text-xs text-slate-400">
+                          <span>{fmtMoney(item.total)} F engages</span>
+                          <span>{data.totalPayments > 0 ? Math.round((item.count / data.totalPayments) * 100) : 0}% des paiements</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  {paymentsByType.length === 0 && (
+                    <p className="text-sm text-slate-400 italic">Aucun paiement enregistre</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="bg-white rounded-2xl ring-2 ring-slate-100 p-6">
+                <SectionHead icon={Phone} title="Methodes encaissees" subtitle="Paiements confirmes par canal de collecte" color="from-emerald-600 to-teal-600" />
+                <div className="space-y-4 mt-4">
+                  {paymentMethods.map(method => (
+                    <div key={method._id} className="flex items-center justify-between gap-4">
+                      <div>
+                        <p className="text-sm font-bold text-slate-800">{getPaymentMethodLabel(method._id)}</p>
+                        <p className="text-xs text-slate-400">{method.count} transaction{method.count > 1 ? 's' : ''}</p>
+                      </div>
+                      <span className="text-lg font-black text-emerald-700">{fmtMoney(method.total)} F</span>
+                    </div>
+                  ))}
+                  {paymentMethods.length === 0 && (
+                    <p className="text-sm text-slate-400 italic">Aucune methode payee enregistree pour le moment</p>
+                  )}
+                </div>
+              </div>
+            </div>
+
             {/* Notification success toast */}
             {notifSuccess && (
               <div className="flex items-center gap-3 p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-sm text-emerald-800 shadow-sm">
@@ -510,7 +666,7 @@ const SuperAdminBilling = () => {
               </div>
             )}
 
-            {/* Expiring soon + Revenue by plan */}
+            {/* Expiring soon + Revenue by offer */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Expiring soon (paid plans + active trials) */}
               <div className="bg-white rounded-2xl ring-2 ring-orange-100 p-6">
@@ -547,11 +703,11 @@ const SuperAdminBilling = () => {
                             {/* Notify actions */}
                             <div className="flex items-center gap-2 mt-2 pt-2 border-t border-slate-100">
                               <button
-                                onClick={() => handleNotify(ws._id, 'email', tplKey)}
+                                onClick={() => openEmailComposer(ws, tplKey)}
                                 disabled={sendingNotif === `${ws._id}-email`}
                                 className="flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors disabled:opacity-50"
                               >
-                                {sendingNotif === `${ws._id}-email` ? <Loader2 className="w-3 h-3 animate-spin" /> : <Mail className="w-3 h-3" />}
+                                <Mail className="w-3 h-3" />
                                 Email
                               </button>
                               <button
@@ -579,28 +735,31 @@ const SuperAdminBilling = () => {
                 })()}
               </div>
 
-              {/* Revenue by plan */}
+              {/* Revenue by offer */}
               <div className="bg-white rounded-2xl ring-2 ring-slate-100 p-6">
-                <SectionHead icon={DollarSign} title="Revenu par plan" color="from-blue-600 to-indigo-600" />
+                <SectionHead icon={DollarSign} title="Revenu par offre" subtitle="Plans et credits pages produits" color="from-blue-600 to-indigo-600" />
                 <div className="space-y-4 mt-4">
-                  {(revenue.byPlan || []).map(p => (
+                  {(revenue.byType || []).map(p => (
                     <div key={p._id} className="flex items-center gap-4">
-                      <PlanBadge plan={p._id} />
+                      {['starter', 'pro', 'ultra', 'free'].includes(p._id) ? <PlanBadge plan={p._id} /> : <PaymentTypeBadge type={p._id} />}
                       <div className="flex-1">
                         <div className="flex items-baseline justify-between">
-                          <span className="text-lg font-black text-slate-800">{fmtMoney(p.total)} F</span>
+                          <div>
+                            <p className="text-sm font-bold text-slate-700">{getPaymentTypeLabel(p._id)}</p>
+                            <span className="text-lg font-black text-slate-800">{fmtMoney(p.total)} F</span>
+                          </div>
                           <span className="text-xs text-slate-400">{p.count} tx</span>
                         </div>
                         <div className="w-full h-2 rounded-full bg-slate-100 mt-1">
                           <div
-                            className={`h-full rounded-full transition-all ${p._id === 'ultra' ? 'bg-violet-500' : 'bg-blue-500'}`}
+                            className={`h-full rounded-full transition-all ${p._id === 'ultra' ? 'bg-violet-500' : p._id === 'generation' ? 'bg-emerald-500' : 'bg-blue-500'}`}
                             style={{ width: `${revenue.total > 0 ? (p.total / revenue.total) * 100 : 0}%` }}
                           />
                         </div>
                       </div>
                     </div>
                   ))}
-                  {(revenue.byPlan || []).length === 0 && (
+                  {(revenue.byType || []).length === 0 && (
                     <p className="text-sm text-slate-400 italic">Aucun revenu enregistre</p>
                   )}
                 </div>
@@ -653,7 +812,7 @@ const SuperAdminBilling = () => {
                     <tr className="border-b border-slate-100 bg-slate-50/80">
                       <th className="text-left px-4 py-3 text-[11px] font-bold uppercase tracking-wider text-slate-400">Utilisateur</th>
                       <th className="text-left px-4 py-3 text-[11px] font-bold uppercase tracking-wider text-slate-400">Workspace</th>
-                      <th className="text-left px-4 py-3 text-[11px] font-bold uppercase tracking-wider text-slate-400">Plan</th>
+                      <th className="text-left px-4 py-3 text-[11px] font-bold uppercase tracking-wider text-slate-400">Offre</th>
                       <th className="text-left px-4 py-3 text-[11px] font-bold uppercase tracking-wider text-slate-400">Montant</th>
                       <th className="text-left px-4 py-3 text-[11px] font-bold uppercase tracking-wider text-slate-400">Statut</th>
                       <th className="text-left px-4 py-3 text-[11px] font-bold uppercase tracking-wider text-slate-400">Telephone</th>
@@ -677,8 +836,19 @@ const SuperAdminBilling = () => {
                             <p className="font-semibold text-slate-700 truncate max-w-[120px]">{p.workspaceId?.name || '—'}</p>
                           </td>
                           <td className="px-4 py-3">
-                            <PlanBadge plan={p.plan} />
-                            <span className="text-[10px] text-slate-400 ml-1">{p.durationMonths}m</span>
+                            <div className="space-y-1">
+                              <PaymentTypeBadge type={p.paymentType} />
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                {p.paymentType === 'plan' ? (
+                                  <>
+                                    <PlanBadge plan={p.plan} />
+                                    <span className="text-[10px] text-slate-400">{p.durationMonths}m</span>
+                                  </>
+                                ) : (
+                                  <span className="text-xs font-semibold text-slate-700">{getPaymentMetaLabel(p)}</span>
+                                )}
+                              </div>
+                            </div>
                           </td>
                           <td className="px-4 py-3">
                             <span className="font-black text-slate-800">{fmtMoney(p.amount)} F</span>
@@ -720,12 +890,16 @@ const SuperAdminBilling = () => {
                                   <p className="text-slate-700">{fmtMoney(p.fees || 0)} F</p>
                                 </div>
                                 <div>
-                                  <p className="text-slate-400 font-semibold mb-1">Active le</p>
-                                  <p className="text-slate-700">{fmtDatetime(p.activatedAt)}</p>
+                                  <p className="text-slate-400 font-semibold mb-1">Type</p>
+                                  <div><PaymentTypeBadge type={p.paymentType} /></div>
                                 </div>
                                 <div>
-                                  <p className="text-slate-400 font-semibold mb-1">Duree</p>
-                                  <p className="text-slate-700">{p.durationMonths} mois</p>
+                                  <p className="text-slate-400 font-semibold mb-1">Applique le</p>
+                                  <p className="text-slate-700">{fmtDatetime(p.appliedAt)}</p>
+                                </div>
+                                <div>
+                                  <p className="text-slate-400 font-semibold mb-1">Detail achat</p>
+                                  <p className="text-slate-700">{getPaymentMetaLabel(p)}</p>
                                 </div>
                                 <div>
                                   <p className="text-slate-400 font-semibold mb-1">Workspace plan actuel</p>
@@ -902,11 +1076,11 @@ const SuperAdminBilling = () => {
                         {/* Notify actions */}
                         <div className="flex items-center gap-2 mt-3 pt-3 border-t border-slate-100">
                           <button
-                            onClick={() => handleNotify(ws._id, 'email', tplKey)}
+                            onClick={() => openEmailComposer(ws, tplKey)}
                             disabled={sendingNotif === `${ws._id}-email`}
                             className="flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors disabled:opacity-50"
                           >
-                            {sendingNotif === `${ws._id}-email` ? <Loader2 className="w-3 h-3 animate-spin" /> : <Mail className="w-3 h-3" />}
+                            <Mail className="w-3 h-3" />
                             Email
                           </button>
                           <button
@@ -993,11 +1167,11 @@ const SuperAdminBilling = () => {
                         {/* Notify actions */}
                         <div className="flex items-center gap-2 mt-3 pt-3 border-t border-slate-100">
                           <button
-                            onClick={() => handleNotify(ws._id, 'email', 'trial_expired')}
+                            onClick={() => openEmailComposer(ws, 'trial_expired')}
                             disabled={sendingNotif === `${ws._id}-email`}
                             className="flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors disabled:opacity-50"
                           >
-                            {sendingNotif === `${ws._id}-email` ? <Loader2 className="w-3 h-3 animate-spin" /> : <Mail className="w-3 h-3" />}
+                            <Mail className="w-3 h-3" />
                             Email
                           </button>
                           <button
@@ -1143,6 +1317,66 @@ const SuperAdminBilling = () => {
         )}
 
       </div>
+
+      {emailComposer && (
+        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl ring-1 ring-slate-200 overflow-hidden">
+            <div className="px-6 py-5 border-b border-slate-100 flex items-start justify-between gap-4">
+              <div>
+                <h3 className="text-lg font-black text-slate-900">Rédiger l’email</h3>
+                <p className="text-sm text-slate-500 mt-1">Destinataire: {emailComposer.recipientEmail || '—'} · Workspace: {emailComposer.workspaceName}</p>
+              </div>
+              <button
+                onClick={() => setEmailComposer(null)}
+                className="px-3 py-1.5 rounded-xl bg-slate-100 text-slate-600 text-sm font-semibold hover:bg-slate-200 transition-colors"
+              >
+                Fermer
+              </button>
+            </div>
+
+            <div className="px-6 py-5 space-y-4">
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-2">Sujet</label>
+                <input
+                  type="text"
+                  value={emailComposer.subject}
+                  onChange={(e) => setEmailComposer((prev) => ({ ...prev, subject: e.target.value }))}
+                  className="w-full px-4 py-3 bg-white ring-2 ring-slate-200 rounded-xl text-sm focus:ring-emerald-300 focus:outline-none transition-all"
+                  placeholder="Sujet de l'email"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-2">Message</label>
+                <textarea
+                  value={emailComposer.message}
+                  onChange={(e) => setEmailComposer((prev) => ({ ...prev, message: e.target.value }))}
+                  className="w-full min-h-[260px] px-4 py-3 bg-white ring-2 ring-slate-200 rounded-xl text-sm focus:ring-emerald-300 focus:outline-none transition-all resize-y"
+                  placeholder="Tapez votre email ici, sans HTML"
+                />
+                <p className="text-xs text-slate-400 mt-2">Saisissez un texte simple. Scalor mettra automatiquement le message en forme dans l’email.</p>
+              </div>
+            </div>
+
+            <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-end gap-3 bg-slate-50">
+              <button
+                onClick={() => setEmailComposer(null)}
+                className="px-4 py-2 rounded-xl bg-white ring-2 ring-slate-200 text-slate-700 text-sm font-bold hover:ring-slate-300 transition-all"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={sendComposedEmail}
+                disabled={sendingNotif === `${emailComposer.workspaceId}-email`}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 text-white text-sm font-bold hover:bg-emerald-700 transition-colors disabled:opacity-50"
+              >
+                {sendingNotif === `${emailComposer.workspaceId}-email` ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                Envoyer l’email
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

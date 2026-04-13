@@ -214,6 +214,40 @@ function buildThreePeopleHoldingProductRules() {
 • Prefer a trio composition, 3-panel composition, or grouped scene showing three distinct real people rather than icons or generic infographic characters`;
 }
 
+function buildStructuredHeroDesignRules(gptResult = {}, template = 'general', visualPrefs = {}) {
+  const brandColor = resolveBrandColor(visualPrefs, template);
+  const mainBenefit = getMainBenefit(gptResult);
+  const benefits = (gptResult.benefits_bullets || gptResult.raisons_acheter || [])
+    .filter(Boolean)
+    .slice(0, 4)
+    .join(' | ');
+  const socialProof = gptResult.urgency_elements?.social_proof_count || '1000+ clients satisfaits';
+  const title = gptResult.title || 'Produit';
+
+  return `
+
+═══ HERO STRUCTURE — MANDATORY ═══
+• This first hero image must follow the STRUCTURAL LOGIC of a premium conversion cover, similar to a polished marketplace ad board, not a loose lifestyle photo
+• Use a strong top headline zone, a clear secondary subtitle zone, one dominant human-plus-product visual zone, one structured benefit column, and one strong bottom CTA zone
+• Preferred composition logic:
+  1. TOP: bold premium headline in French with strong hierarchy
+  2. UNDER THE HEADLINE: short elegant supporting subtitle clarifying the key promise
+  3. MAIN BODY: split or asymmetric layout with a real African model plus the exact product as the dominant visual focus
+  4. SIDE BENEFIT COLUMN: 3 to 4 short benefit bullets with premium icon treatment or check markers
+  5. TRUST BADGE: one visible social-proof badge such as "${socialProof}"
+  6. BOTTOM STRIP: reassurance line or service promises
+  7. BOTTOM CTA BUTTON: large premium call-to-action block styled like a real ecommerce conversion button
+• The design must feel BETTER than the reference: more premium spacing, more elegant typography, cleaner visual rhythm, stronger hierarchy, softer luxury finish, and less template-like
+• Do not literally copy the reference. Recreate its advertising structure language for this product in a fresher and more premium way
+• The product and person must feel naturally integrated into the layout, not pasted between text blocks
+• The CTA must look like a real polished marketplace call-to-action button, but the whole board must remain visually refined and premium
+• The text zones must stay short, bold and highly readable on mobile
+• Recommended hero promise to express visually and typographically: "${mainBenefit}"
+${benefits ? `• Benefit bullets that can inspire the side column: ${benefits}` : ''}
+• The final result must look like a top-performing ecommerce hero creative for ${title}, with a premium African-market advertising finish
+• Use ${brandColor} as the dominant accent color for headline emphasis, trust badge, icons, separators and CTA button while keeping the overall look refined and high-end`;
+}
+
 function buildDescriptionGifSpecs(gptResult = {}) {
   const productTitle = gptResult.title || 'Produit';
   return [
@@ -517,16 +551,24 @@ ${heroContext.placement}.
 Clean soft lighting, premium ecommerce photography style, realistic and trustworthy.
 Background color must match the website color: ${brandColor}.
 
-Add only one SHORT French marketing message in a clean premium badge/callout.
-- Maximum 3 to 6 words.
-- Keep the message compact and conversion-focused.
-- Do NOT create a giant headline block.
-- The short message must reflect this benefit: "${mainBenefit}"
+Text structure must resemble a high-end hero advertising board, not just a lifestyle photo with one small badge.
+Use French text only, with perfect spelling and premium ad hierarchy.
+You may use:
+- one strong headline
+- one short supporting subtitle
+- 3 to 4 short benefit bullets
+- one social proof badge
+- one bottom reassurance strip
+- one CTA button label
+
+Suggested CTA language can be direct and conversion-oriented, such as a premium variation of "Je commande maintenant" adapted to the product.
+Do NOT use long paragraphs. Keep every text block short, high-impact and highly legible.
+The main promise must reflect this benefit: "${mainBenefit}"
 
 Style: realistic, premium, trustworthy, no stock feeling, no fake hands, no watermark, no phone number, no URL.
 Do not force the product near the face unless that is the natural real usage of the product.
 For home, bathroom, kitchen or cleaning products, the image must prioritize the exact usage context and the solved problem in the room itself.
-${buildArtDirectionProfile(0, gptResult, template, visualPrefs, 'hero hook image')}${buildDynamicDesignRules(gptResult, template, visualPrefs, 'hero hook image')}${buildHumanPhotoRealismRules()}${buildVisualPromptDirectives(visualPrefs)}`;
+${buildStructuredHeroDesignRules(gptResult, template, visualPrefs)}${buildArtDirectionProfile(0, gptResult, template, visualPrefs, 'hero hook image')}${buildDynamicDesignRules(gptResult, template, visualPrefs, 'hero hook image')}${buildHumanPhotoRealismRules()}${buildVisualPromptDirectives(visualPrefs)}`;
 }
 
 /**

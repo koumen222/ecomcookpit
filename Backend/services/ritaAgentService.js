@@ -2,6 +2,7 @@ import Groq from 'groq-sdk';
 import axios from 'axios';
 import RitaConfig from '../models/RitaConfig.js';
 import RitaContact from '../models/RitaContact.js';
+import RitaConversationMemory from '../models/RitaConversationMemory.js';
 import Workspace from '../models/Workspace.js';
 import WhatsAppInstance from '../models/WhatsAppInstance.js';
 import evolutionApiService from './evolutionApiService.js';
@@ -13,12 +14,12 @@ const FISH_AUDIO_DIRECT_API_KEY = process.env.FISH_AUDIO_API_KEY || '203f946aa7b
 // Historique in-memory par numéro de téléphone (max 500 échanges gardés)
 const conversationHistory = new Map();
 const MAX_HISTORY = 500;
-const HISTORY_TTL_MS = 24 * 60 * 60 * 1000; // 24 heures de rétention du contexte
+const HISTORY_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 jours de rétention en RAM, puis rechargement depuis MongoDB
 
 // Timestamps des dernières activités par conversation
 const conversationLastActivity = new Map();
 
-// Nettoyage automatique des conversations inactives depuis plus de 24h (toutes les 30 min)
+// Nettoyage automatique des conversations inactives depuis plus de 7 jours (toutes les 30 min)
 setInterval(() => {
   const now = Date.now();
   for (const [key, lastActivity] of conversationLastActivity) {
@@ -94,6 +95,32 @@ setInterval(async () => {
 // Map<historyKey, { lastClientMessage: Date, lastAgentMessage: Date, relanceCount: number, ordered: boolean }>
 const conversationTracker = new Map();
 
+function extractConversationPhone(target = '') {
+  return String(target || '').replace(/@.*$/, '').replace(/\D/g, '');
+}
+
+function normalizeHistoryEntries(entries = []) {
+  if (!Array.isArray(entries)) return [];
+
+  return entries
+    .map((entry) => ({
+      role: entry?.role === 'assistant' || entry?.role === 'system' ? entry.role : 'user',
+      content: String(entry?.content || '').trim(),
+      createdAt: entry?.createdAt ? new Date(entry.createdAt) : new Date(),
+    }))
+    .filter((entry) => entry.content)
+    .slice(-MAX_HISTORY);
+}
+
+function normalizeTracker(tracker = null) {
+  return {
+    lastClientMessage: tracker?.lastClientMessage ? new Date(tracker.lastClientMessage) : null,
+    lastAgentMessage: tracker?.lastAgentMessage ? new Date(tracker.lastAgentMessage) : null,
+    relanceCount: Number.isFinite(tracker?.relanceCount) ? tracker.relanceCount : 0,
+    ordered: !!tracker?.ordered,
+  };
+}
+
 // ═══════════════════════════════════════════════════════════════
 // STATE MANAGEMENT — état per-conversation (nom, tel, ville, etc.)
 // ═══════════════════════════════════════════════════════════════
@@ -135,6 +162,78 @@ function getOrCreateState(historyKey, fromJid = '') {
     askedQuestions.set(historyKey, new Set());
   }
   return clientStates.get(historyKey);
+}
+
+async function hydrateConversationMemory(userId, agentId, from, historyKey) {
+  if (conversationHistory.has(historyKey)) return;
+
+  const phone = extractConversationPhone(from);
+  if (!phone) return;
+
+  try {
+    const memory = await RitaConversationMemory.findOne({
+      userId,
+      agentId: agentId || '',
+      phone,
+    }).lean();
+
+    if (!memory) return;
+
+    const hydratedHistory = normalizeHistoryEntries(memory.history);
+    conversationHistory.set(historyKey, hydratedHistory);
+    conversationLastActivity.set(
+      historyKey,
+      new Date(memory.lastActivityAt || memory.updatedAt || Date.now()).getTime()
+    );
+    conversationTracker.set(historyKey, normalizeTracker(memory.tracker));
+
+    const state = getOrCreateState(historyKey, from);
+    const persistedState = memory.clientState && typeof memory.clientState === 'object'
+      ? memory.clientState
+      : {};
+    const mergedState = {
+      ...state,
+      ...persistedState,
+      telephone: state.telephone || persistedState.telephone || null,
+    };
+    clientStates.set(historyKey, mergedState);
+
+    askedQuestions.set(historyKey, new Set(Array.isArray(memory.askedQuestions) ? memory.askedQuestions.filter(Boolean) : []));
+
+    console.log(`💾 [RITA] Mémoire conversation rechargée pour ${phone} (${hydratedHistory.length} messages)`);
+  } catch (err) {
+    console.error('⚠️ [RITA] Erreur rechargement mémoire conversation:', err.message);
+  }
+}
+
+async function persistConversationMemory(userId, agentId, from, historyKey) {
+  const phone = extractConversationPhone(from);
+  if (!phone) return;
+
+  try {
+    await RitaConversationMemory.findOneAndUpdate(
+      {
+        userId,
+        agentId: agentId || '',
+        phone,
+      },
+      {
+        $set: {
+          history: normalizeHistoryEntries(conversationHistory.get(historyKey) || []),
+          clientState: clientStates.get(historyKey) || {},
+          askedQuestions: Array.from(askedQuestions.get(historyKey) || []),
+          tracker: normalizeTracker(conversationTracker.get(historyKey)),
+          lastActivityAt: new Date(conversationLastActivity.get(historyKey) || Date.now()),
+        },
+      },
+      {
+        upsert: true,
+        setDefaultsOnInsert: true,
+      }
+    );
+  } catch (err) {
+    console.error('⚠️ [RITA] Erreur sauvegarde mémoire conversation:', err.message);
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -455,7 +554,7 @@ function extractOrderData(text = '') {
       delivery_date: data.delivery_date || '',
       delivery_time: data.delivery_time || '',
       quantity: data.quantity || 1,
-      address: data.address || data.city || '' // Lieu de livraison
+      address: data.address || ''
     };
   } catch (error) {
     console.error('Erreur parsing ORDER_DATA:', error);
@@ -1761,10 +1860,11 @@ ${usesVous
 ? `"[VOICE] C'est bon, votre commande est enregistrée ! On vous contacte pour la livraison. Merci beaucoup !"`
 : `"[VOICE] C'est bon, ta commande est enregistrée ! On te contacte pour la livraison. Merci beaucoup !"`}
 Ajoute le tag [VOICE] au début et OBLIGATOIREMENT [ORDER_DATA:{...}] à la FIN.
-[ORDER_DATA:{"name":"...","city":"...","phone":"...","product":"...","price":"...","quantity":1,"delivery_date":"2026-03-30","delivery_time":"14:00"}]
+[ORDER_DATA:{"name":"...","city":"...","address":"...","phone":"...","product":"...","price":"...","quantity":1,"delivery_date":"2026-03-30","delivery_time":"14:00"}]
 
 ⚠️ RÈGLES IMPORTANTES pour ORDER_DATA :
 - Le tag [ORDER_DATA:...] doit contenir un JSON valide. Il ne sera PAS visible par le client.
+- "address" : Toujours inclure le lieu de livraison exact donné par le client (quartier, zone, repère). Ne JAMAIS recopier la ville dans "address".
 - "delivery_date" : Format ISO (YYYY-MM-DD) ou texte naturel si le client programme une livraison future
 - "delivery_time" : Heure si précisée (ex: "14:00", "matin", "après-midi")
 - Si le client dit "maintenant", "aujourd'hui", "ce soir" → mets la date du jour
@@ -1774,9 +1874,9 @@ Ajoute le tag [VOICE] au début et OBLIGATOIREMENT [ORDER_DATA:{...}] à la FIN.
 
 ${usesVous
 ? `Exemple complet :
-"[VOICE] C'est bon, votre commande est enregistrée ! On va vous appeler pour organiser la livraison à Douala. Merci beaucoup ! [ORDER_DATA:{"name":"Morgan","city":"Douala Akwa","phone":"676778377","product":"Ventilateur 48W","price":"15000 FCFA","quantity":1,"delivery_date":"2026-03-30","delivery_time":"14:00"}]"`
+"[VOICE] C'est bon, votre commande est enregistrée ! On va vous appeler pour organiser la livraison à Douala. Merci beaucoup ! [ORDER_DATA:{"name":"Morgan","city":"Douala","address":"Akwa, immeuble CNPS","phone":"676778377","product":"Ventilateur 48W","price":"15000 FCFA","quantity":1,"delivery_date":"2026-03-30","delivery_time":"14:00"}]"`
 : `Exemple complet :
-"[VOICE] C'est bon, ta commande est enregistrée ! On va t'appeler pour organiser ta livraison à Douala. Merci ! [ORDER_DATA:{"name":"Morgan","city":"Douala Akwa","phone":"676778377","product":"Ventilateur 48W","price":"15000 FCFA","quantity":1,"delivery_date":"2026-03-30","delivery_time":"14:00"}]"`}
+"[VOICE] C'est bon, ta commande est enregistrée ! On va t'appeler pour organiser ta livraison à Douala. Merci ! [ORDER_DATA:{"name":"Morgan","city":"Douala","address":"Akwa, immeuble CNPS","phone":"676778377","product":"Ventilateur 48W","price":"15000 FCFA","quantity":1,"delivery_date":"2026-03-30","delivery_time":"14:00"}]"`}
 
 ## 🔄 CROSS-SELLING — APRÈS COMMANDE CONFIRMÉE
 Après que la commande est confirmée (étape 5 terminée), tu peux proposer UN produit complémentaire si ton catalogue en contient.
@@ -3499,13 +3599,14 @@ export async function processIncomingMessage(userId, from, text, opts = {}) {
   // Clé unique par agent (ou userId si pas d'agentId) + numéro expéditeur
   // Chaque agent a ses propres conversations isolées
   const historyKey = agentId ? `${agentId}:${from}` : `${userId}:${from}`;
+  await hydrateConversationMemory(userId, agentId, from, historyKey);
   const isNewConversation = !conversationHistory.has(historyKey);
   if (isNewConversation) {
     conversationHistory.set(historyKey, []);
   }
   const history = conversationHistory.get(historyKey);
 
-  // Mettre à jour le timestamp d'activité (rétention 24h)
+  // Mettre à jour le timestamp d'activité (rétention RAM 7 jours + persistance MongoDB)
   conversationLastActivity.set(historyKey, Date.now());
 
   // ── Message de bienvenue configuré : retourner directement au 1er message ──
@@ -3518,9 +3619,10 @@ export async function processIncomingMessage(userId, from, text, opts = {}) {
     if (!hasDirectIntent) {
       // Simple salut sans intention → utiliser le message de bienvenue configuré
       const welcomeReply = config.welcomeMessage.trim();
-      history.push({ role: 'user', content: text });
-      history.push({ role: 'assistant', content: welcomeReply });
+      history.push({ role: 'user', content: text, createdAt: new Date() });
+      history.push({ role: 'assistant', content: welcomeReply, createdAt: new Date() });
       conversationLastActivity.set(historyKey, Date.now());
+      await persistConversationMemory(userId, agentId, from, historyKey);
       console.log(`🎉 [RITA] Message de bienvenue envoyé à ${from}`);
       return welcomeReply;
     }
@@ -3545,7 +3647,7 @@ export async function processIncomingMessage(userId, from, text, opts = {}) {
   }
 
   // Ajouter le message de l'utilisateur à l'historique
-  history.push({ role: 'user', content: text });
+  history.push({ role: 'user', content: text, createdAt: new Date() });
 
   // Tracker l'activité client pour le système de relance
   const tracker = conversationTracker.get(historyKey) || { lastClientMessage: null, lastAgentMessage: null, relanceCount: 0, ordered: false };
@@ -3627,7 +3729,7 @@ export async function processIncomingMessage(userId, from, text, opts = {}) {
         replyForHistory = reply.replace(/\[ORDER_DATA:[^\]]+\]/gi, '').trim();
       }
       // Ajouter la réponse de l'agent à l'historique
-      history.push({ role: 'assistant', content: replyForHistory });
+      history.push({ role: 'assistant', content: replyForHistory, createdAt: new Date() });
 
       // Tracker l'activité agent pour la relance
       const t2 = conversationTracker.get(historyKey);
@@ -3635,7 +3737,7 @@ export async function processIncomingMessage(userId, from, text, opts = {}) {
         t2.lastAgentMessage = new Date();
         if (/\[ORDER_DATA:/i.test(reply)) {
           t2.ordered = true;
-          // Réinitialiser le statut pour permettre une nouvelle commande (l'agent a une mémoire de 24h, mais le flow de vente repart à zéro)
+          // Réinitialiser le flow de commande sans perdre l'historique de la conversation.
           clientState.statut = 'nouveau';
           clientState.produit = null;
           clientState.quantite = null;
@@ -3667,10 +3769,12 @@ export async function processIncomingMessage(userId, from, text, opts = {}) {
         }
       }
     }
+    await persistConversationMemory(userId, agentId, from, historyKey);
     return reply || null;
   } catch (error) {
     console.error(`❌ [RITA] Erreur Groq client — userId=${userId}:`, error.message);
     console.error(`❌ [RITA] Status: ${error.status} | Code: ${error.error?.code} | Type: ${error.error?.type}`);
+    await persistConversationMemory(userId, agentId, from, historyKey);
     return config.fallbackMessage || null;
   }
 }
@@ -3702,12 +3806,18 @@ export async function generateTestReply(config, messages) {
 /**
  * Réinitialise l'historique de conversation pour un numéro donné
  */
-export function clearConversationHistory(userId, from) {
-  const key = `${userId}:${from}`;
+export function clearConversationHistory(userId, from, agentId = null) {
+  const key = agentId ? `${agentId}:${from}` : `${userId}:${from}`;
   conversationHistory.delete(key);
   clientStates.delete(key);
   askedQuestions.delete(key);
   conversationTracker.delete(key);
+  conversationLastActivity.delete(key);
+  const phone = extractConversationPhone(from);
+  if (phone) {
+    RitaConversationMemory.deleteOne({ userId, agentId: agentId || '', phone })
+      .catch((err) => console.error('⚠️ [RITA] Erreur suppression mémoire conversation:', err.message));
+  }
 }
 
 /**
@@ -3802,7 +3912,7 @@ export function addRelanceToHistory(userId, from, message) {
   const key = `${userId}:${from}`;
   const history = conversationHistory.get(key);
   if (history) {
-    history.push({ role: 'assistant', content: message });
+    history.push({ role: 'assistant', content: message, createdAt: new Date() });
   }
 }
 

@@ -17,6 +17,22 @@ const FRONTEND_URL = process.env.FRONTEND_URL || 'https://scalor.site';
 const BRAND_COLOR = '#4f46e5';
 const BRAND_NAME = 'Scalor';
 
+function escapeHtml(value = '') {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function plainTextToHtml(text = '') {
+  return escapeHtml(text)
+    .split(/\n{2,}/)
+    .map((paragraph) => `<p>${paragraph.replace(/\n/g, '<br/>')}</p>`)
+    .join('');
+}
+
 // ─── Templates HTML ───────────────────────────────────────────────────────────
 
 const baseLayout = (content, previewText = '') => `
@@ -536,6 +552,67 @@ export const sendNotificationEmail = async ({
       subject,
       errorMessage: err.message,
       metadata: { templateKey }
+    }).catch(() => {});
+
+    return { success: false, error: err.message };
+  }
+};
+
+export const sendCustomNotificationEmail = async ({
+  to,
+  subject,
+  message,
+  userId = null,
+  workspaceId = null,
+  eventType = 'custom_email'
+}) => {
+  const safeSubject = (subject || '').trim();
+  const safeMessage = (message || '').trim();
+
+  if (!safeSubject || !safeMessage) {
+    return { success: false, error: 'Sujet et message requis' };
+  }
+
+  const html = baseLayout(`
+    <h2>${escapeHtml(safeSubject)}</h2>
+    ${plainTextToHtml(safeMessage)}
+  `, safeMessage.slice(0, 140));
+
+  try {
+    const client = getResend();
+    const result = await client.emails.send({
+      from: FROM,
+      to: Array.isArray(to) ? to : [to],
+      subject: safeSubject,
+      html
+    });
+
+    await NotificationLog.create({
+      userId,
+      workspaceId,
+      eventType,
+      channel: 'EMAIL',
+      status: 'SENT',
+      recipient: Array.isArray(to) ? to.join(', ') : to,
+      subject: safeSubject,
+      metadata: { custom: true, resendId: result?.data?.id }
+    });
+
+    console.log(`✅ [email] custom → ${to}`);
+    return { success: true, id: result?.data?.id };
+  } catch (err) {
+    console.error(`❌ [email] custom → ${to}:`, err.message);
+
+    await NotificationLog.create({
+      userId,
+      workspaceId,
+      eventType,
+      channel: 'EMAIL',
+      status: 'FAILED',
+      recipient: Array.isArray(to) ? to.join(', ') : to,
+      subject: safeSubject,
+      errorMessage: err.message,
+      metadata: { custom: true }
     }).catch(() => {});
 
     return { success: false, error: err.message };

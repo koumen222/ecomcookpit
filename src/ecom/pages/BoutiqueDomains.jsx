@@ -103,10 +103,11 @@ const BoutiqueDomains = () => {
     try {
       const res = await api.post('/store-manage/generate-subdomain', { storeName: storeName.trim() });
       if (res.data?.success) {
-        setSubdomain(res.data.data.subdomain);
+        const generatedSubdomain = res.data.data.subdomain;
+        setSubdomain(generatedSubdomain);
         setSaved(false);
         if (confirm(`✅ Domaine généré: ${res.data.data.fullDomain}\n\nVoulez-vous l'utiliser maintenant?`)) {
-          handleSave();
+          handleSave(generatedSubdomain);
         }
       }
     } catch (err) {
@@ -116,10 +117,11 @@ const BoutiqueDomains = () => {
     }
   };
 
-  const handleSave = async () => {
+  const handleSave = async (nextSubdomain = subdomain) => {
     setSaving(true);
     try {
-      const res = await api.put('/store/domains', { subdomain: subdomain.trim().toLowerCase(), customDomain: customDomain.trim() });
+      const normalizedSubdomain = String(nextSubdomain || '').trim().toLowerCase();
+      const res = await api.put('/store/domains', { subdomain: normalizedSubdomain, customDomain: customDomain.trim() });
       const savedSubdomain = res.data?.data?.subdomain;
       if (typeof savedSubdomain === 'string') setSubdomain(savedSubdomain);
       await refreshStores();
@@ -147,7 +149,7 @@ const BoutiqueDomains = () => {
         setActiveStep(2);
       }
     } catch {
-      setDnsResult({ ok: false });
+              handleSave(res.data.data.subdomain);
     } finally {
       setChecking(false);
     }
