@@ -30,6 +30,492 @@ function buildStoreFilter(req) {
   return base;
 }
 
+const SHOPIFY_TEMPLATE_COLUMNS = [
+  'Title',
+  'URL handle',
+  'Description',
+  'Vendor',
+  'Product category',
+  'Type',
+  'Tags',
+  'Published on online store',
+  'Status',
+  'SKU',
+  'Barcode',
+  'Option1 name',
+  'Option1 value',
+  'Option1 Linked To',
+  'Option2 name',
+  'Option2 value',
+  'Option2 Linked To',
+  'Option3 name',
+  'Option3 value',
+  'Option3 Linked To',
+  'Price',
+  'Compare-at price',
+  'Cost per item',
+  'Charge tax',
+  'Tax code',
+  'Unit price total measure',
+  'Unit price total measure unit',
+  'Unit price base measure',
+  'Unit price base measure unit',
+  'Inventory tracker',
+  'Inventory quantity',
+  'Continue selling when out of stock',
+  'Weight value (grams)',
+  'Weight unit for display',
+  'Requires shipping',
+  'Fulfillment service',
+  'Product image URL',
+  'Image position',
+  'Image alt text',
+  'Variant image URL',
+  'Gift card',
+  'SEO title',
+  'SEO description',
+  'Color (product.metafields.shopify.color-pattern)',
+  'Google Shopping / Google product category',
+  'Google Shopping / Gender',
+  'Google Shopping / Age group',
+  'Google Shopping / Manufacturer part number (MPN)',
+  'Google Shopping / Ad group name',
+  'Google Shopping / Ads labels',
+  'Google Shopping / Condition',
+  'Google Shopping / Custom product',
+  'Google Shopping / Custom label 0',
+  'Google Shopping / Custom label 1',
+  'Google Shopping / Custom label 2',
+  'Google Shopping / Custom label 3',
+  'Google Shopping / Custom label 4'
+];
+
+const SCALOR_EXTRA_COLUMNS = [
+  'Scalor linked product ID',
+  'Scalor currency',
+  'Scalor target market',
+  'Scalor country',
+  'Scalor city',
+  'Scalor locale',
+  'Scalor videos JSON',
+  'Scalor features JSON',
+  'Scalor testimonials JSON',
+  'Scalor testimonials config JSON',
+  'Scalor FAQ JSON',
+  'Scalor page data JSON',
+  'Scalor page builder JSON',
+  'Scalor product page config JSON',
+  'Scalor created at',
+  'Scalor updated at'
+];
+
+const CSV_COLUMNS = [...SHOPIFY_TEMPLATE_COLUMNS, ...SCALOR_EXTRA_COLUMNS];
+
+const CSV_HEADER_ALIASES = new Map([
+  ['handle', 'URL handle'],
+  ['body (html)', 'Description'],
+  ['published', 'Published on online store'],
+  ['variant sku', 'SKU'],
+  ['variant barcode', 'Barcode'],
+  ['option1 name', 'Option1 name'],
+  ['option1 value', 'Option1 value'],
+  ['option2 name', 'Option2 name'],
+  ['option2 value', 'Option2 value'],
+  ['option3 name', 'Option3 name'],
+  ['option3 value', 'Option3 value'],
+  ['variant price', 'Price'],
+  ['variant compare at price', 'Compare-at price'],
+  ['cost per item', 'Cost per item'],
+  ['variant grams', 'Weight value (grams)'],
+  ['variant inventory tracker', 'Inventory tracker'],
+  ['variant inventory qty', 'Inventory quantity'],
+  ['variant inventory policy', 'Continue selling when out of stock'],
+  ['variant fulfillment service', 'Fulfillment service'],
+  ['image src', 'Product image URL'],
+  ['image position', 'Image position'],
+  ['image alt text', 'Image alt text'],
+  ['variant image', 'Variant image URL'],
+  ['google shopping / google product category', 'Google Shopping / Google product category'],
+  ['google shopping / gender', 'Google Shopping / Gender'],
+  ['google shopping / age group', 'Google Shopping / Age group'],
+  ['google shopping / mpn', 'Google Shopping / Manufacturer part number (MPN)'],
+]);
+
+const csvUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 10 * 1024 * 1024,
+    files: 1
+  },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype === 'text/csv' || /\.csv$/i.test(file.originalname || '')) {
+      cb(null, true);
+      return;
+    }
+    cb(new Error('Only CSV files are allowed'), false);
+  }
+});
+
+function sanitizeSlug(value) {
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
+}
+
+function escapeCsvValue(value) {
+  const stringValue = value == null ? '' : String(value);
+  if (!/[",\n\r]/.test(stringValue)) return stringValue;
+  return `"${stringValue.replace(/"/g, '""')}"`;
+}
+
+function detectCsvDelimiter(text) {
+  const candidates = [',', ';', '\t'];
+  const scores = new Map(candidates.map((candidate) => [candidate, 0]));
+  let inQuotes = false;
+
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+    const next = text[index + 1];
+
+    if (char === '"') {
+      if (inQuotes && next === '"') {
+        index += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+
+    if (!inQuotes && (char === '\n' || char === '\r')) {
+      break;
+    }
+
+    if (!inQuotes && scores.has(char)) {
+      scores.set(char, scores.get(char) + 1);
+    }
+  }
+
+  const best = [...scores.entries()].sort((left, right) => right[1] - left[1])[0];
+  return best && best[1] > 0 ? best[0] : ',';
+}
+
+function parseCsvText(input) {
+  const text = String(input || '').replace(/^\uFEFF/, '');
+  const delimiter = detectCsvDelimiter(text);
+  const rows = [];
+  let row = [];
+  let cell = '';
+  let inQuotes = false;
+
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+    const next = text[index + 1];
+
+    if (char === '"') {
+      if (inQuotes && next === '"') {
+        cell += '"';
+        index += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+
+    if (char === delimiter && !inQuotes) {
+      row.push(cell);
+      cell = '';
+      continue;
+    }
+
+    if ((char === '\n' || char === '\r') && !inQuotes) {
+      if (char === '\r' && next === '\n') index += 1;
+      row.push(cell);
+      cell = '';
+      if (row.some((entry) => entry !== '')) rows.push(row);
+      row = [];
+      continue;
+    }
+
+    cell += char;
+  }
+
+  row.push(cell);
+  if (row.some((entry) => entry !== '')) rows.push(row);
+
+  const firstRow = rows[0] || [];
+  const firstRowJoined = firstRow.join('').trim();
+  const firstCell = String(firstRow[0] || '').trim();
+  if (/^sep=.+$/i.test(firstRowJoined) || /^sep=$/i.test(firstCell)) {
+    rows.shift();
+  }
+
+  return rows;
+}
+
+function normalizeCsvHeader(header) {
+  const trimmed = String(header || '').replace(/^\uFEFF/, '').trim();
+  const normalized = CSV_HEADER_ALIASES.get(trimmed.toLowerCase());
+  return normalized || trimmed;
+}
+
+function parseJsonField(value, fallback) {
+  if (value == null || String(value).trim() === '') return fallback;
+  try {
+    return JSON.parse(String(value));
+  } catch {
+    return fallback;
+  }
+}
+
+function isShopifyTemplateHeaders(headers = []) {
+  const normalizedHeaders = headers.map((header) => normalizeCsvHeader(header));
+  return normalizedHeaders.includes('Title') && normalizedHeaders.includes('URL handle') && normalizedHeaders.includes('Price');
+}
+
+function parseNumberField(value, fallback = 0) {
+  if (value == null || String(value).trim() === '') return fallback;
+  const normalized = String(value).replace(/\s/g, '').replace(',', '.');
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function parseBooleanField(value) {
+  return ['true', '1', 'yes', 'oui'].includes(String(value || '').trim().toLowerCase());
+}
+
+function parseTagsField(value) {
+  if (!value) return [];
+  const jsonTags = parseJsonField(value, null);
+  if (Array.isArray(jsonTags)) {
+    return jsonTags.map((tag) => String(tag || '').trim()).filter(Boolean);
+  }
+  return String(value)
+    .split(/[|,]/)
+    .map((tag) => tag.trim())
+    .filter(Boolean);
+}
+
+function normalizeImageEntries(raw) {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((img, index) => {
+      if (typeof img === 'string') {
+        return { url: img, alt: '', order: index };
+      }
+      if (!img || !img.url) return null;
+      return {
+        url: String(img.url),
+        alt: String(img.alt || ''),
+        order: Number.isFinite(Number(img.order)) ? Number(img.order) : index,
+      };
+    })
+    .filter(Boolean);
+}
+
+function normalizeVideoEntries(raw) {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((video, index) => {
+      if (typeof video === 'string') {
+        return { url: video, type: 'direct', thumbnail: '', title: '', order: index };
+      }
+      if (!video || !video.url) return null;
+      return {
+        url: String(video.url),
+        type: ['youtube', 'vimeo', 'direct'].includes(video.type) ? video.type : 'direct',
+        thumbnail: String(video.thumbnail || ''),
+        title: String(video.title || ''),
+        order: Number.isFinite(Number(video.order)) ? Number(video.order) : index,
+      };
+    })
+    .filter(Boolean);
+}
+
+function normalizeFeatureEntries(raw) {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((feature) => {
+      if (typeof feature === 'string') {
+        const text = feature.trim();
+        return text ? { icon: '', text } : null;
+      }
+      if (!feature || !feature.text) return null;
+      return {
+        icon: String(feature.icon || ''),
+        text: String(feature.text).trim().slice(0, 50),
+      };
+    })
+    .filter(Boolean);
+}
+
+function buildShopifyCsvRows(product) {
+  const handle = sanitizeSlug(product.slug || product.name || 'product');
+  const images = normalizeImageEntries(product.images || []);
+  const imageRows = images.length > 0 ? images : [{ url: '', alt: '', order: 0 }];
+
+  return imageRows.map((image, index) => ({
+    Title: index === 0 ? (product.name || '') : '',
+    'URL handle': handle,
+    Description: index === 0 ? (product.description || '') : '',
+    Vendor: '',
+    'Product category': index === 0 ? (product.category || '') : '',
+    Type: index === 0 ? (product.category || '') : '',
+    Tags: index === 0 ? (product.tags || []).join(', ') : '',
+    'Published on online store': index === 0 ? (product.isPublished ? 'TRUE' : 'FALSE') : '',
+    Status: index === 0 ? (product.isPublished ? 'Active' : 'Draft') : '',
+    SKU: '',
+    Barcode: '',
+    'Option1 name': '',
+    'Option1 value': '',
+    'Option1 Linked To': '',
+    'Option2 name': '',
+    'Option2 value': '',
+    'Option2 Linked To': '',
+    'Option3 name': '',
+    'Option3 value': '',
+    'Option3 Linked To': '',
+    Price: index === 0 ? (product.price ?? '') : '',
+    'Compare-at price': index === 0 ? (product.compareAtPrice ?? '') : '',
+    'Cost per item': '',
+    'Charge tax': index === 0 ? 'TRUE' : '',
+    'Tax code': '',
+    'Unit price total measure': '',
+    'Unit price total measure unit': '',
+    'Unit price base measure': '',
+    'Unit price base measure unit': '',
+    'Inventory tracker': index === 0 ? 'shopify' : '',
+    'Inventory quantity': index === 0 ? (product.stock ?? 0) : '',
+    'Continue selling when out of stock': index === 0 ? 'DENY' : '',
+    'Weight value (grams)': '',
+    'Weight unit for display': index === 0 ? 'g' : '',
+    'Requires shipping': index === 0 ? 'TRUE' : '',
+    'Fulfillment service': index === 0 ? 'manual' : '',
+    'Product image URL': image.url || '',
+    'Image position': image.url ? (index + 1) : '',
+    'Image alt text': image.alt || '',
+    'Variant image URL': '',
+    'Gift card': index === 0 ? 'FALSE' : '',
+    'SEO title': index === 0 ? (product.seoTitle || '') : '',
+    'SEO description': index === 0 ? (product.seoDescription || '') : '',
+    'Color (product.metafields.shopify.color-pattern)': '',
+    'Google Shopping / Google product category': index === 0 ? (product.category || '') : '',
+    'Google Shopping / Gender': '',
+    'Google Shopping / Age group': '',
+    'Google Shopping / Manufacturer part number (MPN)': '',
+    'Google Shopping / Ad group name': '',
+    'Google Shopping / Ads labels': '',
+    'Google Shopping / Condition': index === 0 ? 'New' : '',
+    'Google Shopping / Custom product': index === 0 ? 'FALSE' : '',
+    'Google Shopping / Custom label 0': '',
+    'Google Shopping / Custom label 1': '',
+    'Google Shopping / Custom label 2': '',
+    'Google Shopping / Custom label 3': '',
+    'Google Shopping / Custom label 4': '',
+    'Scalor linked product ID': index === 0 ? (product.linkedProductId || '') : '',
+    'Scalor currency': index === 0 ? (product.currency || '') : '',
+    'Scalor target market': index === 0 ? (product.targetMarket || '') : '',
+    'Scalor country': index === 0 ? (product.country || '') : '',
+    'Scalor city': index === 0 ? (product.city || '') : '',
+    'Scalor locale': index === 0 ? (product.locale || '') : '',
+    'Scalor videos JSON': index === 0 ? JSON.stringify(product.videos || []) : '',
+    'Scalor features JSON': index === 0 ? JSON.stringify(product.features || []) : '',
+    'Scalor testimonials JSON': index === 0 ? JSON.stringify(product.testimonials || []) : '',
+    'Scalor testimonials config JSON': index === 0 ? (product.testimonialsConfig ? JSON.stringify(product.testimonialsConfig) : '') : '',
+    'Scalor FAQ JSON': index === 0 ? JSON.stringify(product.faq || []) : '',
+    'Scalor page data JSON': index === 0 ? (product._pageData ? JSON.stringify(product._pageData) : '') : '',
+    'Scalor page builder JSON': index === 0 ? (product.pageBuilder ? JSON.stringify(product.pageBuilder) : '') : '',
+    'Scalor product page config JSON': index === 0 ? (product.productPageConfig ? JSON.stringify(product.productPageConfig) : '') : '',
+    'Scalor created at': index === 0 && product.createdAt ? new Date(product.createdAt).toISOString() : '',
+    'Scalor updated at': index === 0 && product.updatedAt ? new Date(product.updatedAt).toISOString() : '',
+  }));
+}
+
+function rowsToCsv(rowObjects) {
+  return [
+    CSV_COLUMNS.join(','),
+    ...rowObjects.map((row) => CSV_COLUMNS.map((column) => escapeCsvValue(row[column] ?? '')).join(','))
+  ].join('\n');
+}
+
+function parseShopifyTemplateProducts(rows, headers) {
+  const grouped = new Map();
+
+  for (let index = 1; index < rows.length; index += 1) {
+    const values = rows[index];
+    const row = Object.fromEntries(headers.map((header, columnIndex) => [header, values[columnIndex] ?? '']));
+    const handle = sanitizeSlug(row['URL handle'] || row.Title || `row-${index}`);
+    if (!grouped.has(handle)) grouped.set(handle, []);
+    grouped.get(handle).push(row);
+  }
+
+  return Array.from(grouped.entries()).map(([handle, productRows]) => {
+    const firstContentRow = productRows.find((row) => String(row.Title || '').trim() || String(row.Description || '').trim()) || productRows[0];
+    const images = productRows
+      .flatMap((row, rowIndex) => {
+        const candidates = [row['Product image URL'], row['Variant image URL']].filter(Boolean);
+        return candidates.map((url, imageIndex) => ({
+          url: String(url),
+          alt: String(row['Image alt text'] || firstContentRow.Title || ''),
+          order: parseNumberField(row['Image position'], rowIndex + imageIndex),
+        }));
+      })
+      .filter((entry, index, array) => entry.url && array.findIndex((candidate) => candidate.url === entry.url) === index)
+      .sort((left, right) => left.order - right.order);
+
+    return {
+      slug: handle,
+      name: String(firstContentRow.Title || '').trim(),
+      description: String(firstContentRow.Description || ''),
+      price: parseNumberField(firstContentRow.Price, NaN),
+      compareAtPrice: firstContentRow['Compare-at price'] === '' ? null : parseNumberField(firstContentRow['Compare-at price'], null),
+      currency: String(firstContentRow['Scalor currency'] || '').trim().toUpperCase(),
+      targetMarket: String(firstContentRow['Scalor target market'] || ''),
+      country: String(firstContentRow['Scalor country'] || ''),
+      city: String(firstContentRow['Scalor city'] || ''),
+      locale: String(firstContentRow['Scalor locale'] || ''),
+      stock: parseNumberField(firstContentRow['Inventory quantity'], 0),
+      category: String(firstContentRow['Product category'] || firstContentRow.Type || ''),
+      tags: parseTagsField(firstContentRow.Tags),
+      isPublished: parseBooleanField(firstContentRow['Published on online store']) || /active/i.test(String(firstContentRow.Status || '')),
+      seoTitle: String(firstContentRow['SEO title'] || ''),
+      seoDescription: String(firstContentRow['SEO description'] || ''),
+      linkedProductId: String(firstContentRow['Scalor linked product ID'] || ''),
+      images,
+      videos: normalizeVideoEntries(parseJsonField(firstContentRow['Scalor videos JSON'], [])),
+      features: normalizeFeatureEntries(parseJsonField(firstContentRow['Scalor features JSON'], [])),
+      testimonials: normalizeTestimonials(parseJsonField(firstContentRow['Scalor testimonials JSON'], [])) || [],
+      testimonialsConfig: parseJsonField(firstContentRow['Scalor testimonials config JSON'], null),
+      faq: normalizeFaq(parseJsonField(firstContentRow['Scalor FAQ JSON'], [])) || [],
+      _pageData: parseJsonField(firstContentRow['Scalor page data JSON'], null),
+      pageBuilder: parseJsonField(firstContentRow['Scalor page builder JSON'], null),
+      productPageConfig: parseJsonField(firstContentRow['Scalor product page config JSON'], null),
+    };
+  });
+}
+
+async function ensureLinkedProductForImport({ existingLinkedProductId, requestedLinkedProductId, name, price, stock, workspaceId, userId }) {
+  const candidateIds = [existingLinkedProductId, requestedLinkedProductId].filter(Boolean);
+
+  for (const candidateId of candidateIds) {
+    if (!mongoose.Types.ObjectId.isValid(candidateId)) continue;
+    const linked = await Product.findOne({ _id: candidateId, workspaceId }).select('_id').lean();
+    if (linked?._id) return linked._id;
+  }
+
+  const systemProduct = new Product(buildSystemProductPayload({
+    name,
+    price,
+    stock,
+    workspaceId,
+    userId,
+  }));
+
+  await systemProduct.save();
+  return systemProduct._id;
+}
+
 // Configure multer for memory storage (files uploaded to Cloudflare, not local disk)
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -112,6 +598,309 @@ router.get('/categories/list', requireEcomAuth, requireWorkspace, async (req, re
   } catch (error) {
     console.error('Erreur GET /store-products/categories:', error.message);
     res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+/**
+ * GET /store-products/export/csv
+ * Export store product pages to CSV.
+ */
+router.get('/export/csv', requireEcomAuth, requireWorkspace, async (req, res) => {
+  try {
+    const { category, search, isPublished } = req.query;
+    const filter = buildStoreFilter(req);
+
+    if (category) filter.category = category;
+    if (isPublished !== undefined) filter.isPublished = isPublished === 'true';
+    if (search) {
+      filter.$or = [
+        { name: { $regex: search, $options: 'i' } },
+        { category: { $regex: search, $options: 'i' } },
+        { slug: { $regex: search, $options: 'i' } },
+      ];
+    }
+
+    const products = await StoreProduct.find(filter).sort({ createdAt: -1 }).lean();
+    const csv = rowsToCsv(products.flatMap((product) => buildShopifyCsvRows(product)));
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="pages-produits-${new Date().toISOString().slice(0, 10)}.csv"`);
+    res.send(csv);
+  } catch (error) {
+    console.error('Erreur GET /store-products/export/csv:', error.message);
+    res.status(500).json({ success: false, message: 'Erreur lors de l’export CSV' });
+  }
+});
+
+/**
+ * GET /store-products/:id/export/csv
+ * Export a single store product page to CSV.
+ */
+router.get('/:id/export/csv', requireEcomAuth, requireWorkspace, async (req, res) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ success: false, message: 'ID invalide' });
+    }
+
+    const product = await StoreProduct.findOne({
+      _id: req.params.id,
+      workspaceId: req.workspaceId,
+    }).lean();
+
+    if (!product) {
+      return res.status(404).json({ success: false, message: 'Produit introuvable' });
+    }
+
+    const csv = rowsToCsv(buildShopifyCsvRows(product));
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="page-produit-${sanitizeSlug(product.slug || product.name || 'produit')}.csv"`);
+    res.send(csv);
+  } catch (error) {
+    console.error('Erreur GET /store-products/:id/export/csv:', error.message);
+    res.status(500).json({ success: false, message: 'Erreur lors de l’export CSV du produit' });
+  }
+});
+
+/**
+ * POST /store-products/:id/import/csv
+ * Import a CSV into a specific store product page (updates only this product).
+ */
+router.post('/:id/import/csv', requireEcomAuth, requireWorkspace, requireStoreOwner, (req, res, next) => {
+  csvUpload.single('file')(req, res, (err) => {
+    if (!err) return next();
+    return res.status(400).json({ success: false, message: err.message || 'Fichier CSV invalide' });
+  });
+}, async (req, res) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ success: false, message: 'ID invalide' });
+    }
+
+    if (!req.file?.buffer?.length) {
+      return res.status(400).json({ success: false, message: 'Aucun fichier CSV fourni' });
+    }
+
+    const existingProduct = await StoreProduct.findOne({
+      _id: req.params.id,
+      workspaceId: req.workspaceId,
+    });
+
+    if (!existingProduct) {
+      return res.status(404).json({ success: false, message: 'Produit introuvable' });
+    }
+
+    const rows = parseCsvText(req.file.buffer.toString('utf-8'));
+    if (rows.length < 2) {
+      return res.status(400).json({ success: false, message: 'Le fichier CSV est vide' });
+    }
+
+    const headers = rows[0].map((header) => normalizeCsvHeader(header));
+    if (!isShopifyTemplateHeaders(headers)) {
+      return res.status(400).json({ success: false, message: 'Le CSV doit suivre le template produit attendu' });
+    }
+
+    const parsedProducts = parseShopifyTemplateProducts(rows, headers);
+    const importedProduct = parsedProducts[0];
+
+    if (!importedProduct) {
+      return res.status(400).json({ success: false, message: 'Aucune ligne produit trouvée dans le CSV' });
+    }
+
+    const name = String(importedProduct.name || '').trim();
+    const price = parseNumberField(importedProduct.price, NaN);
+
+    if (!name || !Number.isFinite(price)) {
+      return res.status(400).json({ success: false, message: 'Le CSV doit contenir au minimum les colonnes name et price valides' });
+    }
+
+    const userId = req.user?._id || req.user?.id;
+    const linkedProductId = await ensureLinkedProductForImport({
+      existingLinkedProductId: existingProduct.linkedProductId,
+      requestedLinkedProductId: importedProduct.linkedProductId,
+      name,
+      price,
+      stock: parseNumberField(importedProduct.stock, 0),
+      workspaceId: req.workspaceId,
+      userId,
+    });
+
+    const update = {
+      name,
+      description: String(importedProduct.description || ''),
+      price,
+      compareAtPrice: importedProduct.compareAtPrice,
+      currency: importedProduct.currency || '',
+      targetMarket: String(importedProduct.targetMarket || ''),
+      country: String(importedProduct.country || ''),
+      city: String(importedProduct.city || ''),
+      locale: String(importedProduct.locale || ''),
+      stock: parseNumberField(importedProduct.stock, 0),
+      category: String(importedProduct.category || ''),
+      tags: importedProduct.tags || [],
+      isPublished: Boolean(importedProduct.isPublished),
+      seoTitle: String(importedProduct.seoTitle || ''),
+      seoDescription: String(importedProduct.seoDescription || ''),
+      linkedProductId,
+      images: importedProduct.images || [],
+      videos: importedProduct.videos || [],
+      features: importedProduct.features || [],
+      testimonials: importedProduct.testimonials || [],
+      testimonialsConfig: importedProduct.testimonialsConfig,
+      faq: importedProduct.faq || [],
+      _pageData: importedProduct._pageData,
+      pageBuilder: importedProduct.pageBuilder,
+      productPageConfig: importedProduct.productPageConfig,
+    };
+
+    const importedSlug = sanitizeSlug(importedProduct.slug);
+    if (importedSlug) update.slug = importedSlug;
+
+    const product = await StoreProduct.findOneAndUpdate(
+      { _id: req.params.id, workspaceId: req.workspaceId },
+      { $set: update },
+      { new: true, lean: true }
+    );
+
+    res.json({
+      success: true,
+      message: 'Produit importé depuis le CSV',
+      data: product,
+    });
+  } catch (error) {
+    console.error('Erreur POST /store-products/:id/import/csv:', error.message);
+    res.status(500).json({ success: false, message: 'Erreur lors de l’import CSV du produit' });
+  }
+});
+
+/**
+ * POST /store-products/import/csv
+ * Import store product pages from CSV.
+ */
+router.post('/import/csv', requireEcomAuth, requireWorkspace, requireStoreOwner, (req, res, next) => {
+  csvUpload.single('file')(req, res, (err) => {
+    if (!err) return next();
+    return res.status(400).json({ success: false, message: err.message || 'Fichier CSV invalide' });
+  });
+}, async (req, res) => {
+  try {
+    if (!req.file?.buffer?.length) {
+      return res.status(400).json({ success: false, message: 'Aucun fichier CSV fourni' });
+    }
+
+    const rows = parseCsvText(req.file.buffer.toString('utf-8'));
+    if (rows.length < 2) {
+      return res.status(400).json({ success: false, message: 'Le fichier CSV est vide' });
+    }
+
+    const headers = rows[0].map((header) => normalizeCsvHeader(header));
+    if (!isShopifyTemplateHeaders(headers)) {
+      return res.status(400).json({ success: false, message: 'Le CSV doit suivre le template produit attendu' });
+    }
+
+    const parsedProducts = parseShopifyTemplateProducts(rows, headers);
+    const userId = req.user?._id || req.user?.id;
+    const stats = { created: 0, updated: 0, skipped: 0, errors: [] };
+
+    for (let index = 0; index < parsedProducts.length; index += 1) {
+      const importedProduct = parsedProducts[index];
+      const lineNumber = index + 2;
+      const name = String(importedProduct.name || '').trim();
+
+      if (!name) {
+        stats.skipped += 1;
+        continue;
+      }
+
+      const price = parseNumberField(importedProduct.price, NaN);
+      if (!Number.isFinite(price)) {
+        stats.errors.push(`Ligne ${lineNumber}: prix invalide pour "${name}"`);
+        continue;
+      }
+
+      try {
+        let existingProduct = null;
+        if (mongoose.Types.ObjectId.isValid(importedProduct.linkedProductId || '')) {
+          existingProduct = await StoreProduct.findOne({ linkedProductId: importedProduct.linkedProductId, ...buildStoreFilter(req) });
+        }
+        if (!existingProduct && importedProduct.slug) {
+          existingProduct = await StoreProduct.findOne({ slug: sanitizeSlug(importedProduct.slug), ...buildStoreFilter(req) });
+        }
+
+        const linkedProductId = await ensureLinkedProductForImport({
+          existingLinkedProductId: existingProduct?.linkedProductId,
+          requestedLinkedProductId: importedProduct.linkedProductId,
+          name,
+          price,
+          stock: parseNumberField(importedProduct.stock, 0),
+          workspaceId: req.workspaceId,
+          userId,
+        });
+
+        const payload = {
+          workspaceId: req.workspaceId,
+          storeId: req.activeStoreId || null,
+          name,
+          description: String(importedProduct.description || ''),
+          price,
+          compareAtPrice: importedProduct.compareAtPrice,
+          currency: importedProduct.currency || '',
+          targetMarket: String(importedProduct.targetMarket || ''),
+          country: String(importedProduct.country || ''),
+          city: String(importedProduct.city || ''),
+          locale: String(importedProduct.locale || ''),
+          stock: parseNumberField(importedProduct.stock, 0),
+          category: String(importedProduct.category || ''),
+          tags: importedProduct.tags || [],
+          isPublished: Boolean(importedProduct.isPublished),
+          seoTitle: String(importedProduct.seoTitle || ''),
+          seoDescription: String(importedProduct.seoDescription || ''),
+          linkedProductId,
+          images: importedProduct.images || [],
+          videos: importedProduct.videos || [],
+          features: importedProduct.features || [],
+          testimonials: importedProduct.testimonials || [],
+          testimonialsConfig: importedProduct.testimonialsConfig,
+          faq: importedProduct.faq || [],
+          _pageData: importedProduct._pageData,
+          pageBuilder: importedProduct.pageBuilder,
+          productPageConfig: importedProduct.productPageConfig,
+        };
+
+        const importedSlug = sanitizeSlug(importedProduct.slug);
+        if (existingProduct) {
+          const update = {
+            ...payload,
+            slug: importedSlug || existingProduct.slug,
+          };
+
+          await StoreProduct.updateOne(
+            { _id: existingProduct._id, workspaceId: req.workspaceId },
+            { $set: update }
+          );
+          stats.updated += 1;
+        } else {
+          const product = new StoreProduct({
+            ...payload,
+            createdBy: req.user.id,
+            ...(importedSlug && { slug: importedSlug }),
+          });
+          await product.save();
+          stats.created += 1;
+        }
+      } catch (error) {
+        stats.errors.push(`Ligne ${lineNumber}: ${error.message}`);
+      }
+    }
+
+    res.json({
+      success: stats.errors.length === 0,
+      message: `Import CSV terminé: ${stats.created} créé(s), ${stats.updated} mis à jour, ${stats.skipped} ignoré(s)`,
+      data: stats,
+    });
+  } catch (error) {
+    console.error('Erreur POST /store-products/import/csv:', error.message);
+    res.status(500).json({ success: false, message: 'Erreur lors de l’import CSV' });
   }
 });
 

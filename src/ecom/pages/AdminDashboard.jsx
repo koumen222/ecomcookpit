@@ -383,7 +383,7 @@ const AdminDashboard = () => {
     try {
       const [financialRes, prevFinancialRes, dailyRes] = await Promise.all([
         ecomApi.get(`/reports/stats/financial?startDate=${startStr}&endDate=${endStr}`),
-        ecomApi.get(`/reports/stats/financial?startDate=${prevStartStr}&endDate=${endStr}`),
+        ecomApi.get(`/reports/stats/financial?startDate=${prevStartStr}&endDate=${prevEndStr}`),
         ecomApi.get(`/reports/stats/financial/daily?days=${daysCount}`).catch(() => ({ data: { data: [] } }))
       ]);
       const financialData = financialRes.data?.data || {};
@@ -430,7 +430,7 @@ const AdminDashboard = () => {
         ecomApi.get(`/reports/stats/products-ranking?startDate=${startStr}&endDate=${endStr}`).catch(() => ({ data: { data: [] } })),
         ecomApi.get('/stock-locations').catch(() => ({ data: { data: [] } })),
         ecomApi.get('/decisions/dashboard/overview').catch(() => ({ data: { data: {} } })),
-        ecomApi.get(`/reports/dashboard/stats?period=${daysCount}`).catch(() => ({ data: { data: {} } })),
+        ecomApi.get(`/reports/dashboard/stats?period=${daysCount}&startDate=${startStr}&endDate=${endStr}`).catch(() => ({ data: { data: {} } })),
         ecomApi.get('/goals', { params: { periodType: 'monthly', year: new Date().getFullYear(), month: new Date().getMonth() + 1 } }).catch(() => ({ data: { data: [] } }))
       ]);
 

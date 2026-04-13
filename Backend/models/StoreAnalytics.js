@@ -245,7 +245,7 @@ storeAnalyticsSchema.statics.getStoreDashboardStats = async function(workspaceId
   ]);
 
   // Timeline générique (hourly for 24h, daily otherwise)
-  const timeFormat = period === '24h' ? '%Y-%m-%dT%H' : '%Y-%m-%d';
+  const timeFormat = ['24h', 'today', 'yesterday'].includes(period) ? '%Y-%m-%dT%H' : '%Y-%m-%d';
   const timeline = await this.aggregate([
     { $match: matchQuery },
     {

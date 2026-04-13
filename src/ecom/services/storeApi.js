@@ -1,6 +1,191 @@
 import ecomApi from './ecommApi.js';
 import axios from 'axios';
 
+const STORE_PRODUCT_TEMPLATE_COLUMNS = [
+  'Title',
+  'URL handle',
+  'Description',
+  'Vendor',
+  'Product category',
+  'Type',
+  'Tags',
+  'Published on online store',
+  'Status',
+  'SKU',
+  'Barcode',
+  'Option1 name',
+  'Option1 value',
+  'Option1 Linked To',
+  'Option2 name',
+  'Option2 value',
+  'Option2 Linked To',
+  'Option3 name',
+  'Option3 value',
+  'Option3 Linked To',
+  'Price',
+  'Compare-at price',
+  'Cost per item',
+  'Charge tax',
+  'Tax code',
+  'Unit price total measure',
+  'Unit price total measure unit',
+  'Unit price base measure',
+  'Unit price base measure unit',
+  'Inventory tracker',
+  'Inventory quantity',
+  'Continue selling when out of stock',
+  'Weight value (grams)',
+  'Weight unit for display',
+  'Requires shipping',
+  'Fulfillment service',
+  'Product image URL',
+  'Image position',
+  'Image alt text',
+  'Variant image URL',
+  'Gift card',
+  'SEO title',
+  'SEO description',
+  'Color (product.metafields.shopify.color-pattern)',
+  'Google Shopping / Google product category',
+  'Google Shopping / Gender',
+  'Google Shopping / Age group',
+  'Google Shopping / Manufacturer part number (MPN)',
+  'Google Shopping / Ad group name',
+  'Google Shopping / Ads labels',
+  'Google Shopping / Condition',
+  'Google Shopping / Custom product',
+  'Google Shopping / Custom label 0',
+  'Google Shopping / Custom label 1',
+  'Google Shopping / Custom label 2',
+  'Google Shopping / Custom label 3',
+  'Google Shopping / Custom label 4'
+];
+
+const STORE_PRODUCT_SCALOR_COLUMNS = [
+  'Scalor linked product ID',
+  'Scalor currency',
+  'Scalor target market',
+  'Scalor country',
+  'Scalor city',
+  'Scalor locale',
+  'Scalor videos JSON',
+  'Scalor features JSON',
+  'Scalor testimonials JSON',
+  'Scalor testimonials config JSON',
+  'Scalor FAQ JSON',
+  'Scalor page data JSON',
+  'Scalor page builder JSON',
+  'Scalor product page config JSON',
+  'Scalor created at',
+  'Scalor updated at'
+];
+
+const STORE_PRODUCT_CSV_COLUMNS = [...STORE_PRODUCT_TEMPLATE_COLUMNS, ...STORE_PRODUCT_SCALOR_COLUMNS];
+
+function sanitizeSlug(value) {
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
+}
+
+function escapeCsvValue(value) {
+  const stringValue = value == null ? '' : String(value);
+  if (!/[",\n\r]/.test(stringValue)) return stringValue;
+  return `"${stringValue.replace(/"/g, '""')}"`;
+}
+
+function buildStoreProductCsvBlob(product) {
+  const handle = sanitizeSlug(product.slug || product.name || 'product');
+  const images = Array.isArray(product.images) && product.images.length > 0
+    ? product.images
+    : [{ url: '', alt: '', order: 0 }];
+
+  const rowObjects = images.map((image, index) => ({
+    Title: index === 0 ? (product.name || '') : '',
+    'URL handle': handle,
+    Description: index === 0 ? (product.description || '') : '',
+    Vendor: '',
+    'Product category': index === 0 ? (product.category || '') : '',
+    Type: index === 0 ? (product.category || '') : '',
+    Tags: index === 0 ? (product.tags || []).join(', ') : '',
+    'Published on online store': index === 0 ? (product.isPublished ? 'TRUE' : 'FALSE') : '',
+    Status: index === 0 ? (product.isPublished ? 'Active' : 'Draft') : '',
+    SKU: '',
+    Barcode: '',
+    'Option1 name': '',
+    'Option1 value': '',
+    'Option1 Linked To': '',
+    'Option2 name': '',
+    'Option2 value': '',
+    'Option2 Linked To': '',
+    'Option3 name': '',
+    'Option3 value': '',
+    'Option3 Linked To': '',
+    Price: index === 0 ? (product.price ?? '') : '',
+    'Compare-at price': index === 0 ? (product.compareAtPrice ?? '') : '',
+    'Cost per item': '',
+    'Charge tax': index === 0 ? 'TRUE' : '',
+    'Tax code': '',
+    'Unit price total measure': '',
+    'Unit price total measure unit': '',
+    'Unit price base measure': '',
+    'Unit price base measure unit': '',
+    'Inventory tracker': index === 0 ? 'shopify' : '',
+    'Inventory quantity': index === 0 ? (product.stock ?? 0) : '',
+    'Continue selling when out of stock': index === 0 ? 'DENY' : '',
+    'Weight value (grams)': '',
+    'Weight unit for display': index === 0 ? 'g' : '',
+    'Requires shipping': index === 0 ? 'TRUE' : '',
+    'Fulfillment service': index === 0 ? 'manual' : '',
+    'Product image URL': image?.url || '',
+    'Image position': image?.url ? (index + 1) : '',
+    'Image alt text': image?.alt || '',
+    'Variant image URL': '',
+    'Gift card': index === 0 ? 'FALSE' : '',
+    'SEO title': index === 0 ? (product.seoTitle || '') : '',
+    'SEO description': index === 0 ? (product.seoDescription || '') : '',
+    'Color (product.metafields.shopify.color-pattern)': '',
+    'Google Shopping / Google product category': index === 0 ? (product.category || '') : '',
+    'Google Shopping / Gender': '',
+    'Google Shopping / Age group': '',
+    'Google Shopping / Manufacturer part number (MPN)': '',
+    'Google Shopping / Ad group name': '',
+    'Google Shopping / Ads labels': '',
+    'Google Shopping / Condition': index === 0 ? 'New' : '',
+    'Google Shopping / Custom product': index === 0 ? 'FALSE' : '',
+    'Google Shopping / Custom label 0': '',
+    'Google Shopping / Custom label 1': '',
+    'Google Shopping / Custom label 2': '',
+    'Google Shopping / Custom label 3': '',
+    'Google Shopping / Custom label 4': '',
+    'Scalor linked product ID': index === 0 ? (product.linkedProductId || '') : '',
+    'Scalor currency': index === 0 ? (product.currency || '') : '',
+    'Scalor target market': index === 0 ? (product.targetMarket || '') : '',
+    'Scalor country': index === 0 ? (product.country || '') : '',
+    'Scalor city': index === 0 ? (product.city || '') : '',
+    'Scalor locale': index === 0 ? (product.locale || '') : '',
+    'Scalor videos JSON': index === 0 ? JSON.stringify(product.videos || []) : '',
+    'Scalor features JSON': index === 0 ? JSON.stringify(product.features || []) : '',
+    'Scalor testimonials JSON': index === 0 ? JSON.stringify(product.testimonials || []) : '',
+    'Scalor testimonials config JSON': index === 0 ? (product.testimonialsConfig ? JSON.stringify(product.testimonialsConfig) : '') : '',
+    'Scalor FAQ JSON': index === 0 ? JSON.stringify(product.faq || []) : '',
+    'Scalor page data JSON': index === 0 ? (product._pageData ? JSON.stringify(product._pageData) : '') : '',
+    'Scalor page builder JSON': index === 0 ? (product.pageBuilder ? JSON.stringify(product.pageBuilder) : '') : '',
+    'Scalor product page config JSON': index === 0 ? (product.productPageConfig ? JSON.stringify(product.productPageConfig) : '') : '',
+    'Scalor created at': index === 0 && product.createdAt ? new Date(product.createdAt).toISOString() : '',
+    'Scalor updated at': index === 0 && product.updatedAt ? new Date(product.updatedAt).toISOString() : '',
+  }));
+
+  const csv = [
+    STORE_PRODUCT_CSV_COLUMNS.join(','),
+    ...rowObjects.map((row) => STORE_PRODUCT_CSV_COLUMNS.map((column) => escapeCsvValue(row[column] ?? '')).join(','))
+  ].join('\n');
+
+  return new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+}
+
 /**
  * Store API service layer.
  * 
@@ -40,6 +225,32 @@ export const storeProductsApi = {
   updateProduct: (id, data) => ecomApi.put(`/store-products/${id}`, data),
   deleteProduct: (id) => ecomApi.delete(`/store-products/${id}`),
   getCategories: () => ecomApi.get('/store-products/categories/list'),
+  exportCsv: (params = {}) => ecomApi.get('/store-products/export/csv', { params, responseType: 'blob' }),
+  importCsv: (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return ecomApi.post('/store-products/import/csv', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+  },
+  exportProductCsv: async (id) => {
+    try {
+      return await ecomApi.get(`/store-products/${id}/export/csv`, { responseType: 'blob' });
+    } catch (error) {
+      if (error?.response?.status !== 404) throw error;
+      const productResponse = await ecomApi.get(`/store-products/${id}`);
+      const product = productResponse.data?.data;
+      if (!product) throw error;
+      return { data: buildStoreProductCsvBlob(product) };
+    }
+  },
+  importProductCsv: (id, file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return ecomApi.post(`/store-products/${id}/import/csv`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+  },
 
   // ─── System product picker (link store product to main catalogue) ─────
   getSystemProducts: (search = '') =>
