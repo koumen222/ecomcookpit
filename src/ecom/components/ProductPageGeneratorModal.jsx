@@ -751,7 +751,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
             const imgs = data.images || {};
             const newAngles = prev.angles?.map((a, i) => {
               const bgAngle = imgs.angles?.find(ba => ba.index === i + 1);
-              return bgAngle ? { ...a, poster_url: bgAngle.poster_url } : a;
+              return bgAngle ? { ...a, poster_url: bgAngle.poster_url, flashType: bgAngle.flashType || a?.flashType || null } : a;
             }) || [];
             const peoplePhotos = Array.isArray(imgs.peoplePhotos) ? imgs.peoplePhotos : (prev.peoplePhotos || []);
             const beforeAfterImages = Array.isArray(imgs.beforeAfterImages) ? imgs.beforeAfterImages : (prev.beforeAfterImages || []);
@@ -1165,7 +1165,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
             if (!prev) return prev;
             const newAngles = prev.angles?.map((a, i) => {
               const bgAngle = imgs.angles?.find(ba => ba.index === i + 1);
-              return bgAngle ? { ...a, poster_url: bgAngle.poster_url } : a;
+              return bgAngle ? { ...a, poster_url: bgAngle.poster_url, flashType: bgAngle.flashType || a?.flashType || null } : a;
             }) || [];
             const peoplePhotos = Array.isArray(imgs.peoplePhotos) ? imgs.peoplePhotos : (prev.peoplePhotos || []);
             const beforeAfterImages = Array.isArray(imgs.beforeAfterImages) ? imgs.beforeAfterImages : (prev.beforeAfterImages || []);
@@ -1345,10 +1345,14 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
     // ── Intro description (courte, sans images markdown) ─────────────────────
 
     // ── 5 Arguments marketing : H3 gras + description 3-4 lignes + image ─────
-    if (product.angles?.length) {
+    const descriptionAngles = Array.isArray(product.angles)
+      ? product.angles.filter((angle) => angle?.poster_url && angle?.flashType !== 'social_proof')
+      : [];
+
+    if (descriptionAngles.length) {
       descHtml += `<div style="margin:32px 0;color:${themeTextToken};">`;
-      product.angles.slice(0, 5).forEach((angle, idx) => {
-        descHtml += `<div style="margin-bottom:40px;padding-bottom:40px;${idx < product.angles.length - 1 ? `border-bottom:1px solid ${themeBorderToken};` : ''}">`;
+      descriptionAngles.slice(0, 5).forEach((angle, idx) => {
+        descHtml += `<div style="margin-bottom:40px;padding-bottom:40px;${idx < descriptionAngles.length - 1 ? `border-bottom:1px solid ${themeBorderToken};` : ''}">`;
         // H3 bold title
         descHtml += `<h3 style="font-size:20px;font-weight:800;color:${themePrimaryToken};margin:0 0 12px;line-height:1.3;"><strong>${angle.titre_angle}</strong></h3>`;
         // 3-4 line description
@@ -1449,16 +1453,15 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
       });
     }
 
-    if ((product.socialProofImages || []).length) {
-      (product.socialProofImages || []).forEach((url, index) => {
-        pushUniqueImage(productImages, url, `${product.title || 'Produit'} — preuve sociale ${index + 1}`, 'social-proof');
+    if (product.peoplePhotos?.length) {
+      product.peoplePhotos.forEach((imgUrl, i) => {
+        pushUniqueImage(socialProofImages, imgUrl, `${product.title || 'Produit'} — client ${i + 1}`, 'social-proof-lifestyle');
       });
     }
 
-    if (product.peoplePhotos?.length) {
-      product.peoplePhotos.forEach((imgUrl, i) => {
-        pushUniqueImage(productImages, imgUrl, `${product.title || 'Produit'} — client ${i + 1}`, 'social-proof-lifestyle');
-        pushUniqueImage(socialProofImages, imgUrl, `${product.title || 'Produit'} — client ${i + 1}`, 'social-proof-lifestyle');
+    if ((product.socialProofImages || []).length) {
+      (product.socialProofImages || []).forEach((url, index) => {
+        pushUniqueImage(socialProofImages, url, `${product.title || 'Produit'} — preuve sociale ${index + 1}`, 'social-proof');
       });
     }
     

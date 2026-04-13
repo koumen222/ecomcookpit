@@ -391,6 +391,7 @@ Scene and environment: ${heroContext.scene}.
 Composition goal: ${heroContext.composition}.
 Emotional tone: ${heroContext.mood}.
 
+The person must naturally HOLD the product in hand, or wear/use it in the most obvious way for the niche, so the product is immediately identifiable in the hero.
 The product must be clearly visible and placed naturally in the usage scene.
 ${productNote}
 ${heroContext.placement}.
@@ -398,8 +399,11 @@ ${heroContext.placement}.
 Clean soft lighting, premium ecommerce photography style, realistic and trustworthy.
 Background color must match the website color: ${brandColor}.
 
-Add subtle marketing text in perfect French:
-"${mainBenefit}"
+Add only one SHORT French marketing message in a clean premium badge/callout.
+- Maximum 3 to 6 words.
+- Keep the message compact and conversion-focused.
+- Do NOT create a giant headline block.
+- The short message must reflect this benefit: "${mainBenefit}"
 
 Style: realistic, premium, trustworthy, no stock feeling, no fake hands, no watermark, no phone number, no URL.
 Do not force the product near the face unless that is the natural real usage of the product.
@@ -458,8 +462,8 @@ function buildFlashPrompts(gptResult, hasProductRef, method = 'PAS', template = 
   const angles = gptResult.angles || [];
   const corePlans = [
     { type: 'benefits_explainer', intent: 'educational benefits and mechanism visual', cue: getMainBenefit(gptResult) },
-    { type: 'social_proof', intent: 'trust-building social proof visual', cue: gptResult.urgency_elements?.social_proof_count || '+2500 clientes satisfaites' },
     { type: 'problem_solution', intent: 'problem to solution transformation visual', cue: gptResult.problem_section?.pain_points?.[0] || gptResult.problem_section?.title || getMainBenefit(gptResult) },
+    { type: 'usage_context', intent: 'real usage and product-in-context visual', cue: gptResult.guide_utilisation?.titre || gptResult.hero_slogan || getMainBenefit(gptResult) },
     { type: 'desired_result', intent: 'aspirational outcome and transformation visual', cue: gptResult.solution_section?.title || gptResult.hero_slogan || getMainBenefit(gptResult) },
     { type: 'reassurance_close', intent: 'objection crushing reassurance visual', cue: gptResult.reassurance?.titre || gptResult.urgency_elements?.primary_urgency || 'simple, fiable, crédible' },
   ];
@@ -1141,8 +1145,6 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       let anglePrompt;
       if (i === 0) {
         anglePrompt = buildBenefitsInfographicPrompt(gptResult, visualTemplate, visualContext);
-      } else if (i === 1) {
-        anglePrompt = buildSocialProofCollagePrompt(gptResult, visualTemplate, visualContext);
       } else {
         anglePrompt = buildAngleImagePrompt(angle || fallbackAngle, gptResult, !!baseImageBuffer, visualTemplate, i, visualContext, approach)
           || `${buildFlashFallbackPrompt(flash, angle || fallbackAngle, gptResult, visualTemplate, visualContext, approach, i)}${africanRealism}`;
@@ -1245,16 +1247,15 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       [
         jobData.heroImage,
         jobData.angles[0]?.poster_url,
-        jobData.peoplePhotos[0],
         jobData.beforeAfterImages[0],
+        jobData.angles[1]?.poster_url,
         realPhotos[0],
       ],
       [
         jobData.heroPosterImage,
-        jobData.angles[1]?.poster_url,
-        jobData.peoplePhotos[1] || jobData.peoplePhotos[0],
-        jobData.beforeAfterImages[1] || jobData.beforeAfterImages[0],
         jobData.angles[2]?.poster_url,
+        jobData.beforeAfterImages[1] || jobData.beforeAfterImages[0],
+        jobData.angles[3]?.poster_url,
       ],
     ].map((group) => group.filter(Boolean));
 

@@ -235,10 +235,7 @@ const buildSocialProofGalleryImages = (product) => {
   return entries;
 };
 
-const buildProductGalleryFallbackImages = (product) => mergeGalleryImageEntries(
-  buildAiGalleryImages(product),
-  buildSocialProofGalleryImages(product)
-);
+const buildProductGalleryFallbackImages = (product) => buildAiGalleryImages(product);
 
 const clampDisplayAspectRatio = (ratio) => {
   if (!Number.isFinite(ratio) || ratio <= 0) return 1;
@@ -1079,23 +1076,88 @@ const withAlpha = (color, alphaHex, fallback) => {
   return fallback;
 };
 
-const buildAiVisualTheme = ({ store = null, design = {} } = {}) => {
+const AI_VISUAL_TEMPLATE_TONES = {
+  beauty: {
+    label: 'Beauty premium',
+    cues: ['Editorial', 'Texture propre', 'Finition premium'],
+    accent: '#E88BA3',
+    background: '#FFF7FA',
+    surface: '#FFFFFF',
+  },
+  health: {
+    label: 'Sante naturelle',
+    cues: ['Clarte', 'Confiance', 'Resultat lisible'],
+    accent: '#82C9A0',
+    background: '#F3FFF7',
+    surface: '#FFFFFF',
+  },
+  tech: {
+    label: 'Performance moderne',
+    cues: ['Precision', 'Demo claire', 'Contraste net'],
+    accent: '#7BB6FF',
+    background: '#F4F8FF',
+    surface: '#FFFFFF',
+  },
+  fashion: {
+    label: 'Editorial mode',
+    cues: ['Silhouette', 'Matiere', 'Prestige'],
+    accent: '#C8B2FF',
+    background: '#FAF7FF',
+    surface: '#FFFFFF',
+  },
+  home: {
+    label: 'Maison premium',
+    cues: ['Usage reel', 'Lecture simple', 'Ambiance propre'],
+    accent: '#F2C979',
+    background: '#FFF8EC',
+    surface: '#FFFFFF',
+  },
+  general: {
+    label: 'Conversion premium',
+    cues: ['Structure propre', 'Repere visuel', 'Hiérarchie claire'],
+    accent: '#96C7B5',
+    background: '#F5FBF8',
+    surface: '#FFFFFF',
+  },
+};
+
+const buildAiGraphicProfile = (product = null) => {
+  const pageData = product?._pageData || {};
+  const templateId = pageData.visualTemplate || 'general';
+  const templateProfile = AI_VISUAL_TEMPLATE_TONES[templateId] || AI_VISUAL_TEMPLATE_TONES.general;
+
+  return {
+    label: pageData.visualTemplateLabel || templateProfile.label,
+    cues: templateProfile.cues,
+    note: pageData.decorationDirection || 'Direction graphique sobre, nette et orientee conversion.',
+  };
+};
+
+const buildAiVisualTheme = ({ store = null, design = {}, product = null } = {}) => {
+  const pageData = product?._pageData || {};
+  const templateId = pageData.visualTemplate || 'general';
+  const templateTone = AI_VISUAL_TEMPLATE_TONES[templateId] || AI_VISUAL_TEMPLATE_TONES.general;
   const primary = design?.ctaButtonColor || design?.buttonColor || store?.accentColor || store?.primaryColor || '#0f6b4f';
-  const accent = design?.badgeColor || store?.accentColor || primary;
+  const accent = design?.badgeColor || templateTone.accent || store?.accentColor || primary;
   const text = design?.textColor || store?.textColor || '#111827';
+  const background = design?.backgroundColor || templateTone.background || null;
+  const surface = design?.fieldBgColor || templateTone.surface || '#FFFFFF';
+  const softGradient = background
+    ? `radial-gradient(circle at top right, ${withAlpha(accent, '26', 'rgba(15,107,79,0.10)')} 0%, transparent 42%), linear-gradient(180deg, ${withAlpha(background, 'F8', 'rgba(255,255,255,0.96)')} 0%, ${withAlpha(surface, 'FF', '#ffffff')} 100%)`
+    : `radial-gradient(circle at top right, ${withAlpha(accent, '1C', 'rgba(15,107,79,0.08)')} 0%, transparent 40%), linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(255,255,255,1) 100%)`;
 
   return {
     primary,
     accent,
-    background: null,
-    surface: null,
+    background,
+    surface,
     text,
     gradient: `linear-gradient(135deg, ${primary} 0%, ${accent} 100%)`,
-    softGradient: null,
+    softGradient,
     border: withAlpha(accent, '40', 'rgba(15,107,79,0.18)'),
     softBorder: withAlpha(accent, '22', 'rgba(15,107,79,0.10)'),
     mutedText: withAlpha(text, 'B8', text),
-    shadow: `0 18px 44px ${withAlpha(primary, '22', 'rgba(15,107,79,0.14)')}`,
+    shadow: `0 18px 44px ${withAlpha(primary, '1E', 'rgba(15,107,79,0.12)')}`,
   };
 };
 
@@ -1329,7 +1391,8 @@ const StoreProductPage = () => {
   const ctaAnimation = ppButton.animation || 'none';
   const ppFormType = ppGeneral.formType || 'popup';
   const spacingPreset = SPACING_PRESETS[ppDesign.spacing] || SPACING_PRESETS.normal;
-  const aiVisualTheme = buildAiVisualTheme({ store, design: ppDesign });
+  const aiVisualTheme = buildAiVisualTheme({ store, design: ppDesign, product });
+  const aiGraphicProfile = buildAiGraphicProfile(product);
   const socialProofTheme = buildSectionVisualTheme('socialProof');
   const benefitsTheme = buildSectionVisualTheme('benefits');
   const trustTheme = buildSectionVisualTheme('trust');
@@ -1729,14 +1792,14 @@ const StoreProductPage = () => {
       '--pp-card-radius': ctaBorderRadius,
       '--ai-primary': aiVisualTheme?.primary || 'var(--s-primary)',
       '--ai-accent': aiVisualTheme?.accent || 'var(--s-accent, var(--s-primary))',
-      '--ai-bg': 'var(--s-bg)',
-      '--ai-surface': '#ffffff',
+      '--ai-bg': aiVisualTheme?.background || 'var(--s-bg)',
+      '--ai-surface': aiVisualTheme?.surface || '#ffffff',
       '--ai-text': aiVisualTheme?.text || 'var(--s-text)',
       '--ai-muted': aiVisualTheme?.mutedText || 'var(--s-text2)',
       '--ai-border': aiVisualTheme?.border || 'var(--s-border)',
       '--ai-soft-border': aiVisualTheme?.softBorder || 'var(--s-border)',
       '--ai-gradient': aiVisualTheme?.gradient || 'linear-gradient(135deg, var(--s-primary), var(--s-primary))',
-      '--ai-soft-gradient': 'var(--s-bg)',
+      '--ai-soft-gradient': aiVisualTheme?.softGradient || 'var(--s-bg)',
       '--ai-shadow': aiVisualTheme?.shadow || '0 10px 30px rgba(0,0,0,0.08)',
     }}>
       <style>{`
@@ -1770,6 +1833,56 @@ const StoreProductPage = () => {
           .product-grid.theme-classic { grid-template-columns:1fr 1fr; gap:var(--pp-gap); }
           .theme-classic .product-gallery { position:sticky; top:72px; max-height:75vh; overflow-y:auto; }
           .theme-classic .product-info { padding:0 var(--pp-desktop-info-padding) 48px 0; }
+        }
+
+        .ai-gallery-frame {
+          position:relative;
+          padding:12px;
+          border-radius:calc(var(--pp-card-radius) + 10px);
+          background:var(--ai-soft-gradient);
+          border:1px solid var(--ai-soft-border);
+          box-shadow:var(--ai-shadow);
+          overflow:hidden;
+        }
+        .ai-gallery-frame::before {
+          content:'';
+          position:absolute;
+          inset:-15% auto auto -10%;
+          width:180px;
+          height:180px;
+          border-radius:999px;
+          background:radial-gradient(circle, rgba(255,255,255,0.65) 0%, transparent 70%);
+          pointer-events:none;
+          opacity:0.7;
+        }
+        .ai-gallery-badge {
+          position:absolute;
+          top:18px;
+          left:18px;
+          z-index:4;
+          display:flex;
+          flex-direction:column;
+          gap:2px;
+          padding:10px 12px;
+          border-radius:16px;
+          background:rgba(255,255,255,0.92);
+          border:1px solid var(--ai-soft-border);
+          box-shadow:0 12px 28px rgba(15,23,42,0.10);
+          backdrop-filter:blur(10px);
+        }
+        .ai-gallery-badge span {
+          font-size:10px;
+          font-weight:800;
+          letter-spacing:0.12em;
+          text-transform:uppercase;
+          color:var(--ai-primary);
+          font-family:var(--s-font);
+        }
+        .ai-gallery-badge strong {
+          font-size:12px;
+          font-weight:800;
+          color:var(--s-text);
+          font-family:var(--s-font);
         }
 
         /* ═══ THEME: LANDING PAGE ═══ */
@@ -1841,9 +1954,73 @@ const StoreProductPage = () => {
           pointer-events:none;
           opacity:0.9;
         }
+        .product-info.ai-themed::after {
+          content:'';
+          position:absolute;
+          top:20px;
+          right:16px;
+          width:160px;
+          height:160px;
+          border-radius:999px;
+          background:radial-gradient(circle, rgba(255,255,255,0.65) 0%, rgba(255,255,255,0) 68%);
+          opacity:0.55;
+          pointer-events:none;
+        }
         .product-info.ai-themed > * {
           position:relative;
           z-index:1;
+        }
+        .ai-graphic-rail {
+          display:flex;
+          flex-wrap:wrap;
+          gap:8px;
+          align-items:flex-start;
+          margin:0 0 16px;
+        }
+        .ai-graphic-chip {
+          display:inline-flex;
+          align-items:center;
+          gap:7px;
+          padding:8px 12px;
+          border-radius:999px;
+          border:1px solid var(--ai-soft-border);
+          background:rgba(255,255,255,0.88);
+          box-shadow:0 10px 20px rgba(15,23,42,0.06);
+          color:var(--s-text);
+          font-size:12px;
+          font-weight:700;
+          line-height:1;
+          font-family:var(--s-font);
+          backdrop-filter:blur(10px);
+        }
+        .ai-graphic-dot {
+          width:8px;
+          height:8px;
+          border-radius:999px;
+          background:var(--ai-gradient);
+          box-shadow:0 0 0 5px rgba(255,255,255,0.7);
+          flex-shrink:0;
+        }
+        .ai-hero-note {
+          width:100%;
+          margin-top:4px;
+          padding:14px 16px;
+          border-radius:18px;
+          border:1px solid var(--ai-soft-border);
+          background:rgba(255,255,255,0.76);
+          box-shadow:0 12px 26px rgba(15,23,42,0.06);
+          color:var(--ai-muted);
+          font-size:13px;
+          line-height:1.6;
+          font-family:var(--s-font);
+        }
+        .ai-hero-note strong {
+          display:block;
+          margin-bottom:4px;
+          color:var(--ai-primary);
+          font-size:11px;
+          letter-spacing:0.12em;
+          text-transform:uppercase;
         }
         @media(min-width:769px){
           .ai-desc h3 { font-size:20px; }
@@ -1895,13 +2072,39 @@ const StoreProductPage = () => {
         <div className={`product-grid theme-${ppTheme}`}>
           {/* ── Gallery ────────────────────────────────────────────────────── */}
           <div className="product-gallery">
-            <ImageGallery images={images} design={ppDesign} />
+            <div className="ai-gallery-frame">
+              {aiGraphicProfile?.label && (
+                <div className="ai-gallery-badge">
+                  <span>Direction</span>
+                  <strong>{aiGraphicProfile.label}</strong>
+                </div>
+              )}
+              <ImageGallery images={images} design={ppDesign} />
+            </div>
           </div>
 
           {/* ── Right: Info ───────────────────────────────────────────────── */}
           <div className={`product-info ${aiVisualTheme ? 'ai-themed' : ''}`}>
             {product ? (
               <>
+                {aiGraphicProfile && (
+                  <div className="ai-graphic-rail">
+                    <div className="ai-graphic-chip">
+                      <span className="ai-graphic-dot" />
+                      {aiGraphicProfile.label}
+                    </div>
+                    {(aiGraphicProfile.cues || []).slice(0, 3).map((cue) => (
+                      <div key={cue} className="ai-graphic-chip">
+                        <span className="ai-graphic-dot" />
+                        {cue}
+                      </div>
+                    ))}
+                    <div className="ai-hero-note">
+                      <strong>Direction graphique</strong>
+                      {aiGraphicProfile.note}
+                    </div>
+                  </div>
+                )}
                 {/* Name */}
                 <h1 style={{
                   fontSize: `clamp(${Math.max(24, (Number.parseInt(ppDesign.fontBase, 10) || 14) + 12)}px, 4vw, ${Math.max(36, (Number.parseInt(ppDesign.fontBase, 10) || 14) + 24)}px)`, fontWeight: 900,
