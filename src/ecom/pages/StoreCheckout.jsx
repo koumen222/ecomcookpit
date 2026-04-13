@@ -7,6 +7,7 @@ import { useSubdomain } from '../hooks/useSubdomain.js';
 import { setDocumentMeta } from '../utils/pageMeta';
 import { createMetaEventId, firePixelEvent, trackStorefrontEvent } from '../utils/pixelTracking.js';
 import { formatMoney } from '../utils/currency.js';
+import { captureAffiliateAttributionFromSearch, getAffiliateAttribution } from '../utils/affiliateAttribution.js';
 
 /**
  * Normalize a city name for fuzzy matching.
@@ -150,6 +151,10 @@ const StoreCheckout = () => {
   }, [form.country, form.city, hasDeliveryConfig, deliveryCountries, deliveryZones]);
 
   useEffect(() => {
+    captureAffiliateAttributionFromSearch(location.search);
+  }, [location.search]);
+
+  useEffect(() => {
     (async () => {
       try {
         const res = await publicStoreApi.getStore(subdomain);
@@ -271,6 +276,7 @@ const StoreCheckout = () => {
     try {
       const fullPhone = buildFullPhone(phoneCode, form.phone);
       const purchaseEventId = createMetaEventId('purchase');
+      const affiliateAttribution = getAffiliateAttribution();
       const res = await publicStoreApi.placeOrder(subdomain, {
         customerName: form.customerName.trim(),
         phone: fullPhone,
@@ -289,6 +295,8 @@ const StoreCheckout = () => {
         channel: 'store',
         metaEventId: purchaseEventId,
         metaSourceUrl: typeof window !== 'undefined' ? window.location.href : '',
+        affiliateCode: affiliateAttribution?.affiliateCode || '',
+        affiliateLinkCode: affiliateAttribution?.affiliateLinkCode || '',
       });
 
       const orderData = res.data?.data;

@@ -315,12 +315,12 @@ export const EcomAuthProvider = ({ children }) => {
   };
 
   // Connexion / inscription via Google
-  const googleLogin = async (credential) => {
+  const googleLogin = async (credential, affiliateCode) => {
     dispatch({ type: 'LOGIN_START' });
     logAuthEvent('google_login_start');
 
     try {
-      const response = await authApi.googleAuth({ credential });
+      const response = await authApi.googleAuth({ credential, affiliateCode: affiliateCode || undefined });
       const { token, user, workspace } = response.data.data;
 
       saveToken(token, user, workspace);

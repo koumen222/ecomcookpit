@@ -37,6 +37,7 @@ import { memCache } from '../services/memoryCache.js';
 import { sendClientOrderConfirmation } from '../services/shopifyWhatsappService.js';
 import { normalizeCity } from '../utils/cityNormalizer.js';
 import { buildMetaEventPayload, buildMetaUserData, isSupportedMetaEvent, sendMetaCapiEvent } from '../services/metaCapi.js';
+import { createAffiliateConversionFromOrder, normalizeCode } from '../services/affiliateService.js';
 
 const router = express.Router();
 
@@ -654,7 +655,7 @@ router.post('/:subdomain/orders', orderLimiter, async (req, res) => {
       return res.status(404).json({ success: false, message: 'Store not found' });
     }
 
-    const { customerName, phone, email, address, city, country, products, notes, channel, metaEventId, metaSourceUrl } = req.body;
+    const { customerName, phone, email, address, city, country, products, notes, channel, metaEventId, metaSourceUrl, affiliateCode, affiliateLinkCode } = req.body;
 
     if (!customerName || !phone || !products?.length) {
       return res.status(400).json({
@@ -760,7 +761,9 @@ router.post('/:subdomain/orders', orderLimiter, async (req, res) => {
       total,
       currency: resolvedOrderCurrency,
       channel: channel || 'store',
-      notes: notes?.trim() || ''
+      notes: notes?.trim() || '',
+      affiliateCode: normalizeCode(affiliateCode),
+      affiliateLinkCode: normalizeCode(affiliateLinkCode)
     });
 
     await order.save();
@@ -893,11 +896,34 @@ router.post('/:subdomain/orders', orderLimiter, async (req, res) => {
           status: 'pending',
           source: 'skelor',
           storeOrderId: order._id,
+          affiliateCode: normalizeCode(order.affiliateCode || ''),
+          affiliateLinkCode: normalizeCode(order.affiliateLinkCode || ''),
           notes: [order.orderNumber, order.notes].filter(Boolean).join(' — '),
           rawData: shopifyStylePayload
         });
 
         await mainOrder.save();
+
+        // Attribution affiliée + conversion commission
+        try {
+          const conversion = await createAffiliateConversionFromOrder({
+            affiliateCode: order.affiliateCode,
+            affiliateLinkCode: order.affiliateLinkCode,
+            workspaceId,
+            storeOrder: order,
+            order: mainOrder
+          });
+
+          if (conversion) {
+            mainOrder.affiliateId = conversion.affiliateId;
+            mainOrder.affiliateCode = conversion.affiliateCode;
+            mainOrder.affiliateLinkCode = conversion.affiliateLinkCode;
+            mainOrder.affiliateCommissionAmount = conversion.commissionAmount;
+            await mainOrder.save();
+          }
+        } catch (affiliateErr) {
+          console.warn('⚠️ [Scalor Store] Attribution affiliée échouée:', affiliateErr.message);
+        }
 
         // Lier la StoreOrder à la Order principale
         order.linkedOrderId = mainOrder._id;

@@ -1,4 +1,5 @@
 ﻿import React, { useState, useEffect, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import { marketingApi } from '../services/marketingApi.js';
 import MarketingCompose from './MarketingCompose.jsx';
 
@@ -50,9 +51,6 @@ export default function Marketing() {
   const [fStatus, setFStatus] = useState('');
   const [editingId, setEditingId] = useState(null);
   const [sendId, setSendId] = useState(null);
-  const [resId, setResId] = useState(null);
-  const [resData, setResData] = useState(null);
-  const [resPage, setResPage] = useState(1);
   const [delId, setDelId] = useState(null);
   const [sendConf, setSendConf] = useState(null);
   const [waInstances, setWaInstances] = useState([]);
@@ -182,17 +180,6 @@ export default function Marketing() {
     catch { flash('Erreur', 'err'); }
   };
 
-  const openRes = async (id, page = 1) => {
-    setResId(id);
-    setResPage(page);
-    setResData(null);
-    try {
-      const r = await marketingApi.getCampaignResults(id, { page, limit: 100 });
-      setResData(r.data.data);
-    }
-    catch { setResData({ error: true }); }
-  };
-
   const goCompose = (id = null) => { setEditingId(id); setTab('compose'); };
   const backToCampaigns = () => { setEditingId(null); setTab('campaigns'); loadC(1); };
 
@@ -243,7 +230,7 @@ export default function Marketing() {
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1">
                         {['draft', 'scheduled'].includes(c.status) && <button onClick={() => send(c._id)} disabled={sendId === c._id} className="px-2.5 py-1 text-xs bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50">{sendId === c._id ? '...' : '▶ Envoyer'}</button>}
-                        {c.status === 'sent' && <button onClick={() => openRes(c._id)} className="px-2.5 py-1 text-xs bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200">📊</button>}
+                        {c.status === 'sent' && <Link to={`/ecom/marketing/campaigns/${c._id}/results`} className="px-2.5 py-1 text-xs bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200">📊</Link>}
                         {['draft', 'scheduled'].includes(c.status) && <button onClick={() => goCompose(c._id)} className="px-2.5 py-1 text-xs bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200">✏️</button>}
                         <button onClick={() => dup(c._id)} className="px-2.5 py-1 text-xs bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200">⧉</button>
                         {c.status !== 'sending' && <button onClick={() => setDelId(c._id)} className="px-2.5 py-1 text-xs bg-red-50 text-red-600 rounded-lg hover:bg-red-100">🗑</button>}
@@ -322,8 +309,18 @@ export default function Marketing() {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">Marketing Email</h1>
-          <p className="text-sm text-gray-500 mt-1">Gérez vos campagnes email et suivez leurs performances</p>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">Marketing Email</h1>
+              <p className="text-sm text-gray-500 mt-1">Gérez vos campagnes email et suivez leurs performances</p>
+            </div>
+            <Link
+              to="/ecom/marketing/analytics"
+              className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg border border-gray-200 bg-white hover:bg-gray-100"
+            >
+              Voir analytics avances
+            </Link>
+          </div>
         </div>
 
         {/* Alerts */}
@@ -424,159 +421,6 @@ export default function Marketing() {
           </div>
         </Dlg>
 
-        {/* Results modal */}
-        <Dlg open={!!resId} onClose={() => setResId(null)} title="📊 Statistiques détaillées de la campagne" w="max-w-5xl">
-          {!resData ? <Spin /> : resData.error ? <p className="text-red-500">Erreur de chargement</p> : (
-            <div className="space-y-6">
-              {/* Campaign info */}
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <h3 className="font-semibold text-gray-900">{resData.campaign?.name}</h3>
-                <p className="text-sm text-gray-600">Envoyée le {resData.campaign?.sentAt ? fmtDate(resData.campaign.sentAt) : 'Non envoyée'}</p>
-              </div>
-
-              {/* Summary stats */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="bg-blue-50 p-4 rounded-lg text-center">
-                  <p className="text-2xl font-bold text-blue-600">{resData.summary?.total || 0}</p>
-                  <p className="text-xs text-gray-500">Total destinataires</p>
-                </div>
-                <div className="bg-green-50 p-4 rounded-lg text-center">
-                  <p className="text-2xl font-bold text-green-600">{resData.summary?.sent || 0}</p>
-                  <p className="text-xs text-gray-500">Envoyés avec succès</p>
-                </div>
-                <div className="bg-purple-50 p-4 rounded-lg text-center">
-                  <p className="text-2xl font-bold text-purple-600">{resData.summary?.opened || 0}</p>
-                  <p className="text-xs text-gray-500">Ouvertures</p>
-                  <p className="text-xs text-purple-500 font-medium">{resData.summary?.openRate || 0}%</p>
-                </div>
-                <div className="bg-orange-50 p-4 rounded-lg text-center">
-                  <p className="text-2xl font-bold text-orange-600">{resData.summary?.clicked || 0}</p>
-                  <p className="text-xs text-gray-500">Clics uniques</p>
-                  <p className="text-xs text-orange-500 font-medium">{resData.summary?.clickRate || 0}%</p>
-                </div>
-              </div>
-
-              {/* Additional metrics */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="bg-indigo-50 p-3 rounded-lg">
-                  <p className="text-sm font-medium text-indigo-900">Taux de clics sur ouvertures</p>
-                  <p className="text-xl font-bold text-indigo-600">{resData.summary?.clickToOpenRate || 0}%</p>
-                </div>
-                <div className="bg-teal-50 p-3 rounded-lg">
-                  <p className="text-sm font-medium text-teal-900">Total des clics</p>
-                  <p className="text-xl font-bold text-teal-600">{resData.summary?.totalClicks || 0}</p>
-                </div>
-              </div>
-
-              {resData.topLinks?.length > 0 && (
-                <div className="bg-white border border-gray-200 rounded-lg p-4">
-                  <h4 className="text-sm font-medium text-gray-700 mb-3">Top liens cliqués</h4>
-                  <div className="space-y-2 max-h-40 overflow-y-auto">
-                    {resData.topLinks.map((link, idx) => (
-                      <div key={`${link.url}-${idx}`} className="flex items-center justify-between gap-3 text-xs">
-                        <p className="text-gray-700 truncate">{link.url}</p>
-                        <p className="text-gray-500 whitespace-nowrap">{link.clicks} clics • {link.uniqueRecipients} pers.</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Recipients table */}
-              {resData.recipients?.length > 0 && (
-                <div>
-                  <h4 className="text-sm font-medium text-gray-700 mb-3">
-                    Détails par destinataire ({resData.pagination?.total || resData.recipients.length})
-                  </h4>
-                  <div className="max-h-80 overflow-y-auto border border-gray-200 rounded-lg">
-                    <table className="w-full text-xs">
-                      <thead>
-                        <tr className="bg-gray-50 border-b">
-                          <th className="px-3 py-2 text-left">Destinataire</th>
-                          <th className="px-3 py-2 text-center">Statut</th>
-                          <th className="px-3 py-2 text-center">Ouvert</th>
-                          <th className="px-3 py-2 text-center">Clics</th>
-                          <th className="px-3 py-2 text-left">Erreur</th>
-                          <th className="px-3 py-2 text-left">Date envoi</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-100">
-                        {resData.recipients.map((r, i) => (
-                          <tr key={i} className="hover:bg-gray-50">
-                            <td className="px-3 py-2">
-                              <div>
-                                <p className="text-gray-900 font-medium">{r.email}</p>
-                                {r.name && <p className="text-gray-500 text-xs">{r.name}</p>}
-                              </div>
-                            </td>
-                            <td className="px-3 py-2 text-center">
-                              <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                                r.status === 'sent' ? 'bg-green-100 text-green-800' :
-                                r.status === 'failed' ? 'bg-red-100 text-red-800' :
-                                'bg-gray-100 text-gray-800'
-                              }`}>
-                                {r.status === 'sent' ? '✅ Envoyé' : r.status === 'failed' ? '❌ Échec' : r.status}
-                              </span>
-                            </td>
-                            <td className="px-3 py-2 text-center">
-                              {r.opened ? (
-                                <div>
-                                  <span className="text-green-600 font-medium">✅ ({r.openCount || 1})</span>
-                                  {r.openedAt && (
-                                    <p className="text-xs text-gray-500">{new Date(r.openedAt).toLocaleDateString('fr-FR')}</p>
-                                  )}
-                                </div>
-                              ) : (
-                                <span className="text-gray-400">—</span>
-                              )}
-                            </td>
-                            <td className="px-3 py-2 text-center">
-                              {r.uniqueClicks > 0 ? (
-                                <div>
-                                  <span className="text-orange-600 font-medium">{r.uniqueClicks}</span>
-                                  {r.totalClicks > r.uniqueClicks && (
-                                    <p className="text-xs text-gray-500">({r.totalClicks} total)</p>
-                                  )}
-                                </div>
-                              ) : (
-                                <span className="text-gray-400">0</span>
-                              )}
-                            </td>
-                            <td className="px-3 py-2 text-gray-500 max-w-[220px] truncate" title={r.error || ''}>{r.error || '—'}</td>
-                            <td className="px-3 py-2 text-gray-600">
-                              {r.sentAt ? fmtDate(r.sentAt) : '—'}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                  {resData.pagination?.pages > 1 && (
-                    <div className="flex items-center justify-between mt-3">
-                      <p className="text-xs text-gray-500">Page {resData.pagination.page}/{resData.pagination.pages}</p>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => openRes(resId, resPage - 1)}
-                          disabled={resPage <= 1}
-                          className="px-3 py-1 text-xs border rounded-lg disabled:opacity-40 hover:bg-gray-50"
-                        >
-                          ← Préc.
-                        </button>
-                        <button
-                          onClick={() => openRes(resId, resPage + 1)}
-                          disabled={resPage >= resData.pagination.pages}
-                          className="px-3 py-1 text-xs border rounded-lg disabled:opacity-40 hover:bg-gray-50"
-                        >
-                          Suiv. →
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-        </Dlg>
       </div>
     </div>
   );

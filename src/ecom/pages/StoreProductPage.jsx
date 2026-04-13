@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useLocation, useParams } from 'react-router-dom';
 import {
   ChevronLeft, ChevronRight, ShoppingCart, MessageCircle,
   ShoppingBag, Shield, RotateCcw, Truck, Check, Share2,
@@ -23,6 +23,7 @@ import { getIconComponent } from '../components/productSettings/ButtonEditor';
 import defaultConfig from '../components/productSettings/defaultConfig';
 import { formatMoney } from '../utils/currency.js';
 import { buildMergedProductPageConfig } from '../utils/productPageConfig.js';
+import { captureAffiliateAttributionFromSearch } from '../utils/affiliateAttribution.js';
 
 const fmt = (n, cur = 'XAF') => formatMoney(n, cur);
 
@@ -1189,6 +1190,7 @@ const RelatedCard = ({ product, prefix, store, subdomain }) => {
 // ── Main ─────────────────────────────────────────────────────────────────────
 const StoreProductPage = () => {
   const { subdomain: paramSubdomain, slug } = useParams();
+  const location = useLocation();
   const { subdomain: detectedSubdomain, isStoreDomain } = useSubdomain();
   const subdomain = paramSubdomain || detectedSubdomain;
   const prefix = isStoreDomain ? '' : (subdomain ? `/store/${subdomain}` : '');
@@ -1203,6 +1205,10 @@ const StoreProductPage = () => {
   const ctaButtonsRef = useRef(null);
   const [livePageConfig, setLivePageConfig] = useState(null); // real-time override from page builder
   const [countdownSeconds, setCountdownSeconds] = useState(null);
+
+  useEffect(() => {
+    captureAffiliateAttributionFromSearch(location.search);
+  }, [location.search]);
 
   // Inject pixel scripts and fire ViewContent when product loads
   useEffect(() => {

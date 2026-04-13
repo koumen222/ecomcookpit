@@ -20,19 +20,29 @@ import { uploadImage } from '../services/cloudflareImagesService.js';
 import { extractProductInfo } from '../services/geminiProductExtractor.js';
 import EcomWorkspace from '../models/Workspace.js';
 import FeatureUsageLog from '../models/FeatureUsageLog.js';
+import GenerationTask from '../models/GenerationTask.js';
 
 const router = express.Router();
 
-// ─── In-memory store for async image generation jobs ──────────────────────────
+// ─── In-memory store for async image generation jobs (legacy + cache) ─────────
 const imageJobs = new Map();
 const JOB_TTL = 30 * 60 * 1000; // 30min
-// Clean expired jobs every 5min
 setInterval(() => {
   const now = Date.now();
   for (const [id, job] of imageJobs) {
     if (now - job.createdAt > JOB_TTL) imageJobs.delete(id);
   }
 }, 5 * 60 * 1000);
+
+// ─── Helper: save task progress to MongoDB (fire-and-forget) ──────────────────
+async function updateTask(taskId, updates) {
+  if (!taskId) return;
+  try {
+    await GenerationTask.findByIdAndUpdate(taskId, { $set: updates });
+  } catch (e) {
+    console.warn('[Task] Update failed:', e.message);
+  }
+}
 
 // ─── Image prompt builders ────────────────────────────────────────────────────
 
@@ -814,6 +824,75 @@ router.get('/images/:jobId', requireEcomAuth, (req, res) => {
   });
 });
 
+// ── GET /tasks — List generation tasks for the workspace ──────────────────────
+router.get('/tasks', requireEcomAuth, async (req, res) => {
+  try {
+    const tasks = await GenerationTask.find({ workspaceId: req.workspaceId })
+      .sort({ createdAt: -1 })
+      .limit(20)
+      .select('status productName progressPercent currentStep product images errorMessage createdAt updatedAt')
+      .lean();
+    res.json({ success: true, tasks });
+  } catch (err) {
+    console.error('[Tasks] List error:', err.message);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// ── GET /tasks/:id — Get a single task status ────────────────────────────────
+router.get('/tasks/:id', requireEcomAuth, async (req, res) => {
+  try {
+    const task = await GenerationTask.findOne({ _id: req.params.id, workspaceId: req.workspaceId }).lean();
+    if (!task) return res.status(404).json({ success: false, message: 'Tâche introuvable' });
+
+    // Build merged product with images for frontend consumption
+    let mergedProduct = task.product || null;
+    if (mergedProduct && task.images) {
+      const imgs = task.images;
+      mergedProduct = { ...mergedProduct };
+      if (imgs.heroImage) mergedProduct.heroImage = imgs.heroImage;
+      if (imgs.heroPosterImage) mergedProduct.heroPosterImage = imgs.heroPosterImage;
+      if (imgs.beforeAfterImage) mergedProduct.beforeAfterImage = imgs.beforeAfterImage;
+      if (imgs.beforeAfterImages?.length) mergedProduct.beforeAfterImages = imgs.beforeAfterImages;
+      if (imgs.descriptionGifs?.length) mergedProduct.descriptionGifs = imgs.descriptionGifs;
+      if (imgs.peoplePhotos?.length) mergedProduct.peoplePhotos = imgs.peoplePhotos;
+      if (imgs.socialProofImages?.length) mergedProduct.socialProofImages = imgs.socialProofImages;
+      if (imgs.angles?.length) {
+        mergedProduct.angles = (mergedProduct.angles || []).map((a, i) => {
+          const bgAngle = imgs.angles.find(ba => ba.index === i + 1);
+          return bgAngle ? { ...a, poster_url: bgAngle.poster_url, flashType: bgAngle.flashType || a?.flashType || null } : a;
+        });
+      }
+      const allImages = [
+        ...(imgs.peoplePhotos || []),
+        ...(imgs.heroImage ? [imgs.heroImage] : []),
+        ...(imgs.heroPosterImage ? [imgs.heroPosterImage] : []),
+        ...(imgs.beforeAfterImages || []),
+        ...((mergedProduct.angles || []).map(a => a.poster_url).filter(Boolean)),
+      ];
+      mergedProduct.allImages = [...new Set([...(mergedProduct.allImages || []), ...allImages])];
+    }
+
+    res.json({
+      success: true,
+      task: {
+        _id: task._id,
+        status: task.status,
+        productName: task.productName,
+        progressPercent: task.progressPercent,
+        currentStep: task.currentStep,
+        errorMessage: task.errorMessage,
+        product: mergedProduct,
+        createdAt: task.createdAt,
+        updatedAt: task.updatedAt,
+      }
+    });
+  } catch (err) {
+    console.error('[Tasks] Get error:', err.message);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
 router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), upload.array('images', 8), async (req, res) => {
   const userId = req.user?.id || req.user?._id || 'anonymous';
   console.log(`🚀 [PG] Requête génération reçue — user=${userId} workspace=${req.workspaceId} files=${(req.files||[]).length}`);
@@ -1115,13 +1194,49 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       }).catch(() => { });
     }
 
+    // ── Create persistent GenerationTask in MongoDB ──────────────────────────
+    let generationTask = null;
+    try {
+      generationTask = await GenerationTask.create({
+        workspaceId: req.workspaceId,
+        userId: req.user._id || req.user.id,
+        status: shouldGenerateImages ? 'generating_images' : 'done',
+        productName: gptResult.title || scraped?.title || 'Produit sans nom',
+        product: productPage,
+        imageJobId: jobId,
+        currentStep: shouldGenerateImages ? 'Génération des images en cours...' : 'Terminé',
+        progressPercent: shouldGenerateImages ? 40 : 100,
+        input: {
+          url: cleanUrl || null,
+          description: isDescriptionMode ? (userDescription || '').slice(0, 2000) : null,
+          skipScraping: isDescriptionMode,
+          marketingApproach: approach,
+          visualTemplate,
+          imageGenerationMode,
+          imageAspectRatio,
+          preferredColor,
+          heroVisualDirection,
+          decorationDirection,
+          titleColor,
+          contentColor,
+          tone: tone || 'urgence',
+          language: language || 'français',
+          photoUrls: realPhotos,
+        },
+      });
+    } catch (taskErr) {
+      console.warn('[Task] Could not create task:', taskErr.message);
+    }
+    const taskId = generationTask?._id?.toString() || null;
+
     // ── RESPOND NOW — client gets the preview immediately
-    console.log('📤 Réponse envoyée, génération images en arrière-plan (jobId:', jobId, ')');
+    console.log('📤 Réponse envoyée, génération images en arrière-plan (jobId:', jobId, ', taskId:', taskId, ')');
     res.json({
       success: true,
       product: productPage,
       generations: generationsInfo,
       imageJobId: jobId,
+      taskId,
     });
 
     if (!shouldGenerateImages) {
@@ -1142,7 +1257,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
 
     const axios = (await import('axios')).default;
 
-    // Helper pour générer et uploader une image — avec 1 retry automatique
+    // Helper pour générer et uploader une image — avec retries illimités et backoff exponentiel
     const generateAndUpload = async (prompt, baseBuffer, filename, mode = 'scene', aspectRatio = '4:5') => {
       if (!prompt) return null;
 
@@ -1154,7 +1269,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
         if (generatedDataUrl.startsWith('data:')) {
           imageBuffer = Buffer.from(generatedDataUrl.split(',')[1], 'base64');
         } else {
-          const resp = await axios.get(generatedDataUrl, { responseType: 'arraybuffer', timeout: 15000 });
+          const resp = await axios.get(generatedDataUrl, { responseType: 'arraybuffer', timeout: 30000 });
           imageBuffer = Buffer.from(resp.data);
         }
 
@@ -1178,20 +1293,23 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
         return uploaded.url;
       };
 
-      // 1ère tentative
-      try {
-        return await attempt();
-      } catch (err1) {
-        console.warn(`⚠️ Image ${filename} tentative 1 échouée: ${err1.message} — retry...`);
+      // Retries avec backoff exponentiel — jusqu'à 5 tentatives
+      const MAX_RETRIES = 5;
+      for (let i = 1; i <= MAX_RETRIES; i++) {
+        try {
+          return await attempt();
+        } catch (err) {
+          console.warn(`⚠️ Image ${filename} tentative ${i}/${MAX_RETRIES} échouée: ${err.message}`);
+          if (i === MAX_RETRIES) {
+            console.error(`❌ Image ${filename} abandonnée après ${MAX_RETRIES} tentatives`);
+            return null;
+          }
+          const delay = Math.min(2000 * Math.pow(2, i - 1), 60000); // 2s, 4s, 8s, 16s, 32s (max 60s)
+          console.log(`⏳ Retry dans ${delay / 1000}s...`);
+          await new Promise(r => setTimeout(r, delay));
+        }
       }
-      // Retry unique avec 1.5s de délai
-      await new Promise(r => setTimeout(r, 1500));
-      try {
-        return await attempt();
-      } catch (err2) {
-        console.warn(`⚠️ Image ${filename} tentative 2 échouée: ${err2.message}`);
-        return null;
-      }
+      return null;
     };
 
     // Préparer toutes les tâches de génération (lazy — NOT started yet)
@@ -1325,36 +1443,23 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       );
     });
 
-    // Exécuter les générations par batch de 5 pour aller plus vite (rate-limit Kie.ai géré par retry)
+    // Exécuter les générations par batch de 5 — PAS DE TIMEOUT GLOBAL, on attend jusqu'au bout
     const BATCH_SIZE = 5;
     const BATCH_DELAY_MS = 1500;
-    const IMAGE_TIMEOUT_MS = 210000; // 210s max par image (Kie.ai poll=180s + upload/download overhead)
-    const GLOBAL_TIMEOUT_MS = 900000; // 15 min timeout global
-    const globalDeadline = Date.now() + GLOBAL_TIMEOUT_MS;
 
     jobData.total = imageTasks.length + descriptionGifSpecs.length;
     console.log(`🎨 [BG] ${imageTasks.length} images à générer, par batch de ${BATCH_SIZE}...`);
 
     const imageResults = [];
     for (let b = 0; b < imageTasks.length; b += BATCH_SIZE) {
-      // Vérifier le timeout global avant chaque batch
-      if (Date.now() > globalDeadline) {
-        console.warn(`⏰ [BG] Timeout global de ${GLOBAL_TIMEOUT_MS / 1000}s atteint — arrêt de la génération d'images`);
-        break;
-      }
-
       const batch = imageTasks.slice(b, b + BATCH_SIZE);
-      console.log(`🔄 [BG] Batch ${Math.floor(b / BATCH_SIZE) + 1}/${Math.ceil(imageTasks.length / BATCH_SIZE)} (${batch.length} images)...`);
+      const batchNum = Math.floor(b / BATCH_SIZE) + 1;
+      const totalBatches = Math.ceil(imageTasks.length / BATCH_SIZE);
+      console.log(`🔄 [BG] Batch ${batchNum}/${totalBatches} (${batch.length} images)...`);
 
       const batchResults = await Promise.allSettled(
-        batch.map((factory, idx) =>
-          Promise.race([
-            factory(),
-            new Promise(resolve => setTimeout(() => {
-              console.warn(`⏰ [BG] Image ${b + idx + 1} timeout après ${IMAGE_TIMEOUT_MS / 1000}s — résultat perdu`);
-              resolve(null);
-            }, IMAGE_TIMEOUT_MS))
-          ]).then(result => {
+        batch.map((factory) =>
+          factory().then(result => {
             jobData.progress++;
             return result;
           })
@@ -1362,6 +1467,14 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       );
 
       batchResults.forEach(r => imageResults.push(r.status === 'fulfilled' ? r.value : null));
+
+      // Persist progress to MongoDB after each batch
+      const progressPercent = Math.round((imageResults.length / jobData.total) * 100);
+      await updateTask(taskId, {
+        progress: imageResults.length,
+        progressPercent,
+        currentStep: `Images: batch ${batchNum}/${totalBatches}`,
+      });
 
       // Wait between batches to avoid 429
       if (b + BATCH_SIZE < imageTasks.length) {
@@ -1462,9 +1575,30 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       descriptionGifs: jobData.descriptionGifs.length,
     });
 
+    // Persist final result to MongoDB
+    await updateTask(taskId, {
+      status: 'done',
+      progressPercent: 100,
+      currentStep: 'Terminé',
+      images: {
+        heroImage: jobData.heroImage,
+        heroPosterImage: jobData.heroPosterImage,
+        beforeAfterImages: jobData.beforeAfterImages,
+        angles: jobData.angles,
+        peoplePhotos: jobData.peoplePhotos,
+        socialProofImages: jobData.socialProofImages,
+        descriptionGifs: jobData.descriptionGifs,
+      },
+    });
+
       } catch (bgErr) {
         console.error('❌ [BG] Erreur génération images:', bgErr.message);
         jobData.status = 'error';
+        await updateTask(taskId, {
+          status: 'error',
+          errorMessage: bgErr.message,
+          currentStep: 'Erreur',
+        });
       }
     })();
 

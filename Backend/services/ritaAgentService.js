@@ -3705,20 +3705,71 @@ export async function processIncomingMessage(userId, from, text, opts = {}) {
   const approxTokens = Math.round(promptLen / 4);
   console.log(`🤖 [RITA] Appel Groq — userId=${userId} from=${from} state=${clientState.statut} promptLen=${promptLen} (~${approxTokens} tokens) historyLen=${history.length}`);
 
-  try {
-    const completion = await groq.chat.completions.create({
-      model: 'openai/gpt-oss-20b',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        ...history,
-      ],
-      temperature: 0.4,
-      max_completion_tokens: 4096,
-      top_p: 0.95,
-      reasoning_effort: 'medium',
-    });
+  // ── Appel Groq avec retry automatique sur modèle de secours ──
+  const MODELS = [
+    { model: 'openai/gpt-oss-20b', reasoning_effort: 'medium' },
+    { model: 'meta-llama/llama-4-scout-17b-16e-instruct', reasoning_effort: undefined },
+    { model: 'llama-3.3-70b-versatile', reasoning_effort: undefined },
+  ];
 
-    const rawContent = completion.choices[0]?.message?.content?.trim();
+  let rawContent = null;
+  let lastError = null;
+
+  for (const modelCfg of MODELS) {
+    try {
+      const reqParams = {
+        model: modelCfg.model,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          ...history,
+        ],
+        temperature: 0.4,
+        max_completion_tokens: 4096,
+        top_p: 0.95,
+      };
+      if (modelCfg.reasoning_effort) reqParams.reasoning_effort = modelCfg.reasoning_effort;
+
+      const completion = await groq.chat.completions.create(reqParams);
+
+      rawContent = completion.choices[0]?.message?.content?.trim() || '';
+
+      // GPT-OSS peut retourner content vide si tout part en reasoning — extraire si besoin
+      if (!rawContent && completion.choices[0]?.message?.reasoning) {
+        const reasoning = completion.choices[0].message.reasoning;
+        // Extraire la dernière partie après le raisonnement (souvent la réponse finale)
+        const thinkEnd = reasoning.lastIndexOf('</think>');
+        if (thinkEnd !== -1) {
+          rawContent = reasoning.substring(thinkEnd + 8).trim();
+        }
+        if (!rawContent) {
+          console.warn(`⚠️ [RITA] ${modelCfg.model} → content vide, reasoning=${reasoning.length} chars — retry prochain modèle`);
+          continue;
+        }
+      }
+
+      if (rawContent) {
+        if (modelCfg.model !== MODELS[0].model) {
+          console.log(`🔄 [RITA] Réponse obtenue via modèle de secours: ${modelCfg.model}`);
+        }
+        break;
+      }
+      console.warn(`⚠️ [RITA] ${modelCfg.model} → réponse vide, retry prochain modèle`);
+    } catch (error) {
+      lastError = error;
+      console.warn(`⚠️ [RITA] ${modelCfg.model} échoué: ${error.message} (status=${error.status || 'N/A'}) — retry prochain modèle`);
+    }
+  }
+
+  if (!rawContent) {
+    console.error(`❌ [RITA] Tous les modèles ont échoué — userId=${userId}:`, lastError?.message || 'réponse vide');
+    if (lastError) {
+      console.error(`❌ [RITA] Dernière erreur — Status: ${lastError.status} | Code: ${lastError.error?.code} | Type: ${lastError.error?.type}`);
+    }
+    await persistConversationMemory(userId, agentId, from, historyKey);
+    return config.fallbackMessage || null;
+  }
+
+  try {
     console.log(`🤖 [RITA] Réponse brute Groq (${rawContent?.length || 0} chars): "${(rawContent || '').substring(0, 200)}"`);
     const reply = sanitizeReply(rawContent, config);
     console.log(`🤖 [RITA] Réponse sanitizée (${reply?.length || 0} chars): "${(reply || '').substring(0, 200)}"`);
@@ -3771,11 +3822,10 @@ export async function processIncomingMessage(userId, from, text, opts = {}) {
     }
     await persistConversationMemory(userId, agentId, from, historyKey);
     return reply || null;
-  } catch (error) {
-    console.error(`❌ [RITA] Erreur Groq client — userId=${userId}:`, error.message);
-    console.error(`❌ [RITA] Status: ${error.status} | Code: ${error.error?.code} | Type: ${error.error?.type}`);
+  } catch (postError) {
+    console.error(`❌ [RITA] Erreur post-traitement réponse — userId=${userId}:`, postError.message);
     await persistConversationMemory(userId, agentId, from, historyKey);
-    return config.fallbackMessage || null;
+    return rawContent || config.fallbackMessage || null;
   }
 }
 
@@ -3789,18 +3839,38 @@ export async function generateTestReply(config, messages) {
   const latestUserMessage = [...messages].reverse().find((message) => message?.role === 'user')?.content || '';
   const activeConversation = buildActiveConversationContext(config, messages, latestUserMessage);
   const systemPrompt = buildSystemPrompt(config, { activeConversation });
-  const completion = await groq.chat.completions.create({
-    model: 'openai/gpt-oss-20b',
-    messages: [
-      { role: 'system', content: systemPrompt },
-      ...messages,
-    ],
-    temperature: 0.4,
-    max_completion_tokens: 4096,
-    top_p: 0.95,
-    reasoning_effort: 'medium',
-  });
-  return sanitizeReply(completion.choices[0]?.message?.content?.trim(), config) || '';
+
+  const MODELS = [
+    { model: 'openai/gpt-oss-20b', reasoning_effort: 'medium' },
+    { model: 'meta-llama/llama-4-scout-17b-16e-instruct' },
+    { model: 'llama-3.3-70b-versatile' },
+  ];
+
+  for (const modelCfg of MODELS) {
+    try {
+      const reqParams = {
+        model: modelCfg.model,
+        messages: [{ role: 'system', content: systemPrompt }, ...messages],
+        temperature: 0.4,
+        max_completion_tokens: 4096,
+        top_p: 0.95,
+      };
+      if (modelCfg.reasoning_effort) reqParams.reasoning_effort = modelCfg.reasoning_effort;
+
+      const completion = await groq.chat.completions.create(reqParams);
+      let content = completion.choices[0]?.message?.content?.trim() || '';
+      if (!content && completion.choices[0]?.message?.reasoning) {
+        const reasoning = completion.choices[0].message.reasoning;
+        const thinkEnd = reasoning.lastIndexOf('</think>');
+        if (thinkEnd !== -1) content = reasoning.substring(thinkEnd + 8).trim();
+      }
+      if (content) return sanitizeReply(content, config) || '';
+      console.warn(`⚠️ [RITA-TEST] ${modelCfg.model} → réponse vide, retry`);
+    } catch (err) {
+      console.warn(`⚠️ [RITA-TEST] ${modelCfg.model} échoué: ${err.message}`);
+    }
+  }
+  return '';
 }
 
 /**

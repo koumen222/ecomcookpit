@@ -103,6 +103,12 @@ const ecomUserSchema = new mongoose.Schema({
       'USD', 'EUR', 'GBP', 'CAD', 'CNY'
     ]
   },
+  referredByAffiliateCode: {
+    type: String,
+    default: null,
+    trim: true,
+    index: true
+  },
   deviceToken: {
     type: String,
     default: null

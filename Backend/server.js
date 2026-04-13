@@ -306,6 +306,7 @@ const startServer = async () => {
       ['./routes/support.js',                 '/api/ecom/support'],
       ['./routes/analytics.js',               '/api/ecom/analytics'],
       ['./routes/marketing.js',               '/api/ecom/marketing'],
+      ['./routes/affiliate.js',               '/api/ecom/affiliates'],
       ['./routes/import.js',                  '/api/ecom/import'],
       ['./routes/clients.js',                 '/api/ecom/clients'],
       ['./routes/orders.js',                  '/api/ecom/orders'],
@@ -340,6 +341,7 @@ const startServer = async () => {
       ['./routes/publicStore.js',             '/api/public/store'],
       // ─── New unified Store API (called by SPA on *.scalor.net via api.scalor.net) ──
       ['./routes/storeApi.js',                '/api/store'],
+      ['./routes/affiliate.js',               '/api/affiliate'],
       // ─── Alibaba AI Import ────────────────────────────────────────────────
       ['./routes/alibabaImport.js',           '/api/ecom/alibaba-import'],
       // ─── AI Product Page Generator ───────────────────────────────────

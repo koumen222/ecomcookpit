@@ -16,6 +16,9 @@ import axios from 'axios';
 import EcomWorkspace from '../models/Workspace.js';
 import PlanPayment from '../models/PlanPayment.js';
 import GenerationPayment from '../models/GenerationPayment.js';
+import EcomUser from '../models/EcomUser.js';
+import AffiliateUser from '../models/AffiliateUser.js';
+import AffiliateConversion from '../models/AffiliateConversion.js';
 import { requireEcomAuth } from '../middleware/ecomAuth.js';
 
 const router = express.Router();
@@ -156,6 +159,41 @@ async function applyPlanPayment(payment) {
   payment.status = 'paid';
   payment.activatedAt = now;
   await payment.save();
+
+  // Credit 50% commission to referring affiliate (non-blocking)
+  creditPaymentCommission(payment).catch(err =>
+    console.warn('[affiliate] payment commission error:', err.message)
+  );
+}
+
+/**
+ * If the paying user was referred by an affiliate, create a 50% commission.
+ */
+async function creditPaymentCommission(payment) {
+  const user = await EcomUser.findById(payment.userId).select('referredByAffiliateCode');
+  if (!user?.referredByAffiliateCode) return;
+
+  const affiliate = await AffiliateUser.findOne({
+    referralCode: user.referredByAffiliateCode,
+    isActive: true
+  });
+  if (!affiliate) return;
+
+  const commissionAmount = Math.round(payment.amount * 0.5);
+  await AffiliateConversion.create({
+    affiliateId: affiliate._id,
+    affiliateCode: affiliate.referralCode,
+    conversionType: 'payment',
+    referredUserId: user._id,
+    orderAmount: payment.amount,
+    commissionType: 'percentage',
+    commissionValue: 50,
+    commissionAmount,
+    status: 'approved',
+    statusNote: `50% commission sur paiement ${payment.plan} (${payment.durationMonths} mois)`
+  });
+
+  console.log(`[affiliate] ${commissionAmount} FCFA payment commission for affiliate ${affiliate.referralCode} (payment ${payment._id})`);
 }
 
 // ─── GET /plan ────────────────────────────────────────────────────────────────

@@ -121,6 +121,18 @@ const storeOrderSchema = new mongoose.Schema({
     trim: true,
     default: ''
   },
+  affiliateCode: {
+    type: String,
+    trim: true,
+    uppercase: true,
+    default: ''
+  },
+  affiliateLinkCode: {
+    type: String,
+    trim: true,
+    uppercase: true,
+    default: ''
+  },
   linkedOrderId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Order',
