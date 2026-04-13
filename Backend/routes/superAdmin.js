@@ -4,15 +4,82 @@ import EcomUser from '../models/EcomUser.js';
 import Workspace from '../models/Workspace.js';
 import FeatureUsageLog from '../models/FeatureUsageLog.js';
 import PlanPayment from '../models/PlanPayment.js';
+import GenerationPayment from '../models/GenerationPayment.js';
 import WhatsAppLog from '../models/WhatsAppLog.js';
 import SupportConversation from '../models/SupportConversation.js';
 import StoreProduct from '../models/StoreProduct.js';
 import { requireEcomAuth, requireSuperAdmin } from '../middleware/ecomAuth.js';
 import { logAudit, auditSensitiveAccess, AuditLog } from '../middleware/security.js';
-import { sendNotificationEmail } from '../core/notifications/email.service.js';
+import { sendCustomNotificationEmail, sendNotificationEmail } from '../core/notifications/email.service.js';
 import { sendPushNotification, sendPushNotificationToUser } from '../services/pushService.js';
 
 const router = express.Router();
+
+function sumPaymentAggRows(rows = []) {
+  return rows.reduce((acc, row) => {
+    acc.totalRevenue += row.totalRevenue || 0;
+    acc.totalFees += row.totalFees || 0;
+    acc.count += row.count || 0;
+    acc.amountSum += row.amountSum || 0;
+    return acc;
+  }, { totalRevenue: 0, totalFees: 0, count: 0, amountSum: 0 });
+}
+
+function mergeGroupedTotals(...groups) {
+  const merged = new Map();
+  groups.flat().forEach((item) => {
+    const key = item?._id;
+    if (!key) return;
+    const current = merged.get(key) || { _id: key, count: 0, total: 0 };
+    current.count += item.count || 0;
+    current.total += item.total || 0;
+    merged.set(key, current);
+  });
+  return Array.from(merged.values());
+}
+
+function mergeGroupedLabelTotals(...groups) {
+  const merged = new Map();
+  groups.flat().forEach((item) => {
+    const key = item?._id || 'unknown';
+    const current = merged.get(key) || { _id: key, count: 0, total: 0 };
+    current.count += item.count || 0;
+    current.total += item.total || 0;
+    merged.set(key, current);
+  });
+  return Array.from(merged.values()).sort((a, b) => (b.total || 0) - (a.total || 0));
+}
+
+function normalizePlanPayment(payment) {
+  return {
+    ...payment,
+    paymentType: 'plan',
+    paymentLabel: 'Abonnement',
+    appliedAt: payment.activatedAt || null,
+  };
+}
+
+function normalizeGenerationPayment(payment) {
+  return {
+    ...payment,
+    paymentType: 'generation',
+    paymentLabel: 'Credits pages produits',
+    appliedAt: payment.creditedAt || null,
+  };
+}
+
+function mergeRevenueByMonth(...groups) {
+  const merged = new Map();
+  groups.flat().forEach((item) => {
+    const key = item?._id;
+    if (!key) return;
+    const current = merged.get(key) || { _id: key, total: 0, count: 0 };
+    current.total += item.total || 0;
+    current.count += item.count || 0;
+    merged.set(key, current);
+  });
+  return Array.from(merged.values()).sort((a, b) => String(a._id).localeCompare(String(b._id)));
+}
 
 // GET /api/ecom/super-admin/users - Tous les utilisateurs de toutes les workspaces
 router.get('/users',
@@ -867,60 +934,161 @@ router.get('/billing', requireEcomAuth, requireSuperAdmin, async (req, res) => {
   try {
     console.log('[SuperAdmin] GET /billing starting...');
     const { status, plan, search, page = 1, limit = 50 } = req.query;
+    const pageNumber = Math.max(1, Number(page) || 1);
+    const limitNumber = Math.max(1, Number(limit) || 50);
+    const fetchWindow = pageNumber * limitNumber;
 
     // 1) All payments with user + workspace info
     console.log('[SuperAdmin] Fetching payments...');
-    const paymentFilter = {};
-    if (status) paymentFilter.status = status;
-    if (plan) paymentFilter.plan = plan;
+    const sharedPaymentFilter = {};
+    if (status) sharedPaymentFilter.status = status;
 
-    const payments = await PlanPayment.find(paymentFilter)
-      .populate('userId', 'email name phone')
-      .populate('workspaceId', 'name slug plan planExpiresAt trialEndsAt trialUsed')
-      .sort({ createdAt: -1 })
-      .limit(Number(limit))
-      .skip((Number(page) - 1) * Number(limit))
-      .lean();
+    const planPaymentFilter = { ...sharedPaymentFilter };
+    if (plan) planPaymentFilter.plan = plan;
 
-    const totalPayments = await PlanPayment.countDocuments(paymentFilter);
+    const generationPaymentFilter = { ...sharedPaymentFilter };
+
+    const now = new Date();
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 86400000);
+    const twelveMonthsAgo = new Date(now);
+    twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
+
+    const [
+      planPayments,
+      generationPayments,
+      totalPlanPayments,
+      totalGenerationPayments,
+      planRevenueAgg,
+      generationRevenueAgg,
+      planRevenueByMonth,
+      generationRevenueByMonth,
+      planStatusBreakdown,
+      generationStatusBreakdown,
+      planRecent30d,
+      generationRecent30d,
+      planRevenueByPlan,
+      generationRevenueByType,
+      planPaymentsByType,
+      generationPaymentsByType,
+      planPaymentMethods,
+      generationPaymentMethods,
+    ] = await Promise.all([
+      PlanPayment.find(planPaymentFilter)
+        .populate('userId', 'email name phone')
+        .populate('workspaceId', 'name slug plan planExpiresAt trialEndsAt trialUsed')
+        .sort({ createdAt: -1 })
+        .limit(fetchWindow)
+        .lean(),
+      GenerationPayment.find(generationPaymentFilter)
+        .populate('userId', 'email name phone')
+        .populate('workspaceId', 'name slug plan planExpiresAt trialEndsAt trialUsed')
+        .sort({ createdAt: -1 })
+        .limit(fetchWindow)
+        .lean(),
+      PlanPayment.countDocuments(planPaymentFilter),
+      GenerationPayment.countDocuments(generationPaymentFilter),
+      PlanPayment.aggregate([
+        { $match: { status: 'paid' } },
+        { $group: {
+          _id: null,
+          totalRevenue: { $sum: '$amount' },
+          totalFees: { $sum: '$fees' },
+          count: { $sum: 1 },
+          amountSum: { $sum: '$amount' }
+        }}
+      ]),
+      GenerationPayment.aggregate([
+        { $match: { status: 'paid' } },
+        { $group: {
+          _id: null,
+          totalRevenue: { $sum: '$amount' },
+          totalFees: { $sum: '$fees' },
+          count: { $sum: 1 },
+          amountSum: { $sum: '$amount' }
+        }}
+      ]),
+      PlanPayment.aggregate([
+        { $match: { status: 'paid', createdAt: { $gte: twelveMonthsAgo } } },
+        { $group: {
+          _id: { $dateToString: { format: '%Y-%m', date: '$createdAt' } },
+          total: { $sum: '$amount' },
+          count: { $sum: 1 }
+        }},
+        { $sort: { _id: 1 } }
+      ]),
+      GenerationPayment.aggregate([
+        { $match: { status: 'paid', createdAt: { $gte: twelveMonthsAgo } } },
+        { $group: {
+          _id: { $dateToString: { format: '%Y-%m', date: '$createdAt' } },
+          total: { $sum: '$amount' },
+          count: { $sum: 1 }
+        }},
+        { $sort: { _id: 1 } }
+      ]),
+      PlanPayment.aggregate([
+        { $group: { _id: '$status', count: { $sum: 1 }, total: { $sum: '$amount' } } }
+      ]),
+      GenerationPayment.aggregate([
+        { $group: { _id: '$status', count: { $sum: 1 }, total: { $sum: '$amount' } } }
+      ]),
+      PlanPayment.aggregate([
+        { $match: { status: 'paid', createdAt: { $gte: thirtyDaysAgo } } },
+        { $group: { _id: null, total: { $sum: '$amount' }, count: { $sum: 1 } } }
+      ]),
+      GenerationPayment.aggregate([
+        { $match: { status: 'paid', createdAt: { $gte: thirtyDaysAgo } } },
+        { $group: { _id: null, total: { $sum: '$amount' }, count: { $sum: 1 } } }
+      ]),
+      PlanPayment.aggregate([
+        { $match: { status: 'paid' } },
+        { $group: { _id: '$plan', total: { $sum: '$amount' }, count: { $sum: 1 } } }
+      ]),
+      GenerationPayment.aggregate([
+        { $match: { status: 'paid' } },
+        { $group: { _id: 'generation', total: { $sum: '$amount' }, count: { $sum: 1 } } }
+      ]),
+      PlanPayment.aggregate([
+        { $group: { _id: 'plan', total: { $sum: '$amount' }, count: { $sum: 1 } } }
+      ]),
+      GenerationPayment.aggregate([
+        { $group: { _id: 'generation', total: { $sum: '$amount' }, count: { $sum: 1 } } }
+      ]),
+      PlanPayment.aggregate([
+        { $match: { status: 'paid', paymentMethod: { $nin: [null, ''] } } },
+        { $group: { _id: { $toLower: '$paymentMethod' }, total: { $sum: '$amount' }, count: { $sum: 1 } } }
+      ]),
+      GenerationPayment.aggregate([
+        { $match: { status: 'paid', paymentMethod: { $nin: [null, ''] } } },
+        { $group: { _id: { $toLower: '$paymentMethod' }, total: { $sum: '$amount' }, count: { $sum: 1 } } }
+      ]),
+    ]);
+
+    const payments = [
+      ...planPayments.map(normalizePlanPayment),
+      ...generationPayments.map(normalizeGenerationPayment),
+    ]
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+      .slice((pageNumber - 1) * limitNumber, pageNumber * limitNumber);
+
+    const totalPayments = totalPlanPayments + totalGenerationPayments;
 
     // 2) Revenue stats
     console.log('[SuperAdmin] Calculating revenue stats...');
-    const revenueAgg = await PlanPayment.aggregate([
-      { $match: { status: 'paid' } },
-      { $group: {
-        _id: null,
-        totalRevenue: { $sum: '$amount' },
-        totalFees: { $sum: '$fees' },
-        count: { $sum: 1 },
-        avgAmount: { $avg: '$amount' }
-      }}
-    ]);
-    const revenue = revenueAgg[0] || { totalRevenue: 0, totalFees: 0, count: 0, avgAmount: 0 };
-
-    // Revenue by plan
-    const revenueByPlan = await PlanPayment.aggregate([
-      { $match: { status: 'paid' } },
-      { $group: { _id: '$plan', total: { $sum: '$amount' }, count: { $sum: 1 } } }
-    ]);
-
-    // Revenue by month (last 12 months)
-    const twelveMonthsAgo = new Date();
-    twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
-    const revenueByMonth = await PlanPayment.aggregate([
-      { $match: { status: 'paid', createdAt: { $gte: twelveMonthsAgo } } },
-      { $group: {
-        _id: { $dateToString: { format: '%Y-%m', date: '$createdAt' } },
-        total: { $sum: '$amount' },
-        count: { $sum: 1 }
-      }},
-      { $sort: { _id: 1 } }
-    ]);
+    const revenueTotals = sumPaymentAggRows(planRevenueAgg, generationRevenueAgg);
+    const revenueByMonth = mergeRevenueByMonth(planRevenueByMonth, generationRevenueByMonth);
+    const recent30d = sumPaymentAggRows(
+      planRecent30d.map(item => ({ ...item, totalRevenue: item.total, totalFees: 0, amountSum: item.total })),
+      generationRecent30d.map(item => ({ ...item, totalRevenue: item.total, totalFees: 0, amountSum: item.total }))
+    );
+    const revenueByType = [
+      ...planRevenueByPlan,
+      ...generationRevenueByType,
+    ];
+    const paymentsByType = mergeGroupedLabelTotals(planPaymentsByType, generationPaymentsByType);
+    const paymentMethods = mergeGroupedLabelTotals(planPaymentMethods, generationPaymentMethods);
 
     // 3) Payment status breakdown
-    const statusBreakdown = await PlanPayment.aggregate([
-      { $group: { _id: '$status', count: { $sum: 1 }, total: { $sum: '$amount' } } }
-    ]);
+    const statusBreakdown = mergeGroupedTotals(planStatusBreakdown, generationStatusBreakdown);
 
     // 4) Workspace plan distribution
     console.log('[SuperAdmin] Calculating plan distribution...');
@@ -935,7 +1103,6 @@ router.get('/billing', requireEcomAuth, requireSuperAdmin, async (req, res) => {
 
     // 5) Active subscriptions (plan != 'free' and not expired)
     console.log('[SuperAdmin] Calculating active subscriptions...');
-    const now = new Date();
     const activeSubscriptions = await Workspace.countDocuments({
       plan: { $in: ['pro', 'ultra'] },
       planExpiresAt: { $gt: now }
@@ -983,12 +1150,6 @@ router.get('/billing', requireEcomAuth, requireSuperAdmin, async (req, res) => {
       .lean();
 
     // 8) Recent payments (last 30 days stats)
-    const thirtyDaysAgo = new Date(now.getTime() - 30 * 86400000);
-    const recent30d = await PlanPayment.aggregate([
-      { $match: { status: 'paid', createdAt: { $gte: thirtyDaysAgo } } },
-      { $group: { _id: null, total: { $sum: '$amount' }, count: { $sum: 1 } } }
-    ]);
-
     // 9) All workspaces with plan details (for search/filter)
     const wsFilter = {};
     if (search) wsFilter.name = { $regex: search, $options: 'i' };
@@ -1005,14 +1166,16 @@ router.get('/billing', requireEcomAuth, requireSuperAdmin, async (req, res) => {
         payments,
         totalPayments,
         revenue: {
-          total: revenue.totalRevenue,
-          fees: revenue.totalFees,
-          paidCount: revenue.count,
-          avgAmount: Math.round(revenue.avgAmount || 0),
-          byPlan: revenueByPlan,
+          total: revenueTotals.totalRevenue,
+          fees: revenueTotals.totalFees,
+          paidCount: revenueTotals.count,
+          avgAmount: revenueTotals.count > 0 ? Math.round((revenueTotals.amountSum || 0) / revenueTotals.count) : 0,
+          byType: revenueByType,
           byMonth: revenueByMonth,
-          last30d: recent30d[0] || { total: 0, count: 0 }
+          last30d: { total: recent30d.totalRevenue || 0, count: recent30d.count || 0 }
         },
+        paymentsByType,
+        paymentMethods,
         statusBreakdown,
         planDistribution,
         activeSubscriptions,
@@ -1022,10 +1185,10 @@ router.get('/billing', requireEcomAuth, requireSuperAdmin, async (req, res) => {
         expiredPaid,
         workspaces: allWorkspaces,
         pagination: {
-          page: Number(page),
-          limit: Number(limit),
+          page: pageNumber,
+          limit: limitNumber,
           total: totalPayments,
-          pages: Math.ceil(totalPayments / Number(limit))
+          pages: Math.ceil(totalPayments / limitNumber)
         }
       }
     });
@@ -1086,7 +1249,7 @@ router.post('/migrate-product-descriptions', requireEcomAuth, requireSuperAdmin,
 // ── POST /super-admin/notify-workspace — Envoyer email/push manuellement ────
 router.post('/notify-workspace', requireEcomAuth, requireSuperAdmin, async (req, res) => {
   try {
-    const { workspaceId, channel, templateKey } = req.body;
+    const { workspaceId, channel, templateKey, customEmail } = req.body;
     // channel: 'email' | 'push' | 'both'
     // templateKey: 'trial_expiring' | 'trial_expired' | 'plan_expired'
     if (!workspaceId || !channel || !templateKey) {
@@ -1133,17 +1296,28 @@ router.post('/notify-workspace', requireEcomAuth, requireSuperAdmin, async (req,
       plan_expired: { title: `🚫 Plan ${planName} expiré`, body: 'Vos agents IA sont désactivés. Renouvelez pour continuer à vendre !' },
     };
 
+    const hasCustomEmail = !!(customEmail?.subject?.trim() && customEmail?.message?.trim());
+
     // Email
     if (channel === 'email' || channel === 'both') {
       try {
-        const emailResult = await sendNotificationEmail({
-          to: owner.email,
-          templateKey,
-          data: templateData,
-          userId: String(workspace.owner._id),
-          workspaceId: String(workspace._id),
-          eventType: `manual_${templateKey}`,
-        });
+        const emailResult = hasCustomEmail
+          ? await sendCustomNotificationEmail({
+              to: owner.email,
+              subject: customEmail.subject,
+              message: customEmail.message,
+              userId: String(workspace.owner._id),
+              workspaceId: String(workspace._id),
+              eventType: `manual_custom_${templateKey}`,
+            })
+          : await sendNotificationEmail({
+              to: owner.email,
+              templateKey,
+              data: templateData,
+              userId: String(workspace.owner._id),
+              workspaceId: String(workspace._id),
+              eventType: `manual_${templateKey}`,
+            });
         results.email = emailResult;
       } catch (e) {
         results.email = { success: false, error: e.message };
@@ -1171,7 +1345,7 @@ router.post('/notify-workspace', requireEcomAuth, requireSuperAdmin, async (req,
     const pushOk = results.push ? results.push.success : true;
     const allSuccess = emailOk && pushOk;
 
-    await logAudit(req, 'NOTIFY_WORKSPACE', `Manual ${templateKey} (${channel}) sent to ${owner.email} — ${allSuccess ? 'OK' : 'FAILED'}`, 'workspace', workspace._id);
+    await logAudit(req, 'NOTIFY_WORKSPACE', `Manual ${templateKey}${hasCustomEmail ? ' custom-email' : ''} (${channel}) sent to ${owner.email} — ${allSuccess ? 'OK' : 'FAILED'}`, 'workspace', workspace._id);
     res.json({ success: allSuccess, results, email: owner.email, message: allSuccess ? undefined : (results.email?.error || results.push?.error || 'Échec envoi') });
   } catch (err) {
     console.error('[SuperAdmin] POST /notify-workspace error:', err.message);
