@@ -943,7 +943,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
           message: '🎯 Tu n\'as plus de crédits !\n\nAchète des crédits pour générer des pages produit.',
           remaining: 0,
           totalGenerations: workspace.totalGenerations || 0,
-          pricing: { unit: 300 }
+          pricing: { unit: 1000, pack3: 2500 }
         });
       }
 

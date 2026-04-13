@@ -650,7 +650,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
   const [paymentName, setPaymentName] = useState('');
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [selectedPack, setSelectedPack] = useState(null); // 'unit' | 'pack3'
-  const [pricing, setPricing] = useState({ unit: 500, pack3: 1000 });
+  const [pricing, setPricing] = useState({ unit: 1000, pack3: 2500 });
   
   // États copywriting simplifiés
   const [tone, setTone] = useState('urgence');
@@ -659,7 +659,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
   const [targetProfile, setTargetProfile] = useState('auto');
   const [mainProblem, setMainProblem] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const [imageGenerationMode, setImageGenerationMode] = useState('ad_4_5');
+  const [imageGenerationMode, setImageGenerationMode] = useState('standard');
   
   // AI Store Builder states
   const [buildStep, setBuildStep] = useState(0); // 0-4
@@ -2083,7 +2083,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
                           </div>
                           <div className="flex-1">
                             <p className="text-sm font-bold text-gray-900">Pack 3 crédits</p>
-                            <p className="text-xs text-gray-500">Économise {pricing.unit * 3 - pricing.pack3} FCFA — soit {Math.round(pricing.pack3 / 3)} FCFA/page</p>
+                            <p className="text-xs text-gray-500">Économise {pricing.unit * 3 - pricing.pack3} FCFA sur 3 crédits</p>
                           </div>
                           <span className="text-base font-extrabold text-scalor-green">{pricing.pack3} FCFA</span>
                         </button>

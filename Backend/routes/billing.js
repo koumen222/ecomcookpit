@@ -334,14 +334,14 @@ router.post('/buy-generation', requireEcomAuth, async (req, res) => {
       return res.status(400).json({ success: false, message: 'Quantité invalide (1-100)' });
     }
 
-    // Pricing: 1 crédit = 500 FCFA, pack 3 crédits = 1000 FCFA
+    // Pricing: 1 crédit = 1000 FCFA, pack 3 crédits = 2500 FCFA
     let amount;
     let pricePerGeneration;
     if (quantity === 3) {
-      amount = 1000;
-      pricePerGeneration = Math.round(1000 / 3);
+      amount = 2500;
+      pricePerGeneration = Math.round(2500 / 3);
     } else {
-      pricePerGeneration = 500;
+      pricePerGeneration = 1000;
       amount = pricePerGeneration * quantity;
     }
 
