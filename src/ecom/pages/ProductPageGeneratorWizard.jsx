@@ -6,7 +6,7 @@ const ProductPageGeneratorWizard = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const basePath = location.pathname.startsWith('/ecom/boutique') ? '/ecom/boutique' : '/ecom/store';
-  const returnTo = location.state?.from || `${basePath}/products`;
+  const returnTo = location.state?.from || `${basePath}/generations`;
   const loadTaskId = location.state?.loadTaskId || null;
 
   const handleClose = () => {

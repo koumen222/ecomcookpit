@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useEcomAuth } from '../hooks/useEcomAuth';
 import { Sparkles, Trash2, Eye, ArrowRight, Loader2, AlertCircle, Clock, CheckCircle, XCircle, RefreshCw, Plus } from 'lucide-react';
 
 const API_ORIGIN = import.meta.env.DEV ? '' : (import.meta.env.VITE_API_URL || '');
@@ -15,37 +14,45 @@ const statusConfig = {
 
 export default function GenerationsPage() {
   const navigate = useNavigate();
-  const { user } = useEcomAuth();
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(null);
   const [creditsInfo, setCreditsInfo] = useState(null);
 
-  const token = localStorage.getItem('ecomToken');
-  const wsId = (() => { try { const ws = JSON.parse(localStorage.getItem('ecomWorkspace') || 'null'); return ws?._id || ws?.id || ''; } catch { return ''; } })();
-
-  const headers = { Authorization: `Bearer ${token}` };
-  if (wsId) headers['X-Workspace-Id'] = wsId;
+  const getHeaders = useCallback(() => {
+    const token = localStorage.getItem('ecomToken');
+    const h = { Authorization: `Bearer ${token}` };
+    try {
+      const ws = JSON.parse(localStorage.getItem('ecomWorkspace') || 'null');
+      const wsId = ws?._id || ws?.id || '';
+      if (wsId) h['X-Workspace-Id'] = wsId;
+    } catch {}
+    return h;
+  }, []);
 
   const fetchTasks = useCallback(async () => {
-    if (!token) return;
+    const h = getHeaders();
+    if (!h.Authorization || h.Authorization === 'Bearer null') return;
     try {
-      const resp = await fetch(`${API_ORIGIN}/api/ai/product-generator/tasks`, { headers });
-      if (!resp.ok) return;
+      const resp = await fetch(`${API_ORIGIN}/api/ai/product-generator/tasks`, { headers: h });
+      console.log('[Generations] tasks response:', resp.status);
+      if (!resp.ok) { console.warn('[Generations] tasks fetch failed:', resp.status); return; }
       const data = await resp.json();
+      console.log('[Generations] tasks data:', data);
       if (data.success) setTasks(data.tasks || []);
-    } catch {}
-  }, [token, wsId]);
+    } catch (err) { console.error('[Generations] tasks error:', err); }
+  }, [getHeaders]);
 
   const fetchCredits = useCallback(async () => {
-    if (!token) return;
+    const h = getHeaders();
+    if (!h.Authorization || h.Authorization === 'Bearer null') return;
     try {
-      const resp = await fetch(`${API_ORIGIN}/api/ai/product-generator/info`, { headers });
+      const resp = await fetch(`${API_ORIGIN}/api/ai/product-generator/info`, { headers: h });
       if (!resp.ok) return;
       const data = await resp.json();
       if (data.success) setCreditsInfo(data.generations);
-    } catch {}
-  }, [token, wsId]);
+    } catch (err) { console.error('[Generations] credits error:', err); }
+  }, [getHeaders]);
 
   useEffect(() => {
     Promise.all([fetchTasks(), fetchCredits()]).finally(() => setLoading(false));
@@ -65,7 +72,7 @@ export default function GenerationsPage() {
     try {
       const resp = await fetch(`${API_ORIGIN}/api/ai/product-generator/tasks/${taskId}`, {
         method: 'DELETE',
-        headers,
+        headers: getHeaders(),
       });
       if (resp.ok) {
         setTasks(prev => prev.filter(t => t._id !== taskId));

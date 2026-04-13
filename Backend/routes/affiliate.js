@@ -348,7 +348,66 @@ router.put('/admin/config', requireEcomAuth, requireSuperAdmin, async (req, res)
 
 router.get('/admin/affiliates', requireEcomAuth, requireSuperAdmin, async (req, res) => {
   const affiliates = await AffiliateUser.find().sort({ createdAt: -1 }).lean();
-  return res.json({ success: true, data: affiliates.map((a) => sanitizeAffiliate(a)) });
+
+  // Aggregate stats per affiliate in parallel
+  const affiliateIds = affiliates.map((a) => a._id);
+
+  const [clickStats, conversionStats, linkStats] = await Promise.all([
+    AffiliateClick.aggregate([
+      { $match: { affiliateId: { $in: affiliateIds } } },
+      { $group: { _id: '$affiliateId', totalClicks: { $sum: 1 } } }
+    ]),
+    AffiliateConversion.aggregate([
+      { $match: { affiliateId: { $in: affiliateIds } } },
+      {
+        $group: {
+          _id: '$affiliateId',
+          totalConversions: { $sum: 1 },
+          totalSales: { $sum: '$orderAmount' },
+          totalCommissions: { $sum: '$commissionAmount' },
+          pendingCommissions: {
+            $sum: { $cond: [{ $eq: ['$status', 'pending'] }, '$commissionAmount', 0] }
+          },
+          approvedCommissions: {
+            $sum: { $cond: [{ $eq: ['$status', 'approved'] }, '$commissionAmount', 0] }
+          },
+          paidCommissions: {
+            $sum: { $cond: [{ $eq: ['$status', 'paid'] }, '$commissionAmount', 0] }
+          }
+        }
+      }
+    ]),
+    AffiliateLink.aggregate([
+      { $match: { affiliateId: { $in: affiliateIds } } },
+      { $group: { _id: '$affiliateId', totalLinks: { $sum: 1 } } }
+    ])
+  ]);
+
+  const clickMap = Object.fromEntries(clickStats.map((s) => [String(s._id), s]));
+  const convMap = Object.fromEntries(conversionStats.map((s) => [String(s._id), s]));
+  const linkMap = Object.fromEntries(linkStats.map((s) => [String(s._id), s]));
+
+  const data = affiliates.map((a) => {
+    const id = String(a._id);
+    const clicks = clickMap[id] || {};
+    const conv = convMap[id] || {};
+    const links = linkMap[id] || {};
+    return {
+      ...sanitizeAffiliate(a),
+      stats: {
+        totalClicks: clicks.totalClicks || 0,
+        totalConversions: conv.totalConversions || 0,
+        totalSales: conv.totalSales || 0,
+        totalCommissions: conv.totalCommissions || 0,
+        pendingCommissions: conv.pendingCommissions || 0,
+        approvedCommissions: conv.approvedCommissions || 0,
+        paidCommissions: conv.paidCommissions || 0,
+        totalLinks: links.totalLinks || 0
+      }
+    };
+  });
+
+  return res.json({ success: true, data });
 });
 
 router.post('/admin/affiliates', requireEcomAuth, requireSuperAdmin, async (req, res) => {

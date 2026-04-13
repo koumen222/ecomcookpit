@@ -1060,6 +1060,42 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
     }
 
     // ══════════════════════════════════════════════════════════════════════════
+    // CREATE TASK IMMEDIATELY — so it appears in "Mes Générations" right away
+    // ══════════════════════════════════════════════════════════════════════════
+    let generationTask = null;
+    let taskId = null;
+    try {
+      generationTask = await GenerationTask.create({
+        workspaceId: req.workspaceId,
+        userId: req.user._id || req.user.id,
+        status: 'generating_text',
+        productName: isDescriptionMode ? (userDescription || '').slice(0, 60) : (cleanUrl || 'Produit'),
+        currentStep: 'Analyse du produit...',
+        progressPercent: 5,
+        input: {
+          url: cleanUrl || null,
+          description: isDescriptionMode ? (userDescription || '').slice(0, 2000) : null,
+          skipScraping: isDescriptionMode,
+          marketingApproach: approach,
+          visualTemplate,
+          imageGenerationMode,
+          imageAspectRatio,
+          preferredColor,
+          heroVisualDirection,
+          decorationDirection,
+          titleColor,
+          contentColor,
+          tone: tone || 'urgence',
+          language: language || 'français',
+        },
+      });
+      taskId = generationTask._id.toString();
+      console.log(`📋 [Task] Created early with status=generating_text, id=${taskId}`);
+    } catch (taskErr) {
+      console.warn('[Task] Could not create early task:', taskErr.message);
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
     // ÉTAPE 1 : Extraction des infos produit avec Gemini OU utilisation de la description directe
     // ══════════════════════════════════════════════════════════════════════════
     if (isDescriptionMode) {
@@ -1075,6 +1111,13 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       scraped = await extractProductInfo(cleanUrl);
       console.log('✅ Extraction Gemini OK:', { title: scraped.title?.slice(0, 50) });
     }
+
+    // Update task: extraction done, starting AI analysis
+    await updateTask(taskId, {
+      productName: scraped?.title?.slice(0, 80) || (isDescriptionMode ? (userDescription || '').slice(0, 60) : 'Produit'),
+      currentStep: 'Rédaction par l\'IA...',
+      progressPercent: 15,
+    });
 
     // ══════════════════════════════════════════════════════════════════════════
     // ÉTAPE 2 : GPT-4o Vision → JSON structuré
@@ -1210,40 +1253,16 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       }).catch(() => { });
     }
 
-    // ── Create persistent GenerationTask in MongoDB ──────────────────────────
-    let generationTask = null;
-    try {
-      generationTask = await GenerationTask.create({
-        workspaceId: req.workspaceId,
-        userId: req.user._id || req.user.id,
-        status: shouldGenerateImages ? 'generating_images' : 'done',
-        productName: gptResult.title || scraped?.title || 'Produit sans nom',
-        product: productPage,
-        imageJobId: jobId,
-        currentStep: shouldGenerateImages ? 'Génération des images en cours...' : 'Terminé',
-        progressPercent: shouldGenerateImages ? 40 : 100,
-        input: {
-          url: cleanUrl || null,
-          description: isDescriptionMode ? (userDescription || '').slice(0, 2000) : null,
-          skipScraping: isDescriptionMode,
-          marketingApproach: approach,
-          visualTemplate,
-          imageGenerationMode,
-          imageAspectRatio,
-          preferredColor,
-          heroVisualDirection,
-          decorationDirection,
-          titleColor,
-          contentColor,
-          tone: tone || 'urgence',
-          language: language || 'français',
-          photoUrls: realPhotos,
-        },
-      });
-    } catch (taskErr) {
-      console.warn('[Task] Could not create task:', taskErr.message);
-    }
-    const taskId = generationTask?._id?.toString() || null;
+    // ── Update task with generated product data ────────────────────────────────
+    await updateTask(taskId, {
+      status: shouldGenerateImages ? 'generating_images' : 'done',
+      productName: gptResult.title || scraped?.title || 'Produit sans nom',
+      product: productPage,
+      imageJobId: jobId,
+      currentStep: shouldGenerateImages ? 'Génération des images en cours...' : 'Terminé',
+      progressPercent: shouldGenerateImages ? 40 : 100,
+      'input.photoUrls': realPhotos,
+    });
 
     // ── RESPOND NOW — client gets the preview immediately
     console.log('📤 Réponse envoyée, génération images en arrière-plan (jobId:', jobId, ', taskId:', taskId, ')');
@@ -1621,6 +1640,15 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
   } catch (error) {
     console.error('❌ Erreur génération:', error.message);
     console.error('❌ Stack:', error.stack);
+
+    // Update the early-created task with error status
+    if (taskId) {
+      await updateTask(taskId, {
+        status: 'error',
+        errorMessage: error.message || 'Erreur lors de la génération',
+        currentStep: 'Erreur',
+      });
+    }
 
     return res.status(500).json({
       success: false,

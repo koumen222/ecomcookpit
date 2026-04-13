@@ -2851,7 +2851,7 @@ Règles absolues :
 - Tu respectes le déclencheur, la cible et les conditions de chaque offre
 - Si aucune offre ne correspond à la situation, tu n'en proposes aucune
 - Les règles de prix et de négociation restent prioritaires : une offre ne t'autorise jamais à descendre sous un dernier prix non prévu
-${config.requireHumanApproval ? '- Avant de confirmer une offre commerciale, tu expliques que tu dois d\'abord la faire valider par le responsable. Tu ne la présentes pas comme déjà acquise.' : '- Si une offre correspond exactement au contexte, tu peux la proposer directement.'}`;
+- Si une offre correspond exactement au contexte, tu peux la proposer directement.`;
 
     activeCommercialOffers.forEach((offer, index) => {
       prompt += `\n\n### Offre ${index + 1}${offer.title ? ` — ${offer.title}` : ''}`;
@@ -3252,40 +3252,7 @@ Si le client arrête de répondre ou dit "je réfléchis", tu dois préparer une
     prompt += `\n\nExemple : "Super, prends ton temps ! [FOLLOW_UP:${delayH}]"`;
   }
 
-  // ─── MODE ESCALADE BOSS ───
-  if (config.bossEscalationEnabled) {
-    prompt += `\n\n## 🤝 ESCALADE BOSS — QUESTIONS SANS RÉPONSE PRÉCISE
-Quand un client pose une question à laquelle tu n'as PAS de réponse précise dans tes données, OU quand il demande une ressource que tu n'as pas :
-
-### Cas d'escalade :
-- Tarif de livraison dans une zone non mentionnée
-- Disponibilité d'une couleur/taille non listée
-- Délai spécifique non configuré
-- **Le client demande une vidéo mais tu n'as PAS de vidéo configurée pour ce produit**
-- **Le client demande une photo mais tu n'as PAS de photo configurée pour ce produit**
-- **Le client demande un document, une fiche technique, un certificat**
-- Toute information absente de tes données
-
-### Comment escalader :
-1. Réponds au client avec une phrase rassurante courte
-2. À la FIN de ta réponse, ajoute le tag : [ASK_BOSS:description précise de ce que demande le client]
-
-${usesVous
-? `Exemples :
-- "Je vais vérifier avec mon responsable 🙏 Un instant ! [ASK_BOSS:Le client demande la vidéo du Ventilateur 48W — pas de vidéo configurée]"
-- "Je demande à mon supérieur s'il a la photo, patientez 🙏 [ASK_BOSS:Le client veut voir les photos du Casque NovaBeat — aucune image configurée]"
-- "Bonne question ! Je vérifie et je reviens vers vous 🙏 [ASK_BOSS:Le client demande si livraison possible à Bafoussam]"`
-: `Exemples :
-- "Je vais vérifier avec mon responsable 🙏 Un instant ! [ASK_BOSS:Le client demande la vidéo du Ventilateur 48W — pas de vidéo configurée]"
-- "Je demande à mon supérieur s'il a la photo, patiente 🙏 [ASK_BOSS:Le client veut voir les photos du Casque NovaBeat — aucune image configurée]"
-- "Bonne question ! Je check et je reviens vers toi 🙏 [ASK_BOSS:Le client demande si livraison possible à Bafoussam]"`}
-
-⚠️ Le tag [ASK_BOSS:...] doit être à la FIN du message, hors du texte visible.
-⚠️ N'utilise [ASK_BOSS:...] que pour des vraies questions/ressources sans réponse dans tes données — PAS pour des infos que tu connais déjà.
-⚠️ Le boss peut répondre avec du texte, une image, une vidéo ou un document — le système transmettra automatiquement au client.
-⚠️ Un seul [ASK_BOSS:...] par message.
-⚠️ Si le client répète la même question en attendant → rappelle-lui gentiment que tu attends la réponse du responsable.`;
-  }
+  // ─── MODE ESCALADE BOSS (désactivé — l'agent gère tout seul) ───
 
   // ─── CONTEXTE CLIENT (personnalisation dynamique) ───
   if (context.contact) {
@@ -3339,15 +3306,12 @@ Nous sommes HORS des heures de travail (${config.businessHoursStart}-${config.bu
     }
   }
 
-  // ─── NIVEAU D'AUTONOMIE ───
-  if (config.autonomyLevel === 'supervised' || config.requireHumanApproval) {
-    prompt += `\n\n## 🔐 RÈGLES D'AUTONOMIE
-- Tu es en mode SUPERVISÉ : tu peux conseiller et vendre, mais pour toute demande inhabituelle (remise exceptionnelle, livraison spéciale, pb technique), utilise [ASK_BOSS:...]
-${!config.canCloseDeals ? "- Tu NE peux PAS confirmer une commande toi-même. Collecte toutes les infos (produit, nom, ville, téléphone) et utilise [ASK_BOSS:Confirmer commande?] avant de valider." : "- Tu PEUX confirmer les commandes avec [ORDER_DATA:{...}] quand le client a donné toutes les infos."}`;
-  } else if (config.autonomyLevel === 'autonomous') {
-    prompt += `\n\n## 🔓 AUTONOMIE
-Tu es en mode AUTONOME : tu peux confirmer les commandes, envoyer des images et gérer la conversation sans demander au boss. Utilise [ASK_BOSS:...] uniquement pour les cas exceptionnels.`;
-  }
+  // ─── NIVEAU D'AUTONOMIE (toujours autonome) ───
+  prompt += `\n\n## 🔓 AUTONOMIE
+Tu es en mode AUTONOME : tu gères TOUT toi-même. Tu peux confirmer les commandes avec [ORDER_DATA:{...}], envoyer des images, répondre à toutes les questions et gérer la conversation de A à Z.
+- Ne transfère JAMAIS au "responsable" ou "supérieur" — TU ES la personne en charge.
+- Si tu ne connais pas une info précise, dis honnêtement que tu vas vérifier et reviens avec une réponse utile.
+- ${config.canCloseDeals !== false ? "Tu PEUX confirmer les commandes avec [ORDER_DATA:{...}] quand le client a donné toutes les infos (produit, nom, ville, téléphone)." : "Collecte toutes les infos (produit, nom, ville, téléphone) et confirme la commande avec [ORDER_DATA:{...}]."}`;
 
   // ─── RÈGLES PREMIER MESSAGE ────────────────────────────────────────────────
   if (config.firstMessageRulesEnabled && config.firstMessageRules?.length > 0) {

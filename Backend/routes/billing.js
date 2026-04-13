@@ -154,6 +154,12 @@ async function applyPlanPayment(payment) {
     console.log(`[billing] Credited ${creditsToAdd} generation(s) for ultra plan (${payment.durationMonths} month(s))`);
   }
 
+  // Auto-disable subscription warning banner on successful payment
+  if (workspace.subscriptionWarning?.active) {
+    workspace.subscriptionWarning = { active: false, message: '', deadline: null, activatedAt: null, activatedBy: null };
+    console.log(`[billing] Subscription warning auto-disabled for workspace ${workspace.name}`);
+  }
+
   await workspace.save();
 
   payment.status = 'paid';
