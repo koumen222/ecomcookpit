@@ -119,7 +119,7 @@ const requireMarketingAccess = [requireEcomAuth, (req, res, next) => {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function buildHtml(campaign, user = null) {
+function buildHtml(campaign, user = null, recipientIndex = null) {
   const brandColor = '#4f46e5';
   const fromName = campaign.fromName || FROM_NAME_DEFAULT;
   let body = campaign.bodyHtml || `<p>${(campaign.bodyText || '').replace(/\n/g, '<br/>')}</p>`;
@@ -140,6 +140,18 @@ function buildHtml(campaign, user = null) {
       .replace(/\{\{email\}\}/g, '')
       .replace(/\{\{workspace\}\}/g, '')
       .replace(/\{\{role\}\}/g, '');
+  }
+
+  // Ajouter le tracking des liens si on a un index de destinataire
+  if (recipientIndex !== null) {
+    // Transformer les liens pour le tracking
+    body = body.replace(/href="([^"]+)"/g, (match, url) => {
+      if (url.startsWith('mailto:') || url.startsWith('#') || url.includes('track/click')) {
+        return match; // Ne pas tracker les emails ou ancres
+      }
+      const encodedUrl = encodeURIComponent(url);
+      return `href="${process.env.FRONTEND_URL || 'https://ecomcockpit.site'}/api/ecom/marketing/track/click/${campaign._id}/${recipientIndex}/0?url=${encodedUrl}"`;
+    });
   }
   
   return `<!DOCTYPE html>
@@ -162,6 +174,7 @@ function buildHtml(campaign, user = null) {
 </head>
 <body>
   ${campaign.previewText ? `<div style="display:none;max-height:0;overflow:hidden;font-size:1px;color:#fff">${campaign.previewText}</div>` : ''}
+  ${recipientIndex !== null ? `<img src="${process.env.FRONTEND_URL || 'https://ecomcockpit.site'}/api/ecom/marketing/track/open/${campaign._id}/${recipientIndex}" width="1" height="1" style="display:none;" alt="" />` : ''}
   <div class="wrapper"><div class="card">
     <div class="header"><h1>${fromName}</h1></div>
     <div class="body">${body}</div>
@@ -667,10 +680,11 @@ router.post('/campaigns/:id/send', requireMarketingAccess, async (req, res) => {
     const results = [];
 
     // Send emails one by one with delay and personalization
-    for (const recipient of recipients) {
+    for (let i = 0; i < recipients.length; i++) {
+      const recipient = recipients[i];
       try {
-        // Generate personalized HTML for each recipient
-        const personalizedHtml = buildHtml(campaign, recipient);
+        // Generate personalized HTML for each recipient with tracking
+        const personalizedHtml = buildHtml(campaign, recipient, i);
         
         // Personalize subject too
         let personalizedSubject = campaign.subject;
@@ -690,10 +704,28 @@ router.post('/campaigns/:id/send', requireMarketingAccess, async (req, res) => {
           headers: { 'X-Campaign-Id': campaign._id.toString() }
         });
         sent++;
-        results.push({ email: recipient.email, status: 'sent', sentAt: new Date(), resendId: resp?.data?.id || null });
+        results.push({ 
+          email: recipient.email, 
+          name: recipient.name,
+          status: 'sent', 
+          sentAt: new Date(), 
+          resendId: resp?.data?.id || null,
+          opened: false,
+          clicks: [],
+          uniqueClicks: 0
+        });
       } catch (err) {
         failed++;
-        results.push({ email: recipient.email, status: 'failed', error: err.message, sentAt: new Date() });
+        results.push({ 
+          email: recipient.email, 
+          name: recipient.name,
+          status: 'failed', 
+          error: err.message, 
+          sentAt: new Date(),
+          opened: false,
+          clicks: [],
+          uniqueClicks: 0
+        });
       }
       
       // Delay between 3 and 5 seconds before next email
@@ -775,14 +807,67 @@ router.post('/campaigns/:id/duplicate', requireMarketingAccess, async (req, res)
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// GET /api/ecom/marketing/campaigns/:id/results — get send results
-// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/ecom/marketing/campaigns/:id/results — get detailed send results
 router.get('/campaigns/:id/results', requireMarketingAccess, async (req, res) => {
   try {
-    const campaign = await EmailCampaign.findById(req.params.id).select('name stats results status sentAt').lean();
-    if (!campaign) return res.status(404).json({ success: false, message: 'Campagne introuvable' });
-    res.json({ success: true, data: campaign });
+    const campaign = await EmailCampaign.findOne({ _id: req.params.id, workspaceId: req.workspaceId })
+      .select('name stats results createdAt sentAt status')
+      .lean();
+    
+    if (!campaign) {
+      return res.status(404).json({ success: false, message: 'Campagne introuvable' });
+    }
+
+    // Calculer les métriques supplémentaires
+    const totalRecipients = campaign.results.length;
+    const sentCount = campaign.results.filter(r => r.status === 'sent').length;
+    const failedCount = campaign.results.filter(r => r.status === 'failed').length;
+    const openedCount = campaign.results.filter(r => r.opened).length;
+    const clickedCount = campaign.results.filter(r => r.uniqueClicks > 0).length;
+    const totalClicks = campaign.results.reduce((sum, r) => sum + (r.clicks?.length || 0), 0);
+
+    // Taux de conversion
+    const openRate = sentCount > 0 ? (openedCount / sentCount * 100).toFixed(1) : 0;
+    const clickRate = sentCount > 0 ? (clickedCount / sentCount * 100).toFixed(1) : 0;
+    const clickToOpenRate = openedCount > 0 ? (clickedCount / openedCount * 100).toFixed(1) : 0;
+
+    res.json({
+      success: true,
+      data: {
+        campaign: {
+          id: campaign._id,
+          name: campaign.name,
+          status: campaign.status,
+          createdAt: campaign.createdAt,
+          sentAt: campaign.sentAt
+        },
+        summary: {
+          total: totalRecipients,
+          sent: sentCount,
+          failed: failedCount,
+          opened: openedCount,
+          clicked: clickedCount,
+          totalClicks: totalClicks,
+          openRate: parseFloat(openRate),
+          clickRate: parseFloat(clickRate),
+          clickToOpenRate: parseFloat(clickToOpenRate)
+        },
+        recipients: campaign.results.map((recipient, index) => ({
+          index,
+          email: recipient.email,
+          name: recipient.name,
+          status: recipient.status,
+          sentAt: recipient.sentAt,
+          opened: recipient.opened,
+          openedAt: recipient.openedAt,
+          uniqueClicks: recipient.uniqueClicks,
+          totalClicks: recipient.clicks?.length || 0,
+          clicks: recipient.clicks || []
+        }))
+      }
+    });
   } catch (err) {
+    console.error('marketing/results:', err);
     res.status(500).json({ success: false, message: 'Erreur serveur' });
   }
 });
@@ -947,6 +1032,90 @@ router.post('/campaigns/:id/restart', requireMarketingAccess, async (req, res) =
     res.json({ success: true, message: 'Campagne réinitialisée. Prête à être relancée.' });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// EMAIL TRACKING ROUTES (PUBLIC - no auth required)
+// ─────────────────────────────────────────────────────────────────────────────
+
+// GET /api/ecom/marketing/track/open/:campaignId/:recipientIndex — track email open
+router.get('/track/open/:campaignId/:recipientIndex', async (req, res) => {
+  try {
+    const { campaignId, recipientIndex } = req.params;
+    const idx = parseInt(recipientIndex);
+
+    const campaign = await EmailCampaign.findById(campaignId);
+    if (!campaign || !campaign.results[idx]) {
+      return res.status(404).send('Not found');
+    }
+
+    const recipient = campaign.results[idx];
+    
+    // Only track if not already opened
+    if (!recipient.opened) {
+      recipient.opened = true;
+      recipient.openedAt = new Date();
+      campaign.stats.opened += 1;
+      await campaign.save();
+    }
+
+    // Return 1x1 transparent pixel
+    const pixel = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64');
+    res.set({
+      'Content-Type': 'image/gif',
+      'Content-Length': pixel.length,
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0'
+    });
+    res.send(pixel);
+  } catch (err) {
+    console.error('Email open tracking error:', err);
+    res.status(500).send('Error');
+  }
+});
+
+// GET /api/ecom/marketing/track/click/:campaignId/:recipientIndex/:urlIndex — track link click
+router.get('/track/click/:campaignId/:recipientIndex/:urlIndex', async (req, res) => {
+  try {
+    const { campaignId, recipientIndex, urlIndex } = req.params;
+    const recipientIdx = parseInt(recipientIndex);
+    const urlIdx = parseInt(urlIndex);
+
+    const campaign = await EmailCampaign.findById(campaignId);
+    if (!campaign || !campaign.results[recipientIdx]) {
+      return res.redirect('https://ecomcockpit.site');
+    }
+
+    const recipient = campaign.results[recipientIdx];
+    const originalUrl = req.query.url;
+
+    if (originalUrl) {
+      // Track the click
+      const clickData = {
+        url: originalUrl,
+        clickedAt: new Date()
+      };
+      
+      if (!recipient.clicks) recipient.clicks = [];
+      recipient.clicks.push(clickData);
+      
+      // Update unique clicks count
+      const uniqueUrls = new Set(recipient.clicks.map(c => c.url));
+      recipient.uniqueClicks = uniqueUrls.size;
+      
+      campaign.stats.clicked += 1;
+      await campaign.save();
+
+      // Redirect to original URL
+      res.redirect(originalUrl);
+    } else {
+      res.redirect('https://ecomcockpit.site');
+    }
+  } catch (err) {
+    console.error('Email click tracking error:', err);
+    res.redirect('https://ecomcockpit.site');
   }
 });
 

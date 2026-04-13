@@ -400,23 +400,110 @@ export default function Marketing() {
         </Dlg>
 
         {/* Results modal */}
-        <Dlg open={!!resId} onClose={() => setResId(null)} title="Résultats de la campagne" w="max-w-2xl">
+        <Dlg open={!!resId} onClose={() => setResId(null)} title="📊 Statistiques détaillées de la campagne" w="max-w-4xl">
           {!resData ? <Spin /> : resData.error ? <p className="text-red-500">Erreur de chargement</p> : (
-            <div className="space-y-4">
-              <div className="grid grid-cols-3 gap-4">
-                <div className="bg-gray-50 p-4 rounded-lg text-center"><p className="text-2xl font-bold text-gray-900">{resData.stats?.targeted || 0}</p><p className="text-xs text-gray-500">Ciblés</p></div>
-                <div className="bg-green-50 p-4 rounded-lg text-center"><p className="text-2xl font-bold text-green-600">{resData.stats?.sent || 0}</p><p className="text-xs text-gray-500">Envoyés</p></div>
-                <div className="bg-red-50 p-4 rounded-lg text-center"><p className="text-2xl font-bold text-red-600">{resData.stats?.failed || 0}</p><p className="text-xs text-gray-500">Échecs</p></div>
+            <div className="space-y-6">
+              {/* Campaign info */}
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <h3 className="font-semibold text-gray-900">{resData.campaign?.name}</h3>
+                <p className="text-sm text-gray-600">Envoyée le {resData.campaign?.sentAt ? fmtDate(resData.campaign.sentAt) : 'Non envoyée'}</p>
               </div>
-              {resData.results?.length > 0 && (
+
+              {/* Summary stats */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="bg-blue-50 p-4 rounded-lg text-center">
+                  <p className="text-2xl font-bold text-blue-600">{resData.summary?.total || 0}</p>
+                  <p className="text-xs text-gray-500">Total destinataires</p>
+                </div>
+                <div className="bg-green-50 p-4 rounded-lg text-center">
+                  <p className="text-2xl font-bold text-green-600">{resData.summary?.sent || 0}</p>
+                  <p className="text-xs text-gray-500">Envoyés avec succès</p>
+                </div>
+                <div className="bg-purple-50 p-4 rounded-lg text-center">
+                  <p className="text-2xl font-bold text-purple-600">{resData.summary?.opened || 0}</p>
+                  <p className="text-xs text-gray-500">Ouvertures</p>
+                  <p className="text-xs text-purple-500 font-medium">{resData.summary?.openRate || 0}%</p>
+                </div>
+                <div className="bg-orange-50 p-4 rounded-lg text-center">
+                  <p className="text-2xl font-bold text-orange-600">{resData.summary?.clicked || 0}</p>
+                  <p className="text-xs text-gray-500">Clics uniques</p>
+                  <p className="text-xs text-orange-500 font-medium">{resData.summary?.clickRate || 0}%</p>
+                </div>
+              </div>
+
+              {/* Additional metrics */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-indigo-50 p-3 rounded-lg">
+                  <p className="text-sm font-medium text-indigo-900">Taux de clics sur ouvertures</p>
+                  <p className="text-xl font-bold text-indigo-600">{resData.summary?.clickToOpenRate || 0}%</p>
+                </div>
+                <div className="bg-teal-50 p-3 rounded-lg">
+                  <p className="text-sm font-medium text-teal-900">Total des clics</p>
+                  <p className="text-xl font-bold text-teal-600">{resData.summary?.totalClicks || 0}</p>
+                </div>
+              </div>
+
+              {/* Recipients table */}
+              {resData.recipients?.length > 0 && (
                 <div>
-                  <h4 className="text-sm font-medium text-gray-700 mb-2">Détails ({resData.results.length})</h4>
-                  <div className="max-h-60 overflow-y-auto border border-gray-200 rounded-lg">
+                  <h4 className="text-sm font-medium text-gray-700 mb-3">Détails par destinataire ({resData.recipients.length})</h4>
+                  <div className="max-h-80 overflow-y-auto border border-gray-200 rounded-lg">
                     <table className="w-full text-xs">
-                      <thead><tr className="bg-gray-50 border-b"><th className="px-3 py-2 text-left">Email</th><th className="px-3 py-2 text-left">Statut</th></tr></thead>
+                      <thead>
+                        <tr className="bg-gray-50 border-b">
+                          <th className="px-3 py-2 text-left">Destinataire</th>
+                          <th className="px-3 py-2 text-center">Statut</th>
+                          <th className="px-3 py-2 text-center">Ouvert</th>
+                          <th className="px-3 py-2 text-center">Clics</th>
+                          <th className="px-3 py-2 text-left">Date envoi</th>
+                        </tr>
+                      </thead>
                       <tbody className="divide-y divide-gray-100">
-                        {resData.results.slice(0, 100).map((r, i) => (
-                          <tr key={i}><td className="px-3 py-2 text-gray-700">{r.email}</td><td className="px-3 py-2"><span className={r.status === 'sent' ? 'text-green-600' : 'text-red-500'}>{r.status === 'sent' ? '✅' : '❌'} {r.status}</span></td></tr>
+                        {resData.recipients.map((r, i) => (
+                          <tr key={i} className="hover:bg-gray-50">
+                            <td className="px-3 py-2">
+                              <div>
+                                <p className="text-gray-900 font-medium">{r.email}</p>
+                                {r.name && <p className="text-gray-500 text-xs">{r.name}</p>}
+                              </div>
+                            </td>
+                            <td className="px-3 py-2 text-center">
+                              <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                                r.status === 'sent' ? 'bg-green-100 text-green-800' :
+                                r.status === 'failed' ? 'bg-red-100 text-red-800' :
+                                'bg-gray-100 text-gray-800'
+                              }`}>
+                                {r.status === 'sent' ? '✅ Envoyé' : r.status === 'failed' ? '❌ Échec' : r.status}
+                              </span>
+                            </td>
+                            <td className="px-3 py-2 text-center">
+                              {r.opened ? (
+                                <div>
+                                  <span className="text-green-600 font-medium">✅</span>
+                                  {r.openedAt && (
+                                    <p className="text-xs text-gray-500">{new Date(r.openedAt).toLocaleDateString('fr-FR')}</p>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="text-gray-400">—</span>
+                              )}
+                            </td>
+                            <td className="px-3 py-2 text-center">
+                              {r.uniqueClicks > 0 ? (
+                                <div>
+                                  <span className="text-orange-600 font-medium">{r.uniqueClicks}</span>
+                                  {r.totalClicks > r.uniqueClicks && (
+                                    <p className="text-xs text-gray-500">({r.totalClicks} total)</p>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="text-gray-400">0</span>
+                              )}
+                            </td>
+                            <td className="px-3 py-2 text-gray-600">
+                              {r.sentAt ? fmtDate(r.sentAt) : '—'}
+                            </td>
+                          </tr>
                         ))}
                       </tbody>
                     </table>
