@@ -893,6 +893,22 @@ router.get('/tasks/:id', requireEcomAuth, async (req, res) => {
   }
 });
 
+// ── DELETE /tasks/:id — Cancel / delete a generation task ─────────────────────
+router.delete('/tasks/:id', requireEcomAuth, async (req, res) => {
+  try {
+    const task = await GenerationTask.findOneAndDelete({
+      _id: req.params.id,
+      workspaceId: req.workspaceId,
+    });
+    if (!task) return res.status(404).json({ success: false, message: 'Tâche introuvable' });
+    console.log(`[Tasks] Deleted task ${task._id} (${task.productName || 'sans nom'})`);
+    res.json({ success: true, message: 'Tâche supprimée' });
+  } catch (err) {
+    console.error('[Tasks] Delete error:', err.message);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
 router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), upload.array('images', 8), async (req, res) => {
   const userId = req.user?.id || req.user?._id || 'anonymous';
   console.log(`🚀 [PG] Requête génération reçue — user=${userId} workspace=${req.workspaceId} files=${(req.files||[]).length}`);
