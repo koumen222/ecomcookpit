@@ -1647,7 +1647,18 @@ const ProductPageBuilder = () => {
   const handleManualSave = async () => {
     setSaving(true);
     try {
-      await storeProductsApi.savePageBuilder(id, { enabled: builderEnabled, sections });
+      clearTimeout(saveTimer.current);
+      clearTimeout(configSaveTimer.current);
+
+      const updatedProductConfig = buildProductOnlyPageConfig(productConfigRef.current, configSections);
+
+      await Promise.all([
+        storeProductsApi.savePageBuilder(id, { enabled: builderEnabled, sections }),
+        storeProductsApi.updateProduct(id, { productPageConfig: updatedProductConfig }),
+      ]);
+
+      productConfigRef.current = updatedProductConfig;
+      setProduct((prev) => prev ? { ...prev, productPageConfig: updatedProductConfig } : prev);
       setSaveStatus('saved');
       setTimeout(() => setSaveStatus(null), 3000);
     } catch {
