@@ -171,7 +171,7 @@ const EMOJI_TO_ICON = {
   '📧': 'mail', '✉️': 'mail',
   '💳': 'credit-card', '💰': 'credit-card',
   '👍': 'thumbs-up', '🤙': 'phone',
-  '🎧': 'headphones', '📞': 'phone',
+  '🎧': 'headphones',
   '🔥': 'zap', '💥': 'sparkles',
   '%': 'percent', '🏷️': 'percent',
 };

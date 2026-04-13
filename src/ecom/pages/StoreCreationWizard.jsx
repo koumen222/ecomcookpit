@@ -994,7 +994,7 @@ const StoreCreationWizard = ({ onComplete }) => {
                   </SelectableCard>
                 ))}
               </div>
-            </Card>
+            </div>
 
             <div className="text-center space-y-2 pt-2">
               <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-amber-500 to-orange-600 rounded-2xl shadow-lg shadow-amber-500/30 mb-2">
