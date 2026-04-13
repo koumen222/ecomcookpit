@@ -507,7 +507,7 @@ const StoreApp = () => {
           <Routes>
             <Route path="/" element={<PublicStorefront />} />
             <Route path="/products" element={<StoreAllProducts />} />
-            <Route path="/product/:slug" element={<StoreProductPage />} />
+            <Route path="/product/:slug" element={<Suspense fallback={null}><StoreProductPage /></Suspense>} />
             <Route path="/legal/:pageType" element={<StoreLegalPage />} />
             <Route path="/checkout" element={<StoreCheckout />} />
             <Route path="*" element={<Navigate to="/" replace />} />
@@ -735,7 +735,7 @@ const EcomApp = () => {
               {/* Public Store Routes (no auth, for iframe previews & dev) */}
               <Route path="/store/:subdomain" element={<Suspense fallback={<PageLoader storeMode />}><PublicStorefront /></Suspense>} />
               <Route path="/store/:subdomain/products" element={<Suspense fallback={<PageLoader storeMode />}><StoreAllProducts /></Suspense>} />
-              <Route path="/store/:subdomain/product/:slug" element={<Suspense fallback={<PageLoader storeMode />}><StoreProductPage /></Suspense>} />
+              <Route path="/store/:subdomain/product/:slug" element={<Suspense fallback={null}><StoreProductPage /></Suspense>} />
               <Route path="/store/:subdomain/legal/:pageType" element={<Suspense fallback={<PageLoader storeMode />}><StoreLegalPage /></Suspense>} />
               <Route path="/store/:subdomain/checkout" element={<Suspense fallback={<PageLoader storeMode />}><StoreCheckout /></Suspense>} />
 
