@@ -98,7 +98,14 @@ const emailCampaignSchema = new mongoose.Schema({
     status: { type: String, enum: ['pending', 'sent', 'failed'], default: 'pending' },
     error: String,
     sentAt: Date,
-    resendId: String
+    resendId: String,
+    openedAt: Date,
+    opened: { type: Boolean, default: false },
+    clicks: [{
+      url: String,
+      clickedAt: Date
+    }],
+    uniqueClicks: { type: Number, default: 0 }
   }],
   tags: [{ type: String, trim: true }]
 }, {
