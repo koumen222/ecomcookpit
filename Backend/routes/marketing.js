@@ -1,6 +1,8 @@
 import express from 'express';
 import { Resend } from 'resend';
+import { randomBytes } from 'crypto';
 import EmailCampaign from '../models/EmailCampaign.js';
+import EmailCampaignRecipientLog from '../models/EmailCampaignRecipientLog.js';
 import Campaign from '../models/Campaign.js';
 import Client from '../models/Client.js';
 import Order from '../models/Order.js';
@@ -109,6 +111,7 @@ const getResend = () => {
 
 const FROM_DEFAULT = process.env.EMAIL_FROM || 'contact@infomania.store';
 const FROM_NAME_DEFAULT = process.env.EMAIL_FROM_NAME || 'Scalor';
+const TRACKING_BASE_URL = process.env.TRACKING_BASE_URL || process.env.BACKEND_PUBLIC_URL || process.env.FRONTEND_URL || 'https://ecomcockpit.site';
 
 // ─── Middleware: super_admin OR ecom_admin ───────────────────────────────────
 const requireMarketingAccess = [requireEcomAuth, (req, res, next) => {
@@ -119,7 +122,7 @@ const requireMarketingAccess = [requireEcomAuth, (req, res, next) => {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function buildHtml(campaign, user = null, recipientIndex = null) {
+function buildHtml(campaign, user = null, recipientToken = null) {
   const brandColor = '#4f46e5';
   const fromName = campaign.fromName || FROM_NAME_DEFAULT;
   let body = campaign.bodyHtml || `<p>${(campaign.bodyText || '').replace(/\n/g, '<br/>')}</p>`;
@@ -142,15 +145,15 @@ function buildHtml(campaign, user = null, recipientIndex = null) {
       .replace(/\{\{role\}\}/g, '');
   }
 
-  // Ajouter le tracking des liens si on a un index de destinataire
-  if (recipientIndex !== null) {
+  // Ajouter le tracking des liens si on a un token de destinataire
+  if (recipientToken) {
     // Transformer les liens pour le tracking
     body = body.replace(/href="([^"]+)"/g, (match, url) => {
       if (url.startsWith('mailto:') || url.startsWith('#') || url.includes('track/click')) {
         return match; // Ne pas tracker les emails ou ancres
       }
       const encodedUrl = encodeURIComponent(url);
-      return `href="${process.env.FRONTEND_URL || 'https://ecomcockpit.site'}/api/ecom/marketing/track/click/${campaign._id}/${recipientIndex}/0?url=${encodedUrl}"`;
+      return `href="${TRACKING_BASE_URL}/api/ecom/marketing/track/click/${campaign._id}/${recipientToken}?url=${encodedUrl}"`;
     });
   }
   
@@ -174,7 +177,7 @@ function buildHtml(campaign, user = null, recipientIndex = null) {
 </head>
 <body>
   ${campaign.previewText ? `<div style="display:none;max-height:0;overflow:hidden;font-size:1px;color:#fff">${campaign.previewText}</div>` : ''}
-  ${recipientIndex !== null ? `<img src="${process.env.FRONTEND_URL || 'https://ecomcockpit.site'}/api/ecom/marketing/track/open/${campaign._id}/${recipientIndex}" width="1" height="1" style="display:none;" alt="" />` : ''}
+  ${recipientToken ? `<img src="${TRACKING_BASE_URL}/api/ecom/marketing/track/open/${campaign._id}/${recipientToken}" width="1" height="1" style="display:none;" alt="" />` : ''}
   <div class="wrapper"><div class="card">
     <div class="header"><h1>${fromName}</h1></div>
     <div class="body">${body}</div>
@@ -227,6 +230,10 @@ async function resolveRecipients(campaign) {
   }
 
   return recipients;
+}
+
+function generateRecipientToken() {
+  return randomBytes(16).toString('hex');
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -678,13 +685,15 @@ router.post('/campaigns/:id/send', requireMarketingAccess, async (req, res) => {
     let sent = 0;
     let failed = 0;
     const results = [];
+    const recipientLogs = [];
 
     // Send emails one by one with delay and personalization
     for (let i = 0; i < recipients.length; i++) {
       const recipient = recipients[i];
+      const recipientToken = generateRecipientToken();
       try {
         // Generate personalized HTML for each recipient with tracking
-        const personalizedHtml = buildHtml(campaign, recipient, i);
+        const personalizedHtml = buildHtml(campaign, recipient, recipientToken);
         
         // Personalize subject too
         let personalizedSubject = campaign.subject;
@@ -704,25 +713,60 @@ router.post('/campaigns/:id/send', requireMarketingAccess, async (req, res) => {
           headers: { 'X-Campaign-Id': campaign._id.toString() }
         });
         sent++;
-        results.push({ 
+        const sentAt = new Date();
+        results.push({
           email: recipient.email, 
           name: recipient.name,
           status: 'sent', 
-          sentAt: new Date(), 
+          sentAt,
+          resendId: resp?.data?.id || null,
+          recipientToken,
+          opened: false,
+          clicks: [],
+          uniqueClicks: 0
+        });
+        recipientLogs.push({
+          campaignId: campaign._id,
+          workspaceId: campaign.workspaceId || null,
+          recipientToken,
+          email: recipient.email,
+          name: recipient.name || '',
+          status: 'sent',
+          error: '',
+          sentAt,
           resendId: resp?.data?.id || null,
           opened: false,
+          openCount: 0,
           clicks: [],
           uniqueClicks: 0
         });
       } catch (err) {
         failed++;
-        results.push({ 
+        const sentAt = new Date();
+        const errorMessage = err.message || 'Erreur inconnue';
+        results.push({
           email: recipient.email, 
           name: recipient.name,
           status: 'failed', 
-          error: err.message, 
-          sentAt: new Date(),
+          error: errorMessage,
+          sentAt,
+          recipientToken,
           opened: false,
+          clicks: [],
+          uniqueClicks: 0
+        });
+        recipientLogs.push({
+          campaignId: campaign._id,
+          workspaceId: campaign.workspaceId || null,
+          recipientToken,
+          email: recipient.email,
+          name: recipient.name || '',
+          status: 'failed',
+          error: errorMessage,
+          sentAt,
+          resendId: null,
+          opened: false,
+          openCount: 0,
           clicks: [],
           uniqueClicks: 0
         });
@@ -737,8 +781,13 @@ router.post('/campaigns/:id/send', requireMarketingAccess, async (req, res) => {
     campaign.sentAt = new Date();
     campaign.stats.sent = sent;
     campaign.stats.failed = failed;
-    campaign.results = results.slice(0, 500); // cap stored results
+    campaign.results = results.slice(0, 500); // aperçu rapide en campagne, historique complet dans EmailCampaignRecipientLog
     await campaign.save();
+
+    if (recipientLogs.length > 0) {
+      await EmailCampaignRecipientLog.deleteMany({ campaignId: campaign._id });
+      await EmailCampaignRecipientLog.insertMany(recipientLogs, { ordered: false });
+    }
 
     console.log(`✅ Campagne email "${campaign.name}" envoyée: ${sent} ok, ${failed} échecs`);
   } catch (err) {
@@ -810,21 +859,83 @@ router.post('/campaigns/:id/duplicate', requireMarketingAccess, async (req, res)
 // GET /api/ecom/marketing/campaigns/:id/results — get detailed send results
 router.get('/campaigns/:id/results', requireMarketingAccess, async (req, res) => {
   try {
-    const campaign = await EmailCampaign.findOne({ _id: req.params.id, workspaceId: req.workspaceId })
-      .select('name stats results createdAt sentAt status')
+    const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 100, 1), 500);
+    const status = req.query.status ? String(req.query.status) : '';
+    const search = String(req.query.search || '').trim();
+
+    const campaignQuery = { _id: req.params.id };
+    if (req.ecomUser.role === 'ecom_admin' && req.workspaceId) {
+      campaignQuery.workspaceId = req.workspaceId;
+    }
+
+    const campaign = await EmailCampaign.findOne(campaignQuery)
+      .select('name stats createdAt sentAt status workspaceId')
       .lean();
     
     if (!campaign) {
       return res.status(404).json({ success: false, message: 'Campagne introuvable' });
     }
 
-    // Calculer les métriques supplémentaires
-    const totalRecipients = campaign.results.length;
-    const sentCount = campaign.results.filter(r => r.status === 'sent').length;
-    const failedCount = campaign.results.filter(r => r.status === 'failed').length;
-    const openedCount = campaign.results.filter(r => r.opened).length;
-    const clickedCount = campaign.results.filter(r => r.uniqueClicks > 0).length;
-    const totalClicks = campaign.results.reduce((sum, r) => sum + (r.clicks?.length || 0), 0);
+    const logFilter = { campaignId: campaign._id };
+    if (status) logFilter.status = status;
+    if (search) {
+      logFilter.$or = [
+        { email: { $regex: search, $options: 'i' } },
+        { name: { $regex: search, $options: 'i' } }
+      ];
+    }
+
+    const [recipients, totalRecipients, summaryAgg, topLinksAgg] = await Promise.all([
+      EmailCampaignRecipientLog.find(logFilter)
+        .sort({ sentAt: -1, createdAt: -1 })
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .lean(),
+      EmailCampaignRecipientLog.countDocuments(logFilter),
+      EmailCampaignRecipientLog.aggregate([
+        { $match: { campaignId: campaign._id } },
+        {
+          $group: {
+            _id: null,
+            total: { $sum: 1 },
+            sent: { $sum: { $cond: [{ $eq: ['$status', 'sent'] }, 1, 0] } },
+            failed: { $sum: { $cond: [{ $eq: ['$status', 'failed'] }, 1, 0] } },
+            opened: { $sum: { $cond: ['$opened', 1, 0] } },
+            clicked: { $sum: { $cond: [{ $gt: ['$uniqueClicks', 0] }, 1, 0] } },
+            totalClicks: { $sum: { $size: { $ifNull: ['$clicks', []] } } }
+          }
+        }
+      ]),
+      EmailCampaignRecipientLog.aggregate([
+        { $match: { campaignId: campaign._id } },
+        { $unwind: { path: '$clicks', preserveNullAndEmptyArrays: false } },
+        {
+          $group: {
+            _id: '$clicks.url',
+            clicks: { $sum: 1 },
+            uniqueRecipients: { $addToSet: '$email' }
+          }
+        },
+        {
+          $project: {
+            _id: 0,
+            url: '$_id',
+            clicks: 1,
+            uniqueRecipients: { $size: '$uniqueRecipients' }
+          }
+        },
+        { $sort: { clicks: -1 } },
+        { $limit: 10 }
+      ])
+    ]);
+
+    const summaryRow = summaryAgg[0] || { total: 0, sent: 0, failed: 0, opened: 0, clicked: 0, totalClicks: 0 };
+    const sentCount = summaryRow.sent;
+    const failedCount = summaryRow.failed;
+    const openedCount = summaryRow.opened;
+    const clickedCount = summaryRow.clicked;
+    const totalClicks = summaryRow.totalClicks;
 
     // Taux de conversion
     const openRate = sentCount > 0 ? (openedCount / sentCount * 100).toFixed(1) : 0;
@@ -842,7 +953,7 @@ router.get('/campaigns/:id/results', requireMarketingAccess, async (req, res) =>
           sentAt: campaign.sentAt
         },
         summary: {
-          total: totalRecipients,
+          total: summaryRow.total,
           sent: sentCount,
           failed: failedCount,
           opened: openedCount,
@@ -852,16 +963,26 @@ router.get('/campaigns/:id/results', requireMarketingAccess, async (req, res) =>
           clickRate: parseFloat(clickRate),
           clickToOpenRate: parseFloat(clickToOpenRate)
         },
-        recipients: campaign.results.map((recipient, index) => ({
-          index,
+        pagination: {
+          page,
+          limit,
+          total: totalRecipients,
+          pages: Math.ceil(totalRecipients / limit)
+        },
+        topLinks: topLinksAgg,
+        recipients: recipients.map((recipient, index) => ({
+          index: (page - 1) * limit + index,
           email: recipient.email,
           name: recipient.name,
           status: recipient.status,
+          error: recipient.error,
           sentAt: recipient.sentAt,
           opened: recipient.opened,
           openedAt: recipient.openedAt,
+          openCount: recipient.openCount || 0,
           uniqueClicks: recipient.uniqueClicks,
           totalClicks: recipient.clicks?.length || 0,
+          lastClickedAt: recipient.lastClickedAt,
           clicks: recipient.clicks || []
         }))
       }
@@ -882,7 +1003,7 @@ router.get('/stats', requireMarketingAccess, async (req, res) => {
       query.workspaceId = req.workspaceId;
     }
 
-    const [total, byStatus, totals] = await Promise.all([
+    const [total, byStatus, totals, engagementTotals] = await Promise.all([
       EmailCampaign.countDocuments(query),
       EmailCampaign.aggregate([
         { $match: query },
@@ -896,18 +1017,39 @@ router.get('/stats', requireMarketingAccess, async (req, res) => {
           totalFailed: { $sum: '$stats.failed' },
           totalTargeted: { $sum: '$stats.targeted' }
         }}
+      ]),
+      EmailCampaign.aggregate([
+        { $match: { ...query, status: 'sent' } },
+        { $group: {
+          _id: null,
+          totalOpened: { $sum: '$stats.opened' },
+          totalClicked: { $sum: '$stats.clicked' }
+        }}
       ])
     ]);
 
     const statusMap = {};
     byStatus.forEach(s => { statusMap[s._id] = s.count; });
+    const totalsSummary = totals[0] || { totalSent: 0, totalFailed: 0, totalTargeted: 0 };
+    const engagementSummary = engagementTotals[0] || { totalOpened: 0, totalClicked: 0 };
+    const openRate = totalsSummary.totalSent > 0
+      ? Number(((engagementSummary.totalOpened / totalsSummary.totalSent) * 100).toFixed(1))
+      : 0;
+    const clickRate = totalsSummary.totalSent > 0
+      ? Number(((engagementSummary.totalClicked / totalsSummary.totalSent) * 100).toFixed(1))
+      : 0;
 
     res.json({
       success: true,
       data: {
         total,
         byStatus: statusMap,
-        totals: totals[0] || { totalSent: 0, totalFailed: 0, totalTargeted: 0 }
+        totals: {
+          ...totalsSummary,
+          ...engagementSummary,
+          openRate,
+          clickRate
+        }
       }
     });
   } catch (err) {
@@ -1039,24 +1181,39 @@ router.post('/campaigns/:id/restart', requireMarketingAccess, async (req, res) =
 // EMAIL TRACKING ROUTES (PUBLIC - no auth required)
 // ─────────────────────────────────────────────────────────────────────────────
 
-// GET /api/ecom/marketing/track/open/:campaignId/:recipientIndex — track email open
-router.get('/track/open/:campaignId/:recipientIndex', async (req, res) => {
+// GET /api/ecom/marketing/track/open/:campaignId/:recipientToken — track email open
+router.get('/track/open/:campaignId/:recipientToken', async (req, res) => {
   try {
-    const { campaignId, recipientIndex } = req.params;
-    const idx = parseInt(recipientIndex);
+    const { campaignId, recipientToken } = req.params;
+
+    const updatedLog = await EmailCampaignRecipientLog.findOneAndUpdate(
+      { campaignId, recipientToken, opened: { $ne: true } },
+      { $set: { opened: true, openedAt: new Date() }, $inc: { openCount: 1 } },
+      { new: true }
+    );
+
+    if (!updatedLog) {
+      const existingLog = await EmailCampaignRecipientLog.findOne({ campaignId, recipientToken }).lean();
+      if (!existingLog) {
+        return res.status(404).send('Not found');
+      }
+      await EmailCampaignRecipientLog.updateOne({ _id: existingLog._id }, { $inc: { openCount: 1 } });
+    } else {
+      await EmailCampaign.updateOne({ _id: campaignId }, { $inc: { 'stats.opened': 1 } });
+    }
 
     const campaign = await EmailCampaign.findById(campaignId);
-    if (!campaign || !campaign.results[idx]) {
+    if (!campaign) {
       return res.status(404).send('Not found');
     }
 
-    const recipient = campaign.results[idx];
-    
-    // Only track if not already opened
-    if (!recipient.opened) {
-      recipient.opened = true;
-      recipient.openedAt = new Date();
-      campaign.stats.opened += 1;
+    const resultIdx = campaign.results.findIndex(r => r.recipientToken === recipientToken);
+    if (resultIdx !== -1) {
+      if (!campaign.results[resultIdx].opened) {
+        campaign.results[resultIdx].opened = true;
+        campaign.results[resultIdx].openedAt = new Date();
+      }
+      campaign.results[resultIdx].openCount = (campaign.results[resultIdx].openCount || 0) + 1;
       await campaign.save();
     }
 
@@ -1076,37 +1233,53 @@ router.get('/track/open/:campaignId/:recipientIndex', async (req, res) => {
   }
 });
 
-// GET /api/ecom/marketing/track/click/:campaignId/:recipientIndex/:urlIndex — track link click
-router.get('/track/click/:campaignId/:recipientIndex/:urlIndex', async (req, res) => {
+// GET /api/ecom/marketing/track/click/:campaignId/:recipientToken — track link click
+router.get('/track/click/:campaignId/:recipientToken', async (req, res) => {
   try {
-    const { campaignId, recipientIndex, urlIndex } = req.params;
-    const recipientIdx = parseInt(recipientIndex);
-    const urlIdx = parseInt(urlIndex);
+    const { campaignId, recipientToken } = req.params;
 
     const campaign = await EmailCampaign.findById(campaignId);
-    if (!campaign || !campaign.results[recipientIdx]) {
+    if (!campaign) {
       return res.redirect('https://ecomcockpit.site');
     }
-
-    const recipient = campaign.results[recipientIdx];
     const originalUrl = req.query.url;
 
     if (originalUrl) {
-      // Track the click
-      const clickData = {
-        url: originalUrl,
-        clickedAt: new Date()
-      };
-      
-      if (!recipient.clicks) recipient.clicks = [];
-      recipient.clicks.push(clickData);
-      
-      // Update unique clicks count
-      const uniqueUrls = new Set(recipient.clicks.map(c => c.url));
-      recipient.uniqueClicks = uniqueUrls.size;
-      
-      campaign.stats.clicked += 1;
-      await campaign.save();
+      const now = new Date();
+      const log = await EmailCampaignRecipientLog.findOne({ campaignId, recipientToken });
+
+      if (log) {
+        const clicks = Array.isArray(log.clicks) ? [...log.clicks] : [];
+        clicks.push({ url: originalUrl, clickedAt: now });
+        const previousUnique = log.uniqueClicks || 0;
+        const uniqueUrls = new Set(clicks.map(c => c.url));
+        const newUnique = uniqueUrls.size;
+
+        log.clicks = clicks;
+        log.uniqueClicks = newUnique;
+        log.lastClickedAt = now;
+        await log.save();
+
+        if (newUnique > previousUnique) {
+          await EmailCampaign.updateOne({ _id: campaignId }, { $inc: { 'stats.clicked': 1 } });
+        }
+      }
+
+      const resultIdx = campaign.results.findIndex(r => r.recipientToken === recipientToken);
+      if (resultIdx !== -1) {
+        const clicks = Array.isArray(campaign.results[resultIdx].clicks) ? campaign.results[resultIdx].clicks : [];
+        const prevUnique = campaign.results[resultIdx].uniqueClicks || 0;
+        clicks.push({ url: originalUrl, clickedAt: now });
+        campaign.results[resultIdx].clicks = clicks;
+        campaign.results[resultIdx].uniqueClicks = new Set(clicks.map(c => c.url)).size;
+        campaign.results[resultIdx].lastClickedAt = now;
+
+        if (campaign.results[resultIdx].uniqueClicks > prevUnique) {
+          campaign.stats.clicked += 1;
+        }
+
+        await campaign.save();
+      }
 
       // Redirect to original URL
       res.redirect(originalUrl);

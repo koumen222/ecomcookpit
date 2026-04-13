@@ -76,8 +76,8 @@ const buildStorefrontThemeVars = (store) => {
   const buttonStyle = String(design.buttonStyle || '').trim().toLowerCase();
   const configuredButton = design.ctaButtonColor || design.buttonColor || null;
 
-  let ctaBackground = configuredButton || '#ffffff';
-  let ctaText = configuredButton ? '#ffffff' : 'var(--s-primary)';
+  let ctaBackground = configuredButton || 'var(--s-primary)';
+  let ctaText = configuredButton ? '#ffffff' : '#ffffff';
   let ctaBorder = 'transparent';
 
   if (buttonStyle === 'outline') {

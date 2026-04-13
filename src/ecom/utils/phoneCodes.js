@@ -40,9 +40,16 @@ const CURRENCY_TO_CODE = {
   CDF:  '+243',  // Franc congolais
   NGN:  '+234',  // Naira
   GHS:  '+233',  // Cedi
+  GNF:  '+224',  // Franc guinéen → Guinée
   MAD:  '+212',  // Dirham
   TND:  '+216',  // Dinar tunisien
   DZD:  '+213',  // Dinar algérien
+  MGA:  '+261',  // Ariary → Madagascar
+  RWF:  '+250',  // Franc rwandais
+  KES:  '+254',  // Shilling kenyan
+  UGX:  '+256',  // Shilling ougandais
+  TZS:  '+255',  // Shilling tanzanien
+  ZAR:  '+27',   // Rand → Afrique du Sud
   EUR:  '+33',   // Euro → France par défaut
   USD:  '+1',
 };
