@@ -36,8 +36,6 @@ function buildProductCarouselImages(productData = {}, fallbackName = '') {
 
   const productName = productData.name || productData.title || fallbackName || 'Produit';
   const incomingImages = Array.isArray(productData.images) ? productData.images : [];
-  const socialProofImages = Array.isArray(productData.socialProofImages) ? productData.socialProofImages : [];
-  const peoplePhotos = Array.isArray(productData.peoplePhotos) ? productData.peoplePhotos : [];
   const beforeAfterImages = Array.isArray(productData.beforeAfterImages) && productData.beforeAfterImages.length > 0
     ? productData.beforeAfterImages
     : (productData.beforeAfterImage ? [productData.beforeAfterImage] : []);
@@ -57,14 +55,6 @@ function buildProductCarouselImages(productData = {}, fallbackName = '') {
 
   anglePosters.forEach((imageUrl, index) => {
     push(imageUrl, `${productName} — argument ${index + 1}`, 'angle-poster');
-  });
-
-  socialProofImages.forEach((image, index) => {
-    push(image, `${productName} — preuve sociale ${index + 1}`, 'social-proof');
-  });
-
-  peoplePhotos.forEach((image, index) => {
-    push(image, `${productName} — client ${index + 1}`, 'social-proof-lifestyle');
   });
 
   if (!output.length) {
