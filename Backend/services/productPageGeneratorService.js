@@ -531,9 +531,9 @@ Le champ "prompt_avant_apres" doit décrire un AVANT/APRÈS SPÉCIFIQUE à CE pr
   "angles": [
     {
       "titre_angle": "Phrase complète de 10-15 mots suivant l'étape de la méthode ${marketingApproach} — explique concrètement le bénéfice",
-      "explication": "3-4 phrases concrètes et persuasives adaptées à l'étape de la méthode ${marketingApproach}. Reste crédible et factuel.",
-      "message_principal": "1 phrase d'accroche mémorable spécifique à ce bénéfice",
-      "promesse": "La transformation concrète que l'utilisateur va vivre",
+      "explication": "4-6 phrases concrètes, fluides et persuasives adaptées à l'étape de la méthode ${marketingApproach}. Le texte doit être un peu développé, crédible, factuel et vraiment spécifique au produit.",
+      "message_principal": "1 phrase d'accroche mémorable spécifique à ce bénéfice, assez naturelle pour pouvoir être réutilisée dans la description",
+      "promesse": "La transformation concrète que l'utilisateur va vivre, formulée en 1 phrase un peu plus précise et tangible",
       "poster_url": ""
     }
   ],
@@ -649,7 +649,7 @@ Le champ "prompt_avant_apres" doit décrire un AVANT/APRÈS SPÉCIFIQUE à CE pr
 ⚠️ EXACTEMENT 5 angles, 4 bénéfices avec emojis, 4 raisons, 7 questions FAQ (avec réponses VISIBLES directement), 8 témoignages.
 ⚠️ benefits_bullets : EXACTEMENT 4 bénéfices DIRECTS avec emojis pertinents — texte simple, compréhensible, sans jargon. Toujours 4, jamais plus, jamais moins.
 ⚠️ problem_section.pain_points : 3 points de douleur CONCRETS et SPÉCIFIQUES à CE produit — jamais génériques.
-⚠️ solution_section.description : paragraphe persuasif 3-4 phrases, relie chaque douleur à un bénéfice du produit.
+⚠️ solution_section.description : paragraphe persuasif 4-6 phrases, relie chaque douleur à un bénéfice du produit.
 ⚠️ stats_bar : 3 stats crédibles et adaptées au produit (clients, résultats, garantie).
 ⚠️ hero_cta : bouton d'achat percutant, actionnable, 3-5 mots.
 ⚠️ urgency_badge : badge court et percutant pour déclencher l'urgence psychologique.

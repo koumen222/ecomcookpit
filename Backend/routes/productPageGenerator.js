@@ -55,6 +55,124 @@ function buildVisualPromptDirectives(visualPrefs = {}) {
   return '';
 }
 
+function getNicheDescriptionGraphicProfile(template = 'general') {
+  const profiles = {
+    beauty: {
+      referenceMood: 'premium skincare, cosmetic editorial boards, luxury beauty campaign layouts, ingredient ritual storytelling',
+      layoutFamilies: [
+        'clean beauty composition with one central product, soft rounded skincare cards, ingredient macros and elegant efficacy callouts',
+        'editorial beauty grid with portrait crop, product macro, texture panel and 2 to 3 premium benefit statements',
+        'luxury ritual storyboard with top beauty promise, middle serum or cream close-up, bottom transformation or usage sequence',
+        'refined split-screen with product hero on one side and skin result, ingredient or routine proof blocks on the other side',
+        'premium cosmetic poster with glowing model, oversized product, soft gradient panels and trust-building callout chips',
+      ],
+      peopleRule: 'If a person is present, compose them like a real premium skincare or beauty campaign subject: clean crop, elegant posture, believable grooming, no awkward cutout layering',
+      objectRule: 'If textures, drops or ingredients are shown, make them tactile, glossy and premium like a beauty brand visual board',
+      extraRules: [
+        'Prefer soft cosmetic gradients, refined white space and premium editorial balance rather than dense medical-looking boards',
+      ],
+    },
+    health: {
+      referenceMood: 'high-end supplement creatives, pharmacy-grade wellness boards, premium omega-3 and collagen campaign layouts, clean efficacy visuals, reassuring health campaign structure',
+      layoutFamilies: [
+        'central supplement jar or balm product with 3 to 4 rounded benefit cards around it, each tied to a concrete body result, body zone or active ingredient',
+        'premium modular health board with capsules, spoons, leaves, honey, herbs or ingredient zones, body-benefit icons and one clear reassurance panel',
+        'vertical supplement storyboard with top promise, middle ingredient or scientific proof section, lower usage guidance and bottom visible result section',
+        'split healthcare composition mixing one large product shot with clean efficacy blocks, result icons, dosage guidance and natural active callouts',
+        'conversion health poster with one dominant product, one authentic active person and several reassuring proof zones such as relief, mobility, vitality or anti-aging support',
+      ],
+      peopleRule: 'If a person is present, integrate them like a real wellness or supplement ad: healthy, credible, active, not theatrical and not like a random smiling stock portrait',
+      objectRule: 'If ingredients, capsules or body zones are shown, present them clearly with a clean scientific-meets-natural logic, never as random decorative elements',
+      extraRules: [
+        'For supplements, gels, balms, oils, capsules or wellness products, the visual should strongly resemble a premium nutraceutical or pharmacy ad rather than a generic ecommerce collage',
+        'Favor clean health-brand structures seen in top supplement creatives: hero packshot, ingredient proof tiles, body-zone benefit icons, dosage or routine strip, and one reassurance block',
+        'If the product format allows it, show believable premium support elements such as capsules, spoon dosage, botanical ingredients, molecular icons, measuring cues or body-zone indicators',
+        'Health visuals should feel clinically reassuring but still warm and sellable: clean whites or soft gradients, polished accent color, premium shadows, controlled iconography',
+        'When text is used, keep it short and ad-like: one strong promise, a few benefit labels, maybe one routine or usage cue, never a long paragraph inside the image',
+      ],
+    },
+    tech: {
+      referenceMood: 'premium gadget launch creatives, sleek product boards, interface-driven explainer layouts, structured performance marketing',
+      layoutFamilies: [
+        'hero product tech poster with feature cards orbiting the device or object, precision connectors and strong contrast hierarchy',
+        'structured spec grid with one large product render or photo, interface close-ups, feature icons and short proof modules',
+        'editorial launch storyboard with top attention hook, middle detail zooms, bottom performance or trust indicators',
+        'split composition balancing one dominant device shot with smaller feature panels, usage context and modern data-style callouts',
+        'performance-led tech ad board with dramatic hero angle, sleek shadows, clean spec blocks and premium badge treatments',
+      ],
+      peopleRule: 'If a person is present, place them in a believable premium usage context such as a desk, living room, workspace or commute scene, never as a generic smiling model',
+      objectRule: 'If UI, specs or technical highlights are shown, keep them crisp, minimal, modern and highly legible like a real launch creative',
+      extraRules: [],
+    },
+    fashion: {
+      referenceMood: 'fashion campaign editorials, lookbook ad boards, premium accessory showcases, style-first commercial layouts',
+      layoutFamilies: [
+        'fashion hero poster with one dominant product or accessory, 2 to 4 style cards and a strong editorial headline area',
+        'lookbook grid mixing product close-ups, full or half-body styling shots and short desirability callouts',
+        'editorial style storyboard with top attitude image, middle craft or material detail panel, bottom confidence or lifestyle block',
+        'split fashion composition with one statement subject shot and several clean premium product or texture panels',
+        'prestige fashion board with oversized product details, elegant spacing, premium chips and magazine-like hierarchy',
+      ],
+      peopleRule: 'If a person is present, treat them like part of a premium fashion campaign: intentional styling, strong but natural posture, polished crop, believable clothing logic',
+      objectRule: 'If material details or accessories are highlighted, make them tactile and luxurious with close-up realism and clean premium labeling',
+      extraRules: [],
+    },
+    home: {
+      referenceMood: 'premium household ads, organized utility boards, home-improvement benefit layouts, warm practical ecommerce creatives',
+      layoutFamilies: [
+        'home utility poster with one large product block and 3 to 4 rounded practical benefit cards showing solved household problems',
+        'organized home grid with room context, product close-up, before versus after panel and reassuring result statements',
+        'vertical household storyboard with top problem scene, middle product-in-action proof, bottom freshness or ease-of-use reassurance',
+        'split composition mixing one dominant product scene with smaller practical usage panels, icons and room-specific callouts',
+        'premium domestic conversion board with authentic user, real room context and neat practical proof blocks',
+      ],
+      peopleRule: 'If a person is present, integrate them in a believable domestic environment solving a real household issue, not posing like a beauty ad',
+      objectRule: 'If room zones, surfaces or practical results are shown, make them concrete and legible so the visual instantly explains the household benefit',
+      extraRules: [],
+    },
+    general: {
+      referenceMood: 'premium ecommerce ad creatives, marketplace-ready conversion posters, polished product explainer boards',
+      layoutFamilies: [
+        'central hero product with 3 to 4 rounded benefit cards placed around it, clear directional connectors, one dominant focal point',
+        'premium modular grid with 4 to 6 panels, alternating product close-ups, benefit icons, usage scene and short proof statements',
+        'editorial vertical storyboard with top attention zone, middle proof or ingredient zone, and bottom reassurance or usage zone',
+        'split composition mixing one large product block and smaller information blocks with strong spacing, clean rhythm and premium hierarchy',
+        'conversion poster layout with one oversized product shot, one authentic human subject, and several structured callout zones that explain the promise',
+      ],
+      peopleRule: 'If a person is present, integrate the person as part of the advertising composition in a polished way: real commercial photography, believable crop, no awkward pasted cutout feeling',
+      objectRule: 'If ingredients or active components are shown, present them like a premium brand board: clean grouping, macro realism, neat labels or callouts, no random scattered objects',
+      extraRules: [],
+    },
+  };
+
+  return profiles[template] || profiles.general;
+}
+
+function buildProfessionalDescriptionGraphicRules(slotIndex = 0, template = 'general', visualPrefs = {}) {
+  const brandColor = resolveBrandColor(visualPrefs, template);
+  const profile = getNicheDescriptionGraphicProfile(template);
+  const selectedLayout = profile.layoutFamilies[slotIndex % profile.layoutFamilies.length];
+  const extraRules = (profile.extraRules || []).map((rule) => `• ${rule}`).join('\n');
+
+  return `
+
+═══ PROFESSIONAL DESCRIPTION GRAPHICS — MANDATORY ═══
+• These description visuals must look like PREMIUM ecommerce ad creatives designed by a senior graphic designer, not generic AI collages
+• Niche-specific premium reference mood for this product: ${profile.referenceMood}
+• Use the visual language that matches this niche, not a one-size-fits-all graphic style
+• Preferred structural direction for this visual: ${selectedLayout}
+• The design may borrow PROFESSIONAL advertising grammar from reference-style creatives such as: centered product hero with surrounding benefit boxes, premium panel grid, magazine-like editorial blocks, ingredient callouts, transformation sections, usage demonstration panels, reassurance badges
+• Do NOT copy one exact layout. Use that professional structure language while creating a new composition specific to this product
+• The product must stay visually dominant. Supporting panels, icons, ingredients, people and proof blocks must reinforce the product instead of competing with it
+• Keep the layout easy to scan on mobile: bold focal point, 2 to 5 short text zones maximum, clear reading path, no clutter
+• Typography must feel premium and commercial: bold headline hierarchy, short claims, strong spacing, clean alignment, no tiny unreadable text
+• Graphic elements must feel intentional and polished: rounded cards, soft shadows, subtle gradients, clean separators, premium badge treatment, elegant arrows or dotted connectors only when useful
+• ${profile.peopleRule}
+• ${profile.objectRule}
+${extraRules ? `${extraRules}\n` : ''}• Use the brand color ${brandColor} as the main accent color for key badges, dividers, icons or highlight panels while preserving a refined overall palette
+• The final result must feel export-ready for a paid social ad or marketplace creative, not like a draft, a flyer, or a cheap Canva template`;
+}
+
 function buildHumanPhotoRealismRules() {
   return `
 
@@ -348,7 +466,7 @@ Style: clean, educational, modern, easy to understand, premium, trustworthy.
 Colors must match this website / brand color: ${brandColor}.
 French text only. Perfect spelling. No fake stock-photo feel. No price, no phone number, no URL, no watermark.
 The design structure must be chosen dynamically by the AI according to the product. Do not use a repeated template.
-${buildArtDirectionProfile(1, gptResult, template, visualPrefs, 'benefits explanation image')}${buildDynamicDesignRules(gptResult, template, visualPrefs, 'benefits explanation image')}${buildHumanPhotoRealismRules()}${buildVisualPromptDirectives(visualPrefs)}`;
+${buildArtDirectionProfile(1, gptResult, template, visualPrefs, 'benefits explanation image')}${buildDynamicDesignRules(gptResult, template, visualPrefs, 'benefits explanation image')}${buildProfessionalDescriptionGraphicRules(0, template, visualPrefs)}${buildHumanPhotoRealismRules()}${buildVisualPromptDirectives(visualPrefs)}`;
 }
 
 function buildSocialProofCollagePrompt(gptResult, template = 'general', visualPrefs = {}) {
@@ -369,7 +487,7 @@ Style: UGC, authentic, trust-building, realistic, premium but natural.
 Background must match brand identity and website color: ${brandColor}.
 No stock-photo feeling, no exaggerated poses, no fake hands, no watermark, no phone number, no URL.
 The AI must decide the most convincing collage or group composition dynamically for this product instead of reusing the same layout.
-${buildArtDirectionProfile(2, gptResult, template, visualPrefs, 'social proof and trust image')}${buildDynamicDesignRules(gptResult, template, visualPrefs, 'social proof and trust image')}${buildHumanPhotoRealismRules()}${buildVisualPromptDirectives(visualPrefs)}`;
+${buildArtDirectionProfile(2, gptResult, template, visualPrefs, 'social proof and trust image')}${buildDynamicDesignRules(gptResult, template, visualPrefs, 'social proof and trust image')}${buildProfessionalDescriptionGraphicRules(1, template, visualPrefs)}${buildHumanPhotoRealismRules()}${buildVisualPromptDirectives(visualPrefs)}`;
 }
 
 /**
@@ -455,7 +573,7 @@ ${buildArtDirectionProfile(slideIndex + 3, gptResult, template, visualPrefs, mar
     supportText: angleExplication,
     promise: anglePromesse,
     bullets: benefits.slice(0, 4),
-  })}${buildVisualPromptDirectives(visualPrefs)}`;
+  })}${buildProfessionalDescriptionGraphicRules(slideIndex + 2, template, visualPrefs)}${buildVisualPromptDirectives(visualPrefs)}`;
 }
 
 function buildFlashPrompts(gptResult, hasProductRef, method = 'PAS', template = 'general', visualPrefs = {}) {
@@ -498,7 +616,7 @@ ${plan?.artDirection || buildArtDirectionProfile(slideIndex + 3, gptResult, temp
     supportText: angleExplication,
     promise: anglePromesse,
     bullets: gptResult.benefits_bullets || [],
-  })}${buildVisualPromptDirectives(visualPrefs)}`;
+  })}${buildProfessionalDescriptionGraphicRules(slideIndex + 2, template, visualPrefs)}${buildVisualPromptDirectives(visualPrefs)}`;
 }
 
 /**

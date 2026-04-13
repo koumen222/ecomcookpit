@@ -19,6 +19,8 @@ import ecomApi from '../services/ecommApi';
 import { useEcomAuth } from '../hooks/useEcomAuth';
 import { useStore } from '../contexts/StoreContext.jsx';
 
+const TODAY_AUTO_REFRESH_MS = 15000;
+
 const startOfDay = (date) => {
   const next = new Date(date);
   next.setHours(0, 0, 0, 0);
@@ -52,6 +54,7 @@ const formatRangeLabel = (start, end) => {
 
 const getPresetSelection = (key, referenceDate = new Date()) => {
   const todayStart = startOfDay(referenceDate);
+  const now = new Date(referenceDate);
   const todayEnd = endOfDay(referenceDate);
 
   switch (key) {
@@ -60,7 +63,7 @@ const getPresetSelection = (key, referenceDate = new Date()) => {
         key,
         type: 'range',
         start: todayStart,
-        end: todayEnd,
+        end: now,
         period: 'today',
         label: "Aujourd'hui",
       };
@@ -129,8 +132,25 @@ export default function StoreDashboard() {
   const [dateRange, setDateRange] = useState(null);
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [periodLabel, setPeriodLabel] = useState('7 derniers jours');
+  const isTodayActive = period === 'today' || dateRange?.period === 'today';
 
   useEffect(() => { loadDashboard(!dashboardData); }, [period, dateRange, workspace, activeStore?._id]);
+
+  useEffect(() => {
+    if (!isTodayActive) return undefined;
+
+    const refreshTodayStats = () => {
+      if (document.visibilityState === 'visible') loadDashboard(false);
+    };
+
+    const intervalId = window.setInterval(refreshTodayStats, TODAY_AUTO_REFRESH_MS);
+    window.addEventListener('focus', refreshTodayStats);
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener('focus', refreshTodayStats);
+    };
+  }, [isTodayActive, workspace?._id, activeStore?._id, dateRange]);
 
   const loadDashboard = async (isInitial) => {
     try {
@@ -183,7 +203,8 @@ export default function StoreDashboard() {
 
   const applyCustomRange = (start, end, options = {}) => {
     const normalizedStart = startOfDay(start);
-    const normalizedEnd = endOfDay(end);
+    const isTodaySelection = isSameCalendarDay(end, new Date());
+    const normalizedEnd = isTodaySelection ? new Date() : endOfDay(end);
     let derivedPeriod = 'custom';
     if (isSameCalendarDay(normalizedStart, normalizedEnd)) {
       if (isSameCalendarDay(normalizedStart, new Date())) derivedPeriod = 'today';
