@@ -208,24 +208,15 @@ Rules:
 - Final result should look like a real finished brand logo proposal, not clipart`;
 }
 
-async function generateLogoOptions({ storeName, productType, themeColor, tone }) {
-  const variants = ['wordmark', 'emblem', 'monogram'];
-  const results = await Promise.allSettled(
-    variants.map(async (variant) => {
-      const prompt = buildLogoPrompt({ storeName, productType, themeColor, tone, variant });
-      const tempUrl = await generateNanoBananaImage(prompt, '1:1');
-      const buffer = await downloadImageBuffer(tempUrl);
-      const uploaded = await uploadToR2(buffer, `store-logo-${variant}-${Date.now()}.jpg`, 'image/jpeg');
-      return {
-        variant,
-        url: uploaded?.success ? uploaded.url : tempUrl,
-      };
-    })
-  );
-
-  return results
-    .filter((entry) => entry.status === 'fulfilled' && entry.value?.url)
-    .map((entry) => entry.value);
+async function generateLogoOption({ storeName, productType, themeColor, tone, variant = 'wordmark' }) {
+  const prompt = buildLogoPrompt({ storeName, productType, themeColor, tone, variant });
+  const tempUrl = await generateNanoBananaImage(prompt, '1:1');
+  const buffer = await downloadImageBuffer(tempUrl);
+  const uploaded = await uploadToR2(buffer, `store-logo-${variant}-${Date.now()}.jpg`, 'image/jpeg');
+  return {
+    variant,
+    url: uploaded?.success ? uploaded.url : tempUrl,
+  };
 }
 
 /**
@@ -786,7 +777,7 @@ router.get('/config', requireEcomAuth, requireWorkspace, async (req, res) => {
 
 /**
  * POST /store-manage/generate-logos
- * Generate 3 square logo proposals for the store creation wizard.
+ * Generate a single square logo proposal for the store creation wizard.
  */
 router.post('/generate-logos', requireEcomAuth, requireWorkspace, async (req, res) => {
   try {
@@ -795,27 +786,29 @@ router.post('/generate-logos', requireEcomAuth, requireWorkspace, async (req, re
       productType = 'autre',
       themeColor = '#0F6B4F',
       tone = '',
+      variant = 'wordmark',
     } = req.body || {};
 
     if (!String(storeName || '').trim()) {
       return res.status(400).json({ success: false, message: 'Le nom de la boutique est requis.' });
     }
 
-    const logos = await generateLogoOptions({
+    const logo = await generateLogoOption({
       storeName: String(storeName).trim().slice(0, 80),
       productType,
       themeColor: String(themeColor || '#0F6B4F').trim().slice(0, 20),
       tone: String(tone || '').trim().slice(0, 40),
+      variant: String(variant || 'wordmark').trim().slice(0, 40),
     });
 
-    if (!logos.length) {
-      return res.status(500).json({ success: false, message: 'Impossible de générer des logos pour le moment.' });
+    if (!logo?.url) {
+      return res.status(500).json({ success: false, message: 'Impossible de générer un logo pour le moment.' });
     }
 
-    return res.json({ success: true, data: logos });
+    return res.json({ success: true, data: logo });
   } catch (error) {
     console.error('Erreur POST /store-manage/generate-logos:', error.message);
-    return res.status(500).json({ success: false, message: 'Erreur lors de la génération des logos.' });
+    return res.status(500).json({ success: false, message: 'Erreur lors de la génération du logo.' });
   }
 });
 

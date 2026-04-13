@@ -1,8 +1,9 @@
 ﻿import React, { useState, useEffect, useRef } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { useEcomAuth } from '../hooks/useEcomAuth';
 import { useMoney } from '../hooks/useMoney.js';
 import ecomApi from '../services/ecommApi.js';
+import { useStore } from '../contexts/StoreContext.jsx';
 
 const ChartContent = React.memo(({ data, selectedMetric, fmt }) => {
   if (!data || data.length === 0) {
@@ -155,10 +156,10 @@ const DashboardSkeleton = () => (
 );
 
 const AdminDashboard = () => {
-  const { user } = useEcomAuth();
+  const { user, workspace } = useEcomAuth();
   const { fmt } = useMoney();
+  const { stores, loading: storesLoading } = useStore();
   const navigate = useNavigate();
-  const [storeChecked, setStoreChecked] = useState(true);
   const [loadingKpi, setLoadingKpi] = useState(true);   // Phase 1 : KPIs
   const [loadingSecondary, setLoadingSecondary] = useState(true); // Phase 2 : reste
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -677,9 +678,13 @@ const AdminDashboard = () => {
     }
   ];
 
-  // Attendre la vérification des stores avant d'afficher le dashboard
-  if (!storeChecked) {
+  // Attendre le chargement de l'état boutique avant d'afficher le dashboard.
+  if (storesLoading) {
     return <DashboardSkeleton />;
+  }
+
+  if (workspace?._id && stores.length === 0) {
+    return <Navigate to="/ecom/boutique/wizard" replace state={{ from: '/ecom/dashboard/admin' }} />;
   }
 
   // Si pas de workspace — afficher CTA (ici pour respecter les Rules of Hooks)

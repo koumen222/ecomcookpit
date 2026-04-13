@@ -564,7 +564,7 @@ const EcomApp = () => {
 
               {/* Routes protégées avec layout */}
               <Route path="/ecom/dashboard" element={<DashboardRedirect />} />
-              <Route path="/ecom/dashboard/admin" element={<LayoutRoute requiredRole="ecom_admin"><AdminDashboard /></LayoutRoute>} />
+              <Route path="/ecom/dashboard/admin" element={<StoreProvider><LayoutRoute requiredRole="ecom_admin"><AdminDashboard /></LayoutRoute></StoreProvider>} />
               <Route path="/ecom/dashboard/closeuse" element={<LayoutRoute requiredRole="ecom_closeuse"><CloseuseDashboard /></LayoutRoute>} />
               <Route path="/ecom/commissions" element={<LayoutRoute requiredRole="ecom_closeuse"><Commissions /></LayoutRoute>} />
               <Route path="/ecom/dashboard/compta" element={<LayoutRoute requiredRole="ecom_compta"><ComptaDashboard /></LayoutRoute>} />

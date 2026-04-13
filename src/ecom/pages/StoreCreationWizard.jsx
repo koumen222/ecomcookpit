@@ -3,8 +3,8 @@ import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useStore } from '../contexts/StoreContext.jsx';
 import {
   Check, ArrowRight, ArrowLeft, Loader2, Store, Palette, MapPin,
-  Sparkles, Users, MessageSquare, ChevronRight, Zap, Crown,
-  Leaf, Target, TrendingUp, Heart, Globe2, Phone, Upload, X, Wand2, RefreshCw
+  Sparkles, MessageSquare, ChevronRight, Zap,
+  Globe2, Phone, Upload, X, Wand2, RefreshCw
 } from 'lucide-react';
 import { storeManageApi, storesApi } from '../services/storeApi.js';
 import { storeProductsApi } from '../services/storeApi.js';
@@ -23,67 +23,6 @@ const PRODUCT_TYPES = [
   { value: 'sante', label: 'Bien-être & Santé', desc: 'Compléments, produits naturels' },
   { value: 'enfants', label: 'Enfants & Bébés', desc: 'Jouets, vêtements enfants' },
   { value: 'autre', label: 'Autre catégorie', desc: 'Produits divers' },
-];
-
-// ── AUDIENCE STRUCTURÉE ─────────────────────────────────────────────────────────
-const AUDIENCE = {
-  gender: {
-    label: 'Genre',
-    multiSelect: true,
-    options: [
-      { value: 'femmes', label: 'Femmes' },
-      { value: 'hommes', label: 'Hommes' },
-      { value: 'enfants', label: 'Enfants' },
-      { value: 'mixte', label: 'Tous' },
-    ]
-  },
-  ageRange: {
-    label: 'Tranche d\'âge',
-    multiSelect: true,
-    options: [
-      { value: '18-25', label: '18-25 ans' },
-      { value: '25-35', label: '25-35 ans' },
-      { value: '35-50', label: '35-50 ans' },
-      { value: '50+', label: '50+' },
-      { value: 'tous', label: 'Tous âges' },
-    ]
-  },
-  region: {
-    label: 'Zone géographique',
-    multiSelect: true,
-    options: [
-      { value: 'cameroun', label: 'Cameroun' },
-      { value: 'afrique-centrale', label: 'Afrique Centrale' },
-      { value: 'afrique-ouest', label: 'Afrique de l\'Ouest' },
-      { value: 'maghreb', label: 'Maghreb' },
-      { value: 'europe', label: 'Europe' },
-      { value: 'amerique', label: 'Amérique' },
-      { value: 'diaspora', label: 'Diaspora africaine' },
-      { value: 'international', label: 'International' },
-    ]
-  },
-  origin: {
-    label: 'Origine / Culture (optionnel)',
-    multiSelect: true,
-    options: [
-      { value: 'africaine', label: 'Africaine' },
-      { value: 'afro-diaspora', label: 'Afro-diaspora' },
-      { value: 'europeenne', label: 'Européenne' },
-      { value: 'arabe', label: 'Arabe' },
-      { value: 'asiatique', label: 'Asiatique' },
-      { value: 'mixte', label: 'Multiculturelle' },
-      { value: 'autre', label: 'Autre' },
-    ]
-  }
-};
-
-const TONES = [
-  { value: 'premium', label: 'Premium & Luxe', icon: Crown, color: '#D4AF37', desc: 'Élégance, exclusivité, raffinement', gradient: 'from-amber-500 to-yellow-600' },
-  { value: 'naturel', label: 'Naturel & Authentique', icon: Leaf, color: '#22C55E', desc: 'Bio, écologique, bien-être', gradient: 'from-green-500 to-emerald-600' },
-  { value: 'dynamique', label: 'Moderne & Dynamique', icon: Zap, color: '#8B5CF6', desc: 'Énergique, innovant, jeune', gradient: 'from-violet-500 to-purple-600' },
-  { value: 'confiance', label: 'Pro & Confiance', icon: Target, color: '#3B82F6', desc: 'Sérieux, fiable, expert', gradient: 'from-blue-500 to-indigo-600' },
-  { value: 'tendance', label: 'Tendance & Viral', icon: TrendingUp, color: '#F43F5E', desc: 'Hype, influenceur, buzz', gradient: 'from-rose-500 to-pink-600' },
-  { value: 'chaleureux', label: 'Chaleureux & Proche', icon: Heart, color: '#F97316', desc: 'Familial, accessible, sympathique', gradient: 'from-orange-500 to-amber-600' },
 ];
 
 const CURRENCIES = [
@@ -123,11 +62,9 @@ const COLORS = [
 ];
 
 const STEPS = [
-  { num: 1, title: 'Votre boutique', subtitle: 'Nom et type de produits' },
+  { num: 1, title: 'Votre boutique', subtitle: 'Nom, URL et catégorie' },
   { num: 2, title: 'Votre identité', subtitle: 'Logo et couleurs' },
-  { num: 3, title: 'Votre audience', subtitle: 'Cible et style de communication' },
-  { num: 4, title: 'Vos coordonnées', subtitle: 'Contact et localisation' },
-  { num: 5, title: 'Finalisez', subtitle: 'Description et génération' },
+  { num: 3, title: 'Finalisez', subtitle: 'Coordonnées et création' },
 ];
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -272,85 +209,6 @@ const SelectableCard = ({ selected, onClick, children, className = '' }) => (
   </button>
 );
 
-const MultiSelectChip = ({ selected, onClick, children, color }) => (
-  <button
-    type="button"
-    onClick={onClick}
-    className={`
-      px-4 py-2.5 rounded-full border-2 font-medium text-sm transition-all duration-200
-      ${selected
-        ? 'border-gray-900 bg-gray-900 text-white shadow-lg'
-        : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50'
-      }
-    `}
-  >
-    {children}
-  </button>
-);
-
-const MultiSelectDropdown = ({ label, options, values = [], onChange, error }) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const dropdownRef = useRef(null);
-
-  useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
-        setIsOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  const toggle = (val) => {
-    if (values.includes(val)) {
-      onChange(values.filter(v => v !== val));
-    } else {
-      onChange([...values, val]);
-    }
-  };
-
-  const selectedLabels = values.map(v => options.find(o => o.value === v)?.label).filter(Boolean);
-
-  return (
-    <div className="relative" ref={dropdownRef}>
-      <button
-        type="button"
-        onClick={() => setIsOpen(!isOpen)}
-        className={`w-full px-4 py-3 bg-gray-50 border-2 rounded-xl text-left text-sm font-medium flex items-center justify-between transition-all ${
-          error ? 'border-red-300' : isOpen ? 'border-gray-900 bg-white' : 'border-transparent hover:bg-gray-100'
-        }`}
-      >
-        <span className={values.length === 0 ? 'text-gray-400' : 'text-gray-900'}>
-          {values.length === 0 ? `Sélectionner ${label.toLowerCase()}` : selectedLabels.join(', ')}
-        </span>
-        <ChevronRight className={`w-4 h-4 text-gray-400 transition-transform ${isOpen ? 'rotate-90' : ''}`} />
-      </button>
-
-      {isOpen && (
-        <div className="absolute z-50 w-full mt-2 bg-white border border-gray-200 rounded-xl shadow-xl max-h-64 overflow-y-auto">
-          {options.map(opt => (
-            <label
-              key={opt.value}
-              className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 cursor-pointer transition"
-            >
-              <input
-                type="checkbox"
-                checked={values.includes(opt.value)}
-                onChange={() => toggle(opt.value)}
-                className="w-4 h-4 text-gray-900 rounded border-gray-300 focus:ring-2 focus:ring-gray-900"
-              />
-              <span className="text-sm font-medium text-gray-700">{opt.label}</span>
-            </label>
-          ))}
-        </div>
-      )}
-
-      {error && <p className="mt-1 text-xs text-red-600 font-medium">{error}</p>}
-    </div>
-  );
-};
-
 const Input = ({ label, hint, error, icon: Icon, ...props }) => (
   <div className="space-y-2">
     {label && <label className="block text-sm font-semibold text-gray-800">{label}</label>}
@@ -410,6 +268,7 @@ const StoreCreationWizard = ({ onComplete }) => {
   const [saving, setSaving] = useState(false);
   const [savingStep, setSavingStep] = useState('');
   const [generationStep, setGenerationStep] = useState(null); // key from GENERATION_STEPS
+  const [creationResult, setCreationResult] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isEditMode, setIsEditMode] = useState(false);
   const [errors, setErrors] = useState({});
@@ -418,14 +277,6 @@ const StoreCreationWizard = ({ onComplete }) => {
     storeName: '',
     subdomain: '',
     productType: '',
-    // Audience structurée (multi-sélection)
-    audience: {
-      gender: [],
-      ageRange: [],
-      region: [],
-      origin: [],
-    },
-    tone: '',
     storeLogo: '',
     themeColor: '#0F6B4F',
     storeWhatsApp: '',
@@ -439,9 +290,8 @@ const StoreCreationWizard = ({ onComplete }) => {
   const [originalSubdomain, setOriginalSubdomain] = useState('');
   const [logoUploading, setLogoUploading] = useState(false);
   const [logoPreview, setLogoPreview] = useState(null);
-  const [generatedLogos, setGeneratedLogos] = useState([]);
+  const [generatedLogo, setGeneratedLogo] = useState(null);
   const [logoGenerating, setLogoGenerating] = useState(false);
-  const autoGeneratedLogoRef = useRef(false);
   const debounceRef = useRef(null);
   const containerRef = useRef(null);
 
@@ -482,8 +332,6 @@ const StoreCreationWizard = ({ onComplete }) => {
             storeName: s.storeName || '',
             subdomain: existingSub,
             productType: s.productType || '',
-            audience: s.audience || { gender: [], ageRange: [], region: [], origin: [] },
-            tone: s.tone || '',
             storeLogo: s.storeLogo || '',
             themeColor: s.storeThemeColor || '#0F6B4F',
             storeWhatsApp: s.storeWhatsApp || '',
@@ -531,38 +379,18 @@ const StoreCreationWizard = ({ onComplete }) => {
       .slice(0, 30);
 
   const handleStoreName = (val) => {
-    const hasGeneratedSelection = generatedLogos.some((logo) => logo.url === form.storeLogo);
+    const hasGeneratedSelection = generatedLogo?.url === form.storeLogo;
     set('storeName', val);
     if (!form.subdomain || form.subdomain === slugify(form.storeName)) {
       set('subdomain', slugify(val));
     }
     if (val.trim() !== String(form.storeName || '').trim()) {
-      setGeneratedLogos([]);
-      autoGeneratedLogoRef.current = false;
+      setGeneratedLogo(null);
       if (hasGeneratedSelection) {
         setLogoPreview(null);
         set('storeLogo', '');
       }
     }
-  };
-
-  const setAudience = (key, val) => {
-    const currentValues = form.audience[key] || [];
-    let newValues;
-
-    if (currentValues.includes(val)) {
-      // Retirer si déjà sélectionné
-      newValues = currentValues.filter(v => v !== val);
-    } else {
-      // Ajouter si pas encore sélectionné
-      newValues = [...currentValues, val];
-    }
-
-    setForm(p => ({
-      ...p,
-      audience: { ...p.audience, [key]: newValues }
-    }));
-    setErrors(p => ({ ...p, [key]: '' }));
   };
 
   // ── Vérification subdomain ────────────────────────────────────────────────────
@@ -588,8 +416,7 @@ const StoreCreationWizard = ({ onComplete }) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setLogoUploading(true);
-    setGeneratedLogos([]);
-    autoGeneratedLogoRef.current = true;
+    setGeneratedLogo(null);
     setLogoPreview(URL.createObjectURL(file));
     try {
       const res = await storeProductsApi.uploadImages([file]);
@@ -602,7 +429,7 @@ const StoreCreationWizard = ({ onComplete }) => {
     }
   };
 
-  const handleGenerateLogos = async () => {
+  const handleGenerateLogo = async () => {
     if (!form.storeName.trim()) {
       setErrors((prev) => ({ ...prev, storeName: 'Donnez un nom à votre boutique avant de générer un logo' }));
       return;
@@ -615,14 +442,13 @@ const StoreCreationWizard = ({ onComplete }) => {
         storeName: form.storeName,
         productType: form.productType,
         themeColor: form.themeColor,
-        tone: form.tone,
+        variant: 'wordmark',
       });
-      const logos = res.data?.data || [];
-      setGeneratedLogos(logos);
-      autoGeneratedLogoRef.current = true;
-      if (!form.storeLogo && logos[0]?.url) {
-        set('storeLogo', logos[0].url);
-        setLogoPreview(logos[0].url);
+      const logo = res.data?.data || null;
+      setGeneratedLogo(logo);
+      if (logo?.url) {
+        set('storeLogo', logo.url);
+        setLogoPreview(logo.url);
       }
     } catch (error) {
       setErrors((prev) => ({ ...prev, storeLogo: error.response?.data?.message || 'Erreur lors de la génération du logo' }));
@@ -630,14 +456,6 @@ const StoreCreationWizard = ({ onComplete }) => {
       setLogoGenerating(false);
     }
   };
-
-  useEffect(() => {
-    if (step !== 2) return;
-    if (form.storeLogo || logoPreview || generatedLogos.length > 0 || logoGenerating) return;
-    if (!form.storeName.trim()) return;
-    if (autoGeneratedLogoRef.current) return;
-    handleGenerateLogos();
-  }, [step, form.storeLogo, logoPreview, generatedLogos.length, logoGenerating, form.storeName]);
 
   // ── Validation ────────────────────────────────────────────────────────────────
   const validate = (skipping = false) => {
@@ -648,15 +466,6 @@ const StoreCreationWizard = ({ onComplete }) => {
       if (subdomainStatus === 'taken') e.subdomain = 'Cette URL est déjà utilisée';
       // productType is optional — defaults will be used
     }
-    // Steps 2-4: skip validation if user chose to skip
-    if (!skipping) {
-      if (step === 2) {
-        // All audience fields are now optional
-      }
-      if (step === 4) {
-        // WhatsApp is now optional — can be added later
-      }
-    }
     // Étape 5 : pas de validation obligatoire, description optionnelle
     setErrors(e);
     return Object.keys(e).length === 0;
@@ -664,13 +473,13 @@ const StoreCreationWizard = ({ onComplete }) => {
 
   const next = () => {
     if (validate()) {
-      setStep(s => Math.min(5, s + 1));
+      setStep(s => Math.min(STEPS.length, s + 1));
       containerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
     }
   };
 
   const skip = () => {
-    setStep(s => Math.min(5, s + 1));
+    setStep(s => Math.min(STEPS.length, s + 1));
     containerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -724,8 +533,6 @@ const StoreCreationWizard = ({ onComplete }) => {
         storeWhatsApp: form.storeWhatsApp,
         isStoreEnabled: true,
         productType: form.productType,
-        audience: form.audience,
-        tone: form.tone,
         city: form.city,
         country: form.country,
       });
@@ -748,8 +555,6 @@ const StoreCreationWizard = ({ onComplete }) => {
             storeDescription: form.storeDescription,
             productType: form.productType,
             productDescription: form.productDescription,
-            tone: form.tone,
-            audience: form.audience,
             city: form.city,
             country: form.country,
             storeWhatsApp: form.storeWhatsApp,
@@ -781,15 +586,14 @@ const StoreCreationWizard = ({ onComplete }) => {
         }
       }
 
-      // Laisser voir le message de succès 2.5s puis rediriger
       const storeUrl = `https://${form.subdomain}.scalor.net`;
-      await new Promise(r => setTimeout(r, 2500));
-
-      window.open(storeUrl, '_blank', 'noopener,noreferrer');
       const fallbackPath = !isEditMode && !isNewStoreMode ? '/ecom/dashboard/admin' : '/ecom/boutique';
       const requestedPath = typeof location.state?.from === 'string' ? location.state.from : '';
       const nextPath = requestedPath.startsWith('/ecom/dashboard') ? requestedPath : fallbackPath;
-      navigate(nextPath, { replace: true });
+      setCreationResult({
+        storeUrl,
+        nextPath,
+      });
     } catch (err) {
       setErrors({ submit: err.response?.data?.message || 'Une erreur est survenue' });
     } finally {
@@ -806,6 +610,48 @@ const StoreCreationWizard = ({ onComplete }) => {
         <div className="flex flex-col items-center gap-4">
           <div className="w-12 h-12 border-4 border-gray-200 border-t-gray-900 rounded-full animate-spin" />
           <p className="text-gray-600 font-medium">Chargement...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (creationResult) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-emerald-50/40 flex items-center justify-center px-6">
+        <div className="max-w-xl w-full">
+          <Card className="p-8 sm:p-10 text-center">
+            <div className="inline-flex items-center justify-center w-20 h-20 rounded-3xl bg-gradient-to-br from-emerald-500 to-teal-600 shadow-lg shadow-emerald-500/30 mb-6">
+              <Check className="w-10 h-10 text-white" />
+            </div>
+            <h1 className="text-3xl font-black text-gray-900 mb-3">Votre boutique a ete creee</h1>
+            <p className="text-gray-500 mb-6">
+              Votre boutique est prete. Vous pouvez l'ouvrir maintenant ou revenir a votre espace d'administration.
+            </p>
+
+            <div className="rounded-2xl bg-gray-50 border border-gray-100 p-4 mb-8">
+              <p className="text-xs text-gray-500 mb-1">Adresse de votre boutique</p>
+              <p className="font-mono text-sm font-bold text-emerald-600 break-all">{creationResult.storeUrl}</p>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-stretch justify-center gap-3">
+              <a
+                href={creationResult.storeUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center gap-2 px-6 py-3.5 text-sm font-bold text-white bg-gradient-to-r from-emerald-500 to-teal-600 rounded-xl hover:from-emerald-600 hover:to-teal-700 transition shadow-lg shadow-emerald-500/30"
+              >
+                <Globe2 className="w-4 h-4" />
+                Voir la boutique
+              </a>
+              <button
+                type="button"
+                onClick={() => navigate(creationResult.nextPath, { replace: true })}
+                className="inline-flex items-center justify-center gap-2 px-6 py-3.5 text-sm font-bold text-gray-700 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition"
+              >
+                Retour au tableau de bord
+              </button>
+            </div>
+          </Card>
         </div>
       </div>
     );
@@ -833,7 +679,7 @@ const StoreCreationWizard = ({ onComplete }) => {
             </button>
             <div className="text-center">
               <p className="text-xs font-bold text-emerald-600 uppercase tracking-wider">
-                {isEditMode ? 'Modification' : `Étape ${step}/5`}
+                {isEditMode ? 'Modification' : `Étape ${step}/${STEPS.length}`}
               </p>
               <h2 className="text-sm font-bold text-gray-900">{STEPS[step - 1].title}</h2>
             </div>
@@ -848,7 +694,7 @@ const StoreCreationWizard = ({ onComplete }) => {
               <div className="w-16" />
             )}
           </div>
-          <ProgressBar current={step} total={5} />
+          <ProgressBar current={step} total={STEPS.length} />
         </div>
       </div>
 
@@ -938,32 +784,31 @@ const StoreCreationWizard = ({ onComplete }) => {
                 <Palette className="w-8 h-8 text-white" />
               </div>
               <h1 className="text-2xl font-black text-gray-900">Choisissez votre logo maintenant</h1>
-              <p className="text-gray-500">Dès le nom validé, l'IA prépare des propositions de logo pour votre boutique</p>
+              <p className="text-gray-500">Ajoutez un logo puis choisissez la couleur principale de votre boutique</p>
             </div>
 
             <Card className="p-6 space-y-6">
               <div className="space-y-3">
                 <label className="block text-sm font-semibold text-gray-800">Logo de votre boutique</label>
-                <p className="text-xs text-gray-500">Importez votre logo ou laissez l'IA générer 3 propositions carrées et propres à partir du nom de votre boutique.</p>
+                <p className="text-xs text-gray-500">Importez votre logo ou cliquez pour générer une seule proposition IA à partir du nom de votre boutique.</p>
 
                 <div className="flex flex-wrap gap-3">
                   <button
                     type="button"
-                    onClick={handleGenerateLogos}
+                    onClick={handleGenerateLogo}
                     disabled={logoGenerating || !form.storeName.trim()}
                     className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-900 text-white text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {logoGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wand2 className="w-4 h-4" />}
-                    {generatedLogos.length > 0 ? 'Régénérer 3 logos' : 'Générer 3 logos IA'}
+                    {generatedLogo?.url ? 'Régénérer le logo IA' : 'Générer mon logo IA'}
                   </button>
-                  {generatedLogos.length > 0 && (
+                  {generatedLogo?.url && (
                     <button
                       type="button"
                       onClick={() => {
-                        setGeneratedLogos([]);
+                        setGeneratedLogo(null);
                         setLogoPreview(null);
                         set('storeLogo', '');
-                        autoGeneratedLogoRef.current = false;
                       }}
                       className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-700 bg-white"
                     >
@@ -973,30 +818,27 @@ const StoreCreationWizard = ({ onComplete }) => {
                   )}
                 </div>
 
-                {generatedLogos.length > 0 && (
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    {generatedLogos.map((logo, index) => {
-                      const isSelected = form.storeLogo === logo.url;
-                      return (
-                        <button
-                          key={logo.url}
-                          type="button"
-                          onClick={() => {
-                            set('storeLogo', logo.url);
-                            setLogoPreview(logo.url);
-                          }}
-                          className={`rounded-2xl border-2 overflow-hidden bg-white transition-all ${isSelected ? 'border-gray-900 shadow-lg shadow-gray-200/70' : 'border-gray-200 hover:border-gray-400'}`}
-                        >
-                          <div className="aspect-square bg-gray-50 p-4 flex items-center justify-center">
-                            <img src={logo.url} alt={`Logo IA ${index + 1}`} className="max-h-full max-w-full object-contain" />
-                          </div>
-                          <div className="px-3 py-2 border-t border-gray-100 text-left">
-                            <p className="text-xs font-semibold text-gray-800">Proposition {index + 1}</p>
-                            <p className="text-[11px] text-gray-500 capitalize">{logo.variant}</p>
-                          </div>
-                        </button>
-                      );
-                    })}
+                {generatedLogo?.url && (
+                  <div className="rounded-2xl border-2 border-gray-200 overflow-hidden bg-white">
+                    <div className="aspect-square bg-gray-50 p-6 flex items-center justify-center">
+                      <img src={generatedLogo.url} alt="Logo IA généré" className="max-h-full max-w-full object-contain" />
+                    </div>
+                    <div className="px-4 py-3 border-t border-gray-100 flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-semibold text-gray-800">Logo IA généré</p>
+                        <p className="text-[11px] text-gray-500 capitalize">{generatedLogo.variant || 'wordmark'}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          set('storeLogo', generatedLogo.url);
+                          setLogoPreview(generatedLogo.url);
+                        }}
+                        className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-900 text-white text-xs font-semibold"
+                      >
+                        Utiliser ce logo
+                      </button>
+                    </div>
                   </div>
                 )}
                 {errors.storeLogo && <p className="text-sm text-red-600 font-medium">{errors.storeLogo}</p>}
@@ -1087,102 +929,27 @@ const StoreCreationWizard = ({ onComplete }) => {
                   </div>
                 </div>
               </div>
+
             </Card>
 
             <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-              <p className="text-sm font-semibold text-emerald-900">Cette étape lance la génération d'image du logo.</p>
-              <p className="mt-1 text-xs text-emerald-700">Choisissez une proposition maintenant, puis continuez avec l'audience et les coordonnées.</p>
+              <p className="text-sm font-semibold text-emerald-900">La génération du logo est maintenant manuelle.</p>
+              <p className="mt-1 text-xs text-emerald-700">Vous pouvez importer votre propre logo, générer un seul logo IA, ou passer cette étape.</p>
             </div>
           </div>
         )}
 
         {/* ═══════════════════════════════════════════════════════════════════ */}
-        {/* ÉTAPE 3 : Votre audience */}
+        {/* ÉTAPE 3 : Finalisation */}
         {/* ═══════════════════════════════════════════════════════════════════ */}
         {step === 3 && (
-          <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-300">
-            <div className="text-center space-y-2">
-              <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-violet-500 to-purple-600 rounded-2xl shadow-lg shadow-violet-500/30 mb-2">
-                <Users className="w-8 h-8 text-white" />
-              </div>
-              <h1 className="text-2xl font-black text-gray-900">Définissez votre audience</h1>
-              <p className="text-gray-500">Précisez les caractéristiques de vos clients</p>
-            </div>
-
-            <Card className="p-6 space-y-6">
-              <MultiSelectDropdown
-                label={AUDIENCE.gender.label}
-                options={AUDIENCE.gender.options}
-                values={form.audience.gender}
-                onChange={(v) => setForm(p => ({ ...p, audience: { ...p.audience, gender: v } }))}
-                error={errors.gender}
-              />
-
-              <MultiSelectDropdown
-                label={AUDIENCE.ageRange.label}
-                options={AUDIENCE.ageRange.options}
-                values={form.audience.ageRange}
-                onChange={(v) => setForm(p => ({ ...p, audience: { ...p.audience, ageRange: v } }))}
-                error={errors.ageRange}
-              />
-
-              <MultiSelectDropdown
-                label={AUDIENCE.region.label}
-                options={AUDIENCE.region.options}
-                values={form.audience.region}
-                onChange={(v) => setForm(p => ({ ...p, audience: { ...p.audience, region: v } }))}
-                error={errors.region}
-              />
-
-              <MultiSelectDropdown
-                label={AUDIENCE.origin.label}
-                options={AUDIENCE.origin.options}
-                values={form.audience.origin}
-                onChange={(v) => setForm(p => ({ ...p, audience: { ...p.audience, origin: v } }))}
-              />
-            </Card>
-
-            <div className="space-y-4">
-              <h3 className="text-lg font-bold text-gray-900">Style de communication</h3>
-              {errors.tone && <p className="text-sm text-red-600 font-medium">{errors.tone}</p>}
-              <div className="grid gap-3">
-                {TONES.map(tone => {
-                  const Icon = tone.icon;
-                  return (
-                    <SelectableCard
-                      key={tone.value}
-                      selected={form.tone === tone.value}
-                      onClick={() => set('tone', tone.value)}
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${tone.gradient} flex items-center justify-center shadow-lg`}>
-                          <Icon className="w-6 h-6 text-white" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-bold text-gray-900">{tone.label}</p>
-                          <p className="text-sm text-gray-500">{tone.desc}</p>
-                        </div>
-                        <ChevronRight className={`w-5 h-5 transition-transform ${form.tone === tone.value ? 'text-gray-900 rotate-90' : 'text-gray-300'}`} />
-                      </div>
-                    </SelectableCard>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ═══════════════════════════════════════════════════════════════════ */}
-        {/* ÉTAPE 4 : Contact */}
-        {/* ═══════════════════════════════════════════════════════════════════ */}
-        {step === 4 && (
           <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-300">
             <div className="text-center space-y-2">
               <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl shadow-lg shadow-blue-500/30 mb-2">
                 <MapPin className="w-8 h-8 text-white" />
               </div>
-              <h1 className="text-2xl font-black text-gray-900">Vos coordonnées</h1>
-              <p className="text-gray-500">Comment vos clients vous contacteront</p>
+              <h1 className="text-2xl font-black text-gray-900">Finalisez votre boutique</h1>
+              <p className="text-gray-500">Ajoutez vos coordonnées puis lancez la création</p>
             </div>
 
             <Card className="p-6 space-y-6">
@@ -1227,21 +994,14 @@ const StoreCreationWizard = ({ onComplete }) => {
                   </SelectableCard>
                 ))}
               </div>
-            </div>
-          </div>
-        )}
+            </Card>
 
-        {/* ═══════════════════════════════════════════════════════════════════ */}
-        {/* ÉTAPE 5 : Finalisation avec Aperçu */}
-        {/* ═══════════════════════════════════════════════════════════════════ */}
-        {step === 5 && (
-          <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-300">
-            <div className="text-center space-y-2">
+            <div className="text-center space-y-2 pt-2">
               <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-amber-500 to-orange-600 rounded-2xl shadow-lg shadow-amber-500/30 mb-2">
                 <Sparkles className="w-8 h-8 text-white" />
               </div>
-              <h1 className="text-2xl font-black text-gray-900">Votre boutique est prête !</h1>
-              <p className="text-gray-500">Vérifiez les informations et lancez la création</p>
+              <h2 className="text-2xl font-black text-gray-900">Vérifiez puis créez</h2>
+              <p className="text-gray-500">Votre boutique sera générée automatiquement avec ces informations</p>
             </div>
 
             {/* ══ Aperçu visuel de la boutique ══ */}
@@ -1321,13 +1081,13 @@ const StoreCreationWizard = ({ onComplete }) => {
                   <p className="font-semibold">{PRODUCT_TYPES.find(p => p.value === form.productType)?.label || '—'}</p>
                 </div>
                 <div>
-                  <p className="text-gray-400 uppercase tracking-wider mb-1">Style</p>
-                  <p className="font-semibold">{TONES.find(t => t.value === form.tone)?.label || '—'}</p>
+                  <p className="text-gray-400 uppercase tracking-wider mb-1">Couleur</p>
+                  <p className="font-semibold">{form.themeColor || '—'}</p>
                 </div>
                 <div>
-                  <p className="text-gray-400 uppercase tracking-wider mb-1">Audience</p>
+                  <p className="text-gray-400 uppercase tracking-wider mb-1">Pays</p>
                   <p className="font-semibold">
-                    {form.audience.gender?.map(g => AUDIENCE.gender.options.find(o => o.value === g)?.label).join(', ') || '—'}
+                    {form.country || '—'}
                   </p>
                 </div>
                 <div>
@@ -1346,7 +1106,7 @@ const StoreCreationWizard = ({ onComplete }) => {
                 <div>
                   <p className="text-sm font-bold text-emerald-900">L'IA va créer votre boutique</p>
                   <p className="text-xs text-emerald-700 mt-1">
-                    En cliquant sur "Créer ma boutique", notre IA génère automatiquement une page d'accueil professionnelle adaptée à votre activité. Vous serez redirigé vers votre nouvelle boutique !
+                    En cliquant sur "Créer ma boutique", notre IA génère automatiquement une page d'accueil professionnelle adaptée à votre activité. Un message de confirmation s'affichera à la fin avec un bouton pour voir la boutique.
                   </p>
                 </div>
               </div>
@@ -1375,7 +1135,7 @@ const StoreCreationWizard = ({ onComplete }) => {
           ) : <div />}
 
           <div className="flex items-center gap-2">
-            {step >= 2 && step <= 4 && (
+            {step === 2 && (
               <button
                 onClick={skip}
                 className="px-5 py-3 text-sm font-semibold text-gray-500 hover:text-gray-700 transition"
@@ -1384,7 +1144,7 @@ const StoreCreationWizard = ({ onComplete }) => {
               </button>
             )}
 
-            {step < 5 ? (
+            {step < STEPS.length ? (
               <button
                 onClick={next}
                 className="flex items-center gap-2 px-8 py-3.5 text-sm font-bold text-white bg-gray-900 rounded-xl hover:bg-gray-800 transition shadow-lg shadow-gray-900/30"

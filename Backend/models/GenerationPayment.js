@@ -24,10 +24,10 @@ const generationPaymentSchema = new mongoose.Schema({
     default: 1,
     min: 1
   },
-  // Price per generation (1500 FCFA)
+  // Effective price per generation credited for this payment
   pricePerGeneration: {
     type: Number,
-    default: 1500
+    default: 1000
   },
   // Total amount to pay
   amount: {
