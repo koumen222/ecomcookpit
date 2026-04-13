@@ -1076,75 +1076,12 @@ const withAlpha = (color, alphaHex, fallback) => {
   return fallback;
 };
 
-const AI_VISUAL_TEMPLATE_TONES = {
-  beauty: {
-    label: 'Beauty premium',
-    cues: ['Editorial', 'Texture propre', 'Finition premium'],
-    accent: '#E88BA3',
-    background: '#FFF7FA',
-    surface: '#FFFFFF',
-  },
-  health: {
-    label: 'Sante naturelle',
-    cues: ['Clarte', 'Confiance', 'Resultat lisible'],
-    accent: '#82C9A0',
-    background: '#F3FFF7',
-    surface: '#FFFFFF',
-  },
-  tech: {
-    label: 'Performance moderne',
-    cues: ['Precision', 'Demo claire', 'Contraste net'],
-    accent: '#7BB6FF',
-    background: '#F4F8FF',
-    surface: '#FFFFFF',
-  },
-  fashion: {
-    label: 'Editorial mode',
-    cues: ['Silhouette', 'Matiere', 'Prestige'],
-    accent: '#C8B2FF',
-    background: '#FAF7FF',
-    surface: '#FFFFFF',
-  },
-  home: {
-    label: 'Maison premium',
-    cues: ['Usage reel', 'Lecture simple', 'Ambiance propre'],
-    accent: '#F2C979',
-    background: '#FFF8EC',
-    surface: '#FFFFFF',
-  },
-  general: {
-    label: 'Conversion premium',
-    cues: ['Structure propre', 'Repere visuel', 'Hiérarchie claire'],
-    accent: '#96C7B5',
-    background: '#F5FBF8',
-    surface: '#FFFFFF',
-  },
-};
-
-const buildAiGraphicProfile = (product = null) => {
-  const pageData = product?._pageData || {};
-  const templateId = pageData.visualTemplate || 'general';
-  const templateProfile = AI_VISUAL_TEMPLATE_TONES[templateId] || AI_VISUAL_TEMPLATE_TONES.general;
-
-  return {
-    label: pageData.visualTemplateLabel || templateProfile.label,
-    cues: templateProfile.cues,
-    note: pageData.decorationDirection || 'Direction graphique sobre, nette et orientee conversion.',
-  };
-};
-
 const buildAiVisualTheme = ({ store = null, design = {}, product = null } = {}) => {
-  const pageData = product?._pageData || {};
-  const templateId = pageData.visualTemplate || 'general';
-  const templateTone = AI_VISUAL_TEMPLATE_TONES[templateId] || AI_VISUAL_TEMPLATE_TONES.general;
   const primary = design?.ctaButtonColor || design?.buttonColor || store?.accentColor || store?.primaryColor || '#0f6b4f';
-  const accent = design?.badgeColor || templateTone.accent || store?.accentColor || primary;
+  const accent = design?.badgeColor || store?.accentColor || primary;
   const text = design?.textColor || store?.textColor || '#111827';
-  const background = design?.backgroundColor || templateTone.background || null;
-  const surface = design?.fieldBgColor || templateTone.surface || '#FFFFFF';
-  const softGradient = background
-    ? `radial-gradient(circle at top right, ${withAlpha(accent, '26', 'rgba(15,107,79,0.10)')} 0%, transparent 42%), linear-gradient(180deg, ${withAlpha(background, 'F8', 'rgba(255,255,255,0.96)')} 0%, ${withAlpha(surface, 'FF', '#ffffff')} 100%)`
-    : `radial-gradient(circle at top right, ${withAlpha(accent, '1C', 'rgba(15,107,79,0.08)')} 0%, transparent 40%), linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(255,255,255,1) 100%)`;
+  const background = design?.backgroundColor || null;
+  const surface = design?.fieldBgColor || '#FFFFFF';
 
   return {
     primary,
@@ -1153,7 +1090,7 @@ const buildAiVisualTheme = ({ store = null, design = {}, product = null } = {}) 
     surface,
     text,
     gradient: `linear-gradient(135deg, ${primary} 0%, ${accent} 100%)`,
-    softGradient,
+    softGradient: null,
     border: withAlpha(accent, '40', 'rgba(15,107,79,0.18)'),
     softBorder: withAlpha(accent, '22', 'rgba(15,107,79,0.10)'),
     mutedText: withAlpha(text, 'B8', text),
@@ -1256,7 +1193,7 @@ const StoreProductPage = () => {
   const subdomain = paramSubdomain || detectedSubdomain;
   const prefix = isStoreDomain ? '' : (subdomain ? `/store/${subdomain}` : '');
 
-  const { store, pixels, product, related, error } = useStoreProduct(subdomain, slug);
+  const { store, pixels, product, related, loading, error } = useStoreProduct(subdomain, slug);
   const { cartCount } = useStoreCart(subdomain);
   const { trackPageView, trackProductView, trackAddToCart } = useStoreAnalytics(subdomain);
   const effectiveCurrency = product?.currency || store?.currency || 'XAF';
@@ -1392,7 +1329,6 @@ const StoreProductPage = () => {
   const ppFormType = ppGeneral.formType || 'popup';
   const spacingPreset = SPACING_PRESETS[ppDesign.spacing] || SPACING_PRESETS.normal;
   const aiVisualTheme = buildAiVisualTheme({ store, design: ppDesign, product });
-  const aiGraphicProfile = buildAiGraphicProfile(product);
   const socialProofTheme = buildSectionVisualTheme('socialProof');
   const benefitsTheme = buildSectionVisualTheme('benefits');
   const trustTheme = buildSectionVisualTheme('trust');
@@ -1764,6 +1700,8 @@ const StoreProductPage = () => {
     });
   };
 
+  if (loading && !product) return null;
+
   if (error) return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Inter, sans-serif' }}>
       <div style={{ textAlign: 'center', padding: 40 }}>
@@ -1855,36 +1793,6 @@ const StoreProductPage = () => {
           pointer-events:none;
           opacity:0.7;
         }
-        .ai-gallery-badge {
-          position:absolute;
-          top:18px;
-          left:18px;
-          z-index:4;
-          display:flex;
-          flex-direction:column;
-          gap:2px;
-          padding:10px 12px;
-          border-radius:16px;
-          background:rgba(255,255,255,0.92);
-          border:1px solid var(--ai-soft-border);
-          box-shadow:0 12px 28px rgba(15,23,42,0.10);
-          backdrop-filter:blur(10px);
-        }
-        .ai-gallery-badge span {
-          font-size:10px;
-          font-weight:800;
-          letter-spacing:0.12em;
-          text-transform:uppercase;
-          color:var(--ai-primary);
-          font-family:var(--s-font);
-        }
-        .ai-gallery-badge strong {
-          font-size:12px;
-          font-weight:800;
-          color:var(--s-text);
-          font-family:var(--s-font);
-        }
-
         /* ═══ THEME: LANDING PAGE ═══ */
         .product-grid.theme-landing { display:flex; flex-direction:column; gap:0; background:var(--ai-bg, #fff); }
         .theme-landing .product-gallery { position:relative; width:100%; height:60vh; min-height:360px; overflow:hidden; }
@@ -1970,58 +1878,6 @@ const StoreProductPage = () => {
           position:relative;
           z-index:1;
         }
-        .ai-graphic-rail {
-          display:flex;
-          flex-wrap:wrap;
-          gap:8px;
-          align-items:flex-start;
-          margin:0 0 16px;
-        }
-        .ai-graphic-chip {
-          display:inline-flex;
-          align-items:center;
-          gap:7px;
-          padding:8px 12px;
-          border-radius:999px;
-          border:1px solid var(--ai-soft-border);
-          background:rgba(255,255,255,0.88);
-          box-shadow:0 10px 20px rgba(15,23,42,0.06);
-          color:var(--s-text);
-          font-size:12px;
-          font-weight:700;
-          line-height:1;
-          font-family:var(--s-font);
-          backdrop-filter:blur(10px);
-        }
-        .ai-graphic-dot {
-          width:8px;
-          height:8px;
-          border-radius:999px;
-          background:var(--ai-gradient);
-          box-shadow:0 0 0 5px rgba(255,255,255,0.7);
-          flex-shrink:0;
-        }
-        .ai-hero-note {
-          width:100%;
-          margin-top:4px;
-          padding:14px 16px;
-          border-radius:18px;
-          border:1px solid var(--ai-soft-border);
-          background:rgba(255,255,255,0.76);
-          box-shadow:0 12px 26px rgba(15,23,42,0.06);
-          color:var(--ai-muted);
-          font-size:13px;
-          line-height:1.6;
-          font-family:var(--s-font);
-        }
-        .ai-hero-note strong {
-          display:block;
-          margin-bottom:4px;
-          color:var(--ai-primary);
-          font-size:11px;
-          letter-spacing:0.12em;
-          text-transform:uppercase;
-        }
         @media(min-width:769px){
           .ai-desc h3 { font-size:20px; }
           .ai-desc p { font-size:15px; }
@@ -2073,12 +1929,6 @@ const StoreProductPage = () => {
           {/* ── Gallery ────────────────────────────────────────────────────── */}
           <div className="product-gallery">
             <div className="ai-gallery-frame">
-              {aiGraphicProfile?.label && (
-                <div className="ai-gallery-badge">
-                  <span>Direction</span>
-                  <strong>{aiGraphicProfile.label}</strong>
-                </div>
-              )}
               <ImageGallery images={images} design={ppDesign} />
             </div>
           </div>
@@ -2087,24 +1937,6 @@ const StoreProductPage = () => {
           <div className={`product-info ${aiVisualTheme ? 'ai-themed' : ''}`}>
             {product ? (
               <>
-                {aiGraphicProfile && (
-                  <div className="ai-graphic-rail">
-                    <div className="ai-graphic-chip">
-                      <span className="ai-graphic-dot" />
-                      {aiGraphicProfile.label}
-                    </div>
-                    {(aiGraphicProfile.cues || []).slice(0, 3).map((cue) => (
-                      <div key={cue} className="ai-graphic-chip">
-                        <span className="ai-graphic-dot" />
-                        {cue}
-                      </div>
-                    ))}
-                    <div className="ai-hero-note">
-                      <strong>Direction graphique</strong>
-                      {aiGraphicProfile.note}
-                    </div>
-                  </div>
-                )}
                 {/* Name */}
                 <h1 style={{
                   fontSize: `clamp(${Math.max(24, (Number.parseInt(ppDesign.fontBase, 10) || 14) + 12)}px, 4vw, ${Math.max(36, (Number.parseInt(ppDesign.fontBase, 10) || 14) + 24)}px)`, fontWeight: 900,
