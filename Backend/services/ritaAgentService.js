@@ -12,7 +12,7 @@ const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 const FISH_AUDIO_DIRECT_API_KEY = process.env.FISH_AUDIO_API_KEY || '203f946aa7b3454184fd28fc7eb1f33b';
 const KIE_API_KEY = process.env.KIE_API_KEY || process.env.NANOBANANA_API_KEY || '';
 const KIE_BASE_URL = (process.env.KIE_BASE_URL || 'https://api.kie.ai').replace(/\/+$/, '');
-const KIE_MODEL_PATH = process.env.KIE_MODEL_PATH || '/gemini-3.1-pro/v1/chat/completions';
+const KIE_MODEL_PATH = process.env.KIE_MODEL_PATH || '/gpt-5-2/v1/chat/completions';
 const KIE_TIMEOUT_MS = Number(process.env.KIE_TIMEOUT_MS || 120000);
 
 // Historique in-memory par numéro de téléphone (max 500 échanges gardés)
@@ -585,7 +585,7 @@ async function callKieChatCompletion({
   messages,
   temperature = 0.4,
   maxTokens = 4096,
-  reasoningEffort = 'high',
+  reasoningEffort = 'low',
   includeThoughts = false,
 }) {
   if (!KIE_API_KEY) {
@@ -3595,7 +3595,7 @@ export async function processBossMessage(userId, from, text) {
         ],
         temperature: 0.5,
         maxTokens: 2048,
-        reasoningEffort: process.env.KIE_REASONING_EFFORT || 'high',
+        reasoningEffort: process.env.KIE_REASONING_EFFORT || 'low',
         includeThoughts: false,
       });
       reply = kie.content?.trim() || null;
@@ -3797,7 +3797,7 @@ export async function processIncomingMessage(userId, from, text, opts = {}) {
       ],
       temperature: 0.4,
       maxTokens: 4096,
-      reasoningEffort: process.env.KIE_REASONING_EFFORT || 'high',
+      reasoningEffort: process.env.KIE_REASONING_EFFORT || 'low',
       includeThoughts: false,
     });
     console.log('✅ [RITA] Réponse générée via KIE (Gemini 3.1 Pro)');
@@ -3941,7 +3941,7 @@ export async function generateTestReply(config, messages) {
       messages: [{ role: 'system', content: systemPrompt }, ...messages],
       temperature: 0.4,
       maxTokens: 4096,
-      reasoningEffort: process.env.KIE_REASONING_EFFORT || 'high',
+      reasoningEffort: process.env.KIE_REASONING_EFFORT || 'low',
       includeThoughts: false,
     });
     const sanitized = sanitizeReply(kie.content || '', config) || '';

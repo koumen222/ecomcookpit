@@ -197,7 +197,7 @@ RÈGLES STRICTES:
       messages: [{ role: 'user', content: prompt }],
       temperature: 0.78,
       maxTokens: 3500,
-      reasoningEffort: process.env.KIE_REASONING_EFFORT || 'high',
+      reasoningEffort: process.env.KIE_REASONING_EFFORT || 'low',
       includeThoughts: false,
     });
     raw = kieResp.content || '{}';

@@ -2,7 +2,7 @@ import axios from 'axios';
 
 const KIE_API_KEY = process.env.KIE_API_KEY || process.env.NANOBANANA_API_KEY || '';
 const KIE_BASE_URL = (process.env.KIE_BASE_URL || 'https://api.kie.ai').replace(/\/+$/, '');
-const KIE_MODEL_PATH = process.env.KIE_MODEL_PATH || '/gemini-3.1-pro/v1/chat/completions';
+const KIE_MODEL_PATH = process.env.KIE_MODEL_PATH || '/gpt-5-2/v1/chat/completions';
 const DEFAULT_TIMEOUT_MS = Number(process.env.KIE_TIMEOUT_MS || 120000);
 
 export function isKieConfigured() {
@@ -56,7 +56,7 @@ export async function callKieChatCompletion({
   messages,
   temperature = 0.4,
   maxTokens = 4096,
-  reasoningEffort = 'high',
+  reasoningEffort = 'low',
   includeThoughts = false,
   timeoutMs = DEFAULT_TIMEOUT_MS,
   tools,
