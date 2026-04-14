@@ -81,18 +81,30 @@ router.get('/r/:linkCode', async (req, res) => {
     const separator = destinationUrl.includes('?') ? '&' : '?';
     const redirectUrl = `${destinationUrl}${separator}aff=${encodeURIComponent(link.affiliateId.referralCode)}&aff_link=${encodeURIComponent(link.code)}`;
 
-    await AffiliateClick.create({
-      affiliateId: link.affiliateId._id,
-      affiliateCode: link.affiliateId.referralCode,
-      affiliateLinkCode: link.code,
-      destinationUrl,
-      sourceUrl: req.get('referer') || '',
-      ipAddress: (req.headers['x-forwarded-for'] || req.ip || '').toString().split(',')[0].trim(),
-      userAgent: req.get('user-agent') || ''
-    });
+    const ipAddress = (req.headers['x-forwarded-for'] || req.ip || '').toString().split(',')[0].trim();
 
-    link.clickCount = Number(link.clickCount || 0) + 1;
-    await link.save();
+    // Deduplicate: skip if same IP + same link within last 30 seconds
+    const deduplicationWindow = new Date(Date.now() - 30 * 1000);
+    const recentClick = await AffiliateClick.findOne({
+      affiliateLinkCode: link.code,
+      ipAddress,
+      createdAt: { $gte: deduplicationWindow }
+    }).lean();
+
+    if (!recentClick) {
+      await AffiliateClick.create({
+        affiliateId: link.affiliateId._id,
+        affiliateCode: link.affiliateId.referralCode,
+        affiliateLinkCode: link.code,
+        destinationUrl,
+        sourceUrl: req.get('referer') || '',
+        ipAddress,
+        userAgent: req.get('user-agent') || ''
+      });
+
+      // Atomic increment to avoid race conditions
+      await AffiliateLink.updateOne({ _id: link._id }, { $inc: { clickCount: 1 } });
+    }
 
     return res.redirect(redirectUrl);
   } catch (error) {
