@@ -229,7 +229,7 @@ IMPORTANT: Ne retourne QUE le JSON, sans markdown ni texte supplémentaire.`;
           messages: [{ role: 'user', content: prompt }],
           temperature: 0.4,
           maxTokens: 2000,
-          reasoningEffort: process.env.KIE_REASONING_EFFORT || 'high',
+          reasoningEffort: process.env.KIE_REASONING_EFFORT || 'low',
           includeThoughts: false,
         });
 

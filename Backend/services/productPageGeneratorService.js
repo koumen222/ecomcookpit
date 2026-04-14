@@ -771,7 +771,7 @@ Le champ "prompt_avant_apres" doit décrire un AVANT/APRÈS SPÉCIFIQUE à CE pr
           ],
           temperature: 0.7,
           maxTokens: 7000,
-          reasoningEffort: process.env.KIE_REASONING_EFFORT || 'high',
+          reasoningEffort: process.env.KIE_REASONING_EFFORT || 'low',
           includeThoughts: false,
         });
 

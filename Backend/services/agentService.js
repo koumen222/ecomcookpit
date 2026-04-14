@@ -380,7 +380,7 @@ const generateAgentResponse = async (conversation, clientMessage, intent, sentim
     const startTime = Date.now();
     let response = '';
     let tokensUsed = 0;
-    let modelUsed = process.env.KIE_MODEL_PATH || 'kie-gemini-3.1-pro';
+    let modelUsed = process.env.KIE_MODEL_PATH || 'kie-gpt-5-2';
 
     try {
       const kieResult = await callKieChatCompletion({
@@ -390,7 +390,7 @@ const generateAgentResponse = async (conversation, clientMessage, intent, sentim
         ],
         maxTokens: 300,
         temperature: 0.7,
-        reasoningEffort: process.env.KIE_REASONING_EFFORT || 'high',
+        reasoningEffort: process.env.KIE_REASONING_EFFORT || 'low',
         includeThoughts: false,
       });
       response = kieResult.content;
@@ -962,7 +962,7 @@ Génère une réponse naturelle qui:
 
   let response = '';
   let tokensUsed = 0;
-  let modelUsed = process.env.KIE_MODEL_PATH || 'kie-gemini-3.1-pro';
+  let modelUsed = process.env.KIE_MODEL_PATH || 'kie-gpt-5-2';
 
   try {
     const kieResult = await callKieChatCompletion({
@@ -972,7 +972,7 @@ Génère une réponse naturelle qui:
       ],
       maxTokens: 300,
       temperature: 0.7,
-      reasoningEffort: process.env.KIE_REASONING_EFFORT || 'high',
+      reasoningEffort: process.env.KIE_REASONING_EFFORT || 'low',
       includeThoughts: false,
     });
     response = kieResult.content;
