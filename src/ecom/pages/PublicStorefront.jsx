@@ -671,9 +671,9 @@ const AiBadgesSection = ({ cfg }) => {
   );
 };
 
-// ─── PRODUCTS (homepage: max 3 + see all) ─────────────────────────────────────
+// ─── PRODUCTS (homepage: min 6 + see all) ─────────────────────────────────────
 const AiProductsSection = ({ cfg, products, prefix, store }) => {
-  const limit = cfg.homepageLimit || 3;
+  const limit = Math.max(6, cfg.homepageLimit || 6);
   const displayed = products.slice(0, limit);
   const categories = Array.from(new Set(products.map(p => p.category).filter(Boolean)));
 
