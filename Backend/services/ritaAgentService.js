@@ -19,6 +19,10 @@ const KIE_TIMEOUT_MS = Number(process.env.KIE_TIMEOUT_MS || 120000);
 const conversationHistory = new Map();
 const MAX_HISTORY = 500;
 const HISTORY_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 jours de rétention en RAM, puis rechargement depuis MongoDB
+const RITA_PROMPT_MODE = process.env.RITA_PROMPT_MODE || 'compact';
+const RITA_MAX_LLM_HISTORY = Number(process.env.RITA_MAX_LLM_HISTORY || 6);
+const RITA_MAX_RESPONSE_TOKENS = Number(process.env.RITA_MAX_RESPONSE_TOKENS || 900);
+const RITA_COMPACT_PROMPT_THRESHOLD = Number(process.env.RITA_COMPACT_PROMPT_THRESHOLD || 18000);
 
 // Timestamps des dernières activités par conversation
 const conversationLastActivity = new Map();
@@ -3449,6 +3453,93 @@ VÉRIFIE que ton message respecte ces 5 règles :
   return prompt;
 }
 
+function buildCompactCatalogSummary(config = {}) {
+  const catalog = (config.productCatalog || []).filter((product) => product?.name);
+  const limited = catalog.slice(0, 8);
+
+  if (limited.length === 0) {
+    return 'Catalogue non configure.';
+  }
+
+  const lines = limited.map((product) => {
+    const parts = [product.name];
+    if (product.price) parts.push(`prix=${product.price}`);
+    if (product.inStock === false) parts.push('rupture');
+    else parts.push('stock=ok');
+    if (product.images?.length) parts.push(`image=[IMAGE:${product.name}]`);
+    if (product.videos?.length) parts.push(`video=[VIDEO:${product.name}]`);
+    if (product.features?.length) parts.push(`atouts=${product.features.slice(0, 2).join(', ')}`);
+    if (product.quantityOffers?.length) {
+      const offer = product.quantityOffers[0];
+      parts.push(`offre=${offer.minQuantity}+ => ${offer.totalPrice || offer.unitPrice || ''}`);
+    }
+    return `- ${parts.join(' | ')}`;
+  });
+
+  if (catalog.length > limited.length) {
+    lines.push(`- et ${catalog.length - limited.length} autre(s) produit(s)`);
+  }
+
+  return lines.join('\n');
+}
+
+function buildCompactSystemPrompt(config, context = {}) {
+  const usesVous = config.toneStyle === 'formal' || config.toneStyle === 'luxury' || config.toneStyle === 'vouvoiement' || config.toneStyle === 'respectful';
+  const { activeConversation, clientState, askedQs, imageAnalysis, clientLanguage } = context;
+  const state = clientState || {};
+  const asked = askedQs && askedQs.size > 0 ? [...askedQs].join(', ') : 'aucune';
+  const languageLabel = clientLanguage || config.language || 'fr';
+  const catalogSummary = buildCompactCatalogSummary(config);
+  const customInstructions = String(config.customInstructions || '').trim().slice(0, 1200);
+
+  return `Tu es ${config.agentName || 'Rita'}, vendeuse WhatsApp camerounaise. Réponds comme un humain, jamais comme un bot.
+
+LANGUE: réponds dans la langue du client (${languageLabel}) si claire, sinon en français.
+TON: ${usesVous ? 'vouvoiement, respectueux, naturel' : 'tutoiement, chaleureux, naturel'}.
+
+OBJECTIF:
+- comprendre vite le besoin
+- répondre clairement
+- faire avancer la vente sans spam
+
+RÈGLES CRITIQUES:
+- 1 à 3 phrases max, style WhatsApp
+- répondre d'abord à la question, puis faire avancer avec 1 seule question/proposition
+- pas de markdown, pas de tableau, pas d'euro, FCFA uniquement
+- n'invente jamais produit, prix, délai, promo, stock ou politique
+- utilise uniquement le catalogue ci-dessous
+- si le produit actif est déjà identifié, ne redemande pas lequel
+- ne demande jamais le téléphone WhatsApp
+- ne demande pas le nom si absent
+- ne collecte les infos de livraison QUE si le client veut acheter clairement
+- ordre de collecte: quantité -> ville -> quartier/zone -> confirmation numéro livraison
+- si toutes les infos sont là, tu peux conclure avec [ORDER_DATA:{...}]
+- si image disponible pour un produit demandé, tu peux utiliser [IMAGE:NomExact]
+- si vidéo disponible pour un produit demandé, tu peux utiliser [VIDEO:NomExact]
+
+CONTEXTE ACTIF:
+- produit actif: ${activeConversation?.activeProductName || 'non identifié'}
+- prix actif: ${activeConversation?.latestPrice || 'non identifié'}
+- étape: ${activeConversation?.conversationStage || 'conversation en cours'}
+- signal client: ${activeConversation?.clientSignal || 'non déterminé'}
+- dernier message vendeur: ${activeConversation?.lastAssistantMessage ? activeConversation.lastAssistantMessage.slice(0, 220) : 'aucun'}
+
+ÉTAT CLIENT:
+- statut=${state.statut || 'nouveau'}
+- produit=${state.produit || 'inconnu'}
+- quantité=${state.quantite || 'inconnue'}
+- ville=${state.ville || 'inconnue'}
+- adresse=${state.adresse || 'inconnue'}
+- téléphone livraison=${state.telephoneAppel || 'inconnu'}
+- déjà demandé=${asked}
+
+${imageAnalysis ? `CONTEXTE IMAGE CLIENT: ${imageAnalysis}\n` : ''}CATALOGUE:
+${catalogSummary}
+
+${customInstructions ? `INSTRUCTIONS PROPRIÉTAIRE:\n${customInstructions}\n` : ''}
+Réponds uniquement avec le message à envoyer au client.`;
+}
+
 /**
  * Construit le system prompt pour le MODE BOSS (analyse & instructions + exécution).
  * Le boss est le propriétaire de la boutique. Rita agit comme une employée professionnelle.
@@ -3767,7 +3858,17 @@ export async function processIncomingMessage(userId, from, text, opts = {}) {
   
   let systemPrompt;
   try {
-    systemPrompt = buildSystemPrompt(config, { contact, activeConversation, clientState, askedQs, imageAnalysis, clientLanguage });
+    const promptContext = { contact, activeConversation, clientState, askedQs, imageAnalysis, clientLanguage };
+    if (RITA_PROMPT_MODE === 'full') {
+      systemPrompt = buildSystemPrompt(config, promptContext);
+    } else if (RITA_PROMPT_MODE === 'auto') {
+      const fullPrompt = buildSystemPrompt(config, promptContext);
+      systemPrompt = fullPrompt.length > RITA_COMPACT_PROMPT_THRESHOLD
+        ? buildCompactSystemPrompt(config, promptContext)
+        : fullPrompt;
+    } else {
+      systemPrompt = buildCompactSystemPrompt(config, promptContext);
+    }
   } catch (promptErr) {
     console.error(`❌ [RITA] Erreur buildSystemPrompt pour userId=${userId}:`, promptErr.message);
     return config.fallbackMessage || null;
@@ -3775,7 +3876,7 @@ export async function processIncomingMessage(userId, from, text, opts = {}) {
 
   const promptLen = systemPrompt.length;
   const approxTokens = Math.round(promptLen / 4);
-  console.log(`🤖 [RITA] Appel Groq — userId=${userId} from=${from} state=${clientState.statut} promptLen=${promptLen} (~${approxTokens} tokens) historyLen=${history.length}`);
+  console.log(`🤖 [RITA] Appel LLM — userId=${userId} from=${from} state=${clientState.statut} promptMode=${RITA_PROMPT_MODE} promptLen=${promptLen} (~${approxTokens} tokens) historyLen=${history.length}`);
 
   // ── Appel KIE (Gemini 3.1 Pro) en priorité, fallback Groq si indisponible ──
   const MODELS = [
@@ -3787,7 +3888,7 @@ export async function processIncomingMessage(userId, from, text, opts = {}) {
   let rawContent = null;
   let lastError = null;
 
-  const llmHistory = normalizeLLMMessages(history);
+  const llmHistory = normalizeLLMMessages(history).slice(-RITA_MAX_LLM_HISTORY);
 
   try {
     rawContent = await callKieChatCompletion({
@@ -3796,7 +3897,7 @@ export async function processIncomingMessage(userId, from, text, opts = {}) {
         ...llmHistory,
       ],
       temperature: 0.4,
-      maxTokens: 4096,
+      maxTokens: RITA_MAX_RESPONSE_TOKENS,
       reasoningEffort: process.env.KIE_REASONING_EFFORT || 'low',
       includeThoughts: false,
     });
@@ -3814,7 +3915,7 @@ export async function processIncomingMessage(userId, from, text, opts = {}) {
             ...llmHistory,
           ],
           temperature: 0.4,
-          max_completion_tokens: 4096,
+          max_completion_tokens: RITA_MAX_RESPONSE_TOKENS,
           top_p: 0.95,
         };
         if (modelCfg.reasoning_effort) reqParams.reasoning_effort = modelCfg.reasoning_effort;
