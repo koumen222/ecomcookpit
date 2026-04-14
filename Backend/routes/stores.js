@@ -40,45 +40,14 @@ async function isSubdomainAvailable(subdomain, excludeStoreId = null) {
 // GET /api/ecom/stores — list all stores for current workspace
 router.get('/', requireEcomAuth, async (req, res) => {
   try {
-    let stores = await Store.find({ workspaceId: req.workspaceId, isActive: true })
-      .select('_id name subdomain storeSettings storeTheme isActive createdAt')
+    const stores = await Store.find({ workspaceId: req.workspaceId, isActive: true })
+      .select('_id name subdomain storeSettings storeTheme storePages isActive createdAt')
       .sort({ createdAt: 1 })
       .lean();
 
     const ws = await Workspace.findById(req.workspaceId)
       .select('primaryStoreId name subdomain storeSettings')
       .lean();
-
-    // Auto-migrate: if no Store docs exist yet but workspace has a subdomain, create one now
-    if (stores.length === 0 && ws?.subdomain) {
-      try {
-        const created = await Store.create({
-          workspaceId: req.workspaceId,
-          name: ws.storeSettings?.storeName || ws.name,
-          subdomain: ws.subdomain,
-          isActive: true,
-          storeSettings: { ...ws.storeSettings, isStoreEnabled: ws.storeSettings?.isStoreEnabled ?? true },
-          createdBy: req.ecomUser._id
-        });
-        await Workspace.updateOne({ _id: req.workspaceId }, { $set: { primaryStoreId: created._id } });
-        stores = [created.toObject()];
-        // Auto-assign orphan products & orders to this store
-        await Promise.all([
-          StoreProduct.updateMany(
-            { workspaceId: req.workspaceId, storeId: null },
-            { $set: { storeId: created._id } }
-          ),
-          StoreOrder.updateMany(
-            { workspaceId: req.workspaceId, storeId: null },
-            { $set: { storeId: created._id } }
-          )
-        ]);
-      } catch (migErr) {
-        // Duplicate subdomain — fetch what already exists
-        const existing = await Store.findOne({ workspaceId: req.workspaceId }).lean();
-        if (existing) stores = [existing];
-      }
-    }
 
     // Auto-assign orphan products/orders to primary store (one-time migration)
     if (stores.length > 0) {
@@ -103,6 +72,7 @@ router.get('/', requireEcomAuth, async (req, res) => {
       success: true,
       data: stores.map(s => ({
         ...s,
+        hasHomepage: !!(s.storePages?.sections?.length > 0),
         isPrimary: String(ws?.primaryStoreId) === String(s._id)
       }))
     });

@@ -283,16 +283,18 @@ const AdminDashboard = () => {
       setCustomEndDate('');
       setIsSelectingEnd(true);
     } else if (customStartDate && !customEndDate) {
-      // Sélectionner la date de fin
-      if (dateStr >= customStartDate) {
-        setCustomEndDate(dateStr);
-        setIsSelectingEnd(false);
-      } else {
-        // Si la date est avant la date de début, inverser
-        setCustomEndDate(customStartDate);
-        setCustomStartDate(dateStr);
-        setIsSelectingEnd(false);
+      // Sélectionner la date de fin → appliquer immédiatement
+      let start = customStartDate;
+      let end = dateStr;
+      if (dateStr < customStartDate) {
+        start = dateStr;
+        end = customStartDate;
       }
+      setCustomStartDate(start);
+      setCustomEndDate(end);
+      setIsSelectingEnd(false);
+      setTimeRange('custom');
+      setShowDatePicker(false);
     }
   };
 
@@ -758,7 +760,7 @@ const AdminDashboard = () => {
             ].map(period => (
               <button
                 key={period.id}
-                onClick={() => { setTimeRange(period.id); setCustomStartDate(''); setCustomEndDate(''); }}
+                onClick={() => { setTimeRange(period.id); setCustomStartDate(''); setCustomEndDate(''); setShowDatePicker(false); }}
                 className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all whitespace-nowrap ${
                   timeRange === period.id
                     ? 'bg-gray-800 text-white'
@@ -806,6 +808,27 @@ const AdminDashboard = () => {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </button>
+              </div>
+
+              {/* Raccourcis rapides */}
+              <div className="flex flex-wrap gap-2 mb-4">
+                {[
+                  { id: 'today', label: "Aujourd'hui" },
+                  { id: '7d', label: '7 jours' },
+                  { id: '30d', label: '30 jours' },
+                  { id: '90d', label: '90 jours' },
+                  { id: '365d', label: '1 an' },
+                ].map(p => (
+                  <button
+                    key={p.id}
+                    onClick={() => { setTimeRange(p.id); setCustomStartDate(''); setCustomEndDate(''); setShowDatePicker(false); }}
+                    className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
+                      timeRange === p.id ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    {p.label}
+                  </button>
+                ))}
               </div>
 
               {/* Calendrier personnalisé */}
@@ -879,14 +902,10 @@ const AdminDashboard = () => {
               </div>
 
               {/* Résumé de la sélection */}
-              {(customStartDate || customEndDate) && (
-                <div className="mb-6 p-4 bg-emerald-50 rounded-lg border border-emerald-200">
+              {customStartDate && !customEndDate && (
+                <div className="mb-4 p-3 bg-emerald-50 rounded-lg border border-emerald-200">
                   <div className="text-sm text-emerald-800">
-                    {customStartDate && customEndDate
-                      ? `Du ${new Date(customStartDate).toLocaleDateString('fr-FR')} au ${new Date(customEndDate).toLocaleDateString('fr-FR')}`
-                      : customStartDate
-                      ? `À partir du ${new Date(customStartDate).toLocaleDateString('fr-FR')}`
-                      : ''}
+                    Sélectionnez la date de fin
                   </div>
                 </div>
               )}
@@ -900,19 +919,7 @@ const AdminDashboard = () => {
                   }}
                   className="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition"
                 >
-                  Annuler
-                </button>
-                <button
-                  onClick={() => {
-                    if (customStartDate && customEndDate) {
-                      setTimeRange('custom');
-                      setShowDatePicker(false);
-                    }
-                  }}
-                  disabled={!customStartDate || !customEndDate}
-                  className="flex-1 px-4 py-2.5 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Appliquer
+                  Fermer
                 </button>
               </div>
             </div>

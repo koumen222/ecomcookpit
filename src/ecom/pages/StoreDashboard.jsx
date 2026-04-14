@@ -263,22 +263,22 @@ export default function StoreDashboard() {
     <div className="p-5 sm:p-8 lg:p-10 max-w-6xl mx-auto space-y-8">
 
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-lg font-semibold text-gray-900">Vue d'ensemble</h1>
+          <h1 className="text-xl sm:text-lg font-bold sm:font-semibold text-gray-900">Vue d'ensemble</h1>
           <p className="text-[13px] text-gray-400 mt-0.5">{periodLabel}</p>
         </div>
         <div className="flex items-center gap-1.5">
           {(storeUrl || activeStore?.subdomain) && (
             <a href={storeUrl || `https://${activeStore.subdomain}.scalor.net`} target="_blank" rel="noopener noreferrer"
-              className="text-[13px] font-medium text-gray-500 hover:text-gray-900 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition flex items-center gap-1.5">
+              className="hidden sm:flex text-[13px] font-medium text-gray-500 hover:text-gray-900 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition items-center gap-1.5">
               <Globe size={14} /> Boutique
             </a>
           )}
-          <div className="h-5 w-px bg-gray-200 mx-1" />
-          <div className="relative">
+          <div className="hidden sm:block h-5 w-px bg-gray-200 mx-1" />
+          <div className="relative flex-1 sm:flex-none">
             <button onClick={() => setDatePickerOpen(!datePickerOpen)}
-              className="flex min-w-[190px] items-center justify-between gap-2 rounded-xl border border-gray-200 bg-white px-3.5 py-2 text-[13px] font-medium text-gray-700 shadow-sm hover:bg-gray-50 transition">
+              className="flex w-full sm:w-auto sm:min-w-[190px] items-center justify-between gap-2 rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 sm:py-2 text-[13px] font-medium text-gray-700 shadow-sm hover:bg-gray-50 transition">
               <span className="flex items-center gap-2 min-w-0">
                 <Calendar size={14} className="text-gray-400 flex-shrink-0" />
                 <span className="truncate">{periodLabel}</span>
@@ -299,11 +299,11 @@ export default function StoreDashboard() {
               </>
             )}
           </div>
-          <button onClick={() => loadDashboard(false)} disabled={refreshing} className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition">
-            <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
+          <button onClick={() => loadDashboard(false)} disabled={refreshing} className="p-2 sm:p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition">
+            <RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} />
           </button>
-          <button onClick={exportAnalytics} className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition">
-            <Download size={14} />
+          <button onClick={exportAnalytics} className="p-2 sm:p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition">
+            <Download size={16} />
           </button>
         </div>
       </div>
@@ -325,10 +325,10 @@ export default function StoreDashboard() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-px bg-emerald-100 rounded-xl shadow-[0_14px_30px_-20px_rgba(16,24,40,0.28)] overflow-hidden">
         {metrics.map((m, i) => (
           <button key={i} onClick={() => setChartMetric(m.key)}
-            className={`bg-white px-5 py-4 text-left shadow-[0_8px_18px_-14px_rgba(16,24,40,0.28)] transition-all hover:bg-gray-50 hover:shadow-[0_16px_30px_-18px_rgba(16,24,40,0.34)] ${chartMetric === m.key ? 'ring-inset ring-1 ring-emerald-500' : ''}`}>
-            <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">{m.label}</p>
-            <p className="text-xl font-semibold text-gray-900 mt-1 tabular-nums">{m.value}</p>
-            {m.sub && <p className="text-[11px] text-gray-400 mt-0.5">{m.sub}</p>}
+            className={`bg-white px-4 sm:px-5 py-3.5 sm:py-4 text-left shadow-[0_8px_18px_-14px_rgba(16,24,40,0.28)] transition-all hover:bg-gray-50 hover:shadow-[0_16px_30px_-18px_rgba(16,24,40,0.34)] ${chartMetric === m.key ? 'ring-inset ring-1 ring-emerald-500' : ''}`}>
+            <p className="text-[10px] sm:text-[11px] font-medium text-gray-400 uppercase tracking-wider">{m.label}</p>
+            <p className="text-lg sm:text-xl font-semibold text-gray-900 mt-1 tabular-nums truncate">{m.value}</p>
+            {m.sub && <p className="text-[10px] sm:text-[11px] text-gray-400 mt-0.5 truncate">{m.sub}</p>}
           </button>
         ))}
       </div>
@@ -677,12 +677,16 @@ const DatePickerDropdown = ({ onPreset, onCustom, onClose, activePeriod, activeL
       setSelStart(d);
       setSelEnd(null);
     } else {
+      let start = selStart;
+      let end = d;
       if (d < selStart) {
-        setSelEnd(selStart);
-        setSelStart(d);
-      } else {
-        setSelEnd(d);
+        start = d;
+        end = selStart;
       }
+      setSelStart(start);
+      setSelEnd(end);
+      // Appliquer et fermer immédiatement
+      onCustom(start, end);
     }
   };
 
@@ -732,6 +736,13 @@ const DatePickerDropdown = ({ onPreset, onCustom, onClose, activePeriod, activeL
     setSelEnd(selection.end);
     setRightMonth(selection.end.getMonth());
     setRightYear(selection.end.getFullYear());
+
+    // Appliquer et fermer immédiatement
+    if (selection.type === 'period') {
+      onPreset(selection.period, selection.label);
+    } else {
+      onCustom(selection.start, selection.end, { period: selection.period, label: selection.label });
+    }
   };
 
   const handleApply = () => {
