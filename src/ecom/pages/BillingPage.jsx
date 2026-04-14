@@ -47,8 +47,8 @@ const PLAN_TIERS = [
       { text: 'Génération de pages IA', included: false },
     ],
     durations: [
-      { id: 'starter_1',  label: 'Mensuel',  price: 5000,  months: 1,  saving: null,  perMonth: 5000 },
-      { id: 'starter_12', label: 'Annuel',   price: 45000, months: 12, saving: 25,    perMonth: 3750 },
+      { id: 'starter_1',  label: 'Mensuel',  price: 2000,  months: 1,  saving: null,  perMonth: 2000,  oldPrice: 5000 },
+      { id: 'starter_12', label: 'Annuel',   price: 18000, months: 12, saving: 25,    perMonth: 1500,  oldPrice: 45000 },
     ],
   },
   {
@@ -72,8 +72,8 @@ const PLAN_TIERS = [
       { text: 'Génération de pages IA', included: false },
     ],
     durations: [
-      { id: 'pro_1',  label: 'Mensuel',  price: 10000,  months: 1,  saving: null,  perMonth: 10000 },
-      { id: 'pro_12', label: 'Annuel',   price: 95000,  months: 12, saving: 21,    perMonth: 7917 },
+      { id: 'pro_1',  label: 'Mensuel',  price: 5000,  months: 1,  saving: null,  perMonth: 5000,  oldPrice: 10000 },
+      { id: 'pro_12', label: 'Annuel',   price: 45000, months: 12, saving: 25,    perMonth: 3750,  oldPrice: 95000 },
     ],
   },
   {
@@ -96,8 +96,8 @@ const PLAN_TIERS = [
       { text: 'API & webhooks', included: true },
     ],
     durations: [
-      { id: 'ultra_1',  label: 'Mensuel',  price: 15000,  months: 1,  saving: null,  perMonth: 15000 },
-      { id: 'ultra_12', label: 'Annuel',   price: 140000, months: 12, saving: 22,    perMonth: 11667 },
+      { id: 'ultra_1',  label: 'Mensuel',  price: 7500,   months: 1,  saving: null,  perMonth: 7500,  oldPrice: 15000 },
+      { id: 'ultra_12', label: 'Annuel',   price: 70000,  months: 12, saving: 22,    perMonth: 5833,  oldPrice: 140000 },
     ],
   },
 ];
@@ -186,10 +186,14 @@ function CheckoutModal({ plan, tier, onClose, onSuccess, workspaceId, userName, 
           <div className="bg-white/15 rounded-xl p-4 flex items-center justify-between">
             <div>
               <p className="text-white/70 text-xs">Total à payer</p>
-              <p className="text-2xl font-black">{formatAmount(plan.price)} FCFA</p>
+              <div className="flex items-baseline gap-2">
+                {plan.oldPrice && <span className="text-lg text-white/40 line-through">{formatAmount(plan.oldPrice)}</span>}
+                <p className="text-2xl font-black">{formatAmount(plan.price)} FCFA</p>
+              </div>
               {plan.saving && <p className="text-white/60 text-xs mt-0.5">Soit {formatAmount(plan.perMonth)} FCFA/mois · -{plan.saving}%</p>}
             </div>
-            {plan.saving && <div className="bg-white text-orange-600 font-black text-sm px-3 py-1 rounded-full shadow">-{plan.saving}%</div>}
+            {plan.oldPrice && <div className="bg-red-500 text-white font-black text-xs px-2.5 py-1 rounded-full shadow">PROMO</div>}
+            {!plan.oldPrice && plan.saving && <div className="bg-white text-orange-600 font-black text-sm px-3 py-1 rounded-full shadow">-{plan.saving}%</div>}
           </div>
         </div>
 
@@ -264,10 +268,16 @@ function PlanCard({ tier, isAnnual, onCheckout, currentPlan, isActive }) {
         </div>
 
         <div className="mb-6">
-          <div className="flex items-baseline gap-1">
+          <div className="flex items-baseline gap-2">
+            {duration.oldPrice && (
+              <span className="text-lg font-bold text-gray-300 line-through">{formatAmount(isAnnual ? Math.round(duration.oldPrice / duration.months) : duration.oldPrice)}</span>
+            )}
             <span className="text-4xl font-black text-gray-900">{formatAmount(duration.perMonth)}</span>
             <span className="text-sm font-medium text-gray-400">FCFA/mois</span>
           </div>
+          {duration.oldPrice && (
+            <p className="text-xs text-red-500 font-bold mt-1">🔥 Offre valable 24h — prix réduit !</p>
+          )}
           {isAnnual && duration.saving && (
             <p className="text-xs text-emerald-600 font-semibold mt-1">
               {formatAmount(duration.price)} FCFA/an · Économisez {duration.saving}%
@@ -330,6 +340,8 @@ export default function BillingPage() {
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [checkout, setCheckout] = useState(null);
+  const [directCheckoutLoading, setDirectCheckoutLoading] = useState(false);
+  const [directCheckoutError, setDirectCheckoutError] = useState('');
   const [isAnnual, setIsAnnual] = useState(false);
   const [pendingToken, setPendingToken] = useState(() => sessionStorage.getItem('mf_pending_token') || null);
   const [trialLoading, setTrialLoading] = useState(false);
@@ -341,7 +353,7 @@ export default function BillingPage() {
     const tierName = incoming.includes('ultra') ? 'ultra' : incoming.includes('pro') ? 'pro' : 'starter';
     const tier = PLAN_TIERS.find(t => t.id === tierName);
     const plan = ALL_PLANS.find(p => p.id === incoming) || tier?.durations[0];
-    if (tier && plan) setCheckout({ plan, tier });
+    if (tier && plan) handleDirectCheckout({ ...plan, tier: tierName });
   }, [location.state]);
 
   const load = useCallback(async () => {
@@ -373,6 +385,32 @@ export default function BillingPage() {
     try { await activateTrial(workspaceId); window.location.reload(); }
     catch { setTrialLoading(false); }
   }
+
+  // Direct checkout — skip modal, use user phone/name
+  const handleDirectCheckout = useCallback(async (duration) => {
+    const phone = user?.phone?.trim();
+    const name = user?.name?.trim() || user?.email?.split('@')[0] || 'Client';
+    if (!phone || phone.length < 7) {
+      // Fallback: show modal if no phone on profile
+      const tier = PLAN_TIERS.find(t => t.id === (duration.tier || duration.id?.split('_')[0]));
+      setCheckout({ plan: { ...duration, tier: duration.tier || tier?.id }, tier });
+      return;
+    }
+    setDirectCheckoutLoading(true);
+    setDirectCheckoutError('');
+    try {
+      const result = await createCheckout({ plan: duration.id, phone, clientName: name, workspaceId });
+      if (!result.success) { setDirectCheckoutError(result.message || 'Erreur'); setDirectCheckoutLoading(false); return; }
+      if (result.paymentUrl) {
+        sessionStorage.setItem('mf_pending_token', result.mfToken);
+        setPendingToken(result.mfToken);
+        window.location.href = result.paymentUrl;
+      } else { setDirectCheckoutError('URL de paiement manquante.'); setDirectCheckoutLoading(false); }
+    } catch (err) {
+      setDirectCheckoutError(err?.response?.data?.message || 'Erreur de paiement.');
+      setDirectCheckoutLoading(false);
+    }
+  }, [user, workspaceId]);
 
   const currentPlan = planInfo?.plan || 'free';
   const isActivePaid = planInfo?.isActive && ['starter', 'pro', 'ultra'].includes(currentPlan);
@@ -505,7 +543,7 @@ export default function BillingPage() {
                     isAnnual={isAnnual}
                     currentPlan={currentPlan}
                     isActive={isActivePaid}
-                    onCheckout={duration => setCheckout({ plan: { ...duration, tier: tier.id }, tier })}
+                    onCheckout={duration => handleDirectCheckout({ ...duration, tier: tier.id })}
                   />
                 ))}
               </div>
@@ -615,7 +653,7 @@ export default function BillingPage() {
                   isAnnual={isAnnual}
                   currentPlan={currentPlan}
                   isActive={isActivePaid}
-                  onCheckout={duration => setCheckout({ plan: { ...duration, tier: tier.id }, tier })}
+                  onCheckout={duration => handleDirectCheckout({ ...duration, tier: tier.id })}
                 />
               ))}
             </div>
@@ -767,7 +805,7 @@ export default function BillingPage() {
         </div>
       )}
 
-      {/* Checkout Modal */}
+      {/* Checkout Modal — fallback si pas de téléphone */}
       {checkout && (
         <CheckoutModal
           plan={checkout.plan}
@@ -778,6 +816,26 @@ export default function BillingPage() {
           onClose={() => setCheckout(null)}
           onSuccess={token => { sessionStorage.setItem('mf_pending_token', token); setPendingToken(token); }}
         />
+      )}
+
+      {/* Direct checkout loading overlay */}
+      {directCheckoutLoading && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center">
+          <div className="bg-white rounded-2xl p-8 text-center shadow-2xl max-w-sm mx-4">
+            <div className="w-12 h-12 border-4 border-gray-200 rounded-full animate-spin mx-auto mb-4" style={{ borderTopColor: '#0F6B4F' }} />
+            <p className="text-sm font-semibold text-gray-900">Redirection vers le paiement...</p>
+            <p className="text-xs text-gray-500 mt-1">Veuillez patienter</p>
+          </div>
+        </div>
+      )}
+
+      {/* Direct checkout error toast */}
+      {directCheckoutError && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-red-600 text-white px-5 py-3 rounded-xl shadow-lg text-sm font-semibold flex items-center gap-3 max-w-md">
+          <AlertTriangle className="w-5 h-5 flex-shrink-0" />
+          <span>{directCheckoutError}</span>
+          <button onClick={() => setDirectCheckoutError('')} className="ml-2 text-white/70 hover:text-white">✕</button>
+        </div>
       )}
     </div>
   );

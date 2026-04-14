@@ -10,7 +10,7 @@ function PublicCheckoutModal({ plan, onClose }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const PLAN_PRICES = { pro_1: 6000, pro_3: 16000, pro_6: 30000, pro_12: 55000 };
+  const PLAN_PRICES = { pro_1: 5000, pro_3: 13000, pro_6: 24000, pro_12: 45000 };
   const PLAN_DURATIONS = { pro_1: '1 mois', pro_3: '3 mois', pro_6: '6 mois', pro_12: '12 mois' };
   const amount = PLAN_PRICES[plan] || 6000;
   const durationLabel = PLAN_DURATIONS[plan] || '1 mois';
@@ -159,8 +159,10 @@ const Tarifs = () => {
     },
     {
       name: 'Pro',
-      price: '6 000',
+      price: '5 000',
+      oldPrice: '10 000',
       period: 'FCFA/mois',
+      promo: '🔥 Offre valable 24h',
       description: 'Toutes les fonctionnalités + WhatsApp & IA',
       features: [
         'Toutes les fonctionnalités du plan Gratuit',
@@ -274,6 +276,11 @@ const Tarifs = () => {
 
                 <div className="mb-8">
                   <div className="flex items-baseline gap-2">
+                    {plan.oldPrice && (
+                      <span className={`text-2xl font-bold line-through ${plan.highlighted ? 'text-white/40' : 'text-gray-300'}`}>
+                        {plan.oldPrice}
+                      </span>
+                    )}
                     <span className={`text-5xl font-black ${plan.highlighted ? 'text-white' : 'text-gray-900'}`}>
                       {plan.price}
                     </span>
@@ -283,6 +290,11 @@ const Tarifs = () => {
                       </span>
                     )}
                   </div>
+                  {plan.promo && (
+                    <p className={`text-sm font-bold mt-2 ${plan.highlighted ? 'text-yellow-300' : 'text-red-500'}`}>
+                      {plan.promo}
+                    </p>
+                  )}
                 </div>
 
                 <ul className="space-y-4 mb-8">
