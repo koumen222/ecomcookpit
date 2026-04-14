@@ -6,6 +6,7 @@
 import axios from 'axios';
 import OpenAI from 'openai';
 import { uploadImage, isConfigured } from './cloudflareImagesService.js';
+import { callKieChatCompletion, isKieConfigured } from './kieChatService.js';
 
 let _openai = null;
 
@@ -103,7 +104,9 @@ export async function scrapeAlibaba(url) {
 
 export async function analyzeWithGPT(scraped) {
   const openai = getOpenAI();
-  if (!openai) throw new Error('Clé OpenAI API non configurée. Ajoutez OPENAI_API_KEY dans les variables d\'environnement.');
+  if (!isKieConfigured() && !openai) {
+    throw new Error('Aucune clé IA configurée. Ajoutez KIE_API_KEY ou OPENAI_API_KEY dans les variables d\'environnement.');
+  }
 
   const contextLines = [
     scraped.title && `Titre extrait: ${scraped.title}`,
@@ -188,15 +191,28 @@ RÈGLES STRICTES:
 - Marketing style: inspiré des grandes marques (Apple, Samsung, Nike) mais adapté Afrique
 - Retourne UNIQUEMENT du JSON valide, sans \`\`\`json ni aucune explication`;
 
-  const completion = await openai.chat.completions.create({
-    model: process.env.OPENAI_MODEL || 'gpt-4o',
-    messages: [{ role: 'user', content: prompt }],
-    temperature: 0.78,
-    max_tokens: 3500,
-    response_format: { type: 'json_object' }
-  });
-
-  const raw = completion.choices[0]?.message?.content || '{}';
+  let raw = '{}';
+  try {
+    const kieResp = await callKieChatCompletion({
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.78,
+      maxTokens: 3500,
+      reasoningEffort: process.env.KIE_REASONING_EFFORT || 'high',
+      includeThoughts: false,
+    });
+    raw = kieResp.content || '{}';
+  } catch (kieErr) {
+    if (!openai) throw kieErr;
+    console.warn(`⚠️ [AlibabaImport] KIE indisponible, fallback OpenAI: ${kieErr.message}`);
+    const completion = await openai.chat.completions.create({
+      model: process.env.OPENAI_MODEL || 'gpt-4o',
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.78,
+      max_tokens: 3500,
+      response_format: { type: 'json_object' }
+    });
+    raw = completion.choices[0]?.message?.content || '{}';
+  }
 
   try {
     return JSON.parse(raw);

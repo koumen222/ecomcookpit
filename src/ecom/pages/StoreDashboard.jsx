@@ -20,6 +20,7 @@ import { useEcomAuth } from '../hooks/useEcomAuth';
 import { useStore } from '../contexts/StoreContext.jsx';
 
 const TODAY_AUTO_REFRESH_MS = 15000;
+const INITIAL_AUTO_REFRESH_DELAY_MS = 1200;
 
 const startOfDay = (date) => {
   const next = new Date(date);
@@ -51,6 +52,101 @@ const formatRangeLabel = (start, end) => {
   if (!start || !end) return '';
   return isSameCalendarDay(start, end) ? format(start) : `${format(start)} - ${format(end)}`;
 };
+
+function normalizeDashboardPayload(raw) {
+  const payload = raw?.data?.data && (raw.data.data.analytics || raw.data.data.orders)
+    ? raw.data.data
+    : raw?.data && (raw.data.analytics || raw.data.orders)
+      ? raw.data
+      : raw;
+  if (payload?.analytics || payload?.orders) return payload;
+  return null;
+}
+
+function mapSummaryToDashboardData(summary = {}, range = null) {
+  return {
+    analytics: {
+      overview: {
+        uniqueVisitors: summary.totalVisitors || 0,
+        visitsToday: summary.totalVisitors || 0,
+        pageViews: summary.totalVisitors || 0,
+        conversionRate: typeof summary.conversionRate === 'number'
+          ? +(summary.conversionRate * 100).toFixed(1)
+          : 0,
+      },
+      timeline: [],
+      visitsPerProduct: [],
+    },
+    orders: {
+      total: summary.totalOrders || 0,
+      pending: 0,
+      confirmed: 0,
+      processing: 0,
+      shipped: 0,
+      delivered: summary.todayOrders || 0,
+      cancelled: 0,
+      totalRevenue: summary.totalRevenue || summary.todaySales || 0,
+      potentialRevenue: summary.totalRevenue || summary.todaySales || 0,
+      realizedRevenue: summary.totalRevenue || summary.todaySales || 0,
+      averageOrderValue: 0,
+      dailyRevenue: {},
+      dailyOrders: {},
+      channelStats: {},
+      channelPerformance: [],
+    },
+    topProductsBySales: [],
+    topProductsByRevenue: [],
+    leastProductsBySales: [],
+    period: range || null,
+  };
+}
+
+function hasMeaningfulDashboardData(payload) {
+  const analytics = payload?.analytics?.overview || {};
+  const orders = payload?.orders || {};
+  const hasVisitors = Number(analytics.uniqueVisitors || 0) > 0;
+  const hasPageViews = Number(analytics.pageViews || 0) > 0;
+  const hasOrders = Number(orders.total || 0) > 0;
+  const hasRevenue = Number(orders.totalRevenue || orders.potentialRevenue || 0) > 0;
+  return hasVisitors || hasPageViews || hasOrders || hasRevenue;
+}
+
+function getDashboardCacheKey(workspaceId) {
+  return `storeDashboard:lastMeaningful:${workspaceId || 'unknown'}`;
+}
+
+function readCachedDashboard(workspaceId) {
+  try {
+    const raw = localStorage.getItem(getDashboardCacheKey(workspaceId));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeCachedDashboard(workspaceId, payload) {
+  if (!workspaceId || !payload || !hasMeaningfulDashboardData(payload)) return;
+  try {
+    localStorage.setItem(getDashboardCacheKey(workspaceId), JSON.stringify(payload));
+  } catch {
+    // Ignore storage quota/security errors
+  }
+}
+
+async function withNoActiveStoreHeader(requestFn) {
+  if (typeof window === 'undefined') {
+    return requestFn();
+  }
+  const previousStoreId = window.__activeStoreId__;
+  window.__activeStoreId__ = null;
+  try {
+    return await requestFn();
+  } finally {
+    window.__activeStoreId__ = previousStoreId;
+  }
+}
 
 const getPresetSelection = (key, referenceDate = new Date()) => {
   const todayStart = startOfDay(referenceDate);
@@ -122,6 +218,17 @@ const getPresetSelection = (key, referenceDate = new Date()) => {
 export default function StoreDashboard() {
   const { workspace } = useEcomAuth();
   const { activeStore } = useStore();
+  const fallbackWorkspaceId = (() => {
+    try {
+      const raw = localStorage.getItem('ecomWorkspace');
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      return parsed?._id || parsed?.id || null;
+    } catch {
+      return null;
+    }
+  })();
+  const resolvedWorkspaceId = workspace?._id || fallbackWorkspaceId || null;
   const [storeUrl, setStoreUrl] = useState(null);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -135,9 +242,27 @@ export default function StoreDashboard() {
   const isTodayActive = period === 'today' || dateRange?.period === 'today';
 
   useEffect(() => {
-    if (!workspace?._id) return;
-    loadDashboard(!dashboardData);
-  }, [period, dateRange, workspace?._id, activeStore?._id]);
+    if (!resolvedWorkspaceId) return;
+    const cached = readCachedDashboard(resolvedWorkspaceId);
+    if (cached && hasMeaningfulDashboardData(cached)) {
+      setDashboardData(cached);
+    }
+  }, [resolvedWorkspaceId]);
+
+  useEffect(() => {
+    if (!resolvedWorkspaceId) return;
+    loadDashboard(!dashboardData, { forceAllStores: true });
+
+    // Force a second sync shortly after mount to ensure latest numbers are shown
+    // even when initial render used cached or delayed upstream data.
+    const refreshId = window.setTimeout(() => {
+      loadDashboard(false, { forceAllStores: true });
+    }, INITIAL_AUTO_REFRESH_DELAY_MS);
+
+    return () => {
+      window.clearTimeout(refreshId);
+    };
+  }, [period, dateRange, resolvedWorkspaceId, activeStore?._id]);
 
   useEffect(() => {
     if (!isTodayActive) return undefined;
@@ -153,13 +278,14 @@ export default function StoreDashboard() {
       window.clearInterval(intervalId);
       window.removeEventListener('focus', refreshTodayStats);
     };
-  }, [isTodayActive, workspace?._id, activeStore?._id, dateRange]);
+  }, [isTodayActive, resolvedWorkspaceId, activeStore?._id, dateRange]);
 
-  const loadDashboard = async (isInitial) => {
-    if (!workspace?._id) return;
+  const loadDashboard = async (isInitial, options = {}) => {
+    const forceAllStores = options.forceAllStores !== false;
+    if (!resolvedWorkspaceId) return;
     try {
       if (isInitial) setLoading(true); else setRefreshing(true);
-      const params = { workspaceId: workspace?._id };
+      const params = { workspaceId: resolvedWorkspaceId };
       if (dateRange) {
         params.startDate = dateRange.start;
         params.endDate = dateRange.end;
@@ -167,16 +293,85 @@ export default function StoreDashboard() {
       }
       if (!params.period) params.period = period;
       const [response, configRes] = await Promise.all([
-        ecomApi.get('/store-analytics/dashboard', { params }),
+        forceAllStores
+          ? withNoActiveStoreHeader(() => ecomApi.get('/store-analytics/dashboard', { params: { ...params, allStores: 1 } }))
+          : ecomApi.get('/store-analytics/dashboard', { params }),
         ecomApi.get('/store-manage/config').catch(() => null),
       ]);
-      setDashboardData(response.data);
+      let normalized = normalizeDashboardPayload(response.data);
+
+      if ((forceAllStores || activeStore?._id) && (!normalized || !hasMeaningfulDashboardData(normalized))) {
+        const allStoresResponse = await withNoActiveStoreHeader(() => ecomApi.get('/store-analytics/dashboard', {
+          params: { ...params, allStores: 1 },
+        })).catch(() => null);
+        const allStoresNormalized = normalizeDashboardPayload(allStoresResponse?.data);
+        if (allStoresNormalized && hasMeaningfulDashboardData(allStoresNormalized)) {
+          normalized = allStoresNormalized;
+        }
+      }
+
+      if (normalized && hasMeaningfulDashboardData(normalized)) {
+        setDashboardData(normalized);
+        writeCachedDashboard(resolvedWorkspaceId, normalized);
+      } else {
+        let summaryResponse = await ecomApi.get('/store/analytics/summary').catch(() => null);
+        let summary = summaryResponse?.data?.data || summaryResponse?.data || {};
+
+        if ((forceAllStores || activeStore?._id) && !hasMeaningfulDashboardData(mapSummaryToDashboardData(summary, response?.data?.period || null))) {
+          summaryResponse = await withNoActiveStoreHeader(() => ecomApi.get('/store/analytics/summary', { params: { allStores: 1 } })).catch(() => null);
+          summary = summaryResponse?.data?.data || summaryResponse?.data || summary;
+        }
+
+        const mappedSummary = mapSummaryToDashboardData(summary, response?.data?.period || null);
+        if (hasMeaningfulDashboardData(mappedSummary)) {
+          setDashboardData(mappedSummary);
+          writeCachedDashboard(resolvedWorkspaceId, mappedSummary);
+        } else {
+          const cached = readCachedDashboard(resolvedWorkspaceId);
+          if (cached && hasMeaningfulDashboardData(cached)) {
+            setDashboardData(cached);
+          } else {
+            setDashboardData(mappedSummary);
+          }
+        }
+      }
+
       const subdomain = configRes?.data?.data?.subdomain;
       const storeUrlFromApi = configRes?.data?.data?.storeUrl;
       if (storeUrlFromApi) setStoreUrl(storeUrlFromApi);
       else if (subdomain) setStoreUrl(`https://${subdomain}.scalor.net`);
     } catch (error) {
       console.error('Erreur dashboard:', error);
+      let summaryResponse = await ecomApi.get('/store/analytics/summary').catch(() => null);
+      let summary = summaryResponse?.data?.data || summaryResponse?.data || null;
+
+      if ((forceAllStores || activeStore?._id) && summary) {
+        const firstMapped = mapSummaryToDashboardData(summary, null);
+        if (!hasMeaningfulDashboardData(firstMapped)) {
+          summaryResponse = await withNoActiveStoreHeader(() => ecomApi.get('/store/analytics/summary', { params: { allStores: 1 } })).catch(() => null);
+          summary = summaryResponse?.data?.data || summaryResponse?.data || summary;
+        }
+      }
+
+      if (summary) {
+        const mappedSummary = mapSummaryToDashboardData(summary, null);
+        if (hasMeaningfulDashboardData(mappedSummary)) {
+          setDashboardData(mappedSummary);
+          writeCachedDashboard(resolvedWorkspaceId, mappedSummary);
+        } else {
+          const cached = readCachedDashboard(resolvedWorkspaceId);
+          if (cached && hasMeaningfulDashboardData(cached)) {
+            setDashboardData(cached);
+          } else {
+            setDashboardData(mappedSummary);
+          }
+        }
+      } else {
+        const cached = readCachedDashboard(resolvedWorkspaceId);
+        if (cached && hasMeaningfulDashboardData(cached)) {
+          setDashboardData(cached);
+        }
+      }
     } finally { setLoading(false); setRefreshing(false); }
   };
 
@@ -302,7 +497,7 @@ export default function StoreDashboard() {
               </>
             )}
           </div>
-          <button onClick={() => loadDashboard(false)} disabled={refreshing} className="p-2 sm:p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition">
+          <button onClick={() => loadDashboard(false, { forceAllStores: true })} disabled={refreshing} className="p-2 sm:p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition">
             <RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} />
           </button>
           <button onClick={exportAnalytics} className="p-2 sm:p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition">

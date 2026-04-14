@@ -12,6 +12,7 @@ import Groq from 'groq-sdk';
 import { uploadImage, isConfigured } from './cloudflareImagesService.js';
 import { generateAnimatedGifFromImages, generateKieImageToVideo, generateNanoBananaImage, generateNanoBananaImageToImage } from './nanoBananaService.js';
 import { randomUUID } from 'crypto';
+import { callKieChatCompletion, isKieConfigured } from './kieChatService.js';
 
 let _groq = null;
 function getGroq() {
@@ -754,7 +755,36 @@ Le champ "prompt_avant_apres" doit décrire un AVANT/APRÈS SPÉCIFIQUE à CE pr
     console.log('✅ Groq JSON parsé, clés:', Object.keys(result).join(', '));
   } catch (error) {
     console.error('❌ Groq API error:', error.message);
-    throw new Error(`Erreur Groq: ${error.message}`);
+    // Fallback KIE (texte) pour garantir la génération même si Groq échoue
+    if (isKieConfigured()) {
+      try {
+        console.log('🔄 Fallback KIE pour génération page produit...');
+        const kie = await callKieChatCompletion({
+          messages: [
+            messages[0],
+            {
+              role: 'user',
+              content: typeof messages[1].content === 'string'
+                ? messages[1].content
+                : messages[1].content?.[0]?.text || userPrompt,
+            },
+          ],
+          temperature: 0.7,
+          maxTokens: 7000,
+          reasoningEffort: process.env.KIE_REASONING_EFFORT || 'high',
+          includeThoughts: false,
+        });
+
+        result = parseGroqJSON(kie.content || '{}');
+        if (!result) throw new Error('KIE JSON non parsable');
+        console.log('✅ KIE JSON parsé, clés:', Object.keys(result).join(', '));
+      } catch (kieErr) {
+        console.error('❌ KIE fallback error:', kieErr.message);
+        throw new Error(`Erreur IA: Groq=${error.message} | KIE=${kieErr.message}`);
+      }
+    } else {
+      throw new Error(`Erreur Groq: ${error.message}`);
+    }
   }
 
   if (!result) {

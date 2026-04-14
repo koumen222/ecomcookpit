@@ -138,15 +138,17 @@ function summarizeStoreSettingsPayload(payload = {}) {
 router.get('/analytics/summary', requireEcomAuth, requireWorkspace, async (req, res) => {
   try {
     const workspaceId = req.workspaceId;
-    const storeOrderMatchFilter = buildStoreOrderMatchFilter(workspaceId, req.activeStoreId);
+    const useAllStores = String(req.query?.allStores || '') === '1' || String(req.query?.allStores || '').toLowerCase() === 'true';
+    const scopedStoreId = useAllStores ? null : req.activeStoreId;
+    const storeOrderMatchFilter = buildStoreOrderMatchFilter(workspaceId, scopedStoreId);
 
     // Build store-scoped filter
-    const productFilter = req.activeStoreId
-      ? { workspaceId, storeId: req.activeStoreId }
+    const productFilter = scopedStoreId
+      ? { workspaceId, storeId: scopedStoreId }
       : { workspaceId };
 
     const [orderStats, productCount] = await Promise.all([
-      getScalorStoreOrdersSummary(workspaceId, req.activeStoreId),
+      getScalorStoreOrdersSummary(workspaceId, scopedStoreId),
       StoreProduct.countDocuments(productFilter)
     ]);
 

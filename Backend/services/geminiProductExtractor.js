@@ -8,6 +8,7 @@
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import Groq from 'groq-sdk';
+import { callKieChatCompletion, isKieConfigured } from './kieChatService.js';
 
 const GEMINI_API_KEY = process.env.NANOBANANA_API_KEY || process.env.GEMINI_API_KEY;
 
@@ -219,6 +220,41 @@ IMPORTANT: Ne retourne QUE le JSON, sans markdown ni texte supplémentaire.`;
 
   } catch (err) {
     console.error(`❌ ${GEMINI_MODEL} échoué:`, err.message);
+
+    // ── Fallback KIE (Gemini 3.1 Pro via endpoint OpenAI-compatible) ─────
+    if (isKieConfigured()) {
+      try {
+        console.log('🔄 Fallback KIE pour extraction...');
+        const kieResp = await callKieChatCompletion({
+          messages: [{ role: 'user', content: prompt }],
+          temperature: 0.4,
+          maxTokens: 2000,
+          reasoningEffort: process.env.KIE_REASONING_EFFORT || 'high',
+          includeThoughts: false,
+        });
+
+        const text = kieResp.content || '';
+        let data = parseGeminiJSON(text);
+        if (!data) data = extractFromPlainText(text, url);
+        if (!data?.title || !data?.description) throw new Error('KIE: données incomplètes');
+        if (data.title.length < 5) throw new Error('KIE: titre trop court');
+        if (data.description.length < 50) throw new Error('KIE: description trop courte');
+
+        const title = data.title
+          .replace(/\s*[|–-]\s*(Amazon|Alibaba|AliExpress|eBay).*$/i, '')
+          .replace(/\s*\|\s*.*$/, '')
+          .trim()
+          .slice(0, 200);
+
+        const description = data.description.trim();
+        const rawText = `${title}\n\n${description}`.slice(0, 3000);
+
+        console.log(`✅ KIE extraction OK:`, { title: title.slice(0, 60) + '...', descLength: description.length });
+        return { title, description, rawText };
+      } catch (kieErr) {
+        console.error('❌ KIE fallback échoué:', kieErr.message);
+      }
+    }
     
     // ── Fallback Groq ──────────────────────────────────────────────────────
     const groq = getGroq();

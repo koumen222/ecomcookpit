@@ -6,6 +6,7 @@ import Order from '../models/Order.js';
 import Workspace from '../models/Workspace.js';
 import RitaConfig from '../models/RitaConfig.js';
 import { analyzeImage, buildImageResponsePrompt } from './agentImageService.js';
+import { callKieChatCompletion, isKieConfigured } from './kieChatService.js';
 
 let groqClient = null;
 
@@ -358,9 +359,8 @@ Génère une réponse qui:
 
 const generateAgentResponse = async (conversation, clientMessage, intent, sentiment) => {
   const groq = initGroq();
-
-  if (!groq) {
-    throw new Error('Groq non configuré - GROQ_API_KEY manquante');
+  if (!isKieConfigured() && !groq) {
+    throw new Error('Aucun modele texte configure (KIE_API_KEY ou GROQ_API_KEY manquant)');
   }
 
   const productConfig = await ProductConfig.findByProductName(
@@ -378,20 +378,41 @@ const generateAgentResponse = async (conversation, clientMessage, intent, sentim
 
   try {
     const startTime = Date.now();
+    let response = '';
+    let tokensUsed = 0;
+    let modelUsed = process.env.KIE_MODEL_PATH || 'kie-gemini-3.1-pro';
 
-    const completion = await groq.chat.completions.create({
-      model: process.env.AGENT_GROQ_MODEL || 'meta-llama/llama-4-scout-17b-16e-instruct',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
-      ],
-      max_tokens: 300,
-      temperature: 0.7
-    });
+    try {
+      const kieResult = await callKieChatCompletion({
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ],
+        maxTokens: 300,
+        temperature: 0.7,
+        reasoningEffort: process.env.KIE_REASONING_EFFORT || 'high',
+        includeThoughts: false,
+      });
+      response = kieResult.content;
+      tokensUsed = kieResult?.usage?.total_tokens || 0;
+    } catch (kieErr) {
+      if (!groq) throw kieErr;
+      console.warn(`⚠️ [AGENT] KIE indisponible, fallback Groq: ${kieErr.message}`);
+      const completion = await groq.chat.completions.create({
+        model: process.env.AGENT_GROQ_MODEL || 'meta-llama/llama-4-scout-17b-16e-instruct',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ],
+        max_tokens: 300,
+        temperature: 0.7
+      });
+      response = completion.choices[0].message.content.trim();
+      tokensUsed = completion.usage?.total_tokens || 0;
+      modelUsed = process.env.AGENT_GROQ_MODEL || 'meta-llama/llama-4-scout-17b-16e-instruct';
+    }
 
     const processingTime = Date.now() - startTime;
-    let response = completion.choices[0].message.content.trim();
-    const tokensUsed = completion.usage?.total_tokens || 0;
 
     // Personnaliser la réponse avec le prénom du client
     if (!response.toLowerCase().includes(clientFirstName.toLowerCase())) {
@@ -402,7 +423,7 @@ const generateAgentResponse = async (conversation, clientMessage, intent, sentim
     return {
       response,
       promptUsed: systemPrompt.substring(0, 500) + '...',
-      gptModel: process.env.AGENT_GROQ_MODEL || 'meta-llama/llama-4-scout-17b-16e-instruct',
+      gptModel: modelUsed,
       tokensUsed,
       processingTime
     };
@@ -911,7 +932,7 @@ const processIncomingImageMessage = async (conversation, base64Image, mimetype, 
  */
 const generateAgentImageResponse = async (conversation, imageContext, caption) => {
   const groq = initGroq();
-  if (!groq) throw new Error('Groq non configuré');
+  if (!isKieConfigured() && !groq) throw new Error('Aucun modele texte configure (KIE_API_KEY ou GROQ_API_KEY manquant)');
 
   const productConfig = await ProductConfig.findByProductName(
     conversation.workspaceId,
@@ -939,19 +960,41 @@ Génère une réponse naturelle qui:
 
   const startTime = Date.now();
 
-  const completion = await groq.chat.completions.create({
-    model: process.env.AGENT_GROQ_MODEL || 'meta-llama/llama-4-scout-17b-16e-instruct',
-    messages: [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: userPrompt }
-    ],
-    max_tokens: 300,
-    temperature: 0.7
-  });
+  let response = '';
+  let tokensUsed = 0;
+  let modelUsed = process.env.KIE_MODEL_PATH || 'kie-gemini-3.1-pro';
+
+  try {
+    const kieResult = await callKieChatCompletion({
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+      ],
+      maxTokens: 300,
+      temperature: 0.7,
+      reasoningEffort: process.env.KIE_REASONING_EFFORT || 'high',
+      includeThoughts: false,
+    });
+    response = kieResult.content;
+    tokensUsed = kieResult?.usage?.total_tokens || 0;
+  } catch (kieErr) {
+    if (!groq) throw kieErr;
+    console.warn(`⚠️ [AGENT] KIE indisponible (image-context), fallback Groq: ${kieErr.message}`);
+    const completion = await groq.chat.completions.create({
+      model: process.env.AGENT_GROQ_MODEL || 'meta-llama/llama-4-scout-17b-16e-instruct',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+      ],
+      max_tokens: 300,
+      temperature: 0.7
+    });
+    response = completion.choices[0].message.content.trim();
+    tokensUsed = completion.usage?.total_tokens || 0;
+    modelUsed = process.env.AGENT_GROQ_MODEL || 'meta-llama/llama-4-scout-17b-16e-instruct';
+  }
 
   const processingTime = Date.now() - startTime;
-  let response = completion.choices[0].message.content.trim();
-  const tokensUsed = completion.usage?.total_tokens || 0;
 
   if (!response.toLowerCase().includes(clientFirstName.toLowerCase())) {
     response = `${clientFirstName}, ${response}`;
@@ -960,7 +1003,7 @@ Génère une réponse naturelle qui:
   return {
     response,
     promptUsed: systemPrompt.substring(0, 500) + '...',
-    gptModel: process.env.AGENT_GROQ_MODEL || 'meta-llama/llama-4-scout-17b-16e-instruct',
+    gptModel: modelUsed,
     tokensUsed,
     processingTime
   };
