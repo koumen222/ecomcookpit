@@ -10,6 +10,10 @@ import { Readable } from 'stream';
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 const FISH_AUDIO_DIRECT_API_KEY = process.env.FISH_AUDIO_API_KEY || '203f946aa7b3454184fd28fc7eb1f33b';
+const KIE_API_KEY = process.env.KIE_API_KEY || '';
+const KIE_BASE_URL = (process.env.KIE_BASE_URL || 'https://api.kie.ai').replace(/\/+$/, '');
+const KIE_MODEL_PATH = process.env.KIE_MODEL_PATH || '/gemini-3.1-pro/v1/chat/completions';
+const KIE_TIMEOUT_MS = Number(process.env.KIE_TIMEOUT_MS || 120000);
 
 // Historique in-memory par numéro de téléphone (max 500 échanges gardés)
 const conversationHistory = new Map();
@@ -522,6 +526,84 @@ function stripControlTags(value = '') {
     .replace(/\[SPLIT\]/gi, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+function normalizeKieMessages(messages = []) {
+  return (messages || []).map((message) => {
+    const role = ['developer', 'system', 'user', 'assistant', 'tool'].includes(message?.role)
+      ? message.role
+      : 'user';
+
+    if (Array.isArray(message?.content)) {
+      return {
+        role,
+        content: message.content,
+      };
+    }
+
+    return {
+      role,
+      content: [
+        {
+          type: 'text',
+          text: String(message?.content || ''),
+        },
+      ],
+    };
+  });
+}
+
+function extractKieContent(data = {}) {
+  const content = data?.choices?.[0]?.message?.content;
+  if (typeof content === 'string') return content.trim();
+
+  if (Array.isArray(content)) {
+    return content
+      .map((chunk) => {
+        if (typeof chunk === 'string') return chunk;
+        if (chunk?.type === 'text') return chunk?.text || '';
+        return '';
+      })
+      .join('')
+      .trim();
+  }
+
+  return '';
+}
+
+async function callKieChatCompletion({
+  messages,
+  temperature = 0.4,
+  maxTokens = 4096,
+  reasoningEffort = 'high',
+  includeThoughts = false,
+}) {
+  if (!KIE_API_KEY) {
+    throw new Error('KIE_API_KEY non configuré');
+  }
+
+  const payload = {
+    messages: normalizeKieMessages(messages),
+    stream: false,
+    include_thoughts: includeThoughts,
+    reasoning_effort: reasoningEffort,
+    max_tokens: maxTokens,
+    temperature,
+  };
+
+  const response = await axios.post(`${KIE_BASE_URL}${KIE_MODEL_PATH}`, payload, {
+    headers: {
+      Authorization: `Bearer ${KIE_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    timeout: KIE_TIMEOUT_MS,
+  });
+
+  const text = extractKieContent(response.data);
+  if (!text) {
+    throw new Error('KIE response vide');
+  }
+  return text;
 }
 
 function extractProductFromOrderTag(text = '') {
@@ -3494,19 +3576,35 @@ export async function processBossMessage(userId, from, text) {
   const systemPrompt = buildBossSystemPrompt(config);
 
   try {
-    const completion = await groq.chat.completions.create({
-      model: 'openai/gpt-oss-20b',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        ...history,
-      ],
-      temperature: 0.5,
-      max_completion_tokens: 2048,
-      top_p: 0.95,
-      reasoning_effort: 'medium',
-    });
+    let reply = null;
+    try {
+      const kie = await callKieChatCompletion({
+        messages: [
+          { role: 'system', content: systemPrompt },
+          ...history,
+        ],
+        temperature: 0.5,
+        maxTokens: 2048,
+        reasoningEffort: process.env.KIE_REASONING_EFFORT || 'high',
+        includeThoughts: false,
+      });
+      reply = kie.content?.trim() || null;
+    } catch (kieErr) {
+      console.warn(`⚠️ [RITA-BOSS] KIE indisponible, fallback Groq: ${kieErr.message}`);
+      const completion = await groq.chat.completions.create({
+        model: 'openai/gpt-oss-20b',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          ...history,
+        ],
+        temperature: 0.5,
+        max_completion_tokens: 2048,
+        top_p: 0.95,
+        reasoning_effort: 'medium',
+      });
+      reply = completion.choices[0]?.message?.content?.trim() || null;
+    }
 
-    const reply = completion.choices[0]?.message?.content?.trim();
     if (reply) {
       history.push({ role: 'assistant', content: reply });
     }
@@ -3669,7 +3767,7 @@ export async function processIncomingMessage(userId, from, text, opts = {}) {
   const approxTokens = Math.round(promptLen / 4);
   console.log(`🤖 [RITA] Appel Groq — userId=${userId} from=${from} state=${clientState.statut} promptLen=${promptLen} (~${approxTokens} tokens) historyLen=${history.length}`);
 
-  // ── Appel Groq avec retry automatique sur modèle de secours ──
+  // ── Appel KIE (Gemini 3.1 Pro) en priorité, fallback Groq si indisponible ──
   const MODELS = [
     { model: 'openai/gpt-oss-20b', reasoning_effort: 'medium' },
     { model: 'meta-llama/llama-4-scout-17b-16e-instruct', reasoning_effort: undefined },
@@ -3679,48 +3777,64 @@ export async function processIncomingMessage(userId, from, text, opts = {}) {
   let rawContent = null;
   let lastError = null;
 
-  for (const modelCfg of MODELS) {
-    try {
-      const reqParams = {
-        model: modelCfg.model,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          ...history,
-        ],
-        temperature: 0.4,
-        max_completion_tokens: 4096,
-        top_p: 0.95,
-      };
-      if (modelCfg.reasoning_effort) reqParams.reasoning_effort = modelCfg.reasoning_effort;
+  try {
+    rawContent = await callKieChatCompletion({
+      messages: [
+        { role: 'system', content: systemPrompt },
+        ...history,
+      ],
+      temperature: 0.4,
+      maxTokens: 4096,
+      reasoningEffort: process.env.KIE_REASONING_EFFORT || 'high',
+      includeThoughts: false,
+    });
+    console.log('✅ [RITA] Réponse générée via KIE (Gemini 3.1 Pro)');
+  } catch (kieErr) {
+    lastError = kieErr;
+    console.warn(`⚠️ [RITA] KIE indisponible: ${kieErr.message} — fallback Groq`);
 
-      const completion = await groq.chat.completions.create(reqParams);
+    for (const modelCfg of MODELS) {
+      try {
+        const reqParams = {
+          model: modelCfg.model,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            ...history,
+          ],
+          temperature: 0.4,
+          max_completion_tokens: 4096,
+          top_p: 0.95,
+        };
+        if (modelCfg.reasoning_effort) reqParams.reasoning_effort = modelCfg.reasoning_effort;
 
-      rawContent = completion.choices[0]?.message?.content?.trim() || '';
+        const completion = await groq.chat.completions.create(reqParams);
 
-      // GPT-OSS peut retourner content vide si tout part en reasoning — extraire si besoin
-      if (!rawContent && completion.choices[0]?.message?.reasoning) {
-        const reasoning = completion.choices[0].message.reasoning;
-        // Extraire la dernière partie après le raisonnement (souvent la réponse finale)
-        const thinkEnd = reasoning.lastIndexOf('</think>');
-        if (thinkEnd !== -1) {
-          rawContent = reasoning.substring(thinkEnd + 8).trim();
+        rawContent = completion.choices[0]?.message?.content?.trim() || '';
+
+        // GPT-OSS peut retourner content vide si tout part en reasoning — extraire si besoin
+        if (!rawContent && completion.choices[0]?.message?.reasoning) {
+          const reasoning = completion.choices[0].message.reasoning;
+          const thinkEnd = reasoning.lastIndexOf('</think>');
+          if (thinkEnd !== -1) {
+            rawContent = reasoning.substring(thinkEnd + 8).trim();
+          }
+          if (!rawContent) {
+            console.warn(`⚠️ [RITA] ${modelCfg.model} → content vide, reasoning=${reasoning.length} chars — retry prochain modèle`);
+            continue;
+          }
         }
-        if (!rawContent) {
-          console.warn(`⚠️ [RITA] ${modelCfg.model} → content vide, reasoning=${reasoning.length} chars — retry prochain modèle`);
-          continue;
+
+        if (rawContent) {
+          if (modelCfg.model !== MODELS[0].model) {
+            console.log(`🔄 [RITA] Réponse obtenue via modèle de secours: ${modelCfg.model}`);
+          }
+          break;
         }
+        console.warn(`⚠️ [RITA] ${modelCfg.model} → réponse vide, retry prochain modèle`);
+      } catch (error) {
+        lastError = error;
+        console.warn(`⚠️ [RITA] ${modelCfg.model} échoué: ${error.message} (status=${error.status || 'N/A'}) — retry prochain modèle`);
       }
-
-      if (rawContent) {
-        if (modelCfg.model !== MODELS[0].model) {
-          console.log(`🔄 [RITA] Réponse obtenue via modèle de secours: ${modelCfg.model}`);
-        }
-        break;
-      }
-      console.warn(`⚠️ [RITA] ${modelCfg.model} → réponse vide, retry prochain modèle`);
-    } catch (error) {
-      lastError = error;
-      console.warn(`⚠️ [RITA] ${modelCfg.model} échoué: ${error.message} (status=${error.status || 'N/A'}) — retry prochain modèle`);
     }
   }
 
@@ -3809,6 +3923,20 @@ export async function generateTestReply(config, messages) {
     { model: 'meta-llama/llama-4-scout-17b-16e-instruct' },
     { model: 'llama-3.3-70b-versatile' },
   ];
+
+  try {
+    const kie = await callKieChatCompletion({
+      messages: [{ role: 'system', content: systemPrompt }, ...messages],
+      temperature: 0.4,
+      maxTokens: 4096,
+      reasoningEffort: process.env.KIE_REASONING_EFFORT || 'high',
+      includeThoughts: false,
+    });
+    const sanitized = sanitizeReply(kie.content || '', config) || '';
+    if (sanitized) return sanitized;
+  } catch (kieErr) {
+    console.warn(`⚠️ [RITA-TEST] KIE indisponible, fallback Groq: ${kieErr.message}`);
+  }
 
   for (const modelCfg of MODELS) {
     try {

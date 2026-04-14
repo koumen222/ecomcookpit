@@ -121,8 +121,9 @@ router.post('/track', async (req, res) => {
  */
 router.get('/dashboard', requireEcomAuth, async (req, res) => {
   try {
-    const { workspaceId: requestedWorkspaceId, startDate, endDate, period = '7d' } = req.query;
+    const { workspaceId: requestedWorkspaceId, startDate, endDate, period = '7d', allStores } = req.query;
     const workspaceId = String(req.workspaceId || requestedWorkspaceId || '');
+    const useAllStores = String(allStores || '') === '1' || String(allStores || '').toLowerCase() === 'true';
 
     if (!workspaceId) {
       return res.status(400).json({ error: 'workspaceId requis' });
@@ -158,7 +159,7 @@ router.get('/dashboard', requireEcomAuth, async (req, res) => {
 
     // Résoudre le subdomain du store actif pour filtrer les analytics
     let storeSubdomain = null;
-    const activeStoreId = req.activeStoreId;
+    const activeStoreId = useAllStores ? null : req.activeStoreId;
     if (activeStoreId) {
       const store = await Store.findById(activeStoreId).select('subdomain').lean();
       storeSubdomain = store?.subdomain || null;
