@@ -439,8 +439,8 @@ const RootRedirect = () => {
 
 const PageLoader = ({ storeMode = false }) => (
   <div style={{
-    minHeight: '100dvh',
-    backgroundColor: storeMode ? '#FFFFFF' : '#0F1115',
+    minHeight: '100vh',
+    backgroundColor: storeMode ? '#FFFFFF' : '#f9fafb',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -450,15 +450,71 @@ const PageLoader = ({ storeMode = false }) => (
       width: 40,
       height: 40,
       borderRadius: '50%',
-      border: storeMode
-        ? '3px solid rgba(15,107,79,0.15)'
-        : '3px solid rgba(15,107,79,0.2)',
+      border: '3px solid rgba(15,107,79,0.15)',
       borderTopColor: '#0F6B4F',
       animation: '_page-spin 0.6s linear infinite',
     }} />
     <style>{`@keyframes _page-spin { to { transform: rotate(360deg); } }`}</style>
   </div>
 );
+
+// ErrorBoundary — attrape les crashes React et affiche une page de récupération
+class AppErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error('[AppErrorBoundary]', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{
+          minHeight: '100vh',
+          backgroundColor: '#f9fafb',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 24,
+          fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
+        }}>
+          <div style={{ textAlign: 'center', maxWidth: 400 }}>
+            <div style={{ fontSize: 48, marginBottom: 16 }}>⚠️</div>
+            <h2 style={{ fontSize: 18, fontWeight: 600, color: '#1f2937', margin: '0 0 8px' }}>
+              Une erreur est survenue
+            </h2>
+            <p style={{ fontSize: 14, color: '#6b7280', margin: '0 0 20px' }}>
+              Rechargez la page pour continuer.
+            </p>
+            <button
+              onClick={() => window.location.reload()}
+              style={{
+                background: '#0F6B4F',
+                color: '#fff',
+                border: 'none',
+                borderRadius: 8,
+                padding: '10px 24px',
+                fontSize: 14,
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              Recharger
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 const StableLayout = React.memo(({ children }) => (
   <EcomLayout>
@@ -583,7 +639,7 @@ const EcomApp = () => {
 
               {/* Routes protégées avec layout */}
               <Route path="/ecom/dashboard" element={<DashboardRedirect />} />
-              <Route path="/ecom/dashboard/admin" element={<StoreProvider><LayoutRoute requiredRole="ecom_admin"><AdminDashboard /></LayoutRoute></StoreProvider>} />
+              <Route path="/ecom/dashboard/admin" element={<StoreProvider><LayoutRoute requiredRole="ecom_admin"><RequireStore><AdminDashboard /></RequireStore></LayoutRoute></StoreProvider>} />
               <Route path="/ecom/dashboard/closeuse" element={<LayoutRoute requiredRole="ecom_closeuse"><CloseuseDashboard /></LayoutRoute>} />
               <Route path="/ecom/commissions" element={<LayoutRoute requiredRole="ecom_closeuse"><Commissions /></LayoutRoute>} />
               <Route path="/ecom/dashboard/compta" element={<LayoutRoute requiredRole="ecom_compta"><ComptaDashboard /></LayoutRoute>} />
@@ -782,11 +838,13 @@ const EcomApp = () => {
   );
 };
 
-// Wrapper avec AuthProvider
+// Wrapper avec AuthProvider + ErrorBoundary
 const EcomAppWithAuth = () => (
-  <EcomAuthProvider>
-    <EcomApp />
-  </EcomAuthProvider>
+  <AppErrorBoundary>
+    <EcomAuthProvider>
+      <EcomApp />
+    </EcomAuthProvider>
+  </AppErrorBoundary>
 );
 
 export default EcomAppWithAuth;

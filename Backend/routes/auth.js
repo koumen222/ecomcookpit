@@ -151,6 +151,9 @@ router.post('/login', validateEmail, async (req, res) => {
           id: workspace._id,
           name: workspace.name,
           slug: workspace.slug,
+          plan: workspace.plan,
+          trialEndsAt: workspace.trialEndsAt,
+          subscriptionWarning: workspace.subscriptionWarning,
           inviteCode: user.role === 'ecom_admin' ? workspace.inviteCode : undefined
         } : null
       }
@@ -223,7 +226,10 @@ router.post('/refresh', async (req, res) => {
         workspace: workspace ? {
           id: workspace._id,
           name: workspace.name,
-          slug: workspace.slug
+          slug: workspace.slug,
+          plan: workspace.plan,
+          trialEndsAt: workspace.trialEndsAt,
+          subscriptionWarning: workspace.subscriptionWarning
         } : null
       }
     });
@@ -999,6 +1005,9 @@ router.get('/me', async (req, res) => {
           id: workspace._id,
           name: workspace.name,
           slug: workspace.slug,
+          plan: workspace.plan,
+          trialEndsAt: workspace.trialEndsAt,
+          subscriptionWarning: workspace.subscriptionWarning,
           inviteCode: user.role === 'ecom_admin' ? workspace.inviteCode : undefined
         } : null
       }

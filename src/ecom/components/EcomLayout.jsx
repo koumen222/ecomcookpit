@@ -431,6 +431,9 @@ const EcomLayoutComponent = ({ children }) => {
     );
   };
 
+  // DEBUG: check subscriptionWarning
+  console.log('[EcomLayout] workspace?.subscriptionWarning:', JSON.stringify(workspace?.subscriptionWarning));
+
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col lg:flex-row overflow-x-hidden max-w-[100vw]">
       <TopLoader />

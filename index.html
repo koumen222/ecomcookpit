@@ -37,7 +37,7 @@
       <meta name="twitter:image" content="https://scalor.net/icon.png" />
 
       <!-- PWA / Theme -->
-      <meta name="theme-color" content="#0F1115" media="(prefers-color-scheme: light)" />
+      <meta name="theme-color" content="#f9fafb" media="(prefers-color-scheme: light)" />
       <meta name="theme-color" content="#0F1115" media="(prefers-color-scheme: dark)" />
       <meta name="mobile-web-app-capable" content="yes" />
 
@@ -89,13 +89,13 @@
           --sab: env(safe-area-inset-bottom, 0px);
           --sal: env(safe-area-inset-left, 0px);
         }
-        /* Éviter le flash blanc au chargement */
+        /* Fond neutre pour éviter l'écran noir sur tous les navigateurs */
         html, body, #root {
           margin: 0;
           padding: 0;
-          background-color: #0F1115;
-          min-height: 100dvh;
-          /* dvh = dynamic viewport height, correct sur iOS Safari */
+          background-color: #f9fafb;
+          min-height: 100vh;
+          min-height: 100dvh; /* dvh = dynamic viewport height, correct sur iOS Safari — fallback vh pour anciens navigateurs */
         }
         /* Instant splash screen while React hydrates */
         #root:empty {
@@ -104,7 +104,7 @@
           justify-content: center;
           position: fixed;
           inset: 0;
-          background: #0F1115;
+          background: #f9fafb;
           z-index: 9999;
         }
         #root:empty::before {
@@ -137,6 +137,32 @@
   height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
   <!-- End Google Tag Manager (noscript) -->
   <div id="root"></div>
+  <script>
+    // Global error handler: catch chunk load failures & uncaught errors that leave the page blank
+    window.addEventListener('error', function(e) {
+      // Detect failed dynamic import / chunk load
+      if (e.message && (e.message.indexOf('Loading chunk') !== -1 || e.message.indexOf('Failed to fetch') !== -1 || e.message.indexOf('Importing a module') !== -1)) {
+        console.error('[Global] Chunk load error, reloading...', e.message);
+        // Avoid infinite reload: only reload once per session
+        if (!sessionStorage.getItem('_chunkReload')) {
+          sessionStorage.setItem('_chunkReload', '1');
+          window.location.reload();
+        }
+      }
+    });
+    window.addEventListener('unhandledrejection', function(e) {
+      var msg = e.reason && (e.reason.message || String(e.reason));
+      if (msg && (msg.indexOf('Loading chunk') !== -1 || msg.indexOf('Failed to fetch dynamically') !== -1 || msg.indexOf('Importing a module') !== -1)) {
+        console.error('[Global] Dynamic import failure, reloading...', msg);
+        if (!sessionStorage.getItem('_chunkReload')) {
+          sessionStorage.setItem('_chunkReload', '1');
+          window.location.reload();
+        }
+      }
+    });
+    // Clear the reload flag on successful load
+    window.addEventListener('load', function() { sessionStorage.removeItem('_chunkReload'); });
+  </script>
   <script type="module" src="/src/main.jsx"></script>
   <!-- Global site tag (gtag.js) - Google Analytics -->
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-7S6N5V9Z2F"></script>

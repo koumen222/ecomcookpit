@@ -37,7 +37,14 @@ export class MinimalErrorBoundary extends React.Component {
 
   render() {
     if (this.state.hasError) {
-      return this.props.fallback || null;
+      return this.props.fallback || (
+        <div style={{ padding: 24, textAlign: 'center', color: '#6b7280', fontSize: 14 }}>
+          Une erreur est survenue.{' '}
+          <button onClick={() => this.setState({ hasError: false })} style={{ color: '#0F6B4F', textDecoration: 'underline', border: 'none', background: 'none', cursor: 'pointer', fontSize: 14 }}>
+            Réessayer
+          </button>
+        </div>
+      );
     }
 
     return this.props.children;

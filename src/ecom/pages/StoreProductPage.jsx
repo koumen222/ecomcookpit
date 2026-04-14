@@ -236,7 +236,7 @@ const buildSocialProofGalleryImages = (product) => {
   return entries;
 };
 
-const buildProductGalleryFallbackImages = (product) => buildAiGalleryImages(product);
+const buildProductGalleryFallbackImages = (product) => buildSocialProofGalleryImages(product);
 
 const clampDisplayAspectRatio = (ratio) => {
   if (!Number.isFinite(ratio) || ratio <= 0) return 1;
@@ -546,7 +546,7 @@ const InlinePhotoCarousel = ({ images = [], accentColor = 'var(--s-primary)', co
               inset: 0,
               width: '100%',
               height: '100%',
-              objectFit: 'contain',
+              objectFit: 'cover',
               objectPosition: 'center',
               display: 'block',
             }}

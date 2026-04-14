@@ -27,6 +27,11 @@ const SubscriptionWarningBanner = ({ warning }) => {
   return (
     <div
       style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        zIndex: 60,
         background: isExpired ? '#dc2626' : '#ef4444',
         color: '#fff',
         fontSize: 13,
@@ -37,7 +42,6 @@ const SubscriptionWarningBanner = ({ warning }) => {
         gap: 8,
         padding: '9px 48px 9px 16px',
         textAlign: 'center',
-        position: 'relative',
         lineHeight: 1.4,
         letterSpacing: '0.01em',
       }}

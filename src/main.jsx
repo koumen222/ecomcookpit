@@ -6,11 +6,19 @@ import './ecom/tailwind-base.css';
 import './ecom/index.css';
 
 // Render first, analytics later (non-blocking)
-ReactDOM.createRoot(document.getElementById('root')).render(
-  <BrowserRouter>
-    <App />
-  </BrowserRouter>
-);
+try {
+  ReactDOM.createRoot(document.getElementById('root')).render(
+    <BrowserRouter>
+      <App />
+    </BrowserRouter>
+  );
+} catch (err) {
+  console.error('[main] Critical render error:', err);
+  const root = document.getElementById('root');
+  if (root) {
+    root.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#f9fafb;font-family:Inter,sans-serif;text-align:center;padding:24px"><div><div style="font-size:48px;margin-bottom:16px">⚠️</div><h2 style="font-size:18px;font-weight:600;color:#1f2937;margin:0 0 8px">Erreur de chargement</h2><p style="font-size:14px;color:#6b7280;margin:0 0 20px">Rechargez la page pour continuer.</p><button onclick="location.reload()" style="background:#0F6B4F;color:#fff;border:none;border-radius:8px;padding:10px 24px;font-size:14px;font-weight:600;cursor:pointer">Recharger</button></div></div>';
+  }
+}
 
 // Defer analytics to idle time — never blocks first paint
 const _initAnalytics = () => import('./ecom/services/posthog.js').then(m => m.initAnalytics());
