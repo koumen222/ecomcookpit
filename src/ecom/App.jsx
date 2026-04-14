@@ -383,7 +383,13 @@ const RequireStore = ({ children }) => {
     );
   }
 
-  if (workspace?._id && stores.length === 0) {
+  // A store is considered "truly generated" only when it has a subdomain
+  // AND an AI-generated homepage. Otherwise the user must run the wizard.
+  const hasGeneratedStore = stores.some(
+    (s) => s?.subdomain && (s.hasHomepage || s.storePages?.sections?.length > 0)
+  );
+
+  if (workspace?._id && !hasGeneratedStore) {
     const from = `${location.pathname}${location.search}`;
     return <Navigate to="/ecom/boutique/wizard" replace state={{ from }} />;
   }
@@ -639,7 +645,7 @@ const EcomApp = () => {
 
               {/* Routes protégées avec layout */}
               <Route path="/ecom/dashboard" element={<DashboardRedirect />} />
-              <Route path="/ecom/dashboard/admin" element={<StoreProvider><LayoutRoute requiredRole="ecom_admin"><RequireStore><AdminDashboard /></RequireStore></LayoutRoute></StoreProvider>} />
+              <Route path="/ecom/dashboard/admin" element={<StoreProvider><LayoutRoute requiredRole="ecom_admin"><AdminDashboard /></LayoutRoute></StoreProvider>} />
               <Route path="/ecom/dashboard/closeuse" element={<LayoutRoute requiredRole="ecom_closeuse"><CloseuseDashboard /></LayoutRoute>} />
               <Route path="/ecom/commissions" element={<LayoutRoute requiredRole="ecom_closeuse"><Commissions /></LayoutRoute>} />
               <Route path="/ecom/dashboard/compta" element={<LayoutRoute requiredRole="ecom_compta"><ComptaDashboard /></LayoutRoute>} />

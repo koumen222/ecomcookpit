@@ -28,6 +28,31 @@ const COUNTRY_CODES = [
 // ─── Plan definitions ───────────────────────────────────────────────────────────────────────
 const PLAN_TIERS = [
   {
+    id: 'free',
+    name: 'Gratuit',
+    tagline: 'Démarrez sans frais',
+    icon: <Gift className="w-full h-full" />,
+    gradient: 'from-gray-400 to-gray-500',
+    accent: 'gray',
+    ring: 'ring-gray-300/20',
+    btnClass: 'bg-gray-600 hover:bg-gray-700 shadow-gray-500/25',
+    free: true,
+    features: [
+      { text: '50 commandes / mois', included: true },
+      { text: '50 clients max', included: true },
+      { text: '10 produits max', included: true },
+      { text: 'Tableau de bord basique', included: true },
+      { text: '1 boutique en ligne', included: true },
+      { text: '1 utilisateur', included: true },
+      { text: 'Agent IA WhatsApp', included: false },
+      { text: 'Génération de pages IA', included: false },
+      { text: 'Support prioritaire', included: false },
+    ],
+    durations: [
+      { id: 'free', label: 'Gratuit', price: 0, months: 1, saving: null, perMonth: 0 },
+    ],
+  },
+  {
     id: 'starter',
     name: 'Scalor',
     tagline: 'Gestion complète de vos commandes',
@@ -243,12 +268,12 @@ function CheckoutModal({ plan, tier, onClose, onSuccess, workspaceId, userName, 
 
 // PlanCard
 function PlanCard({ tier, isAnnual, onCheckout, currentPlan, isActive }) {
-  const duration = isAnnual ? tier.durations[1] : tier.durations[0];
-  const isCurrentPlan = currentPlan === tier.id && isActive;
+  const duration = tier.free ? tier.durations[0] : (isAnnual ? tier.durations[1] : tier.durations[0]);
+  const isCurrentPlan = tier.free ? (currentPlan === 'free' || (!isActive && !['starter','pro','ultra'].includes(currentPlan))) : (currentPlan === tier.id && isActive);
 
   return (
-    <div className={`relative flex flex-col rounded-2xl border transition-all duration-300 bg-white overflow-hidden
-      ${tier.popular ? 'border-blue-200 shadow-xl shadow-blue-500/10 ring-1 ring-blue-100 scale-[1.02] z-10' : 'border-gray-200 shadow-sm hover:shadow-lg hover:border-gray-300'}`}>
+    <div className={`relative flex flex-col rounded-2xl border transition-all duration-300 bg-white overflow-hidden h-full
+      ${tier.popular ? 'border-blue-200 shadow-xl shadow-blue-500/10 ring-1 ring-blue-100' : 'border-gray-200 shadow-sm hover:shadow-lg hover:border-gray-300'}`}>
 
       {tier.popular && (
         <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-center py-1.5 text-[11px] font-bold uppercase tracking-widest">
@@ -268,22 +293,34 @@ function PlanCard({ tier, isAnnual, onCheckout, currentPlan, isActive }) {
         </div>
 
         <div className="mb-6">
-          <div className="flex items-baseline gap-2">
-            {duration.oldPrice && (
-              <span className="text-lg font-bold text-gray-300 line-through">{formatAmount(isAnnual ? Math.round(duration.oldPrice / duration.months) : duration.oldPrice)}</span>
-            )}
-            <span className="text-4xl font-black text-gray-900">{formatAmount(duration.perMonth)}</span>
-            <span className="text-sm font-medium text-gray-400">FCFA/mois</span>
-          </div>
-          {duration.oldPrice && (
-            <p className="text-xs text-red-500 font-bold mt-1">🔥 Offre valable 24h — prix réduit !</p>
+          {tier.free ? (
+            <>
+              <div className="flex items-baseline gap-1">
+                <span className="text-4xl font-black text-gray-900">0</span>
+                <span className="text-sm font-medium text-gray-400">FCFA</span>
+              </div>
+              <p className="text-xs text-gray-400 mt-1">Pour toujours, avec des limites</p>
+            </>
+          ) : (
+            <>
+              <div className="flex items-baseline gap-2">
+                {duration.oldPrice && (
+                  <span className="text-lg font-bold text-gray-300 line-through">{formatAmount(isAnnual ? Math.round(duration.oldPrice / duration.months) : duration.oldPrice)}</span>
+                )}
+                <span className="text-4xl font-black text-gray-900">{formatAmount(duration.perMonth)}</span>
+                <span className="text-sm font-medium text-gray-400">FCFA/mois</span>
+              </div>
+              {duration.oldPrice && (
+                <p className="text-xs text-red-500 font-bold mt-1">🔥 Offre valable 24h — prix réduit !</p>
+              )}
+              {isAnnual && duration.saving && (
+                <p className="text-xs text-emerald-600 font-semibold mt-1">
+                  {formatAmount(duration.price)} FCFA/an · Économisez {duration.saving}%
+                </p>
+              )}
+              {!isAnnual && <p className="text-xs text-gray-400 mt-1">Facturation mensuelle, sans engagement</p>}
+            </>
           )}
-          {isAnnual && duration.saving && (
-            <p className="text-xs text-emerald-600 font-semibold mt-1">
-              {formatAmount(duration.price)} FCFA/an · Économisez {duration.saving}%
-            </p>
-          )}
-          {!isAnnual && <p className="text-xs text-gray-400 mt-1">Facturation mensuelle, sans engagement</p>}
         </div>
 
         <div className="space-y-2.5 pb-6">
@@ -303,6 +340,10 @@ function PlanCard({ tier, isAnnual, onCheckout, currentPlan, isActive }) {
         {isCurrentPlan ? (
           <div className="w-full py-3 rounded-xl text-center text-sm font-bold text-gray-400 bg-gray-100 border border-gray-200">
             Plan actuel
+          </div>
+        ) : tier.free ? (
+          <div className="w-full py-3 rounded-xl text-center text-sm font-bold text-gray-500 bg-gray-50 border border-gray-200">
+            Plan de base
           </div>
         ) : (
           <button onClick={() => onCheckout(duration)}
@@ -535,7 +576,7 @@ export default function BillingPage() {
                 {isAnnual && <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full">Jusqu'à -25%</span>}
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-4 lg:gap-6 items-start">
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6">
                 {PLAN_TIERS.map(tier => (
                   <PlanCard
                     key={tier.id}
@@ -644,8 +685,8 @@ export default function BillingPage() {
           </div>
 
           {/* Pricing Cards */}
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 pb-20">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-4 lg:gap-6 items-start">
+          <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-10 pb-20">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6">
               {PLAN_TIERS.map(tier => (
                 <PlanCard
                   key={tier.id}

@@ -196,6 +196,7 @@ const BoutiqueLayoutInner = () => {
   }, []);
 
   const [expandedParent, setExpandedParent] = useState(null);
+  const [mobileExpandedGroup, setMobileExpandedGroup] = useState(null);
 
   const isActive = (item) => {
     if (item.exact) return location.pathname === item.href;
@@ -218,11 +219,12 @@ const BoutiqueLayoutInner = () => {
   }, [location.pathname, location.search]);
 
   const mobileTabs = useMemo(() => BOUTIQUE_NAV.filter(i => !i.children && MOBILE_TABS.includes(i.name)), []);
-  const mobileMore = useMemo(() => {
+  const mobileMoreItems = useMemo(() => {
     const items = [];
     BOUTIQUE_NAV.forEach(i => {
       if (i.children) {
-        i.children.forEach(c => items.push({ ...c, icon: i.icon, parentName: i.name }));
+        // Keep as group with children
+        items.push({ ...i, isGroup: true });
       } else if (!MOBILE_TABS.includes(i.name)) {
         items.push(i);
       }
@@ -243,7 +245,7 @@ const BoutiqueLayoutInner = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col lg:flex-row max-w-[100vw]">
+    <div className="min-h-screen min-h-[100dvh] bg-gray-50 flex flex-col lg:flex-row max-w-[100vw] overflow-x-hidden">
 
       {/* ── Desktop Sidebar ────────────────────────────────────────────────── */}
       <aside className="hidden lg:flex lg:flex-col lg:w-[240px] lg:fixed lg:inset-y-0 z-30 bg-white border-r border-gray-200">
@@ -426,7 +428,8 @@ const BoutiqueLayoutInner = () => {
         </header>}
 
         {/* Page content */}
-        <main className={`flex-1 overflow-y-auto overflow-x-hidden pb-20 lg:pb-0 ${location.pathname.includes('/form-builder') ? 'pt-0' : 'pt-14 lg:pt-14'}`}>
+        <main className={`flex-1 overflow-x-hidden pb-20 lg:pb-0 ${location.pathname.includes('/form-builder') ? 'pt-0' : 'pt-14 lg:pt-14'}`}
+          style={{ WebkitOverflowScrolling: 'touch', minHeight: 0 }}>
           <Outlet />
         </main>
       </div>
@@ -475,8 +478,48 @@ const BoutiqueLayoutInner = () => {
                       <div className="w-10 h-1 bg-gray-300 rounded-full mx-auto mb-3" />
                       <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Plus d'options</p>
                     </div>
-                    <div className="divide-y divide-gray-100">
-                      {mobileMore.map((item) => {
+                    <div className="divide-y divide-gray-100 max-h-[60vh] overflow-y-auto overscroll-contain">
+                      {mobileMoreItems.map((item) => {
+                        if (item.isGroup) {
+                          const groupExpanded = mobileExpandedGroup === item.name;
+                          const groupActive = isParentActive(item);
+                          return (
+                            <div key={item.name}>
+                              <button
+                                onClick={() => setMobileExpandedGroup(groupExpanded ? null : item.name)}
+                                className={`flex items-center gap-4 px-5 py-4 w-full text-left text-[16px] font-medium active:bg-gray-100 transition-colors ${groupActive ? '' : 'text-gray-900'}`}
+                                style={groupActive ? { color: themeColor } : {}}
+                              >
+                                <span className={`flex-shrink-0 ${groupActive ? '' : 'text-gray-400'}`} style={groupActive ? { color: themeColor } : {}}>
+                                  {React.cloneElement(item.icon, { className: 'w-5 h-5' })}
+                                </span>
+                                <span className="flex-1 truncate">{item.name}</span>
+                                <svg className={`w-4 h-4 flex-shrink-0 transition-transform duration-200 ${groupExpanded ? 'rotate-180' : ''} text-gray-400`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                </svg>
+                              </button>
+                              {groupExpanded && (
+                                <div className="bg-gray-50/80 pb-1">
+                                  {item.children.map(child => {
+                                    const [childPath, childQuery] = (child.href || '').split('?');
+                                    const childActive = location.pathname === childPath && (!childQuery || location.search === `?${childQuery}`);
+                                    return (
+                                      <Link
+                                        key={child.href}
+                                        to={child.href}
+                                        onClick={() => setMoreOpen(false)}
+                                        className={`flex items-center gap-3 pl-14 pr-5 py-3 text-[15px] font-medium active:bg-gray-200 transition-colors ${childActive ? '' : 'text-gray-600'}`}
+                                        style={childActive ? { color: themeColor } : {}}
+                                      >
+                                        <span className="truncate">{child.name}</span>
+                                      </Link>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        }
                         const active = isActive(item);
                         return (
                           <Link

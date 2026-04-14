@@ -169,13 +169,14 @@ const StoreOrdersDashboard = () => {
   return (
     <div className="space-y-0">
       {/* Header */}
-      <div className="px-4 sm:px-6 py-4 flex items-center justify-between border-b border-gray-200 bg-white">
+      <div className="px-4 sm:px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-200 bg-white">
         <h1 className="text-lg font-bold text-gray-900 flex items-center gap-2">
           <ShoppingCart className="w-5 h-5 text-gray-700" />
           Commandes
+          <span className="text-sm font-normal text-gray-400">({pagination.total})</span>
         </h1>
         <div className="flex items-center gap-2">
-          <button className="px-3 py-1.5 text-sm font-medium text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition">Exporter</button>
+          <button className="hidden sm:inline-flex px-3 py-1.5 text-sm font-medium text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition">Exporter</button>
           {selectedOrders.length > 0 && (
             <div className="relative">
               <button
@@ -198,35 +199,36 @@ const StoreOrdersDashboard = () => {
               )}
             </div>
           )}
-          <Link to="/ecom/boutique/orders/new" className="px-3 py-1.5 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 transition">
-            Créer une commande
+          <Link to="/ecom/boutique/orders/new" className="px-3 py-1.5 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 transition flex items-center gap-1.5">
+            <Plus size={14} />
+            <span className="hidden sm:inline">Créer une commande</span>
+            <span className="sm:hidden">Nouvelle</span>
           </Link>
         </div>
       </div>
 
       {/* KPI Cards */}
       <div className="px-4 sm:px-6 py-3 border-b border-gray-200 bg-white">
-        <div className="flex items-stretch gap-0 divide-x divide-gray-200 overflow-x-auto">
-          <KpiMini label="Aujourd'hui" icon="📅" />
-          <KpiMini label="Commandes" value={todayOrders.length} spark />
-          <KpiMini label="Articles commandés" value={todayItems} spark />
-          <KpiMini label="Retours" value={formatPrice(returnOrders.reduce((s, o) => s + (o.total || 0), 0))} spark />
-          <KpiMini label="Commandes traitées" value={fulfilledOrders.length} spark />
-          <KpiMini label="Commandes livrées" value={orders.filter(o => o.status === 'delivered').length} spark />
+        <div className="grid grid-cols-3 sm:grid-cols-5 gap-3 sm:gap-4">
+          <KpiMini label="Total" value={pagination.total} icon="📦" />
+          <KpiMini label="Aujourd'hui" value={todayOrders.length} icon="📅" />
+          <KpiMini label="Articles" value={todayItems} icon="🛒" />
+          <KpiMini label="Traitées" value={fulfilledOrders.length} icon="✅" />
+          <KpiMini label="Livrées" value={orders.filter(o => o.status === 'delivered').length} icon="🚚" />
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="px-4 sm:px-6 bg-white border-b border-gray-200">
-        <div className="flex items-center gap-0">
+      <div className="bg-white border-b border-gray-200">
+        <div className="flex items-center overflow-x-auto scrollbar-hide px-4 sm:px-6">
           {STATUS_OPTIONS.map((opt) => (
             <button key={opt.value} onClick={() => setStatusFilter(opt.value)}
-              className={"px-4 py-2.5 text-sm font-medium border-b-2 transition whitespace-nowrap " +
+              className={"px-3 sm:px-4 py-2.5 text-[13px] sm:text-sm font-medium border-b-2 transition whitespace-nowrap flex-shrink-0 " +
                 (statusFilter === opt.value ? 'border-gray-900 text-gray-900' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300')}>
               {opt.label}
             </button>
           ))}
-          <button className="px-3 py-2.5 text-gray-400 hover:text-gray-600"><Plus size={16} /></button>
+          <button className="px-2 py-2.5 text-gray-400 hover:text-gray-600 flex-shrink-0"><Plus size={16} /></button>
         </div>
       </div>
 
@@ -467,18 +469,14 @@ const StatusBadge = ({ label, color, dot }) => (
   </span>
 );
 
-const KpiMini = ({ label, value, icon, spark }) => (
-  <div className="flex-1 min-w-0 px-4 py-2 first:pl-0">
+const KpiMini = ({ label, value, icon }) => (
+  <div className="bg-gray-50 rounded-xl px-3 py-2.5">
     <div className="flex items-center gap-1.5">
       {icon && <span className="text-sm">{icon}</span>}
-      <span className="text-xs text-gray-500 whitespace-nowrap">{label}</span>
+      <span className="text-[11px] sm:text-xs text-gray-500 truncate">{label}</span>
     </div>
     {value !== undefined && (
-      <div className="flex items-baseline gap-2 mt-0.5">
-        <span className="text-sm font-bold text-gray-900">{value}</span>
-        <span className="text-xs text-gray-400">—</span>
-        {spark && <div className="h-1 w-12 bg-gradient-to-r from-blue-400 to-purple-400 rounded-full" />}
-      </div>
+      <p className="text-lg sm:text-xl font-bold text-gray-900 mt-0.5 tabular-nums">{value}</p>
     )}
   </div>
 );

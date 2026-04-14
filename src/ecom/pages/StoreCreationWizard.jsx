@@ -287,6 +287,7 @@ const StoreCreationWizard = ({ onComplete }) => {
   const [creationResult, setCreationResult] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isEditMode, setIsEditMode] = useState(false);
+  const [showIntro, setShowIntro] = useState(true);
   const [errors, setErrors] = useState({});
 
   const [form, setForm] = useState({
@@ -321,8 +322,12 @@ const StoreCreationWizard = ({ onComplete }) => {
     if (initDoneRef.current) return;
     initDoneRef.current = true;
 
-    // If stores already exist, redirect away (unless new/reset mode)
-    if (!isNewStoreMode && !isResetMode && stores.length > 0) {
+    // Only redirect away if a truly generated store exists (subdomain + homepage).
+    // A Store doc with no homepage means the AI wizard was never completed — keep user here.
+    const hasGeneratedStore = stores.some(
+      (s) => s?.subdomain && (s.hasHomepage || s.storePages?.sections?.length > 0)
+    );
+    if (!isNewStoreMode && !isResetMode && hasGeneratedStore) {
       navigate('/ecom/boutique', { replace: true });
       return;
     }
@@ -359,8 +364,13 @@ const StoreCreationWizard = ({ onComplete }) => {
           }));
           if (s.storeLogo) setLogoPreview(s.storeLogo);
           setSubdomainStatus('available');
-          setIsEditMode(true);
+          // Only treat as "edit mode" if the homepage was already AI-generated.
+          // Otherwise the wizard must still run homepage generation on submit.
+          if (data.hasHomepage) setIsEditMode(true);
+          // Returning user with partial data → skip intro, go straight to form
+          setShowIntro(false);
         }
+        if (isNewStoreMode || isResetMode) setShowIntro(false);
       } catch (err) {
         console.log('Pas de boutique existante');
       } finally {
@@ -708,6 +718,37 @@ const StoreCreationWizard = ({ onComplete }) => {
               </button>
             </div>
           </Card>
+        </div>
+      </div>
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════════
+  // ÉCRAN D'INTRO — oblige l'utilisateur à cliquer pour lancer l'assistant IA
+  // ═══════════════════════════════════════════════════════════════════════════════
+  if (showIntro) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-900 to-emerald-950 flex items-center justify-center px-6">
+        <div className="max-w-xl w-full text-center">
+          <div className="inline-flex items-center justify-center w-24 h-24 rounded-3xl bg-gradient-to-br from-emerald-400 to-teal-500 shadow-2xl shadow-emerald-500/40 mb-8">
+            <Sparkles className="w-12 h-12 text-white" />
+          </div>
+          <h1 className="text-4xl sm:text-5xl font-black text-white mb-4 tracking-tight">
+            Créez votre boutique<br />avec l'assistant IA
+          </h1>
+          <p className="text-lg text-gray-300 mb-10 max-w-md mx-auto">
+            Notre assistant IA va générer votre boutique complète — logo, page d'accueil, visuels — à partir de quelques informations.
+          </p>
+          <button
+            type="button"
+            onClick={() => setShowIntro(false)}
+            className="inline-flex items-center justify-center gap-3 px-8 py-4 text-base font-bold text-gray-900 bg-white rounded-2xl hover:bg-gray-100 transition shadow-xl shadow-emerald-500/20"
+          >
+            <Wand2 className="w-5 h-5" />
+            Lancer l'assistant IA
+            <ArrowRight className="w-5 h-5" />
+          </button>
+          <p className="text-xs text-gray-500 mt-6">Prend environ 2 minutes</p>
         </div>
       </div>
     );

@@ -57,6 +57,11 @@ export const PLAN_LIMITS = {
     messagesPerMonth: 0,
     generationCredits: 0,
     whatsappAgent: false,
+    maxOrders: 50,
+    maxClients: 50,
+    maxProducts: 10,
+    maxStores: 1,
+    maxUsers: 1,
     label: 'Gratuit'
   },
   trial: {
