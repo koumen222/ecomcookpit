@@ -82,6 +82,13 @@ const GENERATION_STEPS = [
   { key: 'done', label: 'Votre boutique est prête !' },
 ];
 
+const LOGO_GENERATION_MESSAGES = [
+  'Analyse du nom de boutique...',
+  'Construction de la direction visuelle...',
+  'Generation du logo IA en cours...',
+  'Finalisation et optimisation du rendu...',
+];
+
 const GenerationOverlay = ({ currentStep, storeName, logoUrl }) => {
   const currentIdx = GENERATION_STEPS.findIndex(s => s.key === currentStep);
   const isLogoStep = currentStep === 'logo';
@@ -309,9 +316,28 @@ const StoreCreationWizard = ({ onComplete }) => {
   const [logoPreview, setLogoPreview] = useState(null);
   const [generatedLogo, setGeneratedLogo] = useState(null);
   const [logoGenerating, setLogoGenerating] = useState(false);
+  const [logoGenerationMessageIdx, setLogoGenerationMessageIdx] = useState(0);
+  const [logoGenerationElapsedSec, setLogoGenerationElapsedSec] = useState(0);
   const [generationLogoUrl, setGenerationLogoUrl] = useState(null);
   const debounceRef = useRef(null);
   const containerRef = useRef(null);
+
+  useEffect(() => {
+    if (!logoGenerating) {
+      setLogoGenerationMessageIdx(0);
+      setLogoGenerationElapsedSec(0);
+      return;
+    }
+
+    const startedAt = Date.now();
+    const ticker = setInterval(() => {
+      const elapsed = Math.max(0, Math.floor((Date.now() - startedAt) / 1000));
+      setLogoGenerationElapsedSec(elapsed);
+      setLogoGenerationMessageIdx(Math.min(LOGO_GENERATION_MESSAGES.length - 1, Math.floor(elapsed / 6)));
+    }, 1000);
+
+    return () => clearInterval(ticker);
+  }, [logoGenerating]);
 
   // ── Charger données existantes ────────────────────────────────────────────────
   const initDoneRef = useRef(false);
@@ -464,6 +490,7 @@ const StoreCreationWizard = ({ onComplete }) => {
 
     setLogoGenerating(true);
     setErrors((prev) => ({ ...prev, storeLogo: '' }));
+    setGeneratedLogo(null);
     try {
       const res = await storeManageApi.generateLogos({
         storeName: form.storeName,
@@ -478,7 +505,7 @@ const StoreCreationWizard = ({ onComplete }) => {
         setLogoPreview(logo.url);
       }
     } catch (error) {
-      setErrors((prev) => ({ ...prev, storeLogo: error.response?.data?.message || 'Erreur lors de la génération du logo' }));
+      setErrors((prev) => ({ ...prev, storeLogo: error.response?.data?.message || 'La generation du logo a echoue. Verifiez la connexion et reessayez.' }));
     } finally {
       setLogoGenerating(false);
     }
@@ -489,8 +516,8 @@ const StoreCreationWizard = ({ onComplete }) => {
     const e = {};
     if (step === 1) {
       if (!form.storeName.trim()) e.storeName = 'Donnez un nom à votre boutique';
-      if (!form.subdomain || form.subdomain.length < 3) e.subdomain = '3 caractères minimum';
-      if (subdomainStatus === 'taken') e.subdomain = 'Cette URL est déjà utilisée';
+      if (!form.subdomain || form.subdomain.length < 3) e.subdomain = 'Sous-domaine: 3 caractères minimum';
+      if (subdomainStatus === 'taken') e.subdomain = 'Ce sous-domaine est déjà utilisé';
       // productType is optional — defaults will be used
     }
     // Étape 5 : pas de validation obligatoire, description optionnelle
@@ -823,11 +850,8 @@ const StoreCreationWizard = ({ onComplete }) => {
               />
 
               <div className="space-y-2">
-                <label className="block text-sm font-semibold text-gray-800">Votre URL unique</label>
+                <label className="block text-sm font-semibold text-gray-800">Votre sous-domaine</label>
                 <div className="flex items-stretch bg-gray-50 rounded-xl border-2 border-transparent focus-within:border-gray-900 focus-within:bg-white transition-all">
-                  <span className="flex items-center px-4 text-gray-400 text-sm font-mono bg-gray-100 rounded-l-xl border-r border-gray-200">
-                    scalor.store/
-                  </span>
                   <input
                     type="text"
                     value={form.subdomain}
@@ -835,6 +859,9 @@ const StoreCreationWizard = ({ onComplete }) => {
                     placeholder="ma-boutique"
                     className="flex-1 px-4 py-3.5 bg-transparent text-sm font-mono font-medium focus:outline-none"
                   />
+                  <span className="flex items-center px-4 text-gray-400 text-sm font-mono bg-gray-100 border-l border-gray-200">
+                    .scalor.net
+                  </span>
                   <span className="flex items-center px-4">
                     {subdomainStatus === 'checking' && <Loader2 className="w-5 h-5 animate-spin text-gray-400" />}
                     {subdomainStatus === 'available' && <Check className="w-5 h-5 text-emerald-500" />}
@@ -897,7 +924,7 @@ const StoreCreationWizard = ({ onComplete }) => {
                     className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-900 text-white text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {logoGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wand2 className="w-4 h-4" />}
-                    {generatedLogo?.url ? 'Régénérer le logo IA' : 'Générer mon logo IA'}
+                    {logoGenerating ? 'Generation en cours...' : generatedLogo?.url ? 'Regenerer le logo IA' : 'Generer mon logo IA'}
                   </button>
                   {generatedLogo?.url && (
                     <button
@@ -914,6 +941,26 @@ const StoreCreationWizard = ({ onComplete }) => {
                     </button>
                   )}
                 </div>
+
+                {logoGenerating && (
+                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4">
+                    <div className="flex items-start gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center flex-shrink-0">
+                        <Wand2 className="w-5 h-5 animate-pulse" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-bold text-emerald-900">Creation du logo IA</p>
+                        <p className="text-xs text-emerald-700 mt-1">{LOGO_GENERATION_MESSAGES[logoGenerationMessageIdx]}</p>
+                        <div className="mt-3 h-1.5 w-full rounded-full bg-emerald-100 overflow-hidden">
+                          <div className="h-full bg-emerald-500 animate-pulse" style={{ width: '65%' }} />
+                        </div>
+                        <p className="text-[11px] text-emerald-700 mt-2">
+                          Temps ecoule: {logoGenerationElapsedSec}s. Le resultat sera affiche automatiquement des qu'il est pret.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {generatedLogo?.url && (
                   <div className="rounded-2xl border-2 border-gray-200 overflow-hidden bg-white">

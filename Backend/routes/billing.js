@@ -271,12 +271,13 @@ router.get('/plan', requireEcomAuth, async (req, res) => {
 router.post('/checkout', requireEcomAuth, async (req, res) => {
   try {
     const { plan = 'pro_1', phone, clientName, workspaceId: bodyWsId } = req.body;
+    const normalizedPlan = ({ starter: 'starter_1', pro: 'pro_1', ultra: 'ultra_1' }[String(plan)] || String(plan));
     const workspaceId = req.workspaceId || bodyWsId;
 
     if (!workspaceId) {
       return res.status(400).json({ success: false, message: 'workspaceId requis' });
     }
-    if (!PLAN_PRICES[plan]) {
+    if (!PLAN_PRICES[normalizedPlan]) {
       return res.status(400).json({ success: false, message: 'Plan invalide' });
     }
     if (!phone || String(phone).trim().length < 8) {
@@ -286,9 +287,9 @@ router.post('/checkout', requireEcomAuth, async (req, res) => {
       return res.status(400).json({ success: false, message: 'Nom du client requis' });
     }
 
-    const amount = PLAN_PRICES[plan];
-    const durationMonths = PLAN_DURATION[plan];
-    const planName = plan.startsWith('ultra') ? 'ultra' : plan.startsWith('pro') ? 'pro' : 'starter';
+    const amount = PLAN_PRICES[normalizedPlan];
+    const durationMonths = PLAN_DURATION[normalizedPlan];
+    const planName = normalizedPlan.startsWith('ultra') ? 'ultra' : normalizedPlan.startsWith('pro') ? 'pro' : 'starter';
 
     const frontendUrl = process.env.FRONTEND_URL || 'https://scalor.net';
     const backendUrl = process.env.BACKEND_URL || 'https://api.scalor.net';
@@ -302,7 +303,7 @@ router.post('/checkout', requireEcomAuth, async (req, res) => {
         {
           workspaceId: workspaceId.toString(),
           userId: req.ecomUser._id.toString(),
-          plan,
+          plan: normalizedPlan,
           durationMonths
         }
       ],
@@ -314,7 +315,7 @@ router.post('/checkout', requireEcomAuth, async (req, res) => {
 
     const mfResponse = await axios.post(MF_API_URL, paymentData, {
       headers: { 'Content-Type': 'application/json' },
-      timeout: 15000
+      timeout: 60000
     });
 
     const { statut, token: mfToken, url: paymentUrl, message } = mfResponse.data;
@@ -348,10 +349,17 @@ router.post('/checkout', requireEcomAuth, async (req, res) => {
       paymentUrl,
       message: message || 'Paiement en cours',
       amount,
-      plan,
+      plan: normalizedPlan,
       durationMonths
     });
   } catch (err) {
+    if (err.code === 'ECONNABORTED') {
+      console.error('[billing] MoneyFusion timeout on /checkout:', err.message);
+      return res.status(504).json({
+        success: false,
+        message: 'Le service de paiement met trop de temps à répondre. Veuillez réessayer dans quelques instants.'
+      });
+    }
     if (err.response) {
       console.error('[billing] MoneyFusion API error:', err.response.status, err.response.data);
       return res.status(502).json({
@@ -416,7 +424,7 @@ router.post('/buy-generation', requireEcomAuth, async (req, res) => {
 
     const mfResponse = await axios.post(MF_API_URL, paymentData, {
       headers: { 'Content-Type': 'application/json' },
-      timeout: 15000
+      timeout: 60000
     });
 
     const { statut, token: mfToken, url: paymentUrl, message } = mfResponse.data;
@@ -454,6 +462,13 @@ router.post('/buy-generation', requireEcomAuth, async (req, res) => {
       pricePerGeneration
     });
   } catch (err) {
+    if (err.code === 'ECONNABORTED') {
+      console.error('[billing] MoneyFusion timeout on /buy-generation:', err.message);
+      return res.status(504).json({
+        success: false,
+        message: 'Le service de paiement met trop de temps à répondre. Veuillez réessayer dans quelques instants.'
+      });
+    }
     if (err.response) {
       console.error('[billing] MoneyFusion API error:', err.response.status, err.response.data);
       return res.status(502).json({

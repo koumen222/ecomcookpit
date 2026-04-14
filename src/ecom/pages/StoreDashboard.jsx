@@ -123,7 +123,7 @@ export default function StoreDashboard() {
   const { workspace } = useEcomAuth();
   const { activeStore } = useStore();
   const [storeUrl, setStoreUrl] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [dashboardData, setDashboardData] = useState(null);
   const [period, setPeriod] = useState('7d');
@@ -134,7 +134,10 @@ export default function StoreDashboard() {
   const [periodLabel, setPeriodLabel] = useState('7 derniers jours');
   const isTodayActive = period === 'today' || dateRange?.period === 'today';
 
-  useEffect(() => { loadDashboard(!dashboardData); }, [period, dateRange, workspace, activeStore?._id]);
+  useEffect(() => {
+    if (!workspace?._id) return;
+    loadDashboard(!dashboardData);
+  }, [period, dateRange, workspace?._id, activeStore?._id]);
 
   useEffect(() => {
     if (!isTodayActive) return undefined;
@@ -153,6 +156,7 @@ export default function StoreDashboard() {
   }, [isTodayActive, workspace?._id, activeStore?._id, dateRange]);
 
   const loadDashboard = async (isInitial) => {
+    if (!workspace?._id) return;
     try {
       if (isInitial) setLoading(true); else setRefreshing(true);
       const params = { workspaceId: workspace?._id };
@@ -223,15 +227,6 @@ export default function StoreDashboard() {
     setDatePickerOpen(false);
   };
 
-  if (loading) return (
-    <div className="p-5 sm:p-8 lg:p-10 max-w-6xl mx-auto space-y-8 animate-pulse">
-      <div className="flex items-center justify-between"><div className="h-6 w-36 bg-gray-200 rounded-lg" /><div className="h-8 w-48 bg-gray-100 rounded-lg" /></div>
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-px bg-gray-200 rounded-xl overflow-hidden">{[...Array(4)].map((_, i) => <div key={i} className="bg-white px-5 py-4 space-y-2"><div className="h-3 w-16 bg-gray-100 rounded" /><div className="h-6 w-20 bg-gray-200 rounded" /><div className="h-3 w-24 bg-gray-50 rounded" /></div>)}</div>
-      <div className="bg-white rounded-xl border border-gray-200 h-52" />
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">{[...Array(4)].map((_, i) => <div key={i} className="h-12 bg-gray-100 rounded-xl" />)}</div>
-    </div>
-  );
-
   const processingCount = orders.processing || 0;
 
   const metrics = [
@@ -261,6 +256,14 @@ export default function StoreDashboard() {
 
   return (
     <div className="p-5 sm:p-8 lg:p-10 max-w-6xl mx-auto space-y-8">
+
+      {loading && !dashboardData && (
+        <div className="rounded-xl border border-gray-200 bg-white p-3">
+          <div className="h-1.5 w-40 rounded-full bg-gray-100 overflow-hidden">
+            <div className="h-full w-1/2 bg-gray-300 animate-pulse" />
+          </div>
+        </div>
+      )}
 
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
