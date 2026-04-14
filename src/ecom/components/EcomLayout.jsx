@@ -437,13 +437,6 @@ const EcomLayoutComponent = ({ children }) => {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col lg:flex-row overflow-x-hidden max-w-[100vw]">
       <TopLoader />
-      {/* Trial Banner — affiché en haut pour les utilisateurs en essai gratuit */}
-      {workspace?.trialEndsAt && (
-        <TrialBanner
-          plan={workspace?.plan}
-          trialEndsAt={workspace?.trialEndsAt}
-        />
-      )}
       {/* Subscription Warning Banner — alerte rouge renouvellement */}
       {workspace?.subscriptionWarning?.active && (
         <SubscriptionWarningBanner warning={workspace.subscriptionWarning} />

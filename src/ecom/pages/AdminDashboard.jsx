@@ -374,7 +374,7 @@ const AdminDashboard = () => {
         parseInt(timeRange) || 14;
     }
 
-    const { startStr, endStr, prevStartStr } = buildDateRange(
+    const { startStr, endStr, prevStartStr, prevEndStr } = buildDateRange(
       daysCount,
       isCustomRange ? customStartDate : null,
       isCustomRange ? customEndDate : null

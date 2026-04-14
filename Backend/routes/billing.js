@@ -28,18 +28,18 @@ const MF_API_URL = 'https://www.pay.moneyfusion.net/scalor/597e2cf962834532/pay/
 const MF_STATUS_URL = (token) => `https://www.pay.moneyfusion.net/paiementNotif/${token}`;
 
 const PLAN_PRICES = {
-  starter_1:  5000,   // 1 month
-  starter_3:  13000,  // 3 months (~13% off)
-  starter_6:  24000,  // 6 months (~20% off)
-  starter_12: 45000,  // 12 months (~25% off)
-  pro_1:   10000,  // 1 month
-  pro_3:   27000,  // 3 months (~10% off)
-  pro_6:   50000,  // 6 months (~17% off)
-  pro_12:  95000,  // 12 months (~21% off)
-  ultra_1:  15000, // 1 month
-  ultra_3:  40000, // 3 months (~11% off)
-  ultra_6:  75000, // 6 months (~17% off)
-  ultra_12: 140000,// 12 months (~22% off)
+  starter_1:  2000,   // 1 month (promo)
+  starter_3:  5000,   // 3 months (~17% off)
+  starter_6:  9500,   // 6 months (~21% off)
+  starter_12: 18000,  // 12 months (~25% off)
+  pro_1:   5000,   // 1 month (promo)
+  pro_3:   13000,  // 3 months (~13% off)
+  pro_6:   24000,  // 6 months (~20% off)
+  pro_12:  45000,  // 12 months (~25% off)
+  ultra_1:  7500,  // 1 month (promo)
+  ultra_3:  20000, // 3 months (~11% off)
+  ultra_6:  37500, // 6 months (~17% off)
+  ultra_12: 70000, // 12 months (~22% off)
 };
 
 const PLAN_DURATION = {
