@@ -671,24 +671,26 @@ const StoreProductsList = () => {
 
     if (viewMode === 'stock') {
       return (
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="space-y-3">
+          <div className="flex gap-3 overflow-x-auto pb-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+            <div className="min-w-[170px] flex-1 rounded-2xl border border-gray-200 bg-white px-4 py-4 shadow-sm">
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-gray-500">Unités en stock</p>
+              <p className="mt-2 text-2xl font-bold text-gray-900">{stockSummary.totalUnits}</p>
+            </div>
+            <div className="min-w-[170px] flex-1 rounded-2xl border border-red-100 bg-red-50 px-4 py-4 shadow-sm">
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-red-500">Rupture</p>
+              <p className="mt-2 text-2xl font-bold text-red-700">{stockSummary.outOfStock}</p>
+            </div>
+            <div className="min-w-[170px] flex-1 rounded-2xl border border-amber-100 bg-amber-50 px-4 py-4 shadow-sm">
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-amber-600">Stock faible</p>
+              <p className="mt-2 text-2xl font-bold text-amber-700">{stockSummary.lowStock}</p>
+            </div>
+            <div className="min-w-[170px] flex-1 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-4 shadow-sm">
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-emerald-600">Disponibles</p>
+              <p className="mt-2 text-2xl font-bold text-emerald-700">{stockSummary.available}</p>
+            </div>
+          </div>
           <div className="rounded-2xl border border-gray-200 bg-white px-4 py-4 shadow-sm">
-            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-gray-500">Unités en stock</p>
-            <p className="mt-2 text-2xl font-bold text-gray-900">{stockSummary.totalUnits}</p>
-          </div>
-          <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-4 shadow-sm">
-            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-red-500">Rupture</p>
-            <p className="mt-2 text-2xl font-bold text-red-700">{stockSummary.outOfStock}</p>
-          </div>
-          <div className="rounded-2xl border border-amber-100 bg-amber-50 px-4 py-4 shadow-sm">
-            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-amber-600">Stock faible</p>
-            <p className="mt-2 text-2xl font-bold text-amber-700">{stockSummary.lowStock}</p>
-          </div>
-          <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-4 shadow-sm">
-            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-emerald-600">Disponibles</p>
-            <p className="mt-2 text-2xl font-bold text-emerald-700">{stockSummary.available}</p>
-          </div>
-          <div className="rounded-2xl border border-gray-200 bg-white px-4 py-4 shadow-sm sm:col-span-2 xl:col-span-4">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.12em] text-gray-500">Valeur du stock</p>
@@ -720,7 +722,8 @@ const StoreProductsList = () => {
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-6 space-y-5">
-      {/* Header */}
+      {/* Header (hidden on stock view) */}
+      {viewMode !== 'stock' && (
       <div className="rounded-[28px] border border-gray-200 bg-white px-5 py-5 shadow-[0_24px_50px_-32px_rgba(15,23,42,0.2)] sm:px-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-start gap-3">
@@ -830,6 +833,7 @@ const StoreProductsList = () => {
           </div>
         </div>
       </div>
+      )}
 
       {renderOverview()}
 

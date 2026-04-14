@@ -214,7 +214,9 @@ export const storeManageApi = {
   // ─── AI Homepage Generation ───────────────────────────────────────────
   generateHomepage: (data) => ecomApi.post('/store-manage/generate-homepage', data),
   regenerateHomepage: (data) => ecomApi.post('/store-manage/regenerate-homepage', data),
-  generateLogos: (data) => ecomApi.post('/store-manage/generate-logos', data),
+  // AI logo generation can take more than 30s depending on model/provider load.
+  // timeout: 0 disables Axios timeout for this request.
+  generateLogos: (data, config = {}) => ecomApi.post('/store-manage/generate-logos', data, { timeout: 0, ...config }),
 };
 
 export const storeProductsApi = {

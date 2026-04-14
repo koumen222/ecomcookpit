@@ -429,6 +429,10 @@ export default function BillingPage() {
 
   // Direct checkout — skip modal, use user phone/name
   const handleDirectCheckout = useCallback(async (duration) => {
+    if (!duration?.id || duration?.id === 'free') {
+      setDirectCheckoutError('Ce plan ne nécessite pas de paiement.');
+      return;
+    }
     const phone = user?.phone?.trim();
     const name = user?.name?.trim() || user?.email?.split('@')[0] || 'Client';
     if (!phone || phone.length < 7) {

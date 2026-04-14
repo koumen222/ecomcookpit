@@ -15,12 +15,12 @@ import { formatMoney } from '../utils/currency.js';
  * Backed by /store-analytics/dashboard.
  */
 const TABS = [
-  { key: 'summary',   label: 'Résumé',    icon: LayoutGrid,  iconClass: 'text-primary-500' },
-  { key: 'sales',     label: 'Ventes',    icon: ShoppingBag, iconClass: 'text-primary-600' },
-  { key: 'orders',    label: 'Commandes', icon: Package,     iconClass: 'text-scalor-copper' },
-  { key: 'delivery',  label: 'Livraison', icon: Truck,       iconClass: 'text-primary-500' },
-  { key: 'visits',    label: 'Visites',   icon: Eye,         iconClass: 'text-primary-600' },
-  { key: 'customers', label: 'Clients',   icon: Users,       iconClass: 'text-scalor-copper-light' },
+  { key: 'summary',   label: 'Résumé',    shortLabel: 'Résumé',  icon: LayoutGrid,  iconClass: 'text-primary-500' },
+  { key: 'sales',     label: 'Ventes',    shortLabel: 'Ventes',  icon: ShoppingBag, iconClass: 'text-primary-600' },
+  { key: 'orders',    label: 'Commandes', shortLabel: 'Cmd',     icon: Package,     iconClass: 'text-scalor-copper' },
+  { key: 'delivery',  label: 'Livraison', shortLabel: 'Livr.',   icon: Truck,       iconClass: 'text-primary-500' },
+  { key: 'visits',    label: 'Visites',   shortLabel: 'Visites', icon: Eye,         iconClass: 'text-primary-600' },
+  { key: 'customers', label: 'Clients',   shortLabel: 'Clients', icon: Users,       iconClass: 'text-scalor-copper-light' },
 ];
 
 const DATE_PRESETS = [
@@ -291,9 +291,9 @@ export default function StoreAnalytics() {
     : `${fmtDateLabel(startDate)} – ${fmtDateLabel(endDate)}`;
 
   return (
-    <div className="max-w-[1100px] mx-auto px-4 py-6 space-y-6 bg-gray-50 min-h-screen">
+    <div className="max-w-[1100px] mx-auto px-3 sm:px-4 py-5 sm:py-6 space-y-5 sm:space-y-6 bg-gray-50 min-h-screen">
       <div className="space-y-1">
-        <h1 className="text-2xl font-semibold text-gray-950">Analyses</h1>
+        <h1 className="text-[34px] sm:text-2xl font-semibold text-gray-950 leading-none">Analyses</h1>
         <p className="text-sm text-gray-500">Vue simple des ventes, commandes, livraisons et visites de la boutique.</p>
       </div>
 
@@ -380,7 +380,7 @@ export default function StoreAnalytics() {
           )}
         </div>
 
-        <div className="flex items-center gap-2 overflow-x-auto border-b border-gray-200 pb-2">
+        <div className="-mx-1 px-1 flex items-center gap-2 overflow-x-auto scrollbar-hide border-b border-gray-200 pb-2">
         {TABS.map(t => {
           const Icon = t.icon;
           const active = activeTab === t.key;
@@ -388,14 +388,15 @@ export default function StoreAnalytics() {
             <button
               key={t.key}
               onClick={() => setActiveTab(t.key)}
-              className={`flex items-center gap-2 px-3 py-2 text-sm whitespace-nowrap border-b-2 transition ${
+              className={`flex-shrink-0 flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-2 text-[13px] sm:text-sm whitespace-nowrap border-b-2 transition ${
                 active
                   ? 'border-gray-900 text-gray-950 font-medium'
                   : 'border-transparent text-gray-500 hover:text-gray-800'
               }`}
             >
-              <Icon className="w-4 h-4" />
-              {t.label}
+              <Icon className="hidden sm:block w-4 h-4" />
+              <span className="sm:hidden">{t.shortLabel}</span>
+              <span className="hidden sm:inline">{t.label}</span>
             </button>
           );
         })}

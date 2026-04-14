@@ -209,12 +209,12 @@ const StoreOrdersDashboard = () => {
 
       {/* KPI Cards */}
       <div className="px-4 sm:px-6 py-3 border-b border-gray-200 bg-white">
-        <div className="grid grid-cols-3 sm:grid-cols-5 gap-3 sm:gap-4">
-          <KpiMini label="Total" value={pagination.total} icon="📦" />
-          <KpiMini label="Aujourd'hui" value={todayOrders.length} icon="📅" />
-          <KpiMini label="Articles" value={todayItems} icon="🛒" />
-          <KpiMini label="Traitées" value={fulfilledOrders.length} icon="✅" />
-          <KpiMini label="Livrées" value={orders.filter(o => o.status === 'delivered').length} icon="🚚" />
+        <div className="flex items-center gap-4 overflow-x-auto scrollbar-hide">
+          <KpiMini label="Total" value={pagination.total} />
+          <KpiMini label="Aujourd'hui" value={todayOrders.length} />
+          <KpiMini label="Articles" value={todayItems} />
+          <KpiMini label="Traitées" value={fulfilledOrders.length} />
+          <KpiMini label="Livrées" value={orders.filter(o => o.status === 'delivered').length} />
         </div>
       </div>
 
@@ -469,15 +469,10 @@ const StatusBadge = ({ label, color, dot }) => (
   </span>
 );
 
-const KpiMini = ({ label, value, icon }) => (
-  <div className="bg-gray-50 rounded-xl px-3 py-2.5">
-    <div className="flex items-center gap-1.5">
-      {icon && <span className="text-sm">{icon}</span>}
-      <span className="text-[11px] sm:text-xs text-gray-500 truncate">{label}</span>
-    </div>
-    {value !== undefined && (
-      <p className="text-lg sm:text-xl font-bold text-gray-900 mt-0.5 tabular-nums">{value}</p>
-    )}
+const KpiMini = ({ label, value }) => (
+  <div className="flex items-center gap-2 flex-shrink-0">
+    <span className="text-[12px] text-gray-500 whitespace-nowrap">{label}</span>
+    {value !== undefined && <span className="text-[13px] font-bold text-gray-900 tabular-nums">{value}</span>}
   </div>
 );
 
