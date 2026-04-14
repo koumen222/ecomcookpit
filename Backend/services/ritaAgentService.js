@@ -10,7 +10,7 @@ import { Readable } from 'stream';
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 const FISH_AUDIO_DIRECT_API_KEY = process.env.FISH_AUDIO_API_KEY || '203f946aa7b3454184fd28fc7eb1f33b';
-const KIE_API_KEY = process.env.KIE_API_KEY || '';
+const KIE_API_KEY = process.env.KIE_API_KEY || process.env.NANOBANANA_API_KEY || '';
 const KIE_BASE_URL = (process.env.KIE_BASE_URL || 'https://api.kie.ai').replace(/\/+$/, '');
 const KIE_MODEL_PATH = process.env.KIE_MODEL_PATH || '/gemini-3.1-pro/v1/chat/completions';
 const KIE_TIMEOUT_MS = Number(process.env.KIE_TIMEOUT_MS || 120000);
@@ -549,6 +549,16 @@ function normalizeKieMessages(messages = []) {
           text: String(message?.content || ''),
         },
       ],
+    };
+  });
+}
+
+function normalizeLLMMessages(messages = []) {
+  return (messages || []).map((message) => {
+    const role = message?.role === 'assistant' ? 'assistant' : message?.role === 'system' ? 'system' : 'user';
+    return {
+      role,
+      content: String(message?.content || ''),
     };
   });
 }
@@ -3777,11 +3787,13 @@ export async function processIncomingMessage(userId, from, text, opts = {}) {
   let rawContent = null;
   let lastError = null;
 
+  const llmHistory = normalizeLLMMessages(history);
+
   try {
     rawContent = await callKieChatCompletion({
       messages: [
         { role: 'system', content: systemPrompt },
-        ...history,
+        ...llmHistory,
       ],
       temperature: 0.4,
       maxTokens: 4096,
@@ -3799,7 +3811,7 @@ export async function processIncomingMessage(userId, from, text, opts = {}) {
           model: modelCfg.model,
           messages: [
             { role: 'system', content: systemPrompt },
-            ...history,
+            ...llmHistory,
           ],
           temperature: 0.4,
           max_completion_tokens: 4096,

@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const KIE_API_KEY = process.env.KIE_API_KEY || '';
+const KIE_API_KEY = process.env.KIE_API_KEY || process.env.NANOBANANA_API_KEY || '';
 const KIE_BASE_URL = (process.env.KIE_BASE_URL || 'https://api.kie.ai').replace(/\/+$/, '');
 const KIE_MODEL_PATH = process.env.KIE_MODEL_PATH || '/gemini-3.1-pro/v1/chat/completions';
 const DEFAULT_TIMEOUT_MS = Number(process.env.KIE_TIMEOUT_MS || 120000);
