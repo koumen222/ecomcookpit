@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { AlertTriangle, Clock, X } from 'lucide-react';
+import { Clock, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const SubscriptionWarningBanner = ({ warning }) => {
@@ -23,52 +23,70 @@ const SubscriptionWarningBanner = ({ warning }) => {
   if (!warning?.active || hidden) return null;
 
   const isExpired = hoursLeft <= 0;
-  const isCritical = hoursLeft <= 6;
 
   return (
     <div
-      className={`fixed top-0 left-0 right-0 z-[60] ${
-        isExpired
-          ? 'bg-gradient-to-r from-red-700 to-red-800'
-          : isCritical
-            ? 'bg-gradient-to-r from-red-600 to-red-700'
-            : 'bg-gradient-to-r from-red-500 to-red-600'
-      } text-white shadow-lg`}
+      style={{
+        background: isExpired ? '#dc2626' : '#ef4444',
+        color: '#fff',
+        fontSize: 13,
+        fontWeight: 500,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        padding: '9px 48px 9px 16px',
+        textAlign: 'center',
+        position: 'relative',
+        lineHeight: 1.4,
+        letterSpacing: '0.01em',
+      }}
     >
-      <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3 min-w-0 flex-1">
-          <div className={`flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center ${
-            isExpired ? 'bg-white/20 animate-pulse' : 'bg-white/15'
-          }`}>
-            <AlertTriangle className="w-5 h-5" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-sm font-bold truncate">
-              {isExpired ? '⚠️ Accès suspendu — Renouvelez votre abonnement' : '⚠️ Renouvellement requis'}
-            </p>
-            <p className="text-xs text-white/80 truncate">
-              {warning.message || 'Votre abonnement expire bientôt. Renouvelez pour garder l\'accès.'}
-              {!isExpired && (
-                <span className="ml-2 inline-flex items-center gap-1 font-bold text-white">
-                  <Clock className="w-3 h-3" />
-                  {hoursLeft}h restantes
-                </span>
-              )}
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
-          <button
-            onClick={() => navigate('/ecom/billing')}
-            className="px-4 py-1.5 bg-white text-red-700 rounded-lg text-xs font-bold hover:bg-red-50 transition-colors"
-          >
-            Renouveler maintenant
-          </button>
-          <button onClick={() => setHidden(true)} className="p-1 hover:bg-white/20 rounded-full transition-colors">
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
+      <span>
+        {isExpired
+          ? '⚠️ Accès suspendu — '
+          : '⚠️ '}
+        {warning.message || 'Votre abonnement expire bientôt. Renouvelez pour garder l\'accès.'}
+        {!isExpired && (
+          <span style={{ marginLeft: 6, fontWeight: 700 }}>
+            ⏳ {hoursLeft}h restantes
+          </span>
+        )}
+        <button
+          onClick={() => navigate('/ecom/billing')}
+          style={{
+            marginLeft: 10,
+            background: '#fff',
+            color: '#dc2626',
+            border: 'none',
+            borderRadius: 6,
+            padding: '3px 10px',
+            fontSize: 12,
+            fontWeight: 700,
+            cursor: 'pointer',
+          }}
+        >
+          Renouveler
+        </button>
+      </span>
+      <button
+        onClick={() => setHidden(true)}
+        style={{
+          position: 'absolute',
+          right: 12,
+          top: '50%',
+          transform: 'translateY(-50%)',
+          background: 'none',
+          border: 'none',
+          cursor: 'pointer',
+          color: 'rgba(255,255,255,0.7)',
+          padding: 4,
+          display: 'flex',
+          lineHeight: 1,
+        }}
+      >
+        <X size={14} />
+      </button>
     </div>
   );
 };

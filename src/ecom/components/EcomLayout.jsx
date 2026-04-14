@@ -672,9 +672,7 @@ const EcomLayoutComponent = ({ children }) => {
 
         {/* Page content - pb-safe-nav = pb-20 + home indicator sur iOS */}
         <main className={`flex-1 overflow-y-auto overflow-x-hidden pb-safe-nav lg:pb-0 ${
-          workspace?.subscriptionWarning?.active
-            ? 'pt-32 lg:pt-28'
-            : workspace?.trialEndsAt ? 'pt-32 lg:pt-28' : 'pt-14 pt-safe-header lg:pt-14'
+          workspace?.trialEndsAt ? 'pt-32 lg:pt-28' : 'pt-14 pt-safe-header lg:pt-14'
         }`}>
           {children}
         </main>
