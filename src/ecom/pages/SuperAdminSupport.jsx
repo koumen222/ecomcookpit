@@ -1,10 +1,26 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import ecomApi from '../services/ecommApi.js';
+import { useSocket } from '../hooks/useSocket.js';
+import { playNewOrderSound } from '../services/soundService.js';
 
-const STATUS_CFG = {
-  open:    { label: 'Ouvert',    bg: 'bg-amber-50',   text: 'text-amber-700',   dot: 'bg-amber-400' },
-  replied: { label: 'Répondu',   bg: 'bg-emerald-50', text: 'text-emerald-700', dot: 'bg-emerald-500' },
-  closed:  { label: 'Fermé',     bg: 'bg-gray-100',   text: 'text-gray-500',    dot: 'bg-gray-400' },
+const WORKFLOW_CFG = {
+  ai: { label: 'IA', bg: 'bg-sky-50', text: 'text-sky-700', dot: 'bg-sky-500' },
+  pending_admin: { label: 'En attente', bg: 'bg-amber-50', text: 'text-amber-700', dot: 'bg-amber-500' },
+  resolved: { label: 'Résolu', bg: 'bg-emerald-50', text: 'text-emerald-700', dot: 'bg-emerald-500' },
+};
+
+const PRIORITY_CFG = {
+  low: { label: 'Bas', bg: 'bg-slate-100', text: 'text-slate-600' },
+  normal: { label: 'Normal', bg: 'bg-gray-100', text: 'text-gray-700' },
+  high: { label: 'Haute', bg: 'bg-orange-50', text: 'text-orange-700' },
+  urgent: { label: 'Urgente', bg: 'bg-red-50', text: 'text-red-700' },
+};
+
+const HANDLED_BY_CFG = {
+  ai: { label: 'Répondu par IA', bg: 'bg-sky-100', text: 'text-sky-700' },
+  admin: { label: 'Répondu par admin', bg: 'bg-violet-100', text: 'text-violet-700' },
+  none: { label: 'À traiter', bg: 'bg-amber-100', text: 'text-amber-700' },
 };
 
 const CATEGORY_CFG = {
@@ -35,13 +51,57 @@ const fmtFull = (d) => {
   return new Date(d).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
 };
 
+const getWorkspaceMeta = (workspaceValue) => {
+  if (!workspaceValue) return null;
+  if (typeof workspaceValue === 'string') return { _id: workspaceValue, name: 'Workspace', slug: '', subdomain: '' };
+  return workspaceValue;
+};
+
+const getDisplayName = (conversation) => (
+  conversation?.userName
+  || conversation?.visitorName
+  || conversation?.userEmail
+  || conversation?.visitorEmail
+  || conversation?.sessionId
+  || 'Conversation'
+);
+
+const getWorkspaceLabel = (conversation) => {
+  const workspace = getWorkspaceMeta(conversation?.workspaceId);
+  if (!workspace) return 'Sans workspace';
+  return workspace.name || workspace.slug || workspace.subdomain || 'Workspace';
+};
+
+const showBrowserSupportNotification = (title, body, sessionId) => {
+  if (typeof window === 'undefined' || typeof Notification === 'undefined') return;
+  if (document.visibilityState === 'visible') return;
+  if (Notification.permission !== 'granted') return;
+
+  const notification = new Notification(title, {
+    body,
+    tag: `support-${sessionId}`,
+    renotify: true,
+    silent: true,
+  });
+
+  notification.onclick = () => {
+    window.focus();
+    window.location.href = `/ecom/super-admin/support?conversation=${encodeURIComponent(sessionId)}`;
+    notification.close();
+  };
+};
+
 const SuperAdminSupport = () => {
+  const [searchParams] = useSearchParams();
   const [conversations, setConversations] = useState([]);
+  const [workspaceOptions, setWorkspaceOptions] = useState([]);
   const [selected, setSelected]           = useState(null);
   const [detail, setDetail]               = useState(null);
   const [loading, setLoading]             = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
-  const [filterStatus, setFilterStatus]   = useState('all');
+  const [filterWorkflow, setFilterWorkflow] = useState('all');
+  const [filterPriority, setFilterPriority] = useState('all');
+  const [filterWorkspace, setFilterWorkspace] = useState('all');
   const [search, setSearch]               = useState('');
   const [reply, setReply]                 = useState('');
   const [sending, setSending]             = useState(false);
@@ -49,6 +109,8 @@ const SuperAdminSupport = () => {
   const [unreadTotal, setUnreadTotal]     = useState(0);
   const replyRef                          = useRef(null);
   const messagesEndRef                    = useRef(null);
+  const targetConversation = searchParams.get('conversation') || '';
+  const { isConnected, on, off, emit } = useSocket();
 
   // New message / broadcast state
   const [showNewMsg, setShowNewMsg]       = useState(false);
@@ -70,13 +132,17 @@ const SuperAdminSupport = () => {
   const fetchList = useCallback(async () => {
     try {
       const params = {};
-      if (filterStatus !== 'all') params.status = filterStatus;
+      if (filterWorkflow !== 'all') params.workflowStatus = filterWorkflow;
+      if (filterPriority !== 'all') params.priority = filterPriority;
+      if (filterWorkspace !== 'all') params.workspaceId = filterWorkspace;
+      if (search.trim()) params.search = search.trim();
       const res = await ecomApi.get('/super-admin/support', { params });
       setConversations(res.data.data.conversations || []);
+      setWorkspaceOptions(res.data.data.workspaceOptions || []);
       setUnreadTotal(res.data.data.unreadTotal || 0);
     } catch { /* silent */ }
     setLoading(false);
-  }, [filterStatus]);
+  }, [filterWorkflow, filterPriority, filterWorkspace, search]);
 
   useEffect(() => { fetchList(); }, [fetchList]);
 
@@ -92,24 +158,70 @@ const SuperAdminSupport = () => {
     try {
       const res = await ecomApi.get(`/super-admin/support/${sessionId}`);
       setDetail(res.data.data.conversation);
-      // Update the conv in list to mark unread = 0
       setConversations(prev => prev.map(c => c.sessionId === sessionId ? { ...c, unreadAdmin: 0 } : c));
     } catch { showToast('Impossible de charger la conversation.', 'error'); }
     setDetailLoading(false);
   }, []);
 
-  const selectConv = (conv) => {
+  const selectConv = useCallback((conv) => {
     setSelected(conv.sessionId);
     fetchDetail(conv.sessionId);
     setReply('');
-  };
+  }, [fetchDetail]);
 
-  // Poll detail every 8s when a conversation is selected
   useEffect(() => {
     if (!selected) return;
     const t = setInterval(() => fetchDetail(selected), 8000);
     return () => clearInterval(t);
   }, [selected, fetchDetail]);
+
+  useEffect(() => {
+    if (!targetConversation || !conversations.length) return;
+    if (selected === targetConversation) return;
+    const match = conversations.find((conversation) => conversation.sessionId === targetConversation);
+    if (match) selectConv(match);
+  }, [targetConversation, conversations, selected, selectConv]);
+
+  useEffect(() => {
+    if (typeof Notification === 'undefined') return;
+    if (Notification.permission === 'default') {
+      Notification.requestPermission().catch(() => {});
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isConnected) return;
+
+    const handleSupportUpdate = (payload) => {
+      if (!payload?.sessionId) return;
+
+      const isInbound = ['user_message', 'visitor_message', 'escalated'].includes(payload.eventType)
+        && payload.lastMessage?.from !== 'agent';
+
+      if (isInbound) {
+        playNewOrderSound();
+        showBrowserSupportNotification(
+          `${getDisplayName(payload)} · ${getWorkspaceLabel(payload)}`,
+          payload.lastMessage?.text || payload.subject || 'Nouvelle demande support',
+          payload.sessionId
+        );
+      }
+
+      fetchList();
+      if (selected === payload.sessionId || targetConversation === payload.sessionId) {
+        fetchDetail(payload.sessionId);
+      }
+    };
+
+    on('support:updated', handleSupportUpdate);
+    return () => off('support:updated', handleSupportUpdate);
+  }, [isConnected, on, off, fetchList, fetchDetail, selected, targetConversation]);
+
+  useEffect(() => {
+    if (!selected || !isConnected) return;
+    emit('support:subscribe', { sessionId: selected });
+    return () => emit('support:unsubscribe', { sessionId: selected });
+  }, [selected, isConnected, emit]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -122,21 +234,21 @@ const SuperAdminSupport = () => {
     try {
       const res = await ecomApi.post(`/super-admin/support/${selected}/reply`, {
         text: reply.trim(),
-        agentName: 'Rita',
+        agentName: 'Support Scalor',
       });
       setDetail(res.data.data.conversation);
-      setConversations(prev => prev.map(c => c.sessionId === selected ? { ...c, status: 'replied', lastMessageAt: new Date() } : c));
+      setConversations(prev => prev.map(c => c.sessionId === selected ? { ...c, handledBy: 'admin', lastMessageAt: new Date().toISOString() } : c));
       setReply('');
       showToast('Réponse envoyée !');
     } catch { showToast('Erreur lors de l\'envoi.', 'error'); }
     setSending(false);
   };
 
-  const changeStatus = async (sessionId, status) => {
+  const changeWorkflowStatus = async (sessionId, workflowStatus) => {
     try {
-      await ecomApi.put(`/super-admin/support/${sessionId}/status`, { status });
-      setConversations(prev => prev.map(c => c.sessionId === sessionId ? { ...c, status } : c));
-      if (detail?.sessionId === sessionId) setDetail(d => ({ ...d, status }));
+      await ecomApi.put(`/super-admin/support/${sessionId}/status`, { workflowStatus });
+      setConversations(prev => prev.map(c => c.sessionId === sessionId ? { ...c, workflowStatus } : c));
+      if (detail?.sessionId === sessionId) setDetail(d => ({ ...d, workflowStatus }));
       showToast('Statut mis à jour !');
     } catch { showToast('Erreur statut.', 'error'); }
   };
@@ -194,40 +306,13 @@ const SuperAdminSupport = () => {
     setNewMsgSending(false);
   };
 
-  // Sound notification for admin on new unread
   const prevUnreadRef = useRef(0);
   useEffect(() => {
     if (unreadTotal > prevUnreadRef.current && prevUnreadRef.current > 0) {
-      try {
-        const ctx = new (window.AudioContext || window.webkitAudioContext)();
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.connect(gain); gain.connect(ctx.destination);
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(660, ctx.currentTime);
-        osc.frequency.setValueAtTime(880, ctx.currentTime + 0.1);
-        gain.gain.setValueAtTime(0.12, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
-        osc.start(ctx.currentTime);
-        osc.stop(ctx.currentTime + 0.3);
-      } catch { /* silent */ }
+      playNewOrderSound();
     }
     prevUnreadRef.current = unreadTotal;
   }, [unreadTotal]);
-
-  const filtered = conversations.filter(c => {
-    if (!search) return true;
-    const q = search.toLowerCase();
-    return (
-      c.sessionId?.toLowerCase().includes(q) ||
-      c.visitorName?.toLowerCase().includes(q) ||
-      c.visitorEmail?.toLowerCase().includes(q) ||
-      c.userName?.toLowerCase().includes(q) ||
-      c.userEmail?.toLowerCase().includes(q) ||
-      c.subject?.toLowerCase().includes(q) ||
-      c.messages?.at(-1)?.text?.toLowerCase().includes(q)
-    );
-  });
 
   return (
     <div className="flex h-[calc(100vh-60px)] bg-gray-50 overflow-hidden">
@@ -366,7 +451,6 @@ const SuperAdminSupport = () => {
       )}
       <div className="w-full sm:w-80 lg:w-96 flex-shrink-0 bg-white border-r border-gray-100 flex flex-col overflow-hidden">
 
-        {/* Header */}
         <div className="px-4 py-4 border-b border-gray-100">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
@@ -377,7 +461,7 @@ const SuperAdminSupport = () => {
               </div>
               <div>
                 <h1 className="text-sm font-extrabold text-gray-900">Support</h1>
-                <p className="text-[11px] text-gray-400">{conversations.length} conversations</p>
+                <p className="text-[11px] text-gray-400">{conversations.length} conversations · {isConnected ? 'temps reel actif' : 'reconnexion...'}</p>
               </div>
             </div>
             {unreadTotal > 0 && (
@@ -405,41 +489,65 @@ const SuperAdminSupport = () => {
             />
           </div>
 
-          {/* Status filter */}
-          <div className="flex gap-1 mt-2">
-            {['all', 'open', 'replied', 'closed'].map(s => (
+          <div className="grid grid-cols-3 gap-2 mt-2">
+            {['all', 'pending_admin', 'ai', 'resolved'].map((value) => (
               <button
-                key={s}
-                onClick={() => setFilterStatus(s)}
-                className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition ${filterStatus === s ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
+                key={value}
+                onClick={() => setFilterWorkflow(value)}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition ${filterWorkflow === value ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
               >
-                {s === 'all' ? 'Tout' : STATUS_CFG[s]?.label}
+                {value === 'all' ? 'Tous' : WORKFLOW_CFG[value]?.label}
               </button>
             ))}
           </div>
+
+          <div className="grid grid-cols-2 gap-2 mt-2">
+            <select
+              value={filterPriority}
+              onChange={(e) => setFilterPriority(e.target.value)}
+              className="px-3 py-2 text-xs bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-emerald-400"
+            >
+              <option value="all">Toutes priorités</option>
+              {Object.entries(PRIORITY_CFG).map(([value, cfg]) => (
+                <option key={value} value={value}>{cfg.label}</option>
+              ))}
+            </select>
+
+            <select
+              value={filterWorkspace}
+              onChange={(e) => setFilterWorkspace(e.target.value)}
+              className="px-3 py-2 text-xs bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-emerald-400"
+            >
+              <option value="all">Tous workspaces</option>
+              {workspaceOptions.map((workspace) => (
+                <option key={workspace._id} value={workspace._id}>{workspace.name || workspace.slug || workspace.subdomain}</option>
+              ))}
+            </select>
+          </div>
         </div>
 
-        {/* List */}
         <div className="flex-1 overflow-y-auto">
           {loading ? (
             <div className="flex flex-col items-center justify-center h-40 gap-3">
               <div className="w-8 h-8 rounded-full border-2 border-gray-200 border-t-emerald-600 animate-spin" />
               <p className="text-xs text-gray-400">Chargement…</p>
             </div>
-          ) : filtered.length === 0 ? (
+          ) : conversations.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-40 gap-2 px-6 text-center">
               <svg className="w-10 h-10 text-gray-200" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/></svg>
               <p className="text-sm text-gray-400">Aucune conversation</p>
             </div>
           ) : (
             <div className="divide-y divide-gray-50">
-              {filtered.map(conv => {
+              {conversations.map((conv) => {
                 const isActive = selected === conv.sessionId;
-                const lastMsg = conv.messages?.at(-1);
-                const sc = STATUS_CFG[conv.status] || STATUS_CFG.open;
+                const lastMsg = conv.messages?.at(-1) || conv.lastMessage;
+                const workflow = WORKFLOW_CFG[conv.workflowStatus] || WORKFLOW_CFG.pending_admin;
                 const isAuthUser = !!conv.userId;
-                const displayName = conv.userName || conv.visitorName || conv.visitorEmail || conv.userEmail || conv.sessionId?.slice(0, 12) + '…';
+                const displayName = getDisplayName(conv);
                 const cat = conv.category ? CATEGORY_CFG[conv.category] : null;
+                const priority = PRIORITY_CFG[conv.priority] || PRIORITY_CFG.normal;
+                const handledBy = HANDLED_BY_CFG[conv.handledBy || 'none'] || HANDLED_BY_CFG.none;
                 return (
                   <button
                     key={conv.sessionId}
@@ -461,20 +569,23 @@ const SuperAdminSupport = () => {
                           </span>
                           <span className="text-[10px] text-gray-400 whitespace-nowrap flex-shrink-0">{fmtTime(conv.lastMessageAt)}</span>
                         </div>
+                        <p className="text-[11px] font-medium text-gray-500 truncate mb-0.5">{getWorkspaceLabel(conv)}</p>
                         {conv.subject && (
                           <p className="text-[12px] font-medium text-gray-700 truncate leading-tight mb-0.5">{conv.subject}</p>
                         )}
                         <p className="text-[12px] text-gray-500 truncate leading-tight">
                           {lastMsg?.text || 'Aucun message'}
                         </p>
-                        <div className="flex items-center gap-1.5 mt-1.5">
-                          <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold ${sc.bg} ${sc.text}`}>
-                            <span className={`w-1.5 h-1.5 rounded-full ${sc.dot}`} />
-                            {sc.label}
+                        <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                          <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold ${workflow.bg} ${workflow.text}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${workflow.dot}`} />
+                            {workflow.label}
                           </span>
                           {cat && (
                             <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${cat.color}`}>{cat.label}</span>
                           )}
+                          <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${priority.bg} ${priority.text}`}>{priority.label}</span>
+                          <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${handledBy.bg} ${handledBy.text}`}>{handledBy.label}</span>
                           {conv.unreadAdmin > 0 && (
                             <span className="px-1.5 py-0.5 bg-red-500 text-white text-[10px] font-bold rounded-full">{conv.unreadAdmin}</span>
                           )}
@@ -509,11 +620,10 @@ const SuperAdminSupport = () => {
           </div>
         ) : detail ? (
           <>
-            {/* Conversation header */}
             <div className="flex items-center justify-between px-5 py-3.5 bg-white border-b border-gray-100">
               <div className="flex items-center gap-3">
                 <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-white font-bold text-sm ${detail.userId ? 'bg-indigo-600' : 'bg-emerald-600'}`}>
-                  {(detail.userName || detail.visitorName || detail.userEmail || detail.visitorEmail || detail.sessionId || '?').charAt(0).toUpperCase()}
+                  {getDisplayName(detail).charAt(0).toUpperCase()}
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
@@ -526,6 +636,7 @@ const SuperAdminSupport = () => {
                   </div>
                   <p className="text-[11px] text-gray-400">
                     {(detail.userEmail || detail.visitorEmail) && <>{detail.userEmail || detail.visitorEmail} · </>}
+                    <span className="font-medium text-gray-600">{getWorkspaceLabel(detail)}</span> · {' '}
                     {detail.subject && <><span className="font-medium text-gray-600">{detail.subject}</span> · </>}
                     {detail.category && CATEGORY_CFG[detail.category] && (
                       <span className={`inline-block px-1.5 py-0 rounded text-[10px] font-semibold ${CATEGORY_CFG[detail.category].color} mr-1`}>
@@ -536,38 +647,59 @@ const SuperAdminSupport = () => {
                   </p>
                 </div>
               </div>
-              {/* Status selector */}
               <div className="flex items-center gap-2">
                 <select
-                  value={detail.status}
-                  onChange={e => changeStatus(detail.sessionId, e.target.value)}
+                  value={detail.workflowStatus || 'pending_admin'}
+                  onChange={e => changeWorkflowStatus(detail.sessionId, e.target.value)}
                   className="text-xs font-semibold border border-gray-200 rounded-lg px-2 py-1.5 bg-white outline-none focus:border-emerald-400 cursor-pointer"
                 >
-                  <option value="open">Ouvert</option>
-                  <option value="replied">Répondu</option>
-                  <option value="closed">Fermé</option>
+                  <option value="pending_admin">En attente</option>
+                  <option value="ai">IA</option>
+                  <option value="resolved">Résolu</option>
                 </select>
               </div>
             </div>
 
-            {/* Messages */}
+            <div className="px-5 py-3 bg-white border-b border-gray-100 flex flex-wrap items-center gap-2 text-[11px]">
+              <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full font-semibold ${(WORKFLOW_CFG[detail.workflowStatus] || WORKFLOW_CFG.pending_admin).bg} ${(WORKFLOW_CFG[detail.workflowStatus] || WORKFLOW_CFG.pending_admin).text}`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${(WORKFLOW_CFG[detail.workflowStatus] || WORKFLOW_CFG.pending_admin).dot}`} />
+                {(WORKFLOW_CFG[detail.workflowStatus] || WORKFLOW_CFG.pending_admin).label}
+              </span>
+              <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full font-semibold ${(PRIORITY_CFG[detail.priority] || PRIORITY_CFG.normal).bg} ${(PRIORITY_CFG[detail.priority] || PRIORITY_CFG.normal).text}`}>
+                Priorité {(PRIORITY_CFG[detail.priority] || PRIORITY_CFG.normal).label}
+              </span>
+              <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full font-semibold ${(HANDLED_BY_CFG[detail.handledBy || 'none'] || HANDLED_BY_CFG.none).bg} ${(HANDLED_BY_CFG[detail.handledBy || 'none'] || HANDLED_BY_CFG.none).text}`}>
+                {(HANDLED_BY_CFG[detail.handledBy || 'none'] || HANDLED_BY_CFG.none).label}
+              </span>
+              {typeof detail.aiConfidence === 'number' && detail.aiConfidence > 0 && (
+                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full font-semibold bg-slate-100 text-slate-700">
+                  Confiance IA {Math.round(detail.aiConfidence)}%
+                </span>
+              )}
+              {detail.aiSummary && (
+                <span className="text-slate-500">Résumé: {detail.aiSummary}</span>
+              )}
+              {detail.escalationReason && detail.workflowStatus === 'pending_admin' && (
+                <span className="text-amber-700">Escalade: {detail.escalationReason}</span>
+              )}
+            </div>
+
             <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3" style={{ background: '#f8fafc' }}>
               {detail.messages.map(msg => (
                 <div key={msg._id} className={`flex items-end gap-2.5 ${msg.from === 'agent' ? 'flex-row-reverse' : ''}`}>
-                  {/* Avatar */}
-                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-white text-xs font-bold flex-shrink-0 mb-1 ${msg.from === 'agent' ? 'bg-gradient-to-br from-emerald-500 to-teal-600' : 'bg-gray-300'}`}>
-                    {msg.from === 'agent' ? 'R' : (detail.visitorName || 'V').charAt(0).toUpperCase()}
+                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-white text-xs font-bold flex-shrink-0 mb-1 ${msg.from === 'agent' ? (msg.senderType === 'ai' ? 'bg-gradient-to-br from-sky-500 to-cyan-600' : 'bg-gradient-to-br from-violet-500 to-fuchsia-600') : 'bg-gray-300'}`}>
+                    {msg.from === 'agent' ? (msg.senderType === 'ai' ? 'IA' : 'AD') : (detail.visitorName || 'V').charAt(0).toUpperCase()}
                   </div>
                   <div className={`max-w-[72%] flex flex-col gap-1 ${msg.from === 'agent' ? 'items-end' : 'items-start'}`}>
                     <div className={`px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed ${
                       msg.from === 'agent'
-                        ? 'bg-emerald-600 text-white rounded-br-md'
+                        ? (msg.senderType === 'ai' ? 'bg-sky-600 text-white rounded-br-md' : 'bg-violet-600 text-white rounded-br-md')
                         : 'bg-white text-gray-800 rounded-bl-md border border-gray-100 shadow-sm'
                     }`}>
                       {msg.text}
                     </div>
                     <span className="text-[10px] text-gray-400 px-1">
-                      {msg.from === 'agent' ? `${msg.agentName || 'Rita'} · ` : ''}{fmtFull(msg.createdAt)}
+                      {msg.from === 'agent' ? `${msg.senderType === 'ai' ? 'Scalor IA' : (msg.agentName || 'Support')} · ` : ''}{fmtFull(msg.createdAt)}
                     </span>
                   </div>
                 </div>
@@ -578,8 +710,7 @@ const SuperAdminSupport = () => {
               <div ref={messagesEndRef} />
             </div>
 
-            {/* Reply box */}
-            {detail.status !== 'closed' ? (
+            {detail.workflowStatus !== 'resolved' ? (
               <form onSubmit={sendReply} className="px-4 py-3 bg-white border-t border-gray-100">
                 <div className="flex items-end gap-2">
                   <div className="flex-1 relative">
@@ -588,7 +719,7 @@ const SuperAdminSupport = () => {
                       value={reply}
                       onChange={e => setReply(e.target.value)}
                       onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendReply(e); } }}
-                      placeholder="Répondre en tant que Rita… (Entrée pour envoyer)"
+                      placeholder="Répondre en tant que support humain…"
                       rows={2}
                       className="w-full resize-none text-sm text-gray-800 placeholder-gray-400 bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 outline-none focus:border-emerald-400 focus:bg-white transition leading-relaxed"
                     />
@@ -607,12 +738,12 @@ const SuperAdminSupport = () => {
                     )}
                   </button>
                 </div>
-                <p className="text-[10px] text-gray-400 mt-1.5 px-1">La réponse apparaîtra instantanément dans le chat du visiteur.</p>
+                <p className="text-[10px] text-gray-400 mt-1.5 px-1">La réponse est envoyée uniquement dans l'application. WhatsApp reste un canal de notification non interactif.</p>
               </form>
             ) : (
               <div className="px-5 py-3 bg-gray-50 border-t border-gray-100 text-center">
                 <p className="text-xs text-gray-400 font-medium">Cette conversation est fermée.</p>
-                <button onClick={() => changeStatus(detail.sessionId, 'open')} className="mt-1 text-xs text-emerald-600 font-semibold hover:underline">Rouvrir</button>
+                <button onClick={() => changeWorkflowStatus(detail.sessionId, 'pending_admin')} className="mt-1 text-xs text-emerald-600 font-semibold hover:underline">Rouvrir</button>
               </div>
             )}
           </>

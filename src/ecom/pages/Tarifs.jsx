@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { createCheckout } from '../services/billingApi.js';
+import { createCheckout, getPublicPlans } from '../services/billingApi.js';
+
+const fmtFCFA = (n) => Number(n || 0).toLocaleString('fr-FR').replace(/,/g, ' ');
 
 // ─── Inline checkout modal (for public Tarifs page, no auth required) ─────────
 function PublicCheckoutModal({ plan, onClose }) {
@@ -10,10 +12,9 @@ function PublicCheckoutModal({ plan, onClose }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const PLAN_PRICES = { pro_1: 5000, pro_3: 13000, pro_6: 24000, pro_12: 45000 };
-  const PLAN_DURATIONS = { pro_1: '1 mois', pro_3: '3 mois', pro_6: '6 mois', pro_12: '12 mois' };
-  const amount = PLAN_PRICES[plan] || 6000;
-  const durationLabel = PLAN_DURATIONS[plan] || '1 mois';
+  const amount = Number(plan?.numericPrice || 0);
+  const durationLabel = plan?.durationLabel || '1 mois';
+  const planName = plan?.name || 'Scalor';
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -42,7 +43,7 @@ function PublicCheckoutModal({ plan, onClose }) {
     setLoading(true);
     try {
       const result = await createCheckout({
-        plan,
+        plan: plan?.checkoutKey,
         phone: phone.trim(),
         clientName: clientName.trim(),
         workspaceId
@@ -72,7 +73,7 @@ function PublicCheckoutModal({ plan, onClose }) {
         <div className="bg-gradient-to-r from-emerald-600 to-emerald-700 px-6 py-5 text-white">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-xl font-bold">Passer au plan Pro</h2>
+              <h2 className="text-xl font-bold">Passer au plan {planName}</h2>
               <p className="text-emerald-100 text-sm mt-0.5">
                 {durationLabel} — {new Intl.NumberFormat('fr-FR').format(amount)} FCFA
               </p>
@@ -130,55 +131,33 @@ function PublicCheckoutModal({ plan, onClose }) {
 const Tarifs = () => {
   const navigate = useNavigate();
   const [showCheckout, setShowCheckout] = useState(false);
-  const [selectedPlan, setSelectedPlan] = useState('pro_1');
+  const [selectedPlan, setSelectedPlan] = useState(null);
 
-  const plans = [
-    {
-      name: 'Gratuit',
-      price: '0',
-      period: 'FCFA',
-      description: 'Toutes les fonctionnalités essentielles',
-      features: [
-        'Gestion complète des commandes',
-        'Gestion clients & prospects',
-        'Rapports quotidiens détaillés',
-        'Suivi financier complet',
-        'Import Google Sheets automatique',
-        'Stock & fournisseurs',
-        'Analytics & KPIs',
-        'Utilisateurs illimités',
-        'Rôles personnalisés (Admin, Closeuse, Compta)',
-        'Support par email'
-      ],
-      excluded: [
-        'Envoi de messages WhatsApp automatique',
-        'Agent IA WhatsApp'
-      ],
-      cta: 'Commencer gratuitement',
-      highlighted: false
-    },
-    {
-      name: 'Pro',
-      price: '5 000',
-      oldPrice: '10 000',
-      period: 'FCFA/mois',
-      promo: '🔥 Offre valable 24h',
-      description: 'Toutes les fonctionnalités + WhatsApp & IA',
-      features: [
-        'Toutes les fonctionnalités du plan Gratuit',
-        '✨ Envoi de messages WhatsApp automatique',
-        '✨ Campagnes de relance WhatsApp',
-        '✨ Messages personnalisés avec variables',
-        '✨ Agent IA WhatsApp intelligent',
-        '✨ Réponses automatiques aux clients',
-        '✨ Qualification automatique des prospects',
-        'Support prioritaire',
-        'Accès anticipé aux nouvelles fonctionnalités'
-      ],
-      cta: 'Essayer Pro gratuitement',
-      highlighted: true
-    }
-  ];
+  const [plans, setPlans] = useState([]);
+  const [plansLoading, setPlansLoading] = useState(true);
+
+  useEffect(() => {
+    getPublicPlans()
+      .then(res => {
+        const mapped = (res.plans || []).map(p => ({
+          key: p.key,
+          name: p.displayName,
+          description: p.tagline,
+          price: fmtFCFA(p.priceRegular),
+          numericPrice: Number(p.priceRegular || 0),
+          period: p.priceRegular === 0 ? 'FCFA' : 'FCFA/mois',
+          durationLabel: '1 mois',
+          features: p.featuresList || [],
+          cta: p.ctaLabel || 'Commencer',
+          highlighted: !!p.highlighted,
+          isFree: Number(p.priceRegular || 0) === 0,
+          checkoutKey: `${p.key}_1`
+        }));
+        setPlans(mapped);
+      })
+      .catch(err => console.error('Failed to load public plans', err))
+      .finally(() => setPlansLoading(false));
+  }, []);
 
   return (
     <>
@@ -248,8 +227,11 @@ const Tarifs = () => {
 
       {/* PRICING CARDS */}
       <section className="py-16 sm:py-20 px-4">
-        <div className="max-w-5xl mx-auto">
-          <div className="grid md:grid-cols-2 gap-8">
+        <div className="max-w-7xl mx-auto">
+          {plansLoading && (
+            <div className="text-center text-gray-500 py-12">Chargement des offres…</div>
+          )}
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
             {plans.map((plan, index) => (
               <div 
                 key={index}
@@ -276,11 +258,6 @@ const Tarifs = () => {
 
                 <div className="mb-8">
                   <div className="flex items-baseline gap-2">
-                    {plan.oldPrice && (
-                      <span className={`text-2xl font-bold line-through ${plan.highlighted ? 'text-white/40' : 'text-gray-300'}`}>
-                        {plan.oldPrice}
-                      </span>
-                    )}
                     <span className={`text-5xl font-black ${plan.highlighted ? 'text-white' : 'text-gray-900'}`}>
                       {plan.price}
                     </span>
@@ -290,11 +267,6 @@ const Tarifs = () => {
                       </span>
                     )}
                   </div>
-                  {plan.promo && (
-                    <p className={`text-sm font-bold mt-2 ${plan.highlighted ? 'text-yellow-300' : 'text-red-500'}`}>
-                      {plan.promo}
-                    </p>
-                  )}
                 </div>
 
                 <ul className="space-y-4 mb-8">
@@ -314,29 +286,15 @@ const Tarifs = () => {
                     </li>
                   ))}
                   
-                  {plan.excluded && plan.excluded.map((feature, i) => (
-                    <li key={`excluded-${i}`} className="flex items-start gap-3 opacity-50">
-                      <svg 
-                        className="w-5 h-5 flex-shrink-0 mt-0.5 text-gray-400" 
-                        fill="none" 
-                        stroke="currentColor" 
-                        viewBox="0 0 24 24"
-                      >
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                      <span className="text-sm text-gray-500 line-through">
-                        {feature}
-                      </span>
-                    </li>
-                  ))}
                 </ul>
 
-                <button 
+                <button
                   onClick={() => {
-                    if (plan.highlighted) {
-                      setShowCheckout(true);
-                    } else {
+                    if (plan.isFree) {
                       navigate('/ecom/register');
+                    } else {
+                      setSelectedPlan(plan);
+                      setShowCheckout(true);
                     }
                   }}
                   className={`w-full py-4 rounded-xl font-bold text-base transition shadow-lg ${

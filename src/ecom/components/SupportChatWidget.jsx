@@ -1,33 +1,24 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import ecomApi from '../services/ecommApi.js';
+import { useSocket } from '../hooks/useSocket.js';
+import { playNewOrderSound } from '../services/soundService.js';
 
 const fmtTime = (d) => {
   if (!d) return '';
   return new Date(d).toLocaleString('fr-FR', { hour: '2-digit', minute: '2-digit' });
 };
 
-// Notification sound using Web Audio API
-const playNotifSound = () => {
-  try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(880, ctx.currentTime);
-    osc.frequency.setValueAtTime(1100, ctx.currentTime + 0.12);
-    gain.gain.setValueAtTime(0.15, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.35);
-    osc.start(ctx.currentTime);
-    osc.stop(ctx.currentTime + 0.35);
-  } catch { /* silent fallback */ }
+const WORKFLOW_CFG = {
+  ai: { label: 'Répondu par IA', bg: 'bg-sky-50 text-sky-700 border-sky-200' },
+  pending_admin: { label: 'En attente de l\'admin', bg: 'bg-amber-50 text-amber-700 border-amber-200' },
+  resolved: { label: 'Résolu', bg: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
 };
 
 const SupportChatWidget = () => {
   const [open, setOpen] = useState(false);
   const [activeTicket, setActiveTicket] = useState(null); // sessionId of current ticket
-  const [messages, setMessages] = useState([]);
+  const [conversation, setConversation] = useState(null);
+  const [tickets, setTickets] = useState([]);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -38,42 +29,37 @@ const SupportChatWidget = () => {
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   const prevUnreadRef = useRef(0);
+  const { isConnected, on, off, emit } = useSocket();
 
-  // Check for existing open tickets on mount
+  const fetchTickets = useCallback(async () => {
+    try {
+      const res = await ecomApi.get('/support/my-tickets');
+      const nextTickets = res.data.data.tickets || [];
+      setTickets(nextTickets);
+      const totalUnread = nextTickets.reduce((sum, ticket) => sum + (ticket.unreadUser || 0), 0);
+      setUnread(totalUnread);
+
+      const preferredTicket = nextTickets.find((ticket) => ticket.workflowStatus !== 'resolved') || nextTickets[0] || null;
+      if (!activeTicket && preferredTicket) {
+        setActiveTicket(preferredTicket.sessionId);
+        setStep('chat');
+      }
+    } catch { /* silent */ }
+  }, [activeTicket]);
+
   useEffect(() => {
-    const checkExisting = async () => {
-      try {
-        const res = await ecomApi.get('/support/my-tickets');
-        const tickets = res.data.data.tickets || [];
-        const openTicket = tickets.find(t => t.status !== 'closed');
-        if (openTicket) {
-          setActiveTicket(openTicket.sessionId);
-          setStep('chat');
-          const totalUnread = tickets.reduce((sum, t) => sum + (t.unreadUser || 0), 0);
-          setUnread(totalUnread);
-        }
-      } catch { /* silent */ }
-    };
-    checkExisting();
-  }, []);
+    fetchTickets();
+  }, [fetchTickets]);
 
-  // Load messages when ticket is active and chat is open
-  const loadMessages = useCallback(async () => {
-    if (!activeTicket) return;
+  const loadConversation = useCallback(async (sessionId = activeTicket) => {
+    if (!sessionId) return;
     setLoading(true);
     try {
-      const res = await ecomApi.get(`/support/my-tickets/${activeTicket}`);
+      const res = await ecomApi.get(`/support/my-tickets/${sessionId}`);
       const conv = res.data.data.conversation;
-      const newMsgs = conv.messages || [];
-      // Play sound if new agent message arrived
-      setMessages(prev => {
-        const prevAgentCount = prev.filter(m => m.from === 'agent').length;
-        const newAgentCount = newMsgs.filter(m => m.from === 'agent').length;
-        if (newAgentCount > prevAgentCount && prevAgentCount > 0) {
-          playNotifSound();
-        }
-        return newMsgs;
-      });
+      setConversation(conv);
+      setActiveTicket(conv.sessionId);
+      setStep('chat');
       setUnread(0);
     } catch { /* silent */ }
     setLoading(false);
@@ -81,31 +67,30 @@ const SupportChatWidget = () => {
 
   useEffect(() => {
     if (open && activeTicket && step === 'chat') {
-      loadMessages();
+      loadConversation(activeTicket);
     }
-  }, [open, activeTicket, step, loadMessages]);
+  }, [open, activeTicket, step, loadConversation]);
 
-  // Poll for new messages every 8s when open
   useEffect(() => {
     if (!open || !activeTicket || step !== 'chat') return;
-    const t = setInterval(loadMessages, 8000);
+    const t = setInterval(() => loadConversation(activeTicket), 8000);
     return () => clearInterval(t);
-  }, [open, activeTicket, step, loadMessages]);
+  }, [open, activeTicket, step, loadConversation]);
 
-  // Poll unread count when closed + play sound on new unread
   useEffect(() => {
     if (open) return;
     const checkUnread = async () => {
       try {
         const res = await ecomApi.get('/support/my-tickets');
-        const tickets = res.data.data.tickets || [];
-        const totalUnread = tickets.reduce((sum, t) => sum + (t.unreadUser || 0), 0);
+        const nextTickets = res.data.data.tickets || [];
+        const totalUnread = nextTickets.reduce((sum, ticket) => sum + (ticket.unreadUser || 0), 0);
         if (totalUnread > prevUnreadRef.current) {
-          playNotifSound();
+          playNewOrderSound();
         }
         prevUnreadRef.current = totalUnread;
         setUnread(totalUnread);
-        const openTicket = tickets.find(t => t.status !== 'closed');
+        setTickets(nextTickets);
+        const openTicket = nextTickets.find(ticket => ticket.workflowStatus !== 'resolved') || nextTickets[0];
         if (openTicket && !activeTicket) {
           setActiveTicket(openTicket.sessionId);
           setStep('chat');
@@ -117,10 +102,39 @@ const SupportChatWidget = () => {
   }, [open, activeTicket]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    if (!isConnected) return;
 
-  // Create ticket
+    const handleSupportUpdate = (payload) => {
+      if (!payload?.sessionId) return;
+
+      fetchTickets();
+
+      const isIncomingReply = ['ai_reply', 'admin_reply', 'admin_outbound'].includes(payload.eventType)
+        && payload.lastMessage?.from === 'agent';
+
+      if (isIncomingReply) {
+        playNewOrderSound();
+      }
+
+      if (activeTicket === payload.sessionId || (!activeTicket && payload.sessionId)) {
+        loadConversation(payload.sessionId);
+      }
+    };
+
+    on('support:updated', handleSupportUpdate);
+    return () => off('support:updated', handleSupportUpdate);
+  }, [isConnected, on, off, fetchTickets, loadConversation, activeTicket]);
+
+  useEffect(() => {
+    if (!activeTicket || !isConnected) return;
+    emit('support:subscribe', { sessionId: activeTicket });
+    return () => emit('support:unsubscribe', { sessionId: activeTicket });
+  }, [activeTicket, isConnected, emit]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [conversation?.messages]);
+
   const handleCreate = async (e) => {
     e.preventDefault();
     if (!text.trim() || sending) return;
@@ -132,31 +146,32 @@ const SupportChatWidget = () => {
         text: text.trim(),
       });
       setActiveTicket(res.data.data.sessionId);
+      setConversation(res.data.data.conversation || null);
       setText('');
       setSubject('');
       setStep('chat');
+      fetchTickets();
     } catch { /* silent */ }
     setSending(false);
   };
 
-  // Send reply
   const handleReply = async (e) => {
     e.preventDefault();
     if (!text.trim() || !activeTicket || sending) return;
     setSending(true);
     try {
       const res = await ecomApi.post(`/support/my-tickets/${activeTicket}/reply`, { text: text.trim() });
-      setMessages(res.data.data.conversation.messages || []);
+      setConversation(res.data.data.conversation || null);
       setText('');
       inputRef.current?.focus();
+      fetchTickets();
     } catch { /* silent */ }
     setSending(false);
   };
 
-  // Start new ticket (from chat view)
   const startNew = () => {
     setActiveTicket(null);
-    setMessages([]);
+    setConversation(null);
     setSubject('');
     setCategory('general');
     setText('');
@@ -166,6 +181,8 @@ const SupportChatWidget = () => {
   const toggleOpen = () => {
     setOpen(o => !o);
   };
+
+  const currentWorkflow = WORKFLOW_CFG[conversation?.workflowStatus] || null;
 
   const categories = [
     { value: 'general', label: 'Général' },
@@ -207,7 +224,7 @@ const SupportChatWidget = () => {
             </div>
             <div className="flex-1">
               <h3 className="text-white font-bold text-sm">Support Scalor</h3>
-              <p className="text-white/70 text-[11px]">Nous répondons rapidement</p>
+              <p className="text-white/70 text-[11px]">{isConnected ? 'Temps reel actif' : 'Connexion support...'}</p>
             </div>
             {step === 'chat' && (
               <button onClick={startNew} className="text-white/70 hover:text-white text-[11px] font-medium px-2 py-1 rounded-lg hover:bg-white/10 transition-colors" title="Nouveau ticket">
@@ -281,26 +298,34 @@ const SupportChatWidget = () => {
           ) : (
             /* ── Chat view ── */
             <>
-              {/* Messages */}
+              {currentWorkflow && (
+                <div className={`mx-3 mt-3 rounded-xl border px-3 py-2 text-[11px] font-medium ${currentWorkflow.bg}`}>
+                  {currentWorkflow.label}
+                  {conversation?.handledBy === 'ai' && ' · La reponse automatique reste dans l\'application'}
+                </div>
+              )}
+
               <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2.5" style={{ minHeight: '200px', maxHeight: '45vh' }}>
-                {loading && messages.length === 0 ? (
+                {loading && !(conversation?.messages?.length) ? (
                   <div className="flex items-center justify-center py-10">
                     <div className="w-6 h-6 border-2 border-emerald-200 border-t-[#0F6B4F] rounded-full animate-spin" />
                   </div>
-                ) : messages.length === 0 ? (
+                ) : !(conversation?.messages?.length) ? (
                   <div className="text-center py-8 text-gray-400 text-xs">Aucun message</div>
                 ) : (
-                  messages.map((m, i) => {
+                  conversation.messages.map((m, i) => {
                     const isUser = m.from === 'visitor';
                     return (
                       <div key={m._id || i} className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
                         <div className={`max-w-[80%] rounded-2xl px-3.5 py-2 ${
                           isUser
                             ? 'bg-[#0F6B4F] text-white rounded-br-md'
-                            : 'bg-gray-100 text-gray-800 rounded-bl-md'
+                            : m.senderType === 'ai'
+                              ? 'bg-sky-100 text-sky-900 rounded-bl-md'
+                              : 'bg-violet-100 text-violet-900 rounded-bl-md'
                         }`}>
                           {!isUser && (
-                            <p className="text-[10px] font-semibold text-[#0F6B4F] mb-0.5">{m.agentName || 'Support'}</p>
+                            <p className="text-[10px] font-semibold mb-0.5">{m.senderType === 'ai' ? 'Scalor IA' : (m.agentName || 'Support')}</p>
                           )}
                           <p className="text-[13px] leading-relaxed whitespace-pre-wrap break-words">{m.text}</p>
                           <p className={`text-[10px] mt-1 ${isUser ? 'text-emerald-200 text-right' : 'text-gray-400'}`}>
@@ -322,7 +347,7 @@ const SupportChatWidget = () => {
                     value={text}
                     onChange={e => setText(e.target.value)}
                     onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleReply(e); } }}
-                    placeholder="Votre message..."
+                    placeholder={conversation?.workflowStatus === 'resolved' ? 'Démarrez une nouvelle demande ou rouvrez la conversation en écrivant' : 'Votre message...'}
                     rows={1}
                     className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none resize-none"
                     maxLength={2000}

@@ -85,6 +85,7 @@ export function initSocketServer(httpServer) {
       socket.userId = decoded.userId || decoded.id || decoded._id;
       socket.workspaceId = decoded.workspaceId;
       socket.userName = decoded.name || decoded.email;
+      socket.userRole = decoded.role || null;
       
       if (!socket.userId) {
         return next(new Error('Invalid token'));
@@ -112,6 +113,12 @@ export function initSocketServer(httpServer) {
     // Join user's personal room and workspace room
     socket.join(`user:${userId}`);
     socket.join(`workspace:${workspaceId}`);
+    if (userId && workspaceId) {
+      socket.join(`support:user:${workspaceId}:${userId}`);
+    }
+    if (socket.userRole === 'super_admin') {
+      socket.join('support:admins');
+    }
 
     // Handle joining a conversation room
     socket.on('conversation:join', (data) => {
@@ -121,6 +128,18 @@ export function initSocketServer(httpServer) {
         socket.join(`conversation:${convKey}`);
         console.log(`[Socket] User ${userId} joined conversation:${convKey}`);
       }
+    });
+
+    socket.on('support:subscribe', (data) => {
+      const sessionId = String(data?.sessionId || '').trim();
+      if (!sessionId) return;
+      socket.join(`support:session:${sessionId}`);
+    });
+
+    socket.on('support:unsubscribe', (data) => {
+      const sessionId = String(data?.sessionId || '').trim();
+      if (!sessionId) return;
+      socket.leave(`support:session:${sessionId}`);
     });
 
     // Handle leaving a conversation room
@@ -363,6 +382,54 @@ export function emitReactionUpdate(messageId, reactions, conversationKey) {
     messageId, 
     reactions 
   });
+}
+
+export function emitSupportConversationUpdate(conversation, options = {}) {
+  if (!io || !conversation?.sessionId) return;
+
+  const workspaceId = conversation.workspaceId ? String(conversation.workspaceId) : null;
+  const userId = conversation.userId ? String(conversation.userId) : null;
+  const lastMessage = Array.isArray(conversation.messages) && conversation.messages.length > 0
+    ? conversation.messages[conversation.messages.length - 1]
+    : null;
+
+  const payload = {
+    sessionId: conversation.sessionId,
+    workspaceId,
+    userId,
+    userName: conversation.userName || '',
+    userEmail: conversation.userEmail || '',
+    visitorName: conversation.visitorName || '',
+    visitorEmail: conversation.visitorEmail || '',
+    status: conversation.status,
+    workflowStatus: conversation.workflowStatus,
+    handledBy: conversation.handledBy,
+    priority: conversation.priority,
+    unreadAdmin: conversation.unreadAdmin || 0,
+    unreadUser: conversation.unreadUser || 0,
+    subject: conversation.subject || '',
+    category: conversation.category || 'general',
+    lastMessageAt: conversation.lastMessageAt || conversation.updatedAt || new Date(),
+    lastMessage: lastMessage
+      ? {
+        _id: lastMessage._id,
+        from: lastMessage.from,
+        senderType: lastMessage.senderType,
+        text: lastMessage.text,
+        agentName: lastMessage.agentName,
+        createdAt: lastMessage.createdAt,
+      }
+      : null,
+    eventType: options.eventType || 'updated',
+    initiator: options.initiator || null,
+  };
+
+  io.to('support:admins').emit('support:updated', payload);
+  io.to(`support:session:${conversation.sessionId}`).emit('support:updated', payload);
+
+  if (workspaceId && userId) {
+    io.to(`support:user:${workspaceId}:${userId}`).emit('support:updated', payload);
+  }
 }
 
 /**

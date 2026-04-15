@@ -120,7 +120,7 @@ const CampaignsList = () => {
   const [sending, setSending] = useState(null);
   const [showProgress, setShowProgress] = useState(null);
   const [sendProgress, setSendProgress] = useState(null);
-  const [isPausing, setIsPausing] = useState(false);
+  const [pausingCampaignId, setPausingCampaignId] = useState(null);
   const [isProgressMinimized, setIsProgressMinimized] = useState(false);
   const [availableOrderStatuses, setAvailableOrderStatuses] = useState([]);
 
@@ -276,7 +276,7 @@ const CampaignsList = () => {
     setShowProgress(id);
     setIsProgressMinimized(false);
     setSendProgress({ sent: 0, failed: 0, skipped: 0, total: 0, campaignName: '', instance: '', status: 'starting', log: [] });
-    setIsPausing(false);
+    setPausingCampaignId(null);
 
     try {
       const baseUrl = ecomApi.defaults.baseURL;
@@ -335,7 +335,7 @@ const CampaignsList = () => {
             }));
           } else if (eventType === 'paused') {
             setSendProgress(p => ({ ...p, sent: eventData.sent, failed: eventData.failed, skipped: eventData.skipped, status: 'paused' }));
-            setIsPausing(false);
+            setPausingCampaignId(null);
           } else if (eventType === 'done') {
             setSendProgress(p => ({ ...p, sent: eventData.sent, failed: eventData.failed, skipped: eventData.skipped, total: eventData.total, status: 'done' }));
           }
@@ -371,12 +371,12 @@ const CampaignsList = () => {
   };
 
   const handlePause = async (id) => {
-    setIsPausing(true);
+    setPausingCampaignId(id);
     try {
       await ecomApi.post(`/marketing/campaigns/${id}/pause`);
     } catch (err) {
       setError(err.response?.data?.message || 'Erreur pause');
-      setIsPausing(false);
+      setPausingCampaignId(null);
     }
   };
 
@@ -566,8 +566,8 @@ const CampaignsList = () => {
                   
                   {/* Bouton Pause uniquement pour campagnes en cours d'envoi */}
                   {c.status === 'sending' && (
-                    <button onClick={() => handlePause(c._id)} disabled={isPausing} className="px-3 py-1.5 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition text-xs font-medium flex items-center gap-1 disabled:opacity-60">
-                      {isPausing ? (<><div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div> Arrêt...</>) : (<><svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg> Pause</>)}
+                    <button onClick={() => handlePause(c._id)} disabled={pausingCampaignId === c._id} className="px-3 py-1.5 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition text-xs font-medium flex items-center gap-1 disabled:opacity-60">
+                      {pausingCampaignId === c._id ? (<><div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div> Arrêt...</>) : (<><svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg> Pause</>)}
                     </button>
                   )}
                   
@@ -1110,7 +1110,7 @@ const CampaignsList = () => {
             </div>
 
             {/* Footer actions - Pause uniquement si en cours d'envoi */}
-            {sendProgress.status === 'sending' && !isPausing && (
+            {sendProgress.status === 'sending' && pausingCampaignId !== showProgress && (
               <div className="px-5 py-3 border-t bg-gray-50">
                 <button onClick={() => handlePause(showProgress)} className="w-full py-2 bg-orange-500 text-white rounded-xl hover:bg-orange-600 transition text-sm font-medium flex items-center justify-center gap-2">
                   <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
@@ -1118,7 +1118,7 @@ const CampaignsList = () => {
                 </button>
               </div>
             )}
-            {sendProgress.status === 'sending' && isPausing && (
+            {sendProgress.status === 'sending' && pausingCampaignId === showProgress && (
               <div className="px-5 py-3 border-t bg-orange-50">
                 <div className="flex items-center justify-center gap-2 text-sm text-orange-700 font-medium">
                   <div className="w-4 h-4 border-2 border-orange-600 border-t-transparent rounded-full animate-spin"></div>

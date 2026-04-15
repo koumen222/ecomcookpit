@@ -15,38 +15,20 @@ import express from 'express';
 import axios from 'axios';
 import EcomWorkspace from '../models/Workspace.js';
 import PlanPayment from '../models/PlanPayment.js';
+import PlanConfig from '../models/PlanConfig.js';
 import GenerationPayment from '../models/GenerationPayment.js';
 import EcomUser from '../models/EcomUser.js';
 import AffiliateUser from '../models/AffiliateUser.js';
 import AffiliateConversion from '../models/AffiliateConversion.js';
 import { requireEcomAuth } from '../middleware/ecomAuth.js';
+import { PLAN_DURATION, getPlanCheckoutAmount } from '../services/billingPricing.js';
+import { clearSubscriptionWarning, downgradeWorkspaceToFree } from '../services/workspacePlanService.js';
 
 const router = express.Router();
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 const MF_API_URL = 'https://www.pay.moneyfusion.net/scalor/597e2cf962834532/pay/';
 const MF_STATUS_URL = (token) => `https://www.pay.moneyfusion.net/paiementNotif/${token}`;
-
-const PLAN_PRICES = {
-  starter_1:  2000,   // 1 month (promo)
-  starter_3:  5000,   // 3 months (~17% off)
-  starter_6:  9500,   // 6 months (~21% off)
-  starter_12: 18000,  // 12 months (~25% off)
-  pro_1:   5000,   // 1 month (promo)
-  pro_3:   13000,  // 3 months (~13% off)
-  pro_6:   24000,  // 6 months (~20% off)
-  pro_12:  45000,  // 12 months (~25% off)
-  ultra_1:  7500,  // 1 month (promo)
-  ultra_3:  20000, // 3 months (~11% off)
-  ultra_6:  37500, // 6 months (~17% off)
-  ultra_12: 70000, // 12 months (~22% off)
-};
-
-const PLAN_DURATION = {
-  starter_1: 1, starter_3: 3, starter_6: 6, starter_12: 12,
-  pro_1: 1, pro_3: 3, pro_6: 6, pro_12: 12,
-  ultra_1: 1, ultra_3: 3, ultra_6: 6, ultra_12: 12,
-};
 
 // Per-plan resource limits
 export const PLAN_LIMITS = {
@@ -161,7 +143,7 @@ async function applyPlanPayment(payment) {
 
   // Auto-disable subscription warning banner on successful payment
   if (workspace.subscriptionWarning?.active) {
-    workspace.subscriptionWarning = { active: false, message: '', deadline: null, activatedAt: null, activatedBy: null };
+    workspace.subscriptionWarning = clearSubscriptionWarning();
     console.log(`[billing] Subscription warning auto-disabled for workspace ${workspace.name}`);
   }
 
@@ -208,6 +190,41 @@ async function creditPaymentCommission(payment) {
 }
 
 // ─── GET /plan ────────────────────────────────────────────────────────────────
+// GET /api/ecom/billing/plans/public — public plan catalog for pricing page
+// Returns prices (with active promo applied), limits, features, and bullets.
+router.get('/plans/public', async (_req, res) => {
+  try {
+    await PlanConfig.seedDefaults();
+    const plans = await PlanConfig.find().sort({ order: 1 }).lean();
+    const now = Date.now();
+    const out = plans.map(p => {
+      const promoLive = !!(p.promoActive && p.pricePromo != null &&
+        (!p.promoExpiresAt || new Date(p.promoExpiresAt).getTime() > now));
+      return {
+        key: p.key,
+        displayName: p.displayName,
+        tagline: p.tagline,
+        currency: p.currency,
+        priceRegular: p.priceRegular,
+        pricePromo: promoLive ? p.pricePromo : null,
+        effectivePrice: promoLive ? p.pricePromo : p.priceRegular,
+        promoActive: promoLive,
+        promoExpiresAt: promoLive ? p.promoExpiresAt : null,
+        limits: p.limits,
+        features: p.features,
+        featuresList: p.featuresList,
+        highlighted: p.highlighted,
+        ctaLabel: p.ctaLabel,
+        order: p.order
+      };
+    });
+    res.json({ success: true, plans: out, serverTime: new Date().toISOString() });
+  } catch (err) {
+    console.error('[Billing] GET /plans/public error:', err.message);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
 router.get('/plan', requireEcomAuth, async (req, res) => {
   try {
     const workspaceId = req.workspaceId || req.query.workspaceId || req.body?.workspaceId;
@@ -230,9 +247,10 @@ router.get('/plan', requireEcomAuth, async (req, res) => {
 
     // Auto-downgrade to free if subscription has expired
     if (!isPaidActive && workspace.plan !== 'free') {
-      workspace.plan = 'free';
-      workspace.planExpiresAt = null;
-      await workspace.save();
+      await downgradeWorkspaceToFree(workspace, {
+        reason: 'billing_plan_poll',
+        createSystemNotification: true
+      });
     }
 
     // Trial status
@@ -277,7 +295,7 @@ router.post('/checkout', requireEcomAuth, async (req, res) => {
     if (!workspaceId) {
       return res.status(400).json({ success: false, message: 'workspaceId requis' });
     }
-    if (!PLAN_PRICES[normalizedPlan]) {
+    if (!PLAN_DURATION[normalizedPlan]) {
       return res.status(400).json({ success: false, message: 'Plan invalide' });
     }
     if (!phone || String(phone).trim().length < 8) {
@@ -287,7 +305,10 @@ router.post('/checkout', requireEcomAuth, async (req, res) => {
       return res.status(400).json({ success: false, message: 'Nom du client requis' });
     }
 
-    const amount = PLAN_PRICES[normalizedPlan];
+    const amount = await getPlanCheckoutAmount(normalizedPlan);
+    if (amount == null) {
+      return res.status(400).json({ success: false, message: 'Prix du plan introuvable' });
+    }
     const durationMonths = PLAN_DURATION[normalizedPlan];
     const planName = normalizedPlan.startsWith('ultra') ? 'ultra' : normalizedPlan.startsWith('pro') ? 'pro' : 'starter';
 

@@ -6,9 +6,13 @@ const SubscriptionWarningBanner = ({ warning }) => {
   const [hoursLeft, setHoursLeft] = useState(0);
   const [hidden, setHidden] = useState(false);
   const navigate = useNavigate();
+  const isDowngradedNotice = warning?.variant === 'downgraded';
 
   useEffect(() => {
-    if (!warning?.deadline) return;
+    if (!warning?.deadline || isDowngradedNotice) {
+      setHoursLeft(0);
+      return;
+    }
 
     const calc = () => {
       const diff = new Date(warning.deadline) - new Date();
@@ -18,11 +22,13 @@ const SubscriptionWarningBanner = ({ warning }) => {
     setHoursLeft(calc());
     const interval = setInterval(() => setHoursLeft(calc()), 60000);
     return () => clearInterval(interval);
-  }, [warning?.deadline]);
+  }, [isDowngradedNotice, warning?.deadline]);
 
   if (!warning?.active || hidden) return null;
 
-  const isExpired = hoursLeft <= 0;
+  const isExpired = !isDowngradedNotice && hoursLeft <= 0;
+  const background = isDowngradedNotice ? '#d97706' : isExpired ? '#dc2626' : '#ef4444';
+  const buttonLabel = isDowngradedNotice ? 'Voir les tarifs' : 'Renouveler';
 
   return (
     <div
@@ -32,7 +38,7 @@ const SubscriptionWarningBanner = ({ warning }) => {
         left: 0,
         right: 0,
         zIndex: 60,
-        background: isExpired ? '#dc2626' : '#ef4444',
+        background,
         color: '#fff',
         fontSize: 13,
         fontWeight: 500,
@@ -47,11 +53,13 @@ const SubscriptionWarningBanner = ({ warning }) => {
       }}
     >
       <span>
-        {isExpired
+        {isDowngradedNotice
+          ? 'ℹ️ '
+          : isExpired
           ? '⚠️ Accès suspendu — '
           : '⚠️ '}
         {warning.message || 'Votre abonnement expire bientôt. Renouvelez pour garder l\'accès.'}
-        {!isExpired && (
+        {!isDowngradedNotice && !isExpired && (
           <span style={{ marginLeft: 6, fontWeight: 700 }}>
             ⏳ {hoursLeft}h restantes
           </span>
@@ -70,7 +78,7 @@ const SubscriptionWarningBanner = ({ warning }) => {
             cursor: 'pointer',
           }}
         >
-          Renouveler
+          {buttonLabel}
         </button>
       </span>
       <button

@@ -7,20 +7,27 @@ const SuperAdminSettings = () => {
   const [stats, setStats] = useState({ totalUsers: 0, totalWorkspaces: 0 });
   const [loading, setLoading] = useState(true);
   const [passwordData, setPasswordData] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
+  const [supportConfig, setSupportConfig] = useState({ supportNotificationPhone: '', supportNotificationEnabled: false });
   const [pwLoading, setPwLoading] = useState(false);
+  const [supportSaving, setSupportSaving] = useState(false);
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
 
   useEffect(() => {
     const load = async () => {
       try {
-        const [usersRes, wsRes] = await Promise.all([
+        const [usersRes, wsRes, supportRes] = await Promise.all([
           ecomApi.get('/super-admin/users', { params: { limit: 1 } }),
-          ecomApi.get('/super-admin/workspaces')
+          ecomApi.get('/super-admin/workspaces'),
+          ecomApi.get('/super-admin/support/config')
         ]);
         setStats({
           totalUsers: usersRes.data?.data?.stats?.totalUsers || 0,
           totalWorkspaces: wsRes.data.data.totalWorkspaces || 0
+        });
+        setSupportConfig({
+          supportNotificationPhone: supportRes.data?.data?.supportNotificationPhone || '',
+          supportNotificationEnabled: supportRes.data?.data?.supportNotificationEnabled === true,
         });
       } catch { }
       setLoading(false);
@@ -51,6 +58,24 @@ const SuperAdminSettings = () => {
       setError(err.response?.data?.message || 'Erreur changement de mot de passe');
     } finally {
       setPwLoading(false);
+    }
+  };
+
+  const handleSupportConfigSave = async (e) => {
+    e.preventDefault();
+    setSupportSaving(true);
+    setError('');
+    try {
+      const res = await ecomApi.put('/super-admin/support/config', supportConfig);
+      setSupportConfig({
+        supportNotificationPhone: res.data?.data?.supportNotificationPhone || '',
+        supportNotificationEnabled: res.data?.data?.supportNotificationEnabled === true,
+      });
+      setSuccess('Configuration WhatsApp support mise à jour');
+    } catch (err) {
+      setError(err.response?.data?.message || 'Erreur mise a jour WhatsApp support');
+    } finally {
+      setSupportSaving(false);
     }
   };
 
@@ -127,6 +152,46 @@ const SuperAdminSettings = () => {
             <p className="text-[11px] text-gray-400 font-medium mt-1">Espaces</p>
           </div>
         </div>
+      </div>
+
+      <div className="bg-white rounded-2xl border border-gray-200/80 overflow-hidden shadow-sm">
+        <div className="px-5 py-4 border-b border-gray-100">
+          <h2 className="text-sm font-semibold text-gray-900">Notifications WhatsApp support</h2>
+        </div>
+        <form onSubmit={handleSupportConfigSave} className="p-5 space-y-4">
+          <div className="rounded-xl border border-sky-100 bg-sky-50 px-4 py-3 text-xs text-sky-700">
+            Ce numero recoit uniquement les alertes d'escalade support. Les reponses restent dans l'application, jamais dans WhatsApp.
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1.5">Numero WhatsApp du super admin</label>
+            <input
+              type="text"
+              value={supportConfig.supportNotificationPhone}
+              onChange={(e) => setSupportConfig((prev) => ({ ...prev, supportNotificationPhone: e.target.value }))}
+              placeholder="Ex: +237612345678"
+              className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600/40 focus:border-emerald-500 transition"
+            />
+          </div>
+          <label className="flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={supportConfig.supportNotificationEnabled}
+              onChange={(e) => setSupportConfig((prev) => ({ ...prev, supportNotificationEnabled: e.target.checked }))}
+              className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+            />
+            <div>
+              <p className="text-sm font-medium text-gray-900">Activer les alertes WhatsApp</p>
+              <p className="text-xs text-gray-500">Nouvelle question non resolue par l'IA → notification WhatsApp avec lien vers la conversation.</p>
+            </div>
+          </label>
+          <button
+            type="submit"
+            disabled={supportSaving}
+            className="w-full py-2.5 text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition-colors disabled:opacity-50 shadow-sm"
+          >
+            {supportSaving ? 'Enregistrement...' : 'Enregistrer la configuration support'}
+          </button>
+        </form>
       </div>
 
       {/* Changer mot de passe */}

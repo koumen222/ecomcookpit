@@ -72,8 +72,8 @@ const PLAN_TIERS = [
       { text: 'Génération de pages IA', included: false },
     ],
     durations: [
-      { id: 'starter_1',  label: 'Mensuel',  price: 2000,  months: 1,  saving: null,  perMonth: 2000,  oldPrice: 5000 },
-      { id: 'starter_12', label: 'Annuel',   price: 18000, months: 12, saving: 25,    perMonth: 1500,  oldPrice: 45000 },
+      { id: 'starter_1',  label: 'Mensuel',  price: 5000,   months: 1,  saving: null, perMonth: 5000 },
+      { id: 'starter_12', label: 'Annuel',   price: 45000,  months: 12, saving: 25,   perMonth: 3750 },
     ],
   },
   {
@@ -97,8 +97,8 @@ const PLAN_TIERS = [
       { text: 'Génération de pages IA', included: false },
     ],
     durations: [
-      { id: 'pro_1',  label: 'Mensuel',  price: 5000,  months: 1,  saving: null,  perMonth: 5000,  oldPrice: 10000 },
-      { id: 'pro_12', label: 'Annuel',   price: 45000, months: 12, saving: 25,    perMonth: 3750,  oldPrice: 95000 },
+      { id: 'pro_1',  label: 'Mensuel',  price: 10000, months: 1,  saving: null, perMonth: 10000 },
+      { id: 'pro_12', label: 'Annuel',   price: 90000, months: 12, saving: 25,   perMonth: 7500 },
     ],
   },
   {
@@ -121,8 +121,8 @@ const PLAN_TIERS = [
       { text: 'API & webhooks', included: true },
     ],
     durations: [
-      { id: 'ultra_1',  label: 'Mensuel',  price: 7500,   months: 1,  saving: null,  perMonth: 7500,  oldPrice: 15000 },
-      { id: 'ultra_12', label: 'Annuel',   price: 70000,  months: 12, saving: 22,    perMonth: 5833,  oldPrice: 140000 },
+      { id: 'ultra_1',  label: 'Mensuel',  price: 15000,  months: 1,  saving: null, perMonth: 15000 },
+      { id: 'ultra_12', label: 'Annuel',   price: 140000, months: 12, saving: 22,   perMonth: 11667 },
     ],
   },
 ];
