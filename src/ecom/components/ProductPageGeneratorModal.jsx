@@ -738,6 +738,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
   const readerRef = useRef(null);
   const isGeneratingRef = useRef(false);
   const taskPollRef = useRef(null);
+  const zeroCreditPromptRef = useRef(false);
 
   const isValidUrl = url.trim().length > 10 && (url.startsWith('http://') || url.startsWith('https://'));
   const hasValidDescription = description.trim().length > 20;
@@ -973,6 +974,23 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
     return isStep1Valid() && isStep2Valid();
   };
 
+  const remainingCredits = Number(generationsInfo?.remaining || 0);
+  const hasNoCredits = generationsInfo !== null && remainingCredits <= 0;
+
+  const openCreditsPaymentModal = useCallback((message = 'Tu n\'as plus de crédits. Achète un pack pour continuer.') => {
+    zeroCreditPromptRef.current = true;
+    setLimitReached(true);
+    setSelectedPack((currentPack) => currentPack || 'unit');
+    setError(message);
+    setShowPaymentForm(true);
+  }, []);
+
+  useEffect(() => {
+    if (initialTaskId || phase !== 'input' || showPaymentForm || !hasNoCredits) return;
+    if (zeroCreditPromptRef.current) return;
+    openCreditsPaymentModal('Tu n\'as plus de crédits. Choisis un pack pour lancer une nouvelle génération.');
+  }, [hasNoCredits, initialTaskId, openCreditsPaymentModal, phase, showPaymentForm]);
+
   const handleNextStep = () => {
     if (step === 1) {
       if (!isCurrentProductSubstepValid()) return;
@@ -1126,6 +1144,10 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
     // Validation selon le mode
     if (inputMode === 'url' && (!isValidUrl || photos.length === 0)) return;
     if (inputMode === 'description' && !hasValidDescription) return;
+    if (hasNoCredits) {
+      openCreditsPaymentModal('Tu n\'as plus de crédits. Choisis un pack pour payer et débloquer la génération.');
+      return;
+    }
     
     setPhase('loading');
     setStepLabel('Génération en cours...');
@@ -1201,16 +1223,16 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
           if (errorData.limitReached) {
             setLimitReached(true);
             setGenerationsInfo({
+              remaining: 0,
               freeRemaining: 0,
               paidRemaining: 0,
               totalUsed: errorData.totalGenerations || 0
             });
             if (errorData.pricing) setPricing(errorData.pricing);
-            setSelectedPack('unit');
-            setError(errorData.message || 'Limite de générations atteinte');
             setPhase('input');
             abortRef.current = null;
             isGeneratingRef.current = false;
+            openCreditsPaymentModal(errorData.message || 'Tu n\'as plus de crédits. Achète un pack pour continuer.');
             return;
           }
           
@@ -2396,7 +2418,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
                         <h3 className="text-sm font-bold text-gray-900">Tu n'as plus de crédits</h3>
                         <p className="text-xs text-gray-500">Achète des crédits pour générer des pages produit IA.</p>
                       </div>
-                      <button type="button" onClick={() => setShowPaymentForm(true)}
+                      <button type="button" onClick={() => openCreditsPaymentModal('Tu n\'as plus de crédits. Choisis un pack pour acheter de nouveaux crédits.')}
                         className="px-4 py-2 bg-scalor-copper text-white font-bold rounded-xl hover:bg-scalor-copper-dark transition text-sm shadow-lg whitespace-nowrap">
                         Acheter des crédits
                       </button>
@@ -3278,11 +3300,11 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
                     <button
                       type="button"
                       onClick={() => handleGenerate()}
-                      disabled={!canGenerate() || (generationsInfo !== null && (generationsInfo?.remaining || 0) <= 0)}
+                      disabled={!canGenerate()}
                       className={`w-full py-3 text-white font-bold text-sm transition disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg ${pageMode ? 'rounded-2xl bg-[linear-gradient(135deg,#0A5740,#14855F)] hover:brightness-105' : 'bg-scalor-green rounded-xl hover:bg-scalor-green-dark'}`}
                     >
-                      <Sparkles className="w-4 h-4" />
-                      Générer ma page produit
+                      {hasNoCredits ? <Zap className="w-4 h-4" /> : <Sparkles className="w-4 h-4" />}
+                      {hasNoCredits ? 'Acheter des crédits' : 'Générer ma page produit'}
                     </button>
                   </div>
                 )}
