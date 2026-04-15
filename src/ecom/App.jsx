@@ -113,6 +113,7 @@ const SuperAdminWhatsAppLogs = lazy(() => import('./pages/SuperAdminWhatsAppLogs
 const SuperAdminPushCenter = lazy(() => import('./pages/SuperAdminPushCenter.jsx'));
 const SuperAdminSupport = lazy(() => import('./pages/SuperAdminSupport.jsx'));
 const SuperAdminBilling = lazy(() => import('./pages/SuperAdminBilling.jsx'));
+const SuperAdminPlans = lazy(() => import('./pages/SuperAdminPlans.jsx'));
 const SuperAdminFeatureAnalytics = lazy(() => import('./pages/SuperAdminFeatureAnalytics.jsx'));
 const WhyScalor = lazy(() => import('./pages/WhyScalor.jsx'));
 const Tarifs = lazy(() => import('./pages/Tarifs.jsx'));
@@ -754,6 +755,7 @@ const EcomApp = () => {
               <Route path="/ecom/super-admin/push" element={<LayoutRoute requiredRole="super_admin"><SuperAdminPushCenter /></LayoutRoute>} />
               <Route path="/ecom/super-admin/support" element={<LayoutRoute requiredRole="super_admin"><SuperAdminSupport /></LayoutRoute>} />
               <Route path="/ecom/super-admin/billing" element={<LayoutRoute requiredRole="super_admin"><SuperAdminBilling /></LayoutRoute>} />
+              <Route path="/ecom/super-admin/plans" element={<LayoutRoute requiredRole="super_admin"><SuperAdminPlans /></LayoutRoute>} />
               <Route path="/ecom/super-admin/feature-analytics" element={<LayoutRoute requiredRole="super_admin"><SuperAdminFeatureAnalytics /></LayoutRoute>} />
 
               {/* Routes boutique - StoreProvider persists across wizard + layout navigations */}

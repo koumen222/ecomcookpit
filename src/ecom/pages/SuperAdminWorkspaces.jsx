@@ -283,7 +283,8 @@ const SuperAdminWorkspaces = () => {
                       className="flex-1 text-xs font-bold border border-slate-200 rounded-lg px-2 py-1 bg-white text-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     >
                       <option value="free">Gratuit</option>
-                      <option value="pro">Pro — 6 000 FCFA/mois</option>
+                        <option value="starter">Scalor — 5 000 FCFA/mois</option>
+                        <option value="pro">Pro — 10 000 FCFA/mois</option>
                       <option value="ultra">Ultra — 15 000 FCFA/mois</option>
                     </select>
                   </div>

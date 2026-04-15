@@ -5,6 +5,7 @@ import EcomUser from '../models/EcomUser.js';
 import Store from '../models/Store.js';
 import StoreOrder from '../models/StoreOrder.js';
 import StoreProduct from '../models/StoreProduct.js';
+import Product from '../models/Product.js';
 import Workspace from '../models/Workspace.js';
 import { requireEcomAuth, requireSuperAdmin } from '../middleware/ecomAuth.js';
 
@@ -862,7 +863,7 @@ router.get('/users-activity',
       const inactiveWorkspaces = Math.max(0, totalWorkspaces - activeWorkspaceIds.length);
 
       // ── Store activity by user (all-time business metrics) ──
-      const [users, workspaces, stores, orderStats, productStats] = await Promise.all([
+      const [users, workspaces, stores, orderStats, productStats, productSales] = await Promise.all([
         EcomUser.find({}, {
           email: 1,
           name: 1,
@@ -919,6 +920,35 @@ router.get('/users-activity',
               lastProductAt: { $max: '$createdAt' },
               productNames: { $push: '$name' },
               productSlugs: { $push: '$slug' },
+            }
+          }
+        ]),
+        StoreOrder.aggregate([
+          { $unwind: '$products' },
+          {
+            $match: {
+              'products.productId': { $ne: null }
+            }
+          },
+          {
+            $group: {
+              _id: {
+                workspaceId: '$workspaceId',
+                storeId: '$storeId',
+                productId: '$products.productId',
+              },
+              ordersCount: { $sum: 1 },
+              unitsSold: { $sum: { $ifNull: ['$products.quantity', 1] } },
+              revenue: {
+                $sum: {
+                  $multiply: [
+                    { $ifNull: ['$products.price', 0] },
+                    { $ifNull: ['$products.quantity', 1] }
+                  ]
+                }
+              },
+              avgUnitPrice: { $avg: { $ifNull: ['$products.price', 0] } },
+              lastOrderAt: { $max: '$createdAt' },
             }
           }
         ]),
@@ -1028,8 +1058,139 @@ router.get('/users-activity',
         });
       });
 
-      const activityByUser = new Map();
+      const soldProductIds = [...new Set(productSales.map((entry) => String(entry._id?.productId || '')).filter(Boolean))];
+      const soldStoreProducts = soldProductIds.length > 0
+        ? await StoreProduct.find({ _id: { $in: soldProductIds } }, {
+          _id: 1,
+          workspaceId: 1,
+          storeId: 1,
+          name: 1,
+          slug: 1,
+          price: 1,
+          compareAtPrice: 1,
+          currency: 1,
+          linkedProductId: 1,
+          isPublished: 1,
+          images: 1,
+        }).lean()
+        : [];
+
+      const linkedProductIds = [...new Set(
+        soldStoreProducts
+          .map((product) => String(product.linkedProductId || ''))
+          .filter(Boolean)
+      )];
+
+      const linkedProducts = linkedProductIds.length > 0
+        ? await Product.find({ _id: { $in: linkedProductIds } }, {
+          _id: 1,
+          sellingPrice: 1,
+          productCost: 1,
+          deliveryCost: 1,
+          avgAdsCost: 1,
+        }).lean()
+        : [];
+
+      const soldStoreProductsById = new Map(soldStoreProducts.map((product) => [String(product._id), product]));
+      const linkedProductsById = new Map(linkedProducts.map((product) => [String(product._id), product]));
+      const boutiqueRecordMap = new Map();
       boutiqueRecords.forEach((record) => {
+        boutiqueRecordMap.set(storeKey(record.workspaceId, record.isLegacyStore ? null : record._id), record);
+      });
+
+      const productLeaderboard = productSales.map((entry) => {
+        const workspaceId = String(entry._id?.workspaceId || '');
+        const storeId = entry._id?.storeId ? String(entry._id.storeId) : null;
+        const productId = String(entry._id?.productId || '');
+        const storeProduct = soldStoreProductsById.get(productId);
+        const linkedProduct = storeProduct?.linkedProductId
+          ? linkedProductsById.get(String(storeProduct.linkedProductId))
+          : null;
+        const relatedStore = boutiqueRecordMap.get(storeKey(workspaceId, storeId));
+        const averageSellingPrice = Number(entry.avgUnitPrice || storeProduct?.price || 0);
+        const estimatedUnitCost = linkedProduct
+          ? Number(linkedProduct.productCost || 0) + Number(linkedProduct.deliveryCost || 0)
+          : Math.max(0, Math.floor(averageSellingPrice * 0.4));
+        const estimatedUnitProfit = Math.max(0, averageSellingPrice - estimatedUnitCost);
+        const unitsSold = Number(entry.unitsSold || 0);
+        const profitEstimate = estimatedUnitProfit * unitsSold;
+        const revenue = Number(entry.revenue || 0);
+        const marginPercentEstimate = averageSellingPrice > 0
+          ? Math.round((estimatedUnitProfit / averageSellingPrice) * 1000) / 10
+          : 0;
+
+        return {
+          workspaceId,
+          storeId,
+          storeKey: storeKey(workspaceId, storeId),
+          workspaceName: relatedStore?.workspaceName || '',
+          storeName: relatedStore?.name || 'Boutique inconnue',
+          storeUrl: relatedStore?.url || '',
+          subdomain: relatedStore?.subdomain || '',
+          currency: storeProduct?.currency || relatedStore?.currency || 'XAF',
+          productId,
+          linkedProductId: storeProduct?.linkedProductId ? String(storeProduct.linkedProductId) : null,
+          name: storeProduct?.name || `Produit ${productId}`,
+          slug: storeProduct?.slug || '',
+          url: relatedStore?.subdomain && storeProduct?.slug
+            ? `https://${relatedStore.subdomain}.scalor.net/product/${storeProduct.slug}`
+            : '',
+          image: Array.isArray(storeProduct?.images) && storeProduct.images[0]?.url ? storeProduct.images[0].url : '',
+          isPublished: storeProduct?.isPublished === true,
+          ordersCount: Number(entry.ordersCount || 0),
+          unitsSold,
+          revenue,
+          averageSellingPrice,
+          estimatedUnitProfit,
+          estimatedUnitCost,
+          profitEstimate,
+          marginPercentEstimate,
+          profitSource: linkedProduct ? 'linked-product' : 'inferred-40pct-cost',
+          compareAtPrice: Number(storeProduct?.compareAtPrice || 0),
+          lastOrderAt: entry.lastOrderAt || null,
+        };
+      }).sort((left, right) => {
+        const profitDiff = (right.profitEstimate || 0) - (left.profitEstimate || 0);
+        if (profitDiff !== 0) return profitDiff;
+        const revenueDiff = (right.revenue || 0) - (left.revenue || 0);
+        if (revenueDiff !== 0) return revenueDiff;
+        return (right.unitsSold || 0) - (left.unitsSold || 0);
+      });
+
+      const productsByStoreKey = new Map();
+      productLeaderboard.forEach((product) => {
+        if (!productsByStoreKey.has(product.storeKey)) productsByStoreKey.set(product.storeKey, []);
+        productsByStoreKey.get(product.storeKey).push(product);
+      });
+
+      const storeLeaderboard = boutiqueRecords.map((record) => {
+        const rankedProducts = productsByStoreKey.get(storeKey(record.workspaceId, record.isLegacyStore ? null : record._id)) || [];
+        const unitsSold = rankedProducts.reduce((sum, product) => sum + (product.unitsSold || 0), 0);
+        const estimatedProfit = rankedProducts.reduce((sum, product) => sum + (product.profitEstimate || 0), 0);
+        const averageOrderValue = (record.totalOrders || 0) > 0 ? (record.totalRevenue || 0) / record.totalOrders : 0;
+        const estimatedMarginPercent = (record.totalRevenue || 0) > 0
+          ? Math.round((estimatedProfit / record.totalRevenue) * 1000) / 10
+          : 0;
+
+        return {
+          ...record,
+          unitsSold,
+          estimatedProfit,
+          averageOrderValue,
+          estimatedMarginPercent,
+          topProducts: rankedProducts.slice(0, 5),
+          topProductCount: rankedProducts.length,
+        };
+      }).sort((left, right) => {
+        const profitDiff = (right.estimatedProfit || 0) - (left.estimatedProfit || 0);
+        if (profitDiff !== 0) return profitDiff;
+        const revenueDiff = (right.totalRevenue || 0) - (left.totalRevenue || 0);
+        if (revenueDiff !== 0) return revenueDiff;
+        return (right.totalOrders || 0) - (left.totalOrders || 0);
+      });
+
+      const activityByUser = new Map();
+      storeLeaderboard.forEach((record) => {
         if (!record.attributedUserId) return;
         if (!activityByUser.has(record.attributedUserId)) activityByUser.set(record.attributedUserId, []);
         activityByUser.get(record.attributedUserId).push(record);
@@ -1044,13 +1205,22 @@ router.get('/users-activity',
           totalRevenue: accumulator.totalRevenue + (store.totalRevenue || 0),
           totalProducts: accumulator.totalProducts + (store.totalProducts || 0),
           publishedProducts: accumulator.publishedProducts + (store.publishedProducts || 0),
+          unitsSold: accumulator.unitsSold + (store.unitsSold || 0),
+          estimatedProfit: accumulator.estimatedProfit + (store.estimatedProfit || 0),
         }), {
           boutiqueCount: 0,
           totalOrders: 0,
           totalRevenue: 0,
           totalProducts: 0,
           publishedProducts: 0,
+          unitsSold: 0,
+          estimatedProfit: 0,
         });
+
+        const averageOrderValue = totals.totalOrders > 0 ? totals.totalRevenue / totals.totalOrders : 0;
+        const estimatedMarginPercent = totals.totalRevenue > 0
+          ? Math.round((totals.estimatedProfit / totals.totalRevenue) * 1000) / 10
+          : 0;
 
         return {
           userId,
@@ -1062,13 +1232,19 @@ router.get('/users-activity',
           lastLogin: user?.lastLogin || null,
           workspaceCount,
           ...totals,
+          averageOrderValue,
+          estimatedMarginPercent,
           stores: userStores.sort((left, right) => {
+            const profitDiff = (right.estimatedProfit || 0) - (left.estimatedProfit || 0);
+            if (profitDiff !== 0) return profitDiff;
             const revenueDiff = (right.totalRevenue || 0) - (left.totalRevenue || 0);
             if (revenueDiff !== 0) return revenueDiff;
             return new Date(right.createdAt || 0) - new Date(left.createdAt || 0);
           }),
         };
       }).filter((user) => user.boutiqueCount > 0).sort((left, right) => {
+        const profitDiff = (right.estimatedProfit || 0) - (left.estimatedProfit || 0);
+        if (profitDiff !== 0) return profitDiff;
         const boutiqueDiff = (right.boutiqueCount || 0) - (left.boutiqueCount || 0);
         if (boutiqueDiff !== 0) return boutiqueDiff;
         const revenueDiff = (right.totalRevenue || 0) - (left.totalRevenue || 0);
@@ -1082,12 +1258,16 @@ router.get('/users-activity',
         totalOrders: accumulator.totalOrders + (user.totalOrders || 0),
         totalRevenue: accumulator.totalRevenue + (user.totalRevenue || 0),
         totalProducts: accumulator.totalProducts + (user.totalProducts || 0),
+        totalUnitsSold: accumulator.totalUnitsSold + (user.unitsSold || 0),
+        totalEstimatedProfit: accumulator.totalEstimatedProfit + (user.estimatedProfit || 0),
       }), {
         usersWithBoutiques: 0,
         totalBoutiques: 0,
         totalOrders: 0,
         totalRevenue: 0,
         totalProducts: 0,
+        totalUnitsSold: 0,
+        totalEstimatedProfit: 0,
       });
 
       res.json({
@@ -1101,6 +1281,8 @@ router.get('/users-activity',
           totalWorkspaces,
           boutiqueActivity,
           boutiqueTotals,
+          storeLeaderboard,
+          productLeaderboard,
           pagination: {
             page: parseInt(page),
             limit: parseInt(limit),

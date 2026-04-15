@@ -29,6 +29,15 @@ const ecomUserSchema = new mongoose.Schema({
     trim: true,
     default: ''
   },
+  supportNotificationPhone: {
+    type: String,
+    trim: true,
+    default: ''
+  },
+  supportNotificationEnabled: {
+    type: Boolean,
+    default: false
+  },
   avatar: {
     type: String,
     trim: true,

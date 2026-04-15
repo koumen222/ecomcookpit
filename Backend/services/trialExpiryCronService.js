@@ -11,6 +11,7 @@ import Workspace from '../models/Workspace.js';
 import EcomUser from '../models/EcomUser.js';
 import { sendNotificationEmail } from '../core/notifications/email.service.js';
 import { sendPushNotification, sendPushNotificationToUser } from './pushService.js';
+import { downgradeWorkspaceToFree } from './workspacePlanService.js';
 
 const INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
 const EXPIRY_WARNING_HOURS = 12; // Notifier 12h avant l'expiration
@@ -183,10 +184,12 @@ async function checkTrialExpiry() {
           data: { type: 'plan_expired', url: '/ecom/billing' },
         });
 
-        // Marquer et remettre au plan free
-        await Workspace.updateOne({ _id: ws._id }, {
-          plan: 'free',
-          trialExpiredNotifiedAt: now,
+        const workspace = await Workspace.findById(ws._id);
+        if (!workspace) continue;
+        workspace.trialExpiredNotifiedAt = now;
+        await downgradeWorkspaceToFree(workspace, {
+          reason: 'plan_expired_cron',
+          createSystemNotification: true
         });
         console.log(`📧 [TrialCron] plan_expired envoyé → ${owner.email} (${ws.name}, plan ${planName})`);
 

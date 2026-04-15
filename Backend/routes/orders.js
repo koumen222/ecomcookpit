@@ -10,6 +10,7 @@ import EcomUser from '../models/EcomUser.js';
 import CloseuseAssignment from '../models/CloseuseAssignment.js';
 import Notification from '../models/Notification.js';
 import { requireEcomAuth, validateEcomAccess } from '../middleware/ecomAuth.js';
+import { checkPlanLimit } from '../middleware/planLimits.js';
 import { convertCurrency } from '../utils/currencyConvert.js';
 import { createNotification, notifyNewOrder, notifyOrderStatus, notifyTeamOrderCreated, notifyTeamOrderStatusChanged, notifyAdminsLivreurAction } from '../services/notificationHelper.js';
 import { getIO } from '../services/socketService.js';
@@ -402,7 +403,7 @@ const detectCountry = (phone, city) => {
 };
 
 // ─── Route: Créer une commande (POST /) ───────────────────────────────────────
-router.post('/', requireEcomAuth, validateEcomAccess('orders', 'write'), async (req, res) => {
+router.post('/', requireEcomAuth, validateEcomAccess('orders', 'write'), checkPlanLimit('orders'), async (req, res) => {
   try {
     const { clientName, clientPhone, city, address, product, quantity, price, status, notes, tags, currency } = req.body;
     if (!clientName && !clientPhone) {

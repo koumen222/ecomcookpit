@@ -4,6 +4,12 @@ import ecomApi from './ecommApi.js';
  * Billing API — MoneyFusion plan upgrade integration.
  */
 
+/** Fetch the public plan catalog (prices, features, promo). No auth. */
+export async function getPublicPlans() {
+  const { data } = await ecomApi.get('/billing/plans/public');
+  return data;
+}
+
 /** Fetch current plan for the active workspace */
 export async function getCurrentPlan(workspaceId) {
   const { data } = await ecomApi.get('/billing/plan', { params: { workspaceId } });

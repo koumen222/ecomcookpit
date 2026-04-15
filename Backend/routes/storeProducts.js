@@ -5,6 +5,7 @@ import StoreProduct from '../models/StoreProduct.js';
 import Product from '../models/Product.js';
 import { requireEcomAuth, requireWorkspace } from '../middleware/ecomAuth.js';
 import { requireStoreOwner } from '../middleware/storeAuth.js';
+import { checkPlanLimit } from '../middleware/planLimits.js';
 import { uploadImage, isConfigured } from '../services/cloudflareImagesService.js';
 import OpenAI from 'openai';
 
@@ -1311,7 +1312,7 @@ function buildSystemProductPayload({ name, price, stock, workspaceId, userId }) 
  * POST /store-products
  * Create a new store product (dashboard).
  */
-router.post('/', requireEcomAuth, requireWorkspace, requireStoreOwner, async (req, res) => {
+router.post('/', requireEcomAuth, requireWorkspace, requireStoreOwner, checkPlanLimit('products'), async (req, res) => {
   try {
     const {
       name, description, price, compareAtPrice, stock,

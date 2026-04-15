@@ -4,6 +4,7 @@ import EcomUser from '../models/EcomUser.js';
 import Workspace from '../models/Workspace.js';
 import FeatureUsageLog from '../models/FeatureUsageLog.js';
 import PlanPayment from '../models/PlanPayment.js';
+import PlanConfig, { PLAN_KEYS } from '../models/PlanConfig.js';
 import GenerationPayment from '../models/GenerationPayment.js';
 import WhatsAppLog from '../models/WhatsAppLog.js';
 import SupportConversation from '../models/SupportConversation.js';
@@ -12,6 +13,9 @@ import { requireEcomAuth, requireSuperAdmin } from '../middleware/ecomAuth.js';
 import { logAudit, auditSensitiveAccess, AuditLog } from '../middleware/security.js';
 import { sendCustomNotificationEmail, sendNotificationEmail } from '../core/notifications/email.service.js';
 import { sendPushNotification, sendPushNotificationToUser } from '../services/pushService.js';
+import { buildRenewalSubscriptionWarning, clearSubscriptionWarning, downgradeWorkspaceToFree } from '../services/workspacePlanService.js';
+import { emitSupportConversationUpdate } from '../services/socketService.js';
+import { formatInternationalPhone } from '../utils/phoneUtils.js';
 
 const router = express.Router();
 
@@ -393,13 +397,12 @@ router.put('/workspaces/:id/subscription-warning',
       const { active, message } = req.body || {};
       const isActive = active !== undefined ? Boolean(active) : !workspace.subscriptionWarning?.active;
 
-      workspace.subscriptionWarning = {
-        active: isActive,
-        message: message || workspace.subscriptionWarning?.message || 'Votre abonnement expire bientôt. Vous avez 24h pour renouveler afin de conserver l\'accès à votre compte.',
-        deadline: isActive ? new Date(Date.now() + 24 * 60 * 60 * 1000) : null,
-        activatedAt: isActive ? new Date() : null,
-        activatedBy: isActive ? req.ecomUser._id : null
-      };
+      workspace.subscriptionWarning = isActive
+        ? buildRenewalSubscriptionWarning({
+            message: message || workspace.subscriptionWarning?.message,
+            activatedBy: req.ecomUser._id
+          })
+        : clearSubscriptionWarning();
 
       await workspace.save();
       await logAudit(req, 'SUBSCRIPTION_WARNING', `${isActive ? 'Activation' : 'Désactivation'} alerte abonnement pour ${workspace.name}`, 'workspace', workspace._id);
@@ -699,27 +702,114 @@ router.get('/whatsapp-logs',
 // SUPPORT CHAT — Admin endpoints
 // ═══════════════════════════════════════════════════════════════
 
+// GET /api/ecom/super-admin/support/config — Support notification settings
+router.get('/support/config', requireEcomAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const admin = await EcomUser.findById(req.ecomUser._id)
+      .select('supportNotificationPhone supportNotificationEnabled phone')
+      .lean();
+
+    res.json({
+      success: true,
+      data: {
+        supportNotificationPhone: admin?.supportNotificationPhone || '',
+        supportNotificationEnabled: admin?.supportNotificationEnabled === true,
+        fallbackPhone: admin?.phone || '',
+      }
+    });
+  } catch (err) {
+    console.error('[Support Admin] GET /support/config:', err.message);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// PUT /api/ecom/super-admin/support/config — Update WhatsApp notification destination
+router.put('/support/config', requireEcomAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { supportNotificationPhone, supportNotificationEnabled } = req.body || {};
+    let cleanPhone = '';
+
+    if (supportNotificationPhone) {
+      const phoneCheck = formatInternationalPhone(supportNotificationPhone);
+      if (!phoneCheck.success) {
+        return res.status(400).json({ success: false, message: phoneCheck.error || 'Numero WhatsApp invalide' });
+      }
+      cleanPhone = phoneCheck.formatted;
+    }
+
+    const admin = await EcomUser.findByIdAndUpdate(
+      req.ecomUser._id,
+      {
+        $set: {
+          supportNotificationPhone: cleanPhone,
+          supportNotificationEnabled: supportNotificationEnabled === true && !!cleanPhone,
+        },
+      },
+      { new: true }
+    ).select('supportNotificationPhone supportNotificationEnabled');
+
+    res.json({
+      success: true,
+      data: {
+        supportNotificationPhone: admin?.supportNotificationPhone || '',
+        supportNotificationEnabled: admin?.supportNotificationEnabled === true,
+      }
+    });
+  } catch (err) {
+    console.error('[Support Admin] PUT /support/config:', err.message);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
 // GET /api/ecom/super-admin/support — Liste des conversations
 router.get('/support', requireEcomAuth, requireSuperAdmin, async (req, res) => {
   try {
-    const { status, page = 1, limit = 50 } = req.query;
+    const { status, workflowStatus, priority, workspaceId, search, page = 1, limit = 50 } = req.query;
     const filter = {};
-    if (status && status !== 'all') filter.status = status;
+    const workflowFilter = workflowStatus || status;
+    if (workflowFilter && workflowFilter !== 'all') {
+      if (['ai', 'pending_admin', 'resolved'].includes(workflowFilter)) {
+        filter.workflowStatus = workflowFilter;
+      } else {
+        filter.status = workflowFilter;
+      }
+    }
+    if (priority && priority !== 'all') filter.priority = priority;
+    if (workspaceId && workspaceId !== 'all') filter.workspaceId = workspaceId;
+    if (search) {
+      const regex = new RegExp(search, 'i');
+      filter.$or = [
+        { subject: regex },
+        { userName: regex },
+        { userEmail: regex },
+        { visitorName: regex },
+        { visitorEmail: regex },
+        { aiSummary: regex },
+      ];
+    }
 
     const conversations = await SupportConversation.find(filter)
+      .select('sessionId userId userName userEmail visitorName visitorEmail workspaceId subject category priority status workflowStatus handledBy aiConfidence aiSummary escalationReason unreadAdmin unreadUser lastMessageAt createdAt messages')
+      .populate('workspaceId', 'name slug subdomain')
       .sort({ lastMessageAt: -1 })
       .limit(Number(limit))
-      .skip((Number(page) - 1) * Number(limit));
+      .skip((Number(page) - 1) * Number(limit))
+      .lean();
 
     const total = await SupportConversation.countDocuments(filter);
     const unreadTotal = await SupportConversation.aggregate([
+      { $match: filter },
       { $group: { _id: null, total: { $sum: '$unreadAdmin' } } }
     ]);
+    const workspaceOptions = await Workspace.find({}, { name: 1, slug: 1, subdomain: 1 })
+      .sort({ name: 1 })
+      .lean();
 
     res.json({
       success: true,
       data: {
         conversations,
+        workspaceOptions,
         total,
         unreadTotal: unreadTotal[0]?.total || 0,
         page: Number(page),
@@ -738,7 +828,7 @@ router.get('/support/:sessionId', requireEcomAuth, requireSuperAdmin, async (req
       { sessionId: req.params.sessionId },
       { $set: { unreadAdmin: 0 } },
       { new: true }
-    );
+    ).populate('workspaceId', 'name slug subdomain');
     if (!conv) return res.status(404).json({ success: false, message: 'Conversation introuvable' });
     res.json({ success: true, data: { conversation: conv } });
   } catch (err) {
@@ -758,14 +848,21 @@ router.post('/support/:sessionId/reply', requireEcomAuth, requireSuperAdmin, asy
     const conv = await SupportConversation.findOneAndUpdate(
       { sessionId: req.params.sessionId },
       {
-        $push: { messages: { from: 'agent', text: text.trim().slice(0, 2000), agentName: agentName || 'Rita' } },
-        $set:  { status: 'replied', lastMessageAt: new Date() },
+        $push: { messages: { from: 'agent', senderType: 'admin', text: text.trim().slice(0, 2000), agentName: agentName || 'Support' } },
+        $set:  {
+          status: 'replied',
+          workflowStatus: 'pending_admin',
+          handledBy: 'admin',
+          lastMessageAt: new Date(),
+          unreadAdmin: 0,
+        },
         $inc:  { unreadUser: 1 },
       },
       { new: true }
     );
 
     if (!conv) return res.status(404).json({ success: false, message: 'Conversation introuvable' });
+    emitSupportConversationUpdate(conv, { eventType: 'admin_reply', initiator: 'admin' });
     res.json({ success: true, data: { conversation: conv } });
   } catch (err) {
     console.error('[Support Admin] POST /support/:id/reply:', err.message);
@@ -776,16 +873,40 @@ router.post('/support/:sessionId/reply', requireEcomAuth, requireSuperAdmin, asy
 // PUT /api/ecom/super-admin/support/:sessionId/status — Changer le statut
 router.put('/support/:sessionId/status', requireEcomAuth, requireSuperAdmin, async (req, res) => {
   try {
-    const { status } = req.body;
-    if (!['open', 'replied', 'closed'].includes(status)) {
-      return res.status(400).json({ success: false, message: 'Statut invalide' });
+    const { status, workflowStatus } = req.body;
+    const update = {};
+
+    if (workflowStatus !== undefined) {
+      if (!['ai', 'pending_admin', 'resolved'].includes(workflowStatus)) {
+        return res.status(400).json({ success: false, message: 'workflowStatus invalide' });
+      }
+      update.workflowStatus = workflowStatus;
+      update.status = workflowStatus === 'resolved' ? 'closed' : 'replied';
+      if (workflowStatus === 'resolved' && !update.handledBy) {
+        update.handledBy = 'admin';
+      }
     }
+
+    if (status !== undefined) {
+      if (!['open', 'replied', 'closed'].includes(status)) {
+        return res.status(400).json({ success: false, message: 'Statut invalide' });
+      }
+      update.status = status;
+      if (status === 'closed') update.workflowStatus = 'resolved';
+      if (status === 'open' && !update.workflowStatus) update.workflowStatus = 'pending_admin';
+    }
+
+    if (!Object.keys(update).length) {
+      return res.status(400).json({ success: false, message: 'Aucune mise a jour fournie' });
+    }
+
     const conv = await SupportConversation.findOneAndUpdate(
       { sessionId: req.params.sessionId },
-      { $set: { status } },
+      { $set: update },
       { new: true }
     );
     if (!conv) return res.status(404).json({ success: false, message: 'Conversation introuvable' });
+    emitSupportConversationUpdate(conv, { eventType: 'status_changed', initiator: 'admin' });
     res.json({ success: true, data: { conversation: conv } });
   } catch (err) {
     console.error('[Support Admin] PUT /support/:id/status:', err.message);
@@ -812,11 +933,16 @@ router.post('/support/send-to-user', requireEcomAuth, requireSuperAdmin, async (
       workspaceId: user.workspaceId || null,
       subject: (subject || '').trim().slice(0, 200) || 'Message du support',
       category: 'general',
-      messages: [{ from: 'agent', text: text.trim().slice(0, 2000), agentName: agentName || 'Scalor' }],
+      priority: 'normal',
+      workflowStatus: 'resolved',
+      handledBy: 'admin',
+      messages: [{ from: 'agent', senderType: 'admin', text: text.trim().slice(0, 2000), agentName: agentName || 'Scalor' }],
       unreadUser: 1,
       status: 'replied',
       lastMessageAt: new Date(),
     });
+
+    emitSupportConversationUpdate(conv, { eventType: 'admin_outbound', initiator: 'admin' });
 
     res.json({ success: true, data: { conversation: conv } });
   } catch (err) {
@@ -850,13 +976,20 @@ router.post('/support/broadcast', requireEcomAuth, requireSuperAdmin, async (req
       workspaceId: u.workspaceId || null,
       subject: safeSubject,
       category: 'general',
-      messages: [{ from: 'agent', text: safeText, agentName: agent, createdAt: now }],
+      priority: 'normal',
+      workflowStatus: 'resolved',
+      handledBy: 'admin',
+      messages: [{ from: 'agent', senderType: 'admin', text: safeText, agentName: agent, createdAt: now }],
       unreadUser: 1,
       status: 'replied',
       lastMessageAt: now,
     }));
 
     await SupportConversation.insertMany(docs, { ordered: false });
+
+    docs.forEach((doc) => {
+      emitSupportConversationUpdate(doc, { eventType: 'admin_broadcast', initiator: 'admin' });
+    });
 
     res.json({ success: true, data: { sent: docs.length } });
   } catch (err) {
@@ -895,8 +1028,8 @@ router.get('/workspaces', requireEcomAuth, requireSuperAdmin, async (req, res) =
 router.patch('/workspaces/:id/plan', requireEcomAuth, requireSuperAdmin, async (req, res) => {
   try {
     const { plan, durationMonths = 1 } = req.body;
-    if (!['free', 'pro', 'ultra'].includes(plan)) {
-      return res.status(400).json({ success: false, message: 'Plan invalide (free/pro/ultra)' });
+    if (!['free', 'starter', 'pro', 'ultra'].includes(plan)) {
+      return res.status(400).json({ success: false, message: 'Plan invalide (free/starter/pro/ultra)' });
     }
 
     const workspace = await Workspace.findById(req.params.id);
@@ -905,8 +1038,11 @@ router.patch('/workspaces/:id/plan', requireEcomAuth, requireSuperAdmin, async (
     await logAudit(req, 'SET_PLAN', `Plan set to ${plan} for workspace ${workspace.name}`, 'workspace', workspace._id);
 
     if (plan === 'free') {
-      workspace.plan = 'free';
-      workspace.planExpiresAt = null;
+      await downgradeWorkspaceToFree(workspace, {
+        actorId: req.ecomUser._id,
+        reason: 'super_admin_manual',
+        createSystemNotification: true
+      });
     } else {
       const now = new Date();
       const base = workspace.planExpiresAt && workspace.planExpiresAt > now ? workspace.planExpiresAt : now;
@@ -914,12 +1050,56 @@ router.patch('/workspaces/:id/plan', requireEcomAuth, requireSuperAdmin, async (
       newExpiry.setMonth(newExpiry.getMonth() + durationMonths);
       workspace.plan = plan;
       workspace.planExpiresAt = newExpiry;
+      workspace.subscriptionWarning = clearSubscriptionWarning();
+      await workspace.save();
     }
-    await workspace.save();
 
     res.json({ success: true, workspace: { _id: workspace._id, plan: workspace.plan, planExpiresAt: workspace.planExpiresAt } });
   } catch (err) {
     console.error('[SuperAdmin] PATCH /workspaces/:id/plan error:', err.message);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// ─── Plan configuration (pricing, limits, features) ─────────────────────────
+
+// GET /api/ecom/super-admin/plans — list all plan configs
+router.get('/plans', requireEcomAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    await PlanConfig.seedDefaults();
+    const plans = await PlanConfig.find().sort({ order: 1 }).lean();
+    res.json({ success: true, plans });
+  } catch (err) {
+    console.error('[SuperAdmin] GET /plans error:', err.message);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// PATCH /api/ecom/super-admin/plans/:key — update one plan config
+router.patch('/plans/:key', requireEcomAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { key } = req.params;
+    if (!PLAN_KEYS.includes(key)) {
+      return res.status(400).json({ success: false, message: 'Clé de plan invalide' });
+    }
+    const allowed = [
+      'displayName', 'tagline', 'priceRegular', 'pricePromo', 'promoActive',
+      'promoExpiresAt', 'currency', 'limits', 'features', 'featuresList',
+      'highlighted', 'ctaLabel', 'order'
+    ];
+    const update = {};
+    for (const k of allowed) {
+      if (k in req.body) update[k] = req.body[k];
+    }
+    const plan = await PlanConfig.findOneAndUpdate(
+      { key },
+      { $set: update },
+      { new: true, upsert: true, setDefaultsOnInsert: true }
+    );
+    await logAudit(req, 'UPDATE_PLAN_CONFIG', `Plan config ${key} updated`, 'plan', plan._id);
+    res.json({ success: true, plan });
+  } catch (err) {
+    console.error('[SuperAdmin] PATCH /plans/:key error:', err.message);
     res.status(500).json({ success: false, message: 'Erreur serveur' });
   }
 });

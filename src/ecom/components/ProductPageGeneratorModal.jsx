@@ -666,6 +666,8 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
   };
 
   const DRAFT_KEY = 'generatedProductDraft';
+  const GENERATION_PAYMENT_TOKEN_KEY = 'mf_pending_generation_token';
+  const GENERATION_PAYMENT_SESSION_KEY = 'mf_pending_generation_payment';
   const saveDraft = (productData, templateId) => {
     try {
       localStorage.setItem(DRAFT_KEY, JSON.stringify({ product: productData, visualTemplate: templateId, savedAt: Date.now() }));
@@ -711,6 +713,17 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
   const [paymentPhone, setPaymentPhone] = useState('');
   const [paymentName, setPaymentName] = useState('');
   const [paymentLoading, setPaymentLoading] = useState(false);
+  const [paymentChecking, setPaymentChecking] = useState(false);
+  const [paymentNotice, setPaymentNotice] = useState('');
+  const [paymentStatusError, setPaymentStatusError] = useState('');
+  const [pendingGenerationToken, setPendingGenerationToken] = useState(() => sessionStorage.getItem(GENERATION_PAYMENT_TOKEN_KEY) || null);
+  const [pendingGenerationPayment, setPendingGenerationPayment] = useState(() => {
+    try {
+      return JSON.parse(sessionStorage.getItem(GENERATION_PAYMENT_SESSION_KEY) || 'null');
+    } catch {
+      return null;
+    }
+  });
   const [selectedPack, setSelectedPack] = useState(null); // 'unit' | 'pack3'
   const [pricing, setPricing] = useState({ unit: 1000, pack3: 2500 });
   
@@ -927,19 +940,18 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
 
   // Fetch credit info on mount
   useEffect(() => {
-    const authHeaders = getAuthHeaders();
-    if (!authHeaders.Authorization) return;
-    fetch(`${API_ORIGIN}/api/ai/product-generator/info`, {
-      headers: authHeaders
-    })
-      .then(r => r.json())
-      .then(data => {
-        if (data.success && data.generations) {
-          setGenerationsInfo(data.generations);
-        }
-      })
-      .catch(() => {});
-  }, []);
+    fetchGenerationsInfo();
+  }, [fetchGenerationsInfo]);
+
+  useEffect(() => {
+    if (!pendingGenerationToken) return undefined;
+
+    setPaymentNotice('Paiement en attente de confirmation. Tes crédits seront ajoutés automatiquement dès validation.');
+    const runCheck = () => checkPendingGenerationPayment({ silent: true });
+    runCheck();
+    const interval = window.setInterval(runCheck, 3000);
+    return () => window.clearInterval(interval);
+  }, [checkPendingGenerationPayment, pendingGenerationToken]);
 
   // Validation des étapes
   const isStep1Valid = () => {
@@ -977,10 +989,107 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
   const remainingCredits = Number(generationsInfo?.remaining || 0);
   const hasNoCredits = generationsInfo !== null && remainingCredits <= 0;
 
+  const fetchGenerationsInfo = useCallback(async () => {
+    const authHeaders = getAuthHeaders();
+    if (!authHeaders.Authorization) return null;
+
+    try {
+      const response = await fetch(`${API_ORIGIN}/api/ai/product-generator/info`, {
+        headers: authHeaders,
+      });
+      if (!response.ok) return null;
+
+      const data = await response.json();
+      if (data.success && data.generations) {
+        setGenerationsInfo(data.generations);
+        return data.generations;
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const clearPendingGenerationPayment = useCallback(() => {
+    sessionStorage.removeItem(GENERATION_PAYMENT_TOKEN_KEY);
+    sessionStorage.removeItem(GENERATION_PAYMENT_SESSION_KEY);
+    setPendingGenerationToken(null);
+    setPendingGenerationPayment(null);
+    setPaymentChecking(false);
+  }, []);
+
+  const resumePendingGenerationPayment = useCallback(() => {
+    if (!pendingGenerationPayment?.paymentUrl) {
+      setPaymentStatusError('Impossible de relancer le paiement MoneyFusion. Réessaie depuis le pack.');
+      return false;
+    }
+
+    setPaymentStatusError('');
+    const popup = window.open(pendingGenerationPayment.paymentUrl, '_blank', 'noopener,noreferrer');
+    if (!popup) {
+      window.location.href = pendingGenerationPayment.paymentUrl;
+    }
+    return true;
+  }, [pendingGenerationPayment]);
+
+  const handleGenerationPaymentConfirmed = useCallback(async () => {
+    clearPendingGenerationPayment();
+    zeroCreditPromptRef.current = false;
+    setLimitReached(false);
+    setShowPaymentForm(false);
+    setPaymentStatusError('');
+    setPaymentPhone('');
+    setPaymentName('');
+    setSelectedPack(null);
+    setError('');
+    setPaymentNotice('Paiement confirmé. Tes crédits ont été ajoutés automatiquement.');
+    await fetchGenerationsInfo();
+  }, [clearPendingGenerationPayment, fetchGenerationsInfo]);
+
+  const checkPendingGenerationPayment = useCallback(async ({ silent = false } = {}) => {
+    if (!pendingGenerationToken) return null;
+
+    if (!silent) setPaymentChecking(true);
+
+    try {
+      const response = await fetch(`${API_ORIGIN}/api/ecom/billing/generation-status/${pendingGenerationToken}`, {
+        headers: getAuthHeaders(),
+      });
+      if (!response.ok) {
+        throw new Error('Impossible de vérifier le paiement pour le moment.');
+      }
+
+      const result = await response.json();
+      const status = result?.status || null;
+
+      if (status === 'paid') {
+        await handleGenerationPaymentConfirmed();
+        return status;
+      }
+
+      if (status === 'failure' || status === 'no paid') {
+        clearPendingGenerationPayment();
+        setPaymentStatusError('Le paiement n\'a pas été confirmé. Réessaie ou choisis un autre moyen.');
+        return status;
+      }
+
+      setPaymentStatusError('');
+      return status;
+    } catch (err) {
+      if (!silent) {
+        setPaymentStatusError(err?.message || 'Impossible de vérifier le paiement pour le moment.');
+      }
+      return null;
+    } finally {
+      if (!silent) setPaymentChecking(false);
+    }
+  }, [clearPendingGenerationPayment, handleGenerationPaymentConfirmed, pendingGenerationToken]);
+
   const openCreditsPaymentModal = useCallback((message = 'Tu n\'as plus de crédits. Achète un pack pour continuer.') => {
     zeroCreditPromptRef.current = true;
     setLimitReached(true);
     setSelectedPack((currentPack) => currentPack || 'unit');
+    setPaymentStatusError('');
     setError(message);
     setShowPaymentForm(true);
   }, []);
@@ -1152,6 +1261,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
     setPhase('loading');
     setStepLabel('Génération en cours...');
     setError('');
+    setPaymentNotice('');
     setProduct(null);
     setBuildStep(0);
     setBuildProgress(0);
@@ -1415,15 +1525,17 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
 
   const handleBuyGeneration = async () => {
     if (!paymentPhone || paymentPhone.trim().length < 8) {
-      alert('Veuillez saisir un numéro de téléphone valide');
+      setPaymentStatusError('Veuillez saisir un numéro de téléphone valide');
       return;
     }
     if (!paymentName || paymentName.trim().length < 2) {
-      alert('Veuillez saisir votre nom');
+      setPaymentStatusError('Veuillez saisir votre nom');
       return;
     }
 
     setPaymentLoading(true);
+    setPaymentStatusError('');
+    setPaymentNotice('');
     
     try {
       const wsId = getWsId();
@@ -1445,25 +1557,28 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
 
       const result = await response.json();
 
-      if (result.success && result.paymentUrl) {
-        // Ouvrir la page de paiement MoneyFusion
-        window.open(result.paymentUrl, '_blank');
-        
-        // Fermer le modal et rafraîchir ou afficher un message
-        alert('✅ Paiement initié ! Une fois le paiement confirmé, tes générations seront créditées automatiquement.');
-        
-        // Reset le formulaire
-        setShowPaymentForm(false);
-        setPaymentPhone('');
-        setPaymentName('');
-        setLimitReached(false);
-        setError('');
+      if (result.success && result.paymentUrl && result.mfToken) {
+        const pendingPayment = {
+          mfToken: result.mfToken,
+          paymentUrl: result.paymentUrl,
+          amount: result.amount || (selectedPack === 'pack3' ? pricing.pack3 : pricing.unit),
+          quantity: result.quantity || (selectedPack === 'pack3' ? 3 : 1),
+        };
+        sessionStorage.setItem(GENERATION_PAYMENT_TOKEN_KEY, result.mfToken);
+        sessionStorage.setItem(GENERATION_PAYMENT_SESSION_KEY, JSON.stringify(pendingPayment));
+        setPendingGenerationToken(result.mfToken);
+        setPendingGenerationPayment(pendingPayment);
+        setPaymentNotice('Paiement initié. Finalise le paiement dans la fenêtre ouverte pour recevoir tes crédits.');
+        const popup = window.open(pendingPayment.paymentUrl, '_blank', 'noopener,noreferrer');
+        if (!popup) {
+          window.location.href = pendingPayment.paymentUrl;
+        }
       } else {
         throw new Error(result.message || 'Erreur lors de l\'initialisation du paiement');
       }
     } catch (error) {
       console.error('Payment error:', error);
-      alert('❌ Erreur: ' + error.message);
+      setPaymentStatusError(error?.message || 'Erreur lors du paiement');
     } finally {
       setPaymentLoading(false);
     }
@@ -2431,6 +2546,12 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
                 </div>
               )}
 
+              {paymentNotice && (
+                <div className="rounded-xl border border-[#96C7B5] bg-[#E6F2ED] px-4 py-3 text-sm text-[#0A5740]">
+                  {paymentNotice}
+                </div>
+              )}
+
               {/* ─── MODAL ACHAT CRÉDITS ─── */}
               {showPaymentForm && limitReached && (
                 <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4" onClick={(e) => { if (e.target === e.currentTarget) setShowPaymentForm(false); }}>
@@ -2455,63 +2576,127 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
                     </div>
 
                     <div className="p-6 space-y-4">
-                      {/* Pack selection */}
-                      <div className="grid gap-3">
-                        <button type="button" onClick={() => setSelectedPack('unit')}
-                          className={`flex items-center gap-3 p-4 rounded-xl border-2 text-left transition-all ${selectedPack === 'unit' ? 'border-[#96C7B5] bg-[#E6F2ED] shadow-md' : 'border-gray-200 bg-white hover:border-[#96C7B5]'}`}>
-                          <div className="w-11 h-11 rounded-full bg-[#E6F2ED] flex items-center justify-center shrink-0">
-                            <Zap className="w-5 h-5 text-scalor-green" />
+                      {pendingGenerationToken ? (
+                        <>
+                          <div className="rounded-xl border border-[#96C7B5] bg-[#E6F2ED] p-4">
+                            <div className="flex items-start gap-3">
+                              <div className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-full bg-white/80">
+                                <Loader2 className="h-4 w-4 animate-spin text-scalor-green" />
+                              </div>
+                              <div>
+                                <p className="text-sm font-bold text-[#0A5740]">Paiement en attente de confirmation</p>
+                                <p className="mt-1 text-xs text-[#0A5740]/80">Finalise le paiement dans la fenêtre MoneyFusion ouverte. Dès que le prestataire confirme, tes crédits seront ajoutés automatiquement ici.</p>
+                                {pendingGenerationPayment?.amount ? (
+                                  <p className="mt-2 text-xs font-semibold text-[#0A5740]">
+                                    Recharge en attente: {pendingGenerationPayment.amount} FCFA pour {pendingGenerationPayment.quantity || 1} crédit{(pendingGenerationPayment.quantity || 1) > 1 ? 's' : ''}
+                                  </p>
+                                ) : null}
+                              </div>
+                            </div>
                           </div>
-                          <div className="flex-1">
-                            <p className="text-sm font-bold text-gray-900">1 crédit</p>
-                            <p className="text-xs text-gray-500">1 page produit complète avec visuels IA</p>
-                          </div>
-                          <span className="text-base font-extrabold text-scalor-green">{pricing.unit} FCFA</span>
-                        </button>
-                        <button type="button" onClick={() => setSelectedPack('pack3')}
-                          className={`flex items-center gap-3 p-4 rounded-xl border-2 text-left transition-all relative ${selectedPack === 'pack3' ? 'border-[#96C7B5] bg-[#E6F2ED] shadow-md' : 'border-gray-200 bg-white hover:border-[#96C7B5]'}`}>
-                          <span className="absolute -top-2.5 right-4 text-[10px] font-bold bg-scalor-green text-white px-2.5 py-0.5 rounded-full shadow">MEILLEURE OFFRE</span>
-                          <div className="w-11 h-11 rounded-full bg-[#E6F2ED] flex items-center justify-center shrink-0">
-                            <Zap className="w-5 h-5 text-scalor-green" />
-                          </div>
-                          <div className="flex-1">
-                            <p className="text-sm font-bold text-gray-900">Pack 3 crédits</p>
-                            <p className="text-xs text-gray-500">Économise {pricing.unit * 3 - pricing.pack3} FCFA sur 3 crédits</p>
-                          </div>
-                          <span className="text-base font-extrabold text-scalor-green">{pricing.pack3} FCFA</span>
-                        </button>
-                      </div>
 
-                      {/* Formulaire paiement */}
-                      <div className="space-y-3 pt-1">
-                        <div>
-                          <label className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-gray-700"><Phone className="h-3.5 w-3.5 text-scalor-green" />Numéro de téléphone</label>
-                          <input type="tel" value={paymentPhone} onChange={(e) => setPaymentPhone(e.target.value)}
-                            placeholder="Ex: 0707070707"
-                            className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-scalor-green focus:border-[#0F6B4F]" />
-                        </div>
-                        <div>
-                          <label className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-gray-700"><User className="h-3.5 w-3.5 text-scalor-green" />Votre nom</label>
-                          <input type="text" value={paymentName} onChange={(e) => setPaymentName(e.target.value)}
-                            placeholder="Ex: Jean Dupont"
-                            className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-scalor-green focus:border-[#0F6B4F]" />
-                        </div>
-                      </div>
+                          {paymentStatusError && (
+                            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                              {paymentStatusError}
+                            </div>
+                          )}
 
-                      {/* Bouton payer */}
-                      <button type="button" onClick={handleBuyGeneration} disabled={paymentLoading || !selectedPack}
-                        className="w-full flex items-center justify-center gap-2 px-4 py-3.5 bg-scalor-copper text-white font-bold rounded-xl hover:bg-scalor-copper-dark transition text-sm disabled:opacity-50 shadow-lg">
-                        {paymentLoading ? (
-                          <><Loader2 className="w-4 h-4 animate-spin" /> Chargement...</>
-                        ) : (
-                          <><Zap className="w-4 h-4" /> Payer {selectedPack === 'pack3' ? pricing.pack3 : pricing.unit} FCFA</>
-                        )}
-                      </button>
+                          <button
+                            type="button"
+                            onClick={resumePendingGenerationPayment}
+                            className="w-full flex items-center justify-center gap-2 px-4 py-3.5 bg-scalor-copper text-white font-bold rounded-xl hover:bg-scalor-copper-dark transition text-sm disabled:opacity-50 shadow-lg"
+                          >
+                            {pendingGenerationPayment?.amount ? (
+                              <><Zap className="w-4 h-4" /> Continuer le paiement {pendingGenerationPayment.amount} FCFA</>
+                            ) : (
+                              <><Zap className="w-4 h-4" /> Continuer le paiement</>
+                            )}
+                          </button>
 
-                      {(generationsInfo?.totalUsed || 0) > 0 && (
-                        <p className="text-xs text-center text-gray-400">
-                          Tu as déjà généré {generationsInfo.totalUsed} page{generationsInfo.totalUsed > 1 ? 's' : ''} produit.
-                        </p>
+                          <button
+                            type="button"
+                            onClick={() => checkPendingGenerationPayment()}
+                            disabled={paymentChecking}
+                            className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-gray-200 text-gray-700 font-semibold transition hover:bg-gray-50 text-sm disabled:opacity-50"
+                          >
+                            {paymentChecking ? (
+                              <><Loader2 className="w-4 h-4 animate-spin" /> Vérification...</>
+                            ) : (
+                              <><RefreshCw className="w-4 h-4" /> Vérifier le statut</>
+                            )}
+                          </button>
+
+                          <p className="text-xs text-center text-gray-400">
+                            Le bouton principal relance MoneyFusion avec le montant de recharge. Le statut peut aussi être vérifié sans recharger la page.
+                          </p>
+                        </>
+                      ) : (
+                        <>
+                          {/* Pack selection */}
+                          <div className="grid gap-3">
+                            <button type="button" onClick={() => setSelectedPack('unit')}
+                              className={`flex items-center gap-3 p-4 rounded-xl border-2 text-left transition-all ${selectedPack === 'unit' ? 'border-[#96C7B5] bg-[#E6F2ED] shadow-md' : 'border-gray-200 bg-white hover:border-[#96C7B5]'}`}>
+                              <div className="w-11 h-11 rounded-full bg-[#E6F2ED] flex items-center justify-center shrink-0">
+                                <Zap className="w-5 h-5 text-scalor-green" />
+                              </div>
+                              <div className="flex-1">
+                                <p className="text-sm font-bold text-gray-900">1 crédit</p>
+                                <p className="text-xs text-gray-500">1 page produit complète avec visuels IA</p>
+                              </div>
+                              <span className="text-base font-extrabold text-scalor-green">{pricing.unit} FCFA</span>
+                            </button>
+                            <button type="button" onClick={() => setSelectedPack('pack3')}
+                              className={`flex items-center gap-3 p-4 rounded-xl border-2 text-left transition-all relative ${selectedPack === 'pack3' ? 'border-[#96C7B5] bg-[#E6F2ED] shadow-md' : 'border-gray-200 bg-white hover:border-[#96C7B5]'}`}>
+                              <span className="absolute -top-2.5 right-4 text-[10px] font-bold bg-scalor-green text-white px-2.5 py-0.5 rounded-full shadow">MEILLEURE OFFRE</span>
+                              <div className="w-11 h-11 rounded-full bg-[#E6F2ED] flex items-center justify-center shrink-0">
+                                <Zap className="w-5 h-5 text-scalor-green" />
+                              </div>
+                              <div className="flex-1">
+                                <p className="text-sm font-bold text-gray-900">Pack 3 crédits</p>
+                                <p className="text-xs text-gray-500">Économise {pricing.unit * 3 - pricing.pack3} FCFA sur 3 crédits</p>
+                              </div>
+                              <span className="text-base font-extrabold text-scalor-green">{pricing.pack3} FCFA</span>
+                            </button>
+                          </div>
+
+                          {/* Formulaire paiement */}
+                          <div className="space-y-3 pt-1">
+                            <div>
+                              <label className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-gray-700"><Phone className="h-3.5 w-3.5 text-scalor-green" />Numéro de téléphone</label>
+                              <input type="tel" value={paymentPhone} onChange={(e) => setPaymentPhone(e.target.value)}
+                                placeholder="Ex: 0707070707"
+                                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-scalor-green focus:border-[#0F6B4F]" />
+                            </div>
+                            <div>
+                              <label className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-gray-700"><User className="h-3.5 w-3.5 text-scalor-green" />Votre nom</label>
+                              <input type="text" value={paymentName} onChange={(e) => setPaymentName(e.target.value)}
+                                placeholder="Ex: Jean Dupont"
+                                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-scalor-green focus:border-[#0F6B4F]" />
+                            </div>
+                          </div>
+
+                          {paymentStatusError && (
+                            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                              {paymentStatusError}
+                            </div>
+                          )}
+
+                          {/* Bouton payer */}
+                          <button type="button" onClick={handleBuyGeneration} disabled={paymentLoading || !selectedPack}
+                            className="w-full flex items-center justify-center gap-2 px-4 py-3.5 bg-scalor-copper text-white font-bold rounded-xl hover:bg-scalor-copper-dark transition text-sm disabled:opacity-50 shadow-lg">
+                            {paymentLoading ? (
+                              <><Loader2 className="w-4 h-4 animate-spin" /> Chargement...</>
+                            ) : (
+                              <><Zap className="w-4 h-4" /> Payer {selectedPack === 'pack3' ? pricing.pack3 : pricing.unit} FCFA</>
+                            )}
+                          </button>
+
+                          {(generationsInfo?.totalUsed || 0) > 0 && (
+                            <p className="text-xs text-center text-gray-400">
+                              Tu as déjà généré {generationsInfo.totalUsed} page{generationsInfo.totalUsed > 1 ? 's' : ''} produit.
+                            </p>
+                          )}
+                        </>
                       )}
                     </div>
                   </div>

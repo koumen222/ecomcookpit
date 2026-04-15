@@ -181,6 +181,11 @@ const workspaceSchema = new mongoose.Schema({
   // Red banner displayed to workspace users (24h to renew subscription)
   subscriptionWarning: {
     active: { type: Boolean, default: true },
+    variant: {
+      type: String,
+      enum: ['renewal', 'downgraded'],
+      default: 'renewal'
+    },
     message: { type: String, default: 'Votre abonnement expire bientôt. Vous avez 24h pour renouveler afin de conserver l\'accès à votre compte.' },
     deadline: { type: Date, default: () => new Date(Date.now() + 24 * 60 * 60 * 1000) },
     activatedAt: { type: Date, default: () => new Date() },
@@ -190,6 +195,7 @@ const workspaceSchema = new mongoose.Schema({
   plan: {
     type: String,
     enum: ['free', 'starter', 'pro', 'ultra'],
+    // Accounts without a plan default to 'free'
     default: 'free',
     index: true
   },
