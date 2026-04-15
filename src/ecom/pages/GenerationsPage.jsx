@@ -1,6 +1,21 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Sparkles, Trash2, Eye, ArrowRight, Loader2, AlertCircle, Clock, CheckCircle, XCircle, RefreshCw, Plus } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import {
+  Sparkles,
+  Trash2,
+  Eye,
+  ArrowRight,
+  Loader2,
+  AlertCircle,
+  Clock,
+  CheckCircle,
+  XCircle,
+  RefreshCw,
+  Plus,
+  RotateCw,
+  Layers3,
+  Wand2,
+} from 'lucide-react';
 
 const API_ORIGIN = import.meta.env.DEV ? '' : (import.meta.env.VITE_API_URL || '');
 
@@ -8,87 +23,189 @@ const statusConfig = {
   pending: { label: 'En attente', color: 'bg-amber-100 text-amber-700', icon: Clock },
   generating_text: { label: 'Texte en cours', color: 'bg-blue-100 text-blue-700', icon: Loader2, animate: true },
   generating_images: { label: 'Images en cours', color: 'bg-purple-100 text-purple-700', icon: Loader2, animate: true },
-  done: { label: 'Terminée', color: 'bg-emerald-100 text-emerald-700', icon: CheckCircle },
-  error: { label: 'Erreur', color: 'bg-red-100 text-red-700', icon: XCircle },
+  done: { label: 'Terminee', color: 'bg-emerald-100 text-emerald-700', icon: CheckCircle },
+  error: { label: 'Echec partiel', color: 'bg-red-100 text-red-700', icon: XCircle },
 };
+
+function getPageMeta(pathname) {
+  if (pathname.includes('/product-page-studio/errors')) {
+    return {
+      title: 'Echecs et reprise',
+      description: 'Retrouve les generations interrompues, ouvre le contenu deja sauve, puis relance la suite.',
+      defaultFilter: 'recoverable',
+      emptyTitle: 'Aucun echec a reprendre',
+      emptyDescription: 'Les generations en erreur avec contenu partiel apparaitront ici.',
+    };
+  }
+
+  return {
+    title: 'Toutes les generations',
+    description: 'Historique complet des generations de pages produits, avec ouverture, reprise et suppression.',
+    defaultFilter: 'all',
+    emptyTitle: 'Aucune generation',
+    emptyDescription: 'Lance une premiere generation pour remplir ton studio.',
+  };
+}
+
+function formatTaskDate(value) {
+  if (!value) return 'Date inconnue';
+  return new Date(value).toLocaleDateString('fr-FR', {
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function getTaskThumbnail(task) {
+  return task.product?.heroImage
+    || task.images?.heroImage
+    || task.product?.heroPosterImage
+    || task.images?.heroPosterImage
+    || task.product?.realPhotos?.[0]
+    || null;
+}
 
 export default function GenerationsPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(null);
+  const [retrying, setRetrying] = useState(null);
   const [creditsInfo, setCreditsInfo] = useState(null);
+  const pageMeta = useMemo(() => getPageMeta(location.pathname), [location.pathname]);
+  const [activeFilter, setActiveFilter] = useState(pageMeta.defaultFilter);
+
+  useEffect(() => {
+    setActiveFilter(pageMeta.defaultFilter);
+  }, [pageMeta.defaultFilter]);
 
   const getHeaders = useCallback(() => {
     const token = localStorage.getItem('ecomToken');
-    const h = { Authorization: `Bearer ${token}` };
+    const headers = { Authorization: `Bearer ${token}` };
     try {
-      const ws = JSON.parse(localStorage.getItem('ecomWorkspace') || 'null');
-      const wsId = ws?._id || ws?.id || '';
-      if (wsId) h['X-Workspace-Id'] = wsId;
+      const workspace = JSON.parse(localStorage.getItem('ecomWorkspace') || 'null');
+      const workspaceId = workspace?._id || workspace?.id || '';
+      if (workspaceId) headers['X-Workspace-Id'] = workspaceId;
     } catch {}
-    return h;
+    return headers;
   }, []);
 
   const fetchTasks = useCallback(async () => {
-    const h = getHeaders();
-    if (!h.Authorization || h.Authorization === 'Bearer null') return;
+    const headers = getHeaders();
+    if (!headers.Authorization || headers.Authorization === 'Bearer null') return;
     try {
-      const resp = await fetch(`${API_ORIGIN}/api/ai/product-generator/tasks`, { headers: h });
-      console.log('[Generations] tasks response:', resp.status);
-      if (!resp.ok) { console.warn('[Generations] tasks fetch failed:', resp.status); return; }
-      const data = await resp.json();
-      console.log('[Generations] tasks data:', data);
+      const response = await fetch(`${API_ORIGIN}/api/ai/product-generator/tasks`, { headers });
+      if (!response.ok) return;
+      const data = await response.json();
       if (data.success) setTasks(data.tasks || []);
-    } catch (err) { console.error('[Generations] tasks error:', err); }
+    } catch (error) {
+      console.error('[Generations] tasks error:', error);
+    }
   }, [getHeaders]);
 
   const fetchCredits = useCallback(async () => {
-    const h = getHeaders();
-    if (!h.Authorization || h.Authorization === 'Bearer null') return;
+    const headers = getHeaders();
+    if (!headers.Authorization || headers.Authorization === 'Bearer null') return;
     try {
-      const resp = await fetch(`${API_ORIGIN}/api/ai/product-generator/info`, { headers: h });
-      if (!resp.ok) return;
-      const data = await resp.json();
+      const response = await fetch(`${API_ORIGIN}/api/ai/product-generator/info`, { headers });
+      if (!response.ok) return;
+      const data = await response.json();
       if (data.success) setCreditsInfo(data.generations);
-    } catch (err) { console.error('[Generations] credits error:', err); }
+    } catch (error) {
+      console.error('[Generations] credits error:', error);
+    }
   }, [getHeaders]);
 
   useEffect(() => {
     Promise.all([fetchTasks(), fetchCredits()]).finally(() => setLoading(false));
   }, [fetchTasks, fetchCredits]);
 
-  // Poll active tasks every 8s
   useEffect(() => {
-    const hasActive = tasks.some(t => !['done', 'error'].includes(t.status));
-    if (!hasActive) return;
-    const interval = setInterval(fetchTasks, 8000);
-    return () => clearInterval(interval);
+    const hasActiveTask = tasks.some((task) => !['done', 'error'].includes(task.status));
+    if (!hasActiveTask) return undefined;
+    const interval = window.setInterval(fetchTasks, 8000);
+    return () => window.clearInterval(interval);
   }, [tasks, fetchTasks]);
 
+  const counts = useMemo(() => {
+    const active = tasks.filter((task) => !['done', 'error'].includes(task.status)).length;
+    const done = tasks.filter((task) => task.status === 'done').length;
+    const error = tasks.filter((task) => task.status === 'error').length;
+    const recoverable = tasks.filter((task) => task.status === 'error' && task.product).length;
+    return {
+      all: tasks.length,
+      active,
+      done,
+      error,
+      recoverable,
+    };
+  }, [tasks]);
+
+  const visibleTasks = useMemo(() => {
+    switch (activeFilter) {
+      case 'active':
+        return tasks.filter((task) => !['done', 'error'].includes(task.status));
+      case 'done':
+        return tasks.filter((task) => task.status === 'done');
+      case 'error':
+        return tasks.filter((task) => task.status === 'error');
+      case 'recoverable':
+        return tasks.filter((task) => task.status === 'error' && task.product);
+      default:
+        return tasks;
+    }
+  }, [activeFilter, tasks]);
+
+  const filterOptions = useMemo(() => ([
+    { id: 'all', label: 'Tout', count: counts.all },
+    { id: 'active', label: 'En cours', count: counts.active },
+    { id: 'done', label: 'Terminees', count: counts.done },
+    { id: 'recoverable', label: 'Reprise', count: counts.recoverable },
+    { id: 'error', label: 'Echecs', count: counts.error },
+  ]), [counts]);
+
+  const openTask = useCallback((taskId) => {
+    navigate('/ecom/boutique/products/generator', {
+      state: { loadTaskId: taskId, from: location.pathname },
+    });
+  }, [location.pathname, navigate]);
+
   const handleDelete = async (taskId) => {
-    if (!confirm('Supprimer cette génération ?')) return;
+    if (!window.confirm('Supprimer cette generation ?')) return;
     setDeleting(taskId);
     try {
-      const resp = await fetch(`${API_ORIGIN}/api/ai/product-generator/tasks/${taskId}`, {
+      const response = await fetch(`${API_ORIGIN}/api/ai/product-generator/tasks/${taskId}`, {
         method: 'DELETE',
         headers: getHeaders(),
       });
-      if (resp.ok) {
-        setTasks(prev => prev.filter(t => t._id !== taskId));
+      if (response.ok) {
+        setTasks((current) => current.filter((task) => task._id !== taskId));
       }
-    } catch {} finally {
+    } finally {
       setDeleting(null);
     }
   };
 
-  const handleApply = (taskId) => {
-    // Navigate to the generator wizard which will load this task
-    navigate('/ecom/boutique/products/generator', { state: { loadTaskId: taskId } });
-  };
-
-  const handleView = (taskId) => {
-    navigate('/ecom/boutique/products/generator', { state: { loadTaskId: taskId } });
+  const handleRetry = async (taskId) => {
+    setRetrying(taskId);
+    try {
+      const response = await fetch(`${API_ORIGIN}/api/ai/product-generator/tasks/${taskId}/retry`, {
+        method: 'POST',
+        headers: getHeaders(),
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        throw new Error(data?.message || 'Impossible de reprendre cette generation');
+      }
+      await fetchTasks();
+      setActiveFilter('active');
+    } catch (error) {
+      window.alert(error.message || 'Erreur lors de la reprise');
+    } finally {
+      setRetrying(null);
+    }
   };
 
   if (loading) {
@@ -99,142 +216,178 @@ export default function GenerationsPage() {
     );
   }
 
-  const activeTasks = tasks.filter(t => !['done', 'error'].includes(t.status));
-  const completedTasks = tasks.filter(t => t.status === 'done');
-  const errorTasks = tasks.filter(t => t.status === 'error');
-
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+    <div className="max-w-6xl mx-auto space-y-6">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">Mes Générations</h1>
-          <p className="text-sm text-gray-500 mt-0.5">
-            {creditsInfo ? `${creditsInfo.remaining} crédit${creditsInfo.remaining !== 1 ? 's' : ''} restant${creditsInfo.remaining !== 1 ? 's' : ''}` : 'Chargement...'}
-            {creditsInfo?.totalUsed ? ` · ${creditsInfo.totalUsed} génération${creditsInfo.totalUsed !== 1 ? 's' : ''} utilisée${creditsInfo.totalUsed !== 1 ? 's' : ''}` : ''}
-          </p>
+          <div className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 border border-emerald-100">
+            <Layers3 className="w-3.5 h-3.5" />
+            Product Page Studio
+          </div>
+          <h1 className="mt-3 text-2xl font-black text-gray-900">{pageMeta.title}</h1>
+          <p className="text-sm text-gray-500 mt-1 max-w-2xl">{pageMeta.description}</p>
         </div>
-        <div className="flex items-center gap-2">
+
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={fetchTasks}
-            className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-colors"
-            title="Rafraîchir"
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition"
+            title="Rafraichir"
           >
             <RefreshCw className="w-4 h-4" />
+            Rafraichir
           </button>
           <button
-            onClick={() => navigate('/ecom/boutique/products/generator')}
-            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl transition-colors"
+            onClick={() => navigate('/ecom/boutique/product-page-studio')}
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition"
+          >
+            <Wand2 className="w-4 h-4" />
+            Vue studio
+          </button>
+          <button
+            onClick={() => navigate('/ecom/boutique/products/generator', { state: { from: location.pathname } })}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl transition"
           >
             <Plus className="w-4 h-4" />
-            Nouvelle génération
+            Nouvelle generation
           </button>
         </div>
       </div>
 
-      {/* Active tasks */}
-      {activeTasks.length > 0 && (
-        <section>
-          <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3 flex items-center gap-2">
-            <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
-            En cours ({activeTasks.length})
-          </h2>
-          <div className="space-y-3">
-            {activeTasks.map(task => (
-              <TaskCard key={task._id} task={task} onDelete={handleDelete} onView={handleView} deleting={deleting} />
-            ))}
-          </div>
-        </section>
-      )}
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+        <StudioCard label="En cours" value={counts.active} hint="Generations actives" tone="blue" icon={<Loader2 className="w-4 h-4 animate-spin" />} />
+        <StudioCard label="Terminees" value={counts.done} hint="Pages pretes a utiliser" tone="emerald" icon={<CheckCircle className="w-4 h-4" />} />
+        <StudioCard label="Echecs" value={counts.error} hint="Taches a verifier" tone="red" icon={<XCircle className="w-4 h-4" />} />
+        <StudioCard
+          label="Credits"
+          value={creditsInfo?.remaining ?? 0}
+          hint={creditsInfo ? `${creditsInfo.totalUsed || 0} generation(s) utilisee(s)` : 'Credits generes'}
+          tone="amber"
+          icon={<Sparkles className="w-4 h-4" />}
+        />
+      </div>
 
-      {/* Completed tasks */}
-      {completedTasks.length > 0 && (
-        <section>
-          <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3 flex items-center gap-2">
-            <CheckCircle className="w-4 h-4 text-emerald-500" />
-            Terminées ({completedTasks.length})
-          </h2>
-          <div className="space-y-3">
-            {completedTasks.map(task => (
-              <TaskCard key={task._id} task={task} onDelete={handleDelete} onApply={handleApply} onView={handleView} deleting={deleting} />
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* Error tasks */}
-      {errorTasks.length > 0 && (
-        <section>
-          <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3 flex items-center gap-2">
-            <XCircle className="w-4 h-4 text-red-500" />
-            Échouées ({errorTasks.length})
-          </h2>
-          <div className="space-y-3">
-            {errorTasks.map(task => (
-              <TaskCard key={task._id} task={task} onDelete={handleDelete} deleting={deleting} />
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* Empty state */}
-      {tasks.length === 0 && (
-        <div className="text-center py-20">
-          <div className="w-16 h-16 mx-auto mb-4 bg-emerald-50 rounded-2xl flex items-center justify-center">
-            <Sparkles className="w-8 h-8 text-emerald-500" />
-          </div>
-          <h3 className="text-lg font-semibold text-gray-900 mb-1">Aucune génération</h3>
-          <p className="text-sm text-gray-500 mb-6">Créez votre première page produit avec l'IA</p>
-          <button
-            onClick={() => navigate('/ecom/boutique/products/generator')}
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl transition-colors"
-          >
-            <Sparkles className="w-4 h-4" />
-            Générer une page produit
-          </button>
+      <div className="bg-white border border-gray-200 rounded-2xl p-4 sm:p-5 space-y-4">
+        <div className="flex flex-wrap items-center gap-2">
+          {filterOptions.map((filter) => {
+            const active = activeFilter === filter.id;
+            return (
+              <button
+                key={filter.id}
+                type="button"
+                onClick={() => setActiveFilter(filter.id)}
+                className={`inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm font-semibold transition ${
+                  active ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                <span>{filter.label}</span>
+                <span className={`rounded-full px-1.5 py-0.5 text-[11px] ${active ? 'bg-white/20 text-white' : 'bg-white text-gray-500'}`}>
+                  {filter.count}
+                </span>
+              </button>
+            );
+          })}
         </div>
-      )}
+
+        {visibleTasks.length === 0 ? (
+          <div className="text-center py-16">
+            <div className="w-16 h-16 mx-auto mb-4 bg-emerald-50 rounded-2xl flex items-center justify-center">
+              <Sparkles className="w-8 h-8 text-emerald-500" />
+            </div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-1">{pageMeta.emptyTitle}</h3>
+            <p className="text-sm text-gray-500 mb-6">{pageMeta.emptyDescription}</p>
+            <button
+              onClick={() => navigate('/ecom/boutique/products/generator', { state: { from: location.pathname } })}
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl transition"
+            >
+              <Sparkles className="w-4 h-4" />
+              Lancer une generation
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {visibleTasks.map((task) => (
+              <TaskCard
+                key={task._id}
+                task={task}
+                deleting={deleting}
+                retrying={retrying}
+                onDelete={handleDelete}
+                onOpen={openTask}
+                onApply={openTask}
+                onRetry={handleRetry}
+              />
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
-function TaskCard({ task, onDelete, onApply, onView, deleting }) {
-  const cfg = statusConfig[task.status] || statusConfig.pending;
-  const StatusIcon = cfg.icon;
+function StudioCard({ label, value, hint, tone, icon }) {
+  const toneClass = {
+    blue: 'bg-blue-50 text-blue-700 border-blue-100',
+    emerald: 'bg-emerald-50 text-emerald-700 border-emerald-100',
+    red: 'bg-red-50 text-red-700 border-red-100',
+    amber: 'bg-amber-50 text-amber-700 border-amber-100',
+  }[tone] || 'bg-gray-50 text-gray-700 border-gray-100';
+
+  return (
+    <div className="bg-white border border-gray-200 rounded-2xl p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wider text-gray-400">{label}</p>
+          <p className="mt-2 text-2xl font-black text-gray-900">{value}</p>
+          <p className="mt-1 text-xs text-gray-500">{hint}</p>
+        </div>
+        <div className={`inline-flex items-center justify-center w-9 h-9 rounded-xl border ${toneClass}`}>
+          {icon}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TaskCard({ task, deleting, retrying, onDelete, onOpen, onApply, onRetry }) {
+  const config = statusConfig[task.status] || statusConfig.pending;
+  const StatusIcon = config.icon;
   const isActive = !['done', 'error'].includes(task.status);
   const isDone = task.status === 'done';
   const isError = task.status === 'error';
-
-  // Try to get a thumbnail from the task's product images
-  const thumbnail = task.product?.heroImage || task.images?.heroImage || null;
+  const hasSavedContent = Boolean(task.product);
+  const thumbnail = getTaskThumbnail(task);
 
   return (
-    <div className="bg-white border border-gray-200 rounded-xl p-4 hover:shadow-sm transition-shadow">
-      <div className="flex items-start gap-4">
-        {/* Thumbnail */}
-        <div className="w-16 h-16 flex-shrink-0 rounded-xl overflow-hidden bg-gray-100 flex items-center justify-center">
+    <div className="bg-white border border-gray-200 rounded-2xl p-4 hover:shadow-sm transition">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
+        <div className="w-16 h-16 rounded-xl overflow-hidden bg-gray-100 flex items-center justify-center shrink-0">
           {thumbnail ? (
-            <img src={thumbnail} alt="" className="w-full h-full object-cover" />
+            <img src={thumbnail} alt="Apercu generation" className="w-full h-full object-cover" />
           ) : (
             <Sparkles className="w-6 h-6 text-gray-300" />
           )}
         </div>
 
-        {/* Info */}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1">
-            <h3 className="text-sm font-semibold text-gray-900 truncate">
-              {task.productName || 'Génération sans nom'}
+        <div className="flex-1 min-w-0 space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="text-sm font-semibold text-gray-900 truncate max-w-full">
+              {task.productName || task.product?.title || 'Generation sans nom'}
             </h3>
-            <span className={`inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full ${cfg.color}`}>
-              <StatusIcon className={`w-3 h-3 ${cfg.animate ? 'animate-spin' : ''}`} />
-              {cfg.label}
+            <span className={`inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full ${config.color}`}>
+              <StatusIcon className={`w-3 h-3 ${config.animate ? 'animate-spin' : ''}`} />
+              {config.label}
             </span>
+            {isError && hasSavedContent && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
+                <AlertCircle className="w-3 h-3" />
+                Contenu sauve
+              </span>
+            )}
           </div>
 
-          {/* Progress bar for active tasks */}
           {isActive && (
-            <div className="mb-2">
+            <div>
               <div className="flex items-center justify-between text-[11px] text-gray-500 mb-1">
                 <span>{task.currentStep || 'En cours...'}</span>
                 <span>{task.progressPercent || 0}%</span>
@@ -248,52 +401,77 @@ function TaskCard({ task, onDelete, onApply, onView, deleting }) {
             </div>
           )}
 
-          {/* Error message */}
-          {isError && task.errorMessage && (
-            <p className="text-xs text-red-600 flex items-center gap-1 mb-1">
-              <AlertCircle className="w-3 h-3" />
-              {task.errorMessage}
-            </p>
+          {isError && (
+            <div className="space-y-1">
+              <p className="text-xs text-red-600 flex items-center gap-1">
+                <AlertCircle className="w-3 h-3" />
+                {task.errorMessage || 'La generation s\'est arretee avant la fin.'}
+              </p>
+              {hasSavedContent && (
+                <p className="text-xs text-gray-500">
+                  Le texte et les elements deja generes restent disponibles. Tu peux ouvrir le contenu ou relancer la suite.
+                </p>
+              )}
+            </div>
           )}
 
-          {/* Date */}
           <p className="text-[11px] text-gray-400">
-            {new Date(task.createdAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+            Creee le {formatTaskDate(task.createdAt)}
+            {task.updatedAt ? ` · mise a jour ${formatTaskDate(task.updatedAt)}` : ''}
           </p>
         </div>
 
-        {/* Actions */}
-        <div className="flex items-center gap-1.5 flex-shrink-0">
-          {isDone && onView && (
+        <div className="flex flex-wrap items-center gap-2 shrink-0 lg:justify-end">
+          {hasSavedContent && (
             <button
-              onClick={() => onView(task._id)}
-              className="p-2 text-gray-400 hover:text-emerald-600 rounded-lg hover:bg-emerald-50 transition-colors"
-              title="Voir / Appliquer"
+              onClick={() => onOpen(task._id)}
+              className="inline-flex items-center gap-1.5 px-3 py-2 border border-gray-200 text-gray-600 hover:bg-gray-50 text-xs font-semibold rounded-xl transition"
+              title="Ouvrir le contenu genere"
             >
-              <Eye className="w-4 h-4" />
+              <Eye className="w-3.5 h-3.5" />
+              Voir contenu
             </button>
           )}
-          {isDone && onApply && (
+
+          {isDone && (
             <button
               onClick={() => onApply(task._id)}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-lg transition-colors"
-              title="Utiliser comme page produit"
+              className="inline-flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-xl transition"
+              title="Utiliser cette generation"
             >
               <ArrowRight className="w-3.5 h-3.5" />
-              Appliquer
+              Utiliser
             </button>
           )}
+
+          {isError && (
+            <button
+              onClick={() => onRetry(task._id)}
+              disabled={retrying === task._id}
+              className="inline-flex items-center gap-1.5 px-3 py-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-white text-xs font-semibold rounded-xl transition"
+              title="Reprendre cette generation"
+            >
+              {retrying === task._id ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <RotateCw className="w-3.5 h-3.5" />
+              )}
+              Reprendre
+            </button>
+          )}
+
           <button
             onClick={() => onDelete(task._id)}
             disabled={deleting === task._id}
-            className="p-2 text-gray-300 hover:text-red-500 rounded-lg hover:bg-red-50 transition-colors disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 px-3 py-2 border border-red-100 text-red-500 hover:bg-red-50 disabled:opacity-50 text-xs font-semibold rounded-xl transition"
             title="Supprimer"
           >
             {deleting === task._id ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
             ) : (
-              <Trash2 className="w-4 h-4" />
+              <Trash2 className="w-3.5 h-3.5" />
             )}
+            Supprimer
           </button>
         </div>
       </div>

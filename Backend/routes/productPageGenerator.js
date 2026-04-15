@@ -14,6 +14,7 @@
 import express from 'express';
 import multer from 'multer';
 import sharp from 'sharp';
+import axios from 'axios';
 import { requireEcomAuth, validateEcomAccess } from '../middleware/ecomAuth.js';
 import { analyzeWithVision, generateDescriptionGifFromImages, generatePosterImage } from '../services/productPageGeneratorService.js';
 import { uploadImage } from '../services/cloudflareImagesService.js';
@@ -41,6 +42,409 @@ async function updateTask(taskId, updates) {
     await GenerationTask.findByIdAndUpdate(taskId, { $set: updates });
   } catch (e) {
     console.warn('[Task] Update failed:', e.message);
+  }
+}
+
+function buildTaskImagesPayload(imageData = {}) {
+  return {
+    heroImage: imageData.heroImage || null,
+    heroPosterImage: imageData.heroPosterImage || null,
+    beforeAfterImage: imageData.beforeAfterImage || null,
+    beforeAfterImages: Array.isArray(imageData.beforeAfterImages) ? imageData.beforeAfterImages.filter(Boolean) : [],
+    angles: Array.isArray(imageData.angles) ? imageData.angles.filter(Boolean) : [],
+    peoplePhotos: Array.isArray(imageData.peoplePhotos) ? imageData.peoplePhotos.filter(Boolean) : [],
+    socialProofImages: Array.isArray(imageData.socialProofImages) ? imageData.socialProofImages.filter(Boolean) : [],
+    descriptionGifs: Array.isArray(imageData.descriptionGifs)
+      ? imageData.descriptionGifs.filter((entry) => entry?.url)
+      : [],
+  };
+}
+
+function mergeTaskProductWithImages(task = {}) {
+  const imgs = buildTaskImagesPayload(task.images || {});
+  const product = task.product ? { ...task.product } : null;
+  if (!product) return null;
+
+  if (imgs.heroImage) product.heroImage = imgs.heroImage;
+  if (imgs.heroPosterImage) product.heroPosterImage = imgs.heroPosterImage;
+  if (imgs.beforeAfterImage) product.beforeAfterImage = imgs.beforeAfterImage;
+  if (imgs.beforeAfterImages.length) product.beforeAfterImages = imgs.beforeAfterImages;
+  if (imgs.descriptionGifs.length) product.descriptionGifs = imgs.descriptionGifs;
+  if (imgs.peoplePhotos.length) product.peoplePhotos = imgs.peoplePhotos;
+  if (imgs.socialProofImages.length) product.socialProofImages = imgs.socialProofImages;
+
+  if (imgs.angles.length) {
+    product.angles = (product.angles || []).map((angle, index) => {
+      const generatedAngle = imgs.angles.find((entry) => entry.index === index + 1);
+      return generatedAngle
+        ? { ...angle, poster_url: generatedAngle.poster_url, flashType: generatedAngle.flashType || angle?.flashType || null }
+        : angle;
+    });
+  }
+
+  const allImages = [
+    ...(imgs.peoplePhotos || []),
+    ...(imgs.heroImage ? [imgs.heroImage] : []),
+    ...(imgs.heroPosterImage ? [imgs.heroPosterImage] : []),
+    ...(imgs.beforeAfterImages || []),
+    ...((product.angles || []).map((angle) => angle.poster_url).filter(Boolean)),
+  ];
+  product.allImages = [...new Set([...(product.allImages || []), ...allImages])];
+  return product;
+}
+
+function buildTaskImageSnapshot(imageResults = []) {
+  const beforeAfterImages = imageResults
+    .filter((entry) => entry?.type === 'before_after')
+    .sort((left, right) => (left?.index ?? 0) - (right?.index ?? 0))
+    .map((entry) => entry?.url)
+    .filter(Boolean);
+
+  const angles = imageResults
+    .filter((entry) => entry?.type === 'poster')
+    .sort((left, right) => (left?.index ?? 0) - (right?.index ?? 0))
+    .map((entry) => ({
+      ...entry?.angle,
+      poster_url: entry?.url || null,
+      index: (entry?.index ?? 0) + 1,
+      flashType: entry?.flashType || null,
+    }))
+    .filter((entry) => entry?.poster_url);
+
+  const peoplePhotos = imageResults
+    .filter((entry) => entry?.type === 'people_photo')
+    .sort((left, right) => (left?.index ?? 0) - (right?.index ?? 0))
+    .map((entry) => entry?.url)
+    .filter(Boolean);
+
+  const heroImage = imageResults.find((entry) => entry?.type === 'hero')?.url || null;
+  const heroPosterImage = angles.find((entry) => entry?.poster_url)?.poster_url || null;
+  const socialProofImages = [...peoplePhotos, ...beforeAfterImages]
+    .filter((url, index, array) => url && array.indexOf(url) === index)
+    .slice(0, 3);
+
+  return {
+    heroImage,
+    heroPosterImage,
+    beforeAfterImage: beforeAfterImages[0] || null,
+    beforeAfterImages,
+    angles,
+    peoplePhotos,
+    socialProofImages,
+  };
+}
+
+function applyImageSnapshotToJob(jobData, snapshot) {
+  if (!jobData || !snapshot) return;
+  if (snapshot.heroImage) jobData.heroImage = snapshot.heroImage;
+  if (snapshot.beforeAfterImage) jobData.beforeAfterImage = snapshot.beforeAfterImage;
+  if (snapshot.beforeAfterImages?.length) jobData.beforeAfterImages = snapshot.beforeAfterImages;
+  if (snapshot.angles?.length) jobData.angles = snapshot.angles;
+  if (snapshot.peoplePhotos?.length) jobData.peoplePhotos = snapshot.peoplePhotos;
+  if (snapshot.socialProofImages?.length) jobData.socialProofImages = snapshot.socialProofImages;
+  const heroPosterFromAngles = snapshot.heroPosterImage || snapshot.angles?.find((entry) => entry?.poster_url)?.poster_url || null;
+  if (heroPosterFromAngles) jobData.heroPosterImage = heroPosterFromAngles;
+}
+
+async function resolveReferenceImageBuffer({ sourceBuffer = null, photoUrl = '', cleanUrl = '' } = {}) {
+  if (sourceBuffer) {
+    try {
+      return await sharp(sourceBuffer)
+        .resize(768, 768, { fit: 'inside', withoutEnlargement: true })
+        .jpeg({ quality: 88 })
+        .toBuffer();
+    } catch (error) {
+      console.warn('⚠️ Normalisation image échouée, utilisation du buffer brut:', error.message);
+      return sourceBuffer;
+    }
+  }
+
+  if (photoUrl) {
+    try {
+      const response = await axios.get(photoUrl, { responseType: 'arraybuffer', timeout: 10000, maxRedirects: 3 });
+      return await sharp(Buffer.from(response.data))
+        .resize(768, 768, { fit: 'inside', withoutEnlargement: true })
+        .jpeg({ quality: 88 })
+        .toBuffer();
+    } catch (error) {
+      console.warn('⚠️ Téléchargement photo de référence échoué:', error.message);
+    }
+  }
+
+  if (cleanUrl) {
+    try {
+      const pageResponse = await axios.get(cleanUrl, {
+        timeout: 12000,
+        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; EcomBot/1.0)' },
+        maxRedirects: 5,
+        responseType: 'text',
+      });
+      const html = typeof pageResponse.data === 'string' ? pageResponse.data : '';
+      const imageMatch = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i)
+        || html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i)
+        || html.match(/<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["']/i);
+      const ogImageUrl = imageMatch?.[1];
+      if (!ogImageUrl) return null;
+
+      const imageResponse = await axios.get(ogImageUrl, {
+        responseType: 'arraybuffer',
+        timeout: 10000,
+        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; EcomBot/1.0)' },
+        maxRedirects: 3,
+      });
+
+      return await sharp(Buffer.from(imageResponse.data))
+        .resize(768, 768, { fit: 'inside', withoutEnlargement: true })
+        .jpeg({ quality: 88 })
+        .toBuffer();
+    } catch (error) {
+      console.warn('⚠️ Extraction og:image échouée:', error.message);
+    }
+  }
+
+  return null;
+}
+
+async function runBackgroundImageGeneration({
+  taskId,
+  workspaceId,
+  userId,
+  productData,
+  visualTemplate,
+  visualContext,
+  approach,
+  realPhotos = [],
+  cleanUrl = '',
+  sourceBuffer = null,
+  imageJobId = null,
+  existingImages = null,
+}) {
+  const jobData = {
+    status: 'generating',
+    progress: 0,
+    total: 0,
+    createdAt: Date.now(),
+    ...buildTaskImagesPayload(existingImages || {}),
+  };
+
+  if (imageJobId) {
+    imageJobs.set(imageJobId, jobData);
+  }
+
+  try {
+    const baseImageBuffer = await resolveReferenceImageBuffer({
+      sourceBuffer,
+      photoUrl: realPhotos[0] || '',
+      cleanUrl,
+    });
+
+    if (!baseImageBuffer) {
+      const errorMessage = 'Aucune image produit fournie — impossible de générer en mode image-to-image';
+      jobData.status = 'error';
+      await updateTask(taskId, {
+        status: 'error',
+        currentStep: 'Échec partiel — contenu sauvegardé',
+        errorMessage,
+        images: buildTaskImagesPayload(jobData),
+      });
+      return;
+    }
+
+    const generateAndUpload = async (prompt, filename, mode = 'scene', aspectRatio = '4:5') => {
+      if (!prompt) return null;
+
+      const attempt = async () => {
+        const generatedDataUrl = await generatePosterImage(prompt, baseImageBuffer, { mode, aspectRatio });
+        if (!generatedDataUrl) throw new Error('generatePosterImage returned null');
+
+        let imageBuffer;
+        if (generatedDataUrl.startsWith('data:')) {
+          imageBuffer = Buffer.from(generatedDataUrl.split(',')[1], 'base64');
+        } else {
+          const response = await axios.get(generatedDataUrl, { responseType: 'arraybuffer', timeout: 30000 });
+          imageBuffer = Buffer.from(response.data);
+        }
+
+        const [ratioWidth, ratioHeight] = aspectRatio.split(':').map(Number);
+        const targetWidth = 1080;
+        const targetHeight = Math.round(targetWidth * (ratioHeight / ratioWidth));
+        imageBuffer = await sharp(imageBuffer)
+          .resize(targetWidth, targetHeight, { fit: 'cover', position: 'centre' })
+          .jpeg({ quality: 92 })
+          .toBuffer();
+
+        const uploaded = await uploadImage(imageBuffer, filename.replace(/\.[^.]+$/, '.jpg'), {
+          workspaceId,
+          uploadedBy: userId,
+          mimeType: 'image/jpeg',
+          optimize: false,
+        });
+
+        if (!uploaded?.url) throw new Error('Upload retourné sans URL');
+        return uploaded.url;
+      };
+
+      const maxRetries = 5;
+      for (let attemptIndex = 1; attemptIndex <= maxRetries; attemptIndex += 1) {
+        try {
+          return await attempt();
+        } catch (error) {
+          console.warn(`⚠️ Image ${filename} tentative ${attemptIndex}/${maxRetries} échouée: ${error.message}`);
+          if (attemptIndex === maxRetries) {
+            console.error(`❌ Image ${filename} abandonnée après ${maxRetries} tentatives`);
+            return null;
+          }
+          const delay = Math.min(2000 * Math.pow(2, attemptIndex - 1), 60000);
+          await new Promise((resolve) => setTimeout(resolve, delay));
+        }
+      }
+
+      return null;
+    };
+
+    const imageTasks = [];
+    const descriptionGifSpecs = buildDescriptionGifSpecs(productData);
+
+    imageTasks.push(
+      () => generateAndUpload(buildHeroPrompt(productData, true, visualTemplate, visualContext), `hero-${Date.now()}.png`, 'hero', productData.imageAspectRatio || '4:5')
+        .then((url) => ({ type: 'hero', url }))
+        .finally(() => { jobData.progress += 1; })
+    );
+
+    if (productData.prompt_avant_apres) {
+      imageTasks.push(
+        () => generateAndUpload(productData.prompt_avant_apres, `before-after-1-${Date.now()}.png`, 'before_after', '1:1')
+          .then((url) => ({ type: 'before_after', index: 0, url }))
+          .finally(() => { jobData.progress += 1; })
+      );
+    }
+
+    imageTasks.push(
+      () => generateAndUpload(buildSecondBeforeAfterPrompt(productData, visualContext), `before-after-2-${Date.now()}.png`, 'before_after', '1:1')
+        .then((url) => ({ type: 'before_after', index: 1, url }))
+        .finally(() => { jobData.progress += 1; })
+    );
+
+    const flashPrompts = buildFlashPrompts(productData, true, approach, visualTemplate, visualContext);
+    const angles = productData.angles || [];
+    for (let index = 0; index < flashPrompts.length; index += 1) {
+      const flash = flashPrompts[index];
+      const angle = angles[index] || null;
+      const fallbackAngle = {
+        titre_angle: flash?.type || `angle_${index + 1}`,
+        explication: productData.benefits_bullets?.[index] || productData.hero_slogan || getMainBenefit(productData),
+        promesse: productData.urgency_elements?.primary_urgency || productData.reassurance?.titre || getMainBenefit(productData),
+      };
+      const anglePrompt = index === 0
+        ? buildBenefitsInfographicPrompt(productData, visualTemplate, visualContext)
+        : (buildAngleImagePrompt(angle || fallbackAngle, productData, true, visualTemplate, index, visualContext, approach)
+          || buildFlashFallbackPrompt(flash, angle || fallbackAngle, productData, visualTemplate, visualContext, approach, index));
+
+      imageTasks.push(
+        () => generateAndUpload(anglePrompt, `flash-${index + 1}-${Date.now()}.png`, 'scene', productData.imageAspectRatio || '4:5')
+          .then((url) => ({ type: 'poster', index, url, angle, flashType: flash.type }))
+          .finally(() => { jobData.progress += 1; })
+      );
+    }
+
+    buildPeopleHoldingProductPrompts(productData, visualContext).forEach((peoplePrompt, index) => {
+      imageTasks.push(
+        () => generateAndUpload(peoplePrompt, `people-${index + 1}-${Date.now()}.png`, 'scene', '1:1')
+          .then((url) => ({ type: 'people_photo', index, url }))
+          .finally(() => { jobData.progress += 1; })
+      );
+    });
+
+    const batchSize = 6;
+    const batchDelayMs = 800;
+    const imageResults = [];
+    jobData.total = imageTasks.length + descriptionGifSpecs.length;
+
+    for (let batchStart = 0; batchStart < imageTasks.length; batchStart += batchSize) {
+      const batch = imageTasks.slice(batchStart, batchStart + batchSize);
+      const batchNumber = Math.floor(batchStart / batchSize) + 1;
+      const totalBatches = Math.ceil(imageTasks.length / batchSize);
+
+      const batchResults = await Promise.allSettled(batch.map((factory) => factory()));
+      batchResults.forEach((result) => {
+        imageResults.push(result.status === 'fulfilled' ? result.value : null);
+      });
+
+      applyImageSnapshotToJob(jobData, buildTaskImageSnapshot(imageResults));
+
+      const progressPercent = Math.min(95, Math.round((jobData.progress / jobData.total) * 100));
+      await updateTask(taskId, {
+        status: 'generating_images',
+        progress: jobData.progress,
+        totalImages: jobData.total,
+        progressPercent,
+        currentStep: `Images: batch ${batchNumber}/${totalBatches}`,
+        errorMessage: null,
+        images: buildTaskImagesPayload(jobData),
+      });
+
+      if (batchStart + batchSize < imageTasks.length) {
+        await new Promise((resolve) => setTimeout(resolve, batchDelayMs));
+      }
+    }
+
+    const descriptionGifImageGroups = [
+      [jobData.heroImage, jobData.angles?.[0]?.poster_url, jobData.beforeAfterImages?.[0], jobData.angles?.[1]?.poster_url, realPhotos[0]],
+      [jobData.heroPosterImage, jobData.angles?.[2]?.poster_url, jobData.beforeAfterImages?.[1] || jobData.beforeAfterImages?.[0], jobData.angles?.[3]?.poster_url],
+    ].map((group) => group.filter(Boolean));
+
+    const gifResults = await Promise.allSettled(descriptionGifSpecs.map((gifSpec, index) => (async () => {
+      const sourceImages = descriptionGifImageGroups[index] || [];
+      if (sourceImages.length < 2) return null;
+      try {
+        const url = await generateDescriptionGifFromImages(sourceImages, {
+          width: 768,
+          height: 432,
+          fps: 8,
+          frameDurationMs: 1200,
+          filePrefix: `${gifSpec.key}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        });
+        return { url, key: gifSpec.key, title: gifSpec.title, order: index };
+      } catch (error) {
+        console.warn(`⚠️ GIF description ${gifSpec.key} échoué: ${error.message}`);
+        return null;
+      } finally {
+        jobData.progress += 1;
+      }
+    })()));
+
+    jobData.descriptionGifs = gifResults
+      .map((result) => (result.status === 'fulfilled' ? result.value : null))
+      .filter((entry) => entry?.url)
+      .map((entry) => ({
+        url: entry.url,
+        type: 'direct',
+        title: entry.title || (entry.key === 'usage-demo' ? 'GIF usage' : 'GIF résultat'),
+        order: entry.order,
+      }));
+
+    jobData.status = 'done';
+    await updateTask(taskId, {
+      status: 'done',
+      progress: jobData.progress,
+      totalImages: jobData.total,
+      progressPercent: 100,
+      currentStep: 'Terminé',
+      errorMessage: null,
+      images: buildTaskImagesPayload(jobData),
+    });
+  } catch (error) {
+    console.error('❌ [BG] Erreur génération images:', error.message);
+    jobData.status = 'error';
+    await updateTask(taskId, {
+      status: 'error',
+      progress: jobData.progress,
+      totalImages: jobData.total,
+      progressPercent: Math.max(40, Math.min(95, Math.round((jobData.progress / Math.max(jobData.total || 1, 1)) * 100))),
+      currentStep: 'Échec partiel — contenu sauvegardé',
+      errorMessage: error.message,
+      images: buildTaskImagesPayload(jobData),
+    });
   }
 }
 
@@ -845,33 +1249,7 @@ router.get('/tasks/:id', requireEcomAuth, async (req, res) => {
     const task = await GenerationTask.findOne({ _id: req.params.id, workspaceId: req.workspaceId }).lean();
     if (!task) return res.status(404).json({ success: false, message: 'Tâche introuvable' });
 
-    // Build merged product with images for frontend consumption
-    let mergedProduct = task.product || null;
-    if (mergedProduct && task.images) {
-      const imgs = task.images;
-      mergedProduct = { ...mergedProduct };
-      if (imgs.heroImage) mergedProduct.heroImage = imgs.heroImage;
-      if (imgs.heroPosterImage) mergedProduct.heroPosterImage = imgs.heroPosterImage;
-      if (imgs.beforeAfterImage) mergedProduct.beforeAfterImage = imgs.beforeAfterImage;
-      if (imgs.beforeAfterImages?.length) mergedProduct.beforeAfterImages = imgs.beforeAfterImages;
-      if (imgs.descriptionGifs?.length) mergedProduct.descriptionGifs = imgs.descriptionGifs;
-      if (imgs.peoplePhotos?.length) mergedProduct.peoplePhotos = imgs.peoplePhotos;
-      if (imgs.socialProofImages?.length) mergedProduct.socialProofImages = imgs.socialProofImages;
-      if (imgs.angles?.length) {
-        mergedProduct.angles = (mergedProduct.angles || []).map((a, i) => {
-          const bgAngle = imgs.angles.find(ba => ba.index === i + 1);
-          return bgAngle ? { ...a, poster_url: bgAngle.poster_url, flashType: bgAngle.flashType || a?.flashType || null } : a;
-        });
-      }
-      const allImages = [
-        ...(imgs.peoplePhotos || []),
-        ...(imgs.heroImage ? [imgs.heroImage] : []),
-        ...(imgs.heroPosterImage ? [imgs.heroPosterImage] : []),
-        ...(imgs.beforeAfterImages || []),
-        ...((mergedProduct.angles || []).map(a => a.poster_url).filter(Boolean)),
-      ];
-      mergedProduct.allImages = [...new Set([...(mergedProduct.allImages || []), ...allImages])];
-    }
+    const mergedProduct = mergeTaskProductWithImages(task);
 
     res.json({
       success: true,
@@ -890,6 +1268,79 @@ router.get('/tasks/:id', requireEcomAuth, async (req, res) => {
   } catch (err) {
     console.error('[Tasks] Get error:', err.message);
     res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+router.post('/tasks/:id/retry', requireEcomAuth, validateEcomAccess('products', 'write'), async (req, res) => {
+  try {
+    const task = await GenerationTask.findOne({ _id: req.params.id, workspaceId: req.workspaceId });
+    if (!task) {
+      return res.status(404).json({ success: false, message: 'Tâche introuvable' });
+    }
+
+    if (!task.product) {
+      return res.status(400).json({ success: false, message: 'Aucun contenu sauvegardé pour cette génération' });
+    }
+
+    if (['pending', 'generating_text', 'generating_images'].includes(task.status)) {
+      return res.status(409).json({ success: false, message: 'Cette génération est déjà en cours' });
+    }
+
+    const imageJobId = `retry_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const visualTemplate = task.input?.visualTemplate || task.product?.visualTemplate || 'general';
+    const realPhotos = task.input?.photoUrls?.length ? task.input.photoUrls : (task.product?.realPhotos || []);
+    const sourceBuffer = task.input?.referenceImageBase64
+      ? Buffer.from(task.input.referenceImageBase64, 'base64')
+      : null;
+
+    const visualContext = {
+      template: visualTemplate,
+      imageGenerationMode: task.input?.imageGenerationMode || task.product?.imageGenerationMode || 'ad_4_5',
+      imageAspectRatio: task.input?.imageAspectRatio || task.product?.imageAspectRatio || '4:5',
+      preferredColor: task.input?.preferredColor || task.product?.preferredColor || '',
+      heroVisualDirection: task.input?.heroVisualDirection || task.product?.heroVisualDirection || '',
+      decorationDirection: task.input?.decorationDirection || task.product?.decorationDirection || '',
+      titleColor: task.input?.titleColor || task.product?.titleColor || '',
+      contentColor: task.input?.contentColor || task.product?.contentColor || '',
+    };
+
+    task.status = 'generating_images';
+    task.currentStep = 'Reprise de la génération...';
+    task.progressPercent = 40;
+    task.errorMessage = null;
+    task.imageJobId = imageJobId;
+    task.retryCount = (task.retryCount || 0) + 1;
+    await task.save();
+
+    void runBackgroundImageGeneration({
+      taskId: task._id.toString(),
+      workspaceId: req.workspaceId,
+      userId: req.user?._id || req.user?.id,
+      productData: task.product,
+      visualTemplate,
+      visualContext,
+      approach: task.input?.marketingApproach || 'PAS',
+      realPhotos,
+      cleanUrl: task.input?.url || task.product?.sourceUrl || '',
+      sourceBuffer,
+      imageJobId,
+      existingImages: task.images || {},
+    });
+
+    return res.json({
+      success: true,
+      message: 'Reprise lancée',
+      task: {
+        _id: task._id,
+        status: task.status,
+        currentStep: task.currentStep,
+        progressPercent: task.progressPercent,
+        imageJobId,
+      },
+    });
+  } catch (error) {
+    console.error('[Tasks] Retry error:', error.message);
+    return res.status(500).json({ success: false, message: 'Erreur serveur' });
   }
 });
 
@@ -934,7 +1385,11 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
     targetProfile,
     mainProblem,
     tone,
-    language
+    language,
+    fashionAvatar: rawFashionAvatar,
+    fashionMinimalist: rawFashionMinimalist,
+    fashionSizes: rawFashionSizes,
+    fashionColors: rawFashionColors
   } = req.body || {};
   const imageFiles = req.files || [];
   const approach = marketingApproach || 'PAS';
@@ -963,6 +1418,19 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
     language: language || 'français'
   };
 
+  let fashionConfig = null;
+  if (visualTemplate === 'fashion') {
+    const parseJson = (v) => { try { return typeof v === 'string' ? JSON.parse(v) : v; } catch { return null; } };
+    const sizes = Array.isArray(rawFashionSizes) ? rawFashionSizes : (parseJson(rawFashionSizes) || []);
+    const colors = Array.isArray(rawFashionColors) ? rawFashionColors : (parseJson(rawFashionColors) || []);
+    fashionConfig = {
+      avatar: ['female', 'male', 'both'].includes(rawFashionAvatar) ? rawFashionAvatar : 'female',
+      minimalist: rawFashionMinimalist === 'true' || rawFashionMinimalist === true,
+      sizes: Array.isArray(sizes) ? sizes.slice(0, 20).map(String) : [],
+      colors: Array.isArray(colors) ? colors.slice(0, 20).filter(c => c && c.name && c.hex) : [],
+    };
+  }
+
   const visualContext = {
     template: visualTemplate,
     imageGenerationMode,
@@ -972,6 +1440,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
     decorationDirection,
     titleColor,
     contentColor,
+    fashionConfig,
   };
 
   // ── Validation selon le mode ──────────────────────────────────────────────
@@ -1195,6 +1664,8 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       stats_bar: gptResult.stats_bar || [],
       offer_block: gptResult.offer_block || null,
       seo: gptResult.seo || null,
+      prompt_avant_apres: gptResult.prompt_avant_apres || null,
+      hero_target_person: gptResult.hero_target_person || null,
       heroImage: null,
       heroPosterImage: null,
       beforeAfterImage: null,
@@ -1279,363 +1750,19 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       return;
     }
 
-    // ══════════════════════════════════════════════════════════════════════════
-    // BACKGROUND — Generate all images asynchronously
-    // ══════════════════════════════════════════════════════════════════════════
-    const jobData = { status: 'generating', progress: 0, total: 0, heroImage: null, beforeAfterImage: null, beforeAfterImages: [], angles: [], peoplePhotos: [], socialProofImages: [], descriptionGifs: [], createdAt: Date.now() };
-    imageJobs.set(jobId, jobData);
-
-    // Fire and forget — errors won't crash the response
-    (async () => {
-      try {
-    console.log('🎨 [BG] Génération de toutes les images en parallèle...');
-
-    const axios = (await import('axios')).default;
-
-    // Helper pour générer et uploader une image — avec retries illimités et backoff exponentiel
-    const generateAndUpload = async (prompt, baseBuffer, filename, mode = 'scene', aspectRatio = '4:5') => {
-      if (!prompt) return null;
-
-      const attempt = async () => {
-        const generatedDataUrl = await generatePosterImage(prompt, baseBuffer, { mode, aspectRatio });
-        if (!generatedDataUrl) throw new Error('generatePosterImage returned null');
-
-        let imageBuffer;
-        if (generatedDataUrl.startsWith('data:')) {
-          imageBuffer = Buffer.from(generatedDataUrl.split(',')[1], 'base64');
-        } else {
-          const resp = await axios.get(generatedDataUrl, { responseType: 'arraybuffer', timeout: 30000 });
-          imageBuffer = Buffer.from(resp.data);
-        }
-
-        // Resize to exact ratio dimensions
-        const [arW, arH] = aspectRatio.split(':').map(Number);
-        const targetW = 1080;
-        const targetH = Math.round(targetW * (arH / arW)); // 1:1=1080, 4:5=1350, etc.
-        imageBuffer = await sharp(imageBuffer)
-          .resize(targetW, targetH, { fit: 'cover', position: 'centre' })
-          .jpeg({ quality: 92 })
-          .toBuffer();
-
-        const resizedFilename = filename.replace(/\.[^.]+$/, '.jpg');
-        const uploaded = await uploadImage(imageBuffer, resizedFilename, {
-          workspaceId: req.workspaceId,
-          uploadedBy: userId,
-          mimeType: 'image/jpeg',
-          optimize: false,
-        });
-        if (!uploaded?.url) throw new Error('Upload retourné sans URL');
-        return uploaded.url;
-      };
-
-      // Retries avec backoff exponentiel — jusqu'à 5 tentatives
-      const MAX_RETRIES = 5;
-      for (let i = 1; i <= MAX_RETRIES; i++) {
-        try {
-          return await attempt();
-        } catch (err) {
-          console.warn(`⚠️ Image ${filename} tentative ${i}/${MAX_RETRIES} échouée: ${err.message}`);
-          if (i === MAX_RETRIES) {
-            console.error(`❌ Image ${filename} abandonnée après ${MAX_RETRIES} tentatives`);
-            return null;
-          }
-          const delay = Math.min(2000 * Math.pow(2, i - 1), 60000); // 2s, 4s, 8s, 16s, 32s (max 60s)
-          console.log(`⏳ Retry dans ${delay / 1000}s...`);
-          await new Promise(r => setTimeout(r, delay));
-        }
-      }
-      return null;
-    };
-
-    // Préparer toutes les tâches de génération (lazy — NOT started yet)
-    const imageTasks = [];
-    const descriptionGifSpecs = buildDescriptionGifSpecs(gptResult);
-
-    // Normaliser l'image de référence produit : JPEG 768px max, pour que Gemini
-    // reçoive un format cohérent (mimeType + taille raisonnable pour inline data).
-    // Sans ça : PNG brut envoyé comme "image/jpeg" → Gemini ignore la référence.
-    let baseImageBuffer = null;
-    if (imageFiles[0]?.buffer) {
-      try {
-        baseImageBuffer = await sharp(imageFiles[0].buffer)
-          .resize(768, 768, { fit: 'inside', withoutEnlargement: true })
-          .jpeg({ quality: 88 })
-          .toBuffer();
-        console.log(`📐 Image de référence normalisée: ${Math.round(baseImageBuffer.length / 1024)}Ko JPEG 768px`);
-      } catch (sharpErr) {
-        console.warn('⚠️ Normalisation image échouée, utilisation du buffer brut:', sharpErr.message);
-        baseImageBuffer = imageFiles[0].buffer;
-      }
-    }
-
-    // Si aucune image uploadée mais URL fournie → extraire og:image de la page produit
-    if (!baseImageBuffer && cleanUrl) {
-      try {
-        console.log('🔍 Aucune image uploadée — extraction og:image depuis', cleanUrl);
-        const pageResp = await axios.get(cleanUrl, {
-          timeout: 12000,
-          headers: { 'User-Agent': 'Mozilla/5.0 (compatible; EcomBot/1.0)' },
-          maxRedirects: 5,
-          responseType: 'text',
-        });
-        const html = typeof pageResp.data === 'string' ? pageResp.data : '';
-        // Try og:image, then twitter:image, then first large <img>
-        const ogMatch = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i)
-          || html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i)
-          || html.match(/<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["']/i);
-        const imgUrl = ogMatch?.[1];
-        if (imgUrl) {
-          const imgResp = await axios.get(imgUrl, {
-            responseType: 'arraybuffer',
-            timeout: 10000,
-            headers: { 'User-Agent': 'Mozilla/5.0 (compatible; EcomBot/1.0)' },
-            maxRedirects: 3,
-          });
-          baseImageBuffer = await sharp(Buffer.from(imgResp.data))
-            .resize(768, 768, { fit: 'inside', withoutEnlargement: true })
-            .jpeg({ quality: 88 })
-            .toBuffer();
-          console.log(`✅ og:image téléchargée et normalisée: ${Math.round(baseImageBuffer.length / 1024)}Ko`);
-        } else {
-          console.warn('⚠️ Aucun og:image trouvé sur la page');
-        }
-      } catch (ogErr) {
-        console.warn('⚠️ Extraction og:image échouée:', ogErr.message);
-      }
-    }
-
-    // ── BLOCK: refuse to generate images without a product reference image ──
-    if (!baseImageBuffer) {
-      console.warn('⚠️ [BG] Aucune image produit disponible — génération d\'images ANNULÉE (image-to-image obligatoire)');
-      jobData.status = 'done';
-      jobData.progress = 0;
-      jobData.total = 0;
-      jobData.error = 'Aucune image produit fournie — impossible de générer en mode image-to-image';
-      return;
-    }
-
-    // ── Hero PRO — African FB-ads template (LEFT: product | RIGHT: person + problem) ──
-    imageTasks.push(
-      () => generateAndUpload(buildHeroPrompt(gptResult, !!baseImageBuffer, visualTemplate, visualContext), baseImageBuffer, `hero-${Date.now()}.png`, 'hero', imageAspectRatio)
-        .then(url => ({ type: 'hero', url }))
-    );
-
-    // ── Avant/Après (2 images) ──
-    const beforeAfterPrompt1 = gptResult.prompt_avant_apres || null;
-    if (beforeAfterPrompt1) {
-      imageTasks.push(
-        () => generateAndUpload(beforeAfterPrompt1, baseImageBuffer, `before-after-1-${Date.now()}.png`, 'before_after', '1:1')
-          .then(url => ({ type: 'before_after', index: 0, url }))
-      );
-    }
-    const beforeAfterPrompt2 = buildSecondBeforeAfterPrompt(gptResult, visualContext);
-    imageTasks.push(
-      () => generateAndUpload(beforeAfterPrompt2, baseImageBuffer, `before-after-2-${Date.now()}.png`, 'before_after', '1:1')
-        .then(url => ({ type: 'before_after', index: 1, url }))
-    );
-
-    // ── Flash images — 5 affiches marketing (1 par angle) ─
-    const angles = gptResult.angles || [];
-    const flashPrompts = buildFlashPrompts(gptResult, !!baseImageBuffer, approach, visualTemplate, visualContext);
-    const maxFlash = flashPrompts.length;
-
-    for (let i = 0; i < maxFlash; i++) {
-      const flash = flashPrompts[i];
-      const angle = angles[i] || null;
-      const fallbackAngle = {
-        titre_angle: flash?.type || `angle_${i + 1}`,
-        explication: gptResult.benefits_bullets?.[i] || gptResult.hero_slogan || getMainBenefit(gptResult),
-        promesse: gptResult.urgency_elements?.primary_urgency || gptResult.reassurance?.titre || getMainBenefit(gptResult),
-      };
-
-      // Build an infographic prompt that visually illustrates the angle as an infographic
-      const africanRealism = `\n\n═══ PRODUCT REFERENCE — IMAGE-TO-IMAGE MANDATORY ═══\nUse EXACTLY the product appearance from the reference image — same packaging, colors, label, shape. Do NOT redraw or invent a product. If you cannot reproduce the EXACT same product, generate the scene WITHOUT the product rather than showing a wrong one.\n\n═══ AFRICAN MARKET REALISM — MANDATORY ═══\n• PHOTOREALISTIC — must look like a real photograph. No cartoon, no AI artifacts\n• African person: authentic dark skin, natural African features, natural African hair. Modern stylish clothing, SUBTLE expressions — NOT theatrical\n• Setting: MODERN UPSCALE environment (contemporary apartment, sleek studio, modern office, chic urban area — NOT a market, NOT a village, NOT traditional). Natural warm lighting. Product at REAL proportions — THE EXACT SAME product from the reference image\n• Soft, clean, natural style. NO title/headline text on image. NO distortion, NO inconsistencies\n• FORMAT: Vertical 4:5 (1080×1250) — portrait orientation${buildHumanPhotoRealismRules()}${buildSemanticIllustrationRules({
-        mainClaim: angle?.titre_angle || fallbackAngle.titre_angle,
-        supportText: angle?.explication || angle?.message_principal || fallbackAngle.explication,
-        promise: angle?.promesse || fallbackAngle.promesse,
-        bullets: gptResult.benefits_bullets || [],
-      })}`;
-      let anglePrompt;
-      if (i === 0) {
-        anglePrompt = buildBenefitsInfographicPrompt(gptResult, visualTemplate, visualContext);
-      } else {
-        anglePrompt = buildAngleImagePrompt(angle || fallbackAngle, gptResult, !!baseImageBuffer, visualTemplate, i, visualContext, approach)
-          || `${buildFlashFallbackPrompt(flash, angle || fallbackAngle, gptResult, visualTemplate, visualContext, approach, i)}${africanRealism}`;
-      }
-
-      imageTasks.push(
-        () => generateAndUpload(anglePrompt, baseImageBuffer, `flash-${i + 1}-${Date.now()}.png`, 'scene', imageAspectRatio)
-          .then(url => ({ type: 'poster', index: i, url, angle, flashType: flash.type }))
-      );
-    }
-
-    // ── People photos — 3 photos lifestyle de personnes réelles tenant le produit ──
-    const peoplePhotoPrompts = buildPeopleHoldingProductPrompts(gptResult, visualContext);
-    peoplePhotoPrompts.forEach((peoplePrompt, idx) => {
-      imageTasks.push(
-        () => generateAndUpload(peoplePrompt, baseImageBuffer, `people-${idx + 1}-${Date.now()}.png`, 'scene', '1:1')
-          .then(url => ({ type: 'people_photo', index: idx, url }))
-      );
+    void runBackgroundImageGeneration({
+      taskId,
+      workspaceId: req.workspaceId,
+      userId,
+      productData: productPage,
+      visualTemplate,
+      visualContext,
+      approach,
+      realPhotos,
+      cleanUrl,
+      sourceBuffer: imageFiles[0]?.buffer || null,
+      imageJobId: jobId,
     });
-
-    // Exécuter les générations par batch de 5 — PAS DE TIMEOUT GLOBAL, on attend jusqu'au bout
-    const BATCH_SIZE = 5;
-    const BATCH_DELAY_MS = 1500;
-
-    jobData.total = imageTasks.length + descriptionGifSpecs.length;
-    console.log(`🎨 [BG] ${imageTasks.length} images à générer, par batch de ${BATCH_SIZE}...`);
-
-    const imageResults = [];
-    for (let b = 0; b < imageTasks.length; b += BATCH_SIZE) {
-      const batch = imageTasks.slice(b, b + BATCH_SIZE);
-      const batchNum = Math.floor(b / BATCH_SIZE) + 1;
-      const totalBatches = Math.ceil(imageTasks.length / BATCH_SIZE);
-      console.log(`🔄 [BG] Batch ${batchNum}/${totalBatches} (${batch.length} images)...`);
-
-      const batchResults = await Promise.allSettled(
-        batch.map((factory) =>
-          factory().then(result => {
-            jobData.progress++;
-            return result;
-          })
-        )
-      );
-
-      batchResults.forEach(r => imageResults.push(r.status === 'fulfilled' ? r.value : null));
-
-      // Persist progress to MongoDB after each batch
-      const progressPercent = Math.round((imageResults.length / jobData.total) * 100);
-      await updateTask(taskId, {
-        progress: imageResults.length,
-        progressPercent,
-        currentStep: `Images: batch ${batchNum}/${totalBatches}`,
-      });
-
-      // Wait between batches to avoid 429
-      if (b + BATCH_SIZE < imageTasks.length) {
-        await new Promise(r => setTimeout(r, BATCH_DELAY_MS));
-      }
-    }
-
-    // Extraire les résultats
-    jobData.heroImage = imageResults.find(r => r?.type === 'hero')?.url || null;
-
-    jobData.beforeAfterImages = imageResults
-      .filter(r => r?.type === 'before_after')
-      .sort((a, b) => (a?.index ?? 0) - (b?.index ?? 0))
-      .map(r => r?.url)
-      .filter(Boolean);
-    jobData.beforeAfterImage = jobData.beforeAfterImages[0] || null; // backward compat
-
-    jobData.angles = imageResults
-      .filter(r => r?.type === 'poster')
-      .sort((a, b) => (a?.index ?? 0) - (b?.index ?? 0))
-      .map(r => ({
-        ...r?.angle,
-        poster_url: r?.url || null,
-        index: (r?.index ?? 0) + 1,
-        flashType: r?.flashType || null
-      }));
-
-    // Backward compatibility: expose the first marketing poster as heroPosterImage
-    jobData.heroPosterImage = jobData.angles.find((angle) => angle?.poster_url)?.poster_url || null;
-
-    jobData.peoplePhotos = imageResults
-      .filter(r => r?.type === 'people_photo')
-      .sort((a, b) => (a?.index ?? 0) - (b?.index ?? 0))
-      .map(r => r?.url)
-      .filter(Boolean);
-
-    jobData.socialProofImages = [
-      ...jobData.peoplePhotos,
-      ...jobData.beforeAfterImages,
-    ].filter((url, index, array) => url && array.indexOf(url) === index);
-
-    const descriptionGifImageGroups = [
-      [
-        jobData.heroImage,
-        jobData.angles[0]?.poster_url,
-        jobData.beforeAfterImages[0],
-        jobData.angles[1]?.poster_url,
-        realPhotos[0],
-      ],
-      [
-        jobData.heroPosterImage,
-        jobData.angles[2]?.poster_url,
-        jobData.beforeAfterImages[1] || jobData.beforeAfterImages[0],
-        jobData.angles[3]?.poster_url,
-      ],
-    ].map((group) => group.filter(Boolean));
-
-    const descriptionGifTasks = descriptionGifSpecs.map((gifSpec, index) => async () => {
-      const sourceImages = descriptionGifImageGroups[index] || [];
-      if (sourceImages.length < 2) return null;
-      try {
-        const url = await generateDescriptionGifFromImages(sourceImages, {
-          width: 768,
-          height: 432,
-          fps: 8,
-          frameDurationMs: 1200,
-          filePrefix: `${gifSpec.key}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-        });
-        return { type: 'description_gif', index, url, key: gifSpec.key, title: gifSpec.title };
-      } catch (gifErr) {
-        console.warn(`⚠️ GIF description ${gifSpec.key} échoué: ${gifErr.message}`);
-        return null;
-      } finally {
-        jobData.progress++;
-      }
-    });
-
-    const gifResults = await Promise.allSettled(descriptionGifTasks.map((factory) => factory()));
-    jobData.descriptionGifs = gifResults
-      .map((result) => (result.status === 'fulfilled' ? result.value : null))
-      .filter((entry) => entry?.url)
-      .sort((a, b) => (a?.index ?? 0) - (b?.index ?? 0))
-      .map((entry) => ({
-        url: entry.url,
-        type: 'direct',
-        title: entry.title || (entry.key === 'usage-demo' ? 'GIF usage' : 'GIF résultat'),
-        order: entry.index,
-      }));
-
-    jobData.status = 'done';
-    console.log('✅ [BG] Images terminées:', {
-      hero: !!jobData.heroImage,
-      heroPoster: !!jobData.heroPosterImage,
-      beforeAfterImages: jobData.beforeAfterImages.length,
-      posters: jobData.angles.filter(p => p.poster_url).length,
-      peoplePhotos: jobData.peoplePhotos.length,
-      socialProofImages: jobData.socialProofImages.length,
-      descriptionGifs: jobData.descriptionGifs.length,
-    });
-
-    // Persist final result to MongoDB
-    await updateTask(taskId, {
-      status: 'done',
-      progressPercent: 100,
-      currentStep: 'Terminé',
-      images: {
-        heroImage: jobData.heroImage,
-        heroPosterImage: jobData.heroPosterImage,
-        beforeAfterImages: jobData.beforeAfterImages,
-        angles: jobData.angles,
-        peoplePhotos: jobData.peoplePhotos,
-        socialProofImages: jobData.socialProofImages,
-        descriptionGifs: jobData.descriptionGifs,
-      },
-    });
-
-      } catch (bgErr) {
-        console.error('❌ [BG] Erreur génération images:', bgErr.message);
-        jobData.status = 'error';
-        await updateTask(taskId, {
-          status: 'error',
-          errorMessage: bgErr.message,
-          currentStep: 'Erreur',
-        });
-      }
-    })();
 
   } catch (error) {
     console.error('❌ Erreur génération:', error.message);

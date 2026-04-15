@@ -191,6 +191,38 @@ RÈGLE CRITIQUE : le template influence UNIQUEMENT le style general du contenu.
 - Tous les prompts images et toutes les indications de design doivent etre coherents avec ce template backend sans figer la structure.`;
 }
 
+function buildFashionInstruction(fashionConfig) {
+  if (!fashionConfig) return '';
+  const avatarMap = {
+    female: 'une femme africaine naturelle (20-35 ans), silhouette realiste, expression assuree, peau noire, cheveux naturels ou styles modernes',
+    male: 'un homme africain naturel (22-38 ans), silhouette realiste, expression confiante, peau noire, style moderne',
+    both: 'un duo homme + femme africains (20-35 ans), attitude complice et editoriale, silhouettes credibles'
+  };
+  const avatarDesc = avatarMap[fashionConfig.avatar] || avatarMap.female;
+  const minimalistLine = fashionConfig.minimalist
+    ? 'PAGE MINIMALISTE MODE : garder uniquement hero, galerie silhouette, description matiere courte, guide tailles, temoignages, CTA. Pas de blocs "before/after", pas d\'infographies sante, pas de bullets longues. Typographie elegante, beaucoup de blanc, pas de badges criards.'
+    : '';
+  const sizesLine = (fashionConfig.sizes || []).length ? `- Tailles disponibles : ${fashionConfig.sizes.join(', ')}` : '';
+  const colorsLine = (fashionConfig.colors || []).length ? `- Couleurs disponibles : ${fashionConfig.colors.map(c => `${c.name} (${c.hex})`).join(', ')}` : '';
+
+  return `
+
+═══════════════════════════════════════════════
+MODE FASHION — HABILLAGE AVATAR
+═══════════════════════════════════════════════
+- Type de produit : vêtement ou accessoire de mode.
+- Avatar/mannequin attendu dans TOUS les visuels hero, poster et lifestyle : ${avatarDesc}.
+- OBLIGATION : les photos produit fournies doivent être PORTÉES par cet avatar, pas juste posées sur fond. L'IA d'image doit composer l'avatar avec le vêtement fourni comme référence (forme, couleur, motifs).
+- Les visuels doivent ressembler à un lookbook studio : fond neutre doux (beige, blanc cassé, terracotta), lumière naturelle, pose éditoriale naturelle, zéro texte overlay.
+- Les multi-photos fournies représentent des variantes de la MÊME pièce ou des angles — combine-les cohéremment sur l'avatar.
+${sizesLine}
+${colorsLine}
+${minimalistLine}
+- Les témoignages restent crédibles mais orientés mode : "tombé parfait", "coupe flatteuse", "tissu de qualité", "style qui attire les regards".
+- Le copywriting doit éviter le vocabulaire santé/bien-être et privilégier : style, silhouette, coupe, matière, occasion, confiance, élégance.
+`;
+}
+
 // ─── Parser JSON robuste pour réponses Groq/LLM ────────────────────
 function parseGroqJSON(text) {
   // 1. Supprimer blocs markdown
@@ -248,9 +280,11 @@ export async function analyzeWithVision(scrapedData, imageBuffers = [], marketin
     heroVisualDirection = '',
     decorationDirection = '',
     titleColor = '',
-    contentColor = ''
+    contentColor = '',
+    fashionConfig = null
   } = visualContext;
-  const visualTemplateInstruction = buildVisualTemplateInstruction(template, preferredColor, heroVisualDirection, decorationDirection, titleColor, contentColor);
+  const visualTemplateInstruction = buildVisualTemplateInstruction(template, preferredColor, heroVisualDirection, decorationDirection, titleColor, contentColor)
+    + buildFashionInstruction(fashionConfig);
 
   // Marketing approach definitions
   const approachGuides = {

@@ -41,13 +41,19 @@ const BOUTIQUE_NAV = [
     ],
   },
   {
-    name: 'Mes Générations',
-    href: '/ecom/boutique/generations',
+    name: 'Product Page Studio',
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M4 6.75A2.75 2.75 0 016.75 4h10.5A2.75 2.75 0 0120 6.75v10.5A2.75 2.75 0 0117.25 20H6.75A2.75 2.75 0 014 17.25V6.75z" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M8 8.5h8M8 12h5.5M8 15.5h4" />
       </svg>
     ),
+    children: [
+      { name: 'Vue studio', href: '/ecom/boutique/product-page-studio' },
+      { name: 'Toutes les generations', href: '/ecom/boutique/product-page-studio/generations' },
+      { name: 'Echecs & reprise', href: '/ecom/boutique/product-page-studio/errors' },
+      { name: 'Nouvelle generation', href: '/ecom/boutique/products/generator' },
+    ],
   },
   {
     name: 'Commandes',
@@ -592,7 +598,10 @@ const getBoutiquePageTitle = (pathname) => {
   if (pathname.includes('/boutique/product-settings')) return 'Paramètres Page Produit';
   if (pathname.includes('/boutique/theme')) return 'Thème & Design';
   if (pathname.includes('/creative-generator')) return 'Générateur de Créas';
-  if (pathname.includes('/generations')) return 'Mes Générations';
+  if (pathname.includes('/boutique/product-page-studio/errors')) return 'Product Page Studio - Echecs';
+  if (pathname.includes('/boutique/product-page-studio/generations')) return 'Product Page Studio - Generations';
+  if (pathname.includes('/boutique/product-page-studio')) return 'Product Page Studio';
+  if (pathname.includes('/generations')) return 'Product Page Studio';
   if (pathname.includes('/boutique/settings')) return 'Paramètres & Branding';
   return 'Boutique';
 };
