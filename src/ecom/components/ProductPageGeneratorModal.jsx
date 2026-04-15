@@ -938,21 +938,6 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
     }
   }, [initialTaskId]);
 
-  // Fetch credit info on mount
-  useEffect(() => {
-    fetchGenerationsInfo();
-  }, [fetchGenerationsInfo]);
-
-  useEffect(() => {
-    if (!pendingGenerationToken) return undefined;
-
-    setPaymentNotice('Paiement en attente de confirmation. Tes crédits seront ajoutés automatiquement dès validation.');
-    const runCheck = () => checkPendingGenerationPayment({ silent: true });
-    runCheck();
-    const interval = window.setInterval(runCheck, 3000);
-    return () => window.clearInterval(interval);
-  }, [checkPendingGenerationPayment, pendingGenerationToken]);
-
   // Validation des étapes
   const isStep1Valid = () => {
     if (inputMode === 'url') {
@@ -1084,6 +1069,21 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
       if (!silent) setPaymentChecking(false);
     }
   }, [clearPendingGenerationPayment, handleGenerationPaymentConfirmed, pendingGenerationToken]);
+
+  // Fetch credit info on mount
+  useEffect(() => {
+    fetchGenerationsInfo();
+  }, [fetchGenerationsInfo]);
+
+  useEffect(() => {
+    if (!pendingGenerationToken) return undefined;
+
+    setPaymentNotice('Paiement en attente de confirmation. Tes crédits seront ajoutés automatiquement dès validation.');
+    const runCheck = () => checkPendingGenerationPayment({ silent: true });
+    runCheck();
+    const interval = window.setInterval(runCheck, 3000);
+    return () => window.clearInterval(interval);
+  }, [checkPendingGenerationPayment, pendingGenerationToken]);
 
   const openCreditsPaymentModal = useCallback((message = 'Tu n\'as plus de crédits. Achète un pack pour continuer.') => {
     zeroCreditPromptRef.current = true;
