@@ -17,6 +17,30 @@ import StoreProduct from '../models/StoreProduct.js';
 import Store from '../models/Store.js';
 import WhatsAppInstance from '../models/WhatsAppInstance.js';
 
+const PLAN_LABELS = {
+  free: 'Gratuit',
+  starter: 'Scalor',
+  pro: 'Scalor + IA',
+  ultra: 'Scalor IA Pro',
+  trial: 'Essai gratuit'
+};
+
+const RESOURCE_LABELS = {
+  orders: 'commandes',
+  customers: 'clients',
+  products: 'produits',
+  stores: 'boutiques',
+  whatsappInstances: 'instances WhatsApp'
+};
+
+const FEATURE_LABELS = {
+  hasAiAgent: 'L\'agent WhatsApp IA',
+  hasAdvancedAnalytics: 'Les analyses avancees',
+  hasAutomation: 'Les automatisations',
+  hasCustomDomain: 'Le domaine personnalise',
+  hasMultiUser: 'La gestion multi-utilisateurs'
+};
+
 const planCache = { data: null, ts: 0 };
 const CACHE_MS = 30_000;
 
@@ -30,6 +54,58 @@ async function getPlanConfigs() {
   planCache.data = map;
   planCache.ts = now;
   return map;
+}
+
+function getPlanLabel(planKey, config = null) {
+  return config?.displayName || PLAN_LABELS[planKey] || planKey || 'Gratuit';
+}
+
+function getResourceLabel(resource) {
+  return RESOURCE_LABELS[resource] || 'ressources';
+}
+
+function getFeatureLabel(featureKey) {
+  return FEATURE_LABELS[featureKey] || 'Cette fonctionnalite';
+}
+
+function getSortedPlans(plans) {
+  return Object.values(plans || {})
+    .filter(Boolean)
+    .sort((left, right) => Number(left.order || 0) - Number(right.order || 0));
+}
+
+function findNextPlanForLimit(plans, resource, currentMax) {
+  const limitKey = LIMIT_KEY_BY_RESOURCE[resource];
+  if (!limitKey) return null;
+
+  return getSortedPlans(plans).find((plan) => {
+    const nextMax = plan?.limits?.[limitKey];
+    if (nextMax == null) return false;
+    if (nextMax === -1) return true;
+    if (currentMax === -1) return false;
+    return Number(nextMax) > Number(currentMax);
+  }) || null;
+}
+
+function findRequiredPlanForFeature(plans, featureKey) {
+  return getSortedPlans(plans).find((plan) => plan?.features?.[featureKey] === true) || null;
+}
+
+function buildLimitReachedMessage({ resource, planLabel, current, limit, requiredPlanLabel }) {
+  const resourceLabel = getResourceLabel(resource);
+  const baseMessage = `Votre plan ${planLabel} autorise jusqu'a ${limit} ${resourceLabel}. Vous avez deja atteint cette limite (${current}/${limit}).`;
+  if (requiredPlanLabel) {
+    return `${baseMessage} Passez au plan ${requiredPlanLabel} pour continuer.`;
+  }
+  return `${baseMessage} Passez a un plan superieur pour continuer.`;
+}
+
+function buildFeatureUnavailableMessage({ featureKey, planLabel, requiredPlanLabel }) {
+  const featureLabel = getFeatureLabel(featureKey);
+  if (requiredPlanLabel) {
+    return `${featureLabel} n'est pas disponible sur votre plan ${planLabel}. Cette fonctionnalite necessite le plan ${requiredPlanLabel} ou superieur.`;
+  }
+  return `${featureLabel} n'est pas disponible sur votre plan ${planLabel}. Passez a un plan superieur pour y acceder.`;
 }
 
 export function invalidatePlanCache() {
@@ -97,19 +173,33 @@ export function checkPlanLimit(resource) {
       const cfg = plans[planKey] || plans.free;
       const limitKey = LIMIT_KEY_BY_RESOURCE[resource];
       const max = cfg?.limits?.[limitKey];
+      const planLabel = getPlanLabel(planKey, cfg);
 
       if (max == null || max === -1) return next();
 
       const current = await countByResource(resource, workspaceId);
       if (current >= max) {
+        const requiredPlanConfig = findNextPlanForLimit(plans, resource, max);
+        const requiredPlan = requiredPlanConfig?.key || null;
         return res.status(403).json({
           success: false,
           error: 'PLAN_LIMIT_REACHED',
+          restrictionType: 'plan_limit',
           resource,
+          resourceLabel: getResourceLabel(resource),
           plan: planKey,
+          planLabel,
           limit: max,
           current,
-          message: `Limite de votre plan atteinte (${current}/${max}). Mettez à niveau pour continuer.`,
+          requiredPlan,
+          requiredPlanLabel: requiredPlan ? getPlanLabel(requiredPlan, requiredPlanConfig) : null,
+          message: buildLimitReachedMessage({
+            resource,
+            planLabel,
+            current,
+            limit: max,
+            requiredPlanLabel: requiredPlan ? getPlanLabel(requiredPlan, requiredPlanConfig) : null
+          }),
           upgradeUrl: '/ecom/tarifs'
         });
       }
@@ -133,12 +223,24 @@ export function requireFeature(featureKey) {
       const plans = await getPlanConfigs();
       const cfg = plans[planKey] || plans.free;
       if (!cfg?.features?.[featureKey]) {
+        const planLabel = getPlanLabel(planKey, cfg);
+        const requiredPlanConfig = findRequiredPlanForFeature(plans, featureKey);
+        const requiredPlan = requiredPlanConfig?.key || null;
         return res.status(403).json({
           success: false,
           error: 'FEATURE_NOT_AVAILABLE',
+          restrictionType: 'feature_gate',
           feature: featureKey,
+          featureLabel: getFeatureLabel(featureKey),
           plan: planKey,
-          message: `Cette fonctionnalité n'est pas incluse dans votre plan (${planKey}).`,
+          planLabel,
+          requiredPlan,
+          requiredPlanLabel: requiredPlan ? getPlanLabel(requiredPlan, requiredPlanConfig) : null,
+          message: buildFeatureUnavailableMessage({
+            featureKey,
+            planLabel,
+            requiredPlanLabel: requiredPlan ? getPlanLabel(requiredPlan, requiredPlanConfig) : null
+          }),
           upgradeUrl: '/ecom/tarifs'
         });
       }

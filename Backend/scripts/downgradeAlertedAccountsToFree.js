@@ -87,6 +87,7 @@ async function main() {
     await mongoose.disconnect();
     console.log('✅ Déconnecté de MongoDB');
     console.log(`🏁 Script terminé (${shouldExecute ? 'modifications appliquées' : 'aucune modification appliquée'})\n`);
+    process.exit(0);
   } catch (error) {
     console.error('\n❌ ERREUR FATALE:', error);
     try {

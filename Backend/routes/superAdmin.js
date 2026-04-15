@@ -9,11 +9,12 @@ import GenerationPayment from '../models/GenerationPayment.js';
 import WhatsAppLog from '../models/WhatsAppLog.js';
 import SupportConversation from '../models/SupportConversation.js';
 import StoreProduct from '../models/StoreProduct.js';
+import WhatsAppInstance from '../models/WhatsAppInstance.js';
 import { requireEcomAuth, requireSuperAdmin } from '../middleware/ecomAuth.js';
 import { logAudit, auditSensitiveAccess, AuditLog } from '../middleware/security.js';
 import { sendCustomNotificationEmail, sendNotificationEmail } from '../core/notifications/email.service.js';
 import { sendPushNotification, sendPushNotificationToUser } from '../services/pushService.js';
-import { buildRenewalSubscriptionWarning, clearSubscriptionWarning, downgradeWorkspaceToFree } from '../services/workspacePlanService.js';
+import { buildPlanUpdatedWarning, buildRenewalSubscriptionWarning, clearSubscriptionWarning, downgradeWorkspaceToFree } from '../services/workspacePlanService.js';
 import { emitSupportConversationUpdate } from '../services/socketService.js';
 import { formatInternationalPhone } from '../utils/phoneUtils.js';
 
@@ -705,16 +706,28 @@ router.get('/whatsapp-logs',
 // GET /api/ecom/super-admin/support/config — Support notification settings
 router.get('/support/config', requireEcomAuth, requireSuperAdmin, async (req, res) => {
   try {
-    const admin = await EcomUser.findById(req.ecomUser._id)
-      .select('supportNotificationPhone supportNotificationEnabled phone')
-      .lean();
+    const adminUserId = req.ecomUser?._id?.toString();
+    const [admin, availableInstances] = await Promise.all([
+      EcomUser.findById(req.ecomUser._id)
+        .select('supportNotificationPhone supportNotificationInstanceId supportNotificationEnabled phone')
+        .lean(),
+      WhatsAppInstance.find({
+        userId: adminUserId,
+        isActive: true,
+      })
+        .select('_id instanceName customName status lastSeen workspaceId')
+        .sort({ lastSeen: -1 })
+        .lean(),
+    ]);
 
     res.json({
       success: true,
       data: {
         supportNotificationPhone: admin?.supportNotificationPhone || '',
+        supportNotificationInstanceId: admin?.supportNotificationInstanceId ? String(admin.supportNotificationInstanceId) : '',
         supportNotificationEnabled: admin?.supportNotificationEnabled === true,
         fallbackPhone: admin?.phone || '',
+        availableInstances,
       }
     });
   } catch (err) {
@@ -726,8 +739,10 @@ router.get('/support/config', requireEcomAuth, requireSuperAdmin, async (req, re
 // PUT /api/ecom/super-admin/support/config — Update WhatsApp notification destination
 router.put('/support/config', requireEcomAuth, requireSuperAdmin, async (req, res) => {
   try {
-    const { supportNotificationPhone, supportNotificationEnabled } = req.body || {};
+    const adminUserId = req.ecomUser?._id?.toString();
+    const { supportNotificationPhone, supportNotificationEnabled, supportNotificationInstanceId } = req.body || {};
     let cleanPhone = '';
+    let cleanInstanceId = null;
 
     if (supportNotificationPhone) {
       const phoneCheck = formatInternationalPhone(supportNotificationPhone);
@@ -737,22 +752,56 @@ router.put('/support/config', requireEcomAuth, requireSuperAdmin, async (req, re
       cleanPhone = phoneCheck.formatted;
     }
 
+    if (supportNotificationInstanceId) {
+      const instance = await WhatsAppInstance.findOne({
+        _id: supportNotificationInstanceId,
+        userId: adminUserId,
+        isActive: true,
+        status: { $in: ['connected', 'active', 'configured'] },
+      }).select('_id status');
+
+      if (!instance) {
+        return res.status(400).json({ success: false, message: 'Instance WhatsApp support introuvable' });
+      }
+
+      cleanInstanceId = instance._id;
+    }
+
+    if (supportNotificationEnabled === true && !cleanPhone) {
+      return res.status(400).json({ success: false, message: 'Numero WhatsApp requis pour activer les alertes support' });
+    }
+
+    if (supportNotificationEnabled === true && !cleanInstanceId) {
+      return res.status(400).json({ success: false, message: 'Selectionnez une instance WhatsApp dediee au support' });
+    }
+
     const admin = await EcomUser.findByIdAndUpdate(
       req.ecomUser._id,
       {
         $set: {
           supportNotificationPhone: cleanPhone,
+          supportNotificationInstanceId: cleanInstanceId,
           supportNotificationEnabled: supportNotificationEnabled === true && !!cleanPhone,
         },
       },
       { new: true }
-    ).select('supportNotificationPhone supportNotificationEnabled');
+    ).select('supportNotificationPhone supportNotificationInstanceId supportNotificationEnabled');
+
+    const availableInstances = await WhatsAppInstance.find({
+      userId: adminUserId,
+      isActive: true,
+    })
+      .select('_id instanceName customName status lastSeen workspaceId')
+      .sort({ lastSeen: -1 })
+      .lean();
 
     res.json({
       success: true,
       data: {
         supportNotificationPhone: admin?.supportNotificationPhone || '',
+        supportNotificationInstanceId: admin?.supportNotificationInstanceId ? String(admin.supportNotificationInstanceId) : '',
         supportNotificationEnabled: admin?.supportNotificationEnabled === true,
+        availableInstances,
       }
     });
   } catch (err) {
@@ -1032,6 +1081,11 @@ router.patch('/workspaces/:id/plan', requireEcomAuth, requireSuperAdmin, async (
       return res.status(400).json({ success: false, message: 'Plan invalide (free/starter/pro/ultra)' });
     }
 
+    const parsedDurationMonths = plan === 'free' ? 1 : Number.parseInt(String(durationMonths), 10);
+    if (plan !== 'free' && ![1, 3, 6, 12].includes(parsedDurationMonths)) {
+      return res.status(400).json({ success: false, message: 'Durée invalide (1/3/6/12 mois)' });
+    }
+
     const workspace = await Workspace.findById(req.params.id);
     if (!workspace) return res.status(404).json({ success: false, message: 'Workspace introuvable' });
 
@@ -1044,17 +1098,25 @@ router.patch('/workspaces/:id/plan', requireEcomAuth, requireSuperAdmin, async (
         createSystemNotification: true
       });
     } else {
+      const planLabels = {
+        starter: 'Scalor',
+        pro: 'Pro',
+        ultra: 'Ultra'
+      };
       const now = new Date();
       const base = workspace.planExpiresAt && workspace.planExpiresAt > now ? workspace.planExpiresAt : now;
       const newExpiry = new Date(base);
-      newExpiry.setMonth(newExpiry.getMonth() + durationMonths);
+      newExpiry.setMonth(newExpiry.getMonth() + parsedDurationMonths);
       workspace.plan = plan;
       workspace.planExpiresAt = newExpiry;
-      workspace.subscriptionWarning = clearSubscriptionWarning();
+      workspace.subscriptionWarning = buildPlanUpdatedWarning({
+        message: `Votre plan a ete mis a jour vers ${planLabels[plan] || plan}.`,
+        activatedBy: req.ecomUser._id
+      });
       await workspace.save();
     }
 
-    res.json({ success: true, workspace: { _id: workspace._id, plan: workspace.plan, planExpiresAt: workspace.planExpiresAt } });
+    res.json({ success: true, workspace: { _id: workspace._id, plan: workspace.plan, planExpiresAt: workspace.planExpiresAt, durationMonths: parsedDurationMonths } });
   } catch (err) {
     console.error('[SuperAdmin] PATCH /workspaces/:id/plan error:', err.message);
     res.status(500).json({ success: false, message: 'Erreur serveur' });

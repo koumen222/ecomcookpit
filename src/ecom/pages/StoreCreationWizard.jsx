@@ -9,6 +9,7 @@ import {
 import { storeManageApi, storesApi } from '../services/storeApi.js';
 import { storeProductsApi } from '../services/storeApi.js';
 import { createEmptyStore } from '../utils/storeDefaults.js';
+import { getErrorMessage } from '../utils/errorMessages.js';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // DONNÉES
@@ -688,7 +689,7 @@ const StoreCreationWizard = ({ onComplete }) => {
         nextPath,
       });
     } catch (err) {
-      setErrors({ submit: err.response?.data?.message || 'Une erreur est survenue' });
+      setErrors({ submit: getErrorMessage(err, 'Impossible de créer la boutique.') });
     } finally {
       setSaving(false);
       setSavingStep('');

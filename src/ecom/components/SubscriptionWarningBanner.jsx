@@ -6,10 +6,12 @@ const SubscriptionWarningBanner = ({ warning }) => {
   const [hoursLeft, setHoursLeft] = useState(0);
   const [hidden, setHidden] = useState(false);
   const navigate = useNavigate();
+  const isInformationalNotice = warning?.variant === 'downgraded' || warning?.variant === 'plan_updated';
   const isDowngradedNotice = warning?.variant === 'downgraded';
+  const isPlanUpdatedNotice = warning?.variant === 'plan_updated';
 
   useEffect(() => {
-    if (!warning?.deadline || isDowngradedNotice) {
+    if (!warning?.deadline || isInformationalNotice) {
       setHoursLeft(0);
       return;
     }
@@ -22,13 +24,13 @@ const SubscriptionWarningBanner = ({ warning }) => {
     setHoursLeft(calc());
     const interval = setInterval(() => setHoursLeft(calc()), 60000);
     return () => clearInterval(interval);
-  }, [isDowngradedNotice, warning?.deadline]);
+  }, [isInformationalNotice, warning?.deadline]);
 
   if (!warning?.active || hidden) return null;
 
-  const isExpired = !isDowngradedNotice && hoursLeft <= 0;
-  const background = isDowngradedNotice ? '#d97706' : isExpired ? '#dc2626' : '#ef4444';
-  const buttonLabel = isDowngradedNotice ? 'Voir les tarifs' : 'Renouveler';
+  const isExpired = !isInformationalNotice && hoursLeft <= 0;
+  const background = isDowngradedNotice ? '#d97706' : isPlanUpdatedNotice ? '#2563eb' : isExpired ? '#dc2626' : '#ef4444';
+  const buttonLabel = isInformationalNotice ? 'Voir les tarifs' : 'Renouveler';
 
   return (
     <div
@@ -53,13 +55,13 @@ const SubscriptionWarningBanner = ({ warning }) => {
       }}
     >
       <span>
-        {isDowngradedNotice
+        {isInformationalNotice
           ? 'ℹ️ '
           : isExpired
           ? '⚠️ Accès suspendu — '
           : '⚠️ '}
         {warning.message || 'Votre abonnement expire bientôt. Renouvelez pour garder l\'accès.'}
-        {!isDowngradedNotice && !isExpired && (
+        {!isInformationalNotice && !isExpired && (
           <span style={{ marginLeft: 6, fontWeight: 700 }}>
             ⏳ {hoursLeft}h restantes
           </span>

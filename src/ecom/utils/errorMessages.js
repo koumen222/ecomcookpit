@@ -46,6 +46,59 @@ const DOMAIN_ERROR_MESSAGES = {
   'Confirmation invalide': 'La confirmation ne correspond pas. Vérifiez et réessayez.',
 };
 
+const PLAN_LABELS = {
+  free: 'Gratuit',
+  starter: 'Scalor',
+  pro: 'Scalor + IA',
+  ultra: 'Scalor IA Pro',
+  trial: 'Essai gratuit',
+};
+
+const RESOURCE_LABELS = {
+  orders: 'commandes',
+  customers: 'clients',
+  products: 'produits',
+  stores: 'boutiques',
+  whatsappInstances: 'instances WhatsApp',
+};
+
+function formatPlanLabel(planKey, fallbackLabel = '') {
+  return fallbackLabel || PLAN_LABELS[planKey] || planKey || 'Gratuit';
+}
+
+function getPlanRestrictionMessage(err) {
+  const data = err?.response?.data;
+  if (!data || typeof data !== 'object') return '';
+
+  const hasPlanMarker = Boolean(
+    data.upgradeUrl
+    || data.requiresPlan
+    || data.requiredPlan
+    || ['PLAN_LIMIT_REACHED', 'FEATURE_NOT_AVAILABLE', 'upgrade_required', 'limit_reached'].includes(data.error)
+  );
+
+  if (!hasPlanMarker) return '';
+
+  const planLabel = formatPlanLabel(data.plan, data.planLabel);
+  const requiredPlanLabel = formatPlanLabel(data.requiredPlan || data.requiresPlan, data.requiredPlanLabel);
+  const resourceLabel = data.resourceLabel || RESOURCE_LABELS[data.resource] || 'ressources';
+  const serverMessage = typeof data.message === 'string' ? data.message.trim() : '';
+
+  if (data.error === 'PLAN_LIMIT_REACHED') {
+    return serverMessage || `Votre plan ${planLabel} a atteint sa limite pour ${resourceLabel}. Passez au plan ${requiredPlanLabel || 'supérieur'} pour continuer.`;
+  }
+
+  if (data.error === 'FEATURE_NOT_AVAILABLE' || data.requiresPlan) {
+    return serverMessage || `Cette fonctionnalité n'est pas disponible sur votre plan ${planLabel}. Elle nécessite le plan ${requiredPlanLabel || 'supérieur'}.`;
+  }
+
+  if (data.error === 'upgrade_required' || data.error === 'limit_reached') {
+    return serverMessage || `Cette action n'est pas disponible sur votre plan actuel. Passez au plan ${requiredPlanLabel || 'supérieur'} pour continuer.`;
+  }
+
+  return serverMessage;
+}
+
 /**
  * Returns a human-readable error message from any error object.
  * @param {any} err - The caught error
@@ -54,6 +107,11 @@ const DOMAIN_ERROR_MESSAGES = {
  */
 export function getErrorMessage(err, fallback = 'Une erreur inattendue est survenue. Réessayez.') {
   if (!err) return fallback;
+
+  if (err?.userMessage) return err.userMessage;
+
+  const planRestrictionMessage = getPlanRestrictionMessage(err);
+  if (planRestrictionMessage) return planRestrictionMessage;
 
   // Axios response error — has server message
   const serverMessage = err?.response?.data?.message;

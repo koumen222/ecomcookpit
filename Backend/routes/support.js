@@ -226,7 +226,8 @@ async function notifySupportAdmins(conversation) {
       isActive: true,
       supportNotificationEnabled: true,
       supportNotificationPhone: { $nin: ['', null] },
-    }).select('name email supportNotificationPhone').lean(),
+      supportNotificationInstanceId: { $ne: null },
+    }).select('name email supportNotificationPhone supportNotificationInstanceId').lean(),
   ]);
 
   if (!admins.length) return;
@@ -257,6 +258,7 @@ async function notifySupportAdmins(conversation) {
         workspaceId: conversation.workspaceId,
         userId: admin._id,
         firstName: admin.name || '',
+        instanceId: admin.supportNotificationInstanceId,
       });
 
       notifiedPhone = admin.supportNotificationPhone;
@@ -278,6 +280,7 @@ async function notifySupportAdmins(conversation) {
           summary,
           link,
           workflowStatus: conversation.workflowStatus,
+          supportNotificationInstanceId: admin.supportNotificationInstanceId,
         },
       });
     } catch (error) {
@@ -299,6 +302,7 @@ async function notifySupportAdmins(conversation) {
           summary,
           link,
           workflowStatus: conversation.workflowStatus,
+          supportNotificationInstanceId: admin.supportNotificationInstanceId,
         },
       });
     }
