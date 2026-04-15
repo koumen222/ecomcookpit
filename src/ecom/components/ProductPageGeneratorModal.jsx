@@ -166,6 +166,32 @@ function TypingText({ text }) {
   );
 }
 
+const FASHION_SIZES_LETTER = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL'];
+const FASHION_SIZES_NUMERIC = ['36', '38', '40', '42', '44', '46', '48'];
+const FASHION_SIZES_SHOES = ['36', '37', '38', '39', '40', '41', '42', '43', '44', '45'];
+const FASHION_COLORS = [
+  { name: 'Noir', hex: '#000000' },
+  { name: 'Blanc', hex: '#FFFFFF' },
+  { name: 'Gris', hex: '#9CA3AF' },
+  { name: 'Beige', hex: '#D6C7A8' },
+  { name: 'Rouge', hex: '#DC2626' },
+  { name: 'Rose', hex: '#EC4899' },
+  { name: 'Orange', hex: '#F97316' },
+  { name: 'Jaune', hex: '#EAB308' },
+  { name: 'Vert', hex: '#16A34A' },
+  { name: 'Bleu', hex: '#2563EB' },
+  { name: 'Bleu marine', hex: '#1E3A8A' },
+  { name: 'Violet', hex: '#7C3AED' },
+  { name: 'Marron', hex: '#78350F' },
+  { name: 'Doré', hex: '#D4AF37' },
+  { name: 'Argenté', hex: '#C0C0C0' },
+];
+const FASHION_AVATAR_OPTIONS = [
+  { value: 'female', label: 'Femme', icon: '👩', hint: 'Portée par une silhouette féminine' },
+  { value: 'male', label: 'Homme', icon: '👨', hint: 'Portée par une silhouette masculine' },
+  { value: 'both', label: 'Les deux', icon: '👫', hint: 'Unisexe — visuels mixtes' },
+];
+
 const VISUAL_TEMPLATES = [
   { id: 'beauty', label: 'Beauté & Cosmétique', icon: Sparkles, desc: 'Crèmes, sérums, soins peau, cheveux, maquillage', border: 'border-slate-300', bg: 'bg-slate-50', iconWrap: 'bg-slate-100 text-slate-700' },
   { id: 'health', label: 'Santé & Nutrition', icon: Shield, desc: 'Compléments, vitamines, minceur, bien-être', border: 'border-slate-300', bg: 'bg-slate-50', iconWrap: 'bg-slate-100 text-slate-700' },
@@ -639,7 +665,25 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
     return h;
   };
 
+  const DRAFT_KEY = 'generatedProductDraft';
+  const saveDraft = (productData, templateId) => {
+    try {
+      localStorage.setItem(DRAFT_KEY, JSON.stringify({ product: productData, visualTemplate: templateId, savedAt: Date.now() }));
+    } catch {}
+  };
+  const loadDraft = () => {
+    try { return JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null'); }
+    catch { return null; }
+  };
+  const clearDraft = () => { try { localStorage.removeItem(DRAFT_KEY); } catch {} };
+
   const [phase, setPhase] = useState('input');
+  const [draftBanner, setDraftBanner] = useState(() => {
+    try {
+      const d = JSON.parse(localStorage.getItem('generatedProductDraft') || 'null');
+      return d?.product ? d : null;
+    } catch { return null; }
+  });
   const [step, setStep] = useState(1); // 1: Base info, 2: Copywriting, 3: Advanced (optional)
   const [productSubstep, setProductSubstep] = useState(1);
   const [inputMode, setInputMode] = useState('url'); // 'url' ou 'description'
@@ -647,6 +691,10 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
   const [description, setDescription] = useState('');
   const [photos, setPhotos] = useState([]);
   const [visualTemplate, setVisualTemplate] = useState('beauty');
+  const [fashionAvatar, setFashionAvatar] = useState('female'); // 'female' | 'male' | 'both'
+  const [fashionSizes, setFashionSizes] = useState([]); // ['S','M','L','XL']
+  const [fashionColors, setFashionColors] = useState([]); // [{name, hex}]
+  const [fashionMinimalist, setFashionMinimalist] = useState(true);
   const [templateTheme, setTemplateTheme] = useState(() => buildTemplateTheme('beauty'));
   const [heroVisualDirection, setHeroVisualDirection] = useState(() => buildTemplateTheme('beauty').heroVisual || '');
   const [decorationDirection, setDecorationDirection] = useState(() => buildTemplateTheme('beauty').decorationVisual || '');
@@ -795,18 +843,20 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
           });
           setImagesLoading(false);
           setImageJobId(null);
+          // Save final draft with images
+          setProduct(prev2 => { if (prev2) saveDraft(prev2, visualTemplate); return prev2; });
           return; // Stop polling
         }
 
         // Still generating — poll again in 4s
-        if (!cancelled) setTimeout(poll, 4000);
+        if (!cancelled) setTimeout(poll, 3000);
       } catch {
-        if (!cancelled) setTimeout(poll, 6000);
+        if (!cancelled) setTimeout(poll, 4000);
       }
     };
 
-    // Start first poll after 5s (images take time)
-    const timer = setTimeout(poll, 5000);
+    // Start first poll after 2s (images take time)
+    const timer = setTimeout(poll, 2000);
     return () => { cancelled = true; clearTimeout(timer); };
   }, [imageJobId, phase]);
 
@@ -855,6 +905,9 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
       const data = await resp.json();
       if (data.success && data.task?.product) {
         setProduct(data.task.product);
+        if (data.task.product.visualTemplate) {
+          setVisualTemplate(data.task.product.visualTemplate);
+        }
         setShowTaskList(false);
         setPhase('preview');
         setActiveTab('page');
@@ -1104,6 +1157,12 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
     formData.append('imageAspectRatio', imageGenerationMode === 'ad_4_5' ? '4:5' : '1:1');
     formData.append('marketingApproach', marketingApproach);
     formData.append('visualTemplate', visualTemplate);
+    if (visualTemplate === 'fashion') {
+      formData.append('fashionAvatar', fashionAvatar);
+      formData.append('fashionMinimalist', fashionMinimalist ? 'true' : 'false');
+      if (fashionSizes.length) formData.append('fashionSizes', JSON.stringify(fashionSizes));
+      if (fashionColors.length) formData.append('fashionColors', JSON.stringify(fashionColors));
+    }
     if (heroVisualDirection.trim()) formData.append('heroVisualDirection', heroVisualDirection.trim());
     if (decorationDirection.trim()) formData.append('decorationDirection', decorationDirection.trim());
     // Paramètres copywriting simplifiés
@@ -1174,6 +1233,9 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
 
         // Store product in state but DON'T switch to preview yet
         setProduct(result.product);
+        // Save text-only draft immediately so generation is never lost
+        saveDraft(result.product, visualTemplate);
+        setDraftBanner(null); // clear any old draft banner since we have a live generation
 
         // Store taskId for background tracking
         if (result.taskId) setCurrentTaskId(result.taskId);
@@ -1193,7 +1255,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
                     ...(wsId ? { 'X-Workspace-Id': wsId } : {})
                   }
                 });
-                if (!imgResp.ok) { setTimeout(doPoll, 4000); return; }
+                if (!imgResp.ok) { setTimeout(doPoll, 3000); return; }
                 const imgData = await imgResp.json();
 
                 // Update progress based on images received
@@ -1216,13 +1278,13 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
                   resolve(imgData);
                   return;
                 }
-                setTimeout(doPoll, 4000);
+                setTimeout(doPoll, 3000);
               } catch {
-                setTimeout(doPoll, 6000);
+                setTimeout(doPoll, 4000);
               }
             };
-            // First poll after 5s
-            setTimeout(doPoll, 5000);
+            // First poll after 2s
+            setTimeout(doPoll, 2000);
           });
 
           const imgResult = await pollImages();
@@ -1263,6 +1325,12 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
           });
           setImagesLoading(false);
         }
+
+        // Save draft to localStorage so generation is never lost
+        setProduct(prev => {
+          if (prev) saveDraft(prev, visualTemplate);
+          return prev;
+        });
 
         // NOW show confetti and switch to preview (all images are ready)
         setBuildProgress(100);
@@ -1535,12 +1603,12 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
       });
     }
     
-    const finalSocialProofImages = (product.socialProofImages || []).length
+    const finalSocialProofImages = ((product.socialProofImages || []).length
       ? (product.socialProofImages || []).reduce((acc, url, index) => {
           pushUniqueImage(acc, url, `${product.title || 'Produit'} — preuve sociale ${index + 1}`, 'social-proof');
           return acc;
         }, [])
-      : socialProofImages;
+      : socialProofImages).slice(0, 3);
     
     onApply({
       name: product.title || '',
@@ -1560,8 +1628,25 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
         descriptionGifs: descriptionGifs.map((gif) => gif.url),
         heroVisualDirection: heroVisualDirection.trim(),
         decorationDirection: decorationDirection.trim(),
-      }
+        ...(visualTemplate === 'fashion' ? {
+          fashionConfig: {
+            avatar: fashionAvatar,
+            minimalist: fashionMinimalist,
+            sizes: fashionSizes,
+            colors: fashionColors,
+          }
+        } : {}),
+      },
+      ...(visualTemplate === 'fashion' && (fashionSizes.length || fashionColors.length) ? {
+        variants: [
+          ...(fashionSizes.length ? [{ name: 'Taille', options: fashionSizes.map(s => s.startsWith('p') ? s.slice(1) : s) }] : []),
+          ...(fashionColors.length ? [{ name: 'Couleur', options: fashionColors.map(c => c.name), swatches: fashionColors }] : []),
+        ],
+      } : {})
     });
+    // Clear draft after successful apply
+    clearDraft();
+    setDraftBanner(null);
   };
 
   const handleRestart = () => {
@@ -1737,10 +1822,56 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
                         </button>
                       )}
                       {task.status === 'error' && (
-                        <span className="ml-3 text-xs text-red-500">{task.errorMessage || 'Erreur'}</span>
+                        <div className="ml-3 flex items-center gap-2 shrink-0">
+                          {task.product && (
+                            <button
+                              type="button"
+                              onClick={() => handleLoadTask(task._id)}
+                              className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700 transition hover:bg-amber-100"
+                            >
+                              Ouvrir contenu
+                            </button>
+                          )}
+                          <span className="text-xs text-red-500">{task.errorMessage || 'Erreur'}</span>
+                        </div>
                       )}
                     </div>
                   ))}
+                </div>
+              )}
+
+              {/* Draft restore banner */}
+              {draftBanner && (
+                <div className="flex items-center justify-between rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className="text-xl shrink-0">💾</span>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-amber-900 truncate">Génération sauvegardée : &ldquo;{draftBanner.product?.title || 'Page produit'}&rdquo;</p>
+                      <p className="text-xs text-amber-700">Reprend là où tu t&apos;es arrêté</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setProduct(draftBanner.product);
+                        if (draftBanner.visualTemplate) setVisualTemplate(draftBanner.visualTemplate);
+                        setDraftBanner(null);
+                        setPhase('preview');
+                        setActiveTab('page');
+                      }}
+                      className="rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-bold text-white hover:bg-amber-600 transition"
+                    >
+                      Reprendre
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { clearDraft(); setDraftBanner(null); }}
+                      className="rounded-lg border border-amber-300 px-3 py-1.5 text-xs font-semibold text-amber-700 hover:bg-amber-100 transition"
+                    >
+                      Ignorer
+                    </button>
+                  </div>
                 </div>
               )}
 
@@ -1795,6 +1926,127 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
                         Le template sert uniquement de point de départ visuel. La page finale, les visuels et la structure restent générés dynamiquement.
                       </p>
                     </div>
+
+                    {visualTemplate === 'fashion' && (
+                      <div className="mt-5 rounded-[24px] border-2 border-purple-100 bg-gradient-to-br from-purple-50/60 to-pink-50/40 p-5">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Crown className="h-4 w-4 text-purple-700" />
+                          <h4 className="text-sm font-bold text-purple-900">Configuration Mode & Vêtements</h4>
+                        </div>
+                        <p className="text-xs text-purple-700/80 mb-4">L'IA habillera l'avatar avec les photos de vêtements que tu fournis. Page produit minimaliste dédiée.</p>
+
+                        {/* Avatar gender */}
+                        <div className="mb-5">
+                          <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-purple-800">Avatar / Mannequin</label>
+                          <div className="grid grid-cols-3 gap-2">
+                            {FASHION_AVATAR_OPTIONS.map(opt => (
+                              <button
+                                key={opt.value}
+                                type="button"
+                                onClick={() => setFashionAvatar(opt.value)}
+                                className={`flex flex-col items-center gap-1 p-3 rounded-xl border-2 transition ${fashionAvatar === opt.value ? 'border-purple-500 bg-white shadow-sm' : 'border-transparent bg-white/60 hover:border-purple-200'}`}
+                              >
+                                <span className="text-2xl">{opt.icon}</span>
+                                <span className="text-xs font-semibold text-gray-800">{opt.label}</span>
+                                <span className="text-[10px] text-gray-500 leading-tight text-center">{opt.hint}</span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Tailles */}
+                        <div className="mb-5">
+                          <div className="flex items-center justify-between mb-2">
+                            <label className="text-xs font-semibold uppercase tracking-wider text-purple-800">Tailles disponibles</label>
+                            <span className="text-[10px] text-gray-500">{fashionSizes.length} sélectionnée{fashionSizes.length > 1 ? 's' : ''}</span>
+                          </div>
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-[10px] font-bold text-gray-500 w-14">LETTRES</span>
+                              {FASHION_SIZES_LETTER.map(s => {
+                                const active = fashionSizes.includes(s);
+                                return (
+                                  <button
+                                    key={s}
+                                    type="button"
+                                    onClick={() => setFashionSizes(prev => active ? prev.filter(x => x !== s) : [...prev, s])}
+                                    className={`min-w-[40px] px-2.5 py-1.5 rounded-lg text-xs font-bold border-2 transition ${active ? 'border-purple-500 bg-purple-500 text-white' : 'border-gray-200 bg-white text-gray-700 hover:border-purple-300'}`}
+                                  >{s}</button>
+                                );
+                              })}
+                            </div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-[10px] font-bold text-gray-500 w-14">EU</span>
+                              {FASHION_SIZES_NUMERIC.map(s => {
+                                const active = fashionSizes.includes(s);
+                                return (
+                                  <button
+                                    key={s}
+                                    type="button"
+                                    onClick={() => setFashionSizes(prev => active ? prev.filter(x => x !== s) : [...prev, s])}
+                                    className={`min-w-[40px] px-2.5 py-1.5 rounded-lg text-xs font-bold border-2 transition ${active ? 'border-purple-500 bg-purple-500 text-white' : 'border-gray-200 bg-white text-gray-700 hover:border-purple-300'}`}
+                                  >{s}</button>
+                                );
+                              })}
+                            </div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-[10px] font-bold text-gray-500 w-14">POINTURE</span>
+                              {FASHION_SIZES_SHOES.map(s => {
+                                const key = `p${s}`;
+                                const active = fashionSizes.includes(key);
+                                return (
+                                  <button
+                                    key={key}
+                                    type="button"
+                                    onClick={() => setFashionSizes(prev => active ? prev.filter(x => x !== key) : [...prev, key])}
+                                    className={`min-w-[40px] px-2.5 py-1.5 rounded-lg text-xs font-bold border-2 transition ${active ? 'border-purple-500 bg-purple-500 text-white' : 'border-gray-200 bg-white text-gray-700 hover:border-purple-300'}`}
+                                  >{s}</button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Couleurs */}
+                        <div className="mb-5">
+                          <div className="flex items-center justify-between mb-2">
+                            <label className="text-xs font-semibold uppercase tracking-wider text-purple-800">Couleurs disponibles</label>
+                            <span className="text-[10px] text-gray-500">{fashionColors.length} sélectionnée{fashionColors.length > 1 ? 's' : ''}</span>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            {FASHION_COLORS.map(c => {
+                              const active = fashionColors.some(x => x.hex === c.hex);
+                              return (
+                                <button
+                                  key={c.hex}
+                                  type="button"
+                                  onClick={() => setFashionColors(prev => active ? prev.filter(x => x.hex !== c.hex) : [...prev, c])}
+                                  className={`flex items-center gap-1.5 pl-1 pr-2.5 py-1 rounded-full border-2 text-xs font-medium transition ${active ? 'border-purple-500 bg-white shadow-sm' : 'border-gray-200 bg-white hover:border-purple-300'}`}
+                                >
+                                  <span className="w-5 h-5 rounded-full border border-gray-200" style={{ background: c.hex }} />
+                                  <span className="text-gray-700">{c.name}</span>
+                                  {active && <span className="text-purple-600 text-sm leading-none">✓</span>}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Style minimaliste */}
+                        <label className="flex items-start gap-3 p-3 bg-white rounded-xl border-2 border-purple-100 cursor-pointer hover:border-purple-300 transition">
+                          <input
+                            type="checkbox"
+                            checked={fashionMinimalist}
+                            onChange={e => setFashionMinimalist(e.target.checked)}
+                            className="mt-0.5 w-4 h-4 accent-purple-600"
+                          />
+                          <div className="flex-1">
+                            <p className="text-xs font-semibold text-gray-800">Page produit minimaliste</p>
+                            <p className="text-[11px] text-gray-500 mt-0.5">Layout éditorial épuré : focus silhouette, détails matière, moins de sections marketing. Recommandé pour la mode.</p>
+                          </div>
+                        </label>
+                      </div>
+                    )}
                   </div>
                   )}
 

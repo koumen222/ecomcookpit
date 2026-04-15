@@ -56,63 +56,69 @@ export const connectDB = async () => {
       // Ignore
     }
 
-    // ── Multi-store migration ──────────────────────────────────────────────
-    // For each workspace with a subdomain but no primaryStoreId yet,
-    // create a Store document and link it back to the workspace.
-    try {
-      const Workspace = mongoose.model('EcomWorkspace');
-      const Store = mongoose.model('Store');
-      const workspacesToMigrate = await Workspace.find({
-        subdomain: { $exists: true, $ne: null, $ne: '' },
-        primaryStoreId: { $exists: false }
-      }).select('_id name subdomain storeSettings storeTheme storePages storePixels storePayments storeDomains storeDeliveryZones whatsappAutoConfirm whatsappOrderTemplate whatsappAutoInstanceId whatsappAutoImageUrl whatsappAutoAudioUrl whatsappAutoVideoUrl whatsappAutoDocumentUrl whatsappAutoSendOrder whatsappAutoProductMediaRules shopifyWebhookToken orderWebhookToken orderWebhookFilters owner').lean();
+    // ── Multi-store migration (opt-in) ───────────────────────────────────
+    // Important: disabled by default to avoid auto-creating stores for new accounts.
+    // Enable only for one-shot legacy migration with:
+    // ENABLE_LEGACY_STORE_MIGRATION=true
+    const enableLegacyStoreMigration = String(process.env.ENABLE_LEGACY_STORE_MIGRATION || '').toLowerCase() === 'true';
+    if (enableLegacyStoreMigration) {
+      try {
+        const Workspace = mongoose.model('EcomWorkspace');
+        const Store = mongoose.model('Store');
+        const workspacesToMigrate = await Workspace.find({
+          subdomain: { $exists: true, $ne: null, $ne: '' },
+          primaryStoreId: { $exists: false }
+        }).select('_id name subdomain storeSettings storeTheme storePages storePixels storePayments storeDomains storeDeliveryZones whatsappAutoConfirm whatsappOrderTemplate whatsappAutoInstanceId whatsappAutoImageUrl whatsappAutoAudioUrl whatsappAutoVideoUrl whatsappAutoDocumentUrl whatsappAutoSendOrder whatsappAutoProductMediaRules shopifyWebhookToken orderWebhookToken orderWebhookFilters owner').lean();
 
-      let migrated = 0;
-      for (const ws of workspacesToMigrate) {
-        const existing = await Store.findOne({ workspaceId: ws._id }).select('_id').lean();
-        if (existing) {
-          // Already has a store — just link it
-          await Workspace.updateOne({ _id: ws._id }, { $set: { primaryStoreId: existing._id } });
-          continue;
+        let migrated = 0;
+        for (const ws of workspacesToMigrate) {
+          const existing = await Store.findOne({ workspaceId: ws._id }).select('_id').lean();
+          if (existing) {
+            // Already has a store — just link it
+            await Workspace.updateOne({ _id: ws._id }, { $set: { primaryStoreId: existing._id } });
+            continue;
+          }
+          const store = await Store.create({
+            workspaceId: ws._id,
+            name: ws.storeSettings?.storeName || ws.name,
+            subdomain: ws.subdomain,
+            isActive: true,
+            storeSettings: { ...ws.storeSettings, isStoreEnabled: ws.storeSettings?.isStoreEnabled ?? false },
+            storeTheme: ws.storeTheme || {},
+            storePages: ws.storePages || null,
+            storePixels: ws.storePixels || {},
+            storePayments: ws.storePayments || {},
+            storeDomains: ws.storeDomains || {},
+            storeDeliveryZones: ws.storeDeliveryZones || { countries: [], zones: [] },
+            whatsappAutoConfirm: ws.whatsappAutoConfirm || false,
+            whatsappOrderTemplate: ws.whatsappOrderTemplate || '',
+            whatsappAutoInstanceId: ws.whatsappAutoInstanceId || null,
+            whatsappAutoImageUrl: ws.whatsappAutoImageUrl || '',
+            whatsappAutoAudioUrl: ws.whatsappAutoAudioUrl || '',
+            whatsappAutoVideoUrl: ws.whatsappAutoVideoUrl || '',
+            whatsappAutoDocumentUrl: ws.whatsappAutoDocumentUrl || '',
+            whatsappAutoSendOrder: ws.whatsappAutoSendOrder || [],
+            whatsappAutoProductMediaRules: ws.whatsappAutoProductMediaRules || [],
+            createdBy: ws.owner
+          });
+          await Workspace.updateOne({ _id: ws._id }, { $set: { primaryStoreId: store._id } });
+          // Also tag existing products/orders for this workspace with this storeId
+          await mongoose.connection.db.collection('store_products').updateMany(
+            { workspaceId: ws._id, storeId: { $exists: false } },
+            { $set: { storeId: store._id } }
+          );
+          await mongoose.connection.db.collection('store_orders').updateMany(
+            { workspaceId: ws._id, storeId: { $exists: false } },
+            { $set: { storeId: store._id } }
+          );
+          migrated++;
         }
-        const store = await Store.create({
-          workspaceId: ws._id,
-          name: ws.storeSettings?.storeName || ws.name,
-          subdomain: ws.subdomain,
-          isActive: true,
-          storeSettings: { ...ws.storeSettings, isStoreEnabled: ws.storeSettings?.isStoreEnabled ?? false },
-          storeTheme: ws.storeTheme || {},
-          storePages: ws.storePages || null,
-          storePixels: ws.storePixels || {},
-          storePayments: ws.storePayments || {},
-          storeDomains: ws.storeDomains || {},
-          storeDeliveryZones: ws.storeDeliveryZones || { countries: [], zones: [] },
-          whatsappAutoConfirm: ws.whatsappAutoConfirm || false,
-          whatsappOrderTemplate: ws.whatsappOrderTemplate || '',
-          whatsappAutoInstanceId: ws.whatsappAutoInstanceId || null,
-          whatsappAutoImageUrl: ws.whatsappAutoImageUrl || '',
-          whatsappAutoAudioUrl: ws.whatsappAutoAudioUrl || '',
-          whatsappAutoVideoUrl: ws.whatsappAutoVideoUrl || '',
-          whatsappAutoDocumentUrl: ws.whatsappAutoDocumentUrl || '',
-          whatsappAutoSendOrder: ws.whatsappAutoSendOrder || [],
-          whatsappAutoProductMediaRules: ws.whatsappAutoProductMediaRules || [],
-          createdBy: ws.owner
-        });
-        await Workspace.updateOne({ _id: ws._id }, { $set: { primaryStoreId: store._id } });
-        // Also tag existing products/orders for this workspace with this storeId
-        await mongoose.connection.db.collection('store_products').updateMany(
-          { workspaceId: ws._id, storeId: { $exists: false } },
-          { $set: { storeId: store._id } }
-        );
-        await mongoose.connection.db.collection('store_orders').updateMany(
-          { workspaceId: ws._id, storeId: { $exists: false } },
-          { $set: { storeId: store._id } }
-        );
-        migrated++;
+        if (migrated > 0) console.log(`🏪 Multi-store migration: ${migrated} workspace(s) migrés vers le modèle Store`);
+      } catch (migErr) {
+        console.error('⚠️ Multi-store migration error (non-fatal):', migErr.message);
       }
-      if (migrated > 0) console.log(`🏪 Multi-store migration: ${migrated} workspace(s) migrés vers le modèle Store`);
-    } catch (migErr) {
-      console.error('⚠️ Multi-store migration error (non-fatal):', migErr.message);
+    } else {
+      console.log('ℹ️ Legacy store migration skipped (ENABLE_LEGACY_STORE_MIGRATION != true)');
     }
     // ──────────────────────────────────────────────────────────────────────
     

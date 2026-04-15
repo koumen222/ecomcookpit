@@ -139,6 +139,7 @@ const StoreProductsList = lazy(() => import('./pages/StoreProductsList.jsx'));
 const StoreProductForm = lazy(() => import('./pages/StoreProductForm.jsx'));
 const ProductPageGeneratorWizard = lazy(() => import('./pages/ProductPageGeneratorWizard.jsx'));
 const ProductPageBuilder = lazy(() => import('./pages/ProductPageBuilder.jsx'));
+const ProductPageStudio = lazy(() => import('./pages/ProductPageStudio.jsx'));
 const GenerationsPage = lazy(() => import('./pages/GenerationsPage.jsx'));
 const StoreAnalytics = lazy(() => import('./pages/StoreAnalytics.jsx'));
 const StoreDashboard = lazy(() => import('./pages/StoreDashboard.jsx'));
@@ -766,7 +767,10 @@ const EcomApp = () => {
                 <Route element={<ProtectedRoute requiredRole="ecom_admin"><RequireStore><BoutiqueLayout /></RequireStore></ProtectedRoute>}>
                   <Route path="/ecom/boutique" element={<StoreDashboard />} />
                   <Route path="/ecom/boutique/analytics" element={<StoreDashboard />} />
-                  <Route path="/ecom/boutique/generations" element={<GenerationsPage />} />
+                  <Route path="/ecom/boutique/generations" element={<Navigate to="/ecom/boutique/product-page-studio/generations" replace />} />
+                  <Route path="/ecom/boutique/product-page-studio" element={<ProductPageStudio />} />
+                  <Route path="/ecom/boutique/product-page-studio/generations" element={<GenerationsPage />} />
+                  <Route path="/ecom/boutique/product-page-studio/errors" element={<GenerationsPage />} />
                   <Route path="/ecom/boutique/products" element={<StoreProductsList />} />
                   <Route path="/ecom/boutique/products/categories" element={<StoreProductsList />} />
                   <Route path="/ecom/boutique/products/stock" element={<StoreProductsList />} />
