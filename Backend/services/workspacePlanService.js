@@ -2,11 +2,26 @@ import Notification from '../models/Notification.js';
 
 const SUBSCRIPTION_WARNING_VARIANTS = {
   renewal: 'renewal',
-  downgraded: 'downgraded'
+  downgraded: 'downgraded',
+  planUpdated: 'plan_updated'
 };
 
 const RENEWAL_WARNING_MESSAGE = 'Votre abonnement expire bientot. Vous avez 24h pour renouveler afin de conserver l\'acces a votre compte.';
 const DOWNGRADED_TO_FREE_MESSAGE = 'Votre compte est repasse au plan gratuit.';
+
+function buildPlanUpdatedWarning({
+  message,
+  activatedBy = null
+} = {}) {
+  return {
+    active: true,
+    variant: SUBSCRIPTION_WARNING_VARIANTS.planUpdated,
+    message: message || 'Votre plan a ete mis a jour.',
+    deadline: null,
+    activatedAt: new Date(),
+    activatedBy: activatedBy || null
+  };
+}
 
 function clearSubscriptionWarning() {
   return {
@@ -112,5 +127,6 @@ export {
   clearSubscriptionWarning,
   buildRenewalSubscriptionWarning,
   buildFreePlanDowngradeWarning,
+  buildPlanUpdatedWarning,
   downgradeWorkspaceToFree
 };

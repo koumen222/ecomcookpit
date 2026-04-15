@@ -34,6 +34,11 @@ const ecomUserSchema = new mongoose.Schema({
     trim: true,
     default: ''
   },
+  supportNotificationInstanceId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'WhatsappInstance',
+    default: null
+  },
   supportNotificationEnabled: {
     type: Boolean,
     default: false

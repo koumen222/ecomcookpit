@@ -7,8 +7,69 @@ import {
 import ecomApi from '../services/ecommApi.js';
 import { getContextualError } from '../utils/errorMessages';
 
+const FALLBACK_PLANS = [
+  { key: 'free', displayName: 'Gratuit', priceRegular: 0, currency: 'FCFA', order: 0 },
+  { key: 'starter', displayName: 'Scalor', priceRegular: 5000, currency: 'FCFA', order: 1 },
+  { key: 'pro', displayName: 'Pro', priceRegular: 10000, currency: 'FCFA', order: 2 },
+  { key: 'ultra', displayName: 'Ultra', priceRegular: 15000, currency: 'FCFA', order: 3 }
+];
+
+const formatMoney = (value) => Number(value || 0).toLocaleString('fr-FR');
+
+const formatPlanOptionLabel = (plan) => {
+  if (!plan || plan.key === 'free' || Number(plan.priceRegular || 0) === 0) {
+    return plan?.displayName || 'Gratuit';
+  }
+  return `${plan.displayName} — ${formatMoney(plan.priceRegular)} ${plan.currency || 'FCFA'}/mois`;
+};
+
+const getWorkspaceNoticeMeta = (warning) => {
+  if (!warning?.active) {
+    return {
+      buttonLabel: 'Activer alerte renouvellement (24h)',
+      buttonClass: 'bg-orange-50 text-orange-700 hover:bg-orange-100 ring-orange-600/20',
+      Icon: Bell,
+      helperClass: 'text-orange-500',
+      helperText: ''
+    };
+  }
+
+  if (warning.variant === 'downgraded') {
+    return {
+      buttonLabel: 'Désactiver annonce plan gratuit',
+      buttonClass: 'bg-amber-50 text-amber-700 hover:bg-amber-100 ring-amber-600/20',
+      Icon: BellOff,
+      helperClass: 'text-amber-600',
+      helperText: warning.message || 'Annonce plan gratuit active'
+    };
+  }
+
+  if (warning.variant === 'plan_updated') {
+    return {
+      buttonLabel: 'Désactiver annonce mise a jour plan',
+      buttonClass: 'bg-blue-50 text-blue-700 hover:bg-blue-100 ring-blue-600/20',
+      Icon: BellOff,
+      helperClass: 'text-blue-600',
+      helperText: warning.message || 'Annonce de mise a jour active'
+    };
+  }
+
+  return {
+    buttonLabel: 'Désactiver alerte renouvellement',
+    buttonClass: 'bg-red-50 text-red-700 hover:bg-red-100 ring-red-600/20',
+    Icon: BellOff,
+    helperClass: 'text-red-500',
+    helperText: warning.deadline
+      ? `Alerte active — expire ${new Date(warning.deadline).toLocaleString('fr-FR')}`
+      : (warning.message || 'Alerte active')
+  };
+};
+
 const SuperAdminWorkspaces = () => {
   const [workspaces, setWorkspaces] = useState([]);
+  const [availablePlans, setAvailablePlans] = useState(FALLBACK_PLANS);
+  const [planDrafts, setPlanDrafts] = useState({});
+  const [savingPlans, setSavingPlans] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -18,11 +79,32 @@ const SuperAdminWorkspaces = () => {
   const fetchWorkspaces = async () => {
     try {
       const res = await ecomApi.get('/super-admin/workspaces');
-      setWorkspaces(res.data.data.workspaces);
+      const items = res.data.data.workspaces || [];
+      setWorkspaces(items);
+      setPlanDrafts(Object.fromEntries(
+        items.map(ws => [ws._id, { plan: ws.plan || 'free', durationMonths: 1 }])
+      ));
     } catch (err) { setError(getContextualError(err, 'load_dashboard')); }
   };
 
-  useEffect(() => { fetchWorkspaces().finally(() => setLoading(false)); }, []);
+  const fetchPlans = async () => {
+    try {
+      const res = await ecomApi.get('/super-admin/plans');
+      const plans = (res.data.plans || [])
+        .filter(plan => ['free', 'starter', 'pro', 'ultra'].includes(plan.key))
+        .sort((left, right) => Number(left.order || 0) - Number(right.order || 0));
+
+      if (plans.length > 0) {
+        setAvailablePlans(plans);
+      }
+    } catch {
+      setAvailablePlans(FALLBACK_PLANS);
+    }
+  };
+
+  useEffect(() => {
+    Promise.all([fetchWorkspaces(), fetchPlans()]).finally(() => setLoading(false));
+  }, []);
 
   const handleToggle = async (wsId) => {
     try { const res = await ecomApi.put(`/super-admin/workspaces/${wsId}/toggle`); setSuccess(res.data.message); fetchWorkspaces(); }
@@ -37,13 +119,41 @@ const SuperAdminWorkspaces = () => {
     } catch (err) { setError(getContextualError(err, 'update_settings')); }
   };
 
-  const handleSetPlan = async (wsId, plan) => {
+  const updatePlanDraft = (wsId, field, value) => {
+    setPlanDrafts(prev => {
+      const current = prev[wsId] || { plan: 'free', durationMonths: 1 };
+      if (field === 'plan' && value === 'free') {
+        return { ...prev, [wsId]: { plan: 'free', durationMonths: 1 } };
+      }
+      return {
+        ...prev,
+        [wsId]: {
+          ...current,
+          [field]: value
+        }
+      };
+    });
+  };
+
+  const handleSetPlan = async (wsId) => {
+    const draft = planDrafts[wsId] || { plan: 'free', durationMonths: 1 };
+    const plan = draft.plan || 'free';
+    const durationMonths = plan === 'free' ? 1 : Number(draft.durationMonths || 1);
+    const selectedPlanConfig = availablePlans.find(item => item.key === plan);
+    const selectedPlanLabel = selectedPlanConfig?.displayName || plan;
+
     try {
-      await ecomApi.patch(`/super-admin/workspaces/${wsId}/plan`, { plan, durationMonths: 1 });
-      setSuccess(`Plan mis à jour : ${plan}`);
-      fetchWorkspaces();
+      setSavingPlans(prev => ({ ...prev, [wsId]: true }));
+      await ecomApi.patch(`/super-admin/workspaces/${wsId}/plan`, { plan, durationMonths });
+      setSuccess(plan === 'free'
+        ? 'Plan gratuit appliqué'
+        : `Plan ${selectedPlanLabel} appliqué pour ${durationMonths} mois`
+      );
+      await fetchWorkspaces();
     } catch (err) {
       setError(getContextualError(err, 'update_settings'));
+    } finally {
+      setSavingPlans(prev => ({ ...prev, [wsId]: false }));
     }
   };
 
@@ -217,7 +327,15 @@ const SuperAdminWorkspaces = () => {
           </div>
         ) : (
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {filteredWorkspaces.map(ws => (
+            {filteredWorkspaces.map(ws => {
+              const planDraft = planDrafts[ws._id] || { plan: ws.plan || 'free', durationMonths: 1 };
+              const selectedPlan = planDraft.plan || 'free';
+              const selectedDuration = Number(planDraft.durationMonths || 1);
+              const selectedPlanConfig = availablePlans.find(plan => plan.key === selectedPlan) || FALLBACK_PLANS.find(plan => plan.key === selectedPlan);
+              const noticeMeta = getWorkspaceNoticeMeta(ws.subscriptionWarning);
+              const NoticeIcon = noticeMeta.Icon;
+
+              return (
               <div key={ws._id} className={`group bg-white rounded-2xl border-2 overflow-hidden transition-all duration-300 hover:shadow-xl hover:shadow-slate-900/5 hover:-translate-y-1 ${ws.isActive ? 'border-slate-200' : 'border-amber-200 opacity-80'}`}>
                 {/* Accent bar */}
                 <div className={`h-1.5 bg-gradient-to-r ${ws.isActive ? 'from-emerald-500 to-teal-500' : 'from-amber-500 to-red-500'}`} />
@@ -274,19 +392,44 @@ const SuperAdminWorkspaces = () => {
                   </div>
 
                   {/* Plan selector */}
-                  <div className="flex items-center gap-2 mb-3">
-                    <Crown className="w-4 h-4 text-slate-400 flex-shrink-0" />
-                    <span className="text-xs text-slate-500 font-medium">Plan:</span>
-                    <select
-                      value={ws.plan || 'free'}
-                      onChange={(e) => handleSetPlan(ws._id, e.target.value)}
-                      className="flex-1 text-xs font-bold border border-slate-200 rounded-lg px-2 py-1 bg-white text-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  <div className="mb-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Crown className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                      <span className="text-xs text-slate-500 font-medium">Définir le plan</span>
+                    </div>
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_120px]">
+                      <select
+                        value={selectedPlan}
+                        onChange={(e) => updatePlanDraft(ws._id, 'plan', e.target.value)}
+                        className="text-xs font-bold border border-slate-200 rounded-lg px-2 py-2 bg-white text-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      >
+                        {availablePlans.map(plan => (
+                          <option key={plan.key} value={plan.key}>{formatPlanOptionLabel(plan)}</option>
+                        ))}
+                      </select>
+                      <select
+                        value={String(selectedDuration)}
+                        onChange={(e) => updatePlanDraft(ws._id, 'durationMonths', Number(e.target.value))}
+                        disabled={selectedPlan === 'free'}
+                        className="text-xs font-bold border border-slate-200 rounded-lg px-2 py-2 bg-white text-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
+                      >
+                        <option value="1">1 mois</option>
+                        <option value="3">3 mois</option>
+                        <option value="6">6 mois</option>
+                        <option value="12">12 mois</option>
+                      </select>
+                    </div>
+                    <button
+                      onClick={() => handleSetPlan(ws._id)}
+                      disabled={!!savingPlans[ws._id]}
+                      className="mt-2 w-full py-2 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700 transition disabled:opacity-60 disabled:cursor-not-allowed"
                     >
-                      <option value="free">Gratuit</option>
-                        <option value="starter">Scalor — 5 000 FCFA/mois</option>
-                        <option value="pro">Pro — 10 000 FCFA/mois</option>
-                      <option value="ultra">Ultra — 15 000 FCFA/mois</option>
-                    </select>
+                      {savingPlans[ws._id]
+                        ? 'Application...'
+                        : selectedPlan === 'free'
+                          ? 'Mettre au plan gratuit'
+                          : `Appliquer ${selectedPlanConfig?.displayName || selectedPlan} (${selectedDuration} mois)`}
+                    </button>
                   </div>
                   {ws.planExpiresAt && (
                     <p className="text-[10px] text-slate-400 mb-3 text-center">
@@ -368,21 +511,13 @@ const SuperAdminWorkspaces = () => {
                   {/* Subscription Warning toggle */}
                   <button
                     onClick={() => handleSubscriptionWarning(ws._id, ws.subscriptionWarning?.active)}
-                    className={`w-full inline-flex items-center justify-center gap-2 py-2.5 text-xs font-bold rounded-xl transition-all duration-300 ring-2 ring-inset ${
-                      ws.subscriptionWarning?.active
-                        ? 'bg-red-50 text-red-700 hover:bg-red-100 ring-red-600/20'
-                        : 'bg-orange-50 text-orange-700 hover:bg-orange-100 ring-orange-600/20'
-                    }`}
+                    className={`w-full inline-flex items-center justify-center gap-2 py-2.5 text-xs font-bold rounded-xl transition-all duration-300 ring-2 ring-inset ${noticeMeta.buttonClass}`}
                   >
-                    {ws.subscriptionWarning?.active ? (
-                      <><BellOff className="w-3.5 h-3.5" /> Désactiver alerte renouvellement</>
-                    ) : (
-                      <><Bell className="w-3.5 h-3.5" /> Activer alerte renouvellement (24h)</>
-                    )}
+                    <><NoticeIcon className="w-3.5 h-3.5" /> {noticeMeta.buttonLabel}</>
                   </button>
-                  {ws.subscriptionWarning?.active && (
-                    <p className="text-[10px] text-red-500 text-center -mt-1">
-                      Alerte active — expire {new Date(ws.subscriptionWarning.deadline).toLocaleString('fr-FR')}
+                  {ws.subscriptionWarning?.active && noticeMeta.helperText && (
+                    <p className={`text-[10px] text-center -mt-1 ${noticeMeta.helperClass}`}>
+                      {noticeMeta.helperText}
                     </p>
                   )}
 
@@ -408,7 +543,7 @@ const SuperAdminWorkspaces = () => {
                   </button>
                 </div>
               </div>
-            ))}
+            );})}
           </div>
         )}
       </div>

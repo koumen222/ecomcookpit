@@ -1,4 +1,5 @@
 ﻿import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useEcomAuth } from '../hooks/useEcomAuth';
 import ecomApi from '../services/ecommApi.js';
 
@@ -7,7 +8,8 @@ const SuperAdminSettings = () => {
   const [stats, setStats] = useState({ totalUsers: 0, totalWorkspaces: 0 });
   const [loading, setLoading] = useState(true);
   const [passwordData, setPasswordData] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
-  const [supportConfig, setSupportConfig] = useState({ supportNotificationPhone: '', supportNotificationEnabled: false });
+  const [supportConfig, setSupportConfig] = useState({ supportNotificationPhone: '', supportNotificationInstanceId: '', supportNotificationEnabled: false });
+  const [supportInstances, setSupportInstances] = useState([]);
   const [pwLoading, setPwLoading] = useState(false);
   const [supportSaving, setSupportSaving] = useState(false);
   const [success, setSuccess] = useState('');
@@ -27,8 +29,10 @@ const SuperAdminSettings = () => {
         });
         setSupportConfig({
           supportNotificationPhone: supportRes.data?.data?.supportNotificationPhone || '',
+          supportNotificationInstanceId: supportRes.data?.data?.supportNotificationInstanceId || '',
           supportNotificationEnabled: supportRes.data?.data?.supportNotificationEnabled === true,
         });
+        setSupportInstances(supportRes.data?.data?.availableInstances || []);
       } catch { }
       setLoading(false);
     };
@@ -69,8 +73,10 @@ const SuperAdminSettings = () => {
       const res = await ecomApi.put('/super-admin/support/config', supportConfig);
       setSupportConfig({
         supportNotificationPhone: res.data?.data?.supportNotificationPhone || '',
+        supportNotificationInstanceId: res.data?.data?.supportNotificationInstanceId || '',
         supportNotificationEnabled: res.data?.data?.supportNotificationEnabled === true,
       });
+      setSupportInstances(res.data?.data?.availableInstances || []);
       setSuccess('Configuration WhatsApp support mise à jour');
     } catch (err) {
       setError(err.response?.data?.message || 'Erreur mise a jour WhatsApp support');
@@ -163,6 +169,27 @@ const SuperAdminSettings = () => {
             Ce numero recoit uniquement les alertes d'escalade support. Les reponses restent dans l'application, jamais dans WhatsApp.
           </div>
           <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1.5">Instance WhatsApp dédiée au support</label>
+            <select
+              value={supportConfig.supportNotificationInstanceId}
+              onChange={(e) => setSupportConfig((prev) => ({ ...prev, supportNotificationInstanceId: e.target.value }))}
+              className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600/40 focus:border-emerald-500 transition"
+            >
+              <option value="">Sélectionner une instance</option>
+              {supportInstances.map((instance) => (
+                <option key={instance._id} value={instance._id}>
+                  {(instance.customName || instance.instanceName)} · {instance.status}
+                </option>
+              ))}
+            </select>
+            <div className="mt-2 flex items-center justify-between gap-3 text-xs">
+              <p className="text-gray-500">Crée ou connecte une instance dédiée pour le support avant d'activer les alertes.</p>
+              <Link to="/ecom/whatsapp/service" className="font-semibold text-emerald-700 hover:text-emerald-800">
+                Créer / connecter une instance
+              </Link>
+            </div>
+          </div>
+          <div>
             <label className="block text-xs font-medium text-gray-600 mb-1.5">Numero WhatsApp du super admin</label>
             <input
               type="text"
@@ -181,7 +208,7 @@ const SuperAdminSettings = () => {
             />
             <div>
               <p className="text-sm font-medium text-gray-900">Activer les alertes WhatsApp</p>
-              <p className="text-xs text-gray-500">Nouvelle question non resolue par l'IA → notification WhatsApp avec lien vers la conversation.</p>
+              <p className="text-xs text-gray-500">Nouvelle question non resolue par l'IA → notification WhatsApp via l'instance dédiée, avec lien vers la conversation.</p>
             </div>
           </label>
           <button

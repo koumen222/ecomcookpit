@@ -6,6 +6,7 @@ import AlibabaImportModal from '../components/AlibabaImportModal.jsx';
 import RichTextEditor from '../components/RichTextEditor.jsx';
 import QuantityOffersManager from '../components/QuantityOffersManager.jsx';
 import ReviewGenerator from '../components/ReviewGenerator.jsx';
+import { getErrorMessage } from '../utils/errorMessages.js';
 
 /**
  * Convert markdown image syntax to HTML <img> tags
@@ -669,7 +670,7 @@ const StoreProductForm = () => {
         setTimeout(() => navigate(`${basePath}/products`), 1000);
       }
     } catch (err) {
-      setError(err.response?.data?.message || 'Erreur lors de la sauvegarde');
+      setError(getErrorMessage(err, 'Impossible de sauvegarder le produit.'));
     } finally {
       setSaving(false);
     }

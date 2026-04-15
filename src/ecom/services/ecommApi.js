@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { logApiRequest, logApiResponse, logApiError, logAuthEvent, logPushEvent } from './prodLogger.js';
+import { getErrorMessage } from '../utils/errorMessages.js';
 
 // Configuration de base pour l'API e-commerce
 function normalizeBackendBaseUrl(raw = '') {
@@ -236,6 +237,28 @@ ecomApi.interceptors.response.use(
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;
+      }
+    }
+
+    // Normaliser les messages pour que les refus lies au plan ne ressortent pas
+    // comme de simples erreurs techniques dans l'UI.
+    const normalizedMessage = getErrorMessage(
+      error,
+      error.response?.data?.message || error.message || 'Une erreur est survenue.'
+    );
+
+    if (normalizedMessage) {
+      error.userMessage = normalizedMessage;
+
+      if (error.response?.data && typeof error.response.data === 'object') {
+        error.response.data.userMessage = normalizedMessage;
+        if (!error.response.data.message || /^Request failed with status code/i.test(error.response.data.message) || /^Erreur\b/i.test(error.response.data.message)) {
+          error.response.data.message = normalizedMessage;
+        }
+      }
+
+      if (!error.message || /^Request failed with status code/i.test(error.message)) {
+        error.message = normalizedMessage;
       }
     }
 

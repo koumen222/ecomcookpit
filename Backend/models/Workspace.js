@@ -183,7 +183,7 @@ const workspaceSchema = new mongoose.Schema({
     active: { type: Boolean, default: true },
     variant: {
       type: String,
-      enum: ['renewal', 'downgraded'],
+      enum: ['renewal', 'downgraded', 'plan_updated'],
       default: 'renewal'
     },
     message: { type: String, default: 'Votre abonnement expire bientôt. Vous avez 24h pour renouveler afin de conserver l\'accès à votre compte.' },
