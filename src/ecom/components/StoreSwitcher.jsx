@@ -19,7 +19,8 @@ const StoreSwitcher = ({ children }) => {
 
   const hasStores = stores && stores.length > 0;
   const displayName = activeStore?.storeSettings?.storeName || activeStore?.name || 'Ma boutique';
-  const themeColor = activeStore?.storeSettings?.storeThemeColor || '#0F6B4F';
+  const layoutAccentColor = '#0F6B4F';
+  const layoutAccentSoft = '#0F6B4F20';
 
   return (
     <div ref={ref} className="relative">
@@ -35,7 +36,7 @@ const StoreSwitcher = ({ children }) => {
         {/* Color dot */}
         <span
           className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-          style={{ backgroundColor: themeColor }}
+          style={{ backgroundColor: layoutAccentColor }}
         />
         <span className="truncate flex-1 text-left">{displayName}</span>
         {stores.length > 1 && (
@@ -56,19 +57,18 @@ const StoreSwitcher = ({ children }) => {
             )}
             {hasStores && stores.map(s => {
               const name = s.storeSettings?.storeName || s.name;
-              const color = s.storeSettings?.storeThemeColor || '#0F6B4F';
               const isActive = s._id === activeStore?._id;
               return (
                 <button
                   key={s._id}
                   onClick={() => { switchStore(s); setOpen(false); }}
                   className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm transition-colors ${
-                    isActive ? 'bg-emerald-50 text-emerald-700' : 'text-gray-700 hover:bg-gray-50'
+                    isActive ? 'bg-scalor-green/10 text-scalor-green' : 'text-gray-700 hover:bg-gray-50'
                   }`}
                 >
                   <span
                     className="w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold flex-shrink-0"
-                    style={{ backgroundColor: color + '20', color }}
+                    style={{ backgroundColor: layoutAccentSoft, color: layoutAccentColor }}
                   >
                     {name?.[0]?.toUpperCase() || '?'}
                   </span>
@@ -79,7 +79,7 @@ const StoreSwitcher = ({ children }) => {
                     )}
                   </div>
                   {isActive && (
-                    <svg className="w-4 h-4 text-emerald-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                    <svg className="w-4 h-4 text-scalor-green flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                     </svg>
                   )}
@@ -92,9 +92,9 @@ const StoreSwitcher = ({ children }) => {
                 <Link
                   to={hasStores ? "/ecom/boutique/nouvelle" : "/ecom/boutique/wizard"}
                   onClick={() => setOpen(false)}
-                  className="flex items-center gap-3 px-3 py-2.5 text-sm text-emerald-700 hover:bg-emerald-50 transition-colors"
+                  className="flex items-center gap-3 px-3 py-2.5 text-sm text-scalor-green hover:bg-scalor-green/10 transition-colors"
                 >
-                  <span className="w-7 h-7 rounded-lg bg-emerald-100 flex items-center justify-center flex-shrink-0">
+                  <span className="w-7 h-7 rounded-lg bg-scalor-green/10 flex items-center justify-center flex-shrink-0">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                     </svg>
