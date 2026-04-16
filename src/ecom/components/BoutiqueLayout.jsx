@@ -234,7 +234,8 @@ const BoutiqueLayoutInner = () => {
   }, []);
 
   const storeName = activeStore?.storeSettings?.storeName || activeStore?.name || workspace?.name || 'Ma Boutique';
-  const themeColor = activeStore?.storeSettings?.storeThemeColor || '#0F6B4F';
+  const layoutAccentColor = '#0F6B4F';
+  const layoutAccentSoft = '#0F6B4F20';
 
   // Show spinner only while stores are actively loading
   if (storeLoading) {
@@ -265,8 +266,8 @@ const BoutiqueLayoutInner = () => {
             </button>
             <StoreSwitcher>
               <div className="flex items-center gap-3 rounded-xl px-2 py-1.5 -mx-2 hover:bg-gray-50 transition-colors">
-                <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: themeColor + '20' }}>
-                  <svg className="w-5 h-5" style={{ color: themeColor }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: layoutAccentSoft }}>
+                  <svg className="w-5 h-5" style={{ color: layoutAccentColor }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
                   </svg>
                 </div>
@@ -299,7 +300,7 @@ const BoutiqueLayoutInner = () => {
                             ? 'bg-gray-100 text-gray-900'
                             : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                       }`}
-                      style={parentActive && !expanded ? { backgroundColor: themeColor } : {}}
+                              style={parentActive && !expanded ? { backgroundColor: layoutAccentColor } : {}}
                     >
                       <span className={`flex-shrink-0 ${parentActive && !expanded ? 'text-white' : parentActive ? 'text-gray-700' : 'text-gray-400 group-hover:text-gray-600'}`}>
                         {item.icon}
@@ -323,7 +324,7 @@ const BoutiqueLayoutInner = () => {
                                   ? 'text-white shadow-sm'
                                   : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
                               }`}
-                              style={childActive ? { backgroundColor: themeColor } : {}}
+                              style={childActive ? { backgroundColor: layoutAccentColor } : {}}
                             >
                               {child.name}
                             </Link>
@@ -346,7 +347,7 @@ const BoutiqueLayoutInner = () => {
                       ? 'text-white shadow-md'
                       : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                   }`}
-                  style={active ? { backgroundColor: themeColor } : {}}
+                  style={active ? { backgroundColor: layoutAccentColor } : {}}
                 >
                   <span className={`flex-shrink-0 ${active ? 'text-white' : 'text-gray-400 group-hover:text-gray-600'}`}>
                     {item.icon}
@@ -387,8 +388,8 @@ const BoutiqueLayoutInner = () => {
                 </svg>
               </button>
               <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ backgroundColor: themeColor + '20' }}>
-                  <svg className="w-4 h-4" style={{ color: themeColor }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ backgroundColor: layoutAccentSoft }}>
+                  <svg className="w-4 h-4" style={{ color: layoutAccentColor }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
                   </svg>
                 </div>
@@ -435,7 +436,7 @@ const BoutiqueLayoutInner = () => {
                 onClick={() => setMoreOpen(false)}
                 className="flex flex-col items-center justify-center flex-1 gap-1 transition-all duration-200 active:scale-95"
               >
-                <span className={`transition-colors duration-200 ${active ? '' : 'text-gray-500'}`} style={active ? { color: themeColor } : {}}>
+                <span className={`transition-colors duration-200 ${active ? '' : 'text-gray-500'}`} style={active ? { color: layoutAccentColor } : {}}>
                   {React.cloneElement(item.icon, { className: 'w-5 h-5' })}
                 </span>
                 <span className={`text-[10px] font-medium leading-none transition-colors duration-200 ${active ? 'text-gray-900' : 'text-gray-500'}`}>
@@ -477,9 +478,9 @@ const BoutiqueLayoutInner = () => {
                               <button
                                 onClick={() => setMobileExpandedGroup(groupExpanded ? null : item.name)}
                                 className={`flex items-center gap-4 px-5 py-4 w-full text-left text-[16px] font-medium active:bg-gray-100 transition-colors ${groupActive ? '' : 'text-gray-900'}`}
-                                style={groupActive ? { color: themeColor } : {}}
+                                style={groupActive ? { color: layoutAccentColor } : {}}
                               >
-                                <span className={`flex-shrink-0 ${groupActive ? '' : 'text-gray-400'}`} style={groupActive ? { color: themeColor } : {}}>
+                                <span className={`flex-shrink-0 ${groupActive ? '' : 'text-gray-400'}`} style={groupActive ? { color: layoutAccentColor } : {}}>
                                   {React.cloneElement(item.icon, { className: 'w-5 h-5' })}
                                 </span>
                                 <span className="flex-1 truncate">{item.name}</span>
@@ -498,7 +499,7 @@ const BoutiqueLayoutInner = () => {
                                         to={child.href}
                                         onClick={() => setMoreOpen(false)}
                                         className={`flex items-center gap-3 pl-14 pr-5 py-3 text-[15px] font-medium active:bg-gray-200 transition-colors ${childActive ? '' : 'text-gray-600'}`}
-                                        style={childActive ? { color: themeColor } : {}}
+                                        style={childActive ? { color: layoutAccentColor } : {}}
                                       >
                                         <span className="truncate">{child.name}</span>
                                       </Link>
@@ -516,9 +517,9 @@ const BoutiqueLayoutInner = () => {
                             to={item.href}
                             onClick={() => setMoreOpen(false)}
                             className={`flex items-center gap-4 px-5 py-4 text-[16px] font-medium active:bg-gray-100 transition-colors ${active ? '' : 'text-gray-900'}`}
-                            style={active ? { color: themeColor } : {}}
+                            style={active ? { color: layoutAccentColor } : {}}
                           >
-                            <span className={`flex-shrink-0 ${active ? '' : 'text-gray-400'}`} style={active ? { color: themeColor } : {}}>
+                            <span className={`flex-shrink-0 ${active ? '' : 'text-gray-400'}`} style={active ? { color: layoutAccentColor } : {}}>
                               {React.cloneElement(item.icon, { className: 'w-5 h-5' })}
                             </span>
                             <span className="flex-1 truncate">{item.name}</span>
