@@ -90,7 +90,7 @@ export default function UpgradeWall({ onDismiss, workspaceId, trialUsed = false 
               className="mt-5 inline-flex items-center gap-2 px-6 py-3 bg-white text-scalor-green-dark font-bold rounded-xl hover:bg-white/90 transition-all shadow-lg disabled:opacity-60"
             >
               <Clock className="w-4 h-4" />
-              {activatingTrial ? 'Activation...' : 'Essai gratuit 3 jours — Commencer maintenant'}
+              {activatingTrial ? 'Activation...' : 'Essai gratuit 7 jours — Commencer maintenant'}
               <ArrowRight className="w-4 h-4" />
             </button>
           )}

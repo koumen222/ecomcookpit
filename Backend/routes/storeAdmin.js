@@ -513,6 +513,21 @@ router.put('/payments', requireEcomAuth, requireWorkspace, async (req, res) => {
 
 // ─── DOMAINS ───────────────────────────────────────────────────────────────────
 
+function buildPublicStoreUrl(storeLike) {
+  const customDomain = String(storeLike?.storeDomains?.customDomain || '').trim().toLowerCase();
+  const isCustomDomainReady = storeLike?.storeDomains?.sslStatus === 'active' || storeLike?.storeDomains?.dnsVerified === true;
+
+  if (customDomain && isCustomDomainReady) {
+    return `https://${customDomain}`;
+  }
+
+  if (storeLike?.subdomain) {
+    return `https://${storeLike.subdomain}.scalor.net`;
+  }
+
+  return null;
+}
+
 router.get('/domains', requireEcomAuth, requireWorkspace, async (req, res) => {
   try {
     if (req.activeStoreId) {
@@ -523,7 +538,10 @@ router.get('/domains', requireEcomAuth, requireWorkspace, async (req, res) => {
           data: {
             subdomain: store.subdomain || '',
             customDomain: store.storeDomains?.customDomain || '',
-            sslStatus: store.storeDomains?.sslStatus || 'none'
+            sslStatus: store.storeDomains?.sslStatus || 'none',
+            dnsVerified: store.storeDomains?.dnsVerified === true,
+            storeUrl: buildPublicStoreUrl(store),
+            publicUrl: buildPublicStoreUrl(store)
           }
         });
       }
@@ -537,7 +555,10 @@ router.get('/domains', requireEcomAuth, requireWorkspace, async (req, res) => {
       data: {
         subdomain: workspace?.subdomain || '',
         customDomain: workspace?.storeDomains?.customDomain || '',
-        sslStatus: workspace?.storeDomains?.sslStatus || 'none'
+        sslStatus: workspace?.storeDomains?.sslStatus || 'none',
+        dnsVerified: workspace?.storeDomains?.dnsVerified === true,
+        storeUrl: buildPublicStoreUrl(workspace),
+        publicUrl: buildPublicStoreUrl(workspace)
       }
     });
   } catch (error) {
@@ -618,14 +639,21 @@ router.put('/domains', requireEcomAuth, requireWorkspace, async (req, res) => {
       invalidateStoreCache(update.subdomain);
     }
 
+    const latestDomainState = activeStore
+      ? await Store.findById(activeStore._id).select('subdomain storeDomains').lean()
+      : await Workspace.findById(req.workspaceId).select('subdomain storeDomains').lean();
+
     console.log('✅ Domains updated successfully');
     res.json({
       success: true,
       message: 'Domains updated',
       data: {
-        subdomain: update.subdomain ?? previousSubdomain ?? '',
-        customDomain: customDomain ?? '',
-        storeUrl: update.subdomain ? `https://${update.subdomain}.scalor.net` : null,
+        subdomain: latestDomainState?.subdomain || update.subdomain || previousSubdomain || '',
+        customDomain: latestDomainState?.storeDomains?.customDomain || customDomain || '',
+        sslStatus: latestDomainState?.storeDomains?.sslStatus || 'none',
+        dnsVerified: latestDomainState?.storeDomains?.dnsVerified === true,
+        storeUrl: buildPublicStoreUrl(latestDomainState),
+        publicUrl: buildPublicStoreUrl(latestDomainState),
       }
     });
   } catch (error) {
@@ -676,11 +704,28 @@ router.post('/domains/check-dns', requireEcomAuth, requireWorkspace, async (req,
 
     const ok = results.aOk || results.cnameOk;
 
+    const activeStore = req.activeStoreId
+      ? await Store.findOne({ _id: req.activeStoreId, workspaceId: req.workspaceId, isActive: true }).select('_id subdomain').lean()
+      : null;
+
     // If DNS is OK, update SSL status
     if (ok) {
-      await Workspace.findByIdAndUpdate(req.workspaceId, {
-        $set: { 'storeDomains.sslStatus': 'active', 'storeDomains.dnsVerified': true }
-      });
+      if (activeStore) {
+        await Store.findByIdAndUpdate(activeStore._id, {
+          $set: { 'storeDomains.sslStatus': 'active', 'storeDomains.dnsVerified': true }
+        });
+
+        const workspace = await Workspace.findById(req.workspaceId).select('primaryStoreId').lean();
+        if (String(workspace?.primaryStoreId) === String(activeStore._id)) {
+          await Workspace.findByIdAndUpdate(req.workspaceId, {
+            $set: { 'storeDomains.sslStatus': 'active', 'storeDomains.dnsVerified': true }
+          });
+        }
+      } else {
+        await Workspace.findByIdAndUpdate(req.workspaceId, {
+          $set: { 'storeDomains.sslStatus': 'active', 'storeDomains.dnsVerified': true }
+        });
+      }
     }
 
     res.json({

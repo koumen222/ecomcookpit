@@ -5,6 +5,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useEcomAuth } from '../hooks/useEcomAuth';
+import { useStore } from '../contexts/StoreContext.jsx';
 import api from '../../lib/api';
 import { storeManageApi } from '../services/storeApi.js';
 import { ExternalLink, Check, Upload, Palette, Type, Store, Megaphone, Sparkles, Loader2, RefreshCw, Settings, Eye } from 'lucide-react';
@@ -195,6 +196,7 @@ const ColorPicker = ({ label, value, onChange }) => (
 const BoutiqueSettings = () => {
   const navigate = useNavigate();
   const { workspace } = useEcomAuth();
+  const { getActiveStorefrontUrl } = useStore();
 
   const [form, setForm] = useState({
     storeName: '',
@@ -311,7 +313,7 @@ const BoutiqueSettings = () => {
     }
   };
 
-  const previewUrl = subdomain ? `https://${subdomain}.scalor.net` : null;
+  const previewUrl = getActiveStorefrontUrl() || (subdomain ? `https://${subdomain}.scalor.net` : null);
 
   return (
     <div className="p-4 lg:p-6 max-w-3xl mx-auto space-y-5">

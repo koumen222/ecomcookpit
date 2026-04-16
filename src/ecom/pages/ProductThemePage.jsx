@@ -308,7 +308,7 @@ const ProductThemePage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [activeSection, setActiveSection] = useState(searchParams.get('tab') || 'layout');
   const [colorTab, setColorTab] = useState('presets');
-  const { activeStore } = useStore();
+  const { activeStore, getActiveStorefrontUrl } = useStore();
 
   // Sync tab with URL query param
   useEffect(() => {
@@ -438,8 +438,8 @@ const ProductThemePage = () => {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              {storeSubdomain && (
-                <a href={`https://${storeSubdomain}.scalor.net`} target="_blank" rel="noopener noreferrer"
+              {getActiveStorefrontUrl() && (
+                <a href={getActiveStorefrontUrl()} target="_blank" rel="noopener noreferrer"
                   className="hidden sm:flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-500 transition hover:bg-gray-50">
                   <Eye size={14} /> Voir ma boutique
                 </a>

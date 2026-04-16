@@ -29,6 +29,21 @@ const isSupportedAuthToken = (token = '') => (
   isRawJwt(token)
 );
 
+const serializeWorkspace = (workspace, userRole) => {
+  if (!workspace) return null;
+
+  return {
+    _id: workspace._id,
+    id: workspace._id,
+    name: workspace.name,
+    slug: workspace.slug,
+    plan: workspace.plan,
+    trialEndsAt: workspace.trialEndsAt,
+    subscriptionWarning: workspace.subscriptionWarning,
+    inviteCode: userRole === 'ecom_admin' ? workspace.inviteCode : undefined,
+  };
+};
+
 // Helper: fire-and-forget analytics event from backend
 function trackEvent(req, eventType, userId, extra = {}) {
   const ua = req.headers['user-agent'] || '';
@@ -147,15 +162,7 @@ router.post('/login', validateEmail, async (req, res) => {
           workspaceId: user.workspaceId,
           deviceInfo: user.deviceInfo
         },
-        workspace: workspace ? {
-          id: workspace._id,
-          name: workspace.name,
-          slug: workspace.slug,
-          plan: workspace.plan,
-          trialEndsAt: workspace.trialEndsAt,
-          subscriptionWarning: workspace.subscriptionWarning,
-          inviteCode: user.role === 'ecom_admin' ? workspace.inviteCode : undefined
-        } : null
+        workspace: serializeWorkspace(workspace, user.role)
       }
     });
   } catch (error) {
@@ -223,14 +230,7 @@ router.post('/refresh', async (req, res) => {
           currency: user.currency,
           workspaceId: user.workspaceId
         },
-        workspace: workspace ? {
-          id: workspace._id,
-          name: workspace.name,
-          slug: workspace.slug,
-          plan: workspace.plan,
-          trialEndsAt: workspace.trialEndsAt,
-          subscriptionWarning: workspace.subscriptionWarning
-        } : null
+        workspace: serializeWorkspace(workspace, user.role)
       }
     });
   } catch (error) {
@@ -738,12 +738,7 @@ router.post('/google', async (req, res) => {
           currency: user.currency,
           workspaceId: user.workspaceId
         },
-        workspace: workspace ? {
-          id: workspace._id,
-          name: workspace.name,
-          slug: workspace.slug,
-          inviteCode: user.role === 'ecom_admin' ? workspace.inviteCode : undefined
-        } : null
+        workspace: serializeWorkspace(workspace, user.role)
       }
     });
   } catch (error) {
@@ -816,12 +811,7 @@ router.post('/create-workspace', async (req, res) => {
           currency: user.currency,
           workspaceId: workspace._id
         },
-        workspace: {
-          id: workspace._id,
-          name: workspace.name,
-          slug: workspace.slug,
-          inviteCode: workspace.inviteCode
-        }
+        workspace: serializeWorkspace(workspace, 'ecom_admin')
       }
     });
   } catch (error) {
@@ -899,12 +889,7 @@ router.post('/join-workspace', async (req, res) => {
           currency: user.currency,
           workspaceId: workspace._id
         },
-        workspace: {
-          id: workspace._id,
-          name: workspace.name,
-          slug: workspace.slug,
-          inviteCode: role === 'ecom_admin' ? workspace.inviteCode : undefined
-        }
+        workspace: serializeWorkspace(workspace, role)
       }
     });
   } catch (error) {
@@ -1001,15 +986,7 @@ router.get('/me', async (req, res) => {
           workspaceId: user.workspaceId,
           currency: user.currency
         },
-        workspace: workspace ? {
-          id: workspace._id,
-          name: workspace.name,
-          slug: workspace.slug,
-          plan: workspace.plan,
-          trialEndsAt: workspace.trialEndsAt,
-          subscriptionWarning: workspace.subscriptionWarning,
-          inviteCode: user.role === 'ecom_admin' ? workspace.inviteCode : undefined
-        } : null
+        workspace: serializeWorkspace(workspace, user.role)
       }
     });
   } catch (error) {

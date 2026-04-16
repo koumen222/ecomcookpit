@@ -26,6 +26,56 @@ function generateSubdomain(name) {
     .slice(0, 30);
 }
 
+function buildStorePublicUrl(store) {
+  const customDomain = String(store?.storeDomains?.customDomain || '').trim().toLowerCase();
+  const isCustomDomainReady = store?.storeDomains?.sslStatus === 'active' || store?.storeDomains?.dnsVerified === true;
+
+  if (customDomain && isCustomDomainReady) {
+    return `https://${customDomain}`;
+  }
+
+  if (store?.subdomain) {
+    return `https://${store.subdomain}.scalor.net`;
+  }
+
+  return null;
+}
+
+function hasLegacyWorkspaceStore(workspace) {
+  return Boolean(
+    workspace?.subdomain
+    || workspace?.storePages?.sections?.length > 0
+    || workspace?.storeSettings?.isStoreEnabled === true
+  );
+}
+
+function buildLegacyWorkspaceStore(workspace) {
+  const storeLike = {
+    subdomain: workspace?.subdomain || null,
+    storeDomains: workspace?.storeDomains || {},
+  };
+
+  return {
+    _id: null,
+    name: workspace?.storeSettings?.storeName || workspace?.name || 'Boutique',
+    subdomain: workspace?.subdomain || null,
+    storeSettings: workspace?.storeSettings || {},
+    storeTheme: workspace?.storeTheme || {},
+    storePages: workspace?.storePages || {},
+    storeDomains: workspace?.storeDomains || {},
+    isActive: true,
+    createdAt: workspace?.createdAt || null,
+    hasHomepage: !!(workspace?.storePages?.sections?.length > 0),
+    isPrimary: true,
+    customDomain: workspace?.storeDomains?.customDomain || '',
+    sslStatus: workspace?.storeDomains?.sslStatus || 'none',
+    dnsVerified: workspace?.storeDomains?.dnsVerified === true,
+    storeUrl: buildStorePublicUrl(storeLike),
+    publicUrl: buildStorePublicUrl(storeLike),
+    legacyWorkspaceStore: true,
+  };
+}
+
 // Helper: check subdomain availability across Store + Workspace (for backward compat)
 async function isSubdomainAvailable(subdomain, excludeStoreId = null) {
   const cleanSub = subdomain.toLowerCase().trim();
@@ -42,12 +92,12 @@ async function isSubdomainAvailable(subdomain, excludeStoreId = null) {
 router.get('/', requireEcomAuth, async (req, res) => {
   try {
     const stores = await Store.find({ workspaceId: req.workspaceId, isActive: true })
-      .select('_id name subdomain storeSettings storeTheme storePages isActive createdAt')
+      .select('_id name subdomain storeSettings storeTheme storePages storeDomains isActive createdAt')
       .sort({ createdAt: 1 })
       .lean();
 
     const ws = await Workspace.findById(req.workspaceId)
-      .select('primaryStoreId name subdomain storeSettings')
+      .select('primaryStoreId name subdomain storeSettings storeTheme storePages storeDomains createdAt')
       .lean();
 
     // Auto-assign orphan products/orders to primary store (one-time migration)
@@ -69,13 +119,24 @@ router.get('/', requireEcomAuth, async (req, res) => {
       }
     }
 
+    const normalizedStores = stores.map(s => ({
+      ...s,
+      hasHomepage: !!(s.storePages?.sections?.length > 0),
+      isPrimary: String(ws?.primaryStoreId) === String(s._id),
+      customDomain: s.storeDomains?.customDomain || '',
+      sslStatus: s.storeDomains?.sslStatus || 'none',
+      dnsVerified: s.storeDomains?.dnsVerified === true,
+      storeUrl: buildStorePublicUrl(s),
+      publicUrl: buildStorePublicUrl(s)
+    }));
+
+    if (normalizedStores.length === 0 && hasLegacyWorkspaceStore(ws)) {
+      normalizedStores.push(buildLegacyWorkspaceStore(ws));
+    }
+
     res.json({
       success: true,
-      data: stores.map(s => ({
-        ...s,
-        hasHomepage: !!(s.storePages?.sections?.length > 0),
-        isPrimary: String(ws?.primaryStoreId) === String(s._id)
-      }))
+      data: normalizedStores
     });
   } catch (err) {
     console.error('Erreur liste stores:', err);

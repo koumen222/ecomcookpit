@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { useStore } from '../contexts/StoreContext.jsx';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useStore, isStoreEnabled } from '../contexts/StoreContext.jsx';
 import {
   Check, ArrowRight, ArrowLeft, Loader2, Store, Palette, MapPin,
   Sparkles, MessageSquare, ChevronRight, Zap,
@@ -72,16 +72,27 @@ const STEPS = [
 // COMPOSANTS UI
 // ═══════════════════════════════════════════════════════════════════════════════
 
-const GENERATION_STEPS = [
+const BASE_GENERATION_STEPS = [
   { key: 'subdomain', label: 'Création de votre boutique' },
   { key: 'config', label: 'Enregistrement de vos informations' },
   { key: 'theme', label: 'Application du thème' },
-  { key: 'logo', label: 'Génération du logo par l\'IA' },
   { key: 'homepage', label: "Génération de la page d'accueil par l'IA" },
   { key: 'images', label: 'Création des visuels personnalisés' },
   { key: 'verification', label: 'Vérification finale de la boutique' },
   { key: 'done', label: 'Votre boutique est prête !' },
 ];
+
+const getGenerationSteps = ({ includeLogoStep = false } = {}) => {
+  if (!includeLogoStep) return BASE_GENERATION_STEPS;
+
+  return [
+    BASE_GENERATION_STEPS[0],
+    BASE_GENERATION_STEPS[1],
+    BASE_GENERATION_STEPS[2],
+    { key: 'logo', label: 'Application du logo' },
+    ...BASE_GENERATION_STEPS.slice(3),
+  ];
+};
 
 const LOGO_GENERATION_MESSAGES = [
   'Analyse du nom de boutique...',
@@ -90,8 +101,10 @@ const LOGO_GENERATION_MESSAGES = [
   'Finalisation et optimisation du rendu...',
 ];
 
-const GenerationOverlay = ({ currentStep, storeName, logoUrl }) => {
-  const currentIdx = GENERATION_STEPS.findIndex(s => s.key === currentStep);
+const GenerationOverlay = ({ currentStep, storeName, logoUrl, includeLogoStep = false }) => {
+  const generationSteps = getGenerationSteps({ includeLogoStep });
+  const currentIdx = generationSteps.findIndex((step) => step.key === currentStep);
+  const safeCurrentIdx = currentIdx >= 0 ? currentIdx : 0;
   const isLogoStep = currentStep === 'logo';
 
   return (
@@ -113,22 +126,21 @@ const GenerationOverlay = ({ currentStep, storeName, logoUrl }) => {
             </div>
           )}
           <h2 className="text-2xl font-bold text-white mb-2">
-            {currentStep === 'done' ? '🎉 Boutique créée !' : isLogoStep ? '🎨 Création du logo...' : 'Création en cours...'}
+            {currentStep === 'done' ? '🎉 Boutique créée !' : isLogoStep ? '🖼️ Préparation du logo...' : 'Création en cours...'}
           </h2>
           <p className="text-gray-400 text-sm">
             {currentStep === 'done'
               ? `${storeName || 'Votre boutique'} est prête`
               : isLogoStep
-                ? 'Notre IA dessine votre logo avec un rendu professionnel'
+                ? 'Nous ajoutons votre logo à la boutique'
               : "L'IA construit votre boutique sur mesure"}
           </p>
         </div>
 
         <div className="space-y-3">
-          {GENERATION_STEPS.map((step, idx) => {
-            const isDone = idx < currentIdx || currentStep === 'done';
-            const isActive = idx === currentIdx && currentStep !== 'done';
-            const isPending = idx > currentIdx && currentStep !== 'done';
+          {generationSteps.map((step, idx) => {
+            const isDone = idx < safeCurrentIdx || currentStep === 'done';
+            const isActive = idx === safeCurrentIdx && currentStep !== 'done';
 
             return (
               <div
@@ -163,7 +175,7 @@ const GenerationOverlay = ({ currentStep, storeName, logoUrl }) => {
             <div className="w-full bg-white/10 rounded-full h-1.5 overflow-hidden">
               <div
                 className="h-full bg-gradient-to-r from-emerald-400 to-teal-400 transition-all duration-700 ease-out"
-                style={{ width: `${Math.max(5, ((currentIdx + 0.5) / GENERATION_STEPS.length) * 100)}%` }}
+                style={{ width: `${Math.max(5, ((safeCurrentIdx + 0.5) / generationSteps.length) * 100)}%` }}
               />
             </div>
             <p className="text-xs text-gray-500 text-center mt-3">
@@ -281,7 +293,6 @@ const Textarea = ({ label, hint, error, ...props }) => (
 
 const StoreCreationWizard = ({ onComplete }) => {
   const navigate = useNavigate();
-  const location = useLocation();
   const { stores, loading: storesLoading, refreshStores, switchStore } = useStore();
   const [searchParams] = useSearchParams();
   const isResetMode = searchParams.get('reset') === 'true';
@@ -291,8 +302,7 @@ const StoreCreationWizard = ({ onComplete }) => {
   const [step, setStep] = useState(1);
   const [saving, setSaving] = useState(false);
   const [savingStep, setSavingStep] = useState('');
-  const [generationStep, setGenerationStep] = useState(null); // key from GENERATION_STEPS
-  const [creationResult, setCreationResult] = useState(null);
+  const [generationStep, setGenerationStep] = useState(null); // key from getGenerationSteps()
   const [loading, setLoading] = useState(true);
   const [isEditMode, setIsEditMode] = useState(false);
   const [showIntro, setShowIntro] = useState(true);
@@ -343,21 +353,20 @@ const StoreCreationWizard = ({ onComplete }) => {
   // ── Charger données existantes ────────────────────────────────────────────────
   const initDoneRef = useRef(false);
   useEffect(() => {
+    if (storesLoading) return;
+
+    const hasAccessibleStore = stores.some(isStoreEnabled);
+    if (!isNewStoreMode && !isResetMode && hasAccessibleStore) {
+      navigate('/ecom/boutique', { replace: true });
+    }
+  }, [isNewStoreMode, isResetMode, navigate, stores, storesLoading]);
+
+  useEffect(() => {
     // Wait for StoreContext to finish loading before deciding
     if (storesLoading) return;
     // Run only once
     if (initDoneRef.current) return;
     initDoneRef.current = true;
-
-    // Only redirect away if a truly generated store exists (subdomain + homepage).
-    // A Store doc with no homepage means the AI wizard was never completed — keep user here.
-    const hasGeneratedStore = stores.some(
-      (s) => s?.subdomain && (s.hasHomepage || s.storePages?.sections?.length > 0)
-    );
-    if (!isNewStoreMode && !isResetMode && hasGeneratedStore) {
-      navigate('/ecom/boutique', { replace: true });
-      return;
-    }
 
     // Max 3 stores — block creation if limit reached
     if (isNewStoreMode && stores.length >= 3) {
@@ -405,7 +414,7 @@ const StoreCreationWizard = ({ onComplete }) => {
       }
     };
     loadExisting();
-  }, [storesLoading]);
+  }, [isNewStoreMode, isResetMode, navigate, stores.length, storesLoading]);
 
   // ── Helpers ──────────────────────────────────────────────────────────────────
   const set = (key, val) => {
@@ -441,6 +450,7 @@ const StoreCreationWizard = ({ onComplete }) => {
     if (val.trim() !== String(form.storeName || '').trim()) {
       setGeneratedLogo(null);
       if (hasGeneratedSelection) {
+        setGenerationLogoUrl(null);
         setLogoPreview(null);
         set('storeLogo', '');
       }
@@ -471,6 +481,7 @@ const StoreCreationWizard = ({ onComplete }) => {
     if (!file) return;
     setLogoUploading(true);
     setGeneratedLogo(null);
+    setGenerationLogoUrl(null);
     setLogoPreview(URL.createObjectURL(file));
     try {
       const res = await storeProductsApi.uploadImages([file]);
@@ -502,6 +513,7 @@ const StoreCreationWizard = ({ onComplete }) => {
       const logo = res.data?.data || null;
       setGeneratedLogo(logo);
       if (logo?.url) {
+        setGenerationLogoUrl(logo.url);
         set('storeLogo', logo.url);
         setLogoPreview(logo.url);
       }
@@ -546,7 +558,9 @@ const StoreCreationWizard = ({ onComplete }) => {
   // ── Soumission ────────────────────────────────────────────────────────────────
   const handleSubmit = async () => {
     if (!validate()) return;
+    let redirectToBoutique = false;
     setSaving(true);
+    setGenerationLogoUrl(form.storeLogo || null);
     setGenerationStep('subdomain');
 
     try {
@@ -598,29 +612,8 @@ const StoreCreationWizard = ({ onComplete }) => {
         await storeManageApi.updateTheme({ ...emptyStore.theme, primaryColor: form.themeColor });
       } catch {}
 
-      // Étape 3.5 : Génération du logo IA si pas encore de logo
-      if (!form.storeLogo) {
-        setGenerationStep('logo');
-        setGenerationLogoUrl(null);
-        try {
-          const logoRes = await storeManageApi.generateLogos({
-            storeName: form.storeName,
-            productType: form.productType,
-            themeColor: form.themeColor,
-            variant: 'wordmark',
-          });
-          const logo = logoRes.data?.data || null;
-          if (logo?.url) {
-            setGenerationLogoUrl(logo.url);
-            set('storeLogo', logo.url);
-            setLogoPreview(logo.url);
-            // Sauvegarder le logo dans la config
-            await storeManageApi.updateStoreConfig({ storeLogo: logo.url });
-          }
-        } catch (logoErr) {
-          console.warn('Logo AI generation failed:', logoErr.message);
-        }
-      } else {
+      // Étape 3.5 : appliquer le logo seulement s'il a été choisi explicitement
+      if (form.storeLogo) {
         setGenerationStep('logo');
         setGenerationLogoUrl(form.storeLogo);
         await new Promise(r => setTimeout(r, 400));
@@ -680,20 +673,17 @@ const StoreCreationWizard = ({ onComplete }) => {
         }
       }
 
-      const storeUrl = `https://${form.subdomain}.scalor.net`;
-      const fallbackPath = !isEditMode && !isNewStoreMode ? '/ecom/dashboard/admin' : '/ecom/boutique';
-      const requestedPath = typeof location.state?.from === 'string' ? location.state.from : '';
-      const nextPath = requestedPath.startsWith('/ecom/dashboard') ? requestedPath : fallbackPath;
-      setCreationResult({
-        storeUrl,
-        nextPath,
-      });
+      redirectToBoutique = true;
+      navigate('/ecom/boutique', { replace: true });
+      return;
     } catch (err) {
       setErrors({ submit: getErrorMessage(err, 'Impossible de créer la boutique.') });
     } finally {
-      setSaving(false);
-      setSavingStep('');
-      setGenerationStep(null);
+      if (!redirectToBoutique) {
+        setSaving(false);
+        setSavingStep('');
+        setGenerationStep(null);
+      }
     }
   };
 
@@ -704,48 +694,6 @@ const StoreCreationWizard = ({ onComplete }) => {
         <div className="flex flex-col items-center gap-4">
           <div className="w-12 h-12 border-4 border-gray-200 border-t-gray-900 rounded-full animate-spin" />
           <p className="text-gray-600 font-medium">Chargement...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (creationResult) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-emerald-50/40 flex items-center justify-center px-6">
-        <div className="max-w-xl w-full">
-          <Card className="p-8 sm:p-10 text-center">
-            <div className="inline-flex items-center justify-center w-20 h-20 rounded-3xl bg-gradient-to-br from-emerald-500 to-teal-600 shadow-lg shadow-emerald-500/30 mb-6">
-              <Check className="w-10 h-10 text-white" />
-            </div>
-            <h1 className="text-3xl font-black text-gray-900 mb-3">Votre boutique a ete creee</h1>
-            <p className="text-gray-500 mb-6">
-              Votre boutique est prete. Vous pouvez l'ouvrir maintenant ou revenir a votre espace d'administration.
-            </p>
-
-            <div className="rounded-2xl bg-gray-50 border border-gray-100 p-4 mb-8">
-              <p className="text-xs text-gray-500 mb-1">Adresse de votre boutique</p>
-              <p className="font-mono text-sm font-bold text-emerald-600 break-all">{creationResult.storeUrl}</p>
-            </div>
-
-            <div className="flex flex-col sm:flex-row items-stretch justify-center gap-3">
-              <a
-                href={creationResult.storeUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center justify-center gap-2 px-6 py-3.5 text-sm font-bold text-white bg-gradient-to-r from-emerald-500 to-teal-600 rounded-xl hover:from-emerald-600 hover:to-teal-700 transition shadow-lg shadow-emerald-500/30"
-              >
-                <Globe2 className="w-4 h-4" />
-                Voir la boutique
-              </a>
-              <button
-                type="button"
-                onClick={() => navigate(creationResult.nextPath, { replace: true })}
-                className="inline-flex items-center justify-center gap-2 px-6 py-3.5 text-sm font-bold text-gray-700 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition"
-              >
-                Retour au tableau de bord
-              </button>
-            </div>
-          </Card>
         </div>
       </div>
     );
@@ -765,7 +713,7 @@ const StoreCreationWizard = ({ onComplete }) => {
             Créez votre boutique<br />avec l'assistant IA
           </h1>
           <p className="text-lg text-gray-300 mb-10 max-w-md mx-auto">
-            Notre assistant IA va générer votre boutique complète — logo, page d'accueil, visuels — à partir de quelques informations.
+            Notre assistant IA va générer votre boutique complète — page d'accueil et visuels — et vous pourrez ajouter un logo uniquement si vous le souhaitez.
           </p>
           <button
             type="button"
@@ -789,7 +737,14 @@ const StoreCreationWizard = ({ onComplete }) => {
   return (
     <div ref={containerRef} className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-emerald-50/30 overflow-auto">
       {/* Overlay plein écran pendant la génération */}
-      {generationStep && <GenerationOverlay currentStep={generationStep} storeName={form.storeName} logoUrl={generationLogoUrl || logoPreview} />}
+      {generationStep && (
+        <GenerationOverlay
+          currentStep={generationStep}
+          storeName={form.storeName}
+          logoUrl={generationLogoUrl || logoPreview}
+          includeLogoStep={Boolean(form.storeLogo)}
+        />
+      )}
 
       {/* Header fixe */}
       <div className="sticky top-0 z-50 bg-white/80 backdrop-blur-xl border-b border-gray-100">
@@ -908,14 +863,14 @@ const StoreCreationWizard = ({ onComplete }) => {
               <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-pink-500 to-rose-600 rounded-2xl shadow-lg shadow-pink-500/30 mb-2">
                 <Palette className="w-8 h-8 text-white" />
               </div>
-              <h1 className="text-2xl font-black text-gray-900">Choisissez votre logo maintenant</h1>
-              <p className="text-gray-500">Ajoutez un logo puis choisissez la couleur principale de votre boutique</p>
+              <h1 className="text-2xl font-black text-gray-900">Ajoutez un logo si vous le souhaitez</h1>
+              <p className="text-gray-500">Le logo est optionnel. Vous pouvez importer le vôtre ou générer une proposition IA, puis choisir la couleur principale de votre boutique.</p>
             </div>
 
             <Card className="p-6 space-y-6">
               <div className="space-y-3">
                 <label className="block text-sm font-semibold text-gray-800">Logo de votre boutique</label>
-                <p className="text-xs text-gray-500">Importez votre logo ou cliquez pour générer une seule proposition IA à partir du nom de votre boutique.</p>
+                <p className="text-xs text-gray-500">Importez votre logo ou cliquez pour générer une proposition IA. Si vous passez cette étape, la boutique sera créée sans logo.</p>
 
                 <div className="flex flex-wrap gap-3">
                   <button
@@ -932,6 +887,7 @@ const StoreCreationWizard = ({ onComplete }) => {
                       type="button"
                       onClick={() => {
                         setGeneratedLogo(null);
+                        setGenerationLogoUrl(null);
                         setLogoPreview(null);
                         set('storeLogo', '');
                       }}
@@ -1002,7 +958,7 @@ const StoreCreationWizard = ({ onComplete }) => {
                     <>
                       <img src={logoPreview} alt="Logo" className="max-h-32 max-w-[80%] object-contain" />
                       <button
-                        onClick={(e) => { e.preventDefault(); setLogoPreview(null); set('storeLogo', ''); }}
+                        onClick={(e) => { e.preventDefault(); setGenerationLogoUrl(null); setLogoPreview(null); set('storeLogo', ''); }}
                         className="absolute top-3 right-3 w-8 h-8 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition"
                       >
                         <X className="w-4 h-4" />

@@ -10,10 +10,21 @@ const phReset = () => _ph().then(m => m.resetAnalytics()).catch(() => {});
 // Contexte d'authentification e-commerce
 const EcomAuthContext = createContext();
 
+const normalizeWorkspace = (workspace) => {
+  if (!workspace) return null;
+
+  const normalizedId = workspace._id || workspace.id || null;
+  return {
+    ...workspace,
+    _id: normalizedId,
+    id: workspace.id || normalizedId,
+  };
+};
+
 // État initial - charger les données locales pour une persistance immédiate
 const storedToken = localStorage.getItem('ecomToken');
 const storedUser = JSON.parse(localStorage.getItem('ecomUser') || 'null');
-const storedWorkspace = JSON.parse(localStorage.getItem('ecomWorkspace') || 'null');
+const storedWorkspace = normalizeWorkspace(JSON.parse(localStorage.getItem('ecomWorkspace') || 'null'));
 
 const initialState = {
   user: storedUser,
@@ -39,7 +50,7 @@ const authReducer = (state, action) => {
       return {
         ...state,
         user: action.payload.user,
-        workspace: action.payload.workspace || state.workspace,
+        workspace: normalizeWorkspace(action.payload.workspace) || state.workspace,
         token: action.payload.token,
         isAuthenticated: true,
         loading: false,
@@ -71,7 +82,7 @@ const authReducer = (state, action) => {
       return {
         ...state,
         user: action.payload.user || action.payload,
-        workspace: action.payload.workspace || state.workspace,
+        workspace: normalizeWorkspace(action.payload.workspace) || state.workspace,
         isAuthenticated: true,
         loading: false,
         error: null
@@ -133,12 +144,13 @@ export const EcomAuthProvider = ({ children }) => {
 
   // Sauvegarder le token dans le localStorage
   const saveToken = (token, user, workspace) => {
+    const normalizedWorkspace = normalizeWorkspace(workspace);
     logAuthEvent('token_saved', { userEmail: user?.email, userRole: user?.role, hasWorkspace: !!workspace });
     localStorage.setItem('ecomToken', token);
     localStorage.setItem('ecomUser', JSON.stringify(user));
-    if (workspace) {
-      localStorage.setItem('ecomWorkspace', JSON.stringify(workspace));
-      logWorkspace('saved', workspace);
+    if (normalizedWorkspace) {
+      localStorage.setItem('ecomWorkspace', JSON.stringify(normalizedWorkspace));
+      logWorkspace('saved', normalizedWorkspace);
     }
   };
 
@@ -167,7 +179,7 @@ export const EcomAuthProvider = ({ children }) => {
       logAuthEvent('load_user_start', { tokenPrefix: token.slice(0, 20) + '…' });
       const response = await authApi.getProfile();
       
-      const wsData = response.data.data.workspace;
+      const wsData = normalizeWorkspace(response.data.data.workspace);
       if (wsData) {
         localStorage.setItem('ecomWorkspace', JSON.stringify(wsData));
         logWorkspace('loaded', wsData);
@@ -206,7 +218,7 @@ export const EcomAuthProvider = ({ children }) => {
         // Erreur réseau - garder l'utilisateur connecté avec les données locales
         logAuthEvent('load_user_network', { message: error.message });
         const userData = JSON.parse(localStorage.getItem('ecomUser') || 'null');
-        const workspaceData = JSON.parse(localStorage.getItem('ecomWorkspace') || 'null');
+        const workspaceData = normalizeWorkspace(JSON.parse(localStorage.getItem('ecomWorkspace') || 'null'));
         if (userData) {
           logAuthEvent('session_restored', { userEmail: userData?.email, source: 'localStorage' });
           dispatch({
