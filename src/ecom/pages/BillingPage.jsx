@@ -656,7 +656,7 @@ export default function BillingPage() {
                 <span className="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">développer votre business</span>
               </h1>
               <p className="text-gray-500 text-base sm:text-lg mt-4 max-w-2xl mx-auto leading-relaxed">
-                Commencez gratuitement, passez à l'échelle quand vous êtes prêt. Tous les plans incluent un essai gratuit de 3 jours.
+                Commencez gratuitement, passez à l'échelle quand vous êtes prêt. Tous les plans incluent un essai gratuit de 7 jours.
               </p>
 
               {/* Current plan status bar */}
@@ -667,7 +667,7 @@ export default function BillingPage() {
                   {!trialUsed && (
                     <button onClick={handleActivateTrial} disabled={trialLoading}
                       className="text-sm font-bold text-blue-600 hover:text-blue-700 transition disabled:opacity-50">
-                      {trialLoading ? 'Activation…' : '→ Essai gratuit 3 jours'}
+                      {trialLoading ? 'Activation…' : '→ Essai gratuit 7 jours'}
                     </button>
                   )}
                 </div>
@@ -772,7 +772,7 @@ export default function BillingPage() {
                 {[
                   { q: 'Puis-je changer de plan à tout moment ?', a: "Oui. Votre plan actuel reste actif jusqu'à expiration, et le nouveau plan prend le relais. Pas de frais de changement." },
                   { q: 'Quels moyens de paiement acceptez-vous ?', a: 'Nous acceptons Orange Money, MTN Mobile Money, Wave, Flooz et tous les opérateurs pris en charge par MoneyFusion dans plus de 15 pays africains.' },
-                  { q: "L'essai gratuit est-il sans engagement ?", a: "Absolument. L'essai de 3 jours vous donne accès aux fonctionnalités Pro sans entrer de numéro de paiement. Aucun prélèvement automatique." },
+                  { q: "L'essai gratuit est-il sans engagement ?", a: "Absolument. L'essai de 7 jours vous donne accès aux fonctionnalités Pro sans entrer de numéro de paiement. Aucun prélèvement automatique." },
                   { q: "Qu'est-ce que les crédits de génération de pages IA ?", a: "Avec le plan Scalor IA Pro, vous recevez 10 crédits par mois pour générer des pages produit professionnelles avec l'IA. Chaque crédit = 1 page complète avec images, textes et formulaire." },
                   { q: "Que se passe-t-il quand mon abonnement expire ?", a: 'Vous repassez automatiquement au plan gratuit. Vos données sont conservées et vous pouvez réactiver votre plan à tout moment.' },
                 ].map(({ q, a }) => (
@@ -796,7 +796,7 @@ export default function BillingPage() {
                 {!trialUsed && (
                   <button onClick={handleActivateTrial} disabled={trialLoading}
                     className="px-8 py-4 bg-white text-gray-900 font-black text-sm rounded-xl hover:bg-gray-100 transition shadow-xl disabled:opacity-50">
-                    {trialLoading ? 'Activation…' : <span className="flex items-center gap-2"><Gift className="w-4 h-4" /> Commencer l'essai gratuit — 3 jours</span>}
+                    {trialLoading ? 'Activation…' : <span className="flex items-center gap-2"><Gift className="w-4 h-4" /> Commencer l'essai gratuit — 7 jours</span>}
                   </button>
                 )}
               </div>

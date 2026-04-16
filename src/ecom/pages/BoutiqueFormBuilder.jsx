@@ -1160,8 +1160,9 @@ const BoutiqueFormBuilder = () => {
   const [addFieldMenuOpen, setAddFieldMenuOpen] = useState(false);
   const [addFieldTab, setAddFieldTab] = useState('Entrées');
   const [shopColor, setShopColor] = useState('#0F6B4F');
-  const { activeStore } = useStore();
+  const { activeStore, getActiveStorefrontUrl } = useStore();
   const storeSubdomain = activeStore?.subdomain || '';
+  const storefrontUrl = getActiveStorefrontUrl() || (storeSubdomain ? `https://${storeSubdomain}.scalor.net` : '');
 
   useEffect(() => {
     (async () => {
@@ -1288,8 +1289,8 @@ const BoutiqueFormBuilder = () => {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              {storeSubdomain && (
-                <a href={`https://${storeSubdomain}.scalor.net`} target="_blank" rel="noopener noreferrer"
+              {storefrontUrl && (
+                <a href={storefrontUrl} target="_blank" rel="noopener noreferrer"
                   className="hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-gray-500 border border-gray-200 bg-white hover:bg-gray-50 transition">
                   <Eye size={14} /> Voir la boutique
                 </a>

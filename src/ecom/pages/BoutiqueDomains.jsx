@@ -45,7 +45,7 @@ const STEPS = ['Entrer votre domaine', 'Configurer le DNS', 'Vérifier et connec
 
 const BoutiqueDomains = () => {
   const { workspace } = useEcomAuth();
-  const { refreshStores } = useStore();
+  const { refreshStores, activeStore } = useStore();
   const [subdomain, setSubdomain] = useState('');
   const [customDomain, setCustomDomain] = useState('');
   const [sslStatus, setSslStatus] = useState('none');
@@ -59,13 +59,20 @@ const BoutiqueDomains = () => {
   const [domainInput, setDomainInput] = useState('');
   const [domainError, setDomainError] = useState('');
   const subdomainGeneratedRef = useRef(false);
+  const preferredStoreName = activeStore?.storeSettings?.storeName || activeStore?.name || workspace?.storeSettings?.storeName || workspace?.name || '';
+
+  useEffect(() => {
+    if (!activeStore?.subdomain) return;
+    setSubdomain((current) => current || activeStore.subdomain);
+    subdomainGeneratedRef.current = true;
+  }, [activeStore?.subdomain]);
 
   useEffect(() => {
     const load = async () => {
       try {
         const res = await api.get('/store/domains');
         if (res.data?.data) {
-          setSubdomain(res.data.data.subdomain || '');
+          setSubdomain(res.data.data.subdomain || activeStore?.subdomain || '');
           const cd = res.data.data.customDomain || '';
           setCustomDomain(cd);
           setDomainInput(cd);
@@ -77,12 +84,12 @@ const BoutiqueDomains = () => {
       } catch { /* defaults */ }
     };
     load();
-  }, []);
+  }, [activeStore?.subdomain]);
 
   useEffect(() => {
     const autoGenerateSubdomain = async () => {
       if (subdomain || !workspace || subdomainGeneratedRef.current) return;
-      const storeName = workspace?.storeSettings?.storeName || workspace?.name;
+      const storeName = preferredStoreName;
       if (!storeName || storeName.trim().length < 3) return;
       try {
         subdomainGeneratedRef.current = true;
@@ -91,10 +98,10 @@ const BoutiqueDomains = () => {
       } catch { /* silent */ }
     };
     autoGenerateSubdomain();
-  }, [workspace, subdomain]);
+  }, [preferredStoreName, subdomain, workspace]);
 
   const generateSubdomainFromStoreName = async () => {
-    const storeName = workspace?.storeSettings?.storeName || workspace?.name;
+    const storeName = preferredStoreName;
     if (!storeName || storeName.trim().length === 0) {
       alert('Veuillez d\'abord configurer le nom de votre boutique');
       return;
@@ -262,9 +269,9 @@ const BoutiqueDomains = () => {
             )}
           </button>
 
-          {workspace?.storeSettings?.storeName && (
+          {preferredStoreName && (
             <div className="text-xs text-gray-500 bg-gray-50 rounded-lg px-3 py-2">
-              Basé sur : <span className="font-medium text-gray-700">"{workspace.storeSettings.storeName}"</span>
+              Basé sur : <span className="font-medium text-gray-700">"{preferredStoreName}"</span>
             </div>
           )}
         </div>

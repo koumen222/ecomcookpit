@@ -15,6 +15,26 @@ const _cache = new Map();
 const CACHE_TTL = 5000;
 const DEBUG_TAG = '[EcomApi]';
 
+function getHeaderValue(headers, name) {
+  if (!headers) return '';
+  if (typeof headers.get === 'function') {
+    return headers.get(name) || headers.get(name.toLowerCase()) || '';
+  }
+  return headers[name] || headers[name.toLowerCase()] || '';
+}
+
+function buildRequestIdentity(config) {
+  const storeId = getHeaderValue(config.headers, 'X-Store-Id');
+  const workspaceId = getHeaderValue(config.headers, 'X-Workspace-Id');
+  return [
+    config.baseURL || '',
+    config.url || '',
+    JSON.stringify(config.params || {}),
+    storeId,
+    workspaceId,
+  ].join('|');
+}
+
 function normalizeEnvBaseUrl(raw = '') {
   const value = String(raw || '').trim();
   if (!value) return '';
@@ -92,6 +112,19 @@ api.interceptors.request.use(
       config.headers.Authorization = `Bearer ${token}`;
     }
 
+    const workspace = JSON.parse(localStorage.getItem('ecomWorkspace') || 'null');
+    const workspaceId = workspace?._id || workspace?.id;
+    const isSuperAdminEndpoint = typeof config.url === 'string' && config.url.includes('/super-admin');
+
+    if (workspaceId && !isSuperAdminEndpoint) {
+      config.headers['X-Workspace-Id'] = workspaceId;
+    }
+
+    const activeStoreId = typeof window !== 'undefined' ? window.__activeStoreId__ : null;
+    if (activeStoreId && !isSuperAdminEndpoint) {
+      config.headers['X-Store-Id'] = activeStoreId;
+    }
+
     if (isDebugEndpoint(config.url)) {
       console.log(`${DEBUG_TAG} request`, {
         requestId: config._meta.requestId,
@@ -109,7 +142,7 @@ api.interceptors.request.use(
 
     // GET deduplication: if same GET is already in-flight, reuse the promise
     if (config.method === 'get' || !config.method) {
-      const key = config.baseURL + (config.url || '') + JSON.stringify(config.params || {});
+      const key = buildRequestIdentity(config);
 
       // Check cache first
       const cached = getCached(key);

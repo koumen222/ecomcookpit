@@ -41,7 +41,7 @@ export async function getPaymentHistory(workspaceId) {
   return data;
 }
 
-/** Activate 3-day free trial */
+/** Activate 7-day free trial */
 export async function activateTrial(workspaceId) {
   const { data } = await ecomApi.post('/billing/trial', { workspaceId });
   return data;

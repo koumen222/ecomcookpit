@@ -207,10 +207,19 @@ export const StorefrontFooter = ({ store, prefix = '', footer = null }) => {
   const paymentMethods = footer?.paymentMethods || ['Paiement à la livraison', 'Mobile Money'];
   const footerDesc = footer?.description || store?.description || '';
   const deliveryInfo = footer?.deliveryInfo || '';
+  const footerBackground = 'linear-gradient(180deg, color-mix(in srgb, var(--s-primary) 6%, var(--s-bg)) 0%, color-mix(in srgb, var(--s-text) 4%, var(--s-bg)) 100%)';
+  const footerSurface = 'color-mix(in srgb, var(--s-primary) 9%, var(--s-bg))';
+  const footerBorder = 'color-mix(in srgb, var(--s-primary) 18%, var(--s-border))';
+  const footerText = 'color-mix(in srgb, var(--s-text) 78%, var(--s-bg))';
+  const footerMutedText = 'color-mix(in srgb, var(--s-text) 60%, var(--s-bg))';
+  const footerSubtleText = 'color-mix(in srgb, var(--s-text) 46%, var(--s-bg))';
+  const footerBottomBackground = 'color-mix(in srgb, var(--s-text) 4%, var(--s-bg))';
+  const whatsappBackground = 'linear-gradient(135deg, color-mix(in srgb, #25D366 35%, var(--s-primary)) 0%, color-mix(in srgb, #25D366 18%, var(--s-accent)) 100%)';
 
   return (
     <footer style={{
-      backgroundColor: '#1F2937', color: 'rgba(255,255,255,0.7)',
+      background: footerBackground,
+      color: footerText,
       fontFamily: 'var(--s-font)', marginTop: 0,
     }}>
       <div style={{
@@ -224,10 +233,18 @@ export const StorefrontFooter = ({ store, prefix = '', footer = null }) => {
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
             {store?.logo ? (
-              <img src={store.logo} alt={store?.name} style={{
-                height: 36, width: 'auto', objectFit: 'contain',
-                filter: 'brightness(0) invert(1)', opacity: 0.9,
-              }} />
+              <span style={{
+                width: 44, height: 44, padding: 6,
+                borderRadius: 'min(14px, var(--s-radius))',
+                backgroundColor: footerSurface,
+                border: `1px solid ${footerBorder}`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                flexShrink: 0,
+              }}>
+                <img src={store.logo} alt={store?.name} style={{
+                  maxHeight: 30, maxWidth: '100%', width: 'auto', objectFit: 'contain',
+                }} />
+              </span>
             ) : (
               <span style={{
                 width: 36, height: 36, borderRadius: 8, backgroundColor: 'var(--s-primary)',
@@ -237,10 +254,10 @@ export const StorefrontFooter = ({ store, prefix = '', footer = null }) => {
                 {(store?.name || 'S')[0]}
               </span>
             )}
-            <span style={{ fontWeight: 700, fontSize: 17, color: '#fff' }}>{store?.name}</span>
+            <span style={{ fontWeight: 700, fontSize: 17, color: 'var(--s-text)' }}>{store?.name}</span>
           </div>
           {footerDesc && (
-            <p style={{ fontSize: 13, lineHeight: 1.65, margin: '0 0 16px', maxWidth: 340, color: 'rgba(255,255,255,0.55)' }}>
+            <p style={{ fontSize: 13, lineHeight: 1.65, margin: '0 0 16px', maxWidth: 340, color: footerMutedText }}>
               {footerDesc}
             </p>
           )}
@@ -248,15 +265,16 @@ export const StorefrontFooter = ({ store, prefix = '', footer = null }) => {
             {paymentMethods.map((m, i) => (
               <div key={i} style={{
                 display: 'flex', alignItems: 'center', gap: 5,
-                padding: '5px 10px', backgroundColor: 'rgba(255,255,255,0.08)',
-                borderRadius: 5, fontSize: 11, color: 'rgba(255,255,255,0.6)',
+                padding: '5px 10px', backgroundColor: footerSurface,
+                border: `1px solid ${footerBorder}`,
+                borderRadius: '999px', fontSize: 11, color: footerMutedText,
               }}>
                 <CreditCard size={14} /><span>{m}</span>
               </div>
             ))}
           </div>
           {deliveryInfo && (
-            <p style={{ fontSize: 12, margin: '12px 0 0', color: 'rgba(255,255,255,0.45)' }}>
+            <p style={{ fontSize: 12, margin: '12px 0 0', color: footerSubtleText }}>
               {deliveryInfo}
             </p>
           )}
@@ -264,13 +282,13 @@ export const StorefrontFooter = ({ store, prefix = '', footer = null }) => {
 
         {/* Navigation */}
         <div>
-          <p style={{ fontWeight: 700, fontSize: 12, color: '#fff', margin: '0 0 16px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+          <p style={{ fontWeight: 700, fontSize: 12, color: 'var(--s-text)', margin: '0 0 16px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
             Navigation
           </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {quickLinks.map(link => (
               <Link key={link.label} to={`${prefix}${link.href}`} style={{
-                fontSize: 13, color: 'rgba(255,255,255,0.6)', textDecoration: 'none',
+                fontSize: 13, color: footerMutedText, textDecoration: 'none',
                 display: 'flex', alignItems: 'center', gap: 5,
               }}>
                 <ChevronRight size={13} />{link.label}
@@ -281,12 +299,12 @@ export const StorefrontFooter = ({ store, prefix = '', footer = null }) => {
 
         {/* Contact */}
         <div>
-          <p style={{ fontWeight: 700, fontSize: 12, color: '#fff', margin: '0 0 16px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+          <p style={{ fontWeight: 700, fontSize: 12, color: 'var(--s-text)', margin: '0 0 16px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
             Contact
           </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {store?.city && (
-              <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'rgba(255,255,255,0.6)' }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: footerMutedText }}>
                 <MapPin size={14} style={{ flexShrink: 0 }} />
                 {store.city}{store.country ? `, ${store.country}` : ''}
               </span>
@@ -294,7 +312,7 @@ export const StorefrontFooter = ({ store, prefix = '', footer = null }) => {
             {store?.phone && (
               <a href={`tel:${store.phone.replace(/\s/g, '')}`} style={{
                 display: 'flex', alignItems: 'center', gap: 8, fontSize: 13,
-                color: 'rgba(255,255,255,0.6)', textDecoration: 'none',
+                color: footerMutedText, textDecoration: 'none',
               }}>
                 <Phone size={14} style={{ flexShrink: 0 }} />{store.phone}
               </a>
@@ -302,7 +320,7 @@ export const StorefrontFooter = ({ store, prefix = '', footer = null }) => {
             {store?.email && (
               <a href={`mailto:${store.email}`} style={{
                 display: 'flex', alignItems: 'center', gap: 8, fontSize: 13,
-                color: 'rgba(255,255,255,0.6)', textDecoration: 'none', wordBreak: 'break-all',
+                color: footerMutedText, textDecoration: 'none', wordBreak: 'break-all',
               }}>
                 <Mail size={14} style={{ flexShrink: 0 }} />{store.email}
               </a>
@@ -311,7 +329,9 @@ export const StorefrontFooter = ({ store, prefix = '', footer = null }) => {
               <a href={waLink} target="_blank" rel="noopener noreferrer" style={{
                 display: 'inline-flex', alignItems: 'center', gap: 7,
                 fontSize: 13, color: '#fff', textDecoration: 'none',
-                backgroundColor: '#25D366', padding: '8px 14px', borderRadius: 7,
+                background: whatsappBackground,
+                border: `1px solid ${footerBorder}`,
+                padding: '8px 14px', borderRadius: 'min(999px, var(--s-radius))',
                 fontWeight: 600, marginTop: 4, width: 'fit-content',
               }}>
                 <MessageCircle size={14} />WhatsApp
@@ -322,13 +342,13 @@ export const StorefrontFooter = ({ store, prefix = '', footer = null }) => {
 
         {/* Informations légales */}
         <div>
-          <p style={{ fontWeight: 700, fontSize: 12, color: '#fff', margin: '0 0 16px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+          <p style={{ fontWeight: 700, fontSize: 12, color: 'var(--s-text)', margin: '0 0 16px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
             Informations
           </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {legalLinks.map(link => (
               <Link key={link.label} to={`${prefix}${link.href}`} style={{
-                fontSize: 13, color: 'rgba(255,255,255,0.6)', textDecoration: 'none',
+                fontSize: 13, color: footerMutedText, textDecoration: 'none',
                 display: 'flex', alignItems: 'center', gap: 5,
               }}>
                 <ChevronRight size={13} />{link.label}
@@ -339,11 +359,11 @@ export const StorefrontFooter = ({ store, prefix = '', footer = null }) => {
       </div>
 
       {/* Bottom bar */}
-      <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', backgroundColor: 'rgba(0,0,0,0.2)' }}>
+      <div style={{ borderTop: `1px solid ${footerBorder}`, backgroundColor: footerBottomBackground }}>
         <div style={{
           maxWidth: 1200, margin: '0 auto', padding: '18px 16px',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          flexWrap: 'wrap', gap: 12, fontSize: 12, color: 'rgba(255,255,255,0.4)',
+          flexWrap: 'wrap', gap: 12, fontSize: 12, color: footerSubtleText,
         }}>
           <span>© {new Date().getFullYear()} {store?.name}. Tous droits réservés.</span>
           <span>

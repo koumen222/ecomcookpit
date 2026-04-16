@@ -149,7 +149,7 @@ router.post('/', requireEcomAuth, async (req, res) => {
         const isPaidActive = (workspace.plan === 'starter' || workspace.plan === 'pro' || workspace.plan === 'ultra')
           && workspace.planExpiresAt && workspace.planExpiresAt > now;
         const trialActive = workspace.trialEndsAt && workspace.trialEndsAt > now;
-        const effectivePlan = isPaidActive ? workspace.plan : trialActive ? 'trial' : 'free';
+        const effectivePlan = isPaidActive ? workspace.plan : trialActive ? 'starter' : 'free';
         const limits = PLAN_LIMITS[effectivePlan] || PLAN_LIMITS.free;
 
         if (limits.agents === 0) {

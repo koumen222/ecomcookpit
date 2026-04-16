@@ -123,6 +123,10 @@ async function resolveEffectivePlan(workspaceId) {
   if (planKey !== 'free' && ws.planExpiresAt && new Date(ws.planExpiresAt).getTime() < now) {
     planKey = 'free';
   }
+  // During an active trial (no paid plan), grant Scalor (starter) benefits
+  if (planKey === 'free' && ws.trialEndsAt && new Date(ws.trialEndsAt).getTime() > now) {
+    planKey = 'starter';
+  }
   return { planKey, workspace: ws };
 }
 

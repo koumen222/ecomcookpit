@@ -3,8 +3,7 @@ import { Routes, Route, Navigate, useLocation, matchPath } from 'react-router-do
 import { EcomAuthProvider } from './hooks/useEcomAuth.jsx';
 import { CurrencyProvider } from './contexts/CurrencyContext.jsx';
 import { ThemeProvider } from './contexts/ThemeContext.jsx';
-import { StoreProvider } from './contexts/StoreContext.jsx';
-import { useStore } from './contexts/StoreContext.jsx';
+import { StoreProvider, useStore, isStoreEnabled } from './contexts/StoreContext.jsx';
 import { useEcomAuth } from './hooks/useEcomAuth.jsx';
 // analytics imported lazily in PageViewTracker — keeps axios out of the critical bundle
 import { usePosthogPageViews } from './hooks/usePosthogPageViews.js';
@@ -376,6 +375,7 @@ const RequireStore = ({ children }) => {
   const location = useLocation();
   const { workspace } = useEcomAuth();
   const { stores, loading: storesLoading } = useStore();
+  const workspaceId = workspace?._id || workspace?.id || null;
 
   if (storesLoading) {
     return (
@@ -385,13 +385,11 @@ const RequireStore = ({ children }) => {
     );
   }
 
-  // A store is considered "truly generated" only when it has a subdomain
-  // AND an AI-generated homepage. Otherwise the user must run the wizard.
-  const hasGeneratedStore = stores.some(
-    (s) => s?.subdomain && (s.hasHomepage || s.storePages?.sections?.length > 0)
-  );
+  // Access to /ecom/boutique requires at least one enabled store.
+  // Homepage generation can still complete asynchronously after the wizard.
+  const hasAccessibleStore = stores.some(isStoreEnabled);
 
-  if (workspace?._id && !hasGeneratedStore) {
+  if (workspaceId && !hasAccessibleStore) {
     const from = `${location.pathname}${location.search}`;
     return <Navigate to="/ecom/boutique/wizard" replace state={{ from }} />;
   }

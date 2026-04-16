@@ -46,15 +46,6 @@ export const PLAN_LIMITS = {
     maxUsers: 1,
     label: 'Gratuit'
   },
-  trial: {
-    agents: 1,
-    instances: 1,
-    messagesPerDay: 100,
-    messagesPerMonth: 3000,
-    generationCredits: 0,
-    whatsappAgent: true,
-    label: 'Essai (3 jours)'
-  },
   starter: {
     agents: 0,
     instances: 0,
@@ -84,7 +75,7 @@ export const PLAN_LIMITS = {
   },
 };
 
-const TRIAL_DAYS = 3;
+const TRIAL_DAYS = 7;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -257,11 +248,11 @@ router.get('/plan', requireEcomAuth, async (req, res) => {
     const trialActive = workspace.trialEndsAt && workspace.trialEndsAt > now;
     const trialExpired = workspace.trialUsed && workspace.trialEndsAt && workspace.trialEndsAt <= now;
 
-    // Effective plan: paid > trial > free
+    // Effective plan: paid > trial (Scalor/starter benefits) > free
     const effectivePlan = isPaidActive
       ? workspace.plan
       : trialActive
-        ? 'trial' // trial retourne 'trial' avec les mêmes limites que free
+        ? 'starter' // essai 7j → bénéfices du plan Scalor (starter)
         : 'free';
 
     res.json({
@@ -661,7 +652,7 @@ router.get('/history', requireEcomAuth, async (req, res) => {
   }
 });
 
-// ─── POST /trial — activate 3-day free trial ─────────────────────────────────
+// ─── POST /trial — activate 7-day free trial ─────────────────────────────────
 router.post('/trial', requireEcomAuth, async (req, res) => {
   try {
     const workspaceId = req.workspaceId || req.body?.workspaceId;
