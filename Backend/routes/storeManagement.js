@@ -177,46 +177,168 @@ ABSOLUTELY NO TEXT on the image. No title, no headline, no words, no labels. Pur
 NO logo, NO watermark, NO price, NO CTA button.`;
 }
 
-function buildLogoPrompt({ storeName = 'Boutique', productType = 'autre', themeColor = '#0F6B4F', tone = '', variant = 'wordmark' }) {
+const LOGO_VARIANT_INSTRUCTIONS = {
+  wordmark: 'Create a clean premium wordmark logo with elegant typography and a subtle icon accent. The store name must be perfectly readable.',
+  combination: 'Create a premium combination mark with a distinctive icon paired with a highly readable wordmark. The icon must work alone as a recognizable symbol.',
+  emblem: 'Create a premium emblem logo with a central icon inside a refined badge or seal, plus a compact readable brand name lockup.',
+  monogram: 'Create a minimalist monogram or symbol-led logo using the initials or essence of the store name, paired with a small elegant wordmark.',
+  abstract: 'Create a premium abstract brand mark inspired by the business sector, paired with a clean readable wordmark. Avoid literal clipart.',
+};
+
+const LOGO_SYMBOL_STYLE_GUIDANCE = {
+  sector: 'Let the symbol adapt first to the business sector with premium restraint and category-relevant cues.',
+  minimal: 'Keep the mark ultra-minimal, stripped back, clean, and highly legible with very few strokes.',
+  geometric: 'Use precise geometry, structured balance, symmetry, and clean modern construction.',
+  organic: 'Use softer organic curves, fluid motion, and a more natural visual rhythm.',
+  signature: 'Give the logo an editorial, fashion-forward, refined signature feel without losing clarity.',
+  bold: 'Use stronger contrast, simplified bold shapes, and a more assertive visual presence.',
+};
+
+const PRODUCT_TYPE_LOGO_GUIDANCE = {
+  beaute: {
+    sectorName: 'beauty and skincare',
+    motifs: 'petals, droplets, elegant curves, subtle silhouette, botanical or cosmetic cues',
+    avoid: 'cheap lipstick icons, salon clipart, overloaded glam effects',
+    typography: 'refined, editorial, luxurious, graceful',
+    composition: 'high-end cosmetic branding with minimal elegance',
+  },
+  fitness: {
+    sectorName: 'fitness and sport',
+    motifs: 'motion lines, strength cues, pulse, momentum, bold athletic geometry',
+    avoid: 'generic dumbbells, aggressive bodybuilding clichés, noisy sports clipart',
+    typography: 'strong, energetic, confident, modern',
+    composition: 'active, performance-oriented, sharp and impactful',
+  },
+  mode: {
+    sectorName: 'fashion and accessories',
+    motifs: 'couture monograms, refined initials, sleek silhouettes, elegant abstract fashion cues',
+    avoid: 'literal shopping bags, hangers, cheap boutique clipart',
+    typography: 'editorial, stylish, chic, elevated',
+    composition: 'fashion-house inspired, restrained and premium',
+  },
+  tech: {
+    sectorName: 'technology and gadgets',
+    motifs: 'clean geometry, modular forms, sleek nodes, precision shapes, subtle futuristic cues',
+    avoid: 'obvious microchips, generic lightning bolts, dated tech clipart',
+    typography: 'precise, modern, engineered, sharp',
+    composition: 'smart, structured, forward-looking and clean',
+  },
+  maison: {
+    sectorName: 'home decor and interior lifestyle',
+    motifs: 'balanced lines, interior harmony, architectural curves, comfort and structure cues',
+    avoid: 'cartoon house icons, overly rustic symbols, cluttered decorative elements',
+    typography: 'warm, polished, tasteful, contemporary',
+    composition: 'calm, elegant, lifestyle-oriented and reassuring',
+  },
+  sante: {
+    sectorName: 'wellness and health',
+    motifs: 'balance, care, leaf or flow cues, trust marks, subtle vitality symbols',
+    avoid: 'generic medical crosses, pharmacy clichés, overly clinical visuals',
+    typography: 'clean, trustworthy, calm, reassuring',
+    composition: 'clear, calm, premium wellness identity',
+  },
+  enfants: {
+    sectorName: 'children and baby products',
+    motifs: 'rounded friendly shapes, stars, clouds, gentle playful cues, comforting softness',
+    avoid: 'overly childish mascots, chaotic rainbow clutter, noisy cartoon overload',
+    typography: 'friendly, rounded, reassuring, clear',
+    composition: 'joyful but controlled, warm and trustworthy',
+  },
+  autre: {
+    sectorName: 'modern retail brand',
+    motifs: 'simple memorable forms, premium lifestyle cues, versatile abstract shapes',
+    avoid: 'generic cart icons, shopping bags, cursors, low-effort ecommerce clichés',
+    typography: 'clear, modern, premium, scalable',
+    composition: 'clean brand-first identity, not a generic store logo',
+  },
+};
+
+function extractBrandInitials(storeName = '') {
+  return String(storeName)
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 3)
+    .map((word) => word[0]?.toUpperCase() || '')
+    .join('');
+}
+
+function buildLogoPrompt({
+  storeName = 'Boutique',
+  productType = 'autre',
+  themeColor = '#0F6B4F',
+  tone = '',
+  variant = 'wordmark',
+  symbolStyle = 'sector',
+  concept = '',
+}) {
   const productTypeLabel = PRODUCT_TYPE_LABELS[productType] || 'retail';
   const toneHint = TONE_LABELS[tone]?.split('—')[0]?.trim() || 'premium';
-  const variantInstructions = {
-    wordmark: 'Create a clean premium wordmark logo with elegant typography and a subtle icon accent. The store name must be perfectly readable.',
-    emblem: 'Create a premium emblem logo with a central icon inside a refined badge or seal, plus a compact readable brand name lockup.',
-    monogram: 'Create a minimalist monogram or symbol-led logo using the initials or essence of the store name, paired with a small elegant wordmark.',
-  };
+  const sectorGuidance = PRODUCT_TYPE_LOGO_GUIDANCE[productType] || PRODUCT_TYPE_LOGO_GUIDANCE.autre;
+  const variantInstruction = LOGO_VARIANT_INSTRUCTIONS[variant] || LOGO_VARIANT_INSTRUCTIONS.wordmark;
+  const styleGuidance = LOGO_SYMBOL_STYLE_GUIDANCE[symbolStyle] || LOGO_SYMBOL_STYLE_GUIDANCE.sector;
+  const initials = extractBrandInitials(storeName);
+  const trimmedConcept = String(concept || '').trim();
 
   return `Create a premium, ultra-high-quality professional ecommerce logo on a clean square canvas. This must look like a real brand logo designed by a top-tier agency.
 
 Brand name: ${storeName}
+Brand initials: ${initials || 'N/A'}
+Business sector: ${sectorGuidance.sectorName}
 Category: ${productTypeLabel}
 Brand tone: ${toneHint}
 Primary brand color: ${themeColor}
+Preferred symbol style: ${styleGuidance}
 
-${variantInstructions[variant] || variantInstructions.wordmark}
+${variantInstruction}
+
+Sector-specific direction:
+- The logo must feel immediately appropriate for the ${sectorGuidance.sectorName} sector, not like a generic ecommerce mark
+- Favor motifs such as: ${sectorGuidance.motifs}
+- Typography should feel: ${sectorGuidance.typography}
+- Composition should feel: ${sectorGuidance.composition}
+- Avoid clichés such as: ${sectorGuidance.avoid}
+${trimmedConcept ? `- Optional client concept to integrate if it strengthens the idea: ${trimmedConcept}` : ''}
 
 Rules:
 - Square 1:1 logo presentation, ultra-sharp, pixel-perfect
 - Premium luxury brand identity for a modern ecommerce store
+- The symbol must reflect the business sector with restraint and taste
+- Avoid generic ecommerce symbols like carts, shopping bags or cursor icons unless transformed into a subtle premium abstract mark
 - Pure white or very light neutral background only
 - Use ${themeColor} as the dominant accent color throughout the design
 - Keep the logo perfectly centered, balanced, and fully visible
 - Typography must be bold, modern, and extremely readable
+- Ensure the brand name remains legible and professionally typeset
+- Keep the icon clean enough to work in favicon or social avatar form
+- No mascot illustration, no noisy shading, no clutter, no template feel
+- ${variant === 'monogram' ? `If using a monogram, build it around these initials when relevant: ${initials || 'the store initials'}` : 'If using an icon, keep it distinctive and premium rather than literal stock art'}
 - The logo should look like it belongs to a $1M+ brand
 - Ultra-clean lines, professional vector-quality appearance
 - No mockup on wall, no t-shirt, no business card, no 3D scene
 - No extra decorative objects, no people, no environment
 - No watermark, no fake UI, no pricing, no gradients unless intentional
-- Final result: a stunning, professional finished brand logo`;
+- Final result: a stunning, professional finished brand logo tailored to this sector`;
 }
 
-async function generateLogoOption({ storeName, productType, themeColor, tone, variant = 'wordmark' }) {
-  const prompt = buildLogoPrompt({ storeName, productType, themeColor, tone, variant });
+async function generateLogoOption({
+  storeName,
+  productType,
+  themeColor,
+  tone,
+  variant = 'wordmark',
+  symbolStyle = 'sector',
+  concept = '',
+}) {
+  const prompt = buildLogoPrompt({ storeName, productType, themeColor, tone, variant, symbolStyle, concept });
   const tempUrl = await generateNanoBananaImage(prompt, '1:1');
   const buffer = await downloadImageBuffer(tempUrl);
   const uploaded = await uploadToR2(buffer, `store-logo-${variant}-${Date.now()}.jpg`, 'image/jpeg');
   return {
     variant,
+    tone,
+    symbolStyle,
+    concept,
+    productType,
     url: uploaded?.success ? uploaded.url : tempUrl,
   };
 }
@@ -759,7 +881,8 @@ router.get('/config', requireEcomAuth, requireWorkspace, async (req, res) => {
       backgroundColor: '#FFFFFF', textColor: '#111827', font: 'inter',
       announcement: '', announcementEnabled: false,
       productType: '', audience: { gender: [], ageRange: [], region: [], origin: [] },
-      tone: '', city: '', country: '', secondaryColor: '', productDescription: '', categoryRegistry: []
+      tone: 'premium', city: '', country: '', secondaryColor: '', productDescription: '', categoryRegistry: [],
+      logoVariant: 'wordmark', logoSymbolStyle: 'sector', logoConcept: ''
     };
 
     res.json({
@@ -791,6 +914,8 @@ router.post('/generate-logos', requireEcomAuth, requireWorkspace, async (req, re
       themeColor = '#0F6B4F',
       tone = '',
       variant = 'wordmark',
+      symbolStyle = 'sector',
+      concept = '',
     } = req.body || {};
 
     if (!String(storeName || '').trim()) {
@@ -803,6 +928,8 @@ router.post('/generate-logos', requireEcomAuth, requireWorkspace, async (req, re
       themeColor: String(themeColor || '#0F6B4F').trim().slice(0, 20),
       tone: String(tone || '').trim().slice(0, 40),
       variant: String(variant || 'wordmark').trim().slice(0, 40),
+      symbolStyle: String(symbolStyle || 'sector').trim().slice(0, 40),
+      concept: String(concept || '').trim().slice(0, 120),
     });
 
     if (!logo?.url) {
@@ -831,6 +958,7 @@ router.put('/config', requireEcomAuth, requireWorkspace, requireStoreOwner, asyn
       isStoreEnabled,
       // Nouveaux champs pour génération IA
       productType, audience, tone, city, country,
+      logoVariant, logoSymbolStyle, logoConcept,
       secondaryColor, productDescription,
       // Product page builder config (visual builder)
       productPageConfig,
@@ -873,6 +1001,9 @@ router.put('/config', requireEcomAuth, requireWorkspace, requireStoreOwner, asyn
     if (productType !== undefined) update['storeSettings.productType'] = productType;
     if (audience !== undefined) update['storeSettings.audience'] = audience;
     if (tone !== undefined) update['storeSettings.tone'] = tone;
+    if (logoVariant !== undefined) update['storeSettings.logoVariant'] = logoVariant;
+    if (logoSymbolStyle !== undefined) update['storeSettings.logoSymbolStyle'] = logoSymbolStyle;
+    if (logoConcept !== undefined) update['storeSettings.logoConcept'] = logoConcept;
     if (city !== undefined) update['storeSettings.city'] = city;
     if (country !== undefined) update['storeSettings.country'] = country;
     if (secondaryColor !== undefined) update['storeSettings.secondaryColor'] = secondaryColor;

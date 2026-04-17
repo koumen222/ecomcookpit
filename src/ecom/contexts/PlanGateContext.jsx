@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useEcomAuth } from '../hooks/useEcomAuth.jsx';
 import { getCurrentPlan } from '../services/billingApi.js';
-import UpgradeWall from '../components/UpgradeWall.jsx';
 
 const PLAN_RANK = { free: 0, starter: 1, pro: 2, ultra: 3 };
 
@@ -16,11 +16,10 @@ export const usePlanGate = () => useContext(PlanGateContext);
 
 export function PlanGateProvider({ children }) {
   const { workspace, isAuthenticated } = useEcomAuth();
+  const navigate = useNavigate();
   const workspaceId = workspace?._id || workspace?.id || null;
 
   const [planInfo, setPlanInfo] = useState(null);
-  const [open, setOpen] = useState(false);
-  const [requiredPlan, setRequiredPlan] = useState(null);
 
   const refreshPlan = useCallback(async () => {
     if (!isAuthenticated || !workspaceId) return;
@@ -49,10 +48,16 @@ export function PlanGateProvider({ children }) {
       if (typeof callback === 'function') callback();
       return true;
     }
-    setRequiredPlan(plan);
-    setOpen(true);
+
+    navigate('/ecom/billing', {
+      state: {
+        requiredPlan: plan,
+        fromPremiumResource: true,
+      },
+    });
+
     return false;
-  }, [hasPlan]);
+  }, [hasPlan, navigate]);
 
   const value = useMemo(() => ({
     planInfo,
@@ -64,14 +69,6 @@ export function PlanGateProvider({ children }) {
   return (
     <PlanGateContext.Provider value={value}>
       {children}
-      {open && (
-        <UpgradeWall
-          onDismiss={() => { setOpen(false); setRequiredPlan(null); }}
-          workspaceId={workspaceId}
-          trialUsed={planInfo?.trial?.used}
-          selectedPlan={requiredPlan}
-        />
-      )}
     </PlanGateContext.Provider>
   );
 }

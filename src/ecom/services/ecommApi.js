@@ -283,6 +283,9 @@ export const authApi = {
   // Obtenir le profil utilisateur
   getProfile: () => ecomApi.get('/auth/me'),
 
+  // Enregistrer onboarding
+  saveOnboarding: (data) => ecomApi.post('/auth/onboarding', data),
+
   // Mettre à jour le profil (name, phone)
   updateProfile: (data) => ecomApi.put('/auth/profile', data),
 

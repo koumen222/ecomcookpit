@@ -1,29 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useEcomAuth } from '../hooks/useEcomAuth.jsx';
-import { getCurrentPlan, createCheckout, getPaymentStatus, getPaymentHistory, activateTrial, validatePromoCode } from '../services/billingApi.js';
+import { getCurrentPlan, createCheckout, getPaymentStatus, getPaymentHistory, activateTrial, validatePromoCode, checkGlobalPromoCode } from '../services/billingApi.js';
 import { Package, Bot, Zap, Clock, CheckCircle2, CalendarDays, CreditCard, Shield, RefreshCw, MessageCircle, AlertTriangle, Lock, Gift, Globe } from 'lucide-react';
-
-// ─── Country phone codes ────────────────────────────────────────────────────────────────────
-const COUNTRY_CODES = [
-  { code: '+237', flag: '🇨🇲', country: 'Cameroun' },
-  { code: '+221', flag: '🇸🇳', country: 'Sénégal' },
-  { code: '+225', flag: '🇨🇮', country: "Côte d'Ivoire" },
-  { code: '+223', flag: '🇲🇱', country: 'Mali' },
-  { code: '+226', flag: '🇧🇫', country: 'Burkina Faso' },
-  { code: '+229', flag: '🇧🇯', country: 'Bénin' },
-  { code: '+228', flag: '🇹🇬', country: 'Togo' },
-  { code: '+227', flag: '🇳🇪', country: 'Niger' },
-  { code: '+224', flag: '🇬🇳', country: 'Guinée' },
-  { code: '+234', flag: '🇳🇬', country: 'Nigeria' },
-  { code: '+233', flag: '🇬🇭', country: 'Ghana' },
-  { code: '+231', flag: '🇱🇷', country: 'Liberia' },
-  { code: '+33',  flag: '🇫🇷', country: 'France' },
-  { code: '+32',  flag: '🇧🇪', country: 'Belgique' },
-  { code: '+41',  flag: '🇨🇭', country: 'Suisse' },
-  { code: '+1',   flag: '🇨🇦', country: 'Canada' },
-  { code: '+1',   flag: '🇺🇸', country: 'États-Unis' },
-];
+import PaymentModalFrame from '../components/PaymentModalFrame.jsx';
+import { PAYMENT_COUNTRY_CODES } from '../constants/paymentCountryCodes.js';
 
 // ─── Plan definitions ───────────────────────────────────────────────────────────────────────
 const PLAN_TIERS = [
@@ -164,7 +145,7 @@ const ArrowLeftIcon = ({ className = '' }) => (
 // CheckoutModal
 function CheckoutModal({ plan, tier, onClose, onSuccess, workspaceId, userName, userCountry, initialPromo = '' }) {
   const [country, setCountry] = useState(
-    COUNTRY_CODES.find(c => c.country === userCountry) ? userCountry : 'Cameroun'
+    PAYMENT_COUNTRY_CODES.find(c => c.country === userCountry) ? userCountry : 'Cameroun'
   );
   const [phoneLocal, setPhoneLocal] = useState('');
   const [clientName, setClientName] = useState(userName || '');
@@ -175,12 +156,31 @@ function CheckoutModal({ plan, tier, onClose, onSuccess, workspaceId, userName, 
   const [promoError, setPromoError] = useState('');
   const [appliedPromo, setAppliedPromo] = useState(null); // { code, discountAmount, finalAmount }
 
-  const selectedCode = COUNTRY_CODES.find(c => c.country === country);
+  const selectedCode = PAYMENT_COUNTRY_CODES.find(c => c.country === country);
   const dialCode = selectedCode?.code || '+237';
   const flag = selectedCode?.flag || '🌍'; // flags stay as emoji (country flags)
   const fullPhone = phoneLocal ? `${dialCode}${phoneLocal.replace(/^0+/, '')}` : '';
 
   const finalPrice = appliedPromo ? appliedPromo.finalAmount : plan.price;
+  const summaryBeforeValue = appliedPromo
+    ? `${formatAmount(plan.price)} FCFA`
+    : plan.oldPrice
+      ? `${formatAmount(plan.oldPrice)} FCFA`
+      : null;
+  const summaryMeta = appliedPromo
+    ? `Code ${appliedPromo.code} applique · -${formatAmount(appliedPromo.discountAmount)} FCFA`
+    : plan.saving
+      ? `Soit ${formatAmount(plan.perMonth)} FCFA/mois · -${plan.saving}%`
+      : 'Paiement mobile money avec activation immediate';
+  const summaryBadge = appliedPromo
+    ? 'Code promo'
+    : plan.oldPrice
+      ? 'Promo'
+      : plan.saving
+        ? `-${plan.saving}%`
+        : null;
+  const inputClassName = 'w-full rounded-[18px] border border-[#D7E3DA] bg-white px-4 py-3.5 text-[15px] text-slate-800 shadow-[0_10px_30px_rgba(15,107,79,0.04)] outline-none transition placeholder:text-slate-300 focus:border-[#0F6B4F]/35 focus:ring-4 focus:ring-[#0F6B4F]/10';
+  const labelClassName = 'mb-2 block text-[11px] font-black uppercase tracking-[0.16em] text-[#6A776F]';
 
   async function handleApplyPromo(codeToApply) {
     const code = typeof codeToApply === 'string' ? codeToApply : promoInput;
@@ -245,134 +245,187 @@ function CheckoutModal({ plan, tier, onClose, onSuccess, workspaceId, userName, 
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-md p-0 sm:p-4" onClick={onClose}>
-      <div className="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden" onClick={e => e.stopPropagation()}>
-        <div className={`bg-gradient-to-br ${tier.gradient} px-6 pt-6 pb-7 text-white relative`}>
-          <button onClick={onClose} className="absolute top-4 right-4 p-1.5 rounded-lg bg-white/20 hover:bg-white/30 transition">
-            <XIcon />
-          </button>
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-11 h-11 bg-white/20 rounded-xl flex items-center justify-center p-2.5">{tier.icon}</div>
-            <div>
-              <p className="text-white/70 text-[11px] font-bold uppercase tracking-widest">Abonnement</p>
-              <h2 className="text-lg font-black">{tier.name} — {plan.label}</h2>
-            </div>
+    <PaymentModalFrame
+      onClose={onClose}
+      eyebrow="Abonnement"
+      title={`${tier.name} — ${plan.label}`}
+      subtitle="Finalisez votre abonnement en quelques secondes avec votre numero Mobile Money."
+      icon={tier.icon}
+      headerClassName={`bg-gradient-to-br ${tier.gradient}`}
+      summary={{
+        label: 'Total a payer',
+        value: `${formatAmount(finalPrice)} FCFA`,
+        beforeValue: summaryBeforeValue,
+        meta: summaryMeta,
+        badge: summaryBadge,
+      }}
+    >
+      <form onSubmit={handleSubmit} className="space-y-5">
+        <div className="grid gap-4 rounded-[24px] border border-[#E2EAE4] bg-white/90 p-4 shadow-[0_16px_40px_rgba(15,107,79,0.05)] sm:p-5">
+          <div>
+            <label className={labelClassName}>Nom complet</label>
+            <input
+              type="text"
+              value={clientName}
+              onChange={e => setClientName(e.target.value)}
+              placeholder="Votre nom complet"
+              className={inputClassName}
+              required
+            />
           </div>
-          <div className="bg-white/15 rounded-xl p-4 flex items-center justify-between">
-            <div>
-              <p className="text-white/70 text-xs">Total à payer</p>
-              <div className="flex items-baseline gap-2">
-                {plan.oldPrice && <span className="text-lg text-white/40 line-through">{formatAmount(plan.oldPrice)}</span>}
-                <p className="text-2xl font-black">{formatAmount(plan.price)} FCFA</p>
+
+          <div>
+            <label className={labelClassName}>Numero Mobile Money</label>
+            <select
+              value={country}
+              onChange={e => setCountry(e.target.value)}
+              className={`${inputClassName} mb-3 appearance-none`}
+            >
+              {PAYMENT_COUNTRY_CODES.map((c, i) => <option key={i} value={c.country}>{c.flag} {c.country} ({c.code})</option>)}
+            </select>
+            <div className="flex gap-2">
+              <div className="flex flex-shrink-0 items-center gap-1.5 rounded-[18px] border border-[#D7E3DA] bg-[#F5FAF7] px-3 py-3 text-sm font-bold text-[#355646]">
+                <span>{flag}</span>
+                <span>{dialCode}</span>
               </div>
-              {plan.saving && <p className="text-white/60 text-xs mt-0.5">Soit {formatAmount(plan.perMonth)} FCFA/mois · -{plan.saving}%</p>}
+              <input
+                type="tel"
+                inputMode="numeric"
+                value={phoneLocal}
+                onChange={e => setPhoneLocal(e.target.value.replace(/\D/g, ''))}
+                placeholder="6 XX XX XX XX"
+                className={`flex-1 ${inputClassName}`}
+                required
+              />
             </div>
-            {plan.oldPrice && <div className="bg-red-500 text-white font-black text-xs px-2.5 py-1 rounded-full shadow">PROMO</div>}
-            {!plan.oldPrice && plan.saving && <div className="bg-white text-orange-600 font-black text-sm px-3 py-1 rounded-full shadow">-{plan.saving}%</div>}
+            {fullPhone && (
+              <p className="mt-2 flex items-center gap-1.5 text-xs font-semibold text-emerald-700">
+                <CheckIcon className="w-3.5 h-3.5" />
+                {fullPhone}
+              </p>
+            )}
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          <div>
-            <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Nom complet</label>
-            <input type="text" value={clientName} onChange={e => setClientName(e.target.value)} placeholder="Votre nom"
-              className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition bg-gray-50/50" required />
-          </div>
-          <div>
-            <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Numéro Mobile Money</label>
-            <select value={country} onChange={e => setCountry(e.target.value)}
-              className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition bg-gray-50/50 mb-2 appearance-none">
-              {COUNTRY_CODES.map((c, i) => <option key={i} value={c.country}>{c.flag} {c.country} ({c.code})</option>)}
-            </select>
-            <div className="flex gap-2">
-              <div className="flex items-center gap-1.5 px-3 py-3 border border-gray-200 rounded-xl bg-gray-50 text-sm font-bold text-gray-600 flex-shrink-0">
-                <span>{flag}</span><span>{dialCode}</span>
+        <div className="rounded-[24px] border border-[#E2EAE4] bg-white/90 p-4 shadow-[0_16px_40px_rgba(15,107,79,0.05)] sm:p-5">
+          <label className={labelClassName}>Code promo (optionnel)</label>
+          {appliedPromo ? (
+            <div className="flex items-center justify-between rounded-[18px] border border-emerald-200 bg-emerald-50 p-3.5">
+              <div>
+                <p className="flex items-center gap-1.5 text-sm font-bold text-emerald-700">
+                  <CheckIcon className="w-4 h-4" /> {appliedPromo.code}
+                </p>
+                <p className="mt-1 text-xs text-emerald-600">
+                  -{formatAmount(appliedPromo.discountAmount)} FCFA appliqué
+                </p>
               </div>
-              <input type="tel" inputMode="numeric" value={phoneLocal} onChange={e => setPhoneLocal(e.target.value.replace(/\D/g, ''))}
-                placeholder="6 XX XX XX XX" className="flex-1 px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition bg-gray-50/50" required />
+              <button
+                type="button"
+                onClick={handleRemovePromo}
+                className="text-xs font-semibold text-emerald-700 hover:text-emerald-900"
+              >
+                Retirer
+              </button>
             </div>
-            {fullPhone && <p className="text-xs text-emerald-600 font-medium mt-1.5 flex items-center gap-1"><CheckIcon className="w-3.5 h-3.5" /> {fullPhone}</p>}
-          </div>
-          {/* Promo code */}
-          <div>
-            <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Code promo (optionnel)</label>
-            {appliedPromo ? (
-              <div className="flex items-center justify-between bg-emerald-50 border border-emerald-200 rounded-xl p-3">
-                <div>
-                  <p className="text-emerald-700 font-bold text-sm flex items-center gap-1.5">
-                    <CheckIcon className="w-4 h-4" /> {appliedPromo.code}
-                  </p>
-                  <p className="text-emerald-600 text-xs mt-0.5">
-                    -{formatAmount(appliedPromo.discountAmount)} FCFA appliqué
-                  </p>
-                </div>
-                <button type="button" onClick={handleRemovePromo}
-                  className="text-emerald-700 hover:text-emerald-900 text-xs font-medium">
-                  Retirer
+          ) : (
+            <>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={promoInput}
+                  onChange={e => setPromoInput(e.target.value.toUpperCase())}
+                  placeholder="CODEPROMO"
+                  className={`flex-1 font-mono uppercase ${inputClassName}`}
+                />
+                <button
+                  type="button"
+                  onClick={handleApplyPromo}
+                  disabled={promoLoading || !promoInput.trim()}
+                  className="rounded-[18px] bg-[#EEF4EF] px-4 py-3 text-sm font-black text-[#355646] transition hover:bg-[#E4EEE6] disabled:opacity-50"
+                >
+                  {promoLoading ? '…' : 'Appliquer'}
                 </button>
               </div>
-            ) : (
-              <>
-                <div className="flex gap-2">
-                  <input type="text" value={promoInput}
-                    onChange={e => setPromoInput(e.target.value.toUpperCase())}
-                    placeholder="CODEPROMO"
-                    className="flex-1 px-4 py-3 border border-gray-200 rounded-xl text-sm font-mono uppercase focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition bg-gray-50/50" />
-                  <button type="button" onClick={handleApplyPromo} disabled={promoLoading || !promoInput.trim()}
-                    className="px-4 py-3 bg-gray-100 hover:bg-gray-200 rounded-xl text-sm font-bold text-gray-700 disabled:opacity-50">
-                    {promoLoading ? '…' : 'Appliquer'}
-                  </button>
-                </div>
-                {promoError && <p className="text-red-600 text-xs mt-1.5">{promoError}</p>}
-              </>
-            )}
-          </div>
-
-          {/* Récap prix avec promo */}
-          {appliedPromo && (
-            <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 text-sm space-y-1">
-              <div className="flex justify-between text-gray-500">
-                <span>Sous-total</span>
-                <span className="line-through">{formatAmount(plan.price)} FCFA</span>
-              </div>
-              <div className="flex justify-between text-emerald-600 font-medium">
-                <span>Réduction ({appliedPromo.code})</span>
-                <span>-{formatAmount(appliedPromo.discountAmount)} FCFA</span>
-              </div>
-              <div className="flex justify-between text-gray-900 font-bold pt-1 border-t border-gray-200">
-                <span>Total</span>
-                <span>{formatAmount(finalPrice)} FCFA</span>
-              </div>
-            </div>
+              {promoError && <p className="mt-2 text-xs font-medium text-red-600">{promoError}</p>}
+            </>
           )}
+        </div>
 
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl p-3 flex items-start gap-2">
-              <AlertTriangle className="w-4 h-4 text-red-400 mt-0.5 flex-shrink-0" />{error}
+        {appliedPromo && (
+          <div className="space-y-1 rounded-[20px] border border-[#E2EAE4] bg-[#F7FBF8] p-4 text-sm shadow-[0_16px_40px_rgba(15,107,79,0.05)]">
+            <div className="flex justify-between text-gray-500">
+              <span>Sous-total</span>
+              <span className="line-through">{formatAmount(plan.price)} FCFA</span>
             </div>
-          )}
-          <button type="submit" disabled={loading || !phoneLocal || !clientName}
-            className={`w-full py-3.5 rounded-xl font-bold text-white text-sm transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed ${tier.btnClass}`}>
-            {loading ? (
-              <span className="flex items-center justify-center gap-2">
-                <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-                Redirection…
-              </span>
-            ) : `Payer ${formatAmount(finalPrice)} FCFA`}
-          </button>
-          <div className="flex items-center justify-center gap-3 text-[11px] text-gray-400">
-            <span className="flex items-center gap-1"><Lock className="w-3 h-3" /> Paiement sécurisé</span><span>·</span><span>Activation instantanée</span><span>·</span><span>MoneyFusion</span>
+            <div className="flex justify-between font-medium text-emerald-600">
+              <span>Réduction ({appliedPromo.code})</span>
+              <span>-{formatAmount(appliedPromo.discountAmount)} FCFA</span>
+            </div>
+            <div className="flex justify-between border-t border-[#DDE6DF] pt-2 font-bold text-gray-900">
+              <span>Total</span>
+              <span>{formatAmount(finalPrice)} FCFA</span>
+            </div>
           </div>
-        </form>
-      </div>
-    </div>
+        )}
+
+        {error && (
+          <div className="flex items-start gap-2 rounded-[18px] border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+            <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-red-400" />
+            {error}
+          </div>
+        )}
+
+        <button
+          type="submit"
+          disabled={loading || !phoneLocal || !clientName}
+          className={`w-full rounded-[18px] py-4 text-sm font-black text-white transition-all shadow-[0_20px_45px_rgba(15,107,79,0.18)] disabled:cursor-not-allowed disabled:opacity-50 ${tier.btnClass}`}
+        >
+          {loading ? (
+            <span className="flex items-center justify-center gap-2">
+              <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+              Redirection…
+            </span>
+          ) : `Payer ${formatAmount(finalPrice)} FCFA`}
+        </button>
+      </form>
+    </PaymentModalFrame>
   );
 }
 
 // PlanCard
-function PlanCard({ tier, isAnnual, onCheckout, currentPlan, isActive }) {
+function PlanCard({ tier, isAnnual, onCheckout, currentPlan, isActive, globalPromoData }) {
   const duration = tier.free ? tier.durations[0] : (isAnnual ? tier.durations[1] : tier.durations[0]);
   const isCurrentPlan = tier.free ? (currentPlan === 'free' || (!isActive && !['starter','pro','ultra'].includes(currentPlan))) : (currentPlan === tier.id && isActive);
+
+  // Compute promo visual representation
+  let displayPrice = duration.price;
+  let originalPrice = duration.oldPrice || null;
+  let displayPerMonth = duration.perMonth;
+  let isPromoApplied = false;
+
+  if (globalPromoData) {
+    const { discountType, discountValue, applicablePlans, applicableDurations, minAmount } = globalPromoData;
+    
+    // Check if promo applies to this specific card
+    const matchesPlan = !applicablePlans?.length || applicablePlans.includes(tier.id);
+    const matchesDuration = !applicableDurations?.length || applicableDurations.includes(duration.months);
+    const matchesAmount = duration.price >= (minAmount || 0);
+
+    if (matchesPlan && matchesDuration && matchesAmount) {
+      isPromoApplied = true;
+      if (!originalPrice) originalPrice = duration.price;
+      
+      let discountAmount = 0;
+      if (discountType === 'percentage') {
+        discountAmount = Math.round((duration.price * discountValue) / 100);
+      } else {
+        discountAmount = Math.min(duration.price, discountValue);
+      }
+      
+      displayPrice = Math.max(0, duration.price - discountAmount);
+      displayPerMonth = Math.round(displayPrice / duration.months);
+    }
+  }
 
   return (
     <div className={`relative flex flex-col rounded-2xl border transition-all duration-300 bg-white overflow-hidden h-full
@@ -407,18 +460,21 @@ function PlanCard({ tier, isAnnual, onCheckout, currentPlan, isActive }) {
           ) : (
             <>
               <div className="flex items-baseline gap-2">
-                {duration.oldPrice && (
-                  <span className="text-lg font-bold text-gray-300 line-through">{formatAmount(isAnnual ? Math.round(duration.oldPrice / duration.months) : duration.oldPrice)}</span>
+                {originalPrice && (
+                  <span className="text-lg font-bold text-gray-300 line-through">{formatAmount(isAnnual ? Math.round(originalPrice / duration.months) : originalPrice)}</span>
                 )}
-                <span className="text-4xl font-black text-gray-900">{formatAmount(duration.perMonth)}</span>
+                <span className="text-4xl font-black text-gray-900">{formatAmount(displayPerMonth)}</span>
                 <span className="text-sm font-medium text-gray-400">FCFA/mois</span>
               </div>
-              {duration.oldPrice && (
+              {isPromoApplied && (
+                <p className="text-xs text-emerald-600 font-bold mt-1">✨ Promo appliquée : {globalPromoData.code}</p>
+              )}
+              {duration.oldPrice && !isPromoApplied && (
                 <p className="text-xs text-red-500 font-bold mt-1">🔥 Offre valable 24h — prix réduit !</p>
               )}
               {isAnnual && duration.saving && (
                 <p className="text-xs text-emerald-600 font-semibold mt-1">
-                  {formatAmount(duration.price)} FCFA/an · Économisez {duration.saving}%
+                  {formatAmount(displayPrice)} FCFA/an · Économisez {duration.saving}%
                 </p>
               )}
               {!isAnnual && <p className="text-xs text-gray-400 mt-1">Facturation mensuelle, sans engagement</p>}
@@ -491,6 +547,9 @@ export default function BillingPage() {
   const [trialLoading, setTrialLoading] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [globalPromo, setGlobalPromo] = useState('');
+  const [globalPromoData, setGlobalPromoData] = useState(null);
+  const [globalPromoLoading, setGlobalPromoLoading] = useState(false);
+  const [globalPromoError, setGlobalPromoError] = useState('');
 
   useEffect(() => {
     if (!location.state?.selectedPlan) return;
@@ -529,6 +588,33 @@ export default function BillingPage() {
     setTrialLoading(true);
     try { await activateTrial(workspaceId); window.location.reload(); }
     catch { setTrialLoading(false); }
+  }
+
+  async function handleCheckGlobalPromo(e) {
+    if (e) e.preventDefault();
+    setGlobalPromoError('');
+    if (!globalPromo.trim()) { setGlobalPromoError('Entrez un code'); return; }
+    setGlobalPromoLoading(true);
+    try {
+      const res = await checkGlobalPromoCode(globalPromo.trim());
+      if (res.success && res.promo) {
+        setGlobalPromoData(res.promo);
+      } else {
+        setGlobalPromoError('Code invalide');
+        setGlobalPromoData(null);
+      }
+    } catch (err) {
+      setGlobalPromoError(err?.response?.data?.message || err?.userMessage || err?.message || 'Erreur de validation');
+      setGlobalPromoData(null);
+    } finally {
+      setGlobalPromoLoading(false);
+    }
+  }
+
+  function handleClearGlobalPromo() {
+    setGlobalPromo('');
+    setGlobalPromoData(null);
+    setGlobalPromoError('');
   }
 
   // Direct checkout — skip modal, use user phone/name
@@ -684,8 +770,8 @@ export default function BillingPage() {
               </div>
 
               {/* Promo code input (global) */}
-              <div className="flex justify-center mb-10">
-                <div className="relative w-full max-w-xs transition-all hover:scale-[1.02]">
+              <div className="flex flex-col items-center mb-10">
+                <form onSubmit={handleCheckGlobalPromo} className="relative w-full max-w-sm transition-all hover:scale-[1.02]">
                   <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
                     <Gift className="w-4 h-4 text-gray-400" />
                   </div>
@@ -693,10 +779,24 @@ export default function BillingPage() {
                     type="text"
                     value={globalPromo}
                     onChange={e => setGlobalPromo(e.target.value.toUpperCase())}
+                    disabled={globalPromoData !== null}
                     placeholder="Avez-vous un code promo ?"
-                    className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-full text-sm font-bold placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition shadow-sm uppercase text-gray-700"
+                    className="w-full pl-10 pr-24 py-2.5 bg-white border border-gray-200 rounded-full text-sm font-bold placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition shadow-sm uppercase text-gray-700 disabled:opacity-75 disabled:bg-gray-50"
                   />
-                </div>
+                  {!globalPromoData ? (
+                    <button type="submit" disabled={globalPromoLoading || !globalPromo.trim()}
+                      className="absolute inset-y-1 right-1 px-4 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-full text-xs font-bold transition disabled:opacity-50">
+                      {globalPromoLoading ? '…' : 'Appliquer'}
+                    </button>
+                  ) : (
+                    <button type="button" onClick={handleClearGlobalPromo}
+                      className="absolute inset-y-1 right-1 px-4 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-full text-xs font-bold transition">
+                      Retirer
+                    </button>
+                  )}
+                </form>
+                {globalPromoError && <p className="text-red-500 text-[11px] font-bold mt-2">{globalPromoError}</p>}
+                {globalPromoData && <p className="text-emerald-600 text-[11px] font-bold mt-2">Code {globalPromoData.code} validé !</p>}
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6">
@@ -707,6 +807,7 @@ export default function BillingPage() {
                     isAnnual={isAnnual}
                     currentPlan={currentPlan}
                     isActive={isActivePaid}
+                    globalPromoData={globalPromoData}
                     onCheckout={duration => handleDirectCheckout({ ...duration, tier: tier.id })}
                   />
                 ))}
@@ -806,8 +907,8 @@ export default function BillingPage() {
               </div>
               
               {/* Promo code input (global) */}
-              <div className="flex justify-center mt-6">
-                <div className="relative w-full max-w-xs transition-all hover:scale-[1.02]">
+              <div className="mt-6 flex flex-col items-center">
+                <form onSubmit={handleCheckGlobalPromo} className="relative w-full max-w-xs transition-all hover:scale-[1.02]">
                   <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
                     <Gift className="w-4 h-4 text-gray-400" />
                   </div>
@@ -815,10 +916,24 @@ export default function BillingPage() {
                     type="text"
                     value={globalPromo}
                     onChange={e => setGlobalPromo(e.target.value.toUpperCase())}
-                    placeholder="Avez-vous un code promo ?"
-                    className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-full text-sm font-bold placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition shadow-sm uppercase text-gray-700"
+                    disabled={globalPromoData !== null}
+                    placeholder="Code promo ?"
+                    className="w-full pl-10 pr-24 py-2.5 bg-white border border-gray-200 rounded-full text-sm font-bold placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition shadow-sm uppercase text-gray-700 disabled:opacity-75 disabled:bg-gray-50"
                   />
-                </div>
+                  {!globalPromoData ? (
+                    <button type="submit" disabled={globalPromoLoading || !globalPromo.trim()}
+                      className="absolute inset-y-1 right-1 px-4 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-full text-xs font-bold transition disabled:opacity-50">
+                      {globalPromoLoading ? '…' : 'Appliquer'}
+                    </button>
+                  ) : (
+                    <button type="button" onClick={handleClearGlobalPromo}
+                      className="absolute inset-y-1 right-1 px-4 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-full text-xs font-bold transition">
+                      Retirer
+                    </button>
+                  )}
+                </form>
+                {globalPromoError && <p className="text-red-500 text-[11px] font-bold mt-2">{globalPromoError}</p>}
+                {globalPromoData && <p className="text-emerald-600 text-[11px] font-bold mt-2">Code {globalPromoData.code} validé !</p>}
               </div>
             </div>
           </div>

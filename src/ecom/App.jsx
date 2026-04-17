@@ -75,7 +75,6 @@ const SuperAdminWorkspaces = lazy(() => import('./pages/SuperAdminWorkspaces.jsx
 const SuperAdminActivity = lazy(() => import('./pages/SuperAdminActivity.jsx'));
 const SuperAdminSettings = lazy(() => import('./pages/SuperAdminSettings.jsx'));
 const SetupSuperAdmin = lazy(() => import('./pages/SetupSuperAdmin.jsx'));
-const Data = lazy(() => import('./pages/Data.jsx'));
 const Goals = lazy(() => import('./pages/Goals.jsx'));
 const LivreurDashboard = lazy(() => import('./pages/LivreurDashboard.jsx'));
 const LivreurAvailable = lazy(() => import('./pages/LivreurAvailable.jsx'));
@@ -249,7 +248,6 @@ const PLATFORM_TITLE_RULES = [
   { path: '/ecom/users', title: 'Utilisateurs' },
   { path: '/ecom/profile', title: 'Profil' },
   { path: '/ecom/settings', title: 'Paramètres' },
-  { path: '/ecom/data', title: 'Data' },
   { path: '/ecom/goals', title: 'Objectifs' },
   { path: '/ecom/product-research', title: 'Recherche produits' },
   { path: '/ecom/suppliers', title: 'Fournisseurs' },
@@ -725,8 +723,8 @@ const EcomApp = () => {
               <Route path="/ecom/profile" element={<LayoutRoute><Profile /></LayoutRoute>} />
               <Route path="/ecom/settings" element={<LayoutRoute><Settings /></LayoutRoute>} />
 
-              {/* Routes Data, Objectifs, Recherche Produits et Fournisseurs */}
-              <Route path="/ecom/data" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_compta', 'super_admin']}><Data /></LayoutRoute>} />
+              {/* Routes Objectifs, Recherche Produits et Fournisseurs */}
+              <Route path="/ecom/data" element={<Navigate to="/ecom/dashboard" replace />} />
               <Route path="/ecom/goals" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse', 'ecom_compta']}><Goals /></LayoutRoute>} />
               <Route path="/ecom/product-research" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse', 'ecom_compta']}><ProductResearchList /></LayoutRoute>} />
               <Route path="/ecom/suppliers" element={<LayoutRoute requiredRole="ecom_admin"><SuppliersList /></LayoutRoute>} />

@@ -440,6 +440,25 @@ export const EcomAuthProvider = ({ children }) => {
     }
   };
 
+  // Enregistrer onboarding
+  const saveOnboarding = async (data) => {
+    try {
+      const response = await authApi.saveOnboarding(data);
+      if (response.data.success) {
+        // Optionnel : on met à jour user state avec phone s'il est present
+        if (data.phone && state.user) {
+          const updatedUser = { ...state.user, phone: data.phone };
+          dispatch({ type: 'UPDATE_USER', payload: updatedUser });
+          localStorage.setItem('ecomUser', JSON.stringify(updatedUser));
+        }
+      }
+      return response.data;
+    } catch (error) {
+      const errorMessage = error.response?.data?.message || 'Erreur lors de l\'enregistrement';
+      throw new Error(errorMessage);
+    }
+  };
+
   // Changer de workspace actif
   const switchWorkspace = async (newToken, updatedUser, newWorkspace) => {
     try {
@@ -548,6 +567,7 @@ export const EcomAuthProvider = ({ children }) => {
     logout,
     register,
     registerDevice,
+    saveOnboarding,
     googleLogin,
     createWorkspace,
     joinWorkspace,

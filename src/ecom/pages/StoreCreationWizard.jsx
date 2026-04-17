@@ -62,10 +62,72 @@ const COLORS = [
   { value: '#000000', name: 'Noir' },
 ];
 
+const BRAND_TONES = [
+  { value: 'premium', label: 'Premium', desc: 'Luxe, élégance, raffinement' },
+  { value: 'naturel', label: 'Naturel', desc: 'Doux, sincère, authentique' },
+  { value: 'dynamique', label: 'Dynamique', desc: 'Énergie, mouvement, impact' },
+  { value: 'confiance', label: 'Confiance', desc: 'Sérieux, stabilité, crédibilité' },
+  { value: 'tendance', label: 'Tendance', desc: 'Mode, lifestyle, contemporain' },
+  { value: 'chaleureux', label: 'Chaleureux', desc: 'Accessible, humain, proche' },
+];
+
+const LOGO_VARIANTS = [
+  { value: 'wordmark', label: 'Wordmark', desc: 'Le nom de la marque reste central' },
+  { value: 'combination', label: 'Combiné', desc: 'Icône + nom lisible et polyvalent' },
+  { value: 'emblem', label: 'Emblème', desc: 'Badge compact avec présence premium' },
+  { value: 'monogram', label: 'Monogramme', desc: 'Initiales ou signe typographique fort' },
+  { value: 'abstract', label: 'Abstrait', desc: 'Symbole moderne, distinctif et épuré' },
+];
+
+const LOGO_SYMBOL_STYLES = [
+  { value: 'sector', label: 'Adapté au secteur', desc: 'L’icône suit d’abord votre activité' },
+  { value: 'minimal', label: 'Minimal', desc: 'Très sobre, peu de traits, très net' },
+  { value: 'geometric', label: 'Géométrique', desc: 'Construction précise et moderne' },
+  { value: 'organic', label: 'Organique', desc: 'Courbes souples, rendu plus naturel' },
+  { value: 'signature', label: 'Signature', desc: 'Éditorial, chic, plus mode' },
+  { value: 'bold', label: 'Bold', desc: 'Plus franc, visible, mémorable' },
+];
+
+const PRODUCT_TYPE_LOGO_PRESETS = {
+  beaute: {
+    focus: 'des lignes fines, des pétales, des gouttes ou une silhouette élégante',
+    avoid: 'Évitez les icônes beauté trop génériques ou trop cheap.',
+  },
+  fitness: {
+    focus: 'des formes dynamiques, un sentiment de mouvement, de force ou de progression',
+    avoid: 'Évitez les haltères clichées sans identité de marque.',
+  },
+  mode: {
+    focus: 'des initiales fortes, des formes couture, un rendu éditorial et premium',
+    avoid: 'Évitez les cintres ou sacs shopping trop littéraux.',
+  },
+  tech: {
+    focus: 'des formes géométriques, modulaires, propres et futuristes',
+    avoid: 'Évitez les puces électroniques ou éclairs trop stock.',
+  },
+  maison: {
+    focus: 'des volumes rassurants, des lignes d’intérieur, d’équilibre et de confort',
+    avoid: 'Évitez les maisons dessinées de manière enfantine.',
+  },
+  sante: {
+    focus: 'la clarté, la confiance, l’équilibre et la sensation de bien-être',
+    avoid: 'Évitez les croix médicales trop banales ou trop froides.',
+  },
+  enfants: {
+    focus: 'des formes rondes, joyeuses, rassurantes et lisibles',
+    avoid: 'Évitez les mascottes trop chargées ou trop infantiles.',
+  },
+  autre: {
+    focus: 'une identité premium simple, mémorable et polyvalente',
+    avoid: 'Évitez les icônes ecommerce génériques type panier ou curseur.',
+  },
+};
+
 const STEPS = [
   { num: 1, title: 'Votre boutique', subtitle: 'Nom, URL et catégorie' },
-  { num: 2, title: 'Votre identité', subtitle: 'Logo et couleurs' },
-  { num: 3, title: 'Finalisez', subtitle: 'Coordonnées et création' },
+  { num: 2, title: 'Direction visuelle', subtitle: 'Style, ton et couleurs' },
+  { num: 3, title: 'Votre logo', subtitle: 'Génération ou import' },
+  { num: 4, title: 'Finalisez', subtitle: 'Coordonnées et création' },
 ];
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -319,6 +381,10 @@ const StoreCreationWizard = ({ onComplete }) => {
     country: 'Cameroun',
     storeCurrency: 'XAF',
     storeDescription: '',
+    tone: 'premium',
+    logoVariant: 'wordmark',
+    logoSymbolStyle: 'sector',
+    logoConcept: '',
   });
 
   const [subdomainStatus, setSubdomainStatus] = useState(null);
@@ -397,6 +463,10 @@ const StoreCreationWizard = ({ onComplete }) => {
             country: s.country || 'Cameroun',
             storeCurrency: s.storeCurrency || 'XAF',
             storeDescription: s.storeDescription || '',
+            tone: s.tone || 'premium',
+            logoVariant: s.logoVariant || 'wordmark',
+            logoSymbolStyle: s.logoSymbolStyle || 'sector',
+            logoConcept: s.logoConcept || '',
           }));
           if (s.storeLogo) setLogoPreview(s.storeLogo);
           setSubdomainStatus('available');
@@ -433,6 +503,20 @@ const StoreCreationWizard = ({ onComplete }) => {
     });
     setErrors(p => ({ ...p, [key]: '' }));
   };
+
+  const selectedProductType = PRODUCT_TYPES.find((type) => type.value === form.productType) || null;
+  const selectedTone = BRAND_TONES.find((item) => item.value === form.tone) || BRAND_TONES[0];
+  const selectedLogoVariant = LOGO_VARIANTS.find((item) => item.value === form.logoVariant) || LOGO_VARIANTS[0];
+  const selectedLogoSymbolStyle = LOGO_SYMBOL_STYLES.find((item) => item.value === form.logoSymbolStyle) || LOGO_SYMBOL_STYLES[0];
+  const sectorPreset = PRODUCT_TYPE_LOGO_PRESETS[form.productType] || PRODUCT_TYPE_LOGO_PRESETS.autre;
+  const isGeneratedLogoOutdated = Boolean(generatedLogo?.url) && (
+    (generatedLogo.variant || 'wordmark') !== form.logoVariant ||
+    (generatedLogo.tone || 'premium') !== form.tone ||
+    (generatedLogo.symbolStyle || 'sector') !== form.logoSymbolStyle ||
+    String(generatedLogo.concept || '').trim() !== String(form.logoConcept || '').trim() ||
+    (generatedLogo.productType || '') !== (form.productType || '') ||
+    (generatedLogo.themeColor || '') !== form.themeColor
+  );
 
   const slugify = (str) =>
     str.toLowerCase().trim()
@@ -508,10 +592,13 @@ const StoreCreationWizard = ({ onComplete }) => {
         storeName: form.storeName,
         productType: form.productType,
         themeColor: form.themeColor,
-        variant: 'wordmark',
+        tone: form.tone,
+        variant: form.logoVariant,
+        symbolStyle: form.logoSymbolStyle,
+        concept: form.logoConcept,
       });
       const logo = res.data?.data || null;
-      setGeneratedLogo(logo);
+      setGeneratedLogo(logo ? { ...logo, themeColor: form.themeColor } : null);
       if (logo?.url) {
         setGenerationLogoUrl(logo.url);
         set('storeLogo', logo.url);
@@ -602,6 +689,10 @@ const StoreCreationWizard = ({ onComplete }) => {
         storeWhatsApp: form.storeWhatsApp,
         isStoreEnabled: true,
         productType: form.productType,
+        tone: form.tone,
+        logoVariant: form.logoVariant,
+        logoSymbolStyle: form.logoSymbolStyle,
+        logoConcept: form.logoConcept,
         city: form.city,
         country: form.country,
       });
@@ -704,27 +795,88 @@ const StoreCreationWizard = ({ onComplete }) => {
   // ═══════════════════════════════════════════════════════════════════════════════
   if (showIntro) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-900 to-emerald-950 flex items-center justify-center px-6">
-        <div className="max-w-xl w-full text-center">
-          <div className="inline-flex items-center justify-center w-24 h-24 rounded-3xl bg-gradient-to-br from-emerald-400 to-teal-500 shadow-2xl shadow-emerald-500/40 mb-8">
-            <Sparkles className="w-12 h-12 text-white" />
+      <div className="min-h-screen overflow-hidden bg-[linear-gradient(180deg,#ffffff_0%,#f7fbf9_100%)] px-6 py-10 sm:px-8 lg:px-10">
+        <div className="mx-auto flex min-h-[calc(100vh-5rem)] max-w-4xl items-center">
+          <div className="w-full">
+            <div className="relative overflow-hidden rounded-[32px] border border-slate-200/90 bg-white shadow-[0_1px_3px_rgba(60,64,67,0.16),0_8px_24px_rgba(60,64,67,0.10)]">
+              <div className="absolute -right-16 -top-16 h-48 w-48 rounded-full bg-emerald-50 blur-3xl" />
+              <div className="absolute bottom-8 right-8 h-3 w-3 rounded-full bg-scalor-green" />
+              <div className="relative p-8 sm:p-10 lg:p-12">
+                <div className="inline-flex items-center gap-3 rounded-full border border-slate-200 bg-white px-4 py-2 shadow-[0_1px_2px_rgba(60,64,67,0.08)]">
+                  <div className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-50 text-scalor-green">
+                    <Wand2 className="h-4 w-4" />
+                  </div>
+                  <span className="text-sm font-medium text-slate-600">Assistant boutique</span>
+                </div>
+
+                <div className="mt-10 max-w-3xl">
+                  <p className="text-sm font-medium text-scalor-green">Configuration guidée</p>
+                  <h1 className="mt-4 text-4xl font-semibold tracking-tight text-slate-950 sm:text-5xl lg:text-[3.45rem] lg:leading-[1.04]">
+                    Créez une boutique claire, rapide et prête à publier.
+                  </h1>
+                  <p className="mt-5 max-w-2xl text-base leading-8 text-slate-600 sm:text-lg">
+                    L'assistant installe l'essentiel de votre boutique avec une mise en place propre et légère.
+                    Vous partez d'une base crédible, puis vous ajustez librement le contenu, le style et les détails.
+                  </p>
+                </div>
+
+                <div className="mt-10 grid gap-3 sm:grid-cols-3">
+                  {[
+                    {
+                      label: 'Identité',
+                      value: 'Nom, URL et catégorie',
+                    },
+                    {
+                      label: 'Visuel',
+                      value: 'Direction créative puis logo',
+                    },
+                    {
+                      label: 'Départ',
+                      value: 'Prise en main en 2 minutes',
+                    },
+                  ].map((item) => (
+                    <div key={item.label} className="rounded-[24px] border border-slate-200 bg-[#fbfcfe] p-4">
+                      <span className="inline-flex rounded-full bg-emerald-50 px-3 py-1 text-[11px] font-semibold text-scalor-green">
+                        {item.label}
+                      </span>
+                      <p className="mt-3 text-sm font-semibold leading-6 text-slate-900">{item.value}</p>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="mt-10 flex flex-col gap-3 sm:flex-row sm:items-center">
+                  <button
+                    type="button"
+                    onClick={() => setShowIntro(false)}
+                    className="inline-flex items-center justify-center gap-3 rounded-full bg-scalor-green px-7 py-3.5 text-base font-semibold text-white transition hover:bg-scalor-green-dark"
+                  >
+                    <Wand2 className="h-5 w-5" />
+                    Commencer
+                    <ArrowRight className="h-5 w-5" />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => navigate('/ecom/dashboard')}
+                    className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-6 py-3.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                  >
+                    Retour au dashboard
+                  </button>
+                </div>
+
+                <div className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-slate-500">
+                  <div className="inline-flex items-center gap-2">
+                    <Check className="h-4 w-4 text-scalor-green" />
+                    Base modifiable à tout moment
+                  </div>
+                  <div className="inline-flex items-center gap-2">
+                    <Check className="h-4 w-4 text-scalor-green" />
+                    Mise en place sans surcharge visuelle
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
-          <h1 className="text-4xl sm:text-5xl font-black text-white mb-4 tracking-tight">
-            Créez votre boutique<br />avec l'assistant IA
-          </h1>
-          <p className="text-lg text-gray-300 mb-10 max-w-md mx-auto">
-            Notre assistant IA va générer votre boutique complète — page d'accueil et visuels — et vous pourrez ajouter un logo uniquement si vous le souhaitez.
-          </p>
-          <button
-            type="button"
-            onClick={() => setShowIntro(false)}
-            className="inline-flex items-center justify-center gap-3 px-8 py-4 text-base font-bold text-gray-900 bg-white rounded-2xl hover:bg-gray-100 transition shadow-xl shadow-emerald-500/20"
-          >
-            <Wand2 className="w-5 h-5" />
-            Lancer l'assistant IA
-            <ArrowRight className="w-5 h-5" />
-          </button>
-          <p className="text-xs text-gray-500 mt-6">Prend environ 2 minutes</p>
         </div>
       </div>
     );
@@ -855,7 +1007,7 @@ const StoreCreationWizard = ({ onComplete }) => {
         )}
 
         {/* ═══════════════════════════════════════════════════════════════════ */}
-        {/* ÉTAPE 2 : Votre identité */}
+        {/* ÉTAPE 2 : Direction visuelle */}
         {/* ═══════════════════════════════════════════════════════════════════ */}
         {step === 2 && (
           <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-300">
@@ -863,121 +1015,85 @@ const StoreCreationWizard = ({ onComplete }) => {
               <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-pink-500 to-rose-600 rounded-2xl shadow-lg shadow-pink-500/30 mb-2">
                 <Palette className="w-8 h-8 text-white" />
               </div>
-              <h1 className="text-2xl font-black text-gray-900">Ajoutez un logo si vous le souhaitez</h1>
-              <p className="text-gray-500">Le logo est optionnel. Vous pouvez importer le vôtre ou générer une proposition IA, puis choisir la couleur principale de votre boutique.</p>
+              <h1 className="text-2xl font-black text-gray-900">Définissez votre direction créative</h1>
+              <p className="text-gray-500">Cadrez ici le style du logo et la couleur principale. La génération ou l'import du logo se feront à l'étape suivante.</p>
             </div>
 
             <Card className="p-6 space-y-6">
-              <div className="space-y-3">
-                <label className="block text-sm font-semibold text-gray-800">Logo de votre boutique</label>
-                <p className="text-xs text-gray-500">Importez votre logo ou cliquez pour générer une proposition IA. Si vous passez cette étape, la boutique sera créée sans logo.</p>
-
-                <div className="flex flex-wrap gap-3">
-                  <button
-                    type="button"
-                    onClick={handleGenerateLogo}
-                    disabled={logoGenerating || !form.storeName.trim()}
-                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-900 text-white text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {logoGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wand2 className="w-4 h-4" />}
-                    {logoGenerating ? 'Generation en cours...' : generatedLogo?.url ? 'Regenerer le logo IA' : 'Generer mon logo IA'}
-                  </button>
-                  {generatedLogo?.url && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setGeneratedLogo(null);
-                        setGenerationLogoUrl(null);
-                        setLogoPreview(null);
-                        set('storeLogo', '');
-                      }}
-                      className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-700 bg-white"
-                    >
-                      <RefreshCw className="w-4 h-4" />
-                      Réinitialiser
-                    </button>
-                  )}
-                </div>
-
-                {logoGenerating && (
-                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4">
-                    <div className="flex items-start gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center flex-shrink-0">
-                        <Wand2 className="w-5 h-5 animate-pulse" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-bold text-emerald-900">Creation du logo IA</p>
-                        <p className="text-xs text-emerald-700 mt-1">{LOGO_GENERATION_MESSAGES[logoGenerationMessageIdx]}</p>
-                        <div className="mt-3 h-1.5 w-full rounded-full bg-emerald-100 overflow-hidden">
-                          <div className="h-full bg-emerald-500 animate-pulse" style={{ width: '65%' }} />
-                        </div>
-                        <p className="text-[11px] text-emerald-700 mt-2">
-                          Temps ecoule: {logoGenerationElapsedSec}s. Le resultat sera affiche automatiquement des qu'il est pret.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {generatedLogo?.url && (
-                  <div className="rounded-2xl border-2 border-gray-200 overflow-hidden bg-white">
-                    <div className="aspect-square bg-gray-50 p-6 flex items-center justify-center">
-                      <img src={generatedLogo.url} alt="Logo IA généré" className="max-h-full max-w-full object-contain" />
-                    </div>
-                    <div className="px-4 py-3 border-t border-gray-100 flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-xs font-semibold text-gray-800">Logo IA généré</p>
-                        <p className="text-[11px] text-gray-500 capitalize">{generatedLogo.variant || 'wordmark'}</p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          set('storeLogo', generatedLogo.url);
-                          setLogoPreview(generatedLogo.url);
-                        }}
-                        className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-900 text-white text-xs font-semibold"
-                      >
-                        Utiliser ce logo
-                      </button>
-                    </div>
-                  </div>
-                )}
-                {errors.storeLogo && <p className="text-sm text-red-600 font-medium">{errors.storeLogo}</p>}
-
-                <label className={`
-                  relative flex flex-col items-center justify-center h-40 rounded-2xl border-2 border-dashed cursor-pointer
-                  transition-all duration-200 overflow-hidden
-                  ${logoPreview ? 'border-gray-300 bg-gray-50' : 'border-gray-200 hover:border-gray-400 hover:bg-gray-50'}
-                `}>
-                  {logoUploading ? (
-                    <div className="flex flex-col items-center gap-2">
-                      <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
-                      <span className="text-sm text-gray-500">Upload en cours...</span>
-                    </div>
-                  ) : logoPreview ? (
-                    <>
-                      <img src={logoPreview} alt="Logo" className="max-h-32 max-w-[80%] object-contain" />
-                      <button
-                        onClick={(e) => { e.preventDefault(); setGenerationLogoUrl(null); setLogoPreview(null); set('storeLogo', ''); }}
-                        className="absolute top-3 right-3 w-8 h-8 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </>
-                  ) : (
-                    <div className="flex flex-col items-center gap-3 text-center">
-                      <div className="w-14 h-14 bg-gray-100 rounded-2xl flex items-center justify-center">
-                        <Upload className="w-6 h-6 text-gray-400" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-semibold text-gray-700">Glissez ou cliquez pour upload</p>
-                        <p className="text-xs text-gray-400">PNG, JPG, SVG • Max 5 MB</p>
-                      </div>
-                    </div>
-                  )}
-                  <input type="file" accept="image/*" className="hidden" onChange={handleLogo} />
-                </label>
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                <p className="text-sm font-semibold text-emerald-900">Direction adaptée à votre activité</p>
+                <p className="mt-1 text-xs text-emerald-700 leading-5">
+                  {selectedProductType
+                    ? `Pour ${selectedProductType.label}, l'IA privilégiera ${sectorPreset.focus}. ${sectorPreset.avoid}`
+                    : `Choisissez une catégorie à l'étape précédente pour guider encore mieux le logo. Sans secteur renseigné, la génération restera plus générique.`}
+                </p>
               </div>
+
+              <div className="space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <label className="block text-sm font-semibold text-gray-800">Type de logo</label>
+                  <span className="text-xs text-gray-500">Choix actuel: {selectedLogoVariant.label}</span>
+                </div>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  {LOGO_VARIANTS.map((variant) => (
+                    <SelectableCard
+                      key={variant.value}
+                      selected={form.logoVariant === variant.value}
+                      onClick={() => set('logoVariant', variant.value)}
+                    >
+                      <p className="text-sm font-bold text-gray-900">{variant.label}</p>
+                      <p className="mt-1 text-xs text-gray-500">{variant.desc}</p>
+                    </SelectableCard>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <label className="block text-sm font-semibold text-gray-800">Ton de marque</label>
+                  <span className="text-xs text-gray-500">Choix actuel: {selectedTone.label}</span>
+                </div>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  {BRAND_TONES.map((tone) => (
+                    <SelectableCard
+                      key={tone.value}
+                      selected={form.tone === tone.value}
+                      onClick={() => set('tone', tone.value)}
+                    >
+                      <p className="text-sm font-bold text-gray-900">{tone.label}</p>
+                      <p className="mt-1 text-xs text-gray-500">{tone.desc}</p>
+                    </SelectableCard>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <label className="block text-sm font-semibold text-gray-800">Style du symbole</label>
+                  <span className="text-xs text-gray-500">Choix actuel: {selectedLogoSymbolStyle.label}</span>
+                </div>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  {LOGO_SYMBOL_STYLES.map((style) => (
+                    <SelectableCard
+                      key={style.value}
+                      selected={form.logoSymbolStyle === style.value}
+                      onClick={() => set('logoSymbolStyle', style.value)}
+                    >
+                      <p className="text-sm font-bold text-gray-900">{style.label}</p>
+                      <p className="mt-1 text-xs text-gray-500">{style.desc}</p>
+                    </SelectableCard>
+                  ))}
+                </div>
+              </div>
+
+              <Input
+                label="Symbole ou idée à intégrer"
+                hint="Optionnel. Exemple: feuille, éclair, couronne, monogramme GM, pétale minimal..."
+                placeholder="Ex: feuille premium, éclair géométrique, double initiale"
+                value={form.logoConcept}
+                onChange={e => set('logoConcept', e.target.value)}
+                icon={Wand2}
+              />
 
               <div className="space-y-3">
                 <label className="block text-sm font-semibold text-gray-800">Couleur principale</label>
@@ -1031,19 +1147,212 @@ const StoreCreationWizard = ({ onComplete }) => {
                 </div>
               </div>
 
+              <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+                <p className="text-sm font-semibold text-gray-900">Direction retenue</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {[selectedLogoVariant.label, selectedTone.label, selectedLogoSymbolStyle.label].map((badge) => (
+                    <span key={badge} className="inline-flex items-center rounded-full bg-white px-3 py-1 text-[11px] font-semibold text-gray-600 border border-gray-200">
+                      {badge}
+                    </span>
+                  ))}
+                  {selectedProductType && (
+                    <span className="inline-flex items-center rounded-full bg-emerald-100 px-3 py-1 text-[11px] font-semibold text-emerald-700">
+                      {selectedProductType.label}
+                    </span>
+                  )}
+                </div>
+                {form.logoConcept.trim() && (
+                  <p className="mt-3 text-xs text-gray-600">
+                    Idée intégrée: <span className="font-semibold text-gray-800">{form.logoConcept.trim()}</span>
+                  </p>
+                )}
+              </div>
+
             </Card>
 
             <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-              <p className="text-sm font-semibold text-emerald-900">La génération du logo est maintenant manuelle.</p>
-              <p className="mt-1 text-xs text-emerald-700">Vous pouvez importer votre propre logo, générer un seul logo IA, ou passer cette étape.</p>
+              <p className="text-sm font-semibold text-emerald-900">La création du logo est maintenant une étape séparée.</p>
+              <p className="mt-1 text-xs text-emerald-700">Vous définissez ici la direction créative et la couleur principale. À l'étape suivante, vous pourrez générer une proposition IA ou importer votre propre logo.</p>
             </div>
           </div>
         )}
 
         {/* ═══════════════════════════════════════════════════════════════════ */}
-        {/* ÉTAPE 3 : Finalisation */}
+        {/* ÉTAPE 3 : Logo */}
         {/* ═══════════════════════════════════════════════════════════════════ */}
         {step === 3 && (
+          <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-300">
+            <div className="text-center space-y-2">
+              <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-gray-900 to-emerald-700 rounded-2xl shadow-lg shadow-gray-900/20 mb-2">
+                <Wand2 className="w-8 h-8 text-white" />
+              </div>
+              <h1 className="text-2xl font-black text-gray-900">Créez ou importez votre logo</h1>
+              <p className="text-gray-500">Cette étape reste optionnelle. Générez une proposition IA avec la direction choisie, ou ajoutez directement votre propre fichier.</p>
+            </div>
+
+            <Card className="p-6 space-y-6">
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                <p className="text-sm font-semibold text-emerald-900">Direction active pour le logo</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {[selectedLogoVariant.label, selectedTone.label, selectedLogoSymbolStyle.label].map((badge) => (
+                    <span key={badge} className="inline-flex items-center rounded-full bg-white px-3 py-1 text-[11px] font-semibold text-gray-700 border border-emerald-100">
+                      {badge}
+                    </span>
+                  ))}
+                  {selectedProductType && (
+                    <span className="inline-flex items-center rounded-full bg-emerald-100 px-3 py-1 text-[11px] font-semibold text-emerald-700">
+                      {selectedProductType.label}
+                    </span>
+                  )}
+                </div>
+                {form.logoConcept.trim() && (
+                  <p className="mt-3 text-xs text-emerald-700">
+                    Idée à intégrer: <span className="font-semibold text-emerald-900">{form.logoConcept.trim()}</span>
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-3">
+                <label className="block text-sm font-semibold text-gray-800">Logo de votre boutique</label>
+                <p className="text-xs text-gray-500">Cliquez pour générer une proposition IA avec cette direction, ou importez votre logo. Vous pouvez passer cette étape si vous souhaitez finaliser la boutique sans logo.</p>
+
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={handleGenerateLogo}
+                    disabled={logoGenerating || !form.storeName.trim()}
+                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-900 text-white text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {logoGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wand2 className="w-4 h-4" />}
+                    {logoGenerating
+                      ? 'Generation en cours...'
+                      : generatedLogo?.url && isGeneratedLogoOutdated
+                        ? 'Relancer avec la nouvelle direction'
+                        : generatedLogo?.url
+                          ? 'Regenerer le logo IA'
+                          : 'Generer mon logo IA'}
+                  </button>
+                  {generatedLogo?.url && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setGeneratedLogo(null);
+                        setGenerationLogoUrl(null);
+                        setLogoPreview(null);
+                        set('storeLogo', '');
+                      }}
+                      className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-700 bg-white"
+                    >
+                      <RefreshCw className="w-4 h-4" />
+                      Réinitialiser
+                    </button>
+                  )}
+                </div>
+
+                {isGeneratedLogoOutdated && (
+                  <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                    <p className="text-sm font-semibold text-amber-900">La direction a changé depuis la dernière génération.</p>
+                    <p className="mt-1 text-xs text-amber-700">Relancez la génération pour obtenir une proposition alignée avec les réglages actuels.</p>
+                  </div>
+                )}
+
+                {logoGenerating && (
+                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4">
+                    <div className="flex items-start gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center flex-shrink-0">
+                        <Wand2 className="w-5 h-5 animate-pulse" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-bold text-emerald-900">Creation du logo IA</p>
+                        <p className="text-xs text-emerald-700 mt-1">{LOGO_GENERATION_MESSAGES[logoGenerationMessageIdx]}</p>
+                        <div className="mt-3 h-1.5 w-full rounded-full bg-emerald-100 overflow-hidden">
+                          <div className="h-full bg-emerald-500 animate-pulse" style={{ width: '65%' }} />
+                        </div>
+                        <p className="text-[11px] text-emerald-700 mt-2">
+                          Temps ecoule: {logoGenerationElapsedSec}s. Le resultat sera affiche automatiquement des qu'il est pret.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {generatedLogo?.url && (
+                  <div className="rounded-2xl border-2 border-gray-200 overflow-hidden bg-white">
+                    <div className="aspect-square bg-gray-50 p-6 flex items-center justify-center">
+                      <img src={generatedLogo.url} alt="Logo IA généré" className="max-h-full max-w-full object-contain" />
+                    </div>
+                    <div className="px-4 py-3 border-t border-gray-100 flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-semibold text-gray-800">Logo IA généré</p>
+                        <p className="text-[11px] text-gray-500">
+                          {(LOGO_VARIANTS.find((item) => item.value === (generatedLogo.variant || form.logoVariant)) || selectedLogoVariant).label}
+                          {selectedProductType ? ` · ${selectedProductType.label}` : ''}
+                          {isGeneratedLogoOutdated ? ' · direction modifiée' : ''}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          set('storeLogo', generatedLogo.url);
+                          setLogoPreview(generatedLogo.url);
+                        }}
+                        className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-900 text-white text-xs font-semibold"
+                      >
+                        Utiliser ce logo
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {errors.storeLogo && <p className="text-sm text-red-600 font-medium">{errors.storeLogo}</p>}
+
+                <label className={`
+                  relative flex flex-col items-center justify-center h-40 rounded-2xl border-2 border-dashed cursor-pointer
+                  transition-all duration-200 overflow-hidden
+                  ${logoPreview ? 'border-gray-300 bg-gray-50' : 'border-gray-200 hover:border-gray-400 hover:bg-gray-50'}
+                `}>
+                  {logoUploading ? (
+                    <div className="flex flex-col items-center gap-2">
+                      <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+                      <span className="text-sm text-gray-500">Upload en cours...</span>
+                    </div>
+                  ) : logoPreview ? (
+                    <>
+                      <img src={logoPreview} alt="Logo" className="max-h-32 max-w-[80%] object-contain" />
+                      <button
+                        onClick={(e) => { e.preventDefault(); setGenerationLogoUrl(null); setLogoPreview(null); set('storeLogo', ''); }}
+                        className="absolute top-3 right-3 w-8 h-8 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </>
+                  ) : (
+                    <div className="flex flex-col items-center gap-3 text-center">
+                      <div className="w-14 h-14 bg-gray-100 rounded-2xl flex items-center justify-center">
+                        <Upload className="w-6 h-6 text-gray-400" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-gray-700">Glissez ou cliquez pour upload</p>
+                        <p className="text-xs text-gray-400">PNG, JPG, SVG • Max 5 MB</p>
+                      </div>
+                    </div>
+                  )}
+                  <input type="file" accept="image/*" className="hidden" onChange={handleLogo} />
+                </label>
+              </div>
+            </Card>
+
+            <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+              <p className="text-sm font-semibold text-gray-900">Le logo reste optionnel.</p>
+              <p className="mt-1 text-xs text-gray-600">Si vous passez cette étape, la boutique sera créée sans logo et vous pourrez en ajouter un plus tard depuis les réglages.</p>
+            </div>
+          </div>
+        )}
+
+        {/* ═══════════════════════════════════════════════════════════════════ */}
+        {/* ÉTAPE 4 : Finalisation */}
+        {/* ═══════════════════════════════════════════════════════════════════ */}
+        {step === 4 && (
           <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-300">
             <div className="text-center space-y-2">
               <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl shadow-lg shadow-blue-500/30 mb-2">
@@ -1236,12 +1545,12 @@ const StoreCreationWizard = ({ onComplete }) => {
           ) : <div />}
 
           <div className="flex items-center gap-2">
-            {step === 2 && (
+            {step === 3 && (
               <button
                 onClick={skip}
                 className="px-5 py-3 text-sm font-semibold text-gray-500 hover:text-gray-700 transition"
               >
-                Passer
+                Passer le logo
               </button>
             )}
 
