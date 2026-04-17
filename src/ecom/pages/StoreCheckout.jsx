@@ -8,6 +8,14 @@ import { setDocumentMeta } from '../utils/pageMeta';
 import { createMetaEventId, firePixelEvent, trackStorefrontEvent } from '../utils/pixelTracking.js';
 import { formatMoney } from '../utils/currency.js';
 import { captureAffiliateAttributionFromSearch, getAffiliateAttribution } from '../utils/affiliateAttribution.js';
+import {
+  buildStorefrontOrderWhatsappMessage,
+  findMatchingCountryOption,
+  getCountryFormPlaceholders,
+  resolveFormCountries,
+  resolveOrderFormContext,
+  resolveSelectedOrderCountry,
+} from '../utils/storeCountryConfig.js';
 
 /**
  * Normalize a city name for fuzzy matching.
@@ -105,7 +113,7 @@ const StoreCheckout = () => {
     if (!deliveryCountries.some(c => c.toLowerCase() === country.toLowerCase())) {
       return {
         type: 'blocked',
-        message: `Nous ne livrons pas au/en ${country}.`,
+        message: `Nous ne livrons pas encore au ${country}.`,
         allowed: false,
         cost: 0
       };
@@ -162,11 +170,12 @@ const StoreCheckout = () => {
         const storeData = data.store || data;
         setStore(storeData);
         const ppc = storeData?.productPageConfig;
+        const storeCountries = resolveFormCountries(ppc?.general?.countries, storeData?.country || storeData?.storeCountry || '');
         const cartCurrencies = [...new Set(cartProducts.map((p) => String(p.currency || '').trim().toUpperCase()).filter(Boolean))];
         const checkoutCurrency = cartCurrencies.length === 1
           ? cartCurrencies[0]
           : (storeData?.currency || storeData?.storeSettings?.storeCurrency || 'XAF');
-        setPhoneCode(getDefaultPhoneCodeFromConfig(ppc?.general?.countries, checkoutCurrency));
+        setPhoneCode(getDefaultPhoneCodeFromConfig(storeCountries, checkoutCurrency));
         setPixels(data.pixels || null);
         // Inject pixels + fire InitiateCheckout
         if (data.pixels) {
@@ -195,12 +204,49 @@ const StoreCheckout = () => {
     })();
   }, [subdomain, cartProducts]);
 
+  const orderFormContext = useMemo(
+    () => resolveOrderFormContext({ store, generalConfig: store?.productPageConfig?.general || {} }),
+    [store]
+  );
+  const preferredCheckoutCountry = useMemo(() => {
+    if (hasDeliveryConfig) {
+      const storeCountryMatch = findMatchingCountryOption(orderFormContext.storeCountry, deliveryCountries);
+      if (storeCountryMatch) return storeCountryMatch;
+
+      const configCountryMatch = orderFormContext.countries
+        .map((country) => findMatchingCountryOption(country, deliveryCountries))
+        .find(Boolean);
+      if (configCountryMatch) return configCountryMatch;
+
+      if (deliveryCountries.length === 1) return deliveryCountries[0];
+      return '';
+    }
+
+    return orderFormContext.primaryCountry;
+  }, [hasDeliveryConfig, orderFormContext.storeCountry, orderFormContext.countries, orderFormContext.primaryCountry, deliveryCountries]);
+  const resolvedOrderCountry = resolveSelectedOrderCountry({
+    explicitCountry: form.country,
+    configuredCountries: orderFormContext.countries,
+    storeCountry: orderFormContext.storeCountry,
+  });
+  const activePlaceholders = getCountryFormPlaceholders(form.country || preferredCheckoutCountry || orderFormContext.primaryCountry);
+
   useEffect(() => {
-    const nextPhoneCode = getPhoneCodeByCountryName(form.country);
+    const defaultCountry = preferredCheckoutCountry || orderFormContext.primaryCountry;
+    if (!defaultCountry) return;
+
+    setForm((prev) => {
+      if (String(prev.country || '').trim()) return prev;
+      return { ...prev, country: defaultCountry };
+    });
+  }, [preferredCheckoutCountry, orderFormContext.primaryCountry]);
+
+  useEffect(() => {
+    const nextPhoneCode = getPhoneCodeByCountryName(form.country || preferredCheckoutCountry || orderFormContext.primaryCountry);
     if (nextPhoneCode && nextPhoneCode !== phoneCode) {
       setPhoneCode(nextPhoneCode);
     }
-  }, [form.country, phoneCode]);
+  }, [form.country, preferredCheckoutCountry, orderFormContext.primaryCountry, phoneCode]);
 
   // Redirect if no products
   useEffect(() => {
@@ -284,7 +330,7 @@ const StoreCheckout = () => {
         email: form.email.trim(),
         address: form.address.trim(),
         city: form.city.trim(),
-        country: form.country.trim(),
+        country: resolvedOrderCountry,
         notes: form.notes.trim(),
         deliveryType: deliveryStatus.type === 'livraison' ? 'livraison' : deliveryStatus.type === 'expedition' ? 'expedition' : '',
         deliveryCost: deliveryCost,
@@ -329,7 +375,18 @@ const StoreCheckout = () => {
   // Order confirmation screen
   if (orderResult) {
     const displayPhone = buildFullPhone(phoneCode, form.phone);
-    const whatsappMsg = `Bonjour ! 👋\n\nJe viens de passer une commande sur votre boutique.\n\n📦 *Commande N° ${orderResult.orderNumber}*\n💰 *Montant : ${formatPrice(orderResult.total, orderResult.currency)}*\n\n👤 Nom : ${form.customerName}\n📞 Téléphone : ${displayPhone}${form.country ? `\n🌍 Pays : ${form.country}` : ''}${form.city ? `\n📍 Ville : ${form.city}` : ''}${form.address ? `\nAdresse : ${form.address}` : ''}${form.notes ? `\n📝 Notes : ${form.notes}` : ''}${deliveryStatus.type === 'livraison' ? '\n🚚 Mode : Livraison (paiement à la réception)' : deliveryStatus.type === 'expedition' ? '\n📦 Mode : Expédition (paiement avant envoi)' : ''}\n\nMerci de confirmer ma commande ! 🙏`;
+    const whatsappMsg = buildStorefrontOrderWhatsappMessage({
+      storeName: store?.name || '',
+      orderNumber: orderResult.orderNumber,
+      totalLabel: formatPrice(orderResult.total, orderResult.currency),
+      customerName: form.customerName,
+      displayPhone,
+      country: resolvedOrderCountry,
+      city: form.city,
+      address: form.address,
+      notes: form.notes,
+      deliveryType: deliveryStatus.type,
+    });
 
     const storeWhatsapp = (store?.whatsapp || store?.phone || '').replace(/[^0-9+]/g, '');
     const whatsappLink = storeWhatsapp
@@ -573,7 +630,7 @@ const StoreCheckout = () => {
                 type="tel"
                 value={form.phone}
                 onChange={(e) => handleChange('phone', e.target.value)}
-                placeholder="6XX XXX XXX"
+                placeholder={activePlaceholders.phone}
                 required
                 className="flex-1 min-w-0 px-3 py-2.5 border border-gray-300 rounded-r-lg text-sm transition-all"
                 {...inputProps('phone')}
@@ -619,7 +676,7 @@ const StoreCheckout = () => {
                 type="text"
                 value={form.city}
                 onChange={(e) => handleChange('city', e.target.value)}
-                placeholder="Douala"
+                placeholder={activePlaceholders.city}
                 required={hasDeliveryConfig}
                 className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm transition-all"
                 {...inputProps('city')}
@@ -668,7 +725,7 @@ const StoreCheckout = () => {
               type="text"
               value={form.address}
               onChange={(e) => handleChange('address', e.target.value)}
-              placeholder="Quartier, rue, repère..."
+              placeholder={activePlaceholders.address}
               className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm transition-all"
               {...inputProps('address')}
             />

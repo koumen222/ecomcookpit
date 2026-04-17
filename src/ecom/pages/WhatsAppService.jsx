@@ -1376,8 +1376,12 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
       const params = new URLSearchParams({
         referenceId,
         model: config.fishAudioModel || 's2-pro',
+        userId,
       });
-      const { data } = await ecomApi.get(`/v1/external/whatsapp/preview-voice-fish?${params}`);
+      const headers = (config.fishAudioApiKey || '').trim()
+        ? { 'x-fish-audio-api-key': config.fishAudioApiKey.trim() }
+        : undefined;
+      const { data } = await ecomApi.get(`/v1/external/whatsapp/preview-voice-fish?${params}`, { headers });
       if (data.success && data.audio) {
         const bytes = Uint8Array.from(atob(data.audio), c => c.charCodeAt(0));
         const blob = new Blob([bytes], { type: 'audio/mpeg' });
@@ -1389,7 +1393,8 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
       } else {
         setPreviewingVoice(null);
       }
-    } catch {
+    } catch (err) {
+      setFishVoiceStatus({ type: 'error', msg: err?.response?.data?.error || 'Erreur de prévisualisation Fish.audio.' });
       setPreviewingVoice(null);
     }
   };
@@ -1412,6 +1417,10 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
       setFishVoiceStatus({ type: 'error', msg: 'Donne un nom à ta voix.' });
       return;
     }
+    if (!(config.fishAudioApiKey || '').trim() && !config.fishAudioApiKeyConfigured) {
+      setFishVoiceStatus({ type: 'error', msg: 'Ajoute une clé API Fish.audio ou configure-la côté serveur avant de créer une voix.' });
+      return;
+    }
     if (!fishVoiceSamples.length) {
       setFishVoiceStatus({ type: 'error', msg: 'Ajoute au moins un échantillon audio.' });
       return;
@@ -1424,6 +1433,9 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
       fd.append('userId', userId);
       fd.append('title', fishVoiceName.trim());
       fd.append('description', fishVoiceDescription.trim());
+      if ((config.fishAudioApiKey || '').trim()) {
+        fd.append('fishAudioApiKey', config.fishAudioApiKey.trim());
+      }
       fishVoiceSamples.forEach(file => fd.append('voices', file));
       fishVoiceTexts.filter(Boolean).forEach(text => fd.append('texts', text.trim()));
 
@@ -1436,7 +1448,13 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
         return;
       }
 
-      setConfig(prev => ({ ...prev, ...data.config, ttsProvider: 'fishaudio', fishAudioReferenceId: data.voice.id }));
+      setConfig(prev => ({
+        ...prev,
+        ...data.config,
+        ttsProvider: 'fishaudio',
+        fishAudioReferenceId: data.voice.id,
+        fishAudioApiKeyConfigured: true,
+      }));
       setFishVoiceStatus({ type: 'success', msg: `Voix créée: ${data.voice.name}` });
       setFishVoiceName('');
       setFishVoiceDescription('');
@@ -2098,9 +2116,40 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
                   <p className="text-[12px] text-gray-400 mb-4">Contrôlez jusqu'où Rita peut aller sans intervention humaine</p>
                   <div className="space-y-2.5">
                     {AUTONOMY_LEVELS.map(lvl => (
-                      <button key={lvl.level} onClick={() => set('autonomyLevel', lvl.level)}
-                        className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl border-2 text-left transition-all duration-200 ${
-                          config.autonomyLevel === lvl.level ? 'border-purple-400 bg-purple-50/70 shadow-sm shadow-purple-100' : 'border-gray-100 bg-gray-50/50 hover:border-gray-200 hover:bg-gray-50 hover:shadow-sm'
+                          <div className={`px-3 py-2.5 rounded-lg border ${((config.fishAudioApiKey || '').trim() || config.fishAudioApiKeyConfigured)
+                            ? 'bg-emerald-50 border-emerald-200'
+                            : 'bg-amber-50 border-amber-200'
+                          }`}>
+                            <p className={`text-[12px] font-medium ${((config.fishAudioApiKey || '').trim() || config.fishAudioApiKeyConfigured)
+                              ? 'text-emerald-800'
+                              : 'text-amber-800'
+                            }`}>
+                              {((config.fishAudioApiKey || '').trim() || config.fishAudioApiKeyConfigured)
+                                ? 'Clé Fish.audio disponible'
+                                : 'Clé Fish.audio requise'}
+                            </p>
+                            <p className={`text-[10px] mt-1 ${((config.fishAudioApiKey || '').trim() || config.fishAudioApiKeyConfigured)
+                              ? 'text-emerald-700'
+                              : 'text-amber-700'
+                            }`}>
+                              {config.fishAudioApiKeyConfigured
+                                ? 'Une clé est déjà configurée pour Rita. Vous pouvez en saisir une autre ci-dessous pour la remplacer.'
+                                : 'Ajoutez une clé API ici si le serveur n’en possède pas déjà une.'}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="text-[12px] font-medium text-gray-700 mb-1 block">Clé API Fish.audio</label>
+                          <input
+                            type="password"
+                            value={config.fishAudioApiKey || ''}
+                            onChange={e => set('fishAudioApiKey', e.target.value)}
+                            placeholder={config.fishAudioApiKeyConfigured ? 'Clé déjà configurée — saisir seulement pour la remplacer' : 'fish_xxx...'}
+                            autoComplete="off"
+                            className="w-full px-3 py-2 text-[13px] border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-transparent"
+                          />
+                          <p className="text-[10px] text-gray-500 mt-1">La clé n’est jamais renvoyée en clair par le serveur. Enregistrez la config pour l’utiliser sur toutes les réponses vocales.</p>
                         }`}>
                         <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold flex-shrink-0 transition-transform duration-200 ${config.autonomyLevel === lvl.level ? 'scale-110' : ''} ${lvl.color}`}>{lvl.level}</div>
                         <div className="flex-1 min-w-0">

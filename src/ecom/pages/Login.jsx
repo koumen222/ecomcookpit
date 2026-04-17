@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useEcomAuth } from '../hooks/useEcomAuth';
 import { getContextualError } from '../utils/errorMessages';
+import { getPendingPlanSelection } from '../utils/pendingPlanFlow.js';
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
@@ -49,6 +50,7 @@ const IconFillLoader = ({ backgroundClassName = 'bg-[#0F1115]' }) => {
 const Login = () => {
   const navigate = useNavigate();
   const { login, googleLogin, registerDevice, isAuthenticated, loading: authLoading, user } = useEcomAuth();
+  const pendingPlanSelection = getPendingPlanSelection();
   const [formData, setFormData] = useState({ email: '', password: '' });
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -184,6 +186,10 @@ const Login = () => {
         navigate('/ecom/workspace-setup', { replace: true });
         return;
       }
+      if (pendingPlanSelection) {
+        navigate('/ecom/billing', { state: { selectedPlan: pendingPlanSelection }, replace: true });
+        return;
+      }
       const roleDashboardMap = {
         'super_admin': '/ecom/super-admin',
         'ecom_admin': '/ecom/dashboard/admin',
@@ -194,7 +200,7 @@ const Login = () => {
       const dashboardPath = roleDashboardMap[user.role] || '/ecom/dashboard';
       navigate(dashboardPath, { replace: true });
     }
-  }, [authLoading, isAuthenticated, user, navigate]);
+  }, [authLoading, isAuthenticated, user, navigate, pendingPlanSelection]);
 
   // Afficher un loader pendant la vérification de l'authentification
   // CRITICAL: Timeout de sécurité pour éviter le loader infini

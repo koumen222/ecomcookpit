@@ -4,6 +4,7 @@ import { CheckCircle2, Package } from 'lucide-react';
 import { createCheckout, getPublicPlans } from '../services/billingApi.js';
 import PaymentModalFrame from '../components/PaymentModalFrame.jsx';
 import { PAYMENT_COUNTRY_CODES } from '../constants/paymentCountryCodes.js';
+import { savePendingPlanSelection } from '../utils/pendingPlanFlow.js';
 
 const fmtFCFA = (n) => Number(n || 0).toLocaleString('fr-FR').replace(/,/g, ' ');
 
@@ -42,8 +43,7 @@ function PublicCheckoutModal({ plan, onClose }) {
     const workspaceId = workspace?._id || workspace?.id;
 
     if (!token || !workspaceId) {
-      // Redirect to register then billing
-      sessionStorage.setItem('mf_post_register_redirect', '/ecom/billing');
+      savePendingPlanSelection(plan?.checkoutKey);
       navigate('/ecom/register');
       return;
     }
@@ -319,7 +319,14 @@ const Tarifs = () => {
 
                 <button
                   onClick={() => {
+                    const token = localStorage.getItem('ecomToken');
+                    const workspace = JSON.parse(localStorage.getItem('ecomWorkspace') || 'null');
+                    const workspaceId = workspace?._id || workspace?.id;
+
                     if (plan.isFree) {
+                      navigate('/ecom/register');
+                    } else if (!token || !workspaceId) {
+                      savePendingPlanSelection(plan.checkoutKey);
                       navigate('/ecom/register');
                     } else {
                       setSelectedPlan(plan);
