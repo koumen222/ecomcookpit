@@ -200,7 +200,9 @@ function CheckoutModal({ plan, tier, onClose, onSuccess, workspaceId, userName, 
       });
       setPromoLoading(false);
     } catch (err) {
-      setPromoError(err?.response?.data?.message || 'Erreur de validation');
+      console.error('handleApplyPromo err:', err, err.response?.data);
+      const msg = err?.response?.data?.message || err?.userMessage || err?.message || 'Erreur de validation';
+      setPromoError(msg);
       setPromoLoading(false);
     }
   }
