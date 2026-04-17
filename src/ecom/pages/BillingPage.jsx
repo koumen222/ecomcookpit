@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useEcomAuth } from '../hooks/useEcomAuth.jsx';
 import { getCurrentPlan, createCheckout, getPaymentStatus, getPaymentHistory, activateTrial, validatePromoCode, checkGlobalPromoCode } from '../services/billingApi.js';
 import { Package, Bot, Zap, Clock, CheckCircle2, CalendarDays, CreditCard, Shield, RefreshCw, MessageCircle, AlertTriangle, Lock, Gift, Globe } from 'lucide-react';
 import PaymentModalFrame from '../components/PaymentModalFrame.jsx';
 import { PAYMENT_COUNTRY_CODES } from '../constants/paymentCountryCodes.js';
+import { clearPendingPlanSelection, getPendingPlanSelection } from '../utils/pendingPlanFlow.js';
 
 // ─── Plan definitions ───────────────────────────────────────────────────────────────────────
 const PLAN_TIERS = [
@@ -550,15 +551,21 @@ export default function BillingPage() {
   const [globalPromoData, setGlobalPromoData] = useState(null);
   const [globalPromoLoading, setGlobalPromoLoading] = useState(false);
   const [globalPromoError, setGlobalPromoError] = useState('');
+  const queuedSelectedPlan = getPendingPlanSelection();
+  const autoCheckoutStartedRef = useRef(false);
 
   useEffect(() => {
-    if (!location.state?.selectedPlan) return;
-    const incoming = location.state.selectedPlan;
+    if (autoCheckoutStartedRef.current || !workspaceId) return;
+    const incoming = location.state?.selectedPlan || queuedSelectedPlan;
+    if (!incoming) return;
+
+    autoCheckoutStartedRef.current = true;
+    clearPendingPlanSelection();
     const tierName = incoming.includes('ultra') ? 'ultra' : incoming.includes('pro') ? 'pro' : 'starter';
     const tier = PLAN_TIERS.find(t => t.id === tierName);
     const plan = ALL_PLANS.find(p => p.id === incoming) || tier?.durations[0];
     if (tier && plan) handleDirectCheckout({ ...plan, tier: tierName });
-  }, [location.state]);
+  }, [location.state, queuedSelectedPlan, workspaceId]);
 
   const load = useCallback(async () => {
     if (!workspaceId) return;

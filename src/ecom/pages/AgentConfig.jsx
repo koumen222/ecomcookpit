@@ -395,7 +395,10 @@ export default function AgentConfig() {
     setPlayingVoiceId(voiceId);
     try {
       const model = config.fishAudioModel || 's2-pro';
-      const res = await ecomApi.get(`/v1/external/whatsapp/preview-voice-fish?referenceId=${voiceId}&model=${model}`);
+      const headers = (config.fishAudioApiKey || '').trim()
+        ? { 'x-fish-audio-api-key': config.fishAudioApiKey.trim() }
+        : undefined;
+      const res = await ecomApi.get(`/v1/external/whatsapp/preview-voice-fish?referenceId=${voiceId}&model=${model}`, { headers });
       if (!res.data.success) throw new Error('Preview failed');
       const audio = new Audio(`data:audio/mp3;base64,${res.data.audio}`);
       currentAudioRef.current = audio;
@@ -1738,6 +1741,24 @@ export default function AgentConfig() {
                         </>
                       ) : (
                         <>
+                          <div className={`rounded-xl border px-3 py-2 text-[11px] ${((config.fishAudioApiKey || '').trim() || config.fishAudioApiKeyConfigured)
+                            ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                            : 'border-amber-200 bg-amber-50 text-amber-700'
+                          }`}>
+                            {config.fishAudioApiKeyConfigured
+                              ? 'Une clé Fish Audio est déjà configurée. Saisissez-en une autre seulement si vous voulez la remplacer.'
+                              : 'Ajoutez une clé Fish Audio si le serveur n’en fournit pas déjà une.'}
+                          </div>
+                          <Field label="Clé API Fish Audio">
+                            <input
+                              value={config.fishAudioApiKey || ''}
+                              onChange={e => set('fishAudioApiKey', e.target.value)}
+                              placeholder={config.fishAudioApiKeyConfigured ? 'Clé déjà configurée — saisir seulement pour la remplacer' : 'fish_xxx...'}
+                              type="password"
+                              autoComplete="off"
+                              className="ac-input font-mono text-[11px]"
+                            />
+                          </Field>
                           <Field label="Voix ultra réaliste">
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2">
                               {FISH_AUDIO_VOICES.map(voice => {

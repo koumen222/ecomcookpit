@@ -33,6 +33,8 @@ import { formatInternationalPhone } from '../utils/phoneUtils.js';
  * @param {string} params.city           - Ville de livraison
  * @param {number} params.totalPrice     - Prix total
  * @param {string} params.currency       - Devise (XAF, EUR, etc.)
+ * @param {string} [params.country]      - Pays de livraison
+ * @param {string} [params.deliveryType] - Mode de livraison
  * @param {string} [params.storeName]    - Nom du store (optionnel)
  * @param {string} [params.customTemplate] - Template personnalisé (optionnel)
  * @returns {string} Message formaté
@@ -44,7 +46,9 @@ export function buildConfirmationMessage({
   quantity,
   city,
   totalPrice,
-  currency = 'FCFA',
+  currency = 'XAF',
+  country = '',
+  deliveryType = '',
   storeName = '',
   customTemplate = null,
 }) {
@@ -56,24 +60,29 @@ export function buildConfirmationMessage({
       .replace(/\{\{product\}\}/gi,      product || '')
       .replace(/\{\{quantity\}\}/gi,     String(quantity || 1))
       .replace(/\{\{city\}\}/gi,         city || '')
+      .replace(/\{\{country\}\}/gi,      country || '')
       .replace(/\{\{total_price\}\}/gi,  String(totalPrice || 0))
       .replace(/\{\{currency\}\}/gi,     currency)
+      .replace(/\{\{delivery_type\}\}/gi, deliveryType || '')
       .replace(/\{\{store_name\}\}/gi,   storeName);
   }
 
   // Template par défaut
-  const storeSignature = storeName ? `\n${storeName}` : '';
+  const storeLine = storeName ? ` chez ${storeName}` : '';
+  const locationLine = [city, country].filter(Boolean).join(', ');
+  const deliveryLabel = deliveryType === 'expedition'
+    ? 'confirmer l\'expedition'
+    : 'confirmer la livraison';
 
   return (
     `Bonjour ${firstName || 'Client'} 👋\n\n` +
-    `Votre commande #${orderNumber} a bien été reçue.\n\n` +
+    `Votre commande #${orderNumber} a bien été reçue${storeLine}.\n\n` +
     `Produit : ${product}\n` +
     `Quantité : ${quantity}\n` +
-    `Ville : ${city}\n` +
+    (locationLine ? `Localisation : ${locationLine}\n` : '') +
     `Total : ${totalPrice} ${currency}\n\n` +
-    `Notre équipe vous contactera pour confirmer la livraison.\n\n` +
-    `Merci pour votre confiance 🙏` +
-    storeSignature
+    `Notre équipe vous contactera pour ${deliveryLabel}.\n\n` +
+    `Merci pour votre confiance 🙏`
   );
 }
 
@@ -284,6 +293,8 @@ export async function sendClientOrderConfirmation(order, shopifyOrder, workspace
     const customer = shopifyOrder?.customer || {};
     const lineItems = shopifyOrder?.line_items || [];
     const currency = shopifyOrder?.currency || 'XAF';
+    const shippingCountry = shopifyOrder?.shipping_address?.country || '';
+    const shippingDeliveryType = shopifyOrder?.delivery_type || '';
 
     const firstName = customer.first_name
       || order.clientName?.split(' ')[0]
@@ -306,6 +317,8 @@ export async function sendClientOrderConfirmation(order, shopifyOrder, workspace
       city:        order.city || '',
       totalPrice:  order.price || parseFloat(shopifyOrder?.total_price) || 0,
       currency,
+      country: shippingCountry,
+      deliveryType: shippingDeliveryType,
       storeName:     options.storeName || '',
       customTemplate: options.customTemplate || null,
     });
@@ -460,7 +473,9 @@ export async function sendOrderConfirmationToClient(order, workspaceId) {
       quantity:       order.quantity || 1,
       city:           order.city || '',
       totalPrice:     order.price || 0,
-      currency:       'FCFA',
+      currency:       order.currency || 'XAF',
+      country:        order.rawData?.shipping_address?.country || order.country || '',
+      deliveryType:   order.rawData?.delivery_type || order.deliveryType || '',
       storeName,
       customTemplate: workspace.whatsappOrderTemplate || null,
     });

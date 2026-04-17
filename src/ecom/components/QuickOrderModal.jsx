@@ -1,9 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { X, ShoppingCart, User, Phone, MapPin, Loader2, CheckCircle, AlertCircle, Plus, Minus, Truck, ChevronDown, Mail, FileText, Hash, Calendar, Clock, Shield, Globe, Star, ShoppingBag, ArrowRight, Check } from 'lucide-react';
 import { publicStoreApi } from '../services/storeApi.js';
 import { createMetaEventId, firePixelEvent } from '../utils/pixelTracking';
 import defaultConfig from './productSettings/defaultConfig.js';
-import { PHONE_CODES, getDefaultPhoneCodeFromConfig, getPhoneCodeByCountryName, buildFullPhone } from '../utils/phoneCodes.js';
+import { getDefaultPhoneCodeFromConfig, getPhoneCodeByCountryName, buildFullPhone } from '../utils/phoneCodes.js';
+import {
+  buildStorefrontOrderWhatsappMessage,
+  getPopularCitiesForCountries,
+  resolveOrderFormContext,
+  resolveSelectedOrderCountry,
+  resolveStoreCountry,
+  findMatchingCountryOption,
+} from '../utils/storeCountryConfig.js';
 
 const fmt = (n, cur = 'XAF') => `${new Intl.NumberFormat('fr-FR').format(n)} ${cur === 'XAF' || cur === 'XOF' ? 'FCFA' : cur}`;
 const ICON_MAP = { user: User, phone: Phone, map: MapPin, pin: MapPin, mail: Mail, cart: ShoppingCart, file: FileText, hash: Hash, calendar: Calendar, bag: ShoppingBag, arrow: ArrowRight, check: Check };
@@ -13,6 +21,12 @@ const getSelectedCountryValue = (fields, formState) => {
   const countryField = (fields || []).find((field) => field.type === 'country');
   if (!countryField) return '';
   return (formState[countryField.name] || '').trim();
+};
+
+const isMeaningfulPlaceholder = (value, ignoredPatterns = []) => {
+  const trimmed = String(value || '').trim();
+  if (!trimmed) return false;
+  return !ignoredPatterns.some((pattern) => pattern.test(trimmed));
 };
 
 /**
@@ -28,7 +42,7 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const [orderResult, setOrderResult] = useState(null);
-  const [cityOptions, setCityOptions] = useState([]);
+  const [deliveryZoneOptions, setDeliveryZoneOptions] = useState([]);
   const [countdownSecs, setCountdownSecs] = useState(null);
 
   const currency = product?.currency || store?.currency || 'XAF';
@@ -57,6 +71,26 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
 
   const configFields = formConfig.fields || [];
   const effectiveFields = configFields.length ? configFields : defaultConfig.form.fields;
+  const generalConfig = productPageConfig?.general || {};
+  const orderFormContext = useMemo(() => resolveOrderFormContext({ store, generalConfig }), [store, generalConfig]);
+  const formCountries = orderFormContext.countries;
+  const storeCountry = resolveStoreCountry(store);
+  const selectedCountry = resolveSelectedOrderCountry({
+    explicitCountry: getSelectedCountryValue(effectiveFields, form),
+    configuredCountries: formCountries,
+    storeCountry,
+  });
+  const cityOptions = useMemo(() => {
+    if (deliveryZoneOptions.length > 0) {
+      const matchingZones = selectedCountry
+        ? deliveryZoneOptions.filter((zone) => findMatchingCountryOption(selectedCountry, [zone.country]))
+        : deliveryZoneOptions;
+      const source = matchingZones.length > 0 ? matchingZones : deliveryZoneOptions;
+      return [...new Set(source.map((zone) => zone.city).filter(Boolean))];
+    }
+
+    return getPopularCitiesForCountries(selectedCountry ? [selectedCountry] : formCountries, orderFormContext.popularCities);
+  }, [deliveryZoneOptions, selectedCountry, formCountries, orderFormContext.popularCities]);
 
   // Countdown timer for urgency field
   useEffect(() => {
@@ -75,28 +109,40 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
         const res = await publicStoreApi.getDeliveryZones(subdomain);
         const zones = res?.data?.data?.zones || res?.data?.zones || [];
         if (!cancelled && zones.length) {
-          const cities = [...new Set(zones.map(z => z.city).filter(Boolean))];
-          if (cities.length) { setCityOptions(cities); return; }
+          setDeliveryZoneOptions(zones.filter((zone) => zone?.city));
+          return;
         }
       } catch (_) { /* ignore */ }
-      if (cancelled) return;
-      // Fallback: popularCities from config or defaultConfig
-      const generalCfg = productPageConfig?.general || {};
-      const countries = generalCfg.countries || ['Cameroon'];
-      const popCities = generalCfg.popularCities || defaultConfig.general.popularCities;
-      const allCities = countries.flatMap(c => popCities[c] || []);
-      if (allCities.length) setCityOptions(allCities);
+      if (!cancelled) {
+        setDeliveryZoneOptions([]);
+      }
     })();
     return () => { cancelled = true; };
   }, [subdomain]);
 
   useEffect(() => {
-    const countryValue = getSelectedCountryValue(effectiveFields, form);
-    const nextPhoneCode = getPhoneCodeByCountryName(countryValue);
+    const defaultPhoneCode = getDefaultPhoneCodeFromConfig(formCountries, store?.currency);
+    if (defaultPhoneCode && defaultPhoneCode !== phoneCode && !form.phone.trim()) {
+      setPhoneCode(defaultPhoneCode);
+    }
+  }, [formCountries, store?.currency, phoneCode, form.phone]);
+
+  useEffect(() => {
+    const countryField = effectiveFields.find((field) => field.enabled !== false && field.type === 'country');
+    if (!countryField || !selectedCountry) return;
+
+    setForm((prev) => {
+      if (String(prev[countryField.name] || '').trim()) return prev;
+      return { ...prev, [countryField.name]: selectedCountry };
+    });
+  }, [effectiveFields, selectedCountry]);
+
+  useEffect(() => {
+    const nextPhoneCode = getPhoneCodeByCountryName(selectedCountry);
     if (nextPhoneCode && nextPhoneCode !== phoneCode) {
       setPhoneCode(nextPhoneCode);
     }
-  }, [effectiveFields, form, phoneCode]);
+  }, [selectedCountry, phoneCode]);
 
   const configQuantities = conversionConfig.quantities || [];
   const useQuantityButtons = configQuantities.length > 0;
@@ -135,7 +181,6 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
         : {};
 
       const fullPhone = buildFullPhone(phoneCode, form.phone);
-      const selectedCountry = getSelectedCountryValue(effectiveFields, form);
       const purchaseEventId = createMetaEventId('purchase');
       const res = await publicStoreApi.placeOrder(subdomain, {
         customerName: form.customerName.trim(),
@@ -182,8 +227,17 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
     const firstName = form.customerName.split(' ')[0];
     const storeWhatsapp = (store?.whatsapp || store?.phone || '').replace(/[^0-9+]/g, '');
     const displayPhone = buildFullPhone(phoneCode, form.phone);
-    const selectedCountry = getSelectedCountryValue(effectiveFields, form);
-    const waMsg = `Bonjour ! 👋\n\nJe viens de passer une commande sur votre boutique.\n\n📦 *Commande N° ${orderResult.orderNumber}*\n💰 *Montant : ${fmt(orderResult.total, orderResult.currency)}*\n👤 Nom : ${form.customerName}\n📞 Téléphone : ${displayPhone}${selectedCountry ? `\n🌍 Pays : ${selectedCountry}` : ''}\n\nMerci de confirmer ma commande ! 🙏`;
+    const waMsg = buildStorefrontOrderWhatsappMessage({
+      storeName: store?.name || '',
+      orderNumber: orderResult.orderNumber,
+      totalLabel: fmt(orderResult.total, orderResult.currency),
+      customerName: form.customerName,
+      displayPhone,
+      country: selectedCountry,
+      city: form.city,
+      address: form.address,
+      notes: form.notes,
+    });
     const waLink = storeWhatsapp ? `https://wa.me/${storeWhatsapp.replace(/^\+/, '')}?text=${encodeURIComponent(waMsg)}` : null;
 
     return (
@@ -287,7 +341,15 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
           {effectiveFields.filter(f => f.enabled !== false).map((field) => {
             const formKey = FIELD_KEY_MAP[field.name] || field.name;
             const IconComp = ICON_MAP[field.icon];
-            const ph = (field.placeholder || field.label || '') + (field.required !== false && !['product_info', 'shipping', 'cta_button'].includes(field.type) ? ' *' : '');
+            const countryPlaceholders = orderFormContext.placeholders;
+            const basePlaceholder = field.type === 'phone'
+              ? (isMeaningfulPlaceholder(field.placeholder, [/num[eé]ro/i, /t[eé]l[eé]phone/i]) ? field.placeholder : countryPlaceholders.phone)
+              : field.type === 'city_select'
+                ? (isMeaningfulPlaceholder(field.placeholder, [/^ville$/i, /^ex\s*:\s*douala$/i]) ? field.placeholder : countryPlaceholders.city)
+                : field.type === 'address'
+                  ? (isMeaningfulPlaceholder(field.placeholder, [/adresse/i, /quartier/i, /rue/i]) ? field.placeholder : countryPlaceholders.address)
+                  : (field.placeholder || field.label || '');
+            const ph = basePlaceholder + (field.required !== false && !['product_info', 'shipping', 'cta_button'].includes(field.type) ? ' *' : '');
             const iconStyle = { position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF', display: 'flex', pointerEvents: 'none' };
             const inputPadLeft = IconComp ? '36px' : '14px';
             const inputStyle = { width: '100%', padding: `12px 14px 12px ${inputPadLeft}`, borderRadius, border: '1.5px solid #E5E7EB', fontSize: 14, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', color: inputTextColor, backgroundColor: '#fff', transition: 'border-color 0.15s' };
@@ -549,11 +611,26 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
                 return (
                   <div key={field.name} style={{ position: 'relative' }}>
                     {field.showIcon !== false && <span style={iconStyle}><Globe size={15} /></span>}
-                    <input type="text" placeholder={ph} value={form[field.name] || ''}
-                      onChange={e => set(field.name, e.target.value)}
-                      style={inputStyle}
-                      onFocus={e => e.currentTarget.style.borderColor = btnColor}
-                      onBlur={e => e.currentTarget.style.borderColor = '#E5E7EB'} />
+                    {formCountries.length > 0 ? (
+                      <>
+                        <select value={form[field.name] || selectedCountry || ''} onChange={e => set(field.name, e.target.value)}
+                          style={{ ...inputStyle, paddingRight: 34, appearance: 'none', WebkitAppearance: 'none', cursor: 'pointer', color: (form[field.name] || selectedCountry) ? inputTextColor : '#9CA3AF' }}
+                          onFocus={e => e.currentTarget.style.borderColor = btnColor}
+                          onBlur={e => e.currentTarget.style.borderColor = '#E5E7EB'}>
+                          <option value="" disabled>{ph}</option>
+                          {formCountries.map((countryName) => (
+                            <option key={countryName} value={countryName}>{countryName}</option>
+                          ))}
+                        </select>
+                        <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF', display: 'flex', pointerEvents: 'none' }}><ChevronDown size={15} /></span>
+                      </>
+                    ) : (
+                      <input type="text" placeholder={ph} value={form[field.name] || selectedCountry || ''}
+                        onChange={e => set(field.name, e.target.value)}
+                        style={inputStyle}
+                        onFocus={e => e.currentTarget.style.borderColor = btnColor}
+                        onBlur={e => e.currentTarget.style.borderColor = '#E5E7EB'} />
+                    )}
                   </div>
                 );
 

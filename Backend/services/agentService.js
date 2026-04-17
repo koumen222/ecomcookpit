@@ -123,6 +123,13 @@ const calculateConfidenceImpact = (intent, sentiment) => {
     return String(Math.round(parsed));
   };
 
+  const formatCurrencyLabel = (currency) => {
+    const normalized = String(currency || '').trim().toUpperCase();
+    if (!normalized) return 'XAF';
+    if (['XAF', 'XOF', 'FCFA'].includes(normalized)) return 'FCFA';
+    return normalized;
+  };
+
   const isCityDeliverable = (city, zones = []) => {
     if (!city || !Array.isArray(zones) || zones.length === 0) return false;
 
@@ -138,7 +145,7 @@ const calculateConfidenceImpact = (intent, sentiment) => {
     });
   };
 
-  const buildInitialMessageContext = (conversation, order, productConfig) => {
+  const buildInitialMessageContext = (conversation, order, productConfig, workspace) => {
     const clientName = order?.clientName || conversation.clientName || '';
     const product = order?.product || conversation.productName || productConfig?.productName || '';
     const price = order?.price ?? conversation.productPrice ?? productConfig?.pricing?.sellingPrice ?? '';
@@ -146,6 +153,10 @@ const calculateConfidenceImpact = (intent, sentiment) => {
     const orderNumber = order?.orderId || order?.rawData?.orderNumber || '';
     const city = order?.city || order?.deliveryLocation || '';
     const address = order?.address || '';
+    const country = order?.country || workspace?.storeSettings?.country || workspace?.storeSettings?.storeCountry || '';
+    const storeName = workspace?.storeSettings?.storeName || workspace?.name || '';
+    const currency = order?.currency || workspace?.storeSettings?.storeCurrency || workspace?.storeSettings?.currency || 'XAF';
+    const currencyLabel = formatCurrencyLabel(currency);
 
     return {
       first_name: extractFirstName(clientName),
@@ -153,9 +164,14 @@ const calculateConfidenceImpact = (intent, sentiment) => {
       order_number: orderNumber,
       product,
       price: formatPriceFcfa(price),
+      price_with_currency: `${formatPriceFcfa(price)} ${currencyLabel}`,
       quantity: String(quantity),
       city,
       address,
+      country,
+      currency,
+      currency_label: currencyLabel,
+      store_name: storeName,
     };
   };
 
@@ -617,13 +633,42 @@ const createConversationForOrder = async (order, workspaceId) => {
   return conversation;
 };
 
-const DEFAULT_DELIVERABLE_TEMPLATE = 'Bonjour {{first_name}} 👋\n\nJ\'espère que vous allez bien !\n\nIci le service client Zendo.\n\nNous accusons réception de votre commande n°{{order_number}} ✅\n\nLe produit {{product}} coûte {{price}} FCFA l\'unité pour une quantité de {{quantity}}.\n\nNous pouvons vous livrer aujourd\'hui (si la commande est passée avant 16h) ou demain (si elle est passée après 16h) 🙏🏼';
-const DEFAULT_NON_DELIVERABLE_TEMPLATE = 'Bonjour {{first_name}} 👋\n\nNous avons bien reçu votre commande n°{{order_number}} ✅\n\nLe produit {{product}} coûte {{price}} FCFA l\'unité pour une quantité de {{quantity}}.\n\nMalheureusement, nous ne livrons pas encore dans votre ville ({{city}}). Nous vous contacterons dès que la livraison sera disponible dans votre zone. 🙏';
+const LEGACY_DEFAULT_DELIVERABLE_TEMPLATE = 'Bonjour {{first_name}} 👋\n\nJ\'espère que vous allez bien !\n\nIci le service client Zendo.\n\nNous accusons réception de votre commande n°{{order_number}} ✅\n\nLe produit {{product}} coûte {{price}} FCFA l\'unité pour une quantité de {{quantity}}.\n\nNous pouvons vous livrer aujourd\'hui (si la commande est passée avant 16h) ou demain (si elle est passée après 16h) 🙏🏼';
+const LEGACY_DEFAULT_NON_DELIVERABLE_TEMPLATE = 'Bonjour {{first_name}} 👋\n\nNous avons bien reçu votre commande n°{{order_number}} ✅\n\nLe produit {{product}} coûte {{price}} FCFA l\'unité pour une quantité de {{quantity}}.\n\nMalheureusement, nous ne livrons pas encore dans votre ville ({{city}}). Nous vous contacterons dès que la livraison sera disponible dans votre zone. 🙏';
+
+const buildDefaultInitialMessageTemplate = ({ deliverable, country }) => {
+  if (deliverable) {
+    return [
+      'Bonjour {{first_name}} 👋',
+      'Nous avons bien reçu votre commande n°{{order_number}} chez {{store_name}} ✅',
+      'Produit : {{product}}',
+      'Quantité : {{quantity}}',
+      'Montant : {{price_with_currency}}',
+      `Notre équipe vous contactera rapidement pour confirmer la livraison${country ? ` au ${country}` : ''}. 🙏`,
+    ].join('\n\n');
+  }
+
+  return [
+    'Bonjour {{first_name}} 👋',
+    'Nous avons bien reçu votre commande n°{{order_number}} chez {{store_name}} ✅',
+    'Produit : {{product}}',
+    'Quantité : {{quantity}}',
+    'Montant : {{price_with_currency}}',
+    `Pour le moment, la livraison n\'est pas encore disponible dans votre ville ({{city}}). Nous vous recontacterons dès qu\'une option sera disponible${country ? ` au ${country}` : ''}. 🙏`,
+  ].join('\n\n');
+};
+
+const resolveInitialTemplate = ({ template, legacyTemplate, fallbackTemplate }) => {
+  if (!template || String(template).trim() === String(legacyTemplate).trim()) {
+    return fallbackTemplate;
+  }
+  return template;
+};
 
 const generateInitialMessage = async (conversation) => {
   const [order, workspace, productConfig] = await Promise.all([
     conversation.orderId ? Order.findById(conversation.orderId).lean() : null,
-    Workspace.findById(conversation.workspaceId, { owner: 1 }).lean(),
+    Workspace.findById(conversation.workspaceId, { owner: 1, name: 1, storeSettings: 1 }).lean(),
     ProductConfig.findByProductName(conversation.workspaceId, conversation.productName),
   ]);
 
@@ -633,7 +678,7 @@ const generateInitialMessage = async (conversation) => {
     ritaConfig = await RitaConfig.findOne({ userId: workspace.owner.toString() }).lean();
   }
 
-  const context = buildInitialMessageContext(conversation, order, productConfig);
+  const context = buildInitialMessageContext(conversation, order, productConfig, workspace);
 
   // Priorité: RitaConfig > ProductConfig > valeur par défaut
   const cityRoutingEnabled = !!(ritaConfig?.enableCityRouting ?? productConfig?.delivery?.enableCityRoutingForInitialMessage);
@@ -641,16 +686,22 @@ const generateInitialMessage = async (conversation) => {
     ?? productConfig?.delivery?.zones
     ?? [];
   const deliverable = isCityDeliverable(context.city, deliveryZones);
+  const defaultDeliverableTemplate = buildDefaultInitialMessageTemplate({ deliverable: true, country: context.country });
+  const defaultNonDeliverableTemplate = buildDefaultInitialMessageTemplate({ deliverable: false, country: context.country });
 
   let selectedTemplate;
   if (cityRoutingEnabled && !deliverable) {
-    selectedTemplate = ritaConfig?.orderConfirmationMessageNonDeliverable
-      || productConfig?.initialMessageNonDeliverable
-      || DEFAULT_NON_DELIVERABLE_TEMPLATE;
+    selectedTemplate = resolveInitialTemplate({
+      template: ritaConfig?.orderConfirmationMessageNonDeliverable || productConfig?.initialMessageNonDeliverable,
+      legacyTemplate: LEGACY_DEFAULT_NON_DELIVERABLE_TEMPLATE,
+      fallbackTemplate: defaultNonDeliverableTemplate,
+    });
   } else {
-    selectedTemplate = ritaConfig?.orderConfirmationMessage
-      || productConfig?.initialMessage
-      || DEFAULT_DELIVERABLE_TEMPLATE;
+    selectedTemplate = resolveInitialTemplate({
+      template: ritaConfig?.orderConfirmationMessage || productConfig?.initialMessage,
+      legacyTemplate: LEGACY_DEFAULT_DELIVERABLE_TEMPLATE,
+      fallbackTemplate: defaultDeliverableTemplate,
+    });
   }
 
   const initialMessage = renderMessageTemplate(selectedTemplate, context);

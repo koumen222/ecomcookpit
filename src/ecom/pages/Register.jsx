@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useEcomAuth } from '../hooks/useEcomAuth';
 import { authApi } from '../services/ecommApi';
 import { getContextualError } from '../utils/errorMessages';
+import { getPendingPlanSelection } from '../utils/pendingPlanFlow.js';
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '559924689181-rpkv8ji3029kvrtsvt3qceusmsh1i4p2.apps.googleusercontent.com';
 
@@ -19,6 +20,7 @@ const Register = () => {
   const joinMode = new URLSearchParams(location.search).get('mode') === 'join';
   const affiliateCode = new URLSearchParams(location.search).get('aff') || '';
   const { register, googleLogin } = useEcomAuth();
+  const pendingPlanSelection = getPendingPlanSelection();
 
   const [step, setStep] = useState(1);
   const [email, setEmail] = useState('');
@@ -45,6 +47,19 @@ const Register = () => {
     return () => clearTimeout(t);
   }, [resendCooldown]);
 
+  const navigateAfterAuth = useCallback((nextUser) => {
+    if (pendingPlanSelection) {
+      if (nextUser?.workspaceId) {
+        navigate('/ecom/billing', { state: { selectedPlan: pendingPlanSelection }, replace: true });
+      } else {
+        navigate('/ecom/workspace-setup', { replace: true });
+      }
+      return;
+    }
+
+    navigate(nextUser?.workspaceId ? '/ecom/dashboard' : '/ecom/workspace-setup');
+  }, [navigate, pendingPlanSelection]);
+
   const handleGoogleCallback = useCallback(async (response) => {
     console.log('\ud83d\udd11 [Google Auth] Callback reçu (Register):', {
       hasCredential: !!response?.credential,
@@ -62,12 +77,12 @@ const Register = () => {
       const result = await googleLogin(response.credential, affiliateCode || undefined);
       console.log('\u2705 [Google Auth] Login réussi (Register):', { user: result.data?.user?.email });
       const u = result.data?.user;
-      navigate(u?.workspaceId ? '/ecom/dashboard' : '/ecom/workspace-setup');
+      navigateAfterAuth(u);
     } catch (err) {
       console.error('\u274c [Google Auth] Erreur:', err);
       setError(getContextualError(err, 'login'));
     } finally { setLoading(false); }
-  }, [googleLogin, navigate]);
+  }, [affiliateCode, googleLogin, navigateAfterAuth]);
 
   useEffect(() => {
     const script = document.createElement('script');
@@ -149,8 +164,8 @@ const Register = () => {
     if (!canSubmit) return;
     setLoading(true); setError('');
     try {
-      await register({ email, password: formData.password, name: formData.name.trim(), phone: formData.phone.trim(), acceptPrivacy: true, affiliateCode: affiliateCode || undefined });
-      navigate('/ecom/dashboard');
+      const result = await register({ email, password: formData.password, name: formData.name.trim(), phone: formData.phone.trim(), acceptPrivacy: true, affiliateCode: affiliateCode || undefined });
+      navigateAfterAuth(result?.data?.user || { workspaceId: result?.data?.workspace?._id || result?.data?.workspace?.id || null });
     } catch (err) {
       setError(getContextualError(err, 'register'));
     } finally { setLoading(false); }

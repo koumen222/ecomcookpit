@@ -22,6 +22,7 @@ import { extractProductInfo } from '../services/geminiProductExtractor.js';
 import EcomWorkspace from '../models/Workspace.js';
 import FeatureUsageLog from '../models/FeatureUsageLog.js';
 import GenerationTask from '../models/GenerationTask.js';
+import GenerationPricingConfig from '../models/GenerationPricingConfig.js';
 
 const router = express.Router();
 
@@ -1183,6 +1184,9 @@ router.get('/info', requireEcomAuth, async (req, res) => {
     const wsId = req.workspaceId;
     if (!wsId) return res.json({ success: true, generations: null });
 
+    const pricingConfig = await GenerationPricingConfig.getSingleton();
+    const pricing = pricingConfig.getSnapshot();
+
     const workspace = await EcomWorkspace.findById(wsId)
       .select('simpleGenerationsRemaining freeGenerationsRemaining paidGenerationsRemaining totalGenerations')
       .lean();
@@ -1195,7 +1199,10 @@ router.get('/info', requireEcomAuth, async (req, res) => {
       success: true,
       generations: {
         remaining,
+        freeRemaining: workspace.freeGenerationsRemaining || 0,
+        paidRemaining: workspace.paidGenerationsRemaining || 0,
         totalUsed: workspace.totalGenerations || 0,
+        pricing,
       }
     });
   } catch (err) {
@@ -1495,6 +1502,8 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
     // VÉRIFICATION DES LIMITES DE GÉNÉRATION
     // ══════════════════════════════════════════════════════════════════════════
     if (workspace) {
+      const pricingConfig = await GenerationPricingConfig.getSingleton();
+      const pricing = pricingConfig.getSnapshot();
       const simpleRemaining = workspace.simpleGenerationsRemaining || 0;
       const freeRemaining = workspace.freeGenerationsRemaining || 0;
       const paidRemaining = workspace.paidGenerationsRemaining || 0;
@@ -1507,7 +1516,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
           message: '🎯 Tu n\'as plus de crédits !\n\nAchète des crédits pour générer des pages produit.',
           remaining: 0,
           totalGenerations: workspace.totalGenerations || 0,
-          pricing: { unit: 1000, pack3: 2500 }
+          pricing
         });
       }
 

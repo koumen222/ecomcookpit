@@ -17,6 +17,7 @@ import EcomWorkspace from '../models/Workspace.js';
 import PlanPayment from '../models/PlanPayment.js';
 import PlanConfig from '../models/PlanConfig.js';
 import GenerationPayment from '../models/GenerationPayment.js';
+import GenerationPricingConfig from '../models/GenerationPricingConfig.js';
 import EcomUser from '../models/EcomUser.js';
 import AffiliateUser from '../models/AffiliateUser.js';
 import AffiliateConversion from '../models/AffiliateConversion.js';
@@ -570,14 +571,16 @@ router.post('/buy-generation', requireEcomAuth, async (req, res) => {
       return res.status(400).json({ success: false, message: 'Quantité invalide (1-100)' });
     }
 
-    // Pricing: 1 crédit = 1000 FCFA, pack 3 crédits = 2500 FCFA
+    const pricingConfig = await GenerationPricingConfig.getSingleton();
+    const pricing = pricingConfig.getSnapshot();
+
     let amount;
     let pricePerGeneration;
-    if (quantity === 3) {
-      amount = 2500;
-      pricePerGeneration = Math.round(2500 / 3);
+    if (quantity === (pricing.packQuantity || 3)) {
+      amount = Number(pricing.pack3 || 0);
+      pricePerGeneration = Math.round(amount / (pricing.packQuantity || 3));
     } else {
-      pricePerGeneration = 1000;
+      pricePerGeneration = Number(pricing.unit || 0);
       amount = pricePerGeneration * quantity;
     }
 

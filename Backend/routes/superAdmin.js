@@ -5,6 +5,7 @@ import Workspace from '../models/Workspace.js';
 import FeatureUsageLog from '../models/FeatureUsageLog.js';
 import PlanPayment from '../models/PlanPayment.js';
 import PlanConfig, { PLAN_KEYS } from '../models/PlanConfig.js';
+import GenerationPricingConfig from '../models/GenerationPricingConfig.js';
 import GenerationPayment from '../models/GenerationPayment.js';
 import WhatsAppLog from '../models/WhatsAppLog.js';
 import SupportConversation from '../models/SupportConversation.js';
@@ -1162,6 +1163,50 @@ router.patch('/plans/:key', requireEcomAuth, requireSuperAdmin, async (req, res)
     res.json({ success: true, plan });
   } catch (err) {
     console.error('[SuperAdmin] PATCH /plans/:key error:', err.message);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// GET /api/ecom/super-admin/generation-pricing — AI credit tariffs config
+router.get('/generation-pricing', requireEcomAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const config = await GenerationPricingConfig.getSingleton();
+    res.json({ success: true, pricing: config.getSnapshot() });
+  } catch (err) {
+    console.error('[SuperAdmin] GET /generation-pricing error:', err.message);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// PATCH /api/ecom/super-admin/generation-pricing — update AI credit tariffs config
+router.patch('/generation-pricing', requireEcomAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const config = await GenerationPricingConfig.getSingleton();
+    const allowed = [
+      'currency',
+      'unitPriceRegular',
+      'unitPricePromo',
+      'packPriceRegular',
+      'packPricePromo',
+      'promoActive',
+      'promoExpiresAt',
+    ];
+
+    const update = {};
+    for (const key of allowed) {
+      if (key in req.body) update[key] = req.body[key];
+    }
+
+    const updated = await GenerationPricingConfig.findByIdAndUpdate(
+      config._id,
+      { $set: update },
+      { new: true, runValidators: true }
+    );
+
+    await logAudit(req, 'UPDATE_GENERATION_PRICING', 'AI generation pricing config updated', 'generation_pricing', updated._id);
+    res.json({ success: true, pricing: updated.getSnapshot() });
+  } catch (err) {
+    console.error('[SuperAdmin] PATCH /generation-pricing error:', err.message);
     res.status(500).json({ success: false, message: 'Erreur serveur' });
   }
 });

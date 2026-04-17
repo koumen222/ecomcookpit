@@ -5,13 +5,20 @@ import { useStore } from '../contexts/StoreContext.jsx';
 import defaultConfig from '../components/productSettings/defaultConfig.js';
 import { PHONE_CODES } from '../utils/phoneCodes.js';
 import { formatMoney } from '../utils/currency.js';
+import {
+  getCountryFormPlaceholders,
+  resolveFormCountries,
+  resolvePopularCitiesMap,
+  resolveStoreCountry,
+} from '../utils/storeCountryConfig.js';
 
 const deepClone = (obj) => JSON.parse(JSON.stringify(obj));
 
-const mergeWithDefaults = (stored) => {
+const mergeWithDefaults = (stored, storeCountry = '') => {
   const defaults = deepClone(defaultConfig);
   const defaultFieldMap = {};
   defaults.form.fields.forEach(f => { defaultFieldMap[f.name] = f; });
+  const resolvedCountries = resolveFormCountries(stored?.general?.countries, storeCountry);
 
   // Merge each stored field with its default counterpart, and add missing defaults
   let mergedFields;
@@ -50,8 +57,8 @@ const mergeWithDefaults = (stored) => {
       ...(stored?.general || {}),
       formType: stored?.general?.formType || defaults.general.formType,
       title: stored?.general?.title || defaults.general.title,
-      countries: stored?.general?.countries || defaults.general.countries,
-      popularCities: stored?.general?.popularCities || defaults.general.popularCities,
+      countries: resolvedCountries,
+      popularCities: resolvePopularCitiesMap(stored?.general?.popularCities || defaults.general.popularCities, resolvedCountries),
     },
     form: { ...defaults.form, fields: mergedFields },
     button: { ...defaults.button, ...(stored?.button || {}) },
@@ -1173,17 +1180,18 @@ const BoutiqueFormBuilder = () => {
         ]);
         const raw = configRes.data?.data || configRes.data || {};
         const ppc = raw.storeSettings?.productPageConfig || raw.productPageConfig || null;
+        const storeCountry = resolveStoreCountry(raw.storeSettings || raw);
         setShopColor(raw.storeSettings?.storeThemeColor || raw.storeTheme?.primaryColor || '#0F6B4F');
-        setConfig(mergeWithDefaults(ppc));
+        setConfig(mergeWithDefaults(ppc, storeCountry));
         const prods = productsRes?.data?.data?.products || productsRes?.data?.data || productsRes?.data?.products || [];
         setProducts(Array.isArray(prods) ? prods : []);
       } catch {
-        setConfig(mergeWithDefaults(null));
+        setConfig(mergeWithDefaults(null, resolveStoreCountry(activeStore)));
       } finally {
         setLoading(false);
       }
     })();
-  }, []);
+  }, [activeStore]);
 
   const handleSave = async () => {
     if (!config) return;
@@ -1250,9 +1258,22 @@ const BoutiqueFormBuilder = () => {
   };
 
   const addField = (fieldDef) => {
+    const primaryCountry = config?.general?.countries?.[0] || resolveStoreCountry(activeStore);
+    const countryPlaceholders = getCountryFormPlaceholders(primaryCountry);
     const newField = fieldDef
       ? { ...fieldDef.defaults, name: `${fieldDef.defaults.name}_${Date.now()}`, type: fieldDef.type, enabled: true }
       : { name: `champ_${Date.now()}`, label: 'Nouveau champ', type: 'text', enabled: true, icon: 'user', showLabel: true, showIcon: true, required: false, placeholder: 'Saisir...' };
+
+    if (fieldDef?.type === 'phone' && (!newField.placeholder || /num[eé]ro/i.test(newField.placeholder))) {
+      newField.placeholder = countryPlaceholders.phone;
+    }
+    if (fieldDef?.type === 'city_select' && (!newField.placeholder || /^ville$/i.test(newField.placeholder) || /^ex\s*:\s*douala$/i.test(newField.placeholder))) {
+      newField.placeholder = countryPlaceholders.city;
+    }
+    if (fieldDef?.type === 'address' && (!newField.placeholder || /adresse|quartier|rue/i.test(newField.placeholder))) {
+      newField.placeholder = countryPlaceholders.address;
+    }
+
     const next = [...config.form.fields, newField];
     update(c => ({ ...c, form: { ...c.form, fields: next } }));
   };

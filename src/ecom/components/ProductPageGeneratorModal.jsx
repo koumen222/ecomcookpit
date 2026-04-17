@@ -988,6 +988,9 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
       const data = await response.json();
       if (data.success && data.generations) {
         setGenerationsInfo(data.generations);
+        if (data.generations.pricing) {
+          setPricing(data.generations.pricing);
+        }
         return data.generations;
       }
       return null;

@@ -371,6 +371,42 @@ async function resolveRitaTargetUserId(req) {
   return String(req.ecomUser?._id || '');
 }
 
+function normalizeHeaderSecret(value) {
+  if (Array.isArray(value)) {
+    return String(value[0] || '').trim();
+  }
+  return String(value || '').trim();
+}
+
+async function resolveFishAudioApiKey(req, explicitUserId = '') {
+  const headerKey = normalizeHeaderSecret(req.headers['x-fish-audio-api-key']);
+  if (headerKey) {
+    return { apiKey: headerKey, source: 'request-header', userId: explicitUserId || '' };
+  }
+
+  const bodyKey = typeof req.body?.fishAudioApiKey === 'string'
+    ? req.body.fishAudioApiKey.trim()
+    : '';
+  if (bodyKey) {
+    return { apiKey: bodyKey, source: 'request-body', userId: explicitUserId || '' };
+  }
+
+  const resolvedUserId = explicitUserId || await resolveRitaTargetUserId(req);
+  if (resolvedUserId) {
+    const config = await RitaConfig.findOne({ userId: resolvedUserId }).select('fishAudioApiKey').lean();
+    const savedKey = typeof config?.fishAudioApiKey === 'string' ? config.fishAudioApiKey.trim() : '';
+    if (savedKey) {
+      return { apiKey: savedKey, source: 'rita-config', userId: resolvedUserId };
+    }
+  }
+
+  return {
+    apiKey: String(FISH_AUDIO_DIRECT_API_KEY || '').trim(),
+    source: FISH_AUDIO_DIRECT_API_KEY ? 'server-env' : 'missing',
+    userId: resolvedUserId,
+  };
+}
+
 async function sendMessageAndTrack(instanceName, instanceToken, number, message, ...rest) {
   const result = await evolutionApiService.sendMessage(
     instanceName,
@@ -1277,12 +1313,16 @@ router.post('/fish-voice', requireEcomAuth, _uploadAudioMemory.any(), async (req
     const files = req.files || [];
     const { userId, title, description = '', visibility = 'private' } = req.body;
     let texts = req.body.texts || [];
+    const explicitFishAudioApiKey = typeof req.body?.fishAudioApiKey === 'string'
+      ? req.body.fishAudioApiKey.trim()
+      : '';
 
     if (!userId) return res.status(400).json({ success: false, error: 'userId requis' });
     if (!title?.trim()) return res.status(400).json({ success: false, error: 'Nom de voix requis' });
     if (!files.length) return res.status(400).json({ success: false, error: 'Au moins un fichier audio est requis' });
-    if (!FISH_AUDIO_DIRECT_API_KEY) {
-      return res.status(500).json({ success: false, error: 'Clé Fish.audio non configurée côté serveur' });
+    const { apiKey } = await resolveFishAudioApiKey(req, userId);
+    if (!apiKey) {
+      return res.status(500).json({ success: false, error: 'Clé Fish.audio introuvable. Ajoutez-la dans la configuration Rita ou côté serveur.' });
     }
 
     if (!Array.isArray(texts)) texts = texts ? [texts] : [];
@@ -1307,7 +1347,7 @@ router.post('/fish-voice', requireEcomAuth, _uploadAudioMemory.any(), async (req
     const fishResponse = await fetch('https://api.fish.audio/model', {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${FISH_AUDIO_DIRECT_API_KEY}`,
+        Authorization: `Bearer ${apiKey}`,
       },
       body: form,
     });
@@ -1344,14 +1384,17 @@ router.post('/fish-voice', requireEcomAuth, _uploadAudioMemory.any(), async (req
       ...existingVoices.filter((voice) => voice?.id !== voiceId),
     ];
 
+    const configToPersist = preserveRitaSecretFields(existingConfig, {
+      userId,
+      fishAudioApiKey: explicitFishAudioApiKey,
+      fishAudioVoices: dedupedVoices,
+      fishAudioReferenceId: voiceId,
+      ttsProvider: 'fishaudio',
+    });
+
     const updated = await RitaConfig.findOneAndUpdate(
       { userId },
-      {
-        userId,
-        fishAudioVoices: dedupedVoices,
-        fishAudioReferenceId: voiceId,
-        ttsProvider: 'fishaudio',
-      },
+      configToPersist,
       { upsert: true, new: true, runValidators: false }
     );
 
@@ -3247,10 +3290,11 @@ router.get('/preview-voice', async (req, res) => {
  * @route   GET /api/ecom/v1/external/whatsapp/preview-voice-fish
  * @desc    Génère un court échantillon audio Fish.audio pour prévisualiser une voix
  */
-router.get('/preview-voice-fish', async (req, res) => {
+router.get('/preview-voice-fish', requireEcomAuth, requireRitaAgentAccess, async (req, res) => {
   try {
-    const { referenceId, model } = req.query;
-    const apiKey = FISH_AUDIO_DIRECT_API_KEY;
+    const { referenceId, model, userId } = req.query;
+    const explicitUserId = typeof userId === 'string' ? userId.trim() : '';
+    const { apiKey } = await resolveFishAudioApiKey(req, explicitUserId);
     if (!apiKey) return res.status(500).json({ success: false, error: 'Clé Fish.audio non configurée' });
 
     const sampleText = 'Bonjour ! Je suis Rita, votre assistante commerciale. Comment puis-je vous aider aujourd\'hui ?';

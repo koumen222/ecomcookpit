@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useEcomAuth } from '../hooks/useEcomAuth';
+import { getPendingPlanSelection } from '../utils/pendingPlanFlow.js';
 
 const WorkspaceSetup = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, isAuthenticated, loading: authLoading, createWorkspace, joinWorkspace, saveOnboarding, logout } = useEcomAuth();
+  const pendingPlanSelection = getPendingPlanSelection();
   const [step, setStep] = useState(1);
   const [workspaceName, setWorkspaceName] = useState('');
   const [selectedRole, setSelectedRole] = useState('ecom_admin');
@@ -25,10 +27,29 @@ const WorkspaceSetup = () => {
   useEffect(() => {
     // Si l'utilisateur a déjà un espace, n'est pas en train d'en créer un manuellement, et a fini son onboarding
     if (!authLoading && isAuthenticated && user?.workspaceId && step === 1 && !workspaceName && user?.onboardingData?.completed) {
+      if (pendingPlanSelection) {
+        navigate('/ecom/billing', { state: { selectedPlan: pendingPlanSelection }, replace: true });
+        return;
+      }
       const map = { super_admin: '/ecom/super-admin', ecom_admin: '/ecom/dashboard/admin', ecom_closeuse: '/ecom/dashboard/closeuse', ecom_compta: '/ecom/dashboard/compta', ecom_livreur: '/ecom/livreur' };
       navigate(map[user.role] || '/ecom/dashboard', { replace: true });
     }
-  }, [authLoading, isAuthenticated, user, navigate, step, workspaceName]);
+  }, [authLoading, isAuthenticated, user, navigate, step, workspaceName, pendingPlanSelection]);
+
+  const goToNextStep = () => {
+    if (pendingPlanSelection) {
+      navigate('/ecom/billing', { state: { selectedPlan: pendingPlanSelection } });
+      return;
+    }
+
+    const roleMap = {
+      ecom_admin: '/ecom/dashboard/admin',
+      ecom_closeuse: '/ecom/dashboard/closeuse',
+      ecom_compta: '/ecom/dashboard/compta',
+      ecom_livreur: '/ecom/livreur'
+    };
+    navigate(roleMap[selectedRole] || '/ecom/dashboard');
+  };
 
   if (authLoading) return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -69,13 +90,7 @@ const WorkspaceSetup = () => {
       if (phone || businessType || ordersPerMonth) {
         await saveOnboarding({ phone, businessType, ordersPerMonth });
       }
-      const roleMap = {
-        ecom_admin: '/ecom/dashboard/admin',
-        ecom_closeuse: '/ecom/dashboard/closeuse',
-        ecom_compta: '/ecom/dashboard/compta',
-        ecom_livreur: '/ecom/livreur'
-      };
-      navigate(roleMap[selectedRole] || '/ecom/dashboard');
+      goToNextStep();
     } catch (err) {
       setError(err.message || 'Erreur d\'enregistrement');
     } finally {
@@ -84,13 +99,7 @@ const WorkspaceSetup = () => {
   };
 
   const skipOnboarding = () => {
-    const roleMap = {
-      ecom_admin: '/ecom/dashboard/admin',
-      ecom_closeuse: '/ecom/dashboard/closeuse',
-      ecom_compta: '/ecom/dashboard/compta',
-      ecom_livreur: '/ecom/livreur'
-    };
-    navigate(roleMap[selectedRole] || '/ecom/dashboard');
+    goToNextStep();
   };
 
   

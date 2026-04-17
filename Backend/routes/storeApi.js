@@ -316,6 +316,16 @@ router.get('/:subdomain', readLimiter, async (req, res) => {
     };
     const pages = workspace.storePages;  // intentional: null if never set
     const pixels = workspace.storePixels || {};
+    const deliveryConfig = workspace.storeDeliveryZones || { countries: [], zones: [] };
+    const publicDeliveryZones = (deliveryConfig.zones || [])
+      .filter((zone) => zone?.enabled !== false)
+      .map((zone) => ({
+        id: zone.id,
+        country: zone.country,
+        city: zone.city,
+        aliases: zone.aliases || [],
+        cost: zone.cost || 0,
+      }));
 
     // Cache at Cloudflare edge for 30 seconds (fast config refresh after admin edits)
     setCacheHeaders(res, 30);
@@ -333,6 +343,7 @@ router.get('/:subdomain', readLimiter, async (req, res) => {
           whatsapp: settings.whatsapp || settings.storeWhatsApp || '',
           themeColor: settings.themeColor || settings.storeThemeColor || '#0F6B4F',
           currency: settings.storeCurrency || settings.currency || 'XAF',
+          country: settings.country || settings.storeCountry || '',
           subdomain: workspace.subdomain,
           // Theme config - PRIORITÉ AUX SETTINGS (configurés dans /boutique/settings)
           template: theme.template || 'classic',
@@ -354,6 +365,8 @@ router.get('/:subdomain', readLimiter, async (req, res) => {
           seoDescription: settings.seoDescription || '',
           announcement: settings.announcement || '',
           announcementEnabled: settings.announcementEnabled || false,
+          deliveryCountries: deliveryConfig.countries || [],
+          deliveryZones: publicDeliveryZones,
           // Product page builder config
           productPageConfig: settings.productPageConfig || null,
         },
@@ -655,7 +668,7 @@ router.post('/:subdomain/orders', orderLimiter, async (req, res) => {
       return res.status(404).json({ success: false, message: 'Store not found' });
     }
 
-    const { customerName, phone, email, address, city, country, products, notes, channel, metaEventId, metaSourceUrl, affiliateCode, affiliateLinkCode } = req.body;
+    const { customerName, phone, phoneCode, email, address, city, country, products, notes, channel, deliveryType, deliveryCost, metaEventId, metaSourceUrl, affiliateCode, affiliateLinkCode } = req.body;
 
     if (!customerName || !phone || !products?.length) {
       return res.status(400).json({
@@ -748,17 +761,25 @@ router.post('/:subdomain/orders', orderLimiter, async (req, res) => {
     const resolvedOrderCurrency = orderCurrencies.size === 1
       ? Array.from(orderCurrencies)[0]
       : (workspace.storeSettings?.storeCurrency || 'XAF');
+    const resolvedCountry = country?.trim() || workspace.storeSettings?.country || workspace.storeSettings?.storeCountry || '';
+    const sanitizedDeliveryType = ['livraison', 'expedition'].includes(deliveryType) ? deliveryType : '';
+    const sanitizedDeliveryCost = Math.max(0, Number(deliveryCost) || 0);
 
     const order = new StoreOrder({
       workspaceId: workspace._workspaceId || workspace._id,
       storeId: workspace._storeId || null,
       customerName: customerName.trim(),
       phone: phone.trim(),
+      phoneCode: phoneCode?.trim() || '',
       email: email?.trim() || '',
       address: address?.trim() || '',
       city: city?.trim() || '',
+      country: resolvedCountry,
+      deliveryType: sanitizedDeliveryType,
+      deliveryCost: sanitizedDeliveryCost,
+      deliveryZone: city?.trim() || '',
       products: orderProducts,
-      total,
+      total: total + sanitizedDeliveryCost,
       currency: resolvedOrderCurrency,
       channel: channel || 'store',
       notes: notes?.trim() || '',
@@ -984,7 +1005,7 @@ router.post('/:subdomain/orders', orderLimiter, async (req, res) => {
                 firstName,
                 lastName,
                 city,
-                country,
+                country: resolvedCountry,
               },
               {
                 clientIpAddress: (req.headers['x-forwarded-for'] || req.ip || '').toString().split(',')[0].trim(),

@@ -32,10 +32,22 @@ const fmtDateTimeLocal = (d) => {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 };
 
+const buildGenerationPricingForm = (pricing = {}) => ({
+  currency: pricing.currency || 'FCFA',
+  unitPriceRegular: pricing.unitRegular ?? pricing.unit ?? 1000,
+  unitPricePromo: pricing.unitPromo ?? '',
+  packPriceRegular: pricing.pack3Regular ?? pricing.pack3 ?? 2500,
+  packPricePromo: pricing.pack3Promo ?? '',
+  promoActive: !!pricing.promoActive,
+  promoExpiresAt: pricing.promoExpiresAt || null,
+});
+
 const SuperAdminPlans = () => {
   const [plans, setPlans] = useState([]);
+  const [generationPricing, setGenerationPricing] = useState(() => buildGenerationPricingForm());
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState({});
+  const [generationPricingSaving, setGenerationPricingSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
@@ -48,7 +60,18 @@ const SuperAdminPlans = () => {
     }
   };
 
-  useEffect(() => { fetchPlans().finally(() => setLoading(false)); }, []);
+  const fetchGenerationPricing = async () => {
+    try {
+      const res = await ecomApi.get('/super-admin/generation-pricing');
+      setGenerationPricing(buildGenerationPricingForm(res.data?.pricing));
+    } catch (err) {
+      setError(getContextualError(err, 'load_dashboard'));
+    }
+  };
+
+  useEffect(() => {
+    Promise.all([fetchPlans(), fetchGenerationPricing()]).finally(() => setLoading(false));
+  }, []);
 
   const update = (key, patch) => {
     setPlans(prev => prev.map(p => p.key === key ? { ...p, ...patch } : p));
@@ -60,6 +83,10 @@ const SuperAdminPlans = () => {
 
   const updateFeatures = (key, field, value) => {
     setPlans(prev => prev.map(p => p.key === key ? { ...p, features: { ...p.features, [field]: value } } : p));
+  };
+
+  const updateGenerationPricing = (patch) => {
+    setGenerationPricing(prev => ({ ...prev, ...patch }));
   };
 
   const handleSave = async (plan) => {
@@ -88,6 +115,36 @@ const SuperAdminPlans = () => {
       setError(getContextualError(err, 'update_settings'));
     } finally {
       setSaving(s => ({ ...s, [plan.key]: false }));
+    }
+  };
+
+  const handleSaveGenerationPricing = async () => {
+    setGenerationPricingSaving(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      const payload = {
+        currency: generationPricing.currency || 'FCFA',
+        unitPriceRegular: Number(generationPricing.unitPriceRegular) || 0,
+        unitPricePromo: generationPricing.unitPricePromo === '' || generationPricing.unitPricePromo == null
+          ? null
+          : Number(generationPricing.unitPricePromo),
+        packPriceRegular: Number(generationPricing.packPriceRegular) || 0,
+        packPricePromo: generationPricing.packPricePromo === '' || generationPricing.packPricePromo == null
+          ? null
+          : Number(generationPricing.packPricePromo),
+        promoActive: !!generationPricing.promoActive,
+        promoExpiresAt: generationPricing.promoExpiresAt || null,
+      };
+
+      const res = await ecomApi.patch('/super-admin/generation-pricing', payload);
+      setGenerationPricing(buildGenerationPricingForm(res.data?.pricing));
+      setSuccess('Tarifs des credits IA sauvegardes');
+    } catch (err) {
+      setError(getContextualError(err, 'update_settings'));
+    } finally {
+      setGenerationPricingSaving(false);
     }
   };
 
@@ -128,6 +185,95 @@ const SuperAdminPlans = () => {
           <div className="text-sm text-green-700">{success}</div>
         </div>
       )}
+
+      <div className="mb-6 bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-4">
+          <div>
+            <h2 className="text-lg font-bold text-gray-900">Tarifs credits IA pages produit</h2>
+            <p className="text-sm text-gray-500 mt-1">Modifiez les prix affiches dans le studio produit et appliquez une promo temporaire sans toucher au code.</p>
+          </div>
+          <a
+            href="/ecom/super-admin/promo-codes"
+            className="inline-flex items-center justify-center px-3 py-2 text-sm font-medium text-[#0F6B4F] bg-[#E6F4EF] rounded-lg hover:bg-[#D8EEE6] transition"
+          >
+            Gérer les codes promo
+          </a>
+        </div>
+
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4 mb-4">
+          <label className="text-xs text-gray-600">
+            Prix unitaire normal ({generationPricing.currency || 'FCFA'})
+            <input
+              type="number"
+              value={generationPricing.unitPriceRegular ?? 0}
+              onChange={e => updateGenerationPricing({ unitPriceRegular: e.target.value })}
+              className="mt-1 w-full px-2 py-1.5 border border-gray-300 rounded focus:border-[#0F6B4F] focus:outline-none text-sm"
+            />
+          </label>
+          <label className="text-xs text-gray-600">
+            Prix unitaire promo ({generationPricing.currency || 'FCFA'})
+            <input
+              type="number"
+              value={generationPricing.unitPricePromo ?? ''}
+              onChange={e => updateGenerationPricing({ unitPricePromo: e.target.value })}
+              placeholder="—"
+              className="mt-1 w-full px-2 py-1.5 border border-gray-300 rounded focus:border-[#0F6B4F] focus:outline-none text-sm"
+            />
+          </label>
+          <label className="text-xs text-gray-600">
+            Pack 3 normal ({generationPricing.currency || 'FCFA'})
+            <input
+              type="number"
+              value={generationPricing.packPriceRegular ?? 0}
+              onChange={e => updateGenerationPricing({ packPriceRegular: e.target.value })}
+              className="mt-1 w-full px-2 py-1.5 border border-gray-300 rounded focus:border-[#0F6B4F] focus:outline-none text-sm"
+            />
+          </label>
+          <label className="text-xs text-gray-600">
+            Pack 3 promo ({generationPricing.currency || 'FCFA'})
+            <input
+              type="number"
+              value={generationPricing.packPricePromo ?? ''}
+              onChange={e => updateGenerationPricing({ packPricePromo: e.target.value })}
+              placeholder="—"
+              className="mt-1 w-full px-2 py-1.5 border border-gray-300 rounded focus:border-[#0F6B4F] focus:outline-none text-sm"
+            />
+          </label>
+        </div>
+
+        <div className={`mb-4 p-3 rounded-lg border ${generationPricing.promoActive ? 'bg-orange-50 border-orange-200' : 'bg-gray-50 border-gray-200'}`}>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={!!generationPricing.promoActive}
+              onChange={e => updateGenerationPricing({ promoActive: e.target.checked })}
+              className="w-4 h-4 rounded accent-orange-600"
+            />
+            <Clock className="w-4 h-4 text-orange-600" />
+            <span className="text-sm font-medium text-gray-700">Promo credits IA active</span>
+          </label>
+          {generationPricing.promoActive && (
+            <label className="block mt-2 text-xs text-gray-600">
+              Expire le
+              <input
+                type="datetime-local"
+                value={fmtDateTimeLocal(generationPricing.promoExpiresAt)}
+                onChange={e => updateGenerationPricing({ promoExpiresAt: e.target.value ? new Date(e.target.value).toISOString() : null })}
+                className="mt-1 w-full max-w-sm px-2 py-1.5 border border-gray-300 rounded focus:border-[#0F6B4F] focus:outline-none text-sm"
+              />
+            </label>
+          )}
+        </div>
+
+        <button
+          onClick={handleSaveGenerationPricing}
+          disabled={generationPricingSaving}
+          className="w-full sm:w-auto bg-[#0F6B4F] hover:bg-[#0C5840] disabled:opacity-50 text-white font-medium py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 transition"
+        >
+          {generationPricingSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+          Sauvegarder les tarifs IA
+        </button>
+      </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
         {plans.map(plan => {
