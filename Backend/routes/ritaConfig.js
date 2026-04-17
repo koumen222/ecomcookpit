@@ -2,6 +2,7 @@ import express from 'express';
 import RitaConfig from '../models/RitaConfig.js';
 import Workspace from '../models/Workspace.js';
 import { requireEcomAuth, requireRitaAgentAccess } from '../middleware/ecomAuth.js';
+import { sanitizeRitaConfigForResponse } from '../utils/ritaConfigResponse.js';
 
 const router = express.Router();
 
@@ -170,7 +171,7 @@ router.put('/config', requireEcomAuth, async (req, res) => {
 
     res.json({
       success: true,
-      config: updated,
+      config: sanitizeRitaConfigForResponse(updated),
     });
   } catch (error) {
     console.error('❌ [RITA] Erreur PUT config:', error.message);

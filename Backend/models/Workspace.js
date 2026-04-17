@@ -231,6 +231,13 @@ const workspaceSchema = new mongoose.Schema({
     type: Date,
     default: null
   },
+  // Stages de rappel pré-expiration déjà envoyés pour le plan en cours
+  // Réinitialisé à chaque renouvellement (applyPlanPayment)
+  // Valeurs possibles : '7d', '3d', '1d'
+  planExpiryReminderStages: {
+    type: [String],
+    default: []
+  },
 
   // ─── Product Page Generator Tracking ─────────────────────────────────────
   // Legacy fields (backward compat — still used for old single-tier flow)

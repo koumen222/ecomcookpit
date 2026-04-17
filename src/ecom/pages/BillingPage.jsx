@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useEcomAuth } from '../hooks/useEcomAuth.jsx';
-import { getCurrentPlan, createCheckout, getPaymentStatus, getPaymentHistory, activateTrial } from '../services/billingApi.js';
+import { getCurrentPlan, createCheckout, getPaymentStatus, getPaymentHistory, activateTrial, validatePromoCode } from '../services/billingApi.js';
 import { Package, Bot, Zap, Clock, CheckCircle2, CalendarDays, CreditCard, Shield, RefreshCw, MessageCircle, AlertTriangle, Lock, Gift, Globe } from 'lucide-react';
 
 // ─── Country phone codes ────────────────────────────────────────────────────────────────────
@@ -162,7 +162,7 @@ const ArrowLeftIcon = ({ className = '' }) => (
 );
 
 // CheckoutModal
-function CheckoutModal({ plan, tier, onClose, onSuccess, workspaceId, userName, userCountry }) {
+function CheckoutModal({ plan, tier, onClose, onSuccess, workspaceId, userName, userCountry, initialPromo = '' }) {
   const [country, setCountry] = useState(
     COUNTRY_CODES.find(c => c.country === userCountry) ? userCountry : 'Cameroun'
   );
@@ -170,11 +170,53 @@ function CheckoutModal({ plan, tier, onClose, onSuccess, workspaceId, userName, 
   const [clientName, setClientName] = useState(userName || '');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [promoInput, setPromoInput] = useState(initialPromo);
+  const [promoLoading, setPromoLoading] = useState(false);
+  const [promoError, setPromoError] = useState('');
+  const [appliedPromo, setAppliedPromo] = useState(null); // { code, discountAmount, finalAmount }
 
   const selectedCode = COUNTRY_CODES.find(c => c.country === country);
   const dialCode = selectedCode?.code || '+237';
   const flag = selectedCode?.flag || '🌍'; // flags stay as emoji (country flags)
   const fullPhone = phoneLocal ? `${dialCode}${phoneLocal.replace(/^0+/, '')}` : '';
+
+  const finalPrice = appliedPromo ? appliedPromo.finalAmount : plan.price;
+
+  async function handleApplyPromo(codeToApply) {
+    const code = typeof codeToApply === 'string' ? codeToApply : promoInput;
+    setPromoError('');
+    if (!code.trim()) { setPromoError('Entrez un code'); return; }
+    setPromoLoading(true);
+    try {
+      const result = await validatePromoCode({ code: code.trim(), plan: plan.id, workspaceId });
+      if (!result.success) { setPromoError(result.message || 'Code invalide'); setPromoLoading(false); return; }
+      setAppliedPromo({
+        code: result.code,
+        discountType: result.discountType,
+        discountValue: result.discountValue,
+        discountAmount: result.discountAmount,
+        finalAmount: result.finalAmount,
+        originalAmount: result.originalAmount
+      });
+      setPromoLoading(false);
+    } catch (err) {
+      setPromoError(err?.response?.data?.message || 'Erreur de validation');
+      setPromoLoading(false);
+    }
+  }
+
+  // Auto-apply initial promo if passed
+  useEffect(() => {
+    if (initialPromo && initialPromo.trim() !== '') {
+      handleApplyPromo(initialPromo.trim());
+    }
+  }, []);
+
+  function handleRemovePromo() {
+    setAppliedPromo(null);
+    setPromoInput('');
+    setPromoError('');
+  }
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -184,7 +226,13 @@ function CheckoutModal({ plan, tier, onClose, onSuccess, workspaceId, userName, 
 
     setLoading(true);
     try {
-      const result = await createCheckout({ plan: plan.id, phone: fullPhone, clientName: clientName.trim(), workspaceId });
+      const result = await createCheckout({
+        plan: plan.id,
+        phone: fullPhone,
+        clientName: clientName.trim(),
+        workspaceId,
+        promoCode: appliedPromo?.code || null
+      });
       if (!result.success) { setError(result.message || "Erreur lors de l'initialisation."); setLoading(false); return; }
       if (result.paymentUrl) { onSuccess(result.mfToken); window.location.href = result.paymentUrl; }
       else { setError('URL de paiement manquante.'); setLoading(false); }
@@ -243,6 +291,59 @@ function CheckoutModal({ plan, tier, onClose, onSuccess, workspaceId, userName, 
             </div>
             {fullPhone && <p className="text-xs text-emerald-600 font-medium mt-1.5 flex items-center gap-1"><CheckIcon className="w-3.5 h-3.5" /> {fullPhone}</p>}
           </div>
+          {/* Promo code */}
+          <div>
+            <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Code promo (optionnel)</label>
+            {appliedPromo ? (
+              <div className="flex items-center justify-between bg-emerald-50 border border-emerald-200 rounded-xl p-3">
+                <div>
+                  <p className="text-emerald-700 font-bold text-sm flex items-center gap-1.5">
+                    <CheckIcon className="w-4 h-4" /> {appliedPromo.code}
+                  </p>
+                  <p className="text-emerald-600 text-xs mt-0.5">
+                    -{formatAmount(appliedPromo.discountAmount)} FCFA appliqué
+                  </p>
+                </div>
+                <button type="button" onClick={handleRemovePromo}
+                  className="text-emerald-700 hover:text-emerald-900 text-xs font-medium">
+                  Retirer
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="flex gap-2">
+                  <input type="text" value={promoInput}
+                    onChange={e => setPromoInput(e.target.value.toUpperCase())}
+                    placeholder="CODEPROMO"
+                    className="flex-1 px-4 py-3 border border-gray-200 rounded-xl text-sm font-mono uppercase focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition bg-gray-50/50" />
+                  <button type="button" onClick={handleApplyPromo} disabled={promoLoading || !promoInput.trim()}
+                    className="px-4 py-3 bg-gray-100 hover:bg-gray-200 rounded-xl text-sm font-bold text-gray-700 disabled:opacity-50">
+                    {promoLoading ? '…' : 'Appliquer'}
+                  </button>
+                </div>
+                {promoError && <p className="text-red-600 text-xs mt-1.5">{promoError}</p>}
+              </>
+            )}
+          </div>
+
+          {/* Récap prix avec promo */}
+          {appliedPromo && (
+            <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 text-sm space-y-1">
+              <div className="flex justify-between text-gray-500">
+                <span>Sous-total</span>
+                <span className="line-through">{formatAmount(plan.price)} FCFA</span>
+              </div>
+              <div className="flex justify-between text-emerald-600 font-medium">
+                <span>Réduction ({appliedPromo.code})</span>
+                <span>-{formatAmount(appliedPromo.discountAmount)} FCFA</span>
+              </div>
+              <div className="flex justify-between text-gray-900 font-bold pt-1 border-t border-gray-200">
+                <span>Total</span>
+                <span>{formatAmount(finalPrice)} FCFA</span>
+              </div>
+            </div>
+          )}
+
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl p-3 flex items-start gap-2">
               <AlertTriangle className="w-4 h-4 text-red-400 mt-0.5 flex-shrink-0" />{error}
@@ -255,7 +356,7 @@ function CheckoutModal({ plan, tier, onClose, onSuccess, workspaceId, userName, 
                 <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
                 Redirection…
               </span>
-            ) : `Payer ${formatAmount(plan.price)} FCFA`}
+            ) : `Payer ${formatAmount(finalPrice)} FCFA`}
           </button>
           <div className="flex items-center justify-center gap-3 text-[11px] text-gray-400">
             <span className="flex items-center gap-1"><Lock className="w-3 h-3" /> Paiement sécurisé</span><span>·</span><span>Activation instantanée</span><span>·</span><span>MoneyFusion</span>
@@ -387,6 +488,7 @@ export default function BillingPage() {
   const [pendingToken, setPendingToken] = useState(() => sessionStorage.getItem('mf_pending_token') || null);
   const [trialLoading, setTrialLoading] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [globalPromo, setGlobalPromo] = useState('');
 
   useEffect(() => {
     if (!location.state?.selectedPlan) return;
@@ -435,10 +537,10 @@ export default function BillingPage() {
     }
     const phone = user?.phone?.trim();
     const name = user?.name?.trim() || user?.email?.split('@')[0] || 'Client';
-    if (!phone || phone.length < 7) {
-      // Fallback: show modal if no phone on profile
+    if (!phone || phone.length < 7 || globalPromo.trim() !== '') {
+      // Fallback: show modal if no phone on profile, OR if user wants to use a promo code
       const tier = PLAN_TIERS.find(t => t.id === (duration.tier || duration.id?.split('_')[0]));
-      setCheckout({ plan: { ...duration, tier: duration.tier || tier?.id }, tier });
+      setCheckout({ plan: { ...duration, tier: duration.tier || tier?.id }, tier, initialPromo: globalPromo.trim() });
       return;
     }
     setDirectCheckoutLoading(true);
@@ -569,8 +671,7 @@ export default function BillingPage() {
                 <p className="text-gray-500 text-sm mt-2">{isTrial ? 'Votre essai gratuit prend fin bientôt. Choisissez un plan pour continuer.' : 'Passez à un plan supérieur ou changez d\'offre à tout moment.'}</p>
               </div>
 
-              {/* Billing toggle */}
-              <div className="flex items-center justify-center gap-3 mb-8">
+              <div className="flex items-center justify-center gap-3 mb-6">
                 <span className={`text-sm font-semibold transition ${!isAnnual ? 'text-gray-900' : 'text-gray-400'}`}>Mensuel</span>
                 <button onClick={() => setIsAnnual(!isAnnual)}
                   className={`relative w-14 h-7 rounded-full transition-colors ${isAnnual ? 'bg-blue-600' : 'bg-gray-300'}`}>
@@ -578,6 +679,22 @@ export default function BillingPage() {
                 </button>
                 <span className={`text-sm font-semibold transition ${isAnnual ? 'text-gray-900' : 'text-gray-400'}`}>Annuel</span>
                 {isAnnual && <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full">Jusqu'à -25%</span>}
+              </div>
+
+              {/* Promo code input (global) */}
+              <div className="flex justify-center mb-10">
+                <div className="relative w-full max-w-xs transition-all hover:scale-[1.02]">
+                  <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
+                    <Gift className="w-4 h-4 text-gray-400" />
+                  </div>
+                  <input
+                    type="text"
+                    value={globalPromo}
+                    onChange={e => setGlobalPromo(e.target.value.toUpperCase())}
+                    placeholder="Avez-vous un code promo ?"
+                    className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-full text-sm font-bold placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition shadow-sm uppercase text-gray-700"
+                  />
+                </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6">
@@ -684,6 +801,22 @@ export default function BillingPage() {
                   Annuel
                 </span>
                 {isAnnual && <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full">Jusqu'à -25%</span>}
+              </div>
+              
+              {/* Promo code input (global) */}
+              <div className="flex justify-center mt-6">
+                <div className="relative w-full max-w-xs transition-all hover:scale-[1.02]">
+                  <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
+                    <Gift className="w-4 h-4 text-gray-400" />
+                  </div>
+                  <input
+                    type="text"
+                    value={globalPromo}
+                    onChange={e => setGlobalPromo(e.target.value.toUpperCase())}
+                    placeholder="Avez-vous un code promo ?"
+                    className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-full text-sm font-bold placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition shadow-sm uppercase text-gray-700"
+                  />
+                </div>
               </div>
             </div>
           </div>
@@ -858,6 +991,7 @@ export default function BillingPage() {
           workspaceId={workspaceId}
           userName={user?.name || ''}
           userCountry={userCountry}
+          initialPromo={checkout.initialPromo}
           onClose={() => setCheckout(null)}
           onSuccess={token => { sessionStorage.setItem('mf_pending_token', token); setPendingToken(token); }}
         />

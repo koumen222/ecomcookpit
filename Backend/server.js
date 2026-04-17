@@ -369,7 +369,9 @@ const startServer = async () => {
       ['./routes/skolerOrders.js',             '/api/orders/skelor'],
       // ─── Generic Order Webhook (external systems → /webhook/orders/:token) ─
       ['./routes/orderWebhook.js',             '/webhook/orders'],      // ─── Billing / Plan upgrade (MoneyFusion) ─────────────────────────────
-      ['./routes/billing.js',                   '/api/ecom/billing'],      // ─── Test Routes ───────────────────────────────────────────────────
+      ['./routes/billing.js',                   '/api/ecom/billing'],
+      // ─── Promo Codes (super admin) ─────────────────────────────────────
+      ['./routes/promoCodes.js',               '/api/ecom/promo-codes'],      // ─── Test Routes ───────────────────────────────────────────────────
       ['./routes/test.js',                      '/api/ecom/test'],
       // ─── Scalor SaaS WhatsApp API ──────────────────────────────────────
       ['./routes/scalorAuth.js',               '/api/scalor/auth'],

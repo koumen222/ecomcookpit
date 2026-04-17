@@ -46,3 +46,38 @@ export async function activateTrial(workspaceId) {
   const { data } = await ecomApi.post('/billing/trial', { workspaceId });
   return data;
 }
+
+/**
+ * Validate a promo code for a given plan/workspace.
+ * Returns: { success, code, discountType, discountValue, originalAmount, discountAmount, finalAmount }
+ */
+export async function validatePromoCode({ code, plan, workspaceId }) {
+  const { data } = await ecomApi.post('/billing/validate-promo', { code, plan, workspaceId });
+  return data;
+}
+
+// ─── Super-admin promo codes CRUD ──────────────────────────────────────────────
+export async function listPromoCodes(params = {}) {
+  const { data } = await ecomApi.get('/promo-codes', { params });
+  return data;
+}
+
+export async function getPromoCode(id) {
+  const { data } = await ecomApi.get(`/promo-codes/${id}`);
+  return data;
+}
+
+export async function createPromoCode(payload) {
+  const { data } = await ecomApi.post('/promo-codes', payload);
+  return data;
+}
+
+export async function updatePromoCode(id, payload) {
+  const { data } = await ecomApi.patch(`/promo-codes/${id}`, payload);
+  return data;
+}
+
+export async function deletePromoCode(id) {
+  const { data } = await ecomApi.delete(`/promo-codes/${id}`);
+  return data;
+}

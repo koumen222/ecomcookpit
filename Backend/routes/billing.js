@@ -23,6 +23,8 @@ import AffiliateConversion from '../models/AffiliateConversion.js';
 import { requireEcomAuth } from '../middleware/ecomAuth.js';
 import { PLAN_DURATION, getPlanCheckoutAmount } from '../services/billingPricing.js';
 import { clearSubscriptionWarning, downgradeWorkspaceToFree } from '../services/workspacePlanService.js';
+import { sendNotificationEmail } from '../core/notifications/email.service.js';
+import { validatePromoCode, markPromoCodeUsed } from '../services/promoCodeService.js';
 
 const router = express.Router();
 
@@ -138,16 +140,71 @@ async function applyPlanPayment(payment) {
     console.log(`[billing] Subscription warning auto-disabled for workspace ${workspace.name}`);
   }
 
+  // Reset les stages de rappel pré-expiration pour le nouveau cycle
+  workspace.planExpiryReminderStages = [];
+  // Reset le flag de notification d'expiration (pour qu'il puisse re-déclencher au prochain cycle)
+  workspace.trialExpiredNotifiedAt = null;
+
   await workspace.save();
 
   payment.status = 'paid';
   payment.activatedAt = now;
   await payment.save();
 
+  // Incrémenter l'utilisation du code promo (non-bloquant)
+  if (payment.promoCodeId) {
+    markPromoCodeUsed(payment.promoCodeId).catch(err =>
+      console.warn('[billing] markPromoCodeUsed error:', err.message)
+    );
+  }
+
+  // Email de confirmation d'abonnement (non-bloquant)
+  sendSubscriptionActivatedEmail(workspace, payment).catch(err =>
+    console.warn('[billing] subscription_activated email error:', err.message)
+  );
+
   // Credit 50% commission to referring affiliate (non-blocking)
   creditPaymentCommission(payment).catch(err =>
     console.warn('[affiliate] payment commission error:', err.message)
   );
+}
+
+/**
+ * Envoie le mail "subscription_activated" au propriétaire du workspace
+ * après confirmation d'un paiement.
+ */
+async function sendSubscriptionActivatedEmail(workspace, payment) {
+  const owner = await EcomUser.findById(workspace.owner).select('email name').lean();
+  if (!owner?.email) return;
+
+  const planLabels = { starter: 'Scalor', pro: 'Scalor + IA', ultra: 'Scalor IA Pro' };
+  const planName = planLabels[workspace.plan] || workspace.plan;
+
+  const expiresAt = workspace.planExpiresAt
+    ? new Date(workspace.planExpiresAt).toLocaleDateString('fr-FR', {
+        day: 'numeric', month: 'long', year: 'numeric'
+      })
+    : '—';
+
+  await sendNotificationEmail({
+    to: owner.email,
+    templateKey: 'subscription_activated',
+    data: {
+      name: owner.name || '',
+      workspaceName: workspace.name,
+      planName,
+      durationMonths: payment.durationMonths,
+      amount: payment.amount,
+      currency: 'FCFA',
+      expiresAt,
+      transactionNumber: payment.transactionNumber || null,
+    },
+    userId: String(workspace.owner),
+    workspaceId: String(workspace._id),
+    eventType: 'subscription_activated',
+  });
+
+  console.log(`📧 [billing] subscription_activated envoyé → ${owner.email} (${workspace.name}, ${planName})`);
 }
 
 /**
@@ -276,10 +333,54 @@ router.get('/plan', requireEcomAuth, async (req, res) => {
   }
 });
 
+// ─── POST /validate-promo ─────────────────────────────────────────────────────
+router.post('/validate-promo', requireEcomAuth, async (req, res) => {
+  try {
+    const { code, plan = 'pro_1', workspaceId: bodyWsId } = req.body || {};
+    const normalizedPlan = ({ starter: 'starter_1', pro: 'pro_1', ultra: 'ultra_1' }[String(plan)] || String(plan));
+    const workspaceId = req.workspaceId || bodyWsId;
+
+    if (!PLAN_DURATION[normalizedPlan]) {
+      return res.status(400).json({ success: false, message: 'Plan invalide' });
+    }
+    const amount = await getPlanCheckoutAmount(normalizedPlan);
+    if (amount == null) {
+      return res.status(400).json({ success: false, message: 'Prix du plan introuvable' });
+    }
+    const durationMonths = PLAN_DURATION[normalizedPlan];
+    const planKey = normalizedPlan.startsWith('ultra') ? 'ultra' : normalizedPlan.startsWith('pro') ? 'pro' : 'starter';
+
+    const result = await validatePromoCode({
+      code,
+      planKey,
+      durationMonths,
+      amount,
+      workspaceId
+    });
+
+    if (!result.ok) {
+      return res.status(400).json({ success: false, message: result.reason });
+    }
+
+    res.json({
+      success: true,
+      code: result.promo.code,
+      discountType: result.promo.discountType,
+      discountValue: result.promo.discountValue,
+      originalAmount: result.originalAmount,
+      discountAmount: result.discountAmount,
+      finalAmount: result.finalAmount
+    });
+  } catch (err) {
+    console.error('[billing] POST /validate-promo error:', err.message);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
 // ─── POST /checkout ───────────────────────────────────────────────────────────
 router.post('/checkout', requireEcomAuth, async (req, res) => {
   try {
-    const { plan = 'pro_1', phone, clientName, workspaceId: bodyWsId } = req.body;
+    const { plan = 'pro_1', phone, clientName, workspaceId: bodyWsId, promoCode = null } = req.body;
     const normalizedPlan = ({ starter: 'starter_1', pro: 'pro_1', ultra: 'ultra_1' }[String(plan)] || String(plan));
     const workspaceId = req.workspaceId || bodyWsId;
 
@@ -296,12 +397,35 @@ router.post('/checkout', requireEcomAuth, async (req, res) => {
       return res.status(400).json({ success: false, message: 'Nom du client requis' });
     }
 
-    const amount = await getPlanCheckoutAmount(normalizedPlan);
-    if (amount == null) {
+    const baseAmount = await getPlanCheckoutAmount(normalizedPlan);
+    if (baseAmount == null) {
       return res.status(400).json({ success: false, message: 'Prix du plan introuvable' });
     }
     const durationMonths = PLAN_DURATION[normalizedPlan];
     const planName = normalizedPlan.startsWith('ultra') ? 'ultra' : normalizedPlan.startsWith('pro') ? 'pro' : 'starter';
+
+    // Application du code promo si fourni
+    let amount = baseAmount;
+    let appliedPromo = null;
+    if (promoCode) {
+      const promoResult = await validatePromoCode({
+        code: promoCode,
+        planKey: planName,
+        durationMonths,
+        amount: baseAmount,
+        workspaceId
+      });
+      if (!promoResult.ok) {
+        return res.status(400).json({ success: false, message: `Code promo : ${promoResult.reason}` });
+      }
+      amount = promoResult.finalAmount;
+      appliedPromo = {
+        promoCodeId: promoResult.promo._id,
+        code: promoResult.promo.code,
+        discountAmount: promoResult.discountAmount,
+        originalAmount: promoResult.originalAmount
+      };
+    }
 
     const frontendUrl = process.env.FRONTEND_URL || 'https://scalor.net';
     const backendUrl = process.env.BACKEND_URL || 'https://api.scalor.net';
@@ -351,7 +475,11 @@ router.post('/checkout', requireEcomAuth, async (req, res) => {
       paymentUrl: paymentUrl || '',
       status: 'pending',
       phone: String(phone).trim(),
-      clientName: String(clientName).trim()
+      clientName: String(clientName).trim(),
+      promoCodeId: appliedPromo?.promoCodeId || null,
+      promoCode: appliedPromo?.code || null,
+      originalAmount: appliedPromo ? appliedPromo.originalAmount : baseAmount,
+      discountAmount: appliedPromo?.discountAmount || 0
     });
     await payment.save();
 
@@ -361,6 +489,9 @@ router.post('/checkout', requireEcomAuth, async (req, res) => {
       paymentUrl,
       message: message || 'Paiement en cours',
       amount,
+      originalAmount: baseAmount,
+      discountAmount: appliedPromo?.discountAmount || 0,
+      promoCode: appliedPromo?.code || null,
       plan: normalizedPlan,
       durationMonths
     });

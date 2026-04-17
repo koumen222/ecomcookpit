@@ -80,6 +80,25 @@ const planPaymentSchema = new mongoose.Schema({
   activatedAt: {
     type: Date,
     default: null
+  },
+  // Promo code applied (if any)
+  promoCodeId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'PromoCode',
+    default: null,
+    index: true
+  },
+  promoCode: {
+    type: String,
+    default: null
+  },
+  originalAmount: {
+    type: Number,
+    default: null
+  },
+  discountAmount: {
+    type: Number,
+    default: 0
   }
 }, {
   timestamps: true

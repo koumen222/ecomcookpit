@@ -14,7 +14,13 @@ import { sendPushNotification, sendPushNotificationToUser } from './pushService.
 import { downgradeWorkspaceToFree } from './workspacePlanService.js';
 
 const INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
-const EXPIRY_WARNING_HOURS = 12; // Notifier 12h avant l'expiration
+const EXPIRY_WARNING_HOURS = 12; // Notifier 12h avant l'expiration (essai)
+// Stages de rappel pré-expiration pour les plans payants
+const PLAN_REMINDER_STAGES = [
+  { key: '7d', days: 7 },
+  { key: '3d', days: 3 },
+  { key: '1d', days: 1 },
+];
 
 async function checkTrialExpiry() {
   const now = new Date();
@@ -198,9 +204,84 @@ async function checkTrialExpiry() {
       }
     }
 
-    const total = expiringTrials.length + expiredTrials.length + expiredPlans.length;
+    // ═══════════════════════════════════════════════════════════════════════
+    // 4) Rappels pré-expiration pour plans payants (J-7, J-3, J-1)
+    // ═══════════════════════════════════════════════════════════════════════
+    const planLabels = { starter: 'Scalor', pro: 'Scalor + IA', ultra: 'Scalor IA Pro' };
+    let planRemindersSent = 0;
+
+    for (const stage of PLAN_REMINDER_STAGES) {
+      const stageThreshold = new Date(now.getTime() + stage.days * 24 * 60 * 60 * 1000);
+      // Fenêtre : plan qui expire entre maintenant et J+N jours, qui n'a pas
+      // encore reçu ce stage de rappel
+      const expiringPlans = await Workspace.find({
+        plan: { $in: ['starter', 'pro', 'ultra'] },
+        planExpiresAt: { $gt: now, $lte: stageThreshold },
+        planExpiryReminderStages: { $ne: stage.key },
+      }).lean();
+
+      for (const ws of expiringPlans) {
+        try {
+          const owner = await EcomUser.findById(ws.owner).select('email name').lean();
+          if (!owner?.email) continue;
+
+          const expiresAtDate = new Date(ws.planExpiresAt);
+          const daysLeft = Math.max(1, Math.ceil((expiresAtDate - now) / (24 * 60 * 60 * 1000)));
+          const planName = planLabels[ws.plan] || ws.plan;
+          const expiresAtStr = expiresAtDate.toLocaleDateString('fr-FR', {
+            day: 'numeric', month: 'long', year: 'numeric'
+          });
+
+          // Email
+          await sendNotificationEmail({
+            to: owner.email,
+            templateKey: 'plan_expiring_soon',
+            data: {
+              name: owner.name || '',
+              workspaceName: ws.name,
+              planName,
+              daysLeft,
+              expiresAt: expiresAtStr,
+            },
+            userId: String(ws.owner),
+            workspaceId: String(ws._id),
+            eventType: `plan_expiring_${stage.key}`,
+          });
+
+          // Push
+          await sendPushNotification(String(ws._id), {
+            title: `⏰ Abonnement ${planName} expire dans ${daysLeft}j`,
+            body: `Renouvelez avant le ${expiresAtStr} pour garder vos agents IA actifs.`,
+            icon: '/icons/icon-192x192.png',
+            tag: `plan-expiring-${stage.key}`,
+            data: { type: 'plan_expiring_soon', url: '/ecom/billing' },
+          });
+
+          await sendPushNotificationToUser(String(ws.owner), {
+            title: `⏰ Abonnement ${planName} expire dans ${daysLeft}j`,
+            body: `Renouvelez avant le ${expiresAtStr} pour garder vos agents IA actifs.`,
+            icon: '/icons/icon-192x192.png',
+            tag: `plan-expiring-${stage.key}`,
+            data: { type: 'plan_expiring_soon', url: '/ecom/billing' },
+          });
+
+          // Marquer le stage comme envoyé
+          await Workspace.updateOne(
+            { _id: ws._id },
+            { $addToSet: { planExpiryReminderStages: stage.key } }
+          );
+
+          planRemindersSent++;
+          console.log(`📧 [TrialCron] plan_expiring_${stage.key} → ${owner.email} (${ws.name}, ${daysLeft}j restants)`);
+        } catch (e) {
+          console.error(`❌ [TrialCron] Erreur plan_expiring_${stage.key} pour ws=${ws._id}:`, e.message);
+        }
+      }
+    }
+
+    const total = expiringTrials.length + expiredTrials.length + expiredPlans.length + planRemindersSent;
     if (total > 0) {
-      console.log(`✅ [TrialCron] Cycle terminé: ${expiringTrials.length} avertissements, ${expiredTrials.length} essais expirés, ${expiredPlans.length} plans expirés`);
+      console.log(`✅ [TrialCron] Cycle terminé: ${expiringTrials.length} avertissements essai, ${expiredTrials.length} essais expirés, ${expiredPlans.length} plans expirés, ${planRemindersSent} rappels pré-expiration`);
     }
 
   } catch (err) {

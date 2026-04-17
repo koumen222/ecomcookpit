@@ -481,6 +481,86 @@ export const TEMPLATES = {
     `, `Agents IA désactivés — Passez à Pro`)
   }),
 
+  subscription_activated: ({ name, workspaceName, planName, durationMonths, amount, currency = 'FCFA', expiresAt, transactionNumber }) => ({
+    subject: `🎉 Abonnement ${planName} activé — Bienvenue sur ${BRAND_NAME} !`,
+    preview: `Votre plan ${planName} est actif jusqu'au ${expiresAt}`,
+    html: baseLayout(`
+      <h2>Merci pour votre abonnement ! 🎉</h2>
+      <p>Bonjour ${name || ''},</p>
+      <p>Votre paiement a été confirmé. L'abonnement <strong>${planName}</strong> est maintenant <strong>actif</strong> sur l'espace <strong>${workspaceName}</strong>.</p>
+
+      <div class="kpi-row">
+        <div class="kpi" style="background:#f0fdf4">
+          <p class="kpi-value" style="color:#059669">${planName}</p>
+          <p class="kpi-label">Plan</p>
+        </div>
+        <div class="kpi">
+          <p class="kpi-value">${durationMonths} mois</p>
+          <p class="kpi-label">Durée</p>
+        </div>
+        <div class="kpi">
+          <p class="kpi-value">${amount} ${currency}</p>
+          <p class="kpi-label">Montant</p>
+        </div>
+      </div>
+
+      <div class="alert-box alert-green">
+        ✅ Votre abonnement est valide jusqu'au <strong>${expiresAt}</strong>.
+      </div>
+
+      ${transactionNumber ? `<p style="font-size:13px;color:#888">Référence transaction : <code>${transactionNumber}</code></p>` : ''}
+
+      <p><strong>Vous pouvez maintenant :</strong></p>
+      <ul style="color:#4a4a68;font-size:15px;line-height:1.8;margin:16px 0">
+        <li>✅ Activer vos agents IA WhatsApp</li>
+        <li>📦 Gérer vos commandes et stock sans limite</li>
+        <li>🚀 Lancer vos campagnes marketing</li>
+        <li>📊 Accéder à toutes vos statistiques avancées</li>
+      </ul>
+
+      <div style="text-align:center;margin:24px 0">
+        <a href="${FRONTEND_URL}/ecom" class="btn btn-success">Accéder à mon espace →</a>
+      </div>
+
+      <hr class="divider"/>
+      <p style="font-size:13px;color:#888">Vous recevrez des rappels automatiques 7 jours, 3 jours et 1 jour avant la fin de votre abonnement.</p>
+    `, `Abonnement ${planName} activé`)
+  }),
+
+  plan_expiring_soon: ({ name, workspaceName, planName, daysLeft, expiresAt }) => ({
+    subject: `⏰ Votre abonnement ${planName} expire dans ${daysLeft} jour${daysLeft > 1 ? 's' : ''}`,
+    preview: `Renouvelez avant le ${expiresAt} pour ne pas perdre l'accès`,
+    html: baseLayout(`
+      <h2>Votre abonnement expire bientôt ⏰</h2>
+      <p>Bonjour ${name || ''},</p>
+      <p>Votre abonnement <strong>${planName}</strong> pour <strong>${workspaceName}</strong> expire dans <strong>${daysLeft} jour${daysLeft > 1 ? 's' : ''}</strong> (le ${expiresAt}).</p>
+
+      <div class="kpi-row">
+        <div class="kpi" style="background:${daysLeft <= 1 ? '#fef2f2' : '#fff7ed'}">
+          <p class="kpi-value" style="color:${daysLeft <= 1 ? '#dc2626' : '#ea580c'}">${daysLeft}j</p>
+          <p class="kpi-label">Restant${daysLeft > 1 ? 's' : ''}</p>
+        </div>
+        <div class="kpi">
+          <p class="kpi-value">${planName}</p>
+          <p class="kpi-label">Plan actuel</p>
+        </div>
+      </div>
+
+      <div class="alert-box ${daysLeft <= 1 ? 'alert-red' : 'alert-orange'}">
+        ${daysLeft <= 1
+          ? '🚨 Dernière chance ! Sans renouvellement, vos agents IA seront désactivés et vous perdrez l\'accès aux fonctionnalités avancées.'
+          : '⚠️ Pensez à renouveler avant l\'échéance pour conserver vos agents IA actifs et un service ininterrompu.'}
+      </div>
+
+      <div style="text-align:center;margin:24px 0">
+        <a href="${FRONTEND_URL}/ecom/billing" class="btn ${daysLeft <= 1 ? 'btn-danger' : ''}">Renouveler mon abonnement →</a>
+      </div>
+
+      <hr class="divider"/>
+      <p style="font-size:13px;color:#888">Si vous avez déjà renouvelé, ignorez cet email.</p>
+    `, `Expire dans ${daysLeft}j`)
+  }),
+
   plan_expired: ({ name, workspaceName, planName }) => ({
     subject: `🚫 Plan ${planName} expiré — Agents IA désactivés`,
     preview: `Votre plan ${planName} a expiré, renouvelez pour garder vos agents actifs`,
