@@ -750,10 +750,10 @@ const AdminDashboard = () => {
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h2 className="text-sm font-semibold text-amber-900">
-                  Votre workspace est prêt. Aucune boutique n'a encore été créée.
+                  Votre workspace est prêt.
                 </h2>
                 <p className="mt-1 text-sm text-amber-800">
-                  La boutique ne se crée plus automatiquement. Vous pouvez continuer à utiliser l'espace et lancer la création plus tard si besoin.
+                  Aucune boutique n'a encore été créée. La boutique ne se crée plus automatiquement. Vous pouvez continuer à utiliser l'espace et lancer la création plus tard si besoin.
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -761,7 +761,7 @@ const AdminDashboard = () => {
                   to="/ecom/boutique/wizard"
                   className="inline-flex items-center justify-center rounded-xl bg-amber-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-amber-950"
                 >
-                  Créer une boutique
+                  Créer ma boutique
                 </Link>
               </div>
             </div>

@@ -1,13 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { CheckCircle2, Package } from 'lucide-react';
 import { createCheckout, getPublicPlans } from '../services/billingApi.js';
+import PaymentModalFrame from '../components/PaymentModalFrame.jsx';
+import { PAYMENT_COUNTRY_CODES } from '../constants/paymentCountryCodes.js';
 
 const fmtFCFA = (n) => Number(n || 0).toLocaleString('fr-FR').replace(/,/g, ' ');
 
 // ─── Inline checkout modal (for public Tarifs page, no auth required) ─────────
 function PublicCheckoutModal({ plan, onClose }) {
   const navigate = useNavigate();
-  const [phone, setPhone] = useState('');
+  const [country, setCountry] = useState('Cameroun');
+  const [phoneLocal, setPhoneLocal] = useState('');
   const [clientName, setClientName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -15,11 +19,15 @@ function PublicCheckoutModal({ plan, onClose }) {
   const amount = Number(plan?.numericPrice || 0);
   const durationLabel = plan?.durationLabel || '1 mois';
   const planName = plan?.name || 'Scalor';
+  const selectedCountry = PAYMENT_COUNTRY_CODES.find((item) => item.country === country) || PAYMENT_COUNTRY_CODES[0];
+  const fullPhone = phoneLocal ? `${selectedCountry.code}${phoneLocal.replace(/^0+/, '')}` : '';
+  const inputClassName = 'w-full rounded-[18px] border border-[#D7E3DA] bg-white px-4 py-3.5 text-[15px] text-slate-800 shadow-[0_10px_30px_rgba(15,107,79,0.04)] outline-none transition placeholder:text-slate-300 focus:border-[#0F6B4F]/35 focus:ring-4 focus:ring-[#0F6B4F]/10';
+  const labelClassName = 'mb-2 block text-[11px] font-black uppercase tracking-[0.16em] text-[#6A776F]';
 
   async function handleSubmit(e) {
     e.preventDefault();
     setError('');
-    if (!phone.trim() || phone.trim().length < 8) {
+    if (!phoneLocal.trim() || phoneLocal.trim().length < 8) {
       setError('Entrez un numéro de téléphone valide (min. 8 chiffres).');
       return;
     }
@@ -44,7 +52,7 @@ function PublicCheckoutModal({ plan, onClose }) {
     try {
       const result = await createCheckout({
         plan: plan?.checkoutKey,
-        phone: phone.trim(),
+        phone: fullPhone,
         clientName: clientName.trim(),
         workspaceId
       });
@@ -68,63 +76,84 @@ function PublicCheckoutModal({ plan, onClose }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
-        <div className="bg-gradient-to-r from-emerald-600 to-emerald-700 px-6 py-5 text-white">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-xl font-bold">Passer au plan {planName}</h2>
-              <p className="text-emerald-100 text-sm mt-0.5">
-                {durationLabel} — {new Intl.NumberFormat('fr-FR').format(amount)} FCFA
-              </p>
-            </div>
-            <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-white/20 transition">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-        </div>
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+    <PaymentModalFrame
+      onClose={onClose}
+      eyebrow="Abonnement"
+      title={`${planName} — ${durationLabel}`}
+      subtitle="Activez votre plan depuis la page Tarifs avec un parcours plus propre et plus lisible."
+      icon={<Package className="h-full w-full" />}
+      summary={{
+        label: 'Total a payer',
+        value: `${new Intl.NumberFormat('fr-FR').format(amount)} FCFA`,
+        meta: 'Paiement Mobile Money avec redirection MoneyFusion',
+        badge: amount > 0 ? 'Direct' : 'Gratuit',
+      }}
+      maxWidthClassName="max-w-md"
+    >
+      <form onSubmit={handleSubmit} className="space-y-5">
+        <div className="grid gap-4 rounded-[24px] border border-[#E2EAE4] bg-white/90 p-4 shadow-[0_16px_40px_rgba(15,107,79,0.05)] sm:p-5">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Nom complet</label>
+            <label className={labelClassName}>Nom complet</label>
             <input
               type="text"
               value={clientName}
               onChange={e => setClientName(e.target.value)}
               placeholder="Jean Dupont"
-              className="w-full px-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className={inputClassName}
               required
             />
           </div>
+
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Numéro Mobile Money</label>
-            <input
-              type="tel"
-              value={phone}
-              onChange={e => setPhone(e.target.value)}
-              placeholder="07XXXXXXXX"
-              className="w-full px-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-              required
-            />
-            <p className="text-xs text-gray-500 mt-1">Orange Money, MTN, Wave…</p>
+            <label className={labelClassName}>Numero Mobile Money</label>
+            <select
+              value={country}
+              onChange={e => setCountry(e.target.value)}
+              className={`${inputClassName} mb-3 appearance-none`}
+            >
+              {PAYMENT_COUNTRY_CODES.map((item, index) => (
+                <option key={index} value={item.country}>{item.flag} {item.country} ({item.code})</option>
+              ))}
+            </select>
+            <div className="flex gap-2">
+              <div className="flex flex-shrink-0 items-center gap-1.5 rounded-[18px] border border-[#D7E3DA] bg-[#F5FAF7] px-3 py-3 text-sm font-bold text-[#355646]">
+                <span>{selectedCountry.flag}</span>
+                <span>{selectedCountry.code}</span>
+              </div>
+              <input
+                type="tel"
+                inputMode="numeric"
+                value={phoneLocal}
+                onChange={e => setPhoneLocal(e.target.value.replace(/\D/g, ''))}
+                placeholder="6 XX XX XX XX"
+                className={`flex-1 ${inputClassName}`}
+                required
+              />
+            </div>
+            {fullPhone ? (
+              <p className="mt-2 flex items-center gap-1.5 text-xs font-semibold text-emerald-700">
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                {fullPhone}
+              </p>
+            ) : (
+              <p className="mt-2 text-xs text-[#6A776F]">Orange Money, MTN Mobile Money, Wave et autres operateurs compatibles.</p>
+            )}
           </div>
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl p-3">{error}</div>
-          )}
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-bold rounded-xl transition shadow-lg text-sm"
-          >
-            {loading ? 'Redirection…' : `Payer ${new Intl.NumberFormat('fr-FR').format(amount)} FCFA`}
-          </button>
-          <p className="text-center text-xs text-gray-400">
-            Paiement sécurisé via MoneyFusion — activé instantanément après confirmation.
-          </p>
-        </form>
-      </div>
-    </div>
+        </div>
+
+        {error && (
+          <div className="rounded-[18px] border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>
+        )}
+
+        <button
+          type="submit"
+          disabled={loading}
+          className="w-full rounded-[18px] bg-emerald-600 py-4 text-sm font-black text-white shadow-[0_20px_45px_rgba(15,107,79,0.18)] transition hover:bg-emerald-700 disabled:opacity-60"
+        >
+          {loading ? 'Redirection…' : `Payer ${new Intl.NumberFormat('fr-FR').format(amount)} FCFA`}
+        </button>
+      </form>
+    </PaymentModalFrame>
   );
 }
 

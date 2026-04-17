@@ -820,6 +820,33 @@ router.post('/create-workspace', async (req, res) => {
   }
 });
 
+// POST /api/ecom/auth/onboarding - Enregistrer les infos post-création espace
+router.post('/onboarding', requireEcomAuth, async (req, res) => {
+  try {
+    const { phone, businessType, ordersPerMonth } = req.body;
+    const user = await EcomUser.findById(req.ecomUser._id);
+    
+    if (!user) return res.status(404).json({ success: false, message: 'Utilisateur non trouvé' });
+    
+    if (phone) user.phone = String(phone).trim();
+    
+    user.onboardingData = {
+      businessType: businessType?.trim() || null,
+      ordersPerMonth: ordersPerMonth?.trim() || null,
+      completed: true
+    };
+    
+    await user.save();
+    
+    trackEvent(req, 'user_onboarding_completed', user._id, { businessType, ordersPerMonth });
+    
+    res.json({ success: true, message: 'Informations enregistrées' });
+  } catch(err) {
+    console.error('Erreur onboarding:', err);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
 // POST /api/ecom/auth/join-workspace - Rejoindre un workspace (utilisateur authentifié, tout rôle)
 router.post('/join-workspace', async (req, res) => {
   try {

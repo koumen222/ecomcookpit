@@ -6,6 +6,7 @@ import {
   Users, AlertTriangle, User, Phone, Target, Lock, Clock3, RefreshCw, ChevronRight
 } from 'lucide-react';
 import TestimonialsCarousel from './TestimonialsCarousel';
+import PaymentModalFrame from './PaymentModalFrame.jsx';
 
 // Product-generator is mounted at /api/ai/product-generator (outside /api/ecom).
 // We must always use API origin only, never a base path like /api/ecom.
@@ -2554,28 +2555,31 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
 
               {/* ─── MODAL ACHAT CRÉDITS ─── */}
               {showPaymentForm && limitReached && (
-                <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4" onClick={(e) => { if (e.target === e.currentTarget) setShowPaymentForm(false); }}>
-                  <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
-                  <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-                    {/* Header */}
-                    <div className="px-6 py-4 bg-scalor-copper text-white">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
-                            <Zap className="w-5 h-5" />
-                          </div>
-                          <div>
-                            <h3 className="text-base font-bold">Acheter des crédits</h3>
-                            <p className="text-xs text-white/80">1 crédit = 1 page produit IA complète</p>
-                          </div>
-                        </div>
-                        <button type="button" onClick={() => setShowPaymentForm(false)} className="p-1.5 rounded-lg hover:bg-white/20 transition">
-                          <X className="w-5 h-5" />
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="p-6 space-y-4">
+                <PaymentModalFrame
+                  onClose={() => setShowPaymentForm(false)}
+                  eyebrow="Credits IA"
+                  title="Acheter des credits"
+                  subtitle="Rechargez vos credits de generation pour reprendre la creation de pages produit sans quitter le modal."
+                  icon={<Zap className="h-full w-full" />}
+                  headerClassName="bg-gradient-to-br from-[#8E471D] via-[#C56A2D] to-[#E18A44]"
+                  maxWidthClassName="max-w-md"
+                  summary={{
+                    label: pendingGenerationToken ? 'Recharge en attente' : 'Pack selectionne',
+                    value: `${pendingGenerationPayment?.amount || (selectedPack === 'pack3' ? pricing.pack3 : pricing.unit)} FCFA`,
+                    meta: pendingGenerationToken
+                      ? `${pendingGenerationPayment?.quantity || 1} credit${(pendingGenerationPayment?.quantity || 1) > 1 ? 's' : ''} en attente de confirmation`
+                      : selectedPack === 'pack3'
+                        ? 'Pack 3 credits avec economie integree'
+                        : '1 credit = 1 page produit IA complete',
+                    badge: pendingGenerationToken ? 'En attente' : selectedPack === 'pack3' ? 'Pack 3' : '1 credit',
+                  }}
+                  footerItems={[
+                    { label: 'Credits ajoutes automatiquement' },
+                    { label: 'Relance MoneyFusion incluse' },
+                    { label: 'Verification sans rechargement' },
+                  ]}
+                >
+                    <div className="space-y-4">
                       {pendingGenerationToken ? (
                         <>
                           <div className="rounded-xl border border-[#96C7B5] bg-[#E6F2ED] p-4">
@@ -2699,8 +2703,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
                         </>
                       )}
                     </div>
-                  </div>
-                </div>
+                </PaymentModalFrame>
               )}
             </div>
           )}

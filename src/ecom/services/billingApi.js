@@ -56,6 +56,11 @@ export async function validatePromoCode({ code, plan, workspaceId }) {
   return data;
 }
 
+export async function checkGlobalPromoCode(code) {
+  const { data } = await ecomApi.get(`/billing/check-promo/${encodeURIComponent(code)}`);
+  return data;
+}
+
 // ─── Super-admin promo codes CRUD ──────────────────────────────────────────────
 export async function listPromoCodes(params = {}) {
   const { data } = await ecomApi.get('/promo-codes', { params });

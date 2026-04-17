@@ -305,11 +305,11 @@ router.get('/plan', requireEcomAuth, async (req, res) => {
     const trialActive = workspace.trialEndsAt && workspace.trialEndsAt > now;
     const trialExpired = workspace.trialUsed && workspace.trialEndsAt && workspace.trialEndsAt <= now;
 
-    // Effective plan: paid > trial (Scalor/starter benefits) > free
+    // Effective plan: paid > trial (Scalor + IA benefits) > free
     const effectivePlan = isPaidActive
       ? workspace.plan
       : trialActive
-        ? 'starter' // essai 7j → bénéfices du plan Scalor (starter)
+        ? 'pro' // essai 7j → bénéfices du plan Scalor + IA (pro)
         : 'free';
 
     res.json({
@@ -329,6 +329,42 @@ router.get('/plan', requireEcomAuth, async (req, res) => {
     });
   } catch (err) {
     console.error('[billing] GET /plan error:', err);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// ─── GET /check-promo/:code ───────────────────────────────────────────────────
+router.get('/check-promo/:code', requireEcomAuth, async (req, res) => {
+  try {
+    const code = req.params.code.trim().toUpperCase();
+    if (!code) return res.status(400).json({ success: false, message: 'Code requis' });
+
+    // Import PromoCode if needed, but we can do validation using the service without plan validation
+    // Let's use the service but pass a dummy planKey or just check directly:
+    const PromoCode = (await import('../models/PromoCode.js')).default;
+    const promo = await PromoCode.findOne({ code, isActive: true });
+    if (!promo) {
+      return res.status(404).json({ success: false, message: 'Code promo introuvable' });
+    }
+
+    const status = promo.isCurrentlyValid();
+    if (!status.ok) {
+      return res.status(400).json({ success: false, message: status.reason });
+    }
+
+    res.json({
+      success: true,
+      promo: {
+        code: promo.code,
+        discountType: promo.discountType,
+        discountValue: promo.discountValue,
+        applicablePlans: promo.applicablePlans,
+        applicableDurations: promo.applicableDurations,
+        minAmount: promo.minAmount
+      }
+    });
+  } catch (err) {
+    console.error('[billing] GET /check-promo error:', err.message);
     res.status(500).json({ success: false, message: 'Erreur serveur' });
   }
 });

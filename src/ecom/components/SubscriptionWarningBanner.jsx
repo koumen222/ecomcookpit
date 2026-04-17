@@ -3,6 +3,7 @@ import { Clock, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const SubscriptionWarningBanner = ({ warning }) => {
+  return null;
   const [hoursLeft, setHoursLeft] = useState(0);
   const [hidden, setHidden] = useState(false);
   const navigate = useNavigate();

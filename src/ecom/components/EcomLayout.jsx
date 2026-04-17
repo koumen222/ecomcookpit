@@ -1,4 +1,4 @@
-﻿import React, { useState, useRef, useEffect, useCallback, useMemo, memo } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo, memo } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useEcomAuth } from '../hooks/useEcomAuth';
 import CurrencySelector from './CurrencySelector.jsx';
@@ -19,7 +19,7 @@ import { usePlanGate } from '../contexts/PlanGateContext.jsx';
 
 const EcomLayoutComponent = ({ children }) => {
   const { user, workspace, logout } = useEcomAuth();
-  const { hasPlan, requirePlan } = usePlanGate();
+  const { hasPlan, requirePlan, planInfo } = usePlanGate();
   const location = useLocation();
   const navigate = useNavigate();
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
@@ -162,6 +162,23 @@ const EcomLayoutComponent = ({ children }) => {
   };
 
   const isSuperAdmin = user?.role === 'super_admin';
+  const fallbackTrialActive = !!workspace?.trialEndsAt && new Date(workspace.trialEndsAt) > new Date();
+  const isTrialActive = Boolean(planInfo?.trial?.active || (!planInfo && fallbackTrialActive));
+  const currentPlan = planInfo?.plan || (isTrialActive ? 'pro' : workspace?.plan || 'free');
+  const planLabels = { free: 'Gratuit', starter: 'Scalor', pro: 'Scalor + IA', ultra: 'Scalor IA Pro' };
+  const planColors = {
+    free: 'bg-gray-100 text-gray-600',
+    starter: 'bg-emerald-50 text-emerald-700',
+    pro: 'bg-blue-50 text-blue-700',
+    ultra: 'bg-slate-100 text-slate-800',
+    trial: 'bg-amber-50 text-amber-700',
+  };
+  const displayedPlanLabel = isTrialActive
+    ? `Essai ${planLabels[currentPlan] || 'Pro'}`
+    : (planLabels[currentPlan] || 'Gratuit');
+  const displayedPlanColor = isTrialActive
+    ? planColors.trial
+    : (planColors[currentPlan] || planColors.free);
 
   // --- Navigation items grouped by section (mémorisés pour éviter re-création) ---
   const mainNav = useMemo(() => [
@@ -192,7 +209,7 @@ const EcomLayoutComponent = ({ children }) => {
     },
         {
       name: 'Ma Boutique', shortName: 'Boutique', href: '/ecom/boutique', primary: true,
-      roles: ['ecom_admin'], requiredPlan: 'starter',
+          roles: ['ecom_admin'],
       icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" /></svg>
     },
     {
@@ -237,11 +254,6 @@ const EcomLayoutComponent = ({ children }) => {
       name: 'Recherche Produits', shortName: 'Recherche', href: '/ecom/product-research', primary: false,
       roles: ['ecom_admin', 'ecom_closeuse', 'ecom_compta'],
       icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5l7 7M5 11h19M12 11l-7 7m-7 7m-7-7v6" /></svg>
-    },
-    {
-      name: 'Data', shortName: 'Data', href: '/ecom/data', primary: false,
-      roles: ['ecom_admin', 'ecom_compta', 'super_admin'],
-      icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" /></svg>
     },
     {
       name: 'Finances', shortName: 'Finances', href: '/ecom/transactions', primary: false,
@@ -578,6 +590,24 @@ const EcomLayoutComponent = ({ children }) => {
 
           {/* Right: action icons + user */}
           <div className="flex items-center gap-1 flex-shrink-0">
+            {!isSuperAdmin && (() => {
+              return (
+                <div className="hidden md:flex items-center gap-1.5 mr-1">
+                  <span className={`px-2.5 py-1 rounded-md text-[11px] font-semibold ${displayedPlanColor}`}>
+                    {displayedPlanLabel}
+                  </span>
+                  {currentPlan !== 'ultra' && (
+                    <button
+                      onClick={() => navigate('/ecom/billing')}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 text-white rounded-lg text-xs font-bold transition-all shadow-sm"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                      {isTrialActive ? 'Plans' : 'Upgrade'}
+                    </button>
+                  )}
+                </div>
+              );
+            })()}
             <CurrencySelector compact={true} />
 
             {/* Chat */}
@@ -878,7 +908,6 @@ const getPageTitle = (pathname) => {
   if (pathname.includes('/boutique')) return 'Ma Boutique';
   if (pathname.includes('/profile')) return 'Mon profil';
   if (pathname.includes('/dashboard')) return 'Scalor';
-  if (pathname.includes('/data')) return 'Data';
   if (pathname.includes('/store/products/new')) return 'Nouveau produit boutique';
   if (pathname.includes('/store/products') && pathname.includes('/edit')) return 'Modifier le produit boutique';
   if (pathname.includes('/store/products')) return 'Produits boutique';

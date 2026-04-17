@@ -133,6 +133,11 @@ const ecomUserSchema = new mongoose.Schema({
     platform: String,
     lastSeen: Date
   },
+  onboardingData: {
+    businessType: String,
+    ordersPerMonth: String,
+    completed: { type: Boolean, default: false }
+  },
   createdAt: {
     type: Date,
     default: Date.now
