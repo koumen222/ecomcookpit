@@ -9,7 +9,7 @@ import evolutionApiService from './evolutionApiService.js';
 import { Readable } from 'stream';
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
-const FISH_AUDIO_DIRECT_API_KEY = process.env.FISH_AUDIO_API_KEY || '203f946aa7b3454184fd28fc7eb1f33b';
+const FISH_AUDIO_DIRECT_API_KEY = process.env.FISH_AUDIO_API_KEY || '';
 const KIE_API_KEY = process.env.KIE_API_KEY || process.env.NANOBANANA_API_KEY || '';
 const KIE_BASE_URL = (process.env.KIE_BASE_URL || 'https://api.kie.ai').replace(/\/+$/, '');
 const KIE_MODEL_PATH = process.env.KIE_MODEL_PATH || '/gpt-5-2/v1/chat/completions';

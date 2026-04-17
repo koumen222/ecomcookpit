@@ -22,6 +22,7 @@ import { requireEcomAuth, requireRitaAgentAccess } from '../middleware/ecomAuth.
 import Workspace from '../models/Workspace.js';
 import mongoose from 'mongoose';
 import fs from 'fs';
+import { preserveRitaSecretFields, sanitizeRitaConfigForResponse } from '../utils/ritaConfigResponse.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1280,6 +1281,9 @@ router.post('/fish-voice', requireEcomAuth, _uploadAudioMemory.any(), async (req
     if (!userId) return res.status(400).json({ success: false, error: 'userId requis' });
     if (!title?.trim()) return res.status(400).json({ success: false, error: 'Nom de voix requis' });
     if (!files.length) return res.status(400).json({ success: false, error: 'Au moins un fichier audio est requis' });
+    if (!FISH_AUDIO_DIRECT_API_KEY) {
+      return res.status(500).json({ success: false, error: 'Clé Fish.audio non configurée côté serveur' });
+    }
 
     if (!Array.isArray(texts)) texts = texts ? [texts] : [];
 
@@ -1351,7 +1355,12 @@ router.post('/fish-voice', requireEcomAuth, _uploadAudioMemory.any(), async (req
       { upsert: true, new: true, runValidators: false }
     );
 
-    res.status(200).json({ success: true, voice: voiceEntry, config: updated, fish: fishResult });
+    res.status(200).json({
+      success: true,
+      voice: voiceEntry,
+      config: sanitizeRitaConfigForResponse(updated),
+      fish: fishResult,
+    });
   } catch (error) {
     console.error('❌ Erreur création fish-voice:', error.response?.data || error.message);
     res.status(500).json({ success: false, error: error.message || 'Erreur création Fish.audio' });
@@ -3021,13 +3030,16 @@ router.post('/rita-config', requireEcomAuth, requireRitaAgentAccess, async (req,
       });
     }
 
+    const existingConfig = await RitaConfig.findOne({ [queryKey]: queryValue }).lean();
+    const configToPersist = preserveRitaSecretFields(existingConfig, cleanConfig);
+
     const updated = await RitaConfig.findOneAndUpdate(
       { [queryKey]: queryValue },
-      { [queryKey]: queryValue, ...cleanConfig },
+      { [queryKey]: queryValue, ...configToPersist },
       { upsert: true, new: true, runValidators: false }
     );
 
-    res.status(200).json({ success: true, config: updated });
+    res.status(200).json({ success: true, config: sanitizeRitaConfigForResponse(updated) });
   } catch (error) {
     console.error('❌ Erreur sauvegarde rita-config:', error.message);
     res.status(500).json({ success: false, error: error.message });
@@ -3044,7 +3056,7 @@ router.get('/rita-config/:agentId', requireEcomAuth, requireRitaAgentAccess, asy
     if (!agentId) return res.status(400).json({ success: false, error: 'agentId requis' });
 
     const config = await RitaConfig.findOne({ agentId }).lean();
-    res.status(200).json({ success: true, config: config || null });
+    res.status(200).json({ success: true, config: sanitizeRitaConfigForResponse(config) || null });
   } catch (error) {
     console.error('❌ Erreur chargement rita-config agent:', error.message);
     res.status(500).json({ success: false, error: error.message });
@@ -3061,7 +3073,7 @@ router.get('/rita-config', requireEcomAuth, requireRitaAgentAccess, async (req, 
     if (!userId) return res.status(400).json({ success: false, error: 'userId requis' });
 
     const config = await RitaConfig.findOne({ userId }).lean();
-    res.status(200).json({ success: true, config: config || null });
+    res.status(200).json({ success: true, config: sanitizeRitaConfigForResponse(config) || null });
   } catch (error) {
     console.error('❌ Erreur chargement rita-config:', error.message);
     res.status(500).json({ success: false, error: error.message });

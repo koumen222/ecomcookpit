@@ -15,9 +15,11 @@ import WorkspaceSwitcherMenu from './WorkspaceSwitcherMenu.jsx';
 import WorkspaceSwitcher from './WorkspaceSwitcher.jsx';
 import TopLoader from './TopLoader.jsx';
 import SupportChatWidget from './SupportChatWidget.jsx';
+import { usePlanGate } from '../contexts/PlanGateContext.jsx';
 
 const EcomLayoutComponent = ({ children }) => {
   const { user, workspace, logout } = useEcomAuth();
+  const { hasPlan, requirePlan } = usePlanGate();
   const location = useLocation();
   const navigate = useNavigate();
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
@@ -190,7 +192,7 @@ const EcomLayoutComponent = ({ children }) => {
     },
         {
       name: 'Ma Boutique', shortName: 'Boutique', href: '/ecom/boutique', primary: true,
-      roles: ['ecom_admin'],
+      roles: ['ecom_admin'], requiredPlan: 'starter',
       icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" /></svg>
     },
     {
@@ -256,17 +258,17 @@ const EcomLayoutComponent = ({ children }) => {
     },
     {
       name: 'Marketing', shortName: 'Marketing', href: '/ecom/campaigns', primary: false,
-      roles: ['ecom_admin', 'ecom_closeuse'],
+      roles: ['ecom_admin', 'ecom_closeuse'], requiredPlan: 'starter',
       icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" /></svg>
     },
     {
       name: 'Service WhatsApp', shortName: 'WhatsApp', href: '/ecom/whatsapp/service', primary: false,
-      roles: ['ecom_admin', 'ecom_closeuse', 'ecom_compta'],
+      roles: ['ecom_admin', 'ecom_closeuse', 'ecom_compta'], requiredPlan: 'pro',
       icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
     },
     {
       name: 'Commercial IA', shortName: 'Commercial IA', href: '/ecom/agent-ia', primary: false,
-      roles: ['ecom_admin'],
+      roles: ['ecom_admin'], requiredPlan: 'pro',
       icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714a2.25 2.25 0 00.659 1.591L19 14.5M14.25 3.104c.251.023.501.05.75.082M19 14.5l-2.47 2.47a2.25 2.25 0 01-1.59.659H9.06a2.25 2.25 0 01-1.591-.659L5 14.5m14 0V17a2 2 0 01-2 2H7a2 2 0 01-2-2v-2.5" /></svg>
     },
 
@@ -343,6 +345,11 @@ const EcomLayoutComponent = ({ children }) => {
       icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg>
     },
     {
+      name: 'Codes promo', shortName: 'Promo', href: '/ecom/super-admin/promo-codes', primary: true,
+      roles: ['super_admin'],
+      icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg>
+    },
+    {
       name: 'Marketing', shortName: 'Marketing', href: '/ecom/marketing', primary: true,
       roles: ['super_admin'],
       icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
@@ -411,9 +418,17 @@ const EcomLayoutComponent = ({ children }) => {
 
   const NavLink = ({ item }) => {
     const active = isActive(item.href);
+    const locked = item.requiredPlan && !hasPlan(item.requiredPlan);
+    const handleClick = (e) => {
+      if (locked) {
+        e.preventDefault();
+        requirePlan(item.requiredPlan);
+      }
+    };
     return (
       <Link
         to={item.href}
+        onClick={handleClick}
         className={`group flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150 ${
           active
             ? 'bg-[#0F6B4F]/10 text-[#0F6B4F]'
@@ -426,7 +441,12 @@ const EcomLayoutComponent = ({ children }) => {
           {item.icon}
         </span>
         <span className="truncate flex-1">{item.name}</span>
-        {active && <span className="w-1.5 h-1.5 rounded-full bg-[#0F6B4F] flex-shrink-0" />}
+        {locked && (
+          <svg className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+          </svg>
+        )}
+        {active && !locked && <span className="w-1.5 h-1.5 rounded-full bg-[#0F6B4F] flex-shrink-0" />}
       </Link>
     );
   };
@@ -744,13 +764,21 @@ const EcomLayoutComponent = ({ children }) => {
         <div className="flex items-stretch px-2 bottom-nav-safe" style={{ height: '60px' }}>
           {mobileMainTabs.map((item) => {
             const active = isActive(item.href);
+            const locked = item.requiredPlan && !hasPlan(item.requiredPlan);
+            const handleClick = (e) => {
+              setMoreMenuOpen(false);
+              if (locked) { e.preventDefault(); requirePlan(item.requiredPlan); }
+            };
             return (
               <Link
                 key={item.name}
                 to={item.href}
-                onClick={() => setMoreMenuOpen(false)}
-                className="flex flex-col items-center justify-center flex-1 gap-1 transition-all duration-200 active:scale-95"
+                onClick={handleClick}
+                className="flex flex-col items-center justify-center flex-1 gap-1 transition-all duration-200 active:scale-95 relative"
               >
+                {locked && (
+                  <span className="absolute top-1 right-3 w-2 h-2 rounded-full bg-amber-500" />
+                )}
                 <span className={`transition-colors duration-200 ${active ? 'text-[#0F6B4F]' : 'text-gray-500'}`}>
                   {mobileIcon(item)}
                 </span>
@@ -795,17 +823,27 @@ const EcomLayoutComponent = ({ children }) => {
                         <div className="divide-y divide-gray-100">
                           {mobileSecondaryTabs.map((item) => {
                             const active = isActive(item.href);
+                            const locked = item.requiredPlan && !hasPlan(item.requiredPlan);
+                            const handleClick = (e) => {
+                              setMoreMenuOpen(false);
+                              if (locked) { e.preventDefault(); requirePlan(item.requiredPlan); }
+                            };
                             return (
                               <Link
                                 key={item.name}
                                 to={item.href}
-                                onClick={() => setMoreMenuOpen(false)}
+                                onClick={handleClick}
                                 className={`flex items-center gap-4 px-5 py-4 text-[16px] font-medium active:bg-gray-100 transition-colors ${active ? 'text-scalor-green' : 'text-gray-900'
                                   }`}
                               >
                                 <span className={`flex-shrink-0 ${active ? 'text-scalor-green' : 'text-gray-400'}`}>{mobileIconLg(item)}</span>
                                 <span className="flex-1 truncate">{item.name}</span>
-                                {active && <span className="w-2.5 h-2.5 bg-scalor-green rounded-full flex-shrink-0" />}
+                                {locked && (
+                                  <svg className="w-4 h-4 text-amber-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                                  </svg>
+                                )}
+                                {active && !locked && <span className="w-2.5 h-2.5 bg-scalor-green rounded-full flex-shrink-0" />}
                               </Link>
                             );
                           })}
@@ -879,6 +917,7 @@ const getPageTitle = (pathname) => {
   if (pathname.includes('/campaigns')) return 'Marketing';
   if (pathname.includes('/super-admin/billing')) return 'Suivi Facturation';
   if (pathname.includes('/super-admin/plans')) return 'Gestion des plans';
+  if (pathname.includes('/super-admin/promo-codes')) return 'Codes promo';
   if (pathname.includes('/super-admin/users')) return 'Gestion des utilisateurs';
   if (pathname.includes('/super-admin/workspaces')) return 'Gestion des espaces';
   if (pathname.includes('/super-admin/activity')) return 'Activité';

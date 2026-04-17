@@ -4,6 +4,7 @@ import { EcomAuthProvider } from './hooks/useEcomAuth.jsx';
 import { CurrencyProvider } from './contexts/CurrencyContext.jsx';
 import { ThemeProvider } from './contexts/ThemeContext.jsx';
 import { StoreProvider, useStore, isStoreEnabled } from './contexts/StoreContext.jsx';
+import { PlanGateProvider } from './contexts/PlanGateContext.jsx';
 import { useEcomAuth } from './hooks/useEcomAuth.jsx';
 // analytics imported lazily in PageViewTracker — keeps axios out of the critical bundle
 import { usePosthogPageViews } from './hooks/usePosthogPageViews.js';
@@ -113,6 +114,7 @@ const SuperAdminPushCenter = lazy(() => import('./pages/SuperAdminPushCenter.jsx
 const SuperAdminSupport = lazy(() => import('./pages/SuperAdminSupport.jsx'));
 const SuperAdminBilling = lazy(() => import('./pages/SuperAdminBilling.jsx'));
 const SuperAdminPlans = lazy(() => import('./pages/SuperAdminPlans.jsx'));
+const SuperAdminPromoCodes = lazy(() => import('./pages/SuperAdminPromoCodes.jsx'));
 const SuperAdminFeatureAnalytics = lazy(() => import('./pages/SuperAdminFeatureAnalytics.jsx'));
 const WhyScalor = lazy(() => import('./pages/WhyScalor.jsx'));
 const Tarifs = lazy(() => import('./pages/Tarifs.jsx'));
@@ -617,6 +619,7 @@ const EcomApp = () => {
   return (
     <CurrencyProvider>
       <ThemeProvider>
+        <PlanGateProvider>
         <div className="min-h-screen">
           <PageViewTracker />
           <PlatformPageMeta enabled={!isStoreDomain} />
@@ -754,6 +757,7 @@ const EcomApp = () => {
               <Route path="/ecom/super-admin/support" element={<LayoutRoute requiredRole="super_admin"><SuperAdminSupport /></LayoutRoute>} />
               <Route path="/ecom/super-admin/billing" element={<LayoutRoute requiredRole="super_admin"><SuperAdminBilling /></LayoutRoute>} />
               <Route path="/ecom/super-admin/plans" element={<LayoutRoute requiredRole="super_admin"><SuperAdminPlans /></LayoutRoute>} />
+              <Route path="/ecom/super-admin/promo-codes" element={<LayoutRoute requiredRole="super_admin"><SuperAdminPromoCodes /></LayoutRoute>} />
               <Route path="/ecom/super-admin/feature-analytics" element={<LayoutRoute requiredRole="super_admin"><SuperAdminFeatureAnalytics /></LayoutRoute>} />
 
               {/* Routes boutique - StoreProvider persists across wizard + layout navigations */}
@@ -843,6 +847,7 @@ const EcomApp = () => {
 
           <PrivacyBanner />
         </div>
+        </PlanGateProvider>
       </ThemeProvider>
     </CurrencyProvider>
   );
