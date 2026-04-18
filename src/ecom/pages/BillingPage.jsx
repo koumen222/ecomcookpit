@@ -654,11 +654,23 @@ export default function BillingPage() {
     }
   }, [user, workspaceId]);
 
-  const currentPlan = planInfo?.plan || 'free';
-  const isActivePaid = planInfo?.isActive && ['starter', 'pro', 'ultra'].includes(currentPlan);
-  const isTrial = planInfo?.trial?.active;
-  const trialDays = isTrial ? daysLeft(planInfo.trial.endsAt) : 0;
-  const trialUsed = planInfo?.trial?.used;
+  const fallbackTrialActive = !!workspace?.trialEndsAt && new Date(workspace.trialEndsAt) > new Date();
+  const fallbackPaidPlan = ['starter', 'pro', 'ultra'].includes(workspace?.plan) ? workspace.plan : 'free';
+  const fallbackPaidActive = Boolean(
+    fallbackPaidPlan !== 'free' &&
+    workspace?.planExpiresAt &&
+    new Date(workspace.planExpiresAt) > new Date()
+  );
+
+  const fallbackTrialEndsAt = workspace?.trialEndsAt || null;
+  const currentPlan = planInfo?.plan || (fallbackTrialActive ? 'pro' : fallbackPaidPlan);
+  const isActivePaid = Boolean(
+    (planInfo?.isActive && ['starter', 'pro', 'ultra'].includes(planInfo?.plan)) ||
+    (!planInfo && fallbackPaidActive)
+  );
+  const isTrial = Boolean(planInfo?.trial?.active || (!planInfo && fallbackTrialActive));
+  const trialDays = isTrial ? daysLeft(planInfo?.trial?.endsAt || fallbackTrialEndsAt) : 0;
+  const trialUsed = planInfo?.trial?.used ?? workspace?.trialUsed;
 
   return (
     <div className="min-h-screen bg-[#fafbfc]">
@@ -711,7 +723,7 @@ export default function BillingPage() {
       {(isActivePaid || isTrial) && !loading ? (() => {
         const activeTier = PLAN_TIERS.find(t => t.id === currentPlan) || PLAN_TIERS[1];
         const remainingDays = isActivePaid ? daysLeft(planInfo?.planExpiresAt) : trialDays;
-        const expiryDate = isActivePaid ? planInfo?.planExpiresAt : planInfo?.trial?.endsAt;
+        const expiryDate = isActivePaid ? (planInfo?.planExpiresAt || workspace?.planExpiresAt) : (planInfo?.trial?.endsAt || fallbackTrialEndsAt);
         const upgradeTiers = PLAN_TIERS.filter(t => t.id !== currentPlan);
 
         return (
@@ -890,7 +902,11 @@ export default function BillingPage() {
               {!loading && (
                 <div className="mt-8 inline-flex items-center gap-3 bg-white border border-gray-200 rounded-full px-5 py-2.5 shadow-sm">
                   <div className="w-2.5 h-2.5 rounded-full bg-gray-400" />
-                  <span className="text-sm text-gray-500">Plan gratuit</span>
+                  <span className="text-sm text-gray-500">
+                    {isTrial
+                      ? `Essai ${PLAN_TIERS.find(t => t.id === currentPlan)?.name || 'Scalor + IA'}`
+                      : `Plan ${PLAN_TIERS.find(t => t.id === currentPlan)?.name || 'gratuit'}`}
+                  </span>
                   {!trialUsed && (
                     <button onClick={handleActivateTrial} disabled={trialLoading}
                       className="text-sm font-bold text-blue-600 hover:text-blue-700 transition disabled:opacity-50">
