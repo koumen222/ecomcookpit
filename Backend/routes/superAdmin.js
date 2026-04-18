@@ -7,6 +7,7 @@ import PlanPayment from '../models/PlanPayment.js';
 import PlanConfig, { PLAN_KEYS } from '../models/PlanConfig.js';
 import GenerationPricingConfig from '../models/GenerationPricingConfig.js';
 import GenerationPayment from '../models/GenerationPayment.js';
+import ProductPageGenerationLog from '../models/ProductPageGenerationLog.js';
 import WhatsAppLog from '../models/WhatsAppLog.js';
 import SupportConversation from '../models/SupportConversation.js';
 import StoreProduct from '../models/StoreProduct.js';
@@ -86,6 +87,9 @@ function mergeRevenueByMonth(...groups) {
   });
   return Array.from(merged.values()).sort((a, b) => String(a._id).localeCompare(String(b._id)));
 }
+
+const WORKSPACE_COLLECTION = Workspace.collection.name;
+const USER_COLLECTION = EcomUser.collection.name;
 
 // GET /api/ecom/super-admin/users - Tous les utilisateurs de toutes les workspaces
 router.get('/users',
@@ -1737,7 +1741,11 @@ router.get('/feature-analytics',
         dailyActivity,
         perWorkspace,
         topUsers,
-        recentGenerations
+        recentGenerations,
+        generationOverview,
+        generationUsers,
+        generationContentTypes,
+        generationHistory
       ] = await Promise.all([
         // Top features by usage count
         FeatureUsageLog.aggregate([
@@ -1762,7 +1770,7 @@ router.get('/feature-analytics',
           { $group: { _id: { workspaceId: '$workspaceId', feature: '$feature' }, count: { $sum: 1 } } },
           { $sort: { count: -1 } },
           { $limit: 100 },
-          { $lookup: { from: 'workspaces', localField: '_id.workspaceId', foreignField: '_id', as: 'ws' } },
+          { $lookup: { from: WORKSPACE_COLLECTION, localField: '_id.workspaceId', foreignField: '_id', as: 'ws' } },
           { $addFields: { workspaceName: { $arrayElemAt: ['$ws.name', 0] } } },
           { $project: { ws: 0 } }
         ]),
@@ -1773,7 +1781,7 @@ router.get('/feature-analytics',
           { $group: { _id: '$userId', count: { $sum: 1 }, features: { $addToSet: '$feature' } } },
           { $sort: { count: -1 } },
           { $limit: 20 },
-          { $lookup: { from: 'ecomusers', localField: '_id', foreignField: '_id', as: 'user' } },
+          { $lookup: { from: USER_COLLECTION, localField: '_id', foreignField: '_id', as: 'user' } },
           { $addFields: { email: { $arrayElemAt: ['$user.email', 0] }, name: { $arrayElemAt: ['$user.name', 0] } } },
           { $project: { user: 0 } }
         ]),
@@ -1784,10 +1792,124 @@ router.get('/feature-analytics',
           .limit(50)
           .populate('workspaceId', 'name')
           .populate('userId', 'email name')
+          .lean(),
+
+        ProductPageGenerationLog.aggregate([
+          { $match: matchBase },
+          {
+            $group: {
+              _id: null,
+              totalGenerations: { $sum: 1 },
+              totalCreditsUsed: { $sum: '$creditsUsed' },
+              completedCount: { $sum: { $cond: [{ $eq: ['$status', 'completed'] }, 1, 0] } },
+              processingCount: { $sum: { $cond: [{ $eq: ['$status', 'processing_images'] }, 1, 0] } },
+              partialFailureCount: { $sum: { $cond: [{ $eq: ['$status', 'partial_failure'] }, 1, 0] } },
+              failedCount: { $sum: { $cond: [{ $eq: ['$status', 'failed'] }, 1, 0] } },
+              uniqueUsers: { $addToSet: '$userId' },
+              uniqueWorkspaces: { $addToSet: '$workspaceId' },
+            }
+          },
+          {
+            $project: {
+              _id: 0,
+              totalGenerations: 1,
+              totalCreditsUsed: 1,
+              completedCount: 1,
+              processingCount: 1,
+              partialFailureCount: 1,
+              failedCount: 1,
+              uniqueUsers: { $size: '$uniqueUsers' },
+              uniqueWorkspaces: { $size: '$uniqueWorkspaces' },
+            }
+          }
+        ]),
+
+        ProductPageGenerationLog.aggregate([
+          { $match: matchBase },
+          {
+            $group: {
+              _id: '$userId',
+              generationCount: { $sum: 1 },
+              creditsUsed: { $sum: '$creditsUsed' },
+              lastGeneratedAt: { $max: '$createdAt' },
+              successfulCount: { $sum: { $cond: [{ $eq: ['$status', 'completed'] }, 1, 0] } },
+              failedCount: { $sum: { $cond: [{ $in: ['$status', ['failed', 'partial_failure']] }, 1, 0] } },
+              contentTypes: { $push: '$generatedContentTypes' },
+              workspaceIds: { $addToSet: '$workspaceId' },
+              userSnapshot: { $last: '$userSnapshot' },
+            }
+          },
+          { $sort: { generationCount: -1, lastGeneratedAt: -1 } },
+          { $limit: 50 },
+          { $lookup: { from: USER_COLLECTION, localField: '_id', foreignField: '_id', as: 'user' } },
+          {
+            $project: {
+              _id: 1,
+              generationCount: 1,
+              creditsUsed: 1,
+              lastGeneratedAt: 1,
+              successfulCount: 1,
+              failedCount: 1,
+              workspaceCount: { $size: '$workspaceIds' },
+              contentTypes: {
+                $reduce: {
+                  input: '$contentTypes',
+                  initialValue: [],
+                  in: { $setUnion: ['$$value', '$$this'] }
+                }
+              },
+              email: {
+                $ifNull: [
+                  { $arrayElemAt: ['$user.email', 0] },
+                  '$userSnapshot.email'
+                ]
+              },
+              name: {
+                $ifNull: [
+                  { $arrayElemAt: ['$user.name', 0] },
+                  '$userSnapshot.name'
+                ]
+              },
+            }
+          }
+        ]),
+
+        ProductPageGenerationLog.aggregate([
+          { $match: matchBase },
+          { $unwind: { path: '$generatedContentTypes', preserveNullAndEmptyArrays: false } },
+          { $group: { _id: '$generatedContentTypes', count: { $sum: 1 } } },
+          { $sort: { count: -1, _id: 1 } }
+        ]),
+
+        ProductPageGenerationLog.find(matchBase)
+          .sort({ createdAt: -1 })
+          .limit(250)
+          .populate('workspaceId', 'name plan')
+          .populate('userId', 'email name')
           .lean()
       ]);
 
-      res.json({ success: true, topFeatures, dailyActivity, perWorkspace, topUsers, recentGenerations });
+      res.json({
+        success: true,
+        topFeatures,
+        dailyActivity,
+        perWorkspace,
+        topUsers,
+        recentGenerations,
+        generationOverview: generationOverview?.[0] || {
+          totalGenerations: 0,
+          totalCreditsUsed: 0,
+          completedCount: 0,
+          processingCount: 0,
+          partialFailureCount: 0,
+          failedCount: 0,
+          uniqueUsers: 0,
+          uniqueWorkspaces: 0,
+        },
+        generationUsers,
+        generationContentTypes,
+        generationHistory,
+      });
     } catch (err) {
       console.error('[SuperAdmin] feature-analytics error:', err.message);
       res.status(500).json({ success: false, message: err.message });

@@ -16,7 +16,7 @@ import { createNotification, notifyNewOrder, notifyOrderStatus, notifyTeamOrderC
 import { getIO } from '../services/socketService.js';
 import { sendWhatsAppMessage, sendOrderNotification } from '../services/whatsappService.js';
 import { sendOrderConfirmationToClient } from '../services/shopifyWhatsappService.js';
-import { formatInternationalPhone, isValidWhatsAppNumber, normalizePhone } from '../utils/phoneUtils.js';
+import { formatInternationalPhone, getPhonePrefixFromWorkspace, isValidWhatsAppNumber, normalizePhone } from '../utils/phoneUtils.js';
 import EcomWorkspace from '../models/Workspace.js';
 import StoreOrder from '../models/StoreOrder.js';
 import WhatsAppInstance from '../models/WhatsAppInstance.js';
@@ -412,13 +412,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('orders', 'write'), checkPl
     const phoneValue = clientPhone || '';
     // Déterminer le préfixe pays depuis la devise du workspace (pas hardcodé Cameroun)
     const workspace = await EcomWorkspace.findById(req.workspaceId).select('settings storeSettings').lean();
-    const wkCurrency = (workspace?.storeSettings?.storeCurrency || workspace?.settings?.currency || 'XAF').toUpperCase();
-    const CURRENCY_PREFIX_MAP = {
-      XAF: '237', FCFA: '237', XOF: '225', CDF: '243',
-      NGN: '234', GHS: '233', MAD: '212', TND: '216',
-      DZD: '213', EUR: '33', USD: '1', GNF: '224',
-    };
-    const defaultPhonePrefix = CURRENCY_PREFIX_MAP[wkCurrency] || '237';
+    const defaultPhonePrefix = getPhonePrefixFromWorkspace(workspace, '237');
     const normalizedPhone = normalizePhone(phoneValue, defaultPhonePrefix);
     const order = new Order({
       workspaceId: req.workspaceId,
@@ -1603,7 +1597,7 @@ async function notifyLivreursOfNewOrder(order, workspaceId) {
       workspaceId,
       role: 'ecom_livreur',
       isActive: true
-    }).select('_id').lean();
+    }).select('_id phone name').lean();
 
     if (livreurs.length === 0) {
       console.log('Aucun livreur disponible pour la notification');
@@ -4414,19 +4408,24 @@ router.patch('/config/whatsapp-auto', requireEcomAuth, validateEcomAccess('produ
 router.post('/config/whatsapp', requireEcomAuth, validateEcomAccess('products', 'write'), async (req, res) => {
   try {
     const { customWhatsAppNumber, whatsappAutoConfirm } = req.body;
+    const workspace = await EcomWorkspace.findById(req.workspaceId).select('settings storeSettings').lean();
+    const defaultPhonePrefix = getPhonePrefixFromWorkspace(workspace, '237');
     
     // Validation du format international (tous pays)
+    let cleanNumber = '';
     if (customWhatsAppNumber) {
       const phoneCheck = formatInternationalPhone(customWhatsAppNumber);
-      if (!phoneCheck.success) {
+      cleanNumber = phoneCheck.success
+        ? phoneCheck.formatted
+        : (normalizePhone(customWhatsAppNumber, defaultPhonePrefix) || '');
+
+      if (!cleanNumber) {
         return res.status(400).json({ 
           success: false, 
-          message: `Format de numéro invalide: ${phoneCheck.error}. Exemples: 237699887766, 33612345678, 18005551234` 
+          message: 'Format de numéro invalide. Exemples: 237699887766, 33612345678, 18005551234 ou un numéro local cohérent avec le pays du workspace.' 
         });
       }
     }
-    
-    const cleanNumber = customWhatsAppNumber ? formatInternationalPhone(customWhatsAppNumber).formatted : '';
     
     const settings = await WorkspaceSettings.findOneAndUpdate(
       { workspaceId: req.workspaceId },

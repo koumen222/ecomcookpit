@@ -8,9 +8,11 @@ import { EventEmitter } from 'events';
 import Order from '../models/Order.js';
 import ImportHistory from '../models/ImportHistory.js';
 import WorkspaceSettings from '../models/WorkspaceSettings.js';
+import Workspace from '../models/Workspace.js';
 import { memCache } from '../services/memoryCache.js';
 import { requireEcomAuth, validateEcomAccess } from '../middleware/ecomAuth.js';
 import { notifyImportCompleted, notifyNewOrder } from '../services/notificationHelper.js';
+import { getPhonePrefixFromWorkspace } from '../utils/phoneUtils.js';
 import {
   validateSpreadsheet,
   fetchSheetData,
@@ -177,6 +179,8 @@ router.post('/run', requireEcomAuth, validateEcomAccess('products', 'write'), as
 
   try {
     emitProgress(req.workspaceId, sourceId, { percentage: 2, status: 'Vérification des paramètres...', current: 0, total: 0 });
+    const workspace = await Workspace.findById(req.workspaceId).select('settings storeSettings').lean().catch(() => null);
+    const defaultPhonePrefix = getPhonePrefixFromWorkspace(workspace, '237');
 
     // Resolve source
     const settings = await WorkspaceSettings.findOne({ workspaceId: req.workspaceId });
@@ -305,7 +309,7 @@ router.post('/run', requireEcomAuth, validateEcomAccess('products', 'write'), as
         });
       }
 
-      const parsed = parseOrderRow(rows[i], i + 1, columnMap, headers, sourceToSync.name);
+      const parsed = parseOrderRow(rows[i], i + 1, columnMap, headers, sourceToSync.name, defaultPhonePrefix);
 
       if (!parsed.success) {
         if (parsed.error !== 'Ligne vide') {

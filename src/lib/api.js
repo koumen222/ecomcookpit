@@ -81,6 +81,11 @@ function isDebugEndpoint(url = '') {
   return String(url).includes('/store/settings') || String(url).includes('/upload/image');
 }
 
+function clearGetCache() {
+  _cache.clear();
+  _inflight.clear();
+}
+
 function getCached(key) {
   const entry = _cache.get(key);
   if (entry && Date.now() - entry.ts < CACHE_TTL) return entry.data;
@@ -181,15 +186,22 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => {
     const meta = response.config?._meta;
+    const method = String(response.config?.method || 'get').toLowerCase();
     if (isDebugEndpoint(response.config?.url)) {
       console.log(`${DEBUG_TAG} response`, {
         requestId: meta?.requestId,
-        method: (response.config?.method || 'get').toUpperCase(),
+        method: method.toUpperCase(),
         url: response.config?.url,
         status: response.status,
         durationMs: meta?.startedAt ? Date.now() - meta.startedAt : null,
         responseKeys: Object.keys(response.data || {}),
       });
+    }
+
+    // Mutations make previous GET cache entries stale immediately.
+    if (method !== 'get') {
+      clearGetCache();
+      return response;
     }
 
     // Store successful GET responses in cache

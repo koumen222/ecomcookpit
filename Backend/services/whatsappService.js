@@ -1,6 +1,7 @@
 import WhatsAppInstance from '../models/WhatsAppInstance.js';
+import EcomWorkspace from '../models/Workspace.js';
 import evolutionApiService from './evolutionApiService.js';
-import { formatInternationalPhone, isValidWhatsAppNumber } from '../utils/phoneUtils.js';
+import { formatInternationalPhone, getPhonePrefixFromWorkspace, normalizePhone } from '../utils/phoneUtils.js';
 
 /**
  * Service pour envoyer des messages WhatsApp en utilisant l'instance connectée
@@ -44,6 +45,47 @@ async function getActiveInstance(workspaceId, specificInstanceId = null) {
   }
 }
 
+async function getWorkspaceDefaultPhonePrefix(workspaceId) {
+  if (!workspaceId) return null;
+
+  try {
+    const workspace = await EcomWorkspace.findById(workspaceId)
+      .select('settings storeSettings')
+      .lean();
+    return getPhonePrefixFromWorkspace(workspace, '237');
+  } catch (error) {
+    console.warn('⚠️ [WhatsApp] Impossible de résoudre le préfixe pays du workspace:', error.message);
+    return '237';
+  }
+}
+
+async function resolveWhatsAppNumber(rawPhone, workspaceId) {
+  const direct = formatInternationalPhone(rawPhone);
+  if (direct.success) {
+    return direct;
+  }
+
+  const defaultPrefix = await getWorkspaceDefaultPhonePrefix(workspaceId);
+  const normalized = normalizePhone(rawPhone, defaultPrefix);
+  if (!normalized) {
+    return direct;
+  }
+
+  const fallback = formatInternationalPhone(normalized);
+  if (fallback.success) {
+    return fallback;
+  }
+
+  return {
+    success: true,
+    formatted: normalized,
+    display: `+${normalized}`,
+    countryInfo: null,
+    prefix: defaultPrefix,
+    nationalNumber: normalized.slice(String(defaultPrefix || '').length),
+  };
+}
+
 /**
  * Envoie un message WhatsApp via l'instance connectée
  * @param {Object} params - Paramètres d'envoi
@@ -74,7 +116,7 @@ export async function sendWhatsAppMessage({ to, message, workspaceId, userId, fi
     console.log(`🔌 [WhatsApp] Instance trouvée : "${instance.instanceName}" (status: ${instance.status})`);
 
     // Nettoyer et formater le numéro de téléphone international
-    const phoneCheck = formatInternationalPhone(to);
+    const phoneCheck = await resolveWhatsAppNumber(to, workspaceId);
     if (!phoneCheck.success) {
       console.error(`❌ [WhatsApp] Numéro invalide : "${to}" → ${phoneCheck.error}`);
       throw new Error(`Numéro de téléphone invalide: ${phoneCheck.error}`);
@@ -214,7 +256,7 @@ export async function sendWhatsAppMedia({ to, mediaUrl, caption, workspaceId, in
     }
 
     // Nettoyer et formater le numéro de téléphone international pour média
-    const mediaPhoneCheck = formatInternationalPhone(to);
+    const mediaPhoneCheck = await resolveWhatsAppNumber(to, workspaceId);
     if (!mediaPhoneCheck.success) {
       throw new Error(`Numéro de téléphone invalide: ${mediaPhoneCheck.error}`);
     }
@@ -277,7 +319,7 @@ export async function sendWhatsAppAudio({ to, audioUrl, workspaceId, instanceId 
       throw new Error('Aucune instance WhatsApp connectée. Veuillez configurer WhatsApp dans les paramètres.');
     }
 
-    const audioPhoneCheck = formatInternationalPhone(to);
+    const audioPhoneCheck = await resolveWhatsAppNumber(to, workspaceId);
     if (!audioPhoneCheck.success) {
       throw new Error(`Numéro de téléphone invalide: ${audioPhoneCheck.error}`);
     }
@@ -331,7 +373,7 @@ export async function sendWhatsAppVideo({ to, videoUrl, caption = '', workspaceI
       throw new Error('Aucune instance WhatsApp connectée. Veuillez configurer WhatsApp dans les paramètres.');
     }
 
-    const phoneCheck = formatInternationalPhone(to);
+    const phoneCheck = await resolveWhatsAppNumber(to, workspaceId);
     if (!phoneCheck.success) {
       throw new Error(`Numéro de téléphone invalide: ${phoneCheck.error}`);
     }

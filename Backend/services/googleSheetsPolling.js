@@ -4,9 +4,11 @@
  */
 
 import WorkspaceSettings from '../models/WorkspaceSettings.js';
+import Workspace from '../models/Workspace.js';
 import Order from '../models/Order.js';
 import { fetchSheetData, parseOrderRow, autoDetectColumns } from './googleSheetsImport.js';
 import { notifyNewOrder } from './notificationHelper.js';
+import { getPhonePrefixFromWorkspace } from '../utils/phoneUtils.js';
 
 const POLLING_INTERVALS = {
   '30sec': 30 * 1000,      // Ultra rapide (pour tests)
@@ -31,6 +33,8 @@ async function pollWorkspace(workspaceId) {
     if (!settings || !settings.autoSync?.enabled) {
       return;
     }
+    const workspace = await Workspace.findById(workspaceId).select('settings storeSettings').lean().catch(() => null);
+    const defaultPhonePrefix = getPhonePrefixFromWorkspace(workspace, '237');
 
     // Check each configured source
     for (const source of settings.sources || []) {
@@ -76,7 +80,7 @@ async function pollWorkspace(workspaceId) {
           
           for (let i = 0; i < newRows.length; i++) {
             const rowIndex = lastRowCount + i + sheetData.dataStartIndex;
-            const parsed = parseOrderRow(newRows[i], rowIndex, columnMap, sheetData.headers, source.name);
+            const parsed = parseOrderRow(newRows[i], rowIndex, columnMap, sheetData.headers, source.name, defaultPhonePrefix);
             
             if (parsed.success && parsed.data) {
               const sheetRowId = `source_${source._id}_row_${rowIndex}`;

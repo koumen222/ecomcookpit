@@ -115,6 +115,7 @@ const SuperAdminBilling = lazy(() => import('./pages/SuperAdminBilling.jsx'));
 const SuperAdminPlans = lazy(() => import('./pages/SuperAdminPlans.jsx'));
 const SuperAdminPromoCodes = lazy(() => import('./pages/SuperAdminPromoCodes.jsx'));
 const SuperAdminFeatureAnalytics = lazy(() => import('./pages/SuperAdminFeatureAnalytics.jsx'));
+const SuperAdminProductPageHistory = lazy(() => import('./pages/SuperAdminProductPageHistory.jsx'));
 const WhyScalor = lazy(() => import('./pages/WhyScalor.jsx'));
 const Tarifs = lazy(() => import('./pages/Tarifs.jsx'));
 const SourcingStats = lazy(() => import('./pages/SourcingStats.jsx'));
@@ -270,6 +271,7 @@ const PLATFORM_TITLE_RULES = [
   { path: '/ecom/super-admin/workspaces', title: 'Workspaces super admin' },
   { path: '/ecom/super-admin/analytics', title: 'Analytics super admin' },
   { path: '/ecom/super-admin/feature-analytics', title: 'Features super admin' },
+  { path: '/ecom/super-admin/product-page-history', title: 'Historique pages produit' },
   { path: '/ecom/super-admin/activity', title: 'Activité super admin' },
   { path: '/ecom/super-admin/settings', title: 'Paramètres super admin' },
   { path: '/ecom/super-admin/whatsapp-postulations', title: 'Postulations WhatsApp' },
@@ -757,6 +759,7 @@ const EcomApp = () => {
               <Route path="/ecom/super-admin/plans" element={<LayoutRoute requiredRole="super_admin"><SuperAdminPlans /></LayoutRoute>} />
               <Route path="/ecom/super-admin/promo-codes" element={<LayoutRoute requiredRole="super_admin"><SuperAdminPromoCodes /></LayoutRoute>} />
               <Route path="/ecom/super-admin/feature-analytics" element={<LayoutRoute requiredRole="super_admin"><SuperAdminFeatureAnalytics /></LayoutRoute>} />
+              <Route path="/ecom/super-admin/product-page-history" element={<LayoutRoute requiredRole="super_admin"><SuperAdminProductPageHistory /></LayoutRoute>} />
 
               {/* Routes boutique - StoreProvider persists across wizard + layout navigations */}
               <Route element={<StoreProvider />}>

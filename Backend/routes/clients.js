@@ -1,9 +1,16 @@
 import express from 'express';
 import Client from '../models/Client.js';
+import Workspace from '../models/Workspace.js';
 import { requireEcomAuth, validateEcomAccess } from '../middleware/ecomAuth.js';
-import { normalizePhone } from '../utils/phoneUtils.js';
+import { getPhonePrefixFromWorkspace, normalizePhone } from '../utils/phoneUtils.js';
 
 const router = express.Router();
+
+async function getDefaultPhonePrefixForWorkspace(workspaceId) {
+  if (!workspaceId) return '237';
+  const workspace = await Workspace.findById(workspaceId).select('settings storeSettings').lean().catch(() => null);
+  return getPhonePrefixFromWorkspace(workspace, '237');
+}
 
 // DELETE /api/ecom/clients/bulk - Supprimer tous les clients
 router.delete('/bulk', requireEcomAuth, validateEcomAccess('products', 'write'), async (req, res) => {
@@ -111,12 +118,13 @@ router.post('/', requireEcomAuth, async (req, res) => {
     }
 
     const phoneValue = phone?.trim() || '';
+    const defaultPhonePrefix = await getDefaultPhonePrefixForWorkspace(req.workspaceId);
     const client = new Client({
       workspaceId: req.workspaceId,
       firstName: firstName.trim(),
       lastName: lastName?.trim() || '',
       phone: phoneValue,
-      phoneNormalized: normalizePhone(phoneValue, '237'),
+      phoneNormalized: normalizePhone(phoneValue, defaultPhonePrefix),
       email: email?.trim() || '',
       city: city?.trim() || '',
       address: address?.trim() || '',
@@ -153,13 +161,14 @@ router.put('/:id', requireEcomAuth, async (req, res) => {
       return res.status(404).json({ success: false, message: 'Client non trouvé' });
     }
 
+    const defaultPhonePrefix = await getDefaultPhonePrefixForWorkspace(req.workspaceId);
     const allowedFields = ['firstName', 'lastName', 'phone', 'email', 'city', 'address', 'source', 'status', 'notes', 'tags', 'assignedTo', 'totalOrders', 'totalSpent', 'lastContactAt'];
     allowedFields.forEach(field => {
       if (req.body[field] !== undefined) {
         client[field] = req.body[field];
         // Normaliser le téléphone si modifié
         if (field === 'phone') {
-          client.phoneNormalized = normalizePhone(req.body[field], '237');
+          client.phoneNormalized = normalizePhone(req.body[field], defaultPhonePrefix);
         }
       }
     });

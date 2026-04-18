@@ -337,6 +337,7 @@ const SuperAdminDashboard = () => {
             { to: '/ecom/super-admin/users', label: 'Utilisateurs', icon: Users },
             { to: '/ecom/super-admin/workspaces', label: 'Workspaces', icon: Building2 },
             { to: '/ecom/super-admin/analytics', label: 'Analytics', icon: Activity },
+            { to: '/ecom/super-admin/product-page-history', label: 'Pages IA', icon: FileText },
             { to: '/ecom/super-admin/activity', label: 'Activite', icon: Clock },
             { to: '/ecom/super-admin/push', label: 'Push', icon: Bell },
             { to: '/ecom/super-admin/whatsapp-postulations', label: 'WhatsApp', icon: MessageSquare },

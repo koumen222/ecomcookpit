@@ -415,6 +415,25 @@ router.post('/validate-promo', requireEcomAuth, async (req, res) => {
 });
 
 // ─── POST /checkout ───────────────────────────────────────────────────────────
+/**
+ * Premier appel sortant MoneyFusion pour un abonnement.
+ *
+ * Chaîne d'appel:
+ * 1. Le frontend appelle POST /api/ecom/billing/checkout
+ * 2. Cette route construit `paymentData`
+ * 3. Le backend appelle MoneyFusion via `axios.post(MF_API_URL, paymentData)`
+ * 4. MoneyFusion renvoie un `token` et une `url` de paiement
+ * 5. Le frontend ouvre `paymentUrl`, puis poll ensuite /billing/status/:token
+ *
+ * Payload envoyé à MoneyFusion:
+ * - totalPrice: montant final en FCFA
+ * - article: libellé visible côté prestataire
+ * - personal_Info: métadonnées techniques réinjectées au webhook
+ * - numeroSend: numéro Mobile Money du client
+ * - nomclient: nom affiché côté paiement
+ * - return_url: URL frontend de retour après redirection
+ * - webhook_url: URL backend notifiée par MoneyFusion
+ */
 router.post('/checkout', requireEcomAuth, async (req, res) => {
   try {
     const { plan = 'pro_1', phone, clientName, workspaceId: bodyWsId, promoCode = null } = req.body;
@@ -469,6 +488,10 @@ router.post('/checkout', requireEcomAuth, async (req, res) => {
 
     const planLabels = { starter: 'Scalor', pro: 'Scalor + IA', ultra: 'Scalor IA Pro' };
     const planLabel = planLabels[planName] || 'Scalor';
+
+    // Corps du premier appel MoneyFusion pour l'achat d'un plan.
+    // `personal_Info` sert de contexte de réconciliation quand MoneyFusion
+    // redirige l'utilisateur ou déclenche le webhook serveur.
     const paymentData = {
       totalPrice: amount,
       article: [{ [planLabel]: amount }],
@@ -486,6 +509,7 @@ router.post('/checkout', requireEcomAuth, async (req, res) => {
       webhook_url: `${backendUrl}/api/ecom/billing/webhook`
     };
 
+    // Appel HTTP principal vers MoneyFusion: création de la session de paiement.
     const mfResponse = await axios.post(MF_API_URL, paymentData, {
       headers: { 'Content-Type': 'application/json' },
       timeout: 60000
