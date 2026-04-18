@@ -6,8 +6,22 @@ import Order from '../models/Order.js';
 import Transaction from '../models/Transaction.js';
 import { requireEcomAuth, validateEcomAccess, generateEcomToken, invalidateUserCache } from '../middleware/ecomAuth.js';
 import { logAudit, AuditLog } from '../middleware/security.js';
+import { getPhonePrefixFromWorkspace, normalizePhone } from '../utils/phoneUtils.js';
 
 const router = express.Router();
+
+async function getDefaultPhonePrefixForWorkspace(workspaceId) {
+  if (!workspaceId) return null;
+  const workspace = await Workspace.findById(workspaceId).select('settings storeSettings').lean().catch(() => null);
+  return getPhonePrefixFromWorkspace(workspace, '237');
+}
+
+async function normalizeWorkspacePhone(phone, workspaceId) {
+  const raw = String(phone || '').trim();
+  if (!raw) return '';
+  const defaultPrefix = await getDefaultPhonePrefixForWorkspace(workspaceId);
+  return normalizePhone(raw, defaultPrefix) || raw;
+}
 
 // GET /api/ecom/users - Liste des utilisateurs (admin seulement)
 router.get('/',
@@ -274,13 +288,14 @@ router.post('/',
       }
 
       const { name, phone } = req.body;
+      const normalizedPhone = await normalizeWorkspacePhone(phone, req.workspaceId);
       const user = new EcomUser({
         email,
         password,
         role,
         workspaceId: req.workspaceId,
         name: name || '',
-        phone: phone || '',
+        phone: normalizedPhone,
         canAccessRitaAgent: role === 'ecom_admin' ? (canAccessRitaAgent !== false) : false,
       });
       await user.save();
@@ -332,7 +347,7 @@ router.put('/:id',
         }
       }
       if (req.body.name !== undefined) user.name = req.body.name;
-      if (req.body.phone !== undefined) user.phone = req.body.phone;
+      if (req.body.phone !== undefined) user.phone = await normalizeWorkspacePhone(req.body.phone, req.workspaceId);
       if (canAccessRitaAgent !== undefined) {
         user.canAccessRitaAgent = user.role === 'ecom_admin' ? !!canAccessRitaAgent : false;
       }

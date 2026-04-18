@@ -23,6 +23,7 @@ import EcomWorkspace from '../models/Workspace.js';
 import FeatureUsageLog from '../models/FeatureUsageLog.js';
 import GenerationTask from '../models/GenerationTask.js';
 import GenerationPricingConfig from '../models/GenerationPricingConfig.js';
+import ProductPageGenerationLog from '../models/ProductPageGenerationLog.js';
 
 const router = express.Router();
 
@@ -44,6 +45,57 @@ async function updateTask(taskId, updates) {
   } catch (e) {
     console.warn('[Task] Update failed:', e.message);
   }
+}
+
+async function updateGenerationLog(logId, updates) {
+  if (!logId) return;
+  try {
+    await ProductPageGenerationLog.findByIdAndUpdate(logId, { $set: updates });
+  } catch (e) {
+    console.warn('[GenerationLog] Update failed:', e.message);
+  }
+}
+
+function uniqStrings(values = []) {
+  return [...new Set(values.filter(Boolean))];
+}
+
+function buildGeneratedContentTypes(product = {}, options = {}) {
+  const {
+    shouldGenerateImages = false,
+    generatedImageCount = 0,
+    generatedGifCount = 0,
+  } = options;
+
+  const contentTypes = ['page_copy'];
+  if ((product.angles || []).length) contentTypes.push('marketing_angles');
+  if ((product.faq || []).length) contentTypes.push('faq');
+  if ((product.testimonials || []).length) contentTypes.push('testimonials');
+  if ((product.benefits_bullets || []).length) contentTypes.push('benefits');
+  if ((product.conversion_blocks || []).length) contentTypes.push('conversion_blocks');
+  if (shouldGenerateImages) contentTypes.push('visual_assets_requested');
+  if (generatedImageCount > 0) contentTypes.push('generated_images');
+  if (generatedGifCount > 0) contentTypes.push('animated_gifs');
+  return uniqStrings(contentTypes);
+}
+
+function buildGenerationStats(product = {}, options = {}) {
+  const {
+    uploadedPhotoCount = 0,
+    generatedImageCount = 0,
+    generatedGifCount = 0,
+  } = options;
+
+  return {
+    anglesCount: Array.isArray(product.angles) ? product.angles.length : 0,
+    faqCount: Array.isArray(product.faq) ? product.faq.length : 0,
+    testimonialsCount: Array.isArray(product.testimonials) ? product.testimonials.length : 0,
+    benefitsCount: Array.isArray(product.benefits_bullets) ? product.benefits_bullets.length : 0,
+    conversionBlocksCount: Array.isArray(product.conversion_blocks) ? product.conversion_blocks.length : 0,
+    uploadedPhotoCount,
+    generatedImageCount,
+    generatedGifCount,
+  };
 }
 
 function buildTaskImagesPayload(imageData = {}) {
@@ -208,6 +260,7 @@ async function resolveReferenceImageBuffer({ sourceBuffer = null, photoUrl = '',
 
 async function runBackgroundImageGeneration({
   taskId,
+  generationLogId = null,
   workspaceId,
   userId,
   productData,
@@ -247,6 +300,19 @@ async function runBackgroundImageGeneration({
         currentStep: 'Échec partiel — contenu sauvegardé',
         errorMessage,
         images: buildTaskImagesPayload(jobData),
+      });
+      await updateGenerationLog(generationLogId, {
+        status: 'partial_failure',
+        completedAt: new Date(),
+        errorMessage,
+        stats: buildGenerationStats(productData, {
+          uploadedPhotoCount: realPhotos.length,
+          generatedImageCount: 0,
+          generatedGifCount: 0,
+        }),
+        generatedContentTypes: buildGeneratedContentTypes(productData, {
+          shouldGenerateImages: true,
+        }),
       });
       return;
     }
@@ -425,6 +491,14 @@ async function runBackgroundImageGeneration({
       }));
 
     jobData.status = 'done';
+    const generatedImageCount = [
+      jobData.heroImage,
+      ...(jobData.beforeAfterImages || []),
+      ...(jobData.peoplePhotos || []),
+      ...((jobData.angles || []).map((entry) => entry?.poster_url).filter(Boolean)),
+    ].filter(Boolean).length;
+    const generatedGifCount = (jobData.descriptionGifs || []).length;
+
     await updateTask(taskId, {
       status: 'done',
       progress: jobData.progress,
@@ -433,6 +507,21 @@ async function runBackgroundImageGeneration({
       currentStep: 'Terminé',
       errorMessage: null,
       images: buildTaskImagesPayload(jobData),
+    });
+    await updateGenerationLog(generationLogId, {
+      status: 'completed',
+      completedAt: new Date(),
+      errorMessage: '',
+      stats: buildGenerationStats(productData, {
+        uploadedPhotoCount: realPhotos.length,
+        generatedImageCount,
+        generatedGifCount,
+      }),
+      generatedContentTypes: buildGeneratedContentTypes(productData, {
+        shouldGenerateImages: true,
+        generatedImageCount,
+        generatedGifCount,
+      }),
     });
   } catch (error) {
     console.error('❌ [BG] Erreur génération images:', error.message);
@@ -445,6 +534,31 @@ async function runBackgroundImageGeneration({
       currentStep: 'Échec partiel — contenu sauvegardé',
       errorMessage: error.message,
       images: buildTaskImagesPayload(jobData),
+    });
+    await updateGenerationLog(generationLogId, {
+      status: 'partial_failure',
+      completedAt: new Date(),
+      errorMessage: error.message,
+      stats: buildGenerationStats(productData, {
+        uploadedPhotoCount: realPhotos.length,
+        generatedImageCount: [
+          jobData.heroImage,
+          ...(jobData.beforeAfterImages || []),
+          ...(jobData.peoplePhotos || []),
+          ...((jobData.angles || []).map((entry) => entry?.poster_url).filter(Boolean)),
+        ].filter(Boolean).length,
+        generatedGifCount: (jobData.descriptionGifs || []).length,
+      }),
+      generatedContentTypes: buildGeneratedContentTypes(productData, {
+        shouldGenerateImages: true,
+        generatedImageCount: [
+          jobData.heroImage,
+          ...(jobData.beforeAfterImages || []),
+          ...(jobData.peoplePhotos || []),
+          ...((jobData.angles || []).map((entry) => entry?.poster_url).filter(Boolean)),
+        ].filter(Boolean).length,
+        generatedGifCount: (jobData.descriptionGifs || []).length,
+      }),
     });
   }
 }
@@ -1479,12 +1593,14 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
   let posterImages = [];
   const cleanUrl = url?.trim() || '';
   let storeContext = {};
+  let generationLogId = null;
 
   try {
     let workspace;
+    let consumedCreditSource = 'unknown';
     if (req.workspaceId) {
       workspace = await EcomWorkspace.findById(req.workspaceId)
-        .select('storeSettings.country storeSettings.city storeSettings.storeName storeSettings.storeCurrency storeSettings.currency name freeGenerationsRemaining paidGenerationsRemaining totalGenerations simpleGenerationsRemaining');
+        .select('storeSettings.country storeSettings.city storeSettings.storeName storeSettings.storeCurrency storeSettings.currency name plan freeGenerationsRemaining paidGenerationsRemaining totalGenerations simpleGenerationsRemaining');
 
       if (!workspace) {
         return res.status(404).json({ success: false, message: 'Workspace introuvable' });
@@ -1523,10 +1639,13 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       // Décrémenter: simpleRemaining d'abord, puis free, puis paid
       if (simpleRemaining > 0) {
         workspace.simpleGenerationsRemaining = simpleRemaining - 1;
+        consumedCreditSource = 'simple';
       } else if (freeRemaining > 0) {
         workspace.freeGenerationsRemaining = freeRemaining - 1;
+        consumedCreditSource = 'free';
       } else {
         workspace.paidGenerationsRemaining = paidRemaining - 1;
+        consumedCreditSource = 'paid';
       }
 
       workspace.totalGenerations = (workspace.totalGenerations || 0) + 1;
@@ -1571,6 +1690,41 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       console.log(`📋 [Task] Created early with status=generating_text, id=${taskId}`);
     } catch (taskErr) {
       console.warn('[Task] Could not create early task:', taskErr.message);
+    }
+
+    try {
+      const generationLog = await ProductPageGenerationLog.create({
+        workspaceId: req.workspaceId,
+        userId: req.user._id || req.user.id,
+        taskId: generationTask?._id || null,
+        status: 'started',
+        inputType: isDescriptionMode ? 'description' : 'url',
+        outputMode: shouldGenerateImages ? 'page_with_images' : 'page_only',
+        creditSource: consumedCreditSource,
+        creditsUsed: 1,
+        productName: isDescriptionMode ? (userDescription || '').slice(0, 120) : '',
+        productUrl: cleanUrl || '',
+        generatedContentTypes: [],
+        requestMeta: {
+          visualTemplate: visualTemplate || '',
+          marketingApproach: approach || '',
+          imageGenerationMode: imageGenerationMode || '',
+          imageAspectRatio: imageAspectRatio || '',
+          tone: tone || 'urgence',
+          language: language || 'français',
+        },
+        userSnapshot: {
+          name: req.user?.name || '',
+          email: req.user?.email || '',
+        },
+        workspaceSnapshot: {
+          name: workspace?.name || '',
+          plan: workspace?.plan || '',
+        },
+      });
+      generationLogId = generationLog._id.toString();
+    } catch (logError) {
+      console.warn('[GenerationLog] Create failed:', logError.message);
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -1728,10 +1882,27 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
         meta: {
           productUrl: cleanUrl || null,
           productName: gptResult?.title || scraped?.title || null,
+          generationType: consumedCreditSource,
           success: true
         }
       }).catch(() => { });
     }
+
+    await updateGenerationLog(generationLogId, {
+      status: shouldGenerateImages ? 'processing_images' : 'completed',
+      completedAt: shouldGenerateImages ? null : new Date(),
+      errorMessage: '',
+      productName: gptResult.title || scraped?.title || 'Produit sans nom',
+      productUrl: cleanUrl || '',
+      stats: buildGenerationStats(productPage, {
+        uploadedPhotoCount: realPhotos.length,
+        generatedImageCount: 0,
+        generatedGifCount: 0,
+      }),
+      generatedContentTypes: buildGeneratedContentTypes(productPage, {
+        shouldGenerateImages,
+      }),
+    });
 
     // ── Update task with generated product data ────────────────────────────────
     await updateTask(taskId, {
@@ -1761,6 +1932,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
 
     void runBackgroundImageGeneration({
       taskId,
+      generationLogId,
       workspaceId: req.workspaceId,
       userId,
       productData: productPage,
@@ -1785,6 +1957,11 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
         currentStep: 'Erreur',
       });
     }
+    await updateGenerationLog(generationLogId, {
+      status: 'failed',
+      completedAt: new Date(),
+      errorMessage: error.message || 'Erreur lors de la génération',
+    });
 
     return res.status(500).json({
       success: false,

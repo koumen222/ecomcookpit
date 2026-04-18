@@ -9,7 +9,7 @@ import WhatsAppOrder from '../models/WhatsAppOrder.js';
 import Order from '../models/Order.js';
 import RitaContact from '../models/RitaContact.js';
 import Agent from '../models/Agent.js';
-import { normalizePhone } from '../utils/phoneUtils.js';
+import { getPhonePrefixFromWorkspace, normalizePhone } from '../utils/phoneUtils.js';
 import evolutionApiService from '../services/evolutionApiService.js';
 import { processIncomingMessage, processBossMessage, generateTestReply, transcribeAudio, textToSpeech, textToSpeechFishAudio, getLastAssistantMessage, getTtsVoiceSettings, getLiveConversations } from '../services/ritaAgentService.js';
 import { getIO } from '../services/socketService.js';
@@ -2048,13 +2048,15 @@ router.post('/incoming', async (req, res) => {
                   try {
                     const phoneVal = cleanFrom || '';
                     const priceVal = parseFloat(String(orderData.price || '0').replace(/[^0-9.,]/g, '').replace(',', '.')) || 0;
+                    const workspaceDoc = await Workspace.findById(instanceDoc.workspaceId).select('settings storeSettings').lean().catch(() => null);
+                    const defaultPhonePrefix = getPhonePrefixFromWorkspace(workspaceDoc, '237');
                     const ritaOrder = new Order({
                       workspaceId: instanceDoc.workspaceId,
                       orderId: `#RITA_${Date.now().toString(36)}`,
                       date: new Date(),
                       clientName: orderData.name || pushName || '',
                       clientPhone: phoneVal,
-                      clientPhoneNormalized: normalizePhone(phoneVal, '237'),
+                      clientPhoneNormalized: normalizePhone(phoneVal, defaultPhonePrefix),
                       city: orderData.city || '',
                       product: orderData.product || '',
                       quantity: 1,

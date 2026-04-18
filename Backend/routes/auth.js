@@ -11,6 +11,7 @@ import { logAudit } from '../middleware/security.js';
 import AnalyticsEvent from '../models/AnalyticsEvent.js';
 import AffiliateUser from '../models/AffiliateUser.js';
 import AffiliateConversion from '../models/AffiliateConversion.js';
+import { getPhonePrefixFromWorkspace, normalizePhone } from '../utils/phoneUtils.js';
 import {
   notifyUserRegistered,
   notifyForgotPassword,
@@ -43,6 +44,19 @@ const serializeWorkspace = (workspace, userRole) => {
     inviteCode: userRole === 'ecom_admin' ? workspace.inviteCode : undefined,
   };
 };
+
+async function getDefaultPhonePrefixForWorkspace(workspaceId) {
+  if (!workspaceId) return null;
+  const workspace = await Workspace.findById(workspaceId).select('settings storeSettings').lean().catch(() => null);
+  return getPhonePrefixFromWorkspace(workspace, '237');
+}
+
+async function normalizeWorkspacePhone(phone, workspaceId) {
+  const raw = String(phone || '').trim();
+  if (!raw) return '';
+  const defaultPrefix = await getDefaultPhonePrefixForWorkspace(workspaceId);
+  return normalizePhone(raw, defaultPrefix) || raw;
+}
 
 // Helper: fire-and-forget analytics event from backend
 function trackEvent(req, eventType, userId, extra = {}) {
@@ -789,6 +803,7 @@ router.post('/create-workspace', async (req, res) => {
     user.role = role;
     user.workspaceId = workspace._id;
     user.addWorkspace(workspace._id, role);
+    if (user.phone) user.phone = await normalizeWorkspacePhone(user.phone, workspace._id);
     await user.save();
 
     // Regénérer le token avec le nouveau rôle et workspace
@@ -828,7 +843,7 @@ router.post('/onboarding', requireEcomAuth, async (req, res) => {
     
     if (!user) return res.status(404).json({ success: false, message: 'Utilisateur non trouvé' });
     
-    if (phone) user.phone = String(phone).trim();
+    if (phone) user.phone = await normalizeWorkspacePhone(phone, user.workspaceId);
     
     user.onboardingData = {
       businessType: businessType?.trim() || null,
@@ -894,6 +909,7 @@ router.post('/join-workspace', async (req, res) => {
     // Mettre à jour le workspace actif et le rôle actif (pour ce workspace uniquement)
     user.workspaceId = workspace._id;
     user.role = role;
+    if (user.phone) user.phone = await normalizeWorkspacePhone(user.phone, workspace._id);
     await user.save();
 
     // Regénérer le token
@@ -1055,7 +1071,7 @@ router.put('/profile', async (req, res) => {
     });
 
     if (name !== undefined) user.name = name.trim();
-    if (phone !== undefined) user.phone = phone.trim();
+    if (phone !== undefined) user.phone = await normalizeWorkspacePhone(phone, user.workspaceId);
 
     console.log('💾 [Profile Update] Sauvegarde en cours...');
     await user.save();

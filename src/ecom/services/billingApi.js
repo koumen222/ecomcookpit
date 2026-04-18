@@ -18,6 +18,9 @@ export async function getCurrentPlan(workspaceId) {
 
 /**
  * Initiate a checkout session.
+ * Frontend entrypoint for the first MoneyFusion flow:
+ * this method calls POST /billing/checkout on our backend, which then calls
+ * `axios.post(MF_API_URL, paymentData)` to create the MoneyFusion payment.
  * @param {Object} payload — { plan, phone, clientName, workspaceId }
  * @returns {{ success, mfToken, paymentUrl, amount, plan, durationMonths }}
  */

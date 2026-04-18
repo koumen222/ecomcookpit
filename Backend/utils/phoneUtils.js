@@ -160,6 +160,78 @@ const COUNTRY_PHONE_PATTERNS = {
   '20': { code: 'EG', name: 'Égypte', minLength: 10, maxLength: 10 },
 };
 
+const CURRENCY_PHONE_PREFIX_MAP = {
+  XAF: '237',
+  FCFA: '237',
+  XOF: '228',
+  CDF: '243',
+  NGN: '234',
+  GHS: '233',
+  MAD: '212',
+  TND: '216',
+  DZD: '213',
+  EUR: '33',
+  USD: '1',
+  GNF: '224',
+  KES: '254',
+  UGX: '256',
+  TZS: '255',
+  RWF: '250',
+  BIF: '257',
+  ETB: '251',
+  ZAR: '27',
+};
+
+function normalizeCountryLookupValue(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+const COUNTRY_NAME_PREFIX_MAP = (() => {
+  const derivedEntries = Object.entries(COUNTRY_PHONE_PATTERNS).flatMap(([prefix, info]) => {
+    const values = [info.name, info.code]
+      .map(normalizeCountryLookupValue)
+      .filter(Boolean)
+      .map((key) => [key, prefix]);
+    return values;
+  });
+
+  return Object.fromEntries([
+    ...derivedEntries,
+    ['cameroon', '237'],
+    ['cameroun', '237'],
+    ['ivory coast', '225'],
+    ['cote d ivoire', '225'],
+    ['cote divoire', '225'],
+    ['senegal', '221'],
+    ['benin', '229'],
+    ['burkina faso', '226'],
+    ['guinea', '224'],
+    ['guinee', '224'],
+    ['equatorial guinea', '240'],
+    ['guinee equatoriale', '240'],
+    ['congo kinshasa', '243'],
+    ['dr congo', '243'],
+    ['rdc', '243'],
+    ['republique democratique du congo', '243'],
+    ['democratic republic of the congo', '243'],
+    ['congo brazzaville', '242'],
+    ['nigeria', '234'],
+    ['ghana', '233'],
+    ['france', '33'],
+    ['belgium', '32'],
+    ['belgique', '32'],
+    ['united states', '1'],
+    ['usa', '1'],
+    ['canada', '1'],
+  ]);
+})();
+
 /**
  * Nettoie et formate un numéro de téléphone international
  * @param {string} phone - Numéro de téléphone (peut contenir des espaces, +, etc.)
@@ -325,6 +397,30 @@ export function getSupportedCountries() {
   })).sort((a, b) => a.name.localeCompare(b.name));
 }
 
+export function getPhonePrefixFromCurrency(currency) {
+  const normalized = String(currency || '').trim().toUpperCase();
+  return CURRENCY_PHONE_PREFIX_MAP[normalized] || null;
+}
+
+export function getPhonePrefixFromCountry(country) {
+  const normalized = normalizeCountryLookupValue(country);
+  if (!normalized) return null;
+  return COUNTRY_NAME_PREFIX_MAP[normalized] || null;
+}
+
+export function getPhonePrefixFromWorkspace(workspaceLike, fallback = '237') {
+  const storeSettings = workspaceLike?.storeSettings || {};
+  const settings = workspaceLike?.settings || {};
+
+  return getPhonePrefixFromCountry(storeSettings.country)
+    || getPhonePrefixFromCountry(storeSettings.storeCountry)
+    || getPhonePrefixFromCountry(settings.country)
+    || getPhonePrefixFromCurrency(storeSettings.storeCurrency)
+    || getPhonePrefixFromCurrency(storeSettings.currency)
+    || getPhonePrefixFromCurrency(settings.currency)
+    || fallback;
+}
+
 /**
  * Normalise un numéro de téléphone vers le format international ULTRA ROBUSTE.
  * Gère tous les formats sales : espaces, tirets, parenthèses, apostrophes invisibles, 00, +, sans indicatif.
@@ -337,7 +433,9 @@ export function getSupportedCountries() {
 export function normalizePhone(phone, defaultPrefix = null) {
   if (!phone) return null;
 
-  let cleaned = String(phone).trim();
+  const rawValue = String(phone).trim();
+  const hasExplicitInternationalPrefix = rawValue.startsWith('+') || rawValue.startsWith('00');
+  let cleaned = rawValue;
   
   // Supprimer apostrophes invisibles au début (bug Google Sheets)
   cleaned = cleaned.replace(/^'+/, '');
@@ -369,8 +467,9 @@ export function normalizePhone(phone, defaultPrefix = null) {
   for (let len = 4; len >= 1; len--) {
     const prefix = cleaned.substring(0, len);
     if (COUNTRY_PHONE_PATTERNS[prefix]) {
+      const countryInfo = COUNTRY_PHONE_PATTERNS[prefix];
       const nationalPart = cleaned.substring(len);
-      if (nationalPart.length >= 6 && nationalPart.length <= 12) {
+      if (nationalPart.length >= countryInfo.minLength && nationalPart.length <= countryInfo.maxLength) {
         hasCountryCode = true;
         break;
       }
@@ -378,21 +477,30 @@ export function normalizePhone(phone, defaultPrefix = null) {
   }
   
   if (!hasCountryCode) {
-    // Tentative de détection automatique via formatInternationalPhone
-    const autoResult = formatInternationalPhone(cleaned);
-    if (autoResult.success) {
-      cleaned = autoResult.formatted;
-      hasCountryCode = true;
-    } else if (defaultPrefix) {
-      // Fallback sur le préfixe par défaut si fourni
+    if (defaultPrefix && !hasExplicitInternationalPrefix) {
+      // Si le numéro est local/ambigu, le contexte workspace doit primer sur une auto-détection hasardeuse.
       if (cleaned.startsWith('0')) {
         cleaned = defaultPrefix + cleaned.substring(1);
       } else {
         cleaned = defaultPrefix + cleaned;
       }
     } else {
-      // Aucun code pays détecté et pas de fallback → invalide
-      return null;
+      // Tentative de détection automatique via formatInternationalPhone
+      const autoResult = formatInternationalPhone(cleaned);
+      if (autoResult.success) {
+        cleaned = autoResult.formatted;
+        hasCountryCode = true;
+      } else if (defaultPrefix) {
+        // Fallback sur le préfixe par défaut si fourni
+        if (cleaned.startsWith('0')) {
+          cleaned = defaultPrefix + cleaned.substring(1);
+        } else {
+          cleaned = defaultPrefix + cleaned;
+        }
+      } else {
+        // Aucun code pays détecté et pas de fallback → invalide
+        return null;
+      }
     }
   }
   
@@ -408,6 +516,10 @@ export default {
   cleanPhoneForWhatsApp,
   detectCountryFromPhone,
   getSupportedCountries,
+  getPhonePrefixFromCurrency,
+  getPhonePrefixFromCountry,
+  getPhonePrefixFromWorkspace,
   normalizePhone,
-  COUNTRY_PHONE_PATTERNS
+  COUNTRY_PHONE_PATTERNS,
+  CURRENCY_PHONE_PREFIX_MAP,
 };

@@ -29,9 +29,35 @@ function normalizeBackendBaseUrl(raw = '') {
   return `${relative}/api/ecom`.replace(/\/api\/ecom\/api\/ecom$/, '/api/ecom');
 }
 
+function isLocalhostLike(value = '') {
+  const normalized = String(value || '').trim();
+  if (!normalized) return false;
+
+  if (normalized.startsWith('/')) return true;
+
+  try {
+    const parsed = new URL(normalized, typeof window !== 'undefined' ? window.location.origin : 'http://localhost');
+    return ['localhost', '127.0.0.1', '0.0.0.0'].includes(parsed.hostname);
+  } catch {
+    return /localhost|127\.0\.0\.1|0\.0\.0\.0/.test(normalized);
+  }
+}
+
 function resolveEcomApiBaseUrl() {
   const envBackend = import.meta.env.VITE_BACKEND_URL;
   const envApi = import.meta.env.VITE_API_URL;
+
+  // In local Vite dev, prefer the same-origin proxy to avoid brittle direct
+  // cross-origin calls to localhost:8080 from the browser.
+  if (
+    import.meta.env.DEV
+    && typeof window !== 'undefined'
+    && isLocalhostLike(window.location.origin)
+    && (!envApi || isLocalhostLike(envApi))
+    && (!envBackend || isLocalhostLike(envBackend))
+  ) {
+    return '/api/ecom';
+  }
 
   // On scalor.net frontend, always target the public API domain first.
   // This avoids production builds accidentally using a direct Railway URL,
@@ -60,6 +86,13 @@ console.log('🔧 [API] ECOM_API_BASE_URL =', ECOM_API_BASE_URL, '| VITE_API_URL
 const RETRYABLE_STATUS_CODES = new Set([502, 503, 504]);
 const MAX_RETRY_ATTEMPTS = 1;
 const RETRY_DELAY_MS = 700;
+const _cache = new Map();
+const _inflight = new Map();
+
+function clearGetCache() {
+  _cache.clear();
+  _inflight.clear();
+}
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -178,8 +211,16 @@ const processQueue = (error, token = null) => {
 // Intercepteur pour gérer les erreurs et auto-refresh token
 ecomApi.interceptors.response.use(
   (response) => {
+    const method = String(response.config?.method || 'get').toLowerCase();
     logApiResponse(response);
     window.dispatchEvent(new Event('toploader:stop'));
+
+    // Any successful mutation invalidates short-lived GET cache entries.
+    if (method !== 'get') {
+      clearGetCache();
+      return response;
+    }
+
     return response;
   },
   async (error) => {

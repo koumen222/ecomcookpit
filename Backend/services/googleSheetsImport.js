@@ -597,7 +597,7 @@ function parseFlexDate(dateVal) {
  * Parses a single row into an order document.
  * Returns { success, data, error }.
  */
-export function parseOrderRow(row, rowIndex, columnMap, headers, sourceName) {
+export function parseOrderRow(row, rowIndex, columnMap, headers, sourceName, defaultPhonePrefix = '237') {
   try {
     if (!row.c || row.c.every(cell => !cell || !cell.v)) {
       return { success: false, error: 'Ligne vide', row: rowIndex };
@@ -698,7 +698,7 @@ export function parseOrderRow(row, rowIndex, columnMap, headers, sourceName) {
       date: getDateVal('date'),
       clientName: resolvedName,
       clientPhone: resolvedPhone,
-      clientPhoneNormalized: normalizePhone(resolvedPhone, '237'),
+      clientPhoneNormalized: normalizePhone(resolvedPhone, defaultPhonePrefix),
       city: normalizeCity(getVal('city')),
       product: getVal('product'),
       quantity: Math.max(1, parseInt(getNumVal('quantity')) || 1),
