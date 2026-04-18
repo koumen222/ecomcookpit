@@ -57,6 +57,28 @@ function resolveEcomApiBaseUrl() {
 const ECOM_API_BASE_URL = resolveEcomApiBaseUrl();
 console.log('🔧 [API] ECOM_API_BASE_URL =', ECOM_API_BASE_URL, '| VITE_API_URL =', import.meta.env.VITE_API_URL, '| VITE_BACKEND_URL =', import.meta.env.VITE_BACKEND_URL);
 
+const RETRYABLE_STATUS_CODES = new Set([502, 503, 504]);
+const MAX_RETRY_ATTEMPTS = 1;
+const RETRY_DELAY_MS = 700;
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isRetryableRequestError(error) {
+  const config = error?.config;
+  const method = String(config?.method || 'get').toLowerCase();
+  const attempt = Number(config?._retryAttempt || 0);
+  const status = error?.response?.status;
+  const isNetworkError = !error?.response && !axios.isCancel(error);
+  const isRetryableStatus = RETRYABLE_STATUS_CODES.has(status);
+
+  if (!config || method !== 'get') return false;
+  if (config._retry || attempt >= MAX_RETRY_ATTEMPTS) return false;
+
+  return isNetworkError || isRetryableStatus;
+}
+
 const ecomApi = axios.create({
   baseURL: ECOM_API_BASE_URL,
   timeout: 30000,
@@ -162,6 +184,12 @@ ecomApi.interceptors.response.use(
   },
   async (error) => {
     const originalRequest = error.config;
+
+    if (isRetryableRequestError(error)) {
+      originalRequest._retryAttempt = Number(originalRequest._retryAttempt || 0) + 1;
+      await sleep(RETRY_DELAY_MS * originalRequest._retryAttempt);
+      return ecomApi(originalRequest);
+    }
 
     // Gérer les erreurs réseau (backend inaccessible)
     if (!error.response) {
