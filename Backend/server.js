@@ -110,7 +110,7 @@ const corsOptions = {
     callback(null, false);
   },
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
-  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "X-Session-Id", "X-Workspace-Id"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "X-Session-Id", "X-Workspace-Id", "X-Store-Id"],
   credentials: true,
   optionsSuccessStatus: 204
 };
