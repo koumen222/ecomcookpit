@@ -77,13 +77,15 @@ function buildLegacyWorkspaceStore(workspace) {
 }
 
 // Helper: check subdomain availability across Store + Workspace (for backward compat)
-async function isSubdomainAvailable(subdomain, excludeStoreId = null) {
+async function isSubdomainAvailable(subdomain, excludeStoreId = null, excludeWorkspaceId = null) {
   const cleanSub = subdomain.toLowerCase().trim();
   const storeQuery = { subdomain: cleanSub };
   if (excludeStoreId) storeQuery._id = { $ne: excludeStoreId };
+  const wsQuery = { subdomain: cleanSub };
+  if (excludeWorkspaceId) wsQuery._id = { $ne: excludeWorkspaceId };
   const [storeConflict, wsConflict] = await Promise.all([
     Store.findOne(storeQuery).select('_id').lean(),
-    Workspace.findOne({ subdomain: cleanSub }).select('_id').lean()
+    Workspace.findOne(wsQuery).select('_id').lean()
   ]);
   return !storeConflict && !wsConflict;
 }
@@ -100,9 +102,11 @@ router.get('/', requireEcomAuth, async (req, res) => {
       .select('primaryStoreId name subdomain storeSettings storeTheme storePages storeDomains createdAt')
       .lean();
 
-    // Auto-assign orphan products/orders to primary store (one-time migration)
-    if (stores.length > 0) {
-      const primaryId = ws?.primaryStoreId || stores[0]._id;
+    // Auto-assign orphan products/orders to primary store ONLY when there is exactly 1 store
+    // (one-time migration for legacy data). With multiple stores, orphans stay unassigned
+    // to avoid incorrectly attributing data to the wrong store.
+    if (stores.length === 1) {
+      const primaryId = stores[0]._id;
       const orphanCount = await StoreProduct.countDocuments({ workspaceId: req.workspaceId, storeId: null });
       if (orphanCount > 0) {
         await Promise.all([
@@ -279,16 +283,30 @@ router.put('/:storeId/subdomain', requireEcomAuth, async (req, res) => {
     const store = await Store.findOne({ _id: req.params.storeId, workspaceId: req.workspaceId });
     if (!store) return res.status(404).json({ success: false, message: 'Boutique non trouvée' });
 
-    if (store.subdomain !== clean && !(await isSubdomainAvailable(clean, store._id))) {
+    const previousSubdomain = store.subdomain || null;
+    console.log('🔄 PUT /stores/:storeId/subdomain — store:', store._id, 'workspace:', req.workspaceId, 'old:', previousSubdomain, 'new:', clean);
+
+    if (store.subdomain !== clean && !(await isSubdomainAvailable(clean, store._id, req.workspaceId))) {
+      console.log('🔄 Subdomain conflict for:', clean);
       return res.status(409).json({ success: false, message: 'Ce sous-domaine est déjà utilisé' });
     }
 
     store.subdomain = clean;
     await store.save();
 
+    // Sync workspace subdomain if this is the primary store
+    const ws = await Workspace.findById(req.workspaceId).select('primaryStoreId').lean();
+    if (String(ws?.primaryStoreId) === String(store._id)) {
+      await Workspace.findByIdAndUpdate(req.workspaceId, { $set: { subdomain: clean } });
+    }
+
+    console.log('✅ Store subdomain updated:', previousSubdomain, '→', clean, '— store:', store._id);
     res.json({ success: true, data: { subdomain: clean } });
   } catch (err) {
-    console.error('Erreur update subdomain:', err);
+    if (err.code === 11000) {
+      return res.status(409).json({ success: false, message: 'Ce sous-domaine est déjà utilisé' });
+    }
+    console.error('❌ Erreur update subdomain:', err);
     res.status(500).json({ success: false, message: 'Erreur serveur' });
   }
 });
@@ -300,7 +318,7 @@ router.get('/check-subdomain/:subdomain', requireEcomAuth, async (req, res) => {
     if (!/^[a-z0-9-]{3,30}$/.test(clean)) {
       return res.json({ success: true, available: false, reason: 'Format invalide' });
     }
-    const available = await isSubdomainAvailable(clean, req.query.excludeStoreId || null);
+    const available = await isSubdomainAvailable(clean, req.query.excludeStoreId || null, req.workspaceId);
     res.json({ success: true, available });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Erreur serveur' });

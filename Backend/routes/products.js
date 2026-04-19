@@ -15,18 +15,16 @@ const calculateActualStock = async (productId) => {
   return actualStock;
 };
 
-// GET /api/ecom/products/search - Recherche publique de produits (sans authentification)
-router.get('/search', async (req, res) => {
+// GET /api/ecom/products/search - Recherche de produits (authentifié, workspace-scoped)
+router.get('/search', requireEcomAuth, async (req, res) => {
   try {
-    console.log('🔍 GET /api/ecom/products/search - Recherche publique');
-    console.log('🔍 Termes de recherche:', req.query);
+    console.log('🔍 GET /api/ecom/products/search - Recherche produits');
     
     const { search, status, isActive, limit = 20 } = req.query;
     
-    // Pour la démo, on retourne tous les produits actifs sans filtre de workspace
-    // En production, vous pouvez configurer un workspace public spécifique
     const filter = { 
-      isActive: true // Uniquement les produits actifs pour la recherche publique
+      workspaceId: req.workspaceId,
+      isActive: true
     };
     
     // Ajout de la logique de recherche
