@@ -416,6 +416,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('orders', 'write'), checkPl
     const normalizedPhone = normalizePhone(phoneValue, defaultPhonePrefix);
     const order = new Order({
       workspaceId: req.workspaceId,
+      storeId: req.activeStoreId || null,
       orderId: `#MAN_${Date.now().toString(36)}`,
       date: new Date(),
       clientName: clientName || '',
@@ -939,6 +940,11 @@ router.get('/', requireEcomAuth, async (req, res) => {
 
     const filter = viewAllWorkspaces ? {} : { workspaceId: req.workspaceId };
 
+    // Multi-store: filter by active store if set
+    if (!viewAllWorkspaces && req.activeStoreId) {
+      filter.$or = [{ storeId: req.activeStoreId }, { storeId: null }];
+    }
+
     // Gestion des filtres de période prédéfinis
     if (period) {
       const now = new Date();
@@ -1176,6 +1182,14 @@ router.get('/stats/detailed', requireEcomAuth, async (req, res) => {
     const wsFilter = { workspaceId: req.workspaceId };
     // Pour .aggregate() il faut un vrai ObjectId sinon ça ne matche pas
     const wsFilterAgg = { workspaceId: new mongoose.Types.ObjectId(req.workspaceId) };
+
+    // Multi-store: filter by active store if set
+    if (req.activeStoreId) {
+      const storeCondition = { $or: [{ storeId: req.activeStoreId }, { storeId: null }] };
+      const storeConditionAgg = { $or: [{ storeId: new mongoose.Types.ObjectId(req.activeStoreId) }, { storeId: null }] };
+      Object.assign(wsFilter, storeCondition);
+      Object.assign(wsFilterAgg, storeConditionAgg);
+    }
 
     if (sourceId) {
       const sourceTypeMap = await loadSourceTypeMap(req.workspaceId);
@@ -2426,7 +2440,20 @@ router.post('/sync-sheets', requireEcomAuth, validateEcomAccess('orders', 'write
                 if (latestOrder) {
                   await notifyLivreursOfNewOrder(latestOrder, req.workspaceId);
                   await sendOrderToCustomNumber(latestOrder, req.workspaceId);
-                  
+
+                  const importedOrders = await Order.find({
+                    workspaceId: req.workspaceId,
+                    sheetRowId: { $in: newOrders },
+                    status: { $in: ['pending', 'confirmed'] },
+                  })
+                    .sort({ date: -1 })
+                    .select('_id orderId clientPhone clientName city product quantity price currency source rawData');
+
+                  for (const importedOrder of importedOrders) {
+                    await sendOrderConfirmationToClient(importedOrder, req.workspaceId)
+                      .catch(err => console.error(`❌ [${syncId}] Erreur WhatsApp client pour #${importedOrder.orderId}: ${err.message}`));
+                  }
+
                   latestOrder.whatsappNotificationSent = true;
                   latestOrder.whatsappNotificationSentAt = new Date();
                   await latestOrder.save();

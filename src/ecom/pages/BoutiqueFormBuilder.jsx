@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Save, Loader2, Check, GripVertical, Eye, EyeOff, Plus, ChevronUp, ChevronDown, Settings2, ShoppingCart, Layers, Phone, User, MapPin, Trash2, Mail, FileText, Hash, Calendar, Type, Image, Minus, Shield, CheckCircle, Clock, PhoneCall, MessageSquare, ListOrdered, CheckSquare, Link2, Globe, Star, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Save, Loader2, Check, GripVertical, Eye, EyeOff, Plus, ChevronUp, ChevronDown, Settings2, ShoppingCart, Layers, Phone, User, MapPin, Trash2, Mail, FileText, Hash, Calendar, Type, Image, Minus, Shield, CheckCircle, Clock, PhoneCall, MessageSquare, ListOrdered, CheckSquare, Link2, Globe, Star, ChevronLeft, ChevronRight, Upload, X } from 'lucide-react';
 import { storeManageApi, storeProductsApi } from '../services/storeApi';
 import { useStore } from '../contexts/StoreContext.jsx';
 import defaultConfig from '../components/productSettings/defaultConfig.js';
@@ -105,6 +105,76 @@ const ICON_OPTIONS = [
 const FIELD_ICON_MAP = {
   user: User, phone: Phone, map: MapPin, pin: MapPin, mail: Mail,
   cart: ShoppingCart, file: FileText, hash: Hash, calendar: Calendar,
+};
+
+// Small helper for testimonial avatar upload inside BoutiqueFormBuilder
+const TestimonialAvatarCard = ({ t, ti, inputCls, onUpdateTestimonials, testimonials, fieldIndex, onChange }) => {
+  const [uploading, setUploading] = useState(false);
+  const updateField = (field, val) => {
+    const arr = [...testimonials];
+    arr[ti] = { ...arr[ti], [field]: val };
+    onChange(fieldIndex, 'testimonials', arr);
+  };
+  const handleUpload = async (file) => {
+    if (!file) return;
+    setUploading(true);
+    try {
+      const res = await storeProductsApi.uploadImages([file]);
+      const uploaded = res.data?.data || res.data?.urls || res.data?.images || [];
+      const url = (Array.isArray(uploaded) ? uploaded : []).map(item => typeof item === 'string' ? item : item?.url).filter(Boolean)[0];
+      if (url) updateField('image', url);
+    } catch (err) {
+      console.error('Testimonial avatar upload failed:', err);
+    } finally {
+      setUploading(false);
+    }
+  };
+  return (
+    <div className="border border-gray-200 rounded-lg p-2.5 space-y-2 bg-gray-50">
+      <div className="flex items-center justify-between">
+        <span className="text-[10px] font-bold text-gray-500">#{ti + 1}</span>
+        <button type="button" onClick={() => {
+          const arr = [...testimonials];
+          arr.splice(ti, 1);
+          onChange(fieldIndex, 'testimonials', arr);
+        }} className="text-red-400 hover:text-red-600"><Trash2 size={12} /></button>
+      </div>
+      {/* Avatar upload */}
+      <div className="flex items-center gap-2">
+        {t.image ? (
+          <div className="relative group">
+            <img src={t.image} alt="" className="w-9 h-9 rounded-full object-cover border-2 border-gray-200" />
+            <button type="button" onClick={() => updateField('image', '')}
+              className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition">
+              <X className="w-2.5 h-2.5" />
+            </button>
+          </div>
+        ) : (
+          <div className="w-9 h-9 rounded-full bg-gray-100 border-2 border-dashed border-gray-300 flex items-center justify-center">
+            <Image className="w-3.5 h-3.5 text-gray-400" />
+          </div>
+        )}
+        <label className="flex items-center gap-1 px-2 py-1 text-[10px] bg-gray-100 hover:bg-gray-200 rounded-lg cursor-pointer transition">
+          {uploading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
+          <span>{t.image ? 'Changer' : 'Photo'}</span>
+          <input type="file" accept="image/*" className="hidden"
+            onChange={e => handleUpload(e.target.files?.[0])} />
+        </label>
+      </div>
+      <input className={inputCls + ' text-[11px]'} placeholder="Nom" value={t.name || ''}
+        onChange={e => updateField('name', e.target.value)} />
+      <textarea className={inputCls + ' text-[11px]'} rows={2} placeholder="Témoignage..." value={t.text || ''}
+        onChange={e => updateField('text', e.target.value)} />
+      <div className="flex items-center gap-1">
+        <span className="text-[10px] text-gray-400 mr-1">Note :</span>
+        {[1,2,3,4,5].map(s => (
+          <button key={s} type="button" onClick={() => updateField('rating', s)}>
+            <Star size={14} className={s <= (t.rating || 5) ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'} />
+          </button>
+        ))}
+      </div>
+    </div>
+  );
 };
 
 const FieldCard = ({ field, index, total, onMove, onToggle, onChange, onRemove, shopColor, onDragStart, onDragOver, onDrop, onDragEnd, isDragOver, isDragging }) => {
@@ -528,43 +598,11 @@ const FieldCard = ({ field, index, total, onMove, onToggle, onChange, onRemove, 
             <div className="space-y-3">
               <label className="block text-[10px] font-semibold text-gray-400 mb-1">Témoignages</label>
               {(field.testimonials || []).map((t, ti) => (
-                <div key={ti} className="border border-gray-200 rounded-lg p-2.5 space-y-2 bg-gray-50">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold text-gray-500">#{ti + 1}</span>
-                    <button type="button" onClick={() => {
-                      const arr = [...(field.testimonials || [])];
-                      arr.splice(ti, 1);
-                      onChange(index, 'testimonials', arr);
-                    }} className="text-red-400 hover:text-red-600"><Trash2 size={12} /></button>
-                  </div>
-                  <input className={inputCls + ' text-[11px]'} placeholder="Nom" value={t.name || ''}
-                    onChange={e => {
-                      const arr = [...(field.testimonials || [])];
-                      arr[ti] = { ...arr[ti], name: e.target.value };
-                      onChange(index, 'testimonials', arr);
-                    }} />
-                  <textarea className={inputCls + ' text-[11px]'} rows={2} placeholder="Témoignage..." value={t.text || ''}
-                    onChange={e => {
-                      const arr = [...(field.testimonials || [])];
-                      arr[ti] = { ...arr[ti], text: e.target.value };
-                      onChange(index, 'testimonials', arr);
-                    }} />
-                  <div className="flex items-center gap-1">
-                    <span className="text-[10px] text-gray-400 mr-1">Note :</span>
-                    {[1,2,3,4,5].map(s => (
-                      <button key={s} type="button" onClick={() => {
-                        const arr = [...(field.testimonials || [])];
-                        arr[ti] = { ...arr[ti], rating: s };
-                        onChange(index, 'testimonials', arr);
-                      }}>
-                        <Star size={14} className={s <= (t.rating || 5) ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'} />
-                      </button>
-                    ))}
-                  </div>
-                </div>
+                <TestimonialAvatarCard key={ti} t={t} ti={ti} inputCls={inputCls}
+                  testimonials={field.testimonials || []} fieldIndex={index} onChange={onChange} />
               ))}
               <button type="button" onClick={() => {
-                const arr = [...(field.testimonials || []), { name: '', text: '', rating: 5 }];
+                const arr = [...(field.testimonials || []), { name: '', text: '', rating: 5, image: '' }];
                 onChange(index, 'testimonials', arr);
               }} className="w-full py-1.5 border border-dashed border-gray-300 rounded-lg text-[11px] text-gray-400 hover:border-emerald-400 hover:text-emerald-600 transition flex items-center justify-center gap-1">
                 <Plus size={12} /> Ajouter un témoignage

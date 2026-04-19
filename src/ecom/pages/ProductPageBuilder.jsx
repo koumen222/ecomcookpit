@@ -993,6 +993,7 @@ const BenefitsEditor = ({ config, onChange }) => {
 };
 
 const TestimonialsEditor = ({ config, onChange }) => {
+  const [uploadingIdx, setUploadingIdx] = useState(null);
   const updateItem = (idx, field, val) => {
     const items = [...(config.items || [])];
     items[idx] = { ...items[idx], [field]: val };
@@ -1000,6 +1001,21 @@ const TestimonialsEditor = ({ config, onChange }) => {
   };
   const addItem = () => onChange({ ...config, items: [...(config.items || []), { name: '', location: '', rating: 5, text: '', verified: false, date: '', image: '' }] });
   const removeItem = (idx) => onChange({ ...config, items: (config.items || []).filter((_, i) => i !== idx) });
+
+  const handleAvatarUpload = async (idx, file) => {
+    if (!file) return;
+    setUploadingIdx(idx);
+    try {
+      const res = await storeProductsApi.uploadImages([file]);
+      const uploaded = res.data?.data || res.data?.urls || res.data?.images || [];
+      const url = (Array.isArray(uploaded) ? uploaded : []).map(item => typeof item === 'string' ? item : item?.url).filter(Boolean)[0];
+      if (url) updateItem(idx, 'image', url);
+    } catch (err) {
+      console.error('Testimonial avatar upload failed:', err);
+    } finally {
+      setUploadingIdx(null);
+    }
+  };
 
   return (
     <div className="space-y-3">
@@ -1032,6 +1048,28 @@ const TestimonialsEditor = ({ config, onChange }) => {
                 className="border border-gray-200 rounded-lg px-2 py-1.5 text-sm" placeholder="Nom" />
               <input value={item.location || ''} onChange={e => updateItem(idx, 'location', e.target.value)}
                 className="border border-gray-200 rounded-lg px-2 py-1.5 text-sm" placeholder="Ville" />
+            </div>
+            {/* Avatar upload */}
+            <div className="flex items-center gap-2">
+              {item.image ? (
+                <div className="relative group">
+                  <img src={item.image} alt="" className="w-10 h-10 rounded-full object-cover border-2 border-gray-200" />
+                  <button onClick={() => updateItem(idx, 'image', '')}
+                    className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition">
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ) : (
+                <div className="w-10 h-10 rounded-full bg-gray-100 border-2 border-dashed border-gray-300 flex items-center justify-center">
+                  <Image className="w-4 h-4 text-gray-400" />
+                </div>
+              )}
+              <label className="flex items-center gap-1 px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded-lg cursor-pointer transition">
+                {uploadingIdx === idx ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
+                <span>{item.image ? 'Changer' : 'Photo'}</span>
+                <input type="file" accept="image/*" className="hidden"
+                  onChange={e => handleAvatarUpload(idx, e.target.files?.[0])} />
+              </label>
             </div>
             <div className="grid grid-cols-2 gap-2">
               <select value={item.rating || 5} onChange={e => updateItem(idx, 'rating', Number(e.target.value))}

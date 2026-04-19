@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { DndContext, closestCenter, PointerSensor, KeyboardSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { GripVertical, Eye, EyeOff, ChevronDown, ChevronUp, Plus, Trash2, Star, Upload, Loader2, AlertCircle, X } from 'lucide-react';
+import { GripVertical, Eye, EyeOff, ChevronDown, ChevronUp, Plus, Trash2, Star, Upload, Loader2, AlertCircle, X, Image } from 'lucide-react';
 import { storeProductsApi } from '../../services/storeApi.js';
 
 const SECTION_META = {
@@ -64,7 +64,72 @@ const EDITABLE_SECTIONS = {
 // ── Inline content editor for a section ───────────────────────────────────────
 const inputCls = "w-full px-3 py-2 rounded-lg border border-gray-200 text-[13px] outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-200 transition-all bg-white";
 
-const EMPTY_TESTIMONIAL = { name: '', location: '', rating: 5, text: '', verified: true, date: '' };
+const EMPTY_TESTIMONIAL = { name: '', location: '', rating: 5, text: '', verified: true, date: '', image: '' };
+
+// Helper component for a single testimonial card with avatar upload
+const BlocksTestimonialCard = ({ t, i, updateT, removeT }) => {
+  const [uploading, setUploading] = useState(false);
+  const handleUpload = async (file) => {
+    if (!file) return;
+    setUploading(true);
+    try {
+      const res = await storeProductsApi.uploadImages([file]);
+      const uploaded = res.data?.data || res.data?.urls || res.data?.images || [];
+      const url = (Array.isArray(uploaded) ? uploaded : []).map(item => typeof item === 'string' ? item : item?.url).filter(Boolean)[0];
+      if (url) updateT(i, 'image', url);
+    } catch (err) {
+      console.error('Testimonial avatar upload failed:', err);
+    } finally {
+      setUploading(false);
+    }
+  };
+  return (
+    <div className="rounded-lg border border-gray-100 p-2.5 bg-gray-50/50 space-y-1.5">
+      <div className="flex items-center justify-between mb-0.5">
+        <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wide">Avis #{i + 1}</span>
+        <button onClick={() => removeT(i)} className="p-0.5 text-gray-300 hover:text-red-400 transition-colors"><Trash2 size={12} /></button>
+      </div>
+      {/* Avatar upload */}
+      <div className="flex items-center gap-2">
+        {t.image ? (
+          <div className="relative group">
+            <img src={t.image} alt="" className="w-9 h-9 rounded-full object-cover border-2 border-gray-200" />
+            <button type="button" onClick={() => updateT(i, 'image', '')}
+              className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition">
+              <X className="w-2.5 h-2.5" />
+            </button>
+          </div>
+        ) : (
+          <div className="w-9 h-9 rounded-full bg-gray-100 border-2 border-dashed border-gray-300 flex items-center justify-center">
+            <Image className="w-3.5 h-3.5 text-gray-400" />
+          </div>
+        )}
+        <label className="flex items-center gap-1 px-2 py-1 text-[10px] bg-gray-100 hover:bg-gray-200 rounded-lg cursor-pointer transition">
+          {uploading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
+          <span>{t.image ? 'Changer' : 'Photo'}</span>
+          <input type="file" accept="image/*" className="hidden"
+            onChange={e => handleUpload(e.target.files?.[0])} />
+        </label>
+      </div>
+      <div className="grid grid-cols-2 gap-1.5">
+        <input className={inputCls} value={t.name} onChange={e => updateT(i, 'name', e.target.value)} placeholder="Prénom Nom" />
+        <input className={inputCls} value={t.location || ''} onChange={e => updateT(i, 'location', e.target.value)} placeholder="Ville" />
+      </div>
+      <textarea className={inputCls + ' resize-none'} rows={2} value={t.text} onChange={e => updateT(i, 'text', e.target.value)} placeholder="Texte du témoignage…" />
+      <div className="flex items-center gap-3">
+        <div className="flex items-center gap-1">
+          {[1,2,3,4,5].map(n => (
+            <button key={n} type="button" onClick={() => updateT(i, 'rating', n)}
+              className={`transition-colors ${n <= (t.rating || 5) ? 'text-amber-400' : 'text-gray-200'}`}>
+              <Star size={14} fill="currentColor" />
+            </button>
+          ))}
+        </div>
+        <input className={inputCls + ' flex-1'} value={t.date || ''} onChange={e => updateT(i, 'date', e.target.value)} placeholder="Ex: Il y a 2 jours" />
+      </div>
+    </div>
+  );
+};
 const PRODUCT_GALLERY_DEFAULTS = {
   title: 'Photos du produit',
   subtitle: 'Faites défiler les visuels avant de commander',
@@ -196,28 +261,7 @@ const SectionContentEditor = ({ section, onChange }) => {
           </div>
         )}
         {items.map((t, i) => (
-          <div key={i} className="rounded-lg border border-gray-100 p-2.5 bg-gray-50/50 space-y-1.5">
-            <div className="flex items-center justify-between mb-0.5">
-              <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wide">Avis #{i + 1}</span>
-              <button onClick={() => removeT(i)} className="p-0.5 text-gray-300 hover:text-red-400 transition-colors"><Trash2 size={12} /></button>
-            </div>
-            <div className="grid grid-cols-2 gap-1.5">
-              <input className={inputCls} value={t.name} onChange={e => updateT(i, 'name', e.target.value)} placeholder="Prénom Nom" />
-              <input className={inputCls} value={t.location || ''} onChange={e => updateT(i, 'location', e.target.value)} placeholder="Ville" />
-            </div>
-            <textarea className={inputCls + ' resize-none'} rows={2} value={t.text} onChange={e => updateT(i, 'text', e.target.value)} placeholder="Texte du témoignage…" />
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-1">
-                {[1,2,3,4,5].map(n => (
-                  <button key={n} type="button" onClick={() => updateT(i, 'rating', n)}
-                    className={`transition-colors ${n <= (t.rating || 5) ? 'text-amber-400' : 'text-gray-200'}`}>
-                    <Star size={14} fill="currentColor" />
-                  </button>
-                ))}
-              </div>
-              <input className={inputCls + ' flex-1'} value={t.date || ''} onChange={e => updateT(i, 'date', e.target.value)} placeholder="Ex: Il y a 2 jours" />
-            </div>
-          </div>
+          <BlocksTestimonialCard key={i} t={t} i={i} updateT={updateT} removeT={removeT} />
         ))}
         <button onClick={addT} className="flex items-center gap-1 text-[11px] text-emerald-600 font-medium hover:text-emerald-700 mt-1">
           <Plus size={12} /> Ajouter un témoignage

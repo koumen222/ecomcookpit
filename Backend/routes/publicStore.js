@@ -113,11 +113,15 @@ router.get('/:subdomain/products', readLimiter, resolveStoreBySubdomain, async (
     const pageNum = Math.max(1, parseInt(page));
     const limitNum = Math.min(50, Math.max(1, parseInt(limit) || 20));
 
-    // Filter: workspace-scoped + published only
+    // Filter: workspace-scoped + store-scoped + published only
     const filter = {
       workspaceId: req.storeWorkspaceId,
       isPublished: true
     };
+    // Multi-store isolation: only show products for this store
+    if (req.storeId) {
+      filter.$and = [{ $or: [{ storeId: req.storeId }, { storeId: null }] }];
+    }
     if (category) filter.category = category;
     if (search) {
       filter.$or = [
@@ -172,11 +176,15 @@ router.get('/:subdomain/products', readLimiter, resolveStoreBySubdomain, async (
  */
 router.get('/:subdomain/products/:slug', readLimiter, resolveStoreBySubdomain, async (req, res) => {
   try {
-    const product = await StoreProduct.findOne({
+    const detailFilter = {
       workspaceId: req.storeWorkspaceId,
       slug: req.params.slug,
       isPublished: true
-    }).lean();
+    };
+    if (req.storeId) {
+      detailFilter.$or = [{ storeId: req.storeId }, { storeId: null }];
+    }
+    const product = await StoreProduct.findOne(detailFilter).lean();
 
     if (!product) {
       return res.status(404).json({ success: false, message: 'Produit introuvable' });
@@ -214,11 +222,15 @@ router.get('/:subdomain/products/:slug', readLimiter, resolveStoreBySubdomain, a
  */
 router.get('/:subdomain/categories', readLimiter, resolveStoreBySubdomain, async (req, res) => {
   try {
-    const categories = await StoreProduct.distinct('category', {
+    const catFilter = {
       workspaceId: req.storeWorkspaceId,
       isPublished: true,
       category: { $ne: '' }
-    });
+    };
+    if (req.storeId) {
+      catFilter.$or = [{ storeId: req.storeId }, { storeId: null }];
+    }
+    const categories = await StoreProduct.distinct('category', catFilter);
 
     setCacheHeaders(res, 600);
     res.json({ success: true, data: categories.sort() });
@@ -285,11 +297,15 @@ router.post('/:subdomain/orders', orderLimiter, resolveStoreBySubdomain, async (
 
     // Validate and fetch product data — workspace-scoped
     const productIds = products.map(p => p.productId);
-    const dbProducts = await StoreProduct.find({
+    const productFilter = {
       _id: { $in: productIds },
       workspaceId: req.storeWorkspaceId,
       isPublished: true
-    }).lean();
+    };
+    if (req.storeId) {
+      productFilter.$or = [{ storeId: req.storeId }, { storeId: null }];
+    }
+    const dbProducts = await StoreProduct.find(productFilter).lean();
 
     if (dbProducts.length !== products.length) {
       return res.status(400).json({
@@ -334,6 +350,7 @@ router.post('/:subdomain/orders', orderLimiter, resolveStoreBySubdomain, async (
     // Create order
     const order = new StoreOrder({
       workspaceId: req.storeWorkspaceId,
+      storeId: req.storeId || null,
       customerName: customerName.trim(),
       phone: phone.trim(),
       phoneCode: phoneCode?.trim() || '',
@@ -427,6 +444,7 @@ router.post('/:subdomain/orders', orderLimiter, resolveStoreBySubdomain, async (
 
         const mainOrder = new Order({
           workspaceId,
+          storeId: req.storeId || null,
           sourceId: orderSource?._id || null,
           sourceName: orderSource?.name || 'Scalor Store',
           orderId: order.orderNumber,
@@ -458,9 +476,11 @@ router.post('/:subdomain/orders', orderLimiter, resolveStoreBySubdomain, async (
 
         notifyNewOrder(workspaceId, mainOrder).catch(() => {});
 
-        // WhatsApp auto-confirm
+        // WhatsApp auto-confirm — use store-level settings if available, else workspace
         const workspace = await EcomWorkspace.findById(workspaceId).lean();
-        if (workspace?.whatsappAutoConfirm && mainOrder.clientPhone) {
+        const storeDoc = req.storeId ? await (await import('../models/Store.js')).default.findById(req.storeId).lean() : null;
+        const waSource = storeDoc || workspace;
+        if (waSource?.whatsappAutoConfirm && mainOrder.clientPhone) {
           const shopifyPayload = {
             order_number: order.orderNumber,
             currency: order.currency,
@@ -470,11 +490,11 @@ router.post('/:subdomain/orders', orderLimiter, resolveStoreBySubdomain, async (
             total_price: String(order.total)
           };
           sendClientOrderConfirmation(mainOrder, shopifyPayload, workspaceId.toString(), {
-            storeName: workspace.storeSettings?.storeName || workspace.name || '',
-            instanceId: workspace.whatsappAutoInstanceId || null,
-            customTemplate: workspace.whatsappOrderTemplate || null,
-            imageUrl: workspace.whatsappAutoImageUrl || null,
-            audioUrl: workspace.whatsappAutoAudioUrl || null,
+            storeName: waSource.storeSettings?.storeName || waSource.name || workspace.name || '',
+            instanceId: waSource.whatsappAutoInstanceId || workspace.whatsappAutoInstanceId || null,
+            customTemplate: waSource.whatsappOrderTemplate || workspace.whatsappOrderTemplate || null,
+            imageUrl: waSource.whatsappAutoImageUrl || workspace.whatsappAutoImageUrl || null,
+            audioUrl: waSource.whatsappAutoAudioUrl || workspace.whatsappAutoAudioUrl || null,
           }).catch(err => console.error('⚠️ [PublicStore] WhatsApp auto-confirm échoué:', err.message));
         }
       } catch (syncErr) {

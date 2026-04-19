@@ -571,14 +571,23 @@ router.put('/domains', requireEcomAuth, requireWorkspace, async (req, res) => {
   try {
     let { subdomain, customDomain } = req.body;
 
-    console.log('🌐 PUT /store/domains - workspaceId:', req.workspaceId);
+    console.log('🌐 PUT /store/domains - workspaceId:', req.workspaceId, '- activeStoreId:', req.activeStoreId);
     console.log('🌐 Request body:', { subdomain, customDomain });
 
     const update = {};
-    const activeStore = req.activeStoreId
+    // Resolve active store: from header, then fallback to primary store
+    let activeStore = req.activeStoreId
       ? await Store.findOne({ _id: req.activeStoreId, workspaceId: req.workspaceId, isActive: true }).select('_id subdomain').lean()
       : null;
+    if (!activeStore) {
+      const ws = await Workspace.findById(req.workspaceId).select('primaryStoreId').lean();
+      if (ws?.primaryStoreId) {
+        activeStore = await Store.findOne({ _id: ws.primaryStoreId, workspaceId: req.workspaceId, isActive: true }).select('_id subdomain').lean();
+        console.log('🌐 Fallback to primary store:', activeStore?._id || 'none');
+      }
+    }
     const previousSubdomain = activeStore?.subdomain || null;
+    console.log('🌐 Active store resolved:', activeStore?._id || 'none', '- previous subdomain:', previousSubdomain);
 
     if (subdomain !== undefined) {
       // Sanitize
@@ -593,16 +602,17 @@ router.put('/domains', requireEcomAuth, requireWorkspace, async (req, res) => {
         return res.status(400).json({ success: false, message: 'Ce sous-domaine est réservé' });
       }
 
-      // Check uniqueness
+      // Check uniqueness (exclude current workspace AND current store / all stores in current workspace)
       if (subdomain) {
+        const storeExcludeQuery = activeStore
+          ? { _id: { $ne: activeStore._id } }
+          : { workspaceId: { $ne: req.workspaceId } };
         const [existingWorkspace, existingStore] = await Promise.all([
           Workspace.findOne({ subdomain, _id: { $ne: req.workspaceId } }).select('_id').lean(),
-          Store.findOne({
-            subdomain,
-            ...(activeStore ? { _id: { $ne: activeStore._id } } : {}),
-          }).select('_id').lean(),
+          Store.findOne({ subdomain, ...storeExcludeQuery }).select('_id').lean(),
         ]);
         if (existingWorkspace || existingStore) {
+          console.log('🌐 Subdomain conflict:', { subdomain, existingWorkspace: !!existingWorkspace, existingStore: !!existingStore });
           return res.status(409).json({ success: false, message: 'Ce sous-domaine est déjà pris' });
         }
       }
@@ -643,7 +653,7 @@ router.put('/domains', requireEcomAuth, requireWorkspace, async (req, res) => {
       ? await Store.findById(activeStore._id).select('subdomain storeDomains').lean()
       : await Workspace.findById(req.workspaceId).select('subdomain storeDomains').lean();
 
-    console.log('✅ Domains updated successfully');
+    console.log('✅ Domains updated successfully — subdomain:', latestDomainState?.subdomain || update.subdomain, '(was:', previousSubdomain, ')');
     res.json({
       success: true,
       message: 'Domains updated',

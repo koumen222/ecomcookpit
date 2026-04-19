@@ -1,4 +1,5 @@
 import EcomWorkspace from '../models/Workspace.js';
+import Store from '../models/Store.js';
 
 /**
  * Store middleware — validates workspace access for storefront routes.
@@ -9,8 +10,9 @@ import EcomWorkspace from '../models/Workspace.js';
  */
 
 /**
- * Resolve workspace from subdomain for public store routes.
- * Sets req.store (workspace) and req.storeWorkspaceId for downstream use.
+ * Resolve store/workspace from subdomain for public store routes.
+ * Checks Store collection first (multi-store), then falls back to Workspace (legacy).
+ * Sets req.store, req.storeWorkspaceId, and req.storeId for downstream use.
  * No authentication required — these are public-facing endpoints.
  */
 export const resolveStoreBySubdomain = async (req, res, next) => {
@@ -21,8 +23,25 @@ export const resolveStoreBySubdomain = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Subdomain requis' });
     }
 
+    const clean = subdomain.toLowerCase().trim();
+
+    // 1. Try Store model first (multi-store)
+    const store = await Store.findOne({
+      subdomain: clean,
+      isActive: true,
+      'storeSettings.isStoreEnabled': true
+    }).lean();
+
+    if (store) {
+      req.store = { ...store, _id: store.workspaceId };
+      req.storeWorkspaceId = store.workspaceId;
+      req.storeId = store._id;
+      return next();
+    }
+
+    // 2. Fallback: legacy Workspace (pre-migration)
     const workspace = await EcomWorkspace.findOne({
-      subdomain: subdomain.toLowerCase(),
+      subdomain: clean,
       isActive: true,
       'storeSettings.isStoreEnabled': true
     }).lean();
@@ -33,6 +52,7 @@ export const resolveStoreBySubdomain = async (req, res, next) => {
 
     req.store = workspace;
     req.storeWorkspaceId = workspace._id;
+    req.storeId = null; // legacy single-store
     next();
   } catch (error) {
     console.error('Erreur resolveStoreBySubdomain:', error.message);

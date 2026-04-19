@@ -1073,6 +1073,8 @@ router.put('/subdomain', requireEcomAuth, requireWorkspace, requireStoreOwner, a
   try {
     let { subdomain } = req.body;
 
+    console.log('🔄 PUT /store-manage/subdomain — workspaceId:', req.workspaceId, '- requested:', subdomain);
+
     if (!subdomain) {
       return res.status(400).json({ success: false, message: 'Sous-domaine requis' });
     }
@@ -1094,23 +1096,30 @@ router.put('/subdomain', requireEcomAuth, requireWorkspace, requireStoreOwner, a
       });
     }
 
-    // Check uniqueness across Store + Workspace (exclude current store, not just current workspace)
+    // Check uniqueness across Store + Workspace (exclude current store/workspace)
     const store = await getActiveStore(req);
-    const storeQuery = { subdomain };
-    if (store) storeQuery._id = { $ne: store._id };
-    const [storeConflict, wsConflict] = await Promise.all([
-      Store.findOne(storeQuery).select('_id').lean(),
-      EcomWorkspace.findOne({ subdomain, _id: { $ne: req.workspaceId } }).select('_id').lean()
-    ]);
+    const previousSubdomain = store?.subdomain || null;
+    console.log('🔄 Active store:', store?._id || 'none', '— previous subdomain:', previousSubdomain);
 
-    if (storeConflict || wsConflict) {
-      return res.status(409).json({ success: false, message: 'Ce sous-domaine est déjà pris' });
+    // Skip uniqueness check if subdomain hasn't changed
+    if (subdomain !== previousSubdomain) {
+      const storeExcludeQuery = store
+        ? { _id: { $ne: store._id } }
+        : { workspaceId: { $ne: req.workspaceId } };
+      const [storeConflict, wsConflict] = await Promise.all([
+        Store.findOne({ subdomain, ...storeExcludeQuery }).select('_id').lean(),
+        EcomWorkspace.findOne({ subdomain, _id: { $ne: req.workspaceId } }).select('_id').lean()
+      ]);
+
+      if (storeConflict || wsConflict) {
+        console.log('🔄 Subdomain conflict:', { subdomain, storeConflict: !!storeConflict, wsConflict: !!wsConflict });
+        return res.status(409).json({ success: false, message: 'Ce sous-domaine est déjà pris' });
+      }
     }
 
-    // Update Store if available, otherwise Workspace
+    // Update Store if available, otherwise Workspace — always sync workspace for primary store
     if (store) {
       await Store.findByIdAndUpdate(store._id, { $set: { subdomain } });
-      // Only sync workspace.subdomain if this is the primary store
       const ws = await EcomWorkspace.findById(req.workspaceId).select('primaryStoreId subdomain').lean();
       if (String(ws?.primaryStoreId) === String(store._id)) {
         await EcomWorkspace.findByIdAndUpdate(req.workspaceId, { $set: { subdomain } });
@@ -1118,6 +1127,16 @@ router.put('/subdomain', requireEcomAuth, requireWorkspace, requireStoreOwner, a
     } else {
       await EcomWorkspace.findByIdAndUpdate(req.workspaceId, { $set: { subdomain } });
     }
+
+    // Invalidate cache for old and new subdomains
+    if (previousSubdomain && previousSubdomain !== subdomain) {
+      invalidateStoreCache(previousSubdomain);
+    }
+    if (subdomain) {
+      invalidateStoreCache(subdomain);
+    }
+
+    console.log('✅ Subdomain updated:', previousSubdomain, '→', subdomain, '— store:', store?._id || 'workspace-only', '— workspace:', req.workspaceId);
 
     res.json({
       success: true,
@@ -1129,12 +1148,14 @@ router.put('/subdomain', requireEcomAuth, requireWorkspace, requireStoreOwner, a
     });
   } catch (error) {
     if (error.code === 11000) {
+      console.log('🔄 Subdomain duplicate key error (11000) — workspaceId:', req.workspaceId);
       return res.status(409).json({
         success: false,
         message: 'Ce sous-domaine est déjà pris'
       });
     }
-    console.error('Erreur PUT /store-manage/subdomain:', error.message);
+    console.error('❌ Erreur PUT /store-manage/subdomain:', error.message);
+    console.error('❌ Stack:', error.stack);
     res.status(500).json({ success: false, message: 'Erreur serveur' });
   }
 });
