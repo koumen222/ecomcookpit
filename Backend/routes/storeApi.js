@@ -736,17 +736,20 @@ router.post('/:subdomain/orders', orderLimiter, async (req, res) => {
       }
 
       let itemTotal = dbProduct.price * qty;
+      let effectiveUnitPrice = dbProduct.price;
       if (item.offerPrice != null && item.offerQty != null) {
         const matchingOffer = validOffers.find(o => o.qty === item.offerQty && o.price === item.offerPrice);
         if (matchingOffer) {
           itemTotal = matchingOffer.price;
+          // Store the effective per-unit price so order snapshot math is consistent
+          effectiveUnitPrice = Math.round(matchingOffer.price / qty);
         }
       }
 
       orderProducts.push({
         productId: dbProduct._id,
         name: dbProduct.name,
-        price: dbProduct.price,
+        price: effectiveUnitPrice,
         quantity: qty,
         image: dbProduct.images?.[0]?.url || ''
       });

@@ -56,20 +56,27 @@ const CURRENCY_TO_CODE = {
 
 /**
  * Map country name (as used in form config) → phone code.
+ * Keys are stored in lowercase AND accent-stripped for robust matching.
  */
 const COUNTRY_NAME_TO_CODE = {};
+const stripAccents = (s) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 PHONE_CODES.forEach(c => {
-  COUNTRY_NAME_TO_CODE[c.name.toLowerCase()] = c.code;
+  const lower = c.name.toLowerCase();
+  COUNTRY_NAME_TO_CODE[lower] = c.code;
+  // Also add accent-stripped version for resilient lookup
+  const stripped = stripAccents(lower);
+  if (stripped !== lower) COUNTRY_NAME_TO_CODE[stripped] = c.code;
 });
 // Common aliases
 Object.assign(COUNTRY_NAME_TO_CODE, {
   'cameroon': '+237', 'ivory coast': '+225', "cote d'ivoire": '+225',
   'senegal': '+221', 'togo': '+228', 'benin': '+229', 'burkina': '+226',
-  'mali': '+223', 'guinea': '+224', 'mauritania': '+222', 'niger': '+227',
+  'mali': '+223', 'guinea': '+224', 'guinee': '+224', 'mauritania': '+222', 'niger': '+227',
   'chad': '+235', 'gabon': '+241', 'congo': '+242', 'dr congo': '+243',
   'drc': '+243', 'equatorial guinea': '+240', 'central african republic': '+236',
+  'guinee eq.': '+240', 'guinee equatoriale': '+240',
   'nigeria': '+234', 'ghana': '+233', 'morocco': '+212', 'tunisia': '+216',
-  'algeria': '+213', 'france': '+33', 'belgium': '+32', 'switzerland': '+41',
+  'algeria': '+213', 'algerie': '+213', 'france': '+33', 'belgium': '+32', 'switzerland': '+41',
   'usa': '+1', 'canada': '+1', 'usa / canada': '+1',
   'rd congo': '+243', 'guinée éq.': '+240', 'centrafrique': '+236',
 });
@@ -80,7 +87,8 @@ Object.assign(COUNTRY_NAME_TO_CODE, {
  */
 export function getPhoneCodeByCountryName(countryName) {
   if (!countryName) return null;
-  return COUNTRY_NAME_TO_CODE[countryName.toLowerCase().trim()] || null;
+  const key = countryName.toLowerCase().trim();
+  return COUNTRY_NAME_TO_CODE[key] || COUNTRY_NAME_TO_CODE[stripAccents(key)] || null;
 }
 
 /**

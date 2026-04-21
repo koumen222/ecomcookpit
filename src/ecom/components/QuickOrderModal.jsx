@@ -180,17 +180,33 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
         ? { offerPrice: offers[selectedOfferIdx].price, offerQty: offers[selectedOfferIdx].qty }
         : {};
 
-      const fullPhone = buildFullPhone(phoneCode, form.phone);
+      const getFieldValue = (knownKey, fallbackTypes) => {
+        if ((form[knownKey] || '').trim()) return form[knownKey].trim();
+        const fallbackField = effectiveFields.find(f => f.enabled !== false && fallbackTypes.includes(f.type));
+        if (fallbackField) {
+          const stateKey = FIELD_KEY_MAP[fallbackField.name] || fallbackField.name;
+          if ((form[stateKey] || '').trim()) return form[stateKey].trim();
+        }
+        return '';
+      };
+
+      const finalCustomerName = getFieldValue('customerName', ['text']);
+      const finalPhone = getFieldValue('phone', ['phone', 'number']);
+      const finalCity = getFieldValue('city', ['city_select', 'text']);
+      const finalAddress = getFieldValue('address', ['address', 'text']);
+      const finalNotes = getFieldValue('notes', ['textarea', 'text']);
+
+      const fullPhone = buildFullPhone(phoneCode, finalPhone);
       const purchaseEventId = createMetaEventId('purchase');
       const res = await publicStoreApi.placeOrder(subdomain, {
-        customerName: form.customerName.trim(),
+        customerName: finalCustomerName,
         phone: fullPhone,
         phoneCode,
         email: '',
-        address: form.address.trim(),
-        city: form.city.trim(),
+        address: finalAddress,
+        city: finalCity,
         country: selectedCountry,
-        notes: form.notes.trim(),
+        notes: finalNotes,
         products: [{ productId: product._id, quantity: form.quantity, ...offerPriceOverride }],
         channel: 'store',
         metaEventId: purchaseEventId,
@@ -224,19 +240,36 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
 
   // ── Écran de succès ──────────────────────────────────────────────────────────
   if (success && orderResult) {
-    const firstName = form.customerName.split(' ')[0];
     const storeWhatsapp = (store?.whatsapp || store?.phone || '').replace(/[^0-9+]/g, '');
-    const displayPhone = buildFullPhone(phoneCode, form.phone);
+    
+    const getFieldValue = (knownKey, fallbackTypes) => {
+      if ((form[knownKey] || '').trim()) return form[knownKey].trim();
+      const fallbackField = effectiveFields.find(f => f.enabled !== false && fallbackTypes.includes(f.type));
+      if (fallbackField) {
+        const stateKey = FIELD_KEY_MAP[fallbackField.name] || fallbackField.name;
+        if ((form[stateKey] || '').trim()) return form[stateKey].trim();
+      }
+      return '';
+    };
+
+    const finalCustomerName = getFieldValue('customerName', ['text']);
+    const finalPhone = getFieldValue('phone', ['phone', 'number']);
+    const finalCity = getFieldValue('city', ['city_select', 'text']);
+    const finalAddress = getFieldValue('address', ['address', 'text']);
+    const finalNotes = getFieldValue('notes', ['textarea', 'text']);
+
+    const firstName = finalCustomerName.split(' ')[0] || 'Client';
+    const displayPhone = buildFullPhone(phoneCode, finalPhone);
     const waMsg = buildStorefrontOrderWhatsappMessage({
       storeName: store?.name || '',
       orderNumber: orderResult.orderNumber,
       totalLabel: fmt(orderResult.total, orderResult.currency),
-      customerName: form.customerName,
+      customerName: finalCustomerName,
       displayPhone,
       country: selectedCountry,
-      city: form.city,
-      address: form.address,
-      notes: form.notes,
+      city: finalCity,
+      address: finalAddress,
+      notes: finalNotes,
     });
     const waLink = storeWhatsapp ? `https://wa.me/${storeWhatsapp.replace(/^\+/, '')}?text=${encodeURIComponent(waMsg)}` : null;
 
