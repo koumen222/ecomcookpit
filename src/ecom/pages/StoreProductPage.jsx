@@ -2104,6 +2104,7 @@ const StoreProductPage = () => {
                           </div>
                         </div>
                       );
+                    }
 
                     case 'productGallery': {
                       const galleryConfig = normalizeProductGalleryConfig(sectionContentMap.productGallery || {});
