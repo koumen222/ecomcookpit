@@ -101,9 +101,41 @@ router.get('/', scalorRequirePermission('instance:read'), async (req, res) => {
     const instances = await ScalorInstance.find({
       userId: req.scalorUser._id,
       isActive: true
-    }).select('displayName instanceName status phoneNumber messagesSentToday messagesSentThisMonth lastConnectedAt createdAt webhookUrl');
+    });
 
-    res.json({ success: true, instances });
+    // Sync live connection state from Evolution so the UI isn't stuck on a
+    // stale DB status when the connection.update webhook was missed.
+    await Promise.all(instances.map(async (inst) => {
+      try {
+        const r = await scalorEvolutionService.getConnectionState(inst.instanceName, inst.instanceToken);
+        if (!r?.success) return;
+        const state = r.data?.instance?.state || r.data?.state;
+        const mapped = state === 'open' ? 'connected'
+          : state === 'close' ? 'disconnected'
+          : state === 'connecting' ? 'connecting'
+          : null;
+        if (mapped && mapped !== inst.status) {
+          inst.status = mapped;
+          if (mapped === 'connected') inst.lastConnectedAt = new Date();
+          await inst.save();
+        }
+      } catch { /* ignore per-instance live-sync errors */ }
+    }));
+
+    const out = instances.map(i => ({
+      _id: i._id,
+      displayName: i.displayName,
+      instanceName: i.instanceName,
+      status: i.status,
+      phoneNumber: i.phoneNumber,
+      messagesSentToday: i.messagesSentToday,
+      messagesSentThisMonth: i.messagesSentThisMonth,
+      lastConnectedAt: i.lastConnectedAt,
+      createdAt: i.createdAt,
+      webhookUrl: i.webhookUrl,
+    }));
+
+    res.json({ success: true, instances: out });
   } catch (error) {
     res.status(500).json({ error: 'server_error' });
   }
