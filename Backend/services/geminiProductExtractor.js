@@ -113,7 +113,7 @@ Format de réponse STRICTEMENT en JSON valide :
 IMPORTANT: Ne retourne QUE le JSON, sans markdown ni texte supplémentaire.`;
 
   const response = await groq.chat.completions.create({
-    model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
+    model: process.env.GROQ_MODEL || 'openai/gpt-oss-20b',
     messages: [{ role: 'user', content: prompt }],
     temperature: 0.4,
     max_tokens: 2000,

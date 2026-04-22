@@ -773,10 +773,10 @@ Le champ "prompt_avant_apres" doit décrire un AVANT/APRÈS SPÉCIFIQUE à CE pr
           messages[0],
           { role: 'user', content: typeof messages[1].content === 'string' ? messages[1].content : messages[1].content[0]?.text || userPrompt }
         ];
-        response = await callGroqWithTimeout(process.env.GROQ_MODEL || 'llama-3.3-70b-versatile', textOnlyMessages, false);
+        response = await callGroqWithTimeout(process.env.GROQ_MODEL || 'openai/gpt-oss-20b', textOnlyMessages, false);
       }
     } else {
-      response = await callGroqWithTimeout(process.env.GROQ_MODEL || 'llama-3.3-70b-versatile', messages, false);
+      response = await callGroqWithTimeout(process.env.GROQ_MODEL || 'openai/gpt-oss-20b', messages, false);
     }
 
     const raw = response.choices[0]?.message?.content || '{}';

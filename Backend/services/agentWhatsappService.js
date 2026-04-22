@@ -6,7 +6,7 @@ import { generateInitialMessage, generateRelanceMessage } from './agentService.j
 let agentWhatsappConfigured = false;
 
 const initAgentWhatsapp = () => {
-  const hasApiKey = !!process.env.OPENAI_API_KEY;
+  const hasApiKey = !!process.env.GROQ_API_KEY;
   agentWhatsappConfigured = hasApiKey;
   return agentWhatsappConfigured;
 };

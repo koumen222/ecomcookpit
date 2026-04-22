@@ -1202,6 +1202,7 @@ const StoreProductPage = () => {
 
   const [showOrderModal, setShowOrderModal] = useState(false);
   const [showStickyOrderBar, setShowStickyOrderBar] = useState(false);
+  const [selectedVariants, setSelectedVariants] = useState({}); // { 'Taille': 'M', 'Couleur': 'Noir' }
   const ctaButtonsRef = useRef(null);
   const [livePageConfig, setLivePageConfig] = useState(null); // real-time override from page builder
   const [countdownSeconds, setCountdownSeconds] = useState(null);
@@ -1991,9 +1992,87 @@ const StoreProductPage = () => {
                       return <ProductReviews key={sectionId} rating={revRating} reviewCount={revCount} />;
                     }
 
-                    case 'orderForm':
+                    case 'orderForm': {
+                      // Build variants from product.variants or _pageData.fashionConfig
+                      const fashionConfig = product?._pageData?.fashionConfig;
+                      const productVariants = product?.variants || (
+                        fashionConfig && (fashionConfig.sizes?.length || fashionConfig.colors?.length) ? [
+                          ...(fashionConfig.sizes?.length ? [{ name: 'Taille', options: fashionConfig.sizes.map(s => s.startsWith('p') ? s.slice(1) : s) }] : []),
+                          ...(fashionConfig.colors?.length ? [{ name: 'Couleur', options: fashionConfig.colors.map(c => c.name), swatches: fashionConfig.colors }] : []),
+                        ] : null
+                      );
                       return (
-                        <div className="order-btn-wrapper" key={sectionId} ref={ctaButtonsRef} style={{ marginBottom: 20 }}>
+                        <div key={sectionId} style={{ marginBottom: 20 }}>
+                          {/* ── Variant selectors ── */}
+                          {productVariants?.length > 0 && (
+                            <div style={{ marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
+                              {productVariants.map(variant => (
+                                <div key={variant.name}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                                    <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#6b7280' }}>{variant.name}</span>
+                                    {selectedVariants[variant.name] && (
+                                      <span style={{ fontSize: 12, fontWeight: 600, color: aiVisualTheme?.primary || 'var(--s-primary)' }}>{selectedVariants[variant.name]}</span>
+                                    )}
+                                  </div>
+                                  {variant.swatches?.length ? (
+                                    // Color swatches
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                                      {variant.swatches.map(swatch => {
+                                        const isSelected = selectedVariants[variant.name] === swatch.name;
+                                        return (
+                                          <button
+                                            key={swatch.name}
+                                            type="button"
+                                            title={swatch.name}
+                                            onClick={() => setSelectedVariants(prev => ({ ...prev, [variant.name]: isSelected ? undefined : swatch.name }))}
+                                            style={{
+                                              width: 32, height: 32, borderRadius: '50%',
+                                              backgroundColor: swatch.hex,
+                                              border: isSelected ? `3px solid ${aiVisualTheme?.primary || 'var(--s-primary)'}` : '3px solid transparent',
+                                              outline: isSelected ? `2px solid ${aiVisualTheme?.primary || 'var(--s-primary)'}` : '2px solid #e5e7eb',
+                                              outlineOffset: isSelected ? 2 : 1,
+                                              cursor: 'pointer',
+                                              transition: 'all 0.15s',
+                                              boxSizing: 'border-box',
+                                            }}
+                                          />
+                                        );
+                                      })}
+                                    </div>
+                                  ) : (
+                                    // Size pills
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                                      {variant.options.map(option => {
+                                        const isSelected = selectedVariants[variant.name] === option;
+                                        return (
+                                          <button
+                                            key={option}
+                                            type="button"
+                                            onClick={() => setSelectedVariants(prev => ({ ...prev, [variant.name]: isSelected ? undefined : option }))}
+                                            style={{
+                                              padding: '5px 13px',
+                                              borderRadius: 8,
+                                              fontSize: 13,
+                                              fontWeight: isSelected ? 700 : 500,
+                                              cursor: 'pointer',
+                                              transition: 'all 0.15s',
+                                              border: `1.5px solid ${isSelected ? (aiVisualTheme?.primary || 'var(--s-primary)') : '#e5e7eb'}`,
+                                              backgroundColor: isSelected ? (aiVisualTheme?.primary || 'var(--s-primary)') : '#fff',
+                                              color: isSelected ? '#fff' : '#374151',
+                                            }}
+                                          >
+                                            {option}
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          {/* ── CTA / Order form ── */}
+                          <div className="order-btn-wrapper" ref={ctaButtonsRef}>
                           {ppFormType === 'embedded' && inStock ? (
                             <EmbeddedOrderForm
                               product={product}
@@ -2022,7 +2101,7 @@ const StoreProductPage = () => {
                               </span>
                             </button>
                           )}
-
+                          </div>
                         </div>
                       );
 
@@ -2373,6 +2452,7 @@ const StoreProductPage = () => {
           subdomain={subdomain}
           onClose={() => setShowOrderModal(false)}
           productPageConfig={productPageConfig}
+          selectedVariants={selectedVariants}
         />
       )}
     </div>

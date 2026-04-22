@@ -6,7 +6,7 @@ import {
   scalorCreateApiKey, scalorDeleteApiKey, scalorLoginFromEcom,
   getScalorToken, setScalorSession, clearScalorSession,
   scalorSendText, scalorListInstances, scalorGetMe,
-  scalorGetMessageLogs, scalorSetWebhook
+  scalorGetMessageLogs, scalorSetWebhook, scalorGetInstance
 } from '../services/scalorApi';
 import {
   loginProviderFromEcom,
@@ -285,6 +285,25 @@ export default function DeveloperSection() {
     } catch (err) {
       setDataError(err.response?.data?.error || err.message);
     } finally { setDataLoading(false); }
+  };
+
+  const handleTestStatus = async (id) => {
+    setDataError(''); setDataMsg('');
+    try {
+      const res = await scalorGetInstance(id);
+      const inst = res?.instance || res?.data?.instance;
+      const live = inst?.liveStatus;
+      const state = live?.instance?.state || live?.state || inst?.status;
+      const label = state === 'open' || state === 'connected' ? '✅ Connectée'
+        : state === 'connecting' ? '⏳ Connexion en cours'
+        : state === 'close' || state === 'disconnected' ? '❌ Déconnectée'
+        : state === 'awaiting_qr' ? '📱 En attente du QR'
+        : `État: ${state || 'inconnu'}`;
+      setDataMsg(`${inst?.name || inst?.instanceName || 'Instance'} — ${label}`);
+      await loadInstances();
+    } catch (err) {
+      setDataError(err.response?.data?.error || err.message);
+    }
   };
 
   const handleGetQr = async (id, forceRefresh = false) => {
@@ -574,6 +593,7 @@ export default function DeveloperSection() {
                         )}
                       </div>
                       <div className="flex flex-wrap gap-1.5 shrink-0">
+                        <Btn variant="outline" size="sm" onClick={() => handleTestStatus(inst._id)}>Tester statut</Btn>
                         <Btn variant="outline" size="sm" onClick={() => handleGetQr(inst._id)}>QR Code</Btn>
                         <Btn variant="outline" size="sm" onClick={() => setWebhookEdit({ instanceId: inst._id, url: inst.webhookUrl || '' })}>Webhook</Btn>
                         <Btn variant="outline" size="sm" onClick={() => { navigator.clipboard.writeText(inst._id); setDataMsg('ID copié : ' + inst._id); }}>Copier ID</Btn>

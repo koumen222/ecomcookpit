@@ -84,24 +84,45 @@ const TRIAL_DAYS = 7;
 
 /**
  * Apply an approved generation payment to the workspace:
- * - increments paidGenerationsRemaining
+ * - increments paidGenerationsRemaining (atomic $inc to avoid races)
  * - records the payment token
+ *
+ * Idempotent: only one concurrent caller can succeed thanks to the
+ * conditional findOneAndUpdate guard on `status: { $ne: 'paid' }`.
  */
 async function applyGenerationPayment(payment) {
-  const workspace = await EcomWorkspace.findById(payment.workspaceId);
-  if (!workspace) return;
-
   const now = new Date();
-  
-  // Add purchased generations to paid count
-  workspace.paidGenerationsRemaining = (workspace.paidGenerationsRemaining || 0) + payment.quantity;
-  await workspace.save();
 
-  payment.status = 'paid';
-  payment.creditedAt = now;
-  await payment.save();
+  // Atomic guard: only mark paid if still pending.
+  // Returns null if already paid → idempotency, no double-credit.
+  const claimed = await GenerationPayment.findOneAndUpdate(
+    { _id: payment._id, status: { $ne: 'paid' } },
+    { $set: { status: 'paid', creditedAt: now } },
+    { new: true }
+  );
 
-  console.log(`[billing] Credited ${payment.quantity} generation(s) to workspace ${workspace._id}`);
+  if (!claimed) {
+    console.log(`[billing] applyGenerationPayment: payment ${payment._id} already processed – skipping`);
+    return;
+  }
+
+  // Atomic credit increment — safe against concurrent reads on workspace
+  const workspace = await EcomWorkspace.findByIdAndUpdate(
+    payment.workspaceId,
+    { $inc: { paidGenerationsRemaining: payment.quantity } },
+    { new: true }
+  );
+
+  if (!workspace) {
+    console.error(`[billing] applyGenerationPayment: workspace ${payment.workspaceId} not found – rolling back payment status`);
+    // Roll back so the next poll/webhook attempt can retry
+    await GenerationPayment.findByIdAndUpdate(payment._id, {
+      $set: { status: 'pending', creditedAt: null }
+    });
+    return;
+  }
+
+  console.log(`[billing] Credited ${payment.quantity} generation(s) to workspace ${workspace._id} (total paidRemaining: ${workspace.paidGenerationsRemaining})`);
 }
 
 /**
@@ -776,15 +797,19 @@ router.get('/generation-status/:token', requireEcomAuth, async (req, res) => {
       return res.json({ success: true, status: payment.status, payment });
     }
 
-    // Update local record
-    payment.status = mfStatus;
+    // Update ancillary fields (non-critical, best-effort)
     if (mfData.moyen) payment.paymentMethod = mfData.moyen;
     if (mfData.numeroTransaction) payment.transactionNumber = mfData.numeroTransaction;
     if (mfData.frais) payment.fees = mfData.frais;
 
     if (mfStatus === 'paid') {
+      // applyGenerationPayment is atomic — safe to call concurrently with webhook
       await applyGenerationPayment(payment);
+      // Reload after atomic update so the response reflects the final state
+      const updated = await GenerationPayment.findById(payment._id).lean();
+      return res.json({ success: true, status: 'paid', payment: updated || payment });
     } else {
+      payment.status = mfStatus;
       await payment.save();
     }
 
@@ -921,12 +946,18 @@ router.post('/webhook', async (req, res) => {
     // Idempotency: ignore if no status change
     if (incomingStatus === payment.status) return;
 
-    // Additional fields from webhook payload
-    if (req.body.moyen) payment.paymentMethod = req.body.moyen;
-    if (req.body.numeroTransaction) payment.transactionNumber = req.body.numeroTransaction;
-    if (req.body.frais !== undefined) payment.fees = req.body.frais;
+    // Update ancillary fields before applying
+    const ancillaryUpdates = {};
+    if (req.body.moyen) ancillaryUpdates.paymentMethod = req.body.moyen;
+    if (req.body.numeroTransaction) ancillaryUpdates.transactionNumber = req.body.numeroTransaction;
+    if (req.body.frais !== undefined) ancillaryUpdates.fees = req.body.frais;
 
     if (incomingStatus === 'paid') {
+      // Persist ancillary fields alongside the atomic status update handled inside apply*
+      if (Object.keys(ancillaryUpdates).length) {
+        const Model = isGenerationPayment ? GenerationPayment : PlanPayment;
+        await Model.findByIdAndUpdate(payment._id, { $set: ancillaryUpdates });
+      }
       if (isGenerationPayment) {
         await applyGenerationPayment(payment);
       } else {
