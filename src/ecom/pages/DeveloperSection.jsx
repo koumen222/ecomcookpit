@@ -224,6 +224,19 @@ export default function DeveloperSection() {
     if (scalorToken && activeTab === 'logs') loadLogs();
   }, [scalorToken, activeTab, loadLogs]);
 
+  // Auto-poll instance list while any instance is in a non-terminal state.
+  // WhatsApp QR expires ~20s and the connection.update webhook can be missed,
+  // so we refresh periodically so the UI catches the real state.
+  useEffect(() => {
+    if (!scalorToken || activeTab !== 'instances') return;
+    const needsPolling = instances.some(i =>
+      ['awaiting_qr', 'connecting', 'disconnected', 'close'].includes(i.status) || !i.status
+    );
+    if (!needsPolling) return;
+    const id = setInterval(loadInstances, 5000);
+    return () => clearInterval(id);
+  }, [scalorToken, activeTab, instances, loadInstances]);
+
   /* ───────────────────── Instance handlers ───────────────────── */
   const handleCreateInstance = async (e) => {
     e.preventDefault();
@@ -283,6 +296,19 @@ export default function DeveloperSection() {
       setDataError(err.response?.data?.error || err.message);
     }
   };
+
+  // WhatsApp QR expires after ~20s — refresh it and close when the instance connects.
+  useEffect(() => {
+    if (!qrData?.instanceId) return;
+    const current = instances.find(i => i._id === qrData.instanceId);
+    if (current && (current.status === 'connected' || current.status === 'open')) {
+      setQrData(null);
+      setDataMsg('Instance connectée.');
+      return;
+    }
+    const id = setInterval(() => handleGetQr(qrData.instanceId, true), 20000);
+    return () => clearInterval(id);
+  }, [qrData?.instanceId, instances]);
 
   const handleSetWebhook = async (e) => {
     e.preventDefault();
