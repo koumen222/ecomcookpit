@@ -156,8 +156,20 @@ router.get('/:id', scalorRequirePermission('instance:read'), async (req, res) =>
       return res.status(404).json({ error: 'instance_not_found' });
     }
 
-    // Get live connection status from Evolution API
+    // Get live connection status from Evolution API and sync DB if it drifted
     const statusResult = await scalorEvolutionService.getConnectionState(instance.instanceName, instance.instanceToken);
+    if (statusResult?.success) {
+      const state = statusResult.data?.instance?.state || statusResult.data?.state;
+      const mapped = state === 'open' ? 'connected'
+        : state === 'close' ? 'disconnected'
+        : state === 'connecting' ? 'connecting'
+        : null;
+      if (mapped && mapped !== instance.status) {
+        instance.status = mapped;
+        if (mapped === 'connected') instance.lastConnectedAt = new Date();
+        await instance.save();
+      }
+    }
 
     res.json({
       success: true,

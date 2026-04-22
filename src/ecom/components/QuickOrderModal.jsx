@@ -35,7 +35,7 @@ const isMeaningfulPlaceholder = (value, ignoredPatterns = []) => {
  * Après succès → affiche un bouton WhatsApp pré-rempli avec les détails de commande.
  * Accepts productPageConfig to apply design, field visibility, and quantity options.
  */
-const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPageConfig }) => {
+const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPageConfig, selectedVariants = {} }) => {
   const [form, setForm] = useState({ customerName: '', phone: '', city: '', address: '', notes: '', quantity: 1 });
   const [phoneCode, setPhoneCode] = useState(() => getDefaultPhoneCodeFromConfig(productPageConfig?.general?.countries, store?.currency));
   const [submitting, setSubmitting] = useState(false);
@@ -198,6 +198,11 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
 
       const fullPhone = buildFullPhone(phoneCode, finalPhone);
       const purchaseEventId = createMetaEventId('purchase');
+      // Append selected variants (size, color…) to notes
+      const variantEntries = Object.entries(selectedVariants).filter(([, v]) => v);
+      const variantNote = variantEntries.length ? variantEntries.map(([k, v]) => `${k}: ${v}`).join(' | ') : '';
+      const combinedNotes = [finalNotes, variantNote].filter(Boolean).join(' — ');
+
       const res = await publicStoreApi.placeOrder(subdomain, {
         customerName: finalCustomerName,
         phone: fullPhone,
@@ -206,7 +211,8 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
         address: finalAddress,
         city: finalCity,
         country: selectedCountry,
-        notes: finalNotes,
+        notes: combinedNotes,
+        variants: variantEntries.length ? variantEntries.map(([k, v]) => ({ name: k, value: v })) : undefined,
         products: [{ productId: product._id, quantity: form.quantity, ...offerPriceOverride }],
         channel: 'store',
         metaEventId: purchaseEventId,
@@ -364,6 +370,16 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
 
         {/* Formulaire */}
         <form onSubmit={handleSubmit} style={{ padding: '20px 20px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {/* Selected variants summary */}
+          {Object.entries(selectedVariants).filter(([, v]) => v).length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, padding: '10px 12px', backgroundColor: '#F9FAFB', borderRadius: 10, border: '1px solid #E5E7EB' }}>
+              {Object.entries(selectedVariants).filter(([, v]) => v).map(([key, val]) => (
+                <span key={key} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 10px', borderRadius: 20, backgroundColor: btnColor + '18', color: btnColor, fontSize: 12, fontWeight: 700 }}>
+                  <span style={{ opacity: 0.7, fontWeight: 500 }}>{key}:</span> {val}
+                </span>
+              ))}
+            </div>
+          )}
           {error && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', backgroundColor: '#FEF2F2', border: '1px solid #FEE2E2', borderRadius: 10, color: '#DC2626', fontSize: 13 }}>
               <AlertCircle size={15} /> {error}

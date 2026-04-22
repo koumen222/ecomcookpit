@@ -2021,52 +2021,50 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
                 <>
                   {/* Template de page produit */}
                   {productSubstep === 1 && (
-                  <div className="rounded-[30px] border border-gray-200 bg-white p-5 shadow-[0_16px_40px_rgba(15,23,42,0.06)] sm:p-6">
-                    <label className="mb-1 flex items-center gap-2 text-sm font-semibold text-gray-700">
-                      <Layers className="h-4 w-4 text-slate-700" />
-                      Template visuel
-                    </label>
-                    <p className="text-xs text-gray-500 mb-3">Choisis le type de produit — chaque template a son propre style d'images et de mise en page</p>
-                    <div className="flex gap-2 overflow-x-auto pb-1">
+                  <div className="rounded-2xl border border-gray-200 bg-white p-5 sm:p-6">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Layers className="h-4 w-4 text-gray-400" />
+                      <label className="text-sm font-semibold text-gray-800">Template visuel</label>
+                    </div>
+                    <p className="text-xs text-gray-400 mb-4">Choisie le type de produit — chaque template a son propre style d'images</p>
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                       {VISUAL_TEMPLATES.map(t => {
+                        const isActive = visualTemplate === t.id;
                         const previewTheme = buildTemplateTheme(t.id);
                         return (
-                        <button
-                          key={t.id}
-                          type="button"
-                          onClick={() => setVisualTemplate(t.id)}
-                          className={`w-[160px] min-w-[160px] flex-shrink-0 overflow-hidden rounded-[20px] border text-left transition-all duration-200 ${
-                            visualTemplate === t.id
-                              ? `${t.border} shadow-[0_16px_38px_rgba(15,23,42,0.10)] scale-[1.02]`
-                              : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow-sm'
-                          }`}
-                        >
-                          <div
-                            className="relative aspect-[6/4] overflow-hidden"
-                            style={{
-                              background: `linear-gradient(160deg, ${previewTheme.primary} 0%, ${previewTheme.accent} 58%, ${previewTheme.background} 100%)`,
-                            }}
+                          <button
+                            key={t.id}
+                            type="button"
+                            onClick={() => setVisualTemplate(t.id)}
+                            className="group flex items-center gap-3 rounded-xl border px-3.5 py-3 text-left transition-all duration-150"
+                            style={isActive
+                              ? { borderColor: previewTheme.primary, backgroundColor: previewTheme.primary }
+                              : { borderColor: '#e5e7eb', backgroundColor: '#fff' }
+                            }
+                            onMouseEnter={!isActive ? (e) => { e.currentTarget.style.borderColor = '#d1d5db'; e.currentTarget.style.backgroundColor = '#f9fafb'; } : undefined}
+                            onMouseLeave={!isActive ? (e) => { e.currentTarget.style.borderColor = '#e5e7eb'; e.currentTarget.style.backgroundColor = '#fff'; } : undefined}
                           >
-                            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.28),transparent_30%),radial-gradient(circle_at_bottom_left,rgba(255,255,255,0.22),transparent_28%)]" />
-                            <div className="absolute left-2.5 top-2.5 flex h-7 w-7 items-center justify-center rounded-xl border border-white/20 bg-white/15 text-white backdrop-blur-sm">
-                              <t.icon className="h-3.5 w-3.5" />
+                            <div
+                              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
+                              style={{ backgroundColor: isActive ? 'rgba(255,255,255,0.18)' : `${previewTheme.primary}18` }}
+                            >
+                              <t.icon
+                                className="h-4 w-4"
+                                style={{ color: isActive ? '#fff' : previewTheme.primary }}
+                              />
                             </div>
-                            <div className="absolute inset-x-2.5 bottom-2.5 rounded-[14px] border border-white/20 bg-black/20 p-2 text-white backdrop-blur-md">
-                              <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-white/70">Template</p>
-                              <p className="mt-0.5 text-[11px] font-bold leading-tight">{t.label}</p>
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-xs font-bold leading-tight" style={{ color: isActive ? '#fff' : '#1f2937' }}>{t.label}</p>
+                              <p className="mt-0.5 truncate text-[10px] leading-tight" style={{ color: isActive ? 'rgba(255,255,255,0.6)' : '#9ca3af' }}>{t.desc}</p>
                             </div>
-                            <div className="absolute -right-4 top-10 h-16 w-16 rounded-full border border-white/15 bg-white/10" />
-                            <div className="absolute bottom-12 left-3 h-10 w-10 rounded-[12px] border border-white/15 bg-white/10 rotate-12" />
-                          </div>
-                        </button>
-                      )})}
+                          </button>
+                        );
+                      })}
                     </div>
 
-                    <div className="mt-4 rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 py-3">
-                      <p className="text-xs text-gray-500">
-                        Le template sert uniquement de point de départ visuel. La page finale, les visuels et la structure restent générés dynamiquement.
-                      </p>
-                    </div>
+                    <p className="mt-3 text-[11px] text-gray-400">
+                      Le template sert uniquement de point de départ visuel. La page et les visuels restent générés dynamiquement.
+                    </p>
 
                     {visualTemplate === 'fashion' && (
                       <div className="mt-5 rounded-[24px] border-2 border-purple-100 bg-gradient-to-br from-purple-50/60 to-pink-50/40 p-5">
@@ -2611,7 +2609,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
                           <button
                             type="button"
                             onClick={resumePendingGenerationPayment}
-                            className="w-full flex items-center justify-center gap-2 px-4 py-3.5 bg-scalor-copper text-white font-bold rounded-xl hover:bg-scalor-copper-dark transition text-sm disabled:opacity-50 shadow-lg"
+                            className="w-full flex items-center justify-center gap-2 px-4 py-3.5 bg-scalor-green text-white font-bold rounded-xl hover:bg-scalor-green-dark transition text-sm disabled:opacity-40"
                           >
                             {pendingGenerationPayment?.amount ? (
                               <><Zap className="w-4 h-4" /> Continuer le paiement {pendingGenerationPayment.amount} FCFA</>
@@ -2640,45 +2638,45 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
                       ) : (
                         <>
                           {/* Pack selection */}
-                          <div className="grid gap-3">
+                          <div className="grid gap-2">
                             <button type="button" onClick={() => setSelectedPack('unit')}
-                              className={`flex items-center gap-3 p-4 rounded-xl border-2 text-left transition-all ${selectedPack === 'unit' ? 'border-[#96C7B5] bg-[#E6F2ED] shadow-md' : 'border-gray-200 bg-white hover:border-[#96C7B5]'}`}>
-                              <div className="w-11 h-11 rounded-full bg-[#E6F2ED] flex items-center justify-center shrink-0">
-                                <Zap className="w-5 h-5 text-scalor-green" />
+                              className={`flex items-center gap-3 p-4 rounded-xl border text-left transition-all ${selectedPack === 'unit' ? 'border-scalor-green bg-scalor-green text-white' : 'border-gray-200 bg-white text-gray-900 hover:border-gray-400'}`}>
+                              <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${selectedPack === 'unit' ? 'bg-white/15' : 'bg-scalor-green/10'}`}>
+                                <Zap className={`w-4 h-4 ${selectedPack === 'unit' ? 'text-white' : 'text-scalor-green'}`} />
                               </div>
                               <div className="flex-1">
-                                <p className="text-sm font-bold text-gray-900">1 crédit</p>
-                                <p className="text-xs text-gray-500">1 page produit complète avec visuels IA</p>
+                                <p className={`text-sm font-bold ${selectedPack === 'unit' ? 'text-white' : 'text-gray-900'}`}>1 crédit</p>
+                                <p className={`text-xs ${selectedPack === 'unit' ? 'text-white/70' : 'text-gray-500'}`}>1 page produit complète avec visuels IA</p>
                               </div>
-                              <span className="text-base font-extrabold text-scalor-green">{pricing.unit} FCFA</span>
+                              <span className={`text-sm font-bold ${selectedPack === 'unit' ? 'text-white' : 'text-gray-900'}`}>{pricing.unit} FCFA</span>
                             </button>
                             <button type="button" onClick={() => setSelectedPack('pack3')}
-                              className={`flex items-center gap-3 p-4 rounded-xl border-2 text-left transition-all relative ${selectedPack === 'pack3' ? 'border-[#96C7B5] bg-[#E6F2ED] shadow-md' : 'border-gray-200 bg-white hover:border-[#96C7B5]'}`}>
-                              <span className="absolute -top-2.5 right-4 text-[10px] font-bold bg-scalor-green text-white px-2.5 py-0.5 rounded-full shadow">MEILLEURE OFFRE</span>
-                              <div className="w-11 h-11 rounded-full bg-[#E6F2ED] flex items-center justify-center shrink-0">
-                                <Zap className="w-5 h-5 text-scalor-green" />
+                              className={`flex items-center gap-3 p-4 rounded-xl border text-left transition-all relative ${selectedPack === 'pack3' ? 'border-scalor-green bg-scalor-green text-white' : 'border-gray-200 bg-white text-gray-900 hover:border-gray-400'}`}>
+                              <span className="absolute -top-2.5 right-4 text-[10px] font-bold bg-scalor-green text-white px-2.5 py-0.5 rounded-full">MEILLEURE OFFRE</span>
+                              <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${selectedPack === 'pack3' ? 'bg-white/15' : 'bg-scalor-green/10'}`}>
+                                <Zap className={`w-4 h-4 ${selectedPack === 'pack3' ? 'text-white' : 'text-scalor-green'}`} />
                               </div>
                               <div className="flex-1">
-                                <p className="text-sm font-bold text-gray-900">Pack 3 crédits</p>
-                                <p className="text-xs text-gray-500">Économise {pricing.unit * 3 - pricing.pack3} FCFA sur 3 crédits</p>
+                                <p className={`text-sm font-bold ${selectedPack === 'pack3' ? 'text-white' : 'text-gray-900'}`}>Pack 3 crédits</p>
+                                <p className={`text-xs ${selectedPack === 'pack3' ? 'text-white/70' : 'text-gray-500'}`}>Économise {pricing.unit * 3 - pricing.pack3} FCFA sur 3 crédits</p>
                               </div>
-                              <span className="text-base font-extrabold text-scalor-green">{pricing.pack3} FCFA</span>
+                              <span className={`text-sm font-bold ${selectedPack === 'pack3' ? 'text-white' : 'text-gray-900'}`}>{pricing.pack3} FCFA</span>
                             </button>
                           </div>
 
                           {/* Formulaire paiement */}
                           <div className="space-y-3 pt-1">
                             <div>
-                              <label className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-gray-700"><Phone className="h-3.5 w-3.5 text-scalor-green" />Numéro de téléphone</label>
+                              <label className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-gray-500"><Phone className="h-3.5 w-3.5 text-scalor-green" />Numéro de téléphone</label>
                               <input type="tel" value={paymentPhone} onChange={(e) => setPaymentPhone(e.target.value)}
                                 placeholder="Ex: 0707070707"
-                                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-scalor-green focus:border-[#0F6B4F]" />
+                                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-scalor-green focus:border-scalor-green" />
                             </div>
                             <div>
-                              <label className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-gray-700"><User className="h-3.5 w-3.5 text-scalor-green" />Votre nom</label>
+                              <label className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-gray-500"><User className="h-3.5 w-3.5 text-scalor-green" />Votre nom</label>
                               <input type="text" value={paymentName} onChange={(e) => setPaymentName(e.target.value)}
                                 placeholder="Ex: Jean Dupont"
-                                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-scalor-green focus:border-[#0F6B4F]" />
+                                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-scalor-green focus:border-scalor-green" />
                             </div>
                           </div>
 
@@ -2690,7 +2688,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
 
                           {/* Bouton payer */}
                           <button type="button" onClick={handleBuyGeneration} disabled={paymentLoading || !selectedPack}
-                            className="w-full flex items-center justify-center gap-2 px-4 py-3.5 bg-scalor-copper text-white font-bold rounded-xl hover:bg-scalor-copper-dark transition text-sm disabled:opacity-50 shadow-lg">
+                            className="w-full flex items-center justify-center gap-2 px-4 py-3.5 bg-scalor-green text-white font-bold rounded-xl hover:bg-scalor-green-dark transition text-sm disabled:opacity-40">
                             {paymentLoading ? (
                               <><Loader2 className="w-4 h-4 animate-spin" /> Chargement...</>
                             ) : (

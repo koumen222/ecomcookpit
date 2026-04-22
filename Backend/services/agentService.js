@@ -415,7 +415,7 @@ const generateAgentResponse = async (conversation, clientMessage, intent, sentim
       if (!groq) throw kieErr;
       console.warn(`⚠️ [AGENT] KIE indisponible, fallback Groq: ${kieErr.message}`);
       const completion = await groq.chat.completions.create({
-        model: process.env.AGENT_GROQ_MODEL || 'meta-llama/llama-4-scout-17b-16e-instruct',
+        model: process.env.AGENT_GROQ_MODEL || 'openai/gpt-oss-20b',
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt }
@@ -425,7 +425,7 @@ const generateAgentResponse = async (conversation, clientMessage, intent, sentim
       });
       response = completion.choices[0].message.content.trim();
       tokensUsed = completion.usage?.total_tokens || 0;
-      modelUsed = process.env.AGENT_GROQ_MODEL || 'meta-llama/llama-4-scout-17b-16e-instruct';
+      modelUsed = process.env.AGENT_GROQ_MODEL || 'openai/gpt-oss-20b';
     }
 
     const processingTime = Date.now() - startTime;

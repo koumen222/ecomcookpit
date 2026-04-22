@@ -1,35 +1,38 @@
-import axios from 'axios';
+import Groq from 'groq-sdk';
 
-const KIE_API_KEY = process.env.KIE_API_KEY || process.env.NANOBANANA_API_KEY || '';
-const KIE_BASE_URL = (process.env.KIE_BASE_URL || 'https://api.kie.ai').replace(/\/+$/, '');
-const KIE_MODEL_PATH = process.env.KIE_MODEL_PATH || '/gpt-5-2/v1/chat/completions';
-const DEFAULT_TIMEOUT_MS = Number(process.env.KIE_TIMEOUT_MS || 120000);
+const GROQ_API_KEY = process.env.GROQ_API_KEY || '';
+const GROQ_TEXT_MODEL = process.env.GROQ_TEXT_MODEL || 'openai/gpt-oss-20b';
+
+let _groq = null;
+
+function getGroq() {
+  if (!_groq && GROQ_API_KEY) {
+    _groq = new Groq({ apiKey: GROQ_API_KEY });
+  }
+  return _groq;
+}
 
 export function isKieConfigured() {
-  return !!KIE_API_KEY;
+  return !!GROQ_API_KEY;
 }
 
 export function normalizeKieMessages(messages = []) {
   return (messages || []).map((message) => {
-    const role = ['developer', 'system', 'user', 'assistant', 'tool'].includes(message?.role)
+    const role = ['system', 'user', 'assistant'].includes(message?.role)
       ? message.role
       : 'user';
 
     if (Array.isArray(message?.content)) {
-      return {
-        role,
-        content: message.content,
-      };
+      // Flatten to string for Groq text model
+      const text = message.content
+        .map((c) => (typeof c === 'string' ? c : c?.text || ''))
+        .join('');
+      return { role, content: text };
     }
 
     return {
       role,
-      content: [
-        {
-          type: 'text',
-          text: String(message?.content || ''),
-        },
-      ],
+      content: String(message?.content || ''),
     };
   });
 }
@@ -56,44 +59,38 @@ export async function callKieChatCompletion({
   messages,
   temperature = 0.4,
   maxTokens = 4096,
-  reasoningEffort = 'low',
-  includeThoughts = false,
-  timeoutMs = DEFAULT_TIMEOUT_MS,
   tools,
+  // legacy params kept for call-site compatibility, unused
+  reasoningEffort,
+  includeThoughts,
+  timeoutMs,
 }) {
-  if (!KIE_API_KEY) {
-    throw new Error('KIE_API_KEY non configure');
+  const groq = getGroq();
+  if (!groq) {
+    throw new Error('GROQ_API_KEY non configuré');
   }
 
   const payload = {
+    model: GROQ_TEXT_MODEL,
     messages: normalizeKieMessages(messages),
-    stream: false,
-    include_thoughts: includeThoughts,
-    reasoning_effort: reasoningEffort,
-    max_tokens: maxTokens,
     temperature,
+    max_tokens: maxTokens,
   };
 
   if (Array.isArray(tools) && tools.length > 0) {
     payload.tools = tools;
   }
 
-  const response = await axios.post(`${KIE_BASE_URL}${KIE_MODEL_PATH}`, payload, {
-    headers: {
-      Authorization: `Bearer ${KIE_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    timeout: Number(timeoutMs) || DEFAULT_TIMEOUT_MS,
-  });
+  const completion = await groq.chat.completions.create(payload);
 
-  const text = extractKieContent(response.data);
+  const text = completion.choices?.[0]?.message?.content?.trim() || '';
   if (!text) {
-    throw new Error('KIE response vide');
+    throw new Error('Groq response vide');
   }
 
   return {
     content: text,
-    usage: response.data?.usage || null,
-    raw: response.data,
+    usage: completion.usage || null,
+    raw: completion,
   };
 }

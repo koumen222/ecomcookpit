@@ -170,6 +170,11 @@ const storeProductSchema = new mongoose.Schema({
     }],
     default: []
   },
+  // Fashion / mode variants (sizes + colors) — auto-populated from AI page generator
+  variants: {
+    type: mongoose.Schema.Types.Mixed,
+    default: null
+  },
   // Full AI-generated page data blob (_pageData from generator)
   _pageData: {
     type: mongoose.Schema.Types.Mixed,

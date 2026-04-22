@@ -1437,7 +1437,7 @@ router.put('/:id', requireEcomAuth, requireWorkspace, requireStoreOwner, async (
       images, category, tags, isPublished,
       seoTitle, seoDescription, linkedProductId, currency,
       targetMarket, country, city, locale,
-      testimonials, faq, _pageData, pageBuilder, productPageConfig
+      testimonials, faq, variants, _pageData, pageBuilder, productPageConfig
     } = req.body;
 
     // Build update object — only include provided fields
@@ -1467,6 +1467,7 @@ router.put('/:id', requireEcomAuth, requireWorkspace, requireStoreOwner, async (
     if (linkedProductId !== undefined) update.linkedProductId = linkedProductId || null;
     if (testimonials !== undefined) update.testimonials = normalizeTestimonials(testimonials);
     if (faq !== undefined) update.faq = normalizeFaq(faq);
+    if (variants !== undefined) update.variants = variants;
     if (_pageData !== undefined) update._pageData = _pageData;
     if (pageBuilder !== undefined) update.pageBuilder = pageBuilder;
     if (productPageConfig !== undefined) update.productPageConfig = productPageConfig;
