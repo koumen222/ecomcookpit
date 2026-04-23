@@ -100,22 +100,39 @@ const OrderDetail = () => {
       setLoading(false);
       return;
     }
-    try {
-      const res = await ecomApi.get(`/orders/${id}`);
-      setOrder(res.data.data);
-      setEditData(res.data.data);
-    } catch (err) {
-      const status = err?.response?.status;
-      if (status === 403) {
-        setError('Accès refusé: cette commande ne vous est pas assignée.');
-      } else if (status === 404) {
-        setError('Commande introuvable');
-      } else {
-        setError('Erreur lors du chargement de la commande');
+    const MAX_ATTEMPTS = 5;
+    const DELAYS = [1000, 2000, 3000, 5000]; // ms entre chaque tentative
+    let lastErr = null;
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+      try {
+        const res = await ecomApi.get(`/orders/${id}`);
+        setOrder(res.data.data);
+        setEditData(res.data.data);
+        setLoading(false);
+        return; // succès
+      } catch (err) {
+        lastErr = err;
+        const status = err?.response?.status;
+        // Erreur définitive : pas de retry
+        if (status === 403) {
+          setError('Accès refusé: cette commande ne vous est pas assignée.');
+          setLoading(false);
+          return;
+        }
+        // Dernière tentative : afficher l'erreur
+        if (attempt === MAX_ATTEMPTS - 1) break;
+        // Attendre avant de réessayer
+        await new Promise((r) => setTimeout(r, DELAYS[attempt] ?? 5000));
       }
-    } finally {
-      setLoading(false);
     }
+    // Toutes les tentatives ont échoué
+    const status = lastErr?.response?.status;
+    if (status === 404) {
+      setError('Commande introuvable');
+    } else {
+      setError('Erreur lors du chargement de la commande');
+    }
+    setLoading(false);
   };
 
   const fetchLivreurs = async () => {
