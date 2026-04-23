@@ -23,8 +23,9 @@ class EvolutionApiService {
    * @param {string} message - Contenu du message
    */
   async sendMessage(instanceName, instanceToken, number, message, retries = 2, delayMs = 1200) {
-    // Nettoyage du numéro (garder uniquement les chiffres)
-    const cleanNumber = number.replace(/\D/g, '');
+    // Préserver le JID complet pour les groupes (format: 120363XXXX@g.us)
+    // Pour les numéros individuels, garder uniquement les chiffres
+    const cleanNumber = number.includes('@g.us') ? number.trim() : number.replace(/\D/g, '');
     
     for (let attempt = 0; attempt <= retries; attempt++) {
       try {
@@ -56,42 +57,46 @@ class EvolutionApiService {
         const isLastAttempt = attempt === retries;
         const isNetworkError = error.code === 'ECONNRESET' || error.code === 'ETIMEDOUT' || error.code === 'ECONNREFUSED';
         
-        // ⚠️ DÉSACTIVÉ: Vérification exists:false
-        // Evolution API retourne souvent exists:false même pour des numéros valides
-        // (cache bug, session instable, trop de vérifications)
-        // → On laisse WhatsApp déterminer si le numéro existe lors de l'envoi réel
         const errorData = error.response?.data;
-        
+
+        // Extraire le vrai message d'erreur Evolution API (peut être dans différents champs)
+        const evErrorMsg =
+          (Array.isArray(errorData?.response?.message) ? errorData.response.message.map(m => typeof m === 'object' ? JSON.stringify(m) : m).join(', ') : null) ||
+          (typeof errorData?.response?.message === 'string' ? errorData.response.message : null) ||
+          (Array.isArray(errorData?.message) ? errorData.message.map(m => typeof m === 'object' ? JSON.stringify(m) : m).join(', ') : null) ||
+          (typeof errorData?.message === 'string' ? errorData.message : null) ||
+          errorData?.error ||
+          error.message;
+
         // Retry uniquement sur erreurs réseau
         if (isNetworkError && !isLastAttempt) {
           console.warn(`⚠️ Tentative ${attempt + 1}/${retries + 1} échouée pour ${cleanNumber}, retry dans 2s...`);
           await new Promise(resolve => setTimeout(resolve, 2000));
           continue;
         }
-        
-        // Log l'erreur mais ne bloque pas sur exists:false
-        console.error(`❌ Erreur Evolution API (sendMessage):`, JSON.stringify(errorData, null, 2) || error.message);
+
+        // Log l'erreur complète pour diagnostic
+        console.error(`❌ Erreur Evolution API (sendMessage) [${error.response?.status || 'network'}]:`, JSON.stringify(errorData, null, 2) || error.message);
         console.error(`   Numéro: ${number}, Instance: ${instanceName}`);
-        
-        // Retourner l'erreur seulement si ce n'est pas un problème exists:false
+
+        // exists:false ignoré (bug API connu)
         const messages = errorData?.response?.message || errorData?.message;
         const hasExistsFalse = Array.isArray(messages) && messages.some(m =>
           (typeof m === 'object' && m !== null && m.exists === false)
         );
-        
+
         if (hasExistsFalse) {
-          // Log mais considère comme succès - WhatsApp gérera l'erreur réelle
           console.warn(`⚠️ Evolution API signale exists:false pour ${cleanNumber} - envoi quand même (bug API connu)`);
-          return { 
-            success: true, 
+          return {
+            success: true,
             warning: 'exists:false ignoré',
             data: { note: 'Envoi tenté malgré exists:false de l\'API' }
           };
         }
-        
+
         return {
           success: false,
-          error: error.response?.data?.message || error.message
+          error: evErrorMsg
         };
       }
     }
