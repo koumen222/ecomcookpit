@@ -155,6 +155,12 @@ const OrdersList = () => {
     autoNotifyOrders: true
   });
   const [savingWhatsAppNumber, setSavingWhatsAppNumber] = useState(false);
+  // Notifications closeuse + groupes livraison
+  const [closeuseNotifNumbers, setCloseuseNotifNumbers] = useState([]);
+  const [deliveryGroupNumbers, setDeliveryGroupNumbers] = useState([]);
+  const [savingNotifConfig, setSavingNotifConfig] = useState(false);
+  const [testingNotifConfig, setTestingNotifConfig] = useState(false);
+  const [testNotifResult, setTestNotifResult] = useState(null);
   const [deletingSource, setDeletingSource] = useState(null);
   // Auto WhatsApp config modal
   const [showAutoConfigModal, setShowAutoConfigModal] = useState(false);
@@ -464,6 +470,8 @@ const OrdersList = () => {
       setCustomWhatsAppNumber(res.data.data.customWhatsAppNumber || '');
       setWhatsappNumbers(res.data.data.whatsappNumbers || []);
       setWhatsappAutoConfirm(res.data.data.whatsappAutoConfirm || false);
+      setCloseuseNotifNumbers(res.data.data.closeuseNotifNumbers || []);
+      setDeliveryGroupNumbers(res.data.data.deliveryGroupNumbers || []);
       setAutoConfig({
         instanceId: res.data.data.whatsappAutoInstanceId || '',
         imageUrl: res.data.data.whatsappAutoImageUrl || '',
@@ -669,6 +677,38 @@ const OrdersList = () => {
       setError(getContextualError(err, 'update_settings'));
     } finally {
       setSavingWhatsAppConfig(false);
+    }
+  };
+
+  const saveNotifConfig = async () => {
+    setSavingNotifConfig(true);
+    setError('');
+    setTestNotifResult(null);
+    try {
+      const res = await ecomApi.patch('/orders/config/whatsapp-notifs', {
+        closeuseNotifNumbers,
+        deliveryGroupNumbers
+      });
+      if (res.data.success) {
+        setSuccess('Configuration des notifications sauvegardée');
+      }
+    } catch (err) {
+      setError(getContextualError(err, 'update_settings'));
+    } finally {
+      setSavingNotifConfig(false);
+    }
+  };
+
+  const testNotifConfig = async () => {
+    setTestingNotifConfig(true);
+    setTestNotifResult(null);
+    try {
+      const res = await ecomApi.post('/orders/config/whatsapp-notifs/test');
+      setTestNotifResult(res.data);
+    } catch (err) {
+      setTestNotifResult({ success: false, message: getContextualError(err, 'update_settings') });
+    } finally {
+      setTestingNotifConfig(false);
     }
   };
 
@@ -3168,164 +3208,150 @@ const OrdersList = () => {
       {showWhatsAppConfig && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowWhatsAppConfig(false)}>
           <div className="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-5" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold text-gray-900">Configuration WhatsApp Multi-Pays</h3>
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="text-lg font-bold text-gray-900">Notifications WhatsApp</h3>
               <button onClick={() => setShowWhatsAppConfig(false)} className="text-gray-400 hover:text-gray-600">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
-            <p className="text-sm text-gray-600 mb-4">
-              Configurez des numéros WhatsApp pour recevoir automatiquement les détails des nouvelles commandes selon le pays
-            </p>
-            
-            <div className="space-y-4">
-              {/* Toggle confirmation WhatsApp au client */}
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-blue-900">Confirmation WhatsApp au client</p>
-                    <p className="text-xs text-blue-600 mt-0.5">Envoyer automatiquement un message de confirmation au client après chaque commande Shopify</p>
+
+            {/* ── Section Notifications Closeuses ── */}
+            <div className="mb-6">
+              <div className="flex items-center gap-2 mb-3">
+                <svg className="w-4 h-4 text-emerald-600" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/></svg>
+                <h4 className="text-sm font-bold text-gray-900">Notifications Closeuses</h4>
+              </div>
+              <p className="text-xs text-gray-500 mb-3">Numéros WhatsApp qui reçoivent un message à chaque nouvelle commande.</p>
+              <div className="space-y-2 mb-3">
+                {closeuseNotifNumbers.map((item, idx) => (
+                  <div key={idx} className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      placeholder="Label (ex: Closeuse 1)"
+                      value={item.label}
+                      onChange={e => setCloseuseNotifNumbers(prev => prev.map((n, i) => i === idx ? { ...n, label: e.target.value } : n))}
+                      className="flex-1 min-w-0 px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs focus:ring-1 focus:ring-emerald-500"
+                    />
+                    <input
+                      type="text"
+                      placeholder="+237..."
+                      value={item.phoneNumber}
+                      onChange={e => setCloseuseNotifNumbers(prev => prev.map((n, i) => i === idx ? { ...n, phoneNumber: e.target.value } : n))}
+                      className="flex-1 min-w-0 px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs font-mono focus:ring-1 focus:ring-emerald-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setCloseuseNotifNumbers(prev => prev.map((n, i) => i === idx ? { ...n, isActive: !n.isActive } : n))}
+                      className={`p-1.5 rounded-lg border transition ${item.isActive ? 'bg-emerald-50 border-emerald-300 text-emerald-600' : 'bg-gray-50 border-gray-200 text-gray-400'}`}
+                      title={item.isActive ? 'Actif — cliquer pour désactiver' : 'Inactif — cliquer pour activer'}
+                    >
+                      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/></svg>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCloseuseNotifNumbers(prev => prev.filter((_, i) => i !== idx))}
+                      className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    onClick={toggleWhatsAppAuto}
-                    className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out ${
-                      whatsappAutoConfirm ? 'bg-green-500' : 'bg-gray-300'
-                    }`}
-                  >
-                    <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                      whatsappAutoConfirm ? 'translate-x-5' : 'translate-x-0'
-                    }`} />
-                  </button>
-                </div>
+                ))}
               </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Numéro WhatsApp</label>
-                <input
-                  type="text"
-                  value={customWhatsAppNumber}
-                  onChange={(e) => setCustomWhatsAppNumber(e.target.value)}
-                  placeholder="Ex: 237676463725"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  Format: 237 + numéro (sans + ni espaces)
-                </p>
-                <button
-                  onClick={() => testWhatsAppNumber()}
-                  disabled={savingWhatsAppConfig}
-                  className="mt-2 px-3 py-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 text-xs"
-                >
-                  Tester par défaut
-                </button>
-              </div>
-
-              {/* Numéros par pays */}
-              <div className="border border-gray-200 rounded-lg p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className="font-medium text-gray-900">Numéros par pays</h4>
-                  <button
-                    onClick={() => setShowWhatsAppMultiConfig(true)}
-                    className="px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 text-xs"
-                  >
-                    Ajouter un pays
-                  </button>
-                </div>
-                
-                {whatsappNumbers.length === 0 ? (
-                  <p className="text-sm text-gray-500 text-center py-4">
-                    Aucun numéro configuré. Ajoutez des numéros pour recevoir les notifications par pays.
-                  </p>
-                ) : (
-                  <div className="space-y-2">
-                    {whatsappNumbers.map((number) => {
-                      const country = COUNTRIES.find(c => c.code === number.country);
-                      return (
-                        <div key={number._id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                          <div className="flex items-center gap-3">
-                            <span className="text-lg">{country?.flag || '🌍'}</span>
-                            <div>
-                              <p className="text-sm font-medium text-gray-900">{number.countryName}</p>
-                              <p className="text-xs text-gray-600">{number.phoneNumber}</p>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                              number.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'
-                            }`}>
-                              {number.isActive ? 'Actif' : 'Inactif'}
-                            </span>
-                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                              number.autoNotifyOrders ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-gray-600'
-                            }`}>
-                              {number.autoNotifyOrders ? 'Auto' : 'Manuel'}
-                            </span>
-                            <button
-                              onClick={() => testWhatsAppNumber(number.country)}
-                              className="p-1 text-emerald-600 hover:bg-emerald-50 rounded"
-                              title="Tester"
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>
-                            </button>
-                            <button
-                              onClick={() => editWhatsAppNumber(number)}
-                              className="p-1 text-gray-600 hover:bg-gray-100 rounded"
-                              title="Modifier"
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                            </button>
-                            <button
-                              onClick={() => deleteWhatsAppNumber(number._id)}
-                              className="p-1 text-red-600 hover:bg-red-50 rounded"
-                              title="Supprimer"
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-
-              <div className="bg-emerald-50 rounded-lg p-3">
-                <p className="text-xs font-medium text-emerald-700 mb-2">Ce qui sera envoyé automatiquement :</p>
-                <ul className="text-xs text-emerald-600 space-y-1">
-                  <li>- Détails complets de la commande (client, produit, prix, etc.)</li>
-                  <li>- Détection automatique du pays (par téléphone ou ville)</li>
-                  <li>- Message formaté et professionnel</li>
-                  <li>- Envoi vers le numéro configuré pour le pays détecté</li>
-                </ul>
-              </div>
-
-              <div className="bg-yellow-50 rounded-lg p-3">
-                <p className="text-xs font-medium text-yellow-700 mb-2">Important :</p>
-                <ul className="text-xs text-yellow-600 space-y-1">
-                  <li>- Les numéros doivent être valides et actives sur WhatsApp</li>
-                  <li>- Format international: +indicatif + numéro</li>
-                  <li>- Les messages seront envoyés automatiquement pour les nouvelles commandes</li>
-                  <li>- Vous pouvez activer/désactiver les notifications par pays</li>
-                </ul>
-              </div>
-            </div>
-
-            <div className="flex gap-3 pt-4 border-t">
               <button
                 type="button"
-                onClick={() => setShowWhatsAppConfig(false)}
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 text-sm"
+                onClick={() => setCloseuseNotifNumbers(prev => [...prev, { label: '', phoneNumber: '', isActive: true }])}
+                className="inline-flex items-center gap-1 px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-medium hover:bg-emerald-100 transition"
               >
-                Fermer
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
+                Ajouter une closeuse
+              </button>
+            </div>
+
+            {/* ── Section Groupes de Livraison ── */}
+            <div className="mt-5 pt-5 border-t border-gray-100">
+              <div className="flex items-center gap-2 mb-3">
+                <svg className="w-4 h-4 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                <h4 className="text-sm font-bold text-gray-900">Groupes de Livraison</h4>
+              </div>
+              <p className="text-xs text-gray-500 mb-3">ID ou numéros des groupes WhatsApp livreurs. Chaque nouvelle commande y sera envoyée.</p>
+              <div className="space-y-2 mb-3">
+                {deliveryGroupNumbers.map((item, idx) => (
+                  <div key={idx} className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      placeholder="Nom du groupe"
+                      value={item.label}
+                      onChange={e => setDeliveryGroupNumbers(prev => prev.map((n, i) => i === idx ? { ...n, label: e.target.value } : n))}
+                      className="flex-1 min-w-0 px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs focus:ring-1 focus:ring-orange-400"
+                    />
+                    <input
+                      type="text"
+                      placeholder="ID groupe ou +237..."
+                      value={item.phoneNumber}
+                      onChange={e => setDeliveryGroupNumbers(prev => prev.map((n, i) => i === idx ? { ...n, phoneNumber: e.target.value } : n))}
+                      className="flex-1 min-w-0 px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs font-mono focus:ring-1 focus:ring-orange-400"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setDeliveryGroupNumbers(prev => prev.map((n, i) => i === idx ? { ...n, isActive: !n.isActive } : n))}
+                      className={`p-1.5 rounded-lg border transition ${item.isActive ? 'bg-orange-50 border-orange-300 text-orange-600' : 'bg-gray-50 border-gray-200 text-gray-400'}`}
+                      title={item.isActive ? 'Actif' : 'Inactif'}
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDeliveryGroupNumbers(prev => prev.filter((_, i) => i !== idx))}
+                      className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={() => setDeliveryGroupNumbers(prev => [...prev, { label: '', phoneNumber: '', isActive: true }])}
+                className="inline-flex items-center gap-1 px-3 py-1.5 bg-orange-50 text-orange-700 border border-orange-200 rounded-lg text-xs font-medium hover:bg-orange-100 transition"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
+                Ajouter un groupe
+              </button>
+            </div>
+
+            {/* Bouton de sauvegarde notifs */}
+            {testNotifResult && (
+              <div className={`mt-4 p-3 rounded-lg text-xs ${testNotifResult.success ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-red-50 text-red-800 border border-red-200'}`}>
+                <p className="font-semibold mb-1">{testNotifResult.success ? '✅' : '❌'} {testNotifResult.message}</p>
+                {testNotifResult.results?.map((r, i) => (
+                  <p key={i} className="font-mono">{r.status === 'ok' ? '✅' : '❌'} {r.label ? `${r.label} — ` : ''}{r.phone}{r.error ? ` : ${r.error}` : ''}</p>
+                ))}
+              </div>
+            )}
+            <div className="mt-5 flex items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={testNotifConfig}
+                disabled={testingNotifConfig || savingNotifConfig}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 border border-gray-200 rounded-xl hover:bg-gray-200 disabled:opacity-50 text-sm font-medium transition"
+              >
+                {testingNotifConfig ? (
+                  <><div className="w-4 h-4 border-2 border-gray-500 border-t-transparent rounded-full animate-spin"/><span>Test en cours...</span></>
+                ) : (
+                  <><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg><span>Tester l'envoi</span></>
+                )}
               </button>
               <button
                 type="button"
-                onClick={saveWhatsAppConfig}
-                disabled={savingWhatsAppConfig}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 text-sm"
+                onClick={saveNotifConfig}
+                disabled={savingNotifConfig}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 disabled:opacity-50 text-sm font-semibold transition"
               >
-                {savingWhatsAppConfig ? 'Enregistrement...' : 'Enregistrer par défaut'}
+                {savingNotifConfig ? (
+                  <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"/><span>Sauvegarde...</span></>
+                ) : (
+                  <><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg><span>Sauvegarder les notifications</span></>
+                )}
               </button>
             </div>
           </div>

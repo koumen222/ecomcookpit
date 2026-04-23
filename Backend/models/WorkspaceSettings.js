@@ -72,6 +72,18 @@ const workspaceSettingsSchema = new mongoose.Schema({
     autoNotifyOrders: { type: Boolean, default: true },
     createdAt: { type: Date, default: Date.now }
   }],
+  // Numéros WhatsApp des closeuses pour recevoir les notifications de nouvelles commandes
+  closeuseNotifNumbers: [{
+    label: { type: String, default: '' },
+    phoneNumber: { type: String, required: true },
+    isActive: { type: Boolean, default: true }
+  }],
+  // Groupes WhatsApp de livraison pour recevoir les notifications de nouvelles commandes
+  deliveryGroupNumbers: [{
+    label: { type: String, default: '' },
+    phoneNumber: { type: String, required: true },
+    isActive: { type: Boolean, default: true }
+  }],
   // Préférences de notifications push
   pushNotifications: {
     push_new_orders: { type: Boolean, default: true },

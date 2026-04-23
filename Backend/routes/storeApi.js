@@ -980,15 +980,22 @@ router.post('/:subdomain/orders', orderLimiter, async (req, res) => {
         notifyNewOrder(workspaceId, mainOrder)
           .catch(err => console.warn('⚠️ [Scalor Store] Notification échouée:', err.message));
 
-        // WhatsApp auto-confirm
-        if (workspace.whatsappAutoConfirm && mainOrder.clientPhone) {
-          sendClientOrderConfirmation(mainOrder, shopifyStylePayload, workspaceId.toString(), {
-            storeName:      workspace.storeSettings?.storeName || workspace.name || '',
-            instanceId:     workspace.whatsappAutoInstanceId || null,
-            customTemplate: workspace.whatsappOrderTemplate || null,
-            imageUrl:       workspace.whatsappAutoImageUrl || null,
-            audioUrl:       workspace.whatsappAutoAudioUrl || null,
-          }).catch(err => console.error('⚠️ [Scalor Store] WhatsApp auto-confirm échoué:', err.message));
+        // WhatsApp auto-confirm au client
+        if (mainOrder.clientPhone) {
+          const { default: WorkspaceSettings } = await import('../models/WorkspaceSettings.js');
+          const wsSettings = await WorkspaceSettings.findOne({ workspaceId }).select(
+            'whatsappAutoConfirm whatsappAutoInstanceId whatsappOrderTemplate whatsappAutoImageUrl whatsappAutoAudioUrl'
+          ).lean();
+          const autoConfirm = workspace.whatsappAutoConfirm || wsSettings?.whatsappAutoConfirm || false;
+          if (autoConfirm) {
+            sendClientOrderConfirmation(mainOrder, shopifyStylePayload, workspaceId.toString(), {
+              storeName:      workspace.storeSettings?.storeName || workspace.name || '',
+              instanceId:     workspace.whatsappAutoInstanceId || wsSettings?.whatsappAutoInstanceId || null,
+              customTemplate: workspace.whatsappOrderTemplate  || wsSettings?.whatsappOrderTemplate  || null,
+              imageUrl:       workspace.whatsappAutoImageUrl   || wsSettings?.whatsappAutoImageUrl   || null,
+              audioUrl:       workspace.whatsappAutoAudioUrl   || wsSettings?.whatsappAutoAudioUrl   || null,
+            }).catch(err => console.error('⚠️ [Scalor Store] WhatsApp auto-confirm échoué:', err.message));
+          }
         }
 
         // ── Meta Conversions API ─────────────────────────────────────────────

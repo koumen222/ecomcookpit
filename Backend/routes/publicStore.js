@@ -476,11 +476,16 @@ router.post('/:subdomain/orders', orderLimiter, resolveStoreBySubdomain, async (
 
         notifyNewOrder(workspaceId, mainOrder).catch(() => {});
 
-        // WhatsApp auto-confirm — use store-level settings if available, else workspace
+        // WhatsApp auto-confirm — use store-level settings if available, else workspace, else WorkspaceSettings
         const workspace = await EcomWorkspace.findById(workspaceId).lean();
         const storeDoc = req.storeId ? await (await import('../models/Store.js')).default.findById(req.storeId).lean() : null;
+        const { default: WorkspaceSettings } = await import('../models/WorkspaceSettings.js');
+        const wsSettings = await WorkspaceSettings.findOne({ workspaceId }).select(
+          'whatsappAutoConfirm whatsappAutoInstanceId whatsappOrderTemplate whatsappAutoImageUrl whatsappAutoAudioUrl'
+        ).lean();
         const waSource = storeDoc || workspace;
-        if (waSource?.whatsappAutoConfirm && mainOrder.clientPhone) {
+        const autoConfirm = waSource?.whatsappAutoConfirm || wsSettings?.whatsappAutoConfirm || false;
+        if (autoConfirm && mainOrder.clientPhone) {
           const shopifyPayload = {
             order_number: order.orderNumber,
             currency: order.currency,
@@ -491,10 +496,10 @@ router.post('/:subdomain/orders', orderLimiter, resolveStoreBySubdomain, async (
           };
           sendClientOrderConfirmation(mainOrder, shopifyPayload, workspaceId.toString(), {
             storeName: waSource.storeSettings?.storeName || waSource.name || workspace.name || '',
-            instanceId: waSource.whatsappAutoInstanceId || workspace.whatsappAutoInstanceId || null,
-            customTemplate: waSource.whatsappOrderTemplate || workspace.whatsappOrderTemplate || null,
-            imageUrl: waSource.whatsappAutoImageUrl || workspace.whatsappAutoImageUrl || null,
-            audioUrl: waSource.whatsappAutoAudioUrl || workspace.whatsappAutoAudioUrl || null,
+            instanceId: waSource.whatsappAutoInstanceId || workspace.whatsappAutoInstanceId || wsSettings?.whatsappAutoInstanceId || null,
+            customTemplate: waSource.whatsappOrderTemplate || workspace.whatsappOrderTemplate || wsSettings?.whatsappOrderTemplate || null,
+            imageUrl: waSource.whatsappAutoImageUrl || workspace.whatsappAutoImageUrl || wsSettings?.whatsappAutoImageUrl || null,
+            audioUrl: waSource.whatsappAutoAudioUrl || workspace.whatsappAutoAudioUrl || wsSettings?.whatsappAutoAudioUrl || null,
           }).catch(err => console.error('⚠️ [PublicStore] WhatsApp auto-confirm échoué:', err.message));
         }
       } catch (syncErr) {

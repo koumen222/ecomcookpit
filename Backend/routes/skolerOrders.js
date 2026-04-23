@@ -60,12 +60,16 @@ router.post('/', async (req, res) => {
 
     const workspaceId = workspace._id.toString();
 
+    // Lire aussi WorkspaceSettings pour whatsappAutoConfirm (peut être stocké là)
+    const WorkspaceSettings = (await import('../models/WorkspaceSettings.js')).default;
+    const wsSettings = await WorkspaceSettings.findOne({ workspaceId: workspace._id }).lean();
+
     const workspaceSettings = {
-      whatsappAutoConfirm:    workspace.whatsappAutoConfirm || false,
-      whatsappOrderTemplate:  workspace.whatsappOrderTemplate || null,
-      whatsappAutoInstanceId: workspace.whatsappAutoInstanceId || null,
-      whatsappAutoImageUrl:   workspace.whatsappAutoImageUrl || null,
-      whatsappAutoAudioUrl:   workspace.whatsappAutoAudioUrl || null,
+      whatsappAutoConfirm:    workspace.whatsappAutoConfirm || wsSettings?.whatsappAutoConfirm || false,
+      whatsappOrderTemplate:  workspace.whatsappOrderTemplate || wsSettings?.whatsappOrderTemplate || null,
+      whatsappAutoInstanceId: workspace.whatsappAutoInstanceId || wsSettings?.whatsappAutoInstanceId || null,
+      whatsappAutoImageUrl:   workspace.whatsappAutoImageUrl || wsSettings?.whatsappAutoImageUrl || null,
+      whatsappAutoAudioUrl:   workspace.whatsappAutoAudioUrl || wsSettings?.whatsappAutoAudioUrl || null,
       storeName:              workspace.storeSettings?.storeName || workspace.name || '',
     };
 

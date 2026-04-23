@@ -4496,6 +4496,8 @@ router.get('/config/whatsapp', requireEcomAuth, validateEcomAccess('products', '
         customWhatsAppNumber: settings?.customWhatsAppNumber || null,
         environmentNumber: process.env.CUSTOM_WHATSAPP_NUMBER || null,
         whatsappNumbers: settings?.whatsappNumbers || [],
+        closeuseNotifNumbers: settings?.closeuseNotifNumbers || [],
+        deliveryGroupNumbers: settings?.deliveryGroupNumbers || [],
         whatsappAutoConfirm: workspace?.whatsappAutoConfirm || false,
         whatsappAutoInstanceId: workspace?.whatsappAutoInstanceId || null,
         whatsappAutoImageUrl: workspace?.whatsappAutoImageUrl || null,
@@ -4511,6 +4513,96 @@ router.get('/config/whatsapp', requireEcomAuth, validateEcomAccess('products', '
   } catch (error) {
     console.error('Erreur récupération config WhatsApp:', error);
     res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// PATCH /api/ecom/orders/config/whatsapp-notifs - Sauvegarder les numéros closeuse et groupes livraison
+router.patch('/config/whatsapp-notifs', requireEcomAuth, validateEcomAccess('products', 'write'), async (req, res) => {
+  try {
+    const { closeuseNotifNumbers, deliveryGroupNumbers } = req.body;
+
+    const updateData = {};
+    if (Array.isArray(closeuseNotifNumbers)) {
+      // Valider et nettoyer chaque numéro
+      updateData.closeuseNotifNumbers = closeuseNotifNumbers
+        .filter(n => n && n.phoneNumber && n.phoneNumber.trim())
+        .map(n => ({
+          label: (n.label || '').trim(),
+          phoneNumber: n.phoneNumber.trim(),
+          isActive: n.isActive !== false
+        }));
+    }
+    if (Array.isArray(deliveryGroupNumbers)) {
+      updateData.deliveryGroupNumbers = deliveryGroupNumbers
+        .filter(n => n && n.phoneNumber && n.phoneNumber.trim())
+        .map(n => ({
+          label: (n.label || '').trim(),
+          phoneNumber: n.phoneNumber.trim(),
+          isActive: n.isActive !== false
+        }));
+    }
+
+    const settings = await WorkspaceSettings.findOneAndUpdate(
+      { workspaceId: req.workspaceId },
+      { $set: updateData },
+      { new: true, upsert: true }
+    );
+
+    res.json({
+      success: true,
+      message: 'Configuration des notifications WhatsApp sauvegardée',
+      data: {
+        closeuseNotifNumbers: settings?.closeuseNotifNumbers || [],
+        deliveryGroupNumbers: settings?.deliveryGroupNumbers || []
+      }
+    });
+  } catch (error) {
+    console.error('Erreur sauvegarde config notifs WhatsApp:', error);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// POST /api/ecom/orders/config/whatsapp-notifs/test - Tester l'envoi WhatsApp aux closeuses/groupes
+router.post('/config/whatsapp-notifs/test', requireEcomAuth, validateEcomAccess('products', 'write'), async (req, res) => {
+  try {
+    const settings = await WorkspaceSettings.findOne({ workspaceId: req.workspaceId })
+      .select('closeuseNotifNumbers deliveryGroupNumbers').lean();
+
+    const closeuseNumbers = (settings?.closeuseNotifNumbers || []).filter(n => n.isActive && n.phoneNumber);
+    const deliveryGroupNumbers = (settings?.deliveryGroupNumbers || []).filter(n => n.isActive && n.phoneNumber);
+    const allTargets = [...closeuseNumbers, ...deliveryGroupNumbers];
+
+    console.log(`🧪 [Test Notif] workspace: ${req.workspaceId}, settings: ${settings ? 'trouvé' : 'ABSENT'}, destinataires: ${allTargets.length}`);
+
+    if (allTargets.length === 0) {
+      return res.json({ success: false, message: 'Aucun numéro actif configuré. Ajoutez et sauvegardez des numéros d\'abord.' });
+    }
+
+    const { sendWhatsAppMessage } = await import('../services/whatsappService.js');
+    const msg = `🧪 *Test notification closeuse*\nCeci est un message de test.\nLes nouvelles commandes vous seront notifiées ici automatiquement. ✅`;
+
+    const results = [];
+    for (const target of allTargets) {
+      try {
+        await sendWhatsAppMessage({ to: target.phoneNumber, message: msg, workspaceId: req.workspaceId });
+        results.push({ phone: target.phoneNumber, label: target.label, status: 'ok' });
+        console.log(`✅ [Test Notif] Envoyé à ${target.phoneNumber}`);
+      } catch (err) {
+        results.push({ phone: target.phoneNumber, label: target.label, status: 'erreur', error: err.message });
+        console.warn(`❌ [Test Notif] Echec ${target.phoneNumber}: ${err.message}`);
+      }
+    }
+
+    const ok = results.filter(r => r.status === 'ok').length;
+    const fail = results.filter(r => r.status === 'erreur').length;
+    res.json({
+      success: ok > 0,
+      message: `${ok} envoyé(s), ${fail} échoué(s)`,
+      results
+    });
+  } catch (error) {
+    console.error('Erreur test notifs WhatsApp:', error);
+    res.status(500).json({ success: false, message: error.message });
   }
 });
 
