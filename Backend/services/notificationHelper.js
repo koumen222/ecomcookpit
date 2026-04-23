@@ -2,8 +2,10 @@ import Notification from '../models/Notification.js';
 import EcomUser from '../models/EcomUser.js';
 import CloseuseAssignment from '../models/CloseuseAssignment.js';
 import OrderSource from '../models/OrderSource.js';
+import WorkspaceSettings from '../models/WorkspaceSettings.js';
 import { getIO } from './socketService.js';
 import { sendPushNotification, sendPushNotificationToUser } from './pushService.js';
+import { sendWhatsAppMessage } from './whatsappService.js';
 
 /**
  * Create a notification for a workspace (broadcast) or specific user
@@ -164,6 +166,35 @@ export const notifyNewOrder = async (workspaceId, order) => {
     console.log(`📱 Push notification envoyée pour nouvelle commande: ${order._id} (${order.source || 'manual'})`);
   } catch (pushError) {
     console.warn('⚠️ Erreur envoi notification push nouvelle commande:', pushError.message);
+  }
+
+  // Envoyer WhatsApp aux closeuses configurées et aux groupes de livraison
+  try {
+    const wsId = workspaceId?._id || workspaceId; // accepte ObjectId ou string
+    console.log(`📲 [WhatsApp Notif] Recherche config pour workspace: ${wsId}`);
+    const settings = await WorkspaceSettings.findOne({ workspaceId: wsId }).select('closeuseNotifNumbers deliveryGroupNumbers').lean();
+    console.log(`📲 [WhatsApp Notif] Settings trouvé: ${settings ? 'OUI' : 'NON'}, closeuses: ${settings?.closeuseNotifNumbers?.length || 0}, groupes: ${settings?.deliveryGroupNumbers?.length || 0}`);
+    const closeuseNumbers = (settings?.closeuseNotifNumbers || []).filter(n => n.isActive && n.phoneNumber);
+    const deliveryGroupNumbers = (settings?.deliveryGroupNumbers || []).filter(n => n.isActive && n.phoneNumber);
+    const allTargets = [...closeuseNumbers, ...deliveryGroupNumbers];
+    console.log(`📲 [WhatsApp Notif] Destinataires actifs: ${allTargets.length} (closeuses: ${closeuseNumbers.length}, groupes: ${deliveryGroupNumbers.length})`);
+
+    if (allTargets.length > 0) {
+      const priceStr = order.price ? `${new Intl.NumberFormat('fr-FR').format(order.price)} ${order.currency || 'FCFA'}` : '';
+      const msg = `🛒 *Nouvelle commande*\n👤 ${order.clientName || 'Client'}\n📞 ${order.clientPhone || '-'}\n📦 ${productName}\n${priceStr ? `💰 ${priceStr}\n` : ''}📍 ${order.city || order.address || '-'}`;
+
+      for (const target of allTargets) {
+        console.log(`📲 [WhatsApp Notif] Envoi vers ${target.phoneNumber} (${target.label || 'sans label'})`);
+        sendWhatsAppMessage({ to: target.phoneNumber, message: msg, workspaceId: String(wsId) }).catch(err => {
+          console.warn(`⚠️ [WhatsApp Notif] Echec envoi vers ${target.phoneNumber}: ${err.message}`);
+        });
+      }
+      console.log(`✅ [WhatsApp Notif] ${allTargets.length} envoi(s) lancé(s) pour commande ${order._id}`);
+    } else {
+      console.log(`📲 [WhatsApp Notif] Aucun destinataire actif configuré pour ce workspace`);
+    }
+  } catch (waError) {
+    console.warn('⚠️ [WhatsApp Notif] Erreur bloc WhatsApp:', waError.message);
   }
 
   return notification;
