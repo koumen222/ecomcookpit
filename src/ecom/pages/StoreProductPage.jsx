@@ -366,7 +366,7 @@ const ImageGallery = ({ images = [], design = {} }) => {
         onTouchEnd={onTouchEnd}
       >
         <img
-          src={activeSrc}
+          src={optimizeImageUrl(activeSrc, { width: 900, quality: 82 })}
           alt={images[active]?.alt || ''}
           loading="eager"
           fetchpriority="high"
@@ -441,7 +441,7 @@ const ImageGallery = ({ images = [], design = {} }) => {
               borderRadius,
             }}>
               <img
-                src={img?.url || img} alt="" loading="lazy" decoding="async" style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                src={optimizeImageUrl(img?.url || img, { width: 120, quality: 75 })} alt="" loading="lazy" decoding="async" style={{ width: '100%', height: '100%', objectFit: 'cover' }}
               />
             </button>
           ))}
