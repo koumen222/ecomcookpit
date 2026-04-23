@@ -703,7 +703,10 @@ const OrdersList = () => {
     setTestingNotifConfig(true);
     setTestNotifResult(null);
     try {
-      const res = await ecomApi.post('/orders/config/whatsapp-notifs/test');
+      const res = await ecomApi.post('/orders/config/whatsapp-notifs/test', {
+        closeuseNotifNumbers,
+        deliveryGroupNumbers
+      });
       setTestNotifResult(res.data);
     } catch (err) {
       setTestNotifResult({ success: false, message: getContextualError(err, 'update_settings') });
@@ -3273,45 +3276,84 @@ const OrdersList = () => {
                 <svg className="w-4 h-4 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
                 <h4 className="text-sm font-bold text-gray-900">Groupes de Livraison</h4>
               </div>
-              <p className="text-xs text-gray-500 mb-3">ID ou numéros des groupes WhatsApp livreurs. Chaque nouvelle commande y sera envoyée.</p>
-              <div className="space-y-2 mb-3">
+              <p className="text-xs text-gray-500 mb-1">Collez le lien d'invitation du groupe WhatsApp pour résoudre automatiquement son ID.</p>
+              <p className="text-xs text-gray-400 mb-3 font-mono">Ex : https://chat.whatsapp.com/XXXXXX</p>
+              <div className="space-y-3 mb-3">
                 {deliveryGroupNumbers.map((item, idx) => (
-                  <div key={idx} className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      placeholder="Nom du groupe"
-                      value={item.label}
-                      onChange={e => setDeliveryGroupNumbers(prev => prev.map((n, i) => i === idx ? { ...n, label: e.target.value } : n))}
-                      className="flex-1 min-w-0 px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs focus:ring-1 focus:ring-orange-400"
-                    />
-                    <input
-                      type="text"
-                      placeholder="ID groupe ou +237..."
-                      value={item.phoneNumber}
-                      onChange={e => setDeliveryGroupNumbers(prev => prev.map((n, i) => i === idx ? { ...n, phoneNumber: e.target.value } : n))}
-                      className="flex-1 min-w-0 px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs font-mono focus:ring-1 focus:ring-orange-400"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setDeliveryGroupNumbers(prev => prev.map((n, i) => i === idx ? { ...n, isActive: !n.isActive } : n))}
-                      className={`p-1.5 rounded-lg border transition ${item.isActive ? 'bg-orange-50 border-orange-300 text-orange-600' : 'bg-gray-50 border-gray-200 text-gray-400'}`}
-                      title={item.isActive ? 'Actif' : 'Inactif'}
-                    >
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setDeliveryGroupNumbers(prev => prev.filter((_, i) => i !== idx))}
-                      className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
-                    >
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
-                    </button>
+                  <div key={idx} className="bg-orange-50 border border-orange-100 rounded-xl p-3 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        placeholder="Nom du groupe"
+                        value={item.label}
+                        onChange={e => setDeliveryGroupNumbers(prev => prev.map((n, i) => i === idx ? { ...n, label: e.target.value } : n))}
+                        className="flex-1 min-w-0 px-2.5 py-1.5 border border-orange-200 rounded-lg text-xs bg-white focus:ring-1 focus:ring-orange-400"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setDeliveryGroupNumbers(prev => prev.map((n, i) => i === idx ? { ...n, isActive: !n.isActive } : n))}
+                        className={`p-1.5 rounded-lg border transition ${item.isActive ? 'bg-orange-100 border-orange-300 text-orange-600' : 'bg-gray-50 border-gray-200 text-gray-400'}`}
+                        title={item.isActive ? 'Actif' : 'Inactif'}
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDeliveryGroupNumbers(prev => prev.filter((_, i) => i !== idx))}
+                        className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        placeholder="Lien d'invitation ou JID (120363...@g.us)"
+                        value={item.inviteLink || item.phoneNumber}
+                        onChange={e => setDeliveryGroupNumbers(prev => prev.map((n, i) => i === idx ? { ...n, inviteLink: e.target.value, phoneNumber: e.target.value } : n))}
+                        className="flex-1 min-w-0 px-2.5 py-1.5 border border-orange-200 rounded-lg text-xs font-mono bg-white focus:ring-1 focus:ring-orange-400"
+                      />
+                      {(item.inviteLink || item.phoneNumber || '').includes('chat.whatsapp.com') && (
+                        <button
+                          type="button"
+                          disabled={item._resolving}
+                          onClick={async () => {
+                            setDeliveryGroupNumbers(prev => prev.map((n, i) => i === idx ? { ...n, _resolving: true, _resolveError: null } : n));
+                            try {
+                              const res = await ecomApi.post('/orders/config/whatsapp-group/resolve', { inviteLink: item.inviteLink || item.phoneNumber });
+                              if (res.data.success) {
+                                setDeliveryGroupNumbers(prev => prev.map((n, i) => i === idx ? {
+                                  ...n,
+                                  phoneNumber: res.data.groupJid,
+                                  label: n.label || res.data.groupName,
+                                  inviteLink: item.inviteLink || item.phoneNumber,
+                                  _resolving: false,
+                                  _resolveError: null
+                                } : n));
+                              }
+                            } catch (err) {
+                              setDeliveryGroupNumbers(prev => prev.map((n, i) => i === idx ? { ...n, _resolving: false, _resolveError: err.response?.data?.message || err.message } : n));
+                            }
+                          }}
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-orange-500 text-white rounded-lg text-xs font-medium hover:bg-orange-600 disabled:opacity-50 transition whitespace-nowrap"
+                        >
+                          {item._resolving ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"/> : <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>}
+                          Résoudre
+                        </button>
+                      )}
+                    </div>
+                    {item.phoneNumber && item.phoneNumber.includes('@g.us') && (
+                      <p className="text-xs text-emerald-600 font-mono">✅ JID résolu : {item.phoneNumber}</p>
+                    )}
+                    {item._resolveError && (
+                      <p className="text-xs text-red-500">❌ {item._resolveError}</p>
+                    )}
                   </div>
                 ))}
               </div>
               <button
                 type="button"
-                onClick={() => setDeliveryGroupNumbers(prev => [...prev, { label: '', phoneNumber: '', isActive: true }])}
+                onClick={() => setDeliveryGroupNumbers(prev => [...prev, { label: '', phoneNumber: '', inviteLink: '', isActive: true }])}
                 className="inline-flex items-center gap-1 px-3 py-1.5 bg-orange-50 text-orange-700 border border-orange-200 rounded-lg text-xs font-medium hover:bg-orange-100 transition"
               >
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>

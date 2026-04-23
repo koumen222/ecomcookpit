@@ -116,6 +116,21 @@ export async function sendWhatsAppMessage({ to, message, workspaceId, userId, fi
     console.log(`🔌 [WhatsApp] Instance trouvée : "${instance.instanceName}" (status: ${instance.status})`);
 
     // Nettoyer et formater le numéro de téléphone international
+    // Pour les groupes (JID @g.us), passer directement sans reformatage
+    if (to.includes('@g.us')) {
+      const cleanNumber = to.trim();
+      console.log(`📱 [WhatsApp] Groupe JID détecté : "${cleanNumber}"`);
+      const result = await evolutionApiService.sendMessage(
+        instance.instanceName,
+        instance.instanceToken,
+        cleanNumber,
+        message
+      );
+      if (!result.success) throw new Error(result.error || 'Erreur lors de l\'envoi du message');
+      instance.lastSeen = new Date();
+      await instance.save();
+      return { success: true, messageId: result.data?.key?.id || 'unknown', instanceName: instance.instanceName };
+    }
     const phoneCheck = await resolveWhatsAppNumber(to, workspaceId);
     if (!phoneCheck.success) {
       console.error(`❌ [WhatsApp] Numéro invalide : "${to}" → ${phoneCheck.error}`);

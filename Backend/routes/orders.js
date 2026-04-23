@@ -4562,20 +4562,70 @@ router.patch('/config/whatsapp-notifs', requireEcomAuth, validateEcomAccess('pro
   }
 });
 
+// POST /api/ecom/orders/config/whatsapp-group/resolve - Résoudre un lien d'invitation WhatsApp → JID groupe
+router.post('/config/whatsapp-group/resolve', requireEcomAuth, validateEcomAccess('products', 'write'), async (req, res) => {
+  try {
+    const { inviteLink } = req.body;
+    if (!inviteLink) return res.status(400).json({ success: false, message: 'inviteLink requis' });
+
+    // Extraire le code depuis le lien https://chat.whatsapp.com/XXXXXX
+    const match = inviteLink.match(/chat\.whatsapp\.com\/([A-Za-z0-9_-]+)/);
+    if (!match) return res.status(400).json({ success: false, message: 'Lien d\'invitation invalide. Format attendu : https://chat.whatsapp.com/XXXXXX' });
+    const inviteCode = match[1];
+
+    // Trouver une instance active pour ce workspace
+    const WhatsAppInstance = (await import('../models/WhatsAppInstance.js')).default;
+    const instance = await WhatsAppInstance.findOne({
+      workspaceId: req.workspaceId,
+      isActive: true,
+      status: { $in: ['connected', 'active'] }
+    }).lean();
+    if (!instance) return res.status(400).json({ success: false, message: 'Aucune instance WhatsApp connectée dans ce workspace' });
+
+    // Appeler Evolution API pour récupérer les infos du groupe via le code d'invitation
+    const baseUrl = process.env.EVOLUTION_API_URL || 'https://api.evolution-api.com';
+    const axios = (await import('axios')).default;
+    const response = await axios.get(
+      `${baseUrl}/group/inviteInfo/${instance.instanceName}`,
+      {
+        params: { inviteCode },
+        headers: { apikey: instance.instanceToken },
+        timeout: 15000
+      }
+    );
+
+    const groupData = response.data;
+    // Evolution API v2 retourne { id, subject } ou { jid, subject }
+    const groupJid = groupData?.id || groupData?.jid || groupData?.groupJid || groupData?.group?.id;
+    const groupName = groupData?.subject || groupData?.name || groupData?.group?.subject || 'Groupe';
+
+    if (!groupJid) {
+      console.error('[resolve group] Réponse inattendue:', JSON.stringify(groupData));
+      return res.status(400).json({ success: false, message: 'Impossible de récupérer le JID du groupe. Vérifiez que votre instance WhatsApp est membre de ce groupe.' });
+    }
+
+    res.json({ success: true, groupJid, groupName });
+  } catch (error) {
+    const msg = error.response?.data?.message || error.message;
+    console.error('Erreur résolution lien groupe WhatsApp:', msg);
+    res.status(500).json({ success: false, message: `Erreur: ${msg}` });
+  }
+});
+
 // POST /api/ecom/orders/config/whatsapp-notifs/test - Tester l'envoi WhatsApp aux closeuses/groupes
 router.post('/config/whatsapp-notifs/test', requireEcomAuth, validateEcomAccess('products', 'write'), async (req, res) => {
   try {
-    const settings = await WorkspaceSettings.findOne({ workspaceId: req.workspaceId })
-      .select('closeuseNotifNumbers deliveryGroupNumbers').lean();
-
-    const closeuseNumbers = (settings?.closeuseNotifNumbers || []).filter(n => n.isActive && n.phoneNumber);
-    const deliveryGroupNumbers = (settings?.deliveryGroupNumbers || []).filter(n => n.isActive && n.phoneNumber);
+    // Utiliser les données envoyées depuis le formulaire (pas forcément sauvegardées en base)
+    const closeuseNumbers = (req.body.closeuseNotifNumbers || []).filter(n => n.isActive !== false && n.phoneNumber);
+    const deliveryGroupNumbers = (req.body.deliveryGroupNumbers || []).filter(n => n.isActive !== false && n.phoneNumber);
     const allTargets = [...closeuseNumbers, ...deliveryGroupNumbers];
 
-    console.log(`🧪 [Test Notif] workspace: ${req.workspaceId}, settings: ${settings ? 'trouvé' : 'ABSENT'}, destinataires: ${allTargets.length}`);
+    console.log(`🧪 [Test Notif] workspace: ${req.workspaceId}, destinataires: ${allTargets.length}`);
+    console.log(`   closeuses: ${closeuseNumbers.length}, groupes: ${deliveryGroupNumbers.length}`);
+    allTargets.forEach(t => console.log(`   → ${t.label || '(sans label)'} : ${t.phoneNumber} | isActive=${t.isActive}`));
 
     if (allTargets.length === 0) {
-      return res.json({ success: false, message: 'Aucun numéro actif configuré. Ajoutez et sauvegardez des numéros d\'abord.' });
+      return res.json({ success: false, message: 'Aucun numéro actif. Ajoutez des numéros et assurez-vous qu\'ils sont activés.' });
     }
 
     const { sendWhatsAppMessage } = await import('../services/whatsappService.js');
