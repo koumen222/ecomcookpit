@@ -3173,6 +3173,58 @@ router.get('/available', requireEcomAuth, async (req, res) => {
   }
 });
 
+// POST /api/ecom/orders/:id/send-to-delivery-groups - Envoyer la commande aux groupes WhatsApp de livraison
+router.post('/:id/send-to-delivery-groups', requireEcomAuth, async (req, res) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ success: false, message: 'ID invalide' });
+    }
+
+    const order = await Order.findOne({ _id: req.params.id, workspaceId: req.workspaceId }).lean();
+    if (!order) return res.status(404).json({ success: false, message: 'Commande introuvable' });
+
+    const settings = await WorkspaceSettings.findOne({ workspaceId: req.workspaceId })
+      .select('deliveryGroupNumbers').lean();
+
+    let groups = (settings?.deliveryGroupNumbers || []).filter(n => n.isActive !== false && n.phoneNumber);
+
+    // Filtrer sur les JIDs sélectionnés par l'utilisateur si fournis
+    if (Array.isArray(req.body.targetJids) && req.body.targetJids.length > 0) {
+      groups = groups.filter(g => req.body.targetJids.includes(g.phoneNumber));
+    }
+
+    if (groups.length === 0) {
+      return res.status(400).json({ success: false, message: 'Aucun groupe de livraison configuré. Configurez-en dans les notifications WhatsApp.' });
+    }
+
+    const { sendWhatsAppMessage } = await import('../services/whatsappService.js');
+    const message = req.body.message ||
+      `🚚 *Commande à livrer*\n👤 ${order.clientName || 'Client'}\n📞 ${order.phone || order.clientPhone || ''}\n📍 ${order.city || order.deliveryLocation || ''}\n📦 ${order.productName || order.product || ''}\n💰 ${order.totalPrice || order.price || ''} FCFA`;
+
+    const results = [];
+    for (const group of groups) {
+      try {
+        await sendWhatsAppMessage({ to: group.phoneNumber, message, workspaceId: req.workspaceId });
+        results.push({ label: group.label, jid: group.phoneNumber, status: 'ok' });
+      } catch (err) {
+        results.push({ label: group.label, jid: group.phoneNumber, status: 'erreur', error: err.message });
+      }
+    }
+
+    const ok = results.filter(r => r.status === 'ok').length;
+    const fail = results.filter(r => r.status === 'erreur').length;
+
+    res.json({
+      success: ok > 0,
+      message: `Envoyé à ${ok} groupe(s)${fail > 0 ? `, ${fail} échoué(s)` : ''}`,
+      results
+    });
+  } catch (error) {
+    console.error('Erreur send-to-delivery-groups:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 // POST /api/ecom/orders/:id/delivery-offer - Proposer une commande à un livreur ciblé ou au pool
 router.post('/:id/delivery-offer', requireEcomAuth, async (req, res) => {
   try {
@@ -4625,7 +4677,8 @@ router.post('/config/whatsapp-notifs/test', requireEcomAuth, validateEcomAccess(
     allTargets.forEach(t => console.log(`   → ${t.label || '(sans label)'} : ${t.phoneNumber} | isActive=${t.isActive}`));
 
     if (allTargets.length === 0) {
-      return res.json({ success: false, message: 'Aucun numéro actif. Ajoutez des numéros et assurez-vous qu\'ils sont activés.' });
+      console.log(`   body reçu:`, JSON.stringify(req.body, null, 2));
+      return res.json({ success: false, message: `Aucun numéro actif. Reçu: ${JSON.stringify({ closeuses: req.body.closeuseNotifNumbers?.length, groupes: req.body.deliveryGroupNumbers?.length, sample: req.body.deliveryGroupNumbers?.[0] })}` });
     }
 
     const { sendWhatsAppMessage } = await import('../services/whatsappService.js');

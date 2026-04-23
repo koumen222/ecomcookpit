@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import {
   ChevronLeft, ChevronRight, ShoppingCart, MessageCircle,
@@ -14,7 +14,7 @@ import ProductBenefits from '../components/ProductBenefits';
 import ConversionBlocks, { UrgencyBadge } from '../components/ConversionBlocks';
 import ProductTestimonials from '../components/ProductTestimonials';
 import { StorefrontHeader, StorefrontFooter } from '../components/StorefrontShared';
-import { io } from 'socket.io-client';
+// socket.io-client chargé dynamiquement pour ne pas bloquer le rendu initial
 import { setDocumentMeta } from '../utils/pageMeta';
 import { trackStorefrontEvent } from '../utils/pixelTracking';
 import { useStoreAnalytics } from '../hooks/useStoreAnalytics';
@@ -138,6 +138,32 @@ const truncateMetaText = (value = '', max = 180) => {
   return `${value.slice(0, max - 1).trimEnd()}…`;
 };
 
+// ── Hook : déclenche le rendu d'une section quand elle entre dans le viewport ─
+const useInView = (rootMargin = '200px') => {
+  const ref = useRef(null);
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    if (!ref.current) return;
+    if (typeof IntersectionObserver === 'undefined') { setVisible(true); return; }
+    const obs = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) { setVisible(true); obs.disconnect(); }
+    }, { rootMargin });
+    obs.observe(ref.current);
+    return () => obs.disconnect();
+  }, [rootMargin]);
+  return [ref, visible];
+};
+
+// Wrapper transparent : réserve l'espace via minHeight, monte le contenu au scroll
+const LazySection = ({ children, minHeight = 80, style = {} }) => {
+  const [ref, visible] = useInView('300px');
+  return (
+    <div ref={ref} style={{ minHeight: visible ? undefined : minHeight, ...style }}>
+      {visible ? children : null}
+    </div>
+  );
+};
+
 const deepClone = (obj) => JSON.parse(JSON.stringify(obj));
 
 const mergeProductSections = (stored) => {
@@ -250,7 +276,43 @@ const GALLERY_RATIO_PRESETS = {
   wide: 1.78,
 };
 
-// ── Image Gallery ────────────────────────────────────────────────────────────
+// ── Utilitaire compression d'image ───────────────────────────────────────────
+// Ajoute des paramètres de resize/qualité pour les CDN qui les supportent
+// (Cloudflare Image Resizing, Imgix, Cloudinary, Bunny, etc.)
+const optimizeImageUrl = (url, { width = 800, quality = 80 } = {}) => {
+  if (!url || typeof url !== 'string') return url;
+  try {
+    // Cloudinary : .../upload/... → .../upload/w_800,q_80,f_auto,...
+    if (url.includes('res.cloudinary.com')) {
+      return url.replace(/\/upload\//, `/upload/w_${width},q_${quality},f_auto,c_limit/`);
+    }
+    // Imgix : append w= et q=
+    if (url.includes('.imgix.net') || url.includes('imgix.')) {
+      const u = new URL(url);
+      if (!u.searchParams.has('w')) u.searchParams.set('w', width);
+      if (!u.searchParams.has('q')) u.searchParams.set('q', quality);
+      u.searchParams.set('auto', 'format,compress');
+      return u.toString();
+    }
+    // Bunny CDN : append ?width=&quality=
+    if (url.includes('.b-cdn.net') || url.includes('bunnycdn')) {
+      const u = new URL(url);
+      if (!u.searchParams.has('width')) u.searchParams.set('width', width);
+      if (!u.searchParams.has('quality')) u.searchParams.set('quality', quality);
+      return u.toString();
+    }
+    // Supabase Storage : append ?width=&quality=
+    if (url.includes('supabase.co/storage')) {
+      const u = new URL(url);
+      if (!u.searchParams.has('width')) u.searchParams.set('width', width);
+      if (!u.searchParams.has('quality')) u.searchParams.set('quality', quality);
+      return u.toString();
+    }
+    // R2/pub-xxx.r2.dev : pas de resize natif → retourner tel quel
+    // (images déjà optimisées à l'upload en WebP 1200px q82)
+    return url;
+  } catch { return url; }
+};
 const ImageGallery = ({ images = [], design = {} }) => {
   const [active, setActive] = useState(0);
   const [zoomed, setZoomed] = useState(false);
@@ -1251,33 +1313,49 @@ const StoreProductPage = () => {
     });
   }, [product, store]);
 
-  // Écouter les changements de couleurs en temps réel via Socket.io
+  // Preload de l'image hero dès qu'elle est connue (LCP)
+  useEffect(() => {
+    const heroUrl = product?.images?.[0]?.url || product?.images?.[0];
+    if (!heroUrl || typeof heroUrl !== 'string') return;
+    const existing = document.querySelector(`link[rel="preload"][data-hero-img]`);
+    if (existing) { existing.href = heroUrl; return; }
+    const link = document.createElement('link');
+    link.rel = 'preload';
+    link.as = 'image';
+    link.href = heroUrl;
+    link.setAttribute('data-hero-img', '1');
+    link.fetchPriority = 'high';
+    document.head.appendChild(link);
+    return () => { try { document.head.removeChild(link); } catch {} };
+  }, [product?.images]);
+
+  // Écouter les changements de couleurs en temps réel via Socket.io (chargé après le rendu)
   useEffect(() => {
     if (!subdomain) return;
-    
-    const socketUrl = import.meta.env.VITE_BACKEND_URL || 'https://api.scalor.net';
-    const socket = io(`${socketUrl}/store-live`, {
-      transports: ['websocket', 'polling'],
-      reconnection: true,
-    });
-    
-    socket.on('connect', () => {
-      console.log('[Store] Socket connecté, joining:', subdomain);
-      socket.emit('store:join', { subdomain });
-    });
-    
-    socket.on('theme:update', (themeData) => {
-      if (themeData) {
-        injectStoreCssVars(themeData);
-      }
-    });
+    let socket = null;
+    let cancelled = false;
 
-    socket.on('connect_error', (err) => {
-      console.log('[Store] Socket error:', err.message);
-    });
+    // Délai de 2s après le rendu pour ne pas bloquer la peinture initiale
+    const timer = setTimeout(async () => {
+      if (cancelled) return;
+      try {
+        const { io } = await import('socket.io-client');
+        if (cancelled) return;
+        const socketUrl = import.meta.env.VITE_BACKEND_URL || 'https://api.scalor.net';
+        socket = io(`${socketUrl}/store-live`, {
+          transports: ['websocket', 'polling'],
+          reconnection: true,
+        });
+        socket.on('connect', () => { socket.emit('store:join', { subdomain }); });
+        socket.on('theme:update', (themeData) => { if (themeData) injectStoreCssVars(themeData); });
+        socket.on('connect_error', () => {});
+      } catch {}
+    }, 2000);
 
     return () => {
-      socket.disconnect();
+      cancelled = true;
+      clearTimeout(timer);
+      if (socket) socket.disconnect();
     };
   }, [subdomain]);
 
@@ -1707,7 +1785,39 @@ const StoreProductPage = () => {
     });
   };
 
-  if (loading && !product) return null;
+  if (loading && !product) return (
+    <div style={{ minHeight: '100vh', background: 'var(--s-bg, #fff)', fontFamily: 'var(--s-font, sans-serif)' }}>
+      <style>{`
+        @keyframes skel-shine { 0%{background-position:-400px 0} 100%{background-position:400px 0} }
+        .skel { background:linear-gradient(90deg,#f0f0f0 25%,#e0e0e0 50%,#f0f0f0 75%); background-size:800px 100%; animation:skel-shine 1.4s ease infinite; border-radius:8px; }
+      `}</style>
+      {/* Header skeleton */}
+      <div style={{ height: 60, borderBottom: '1px solid #f0f0f0', display: 'flex', alignItems: 'center', padding: '0 16px', gap: 12 }}>
+        <div className="skel" style={{ width: 40, height: 40, borderRadius: 10 }} />
+        <div className="skel" style={{ width: 120, height: 18 }} />
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+          <div className="skel" style={{ width: 64, height: 32, borderRadius: 8 }} />
+        </div>
+      </div>
+      {/* Product skeleton */}
+      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '20px 16px', display: 'grid', gridTemplateColumns: '1fr', gap: 20 }}>
+        {/* Gallery placeholder */}
+        <div className="skel" style={{ width: '100%', aspectRatio: '1/1', maxHeight: '70vw', borderRadius: 16 }} />
+        {/* Info placeholder */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div className="skel" style={{ width: '80%', height: 32, borderRadius: 8 }} />
+          <div className="skel" style={{ width: '55%', height: 22, borderRadius: 8 }} />
+          <div className="skel" style={{ width: '40%', height: 36, borderRadius: 8, marginTop: 8 }} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
+            <div className="skel" style={{ width: '100%', height: 14 }} />
+            <div className="skel" style={{ width: '90%', height: 14 }} />
+            <div className="skel" style={{ width: '70%', height: 14 }} />
+          </div>
+          <div className="skel" style={{ width: '100%', height: 56, borderRadius: 14, marginTop: 16 }} />
+        </div>
+      </div>
+    </div>
+  );
 
   if (error) return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Inter, sans-serif' }}>
@@ -2110,12 +2220,13 @@ const StoreProductPage = () => {
                       const galleryConfig = normalizeProductGalleryConfig(sectionContentMap.productGallery || {});
                       const galleryImages = resolveProductGalleryImages(galleryConfig, buildProductGalleryFallbackImages(product));
                       return (
-                        <InlinePhotoCarousel
-                          key={sectionId}
-                          images={galleryImages}
-                          config={galleryConfig}
-                          accentColor={aiVisualTheme?.primary || 'var(--s-primary)'}
-                        />
+                        <LazySection key={sectionId} minHeight={180}>
+                          <InlinePhotoCarousel
+                            images={galleryImages}
+                            config={galleryConfig}
+                            accentColor={aiVisualTheme?.primary || 'var(--s-primary)'}
+                          />
+                        </LazySection>
                       );
                     }
 
@@ -2348,7 +2459,7 @@ const StoreProductPage = () => {
                           ? product.faq
                           : (hasHtml2 ? extractFaqItemsFromHtml(raw2) : []);
                       return faqItems.length > 0
-                        ? <ProductFaqAccordion key={sectionId} items={faqItems} visualTheme={faqTheme} />
+                        ? <LazySection key={sectionId} minHeight={120}><ProductFaqAccordion items={faqItems} visualTheme={faqTheme} /></LazySection>
                         : null;
                     }
 
@@ -2386,25 +2497,29 @@ const StoreProductPage = () => {
         const groupImg = product?._pageData?.testimonialsGroupImage || null;
         const socialImg = product?._pageData?.testimonialsSocialProofImage || null;
         return (
-          <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 16px', overflow: 'hidden' }}>
-            <ProductTestimonials testimonials={t} productImage={prodImg} groupImage={groupImg} socialProofImage={socialImg} visualTheme={socialProofTheme} />
-          </div>
+          <LazySection minHeight={200}>
+            <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 16px', overflow: 'hidden' }}>
+              <ProductTestimonials testimonials={t} productImage={prodImg} groupImage={groupImg} socialProofImage={socialImg} visualTheme={socialProofTheme} />
+            </div>
+          </LazySection>
         );
       })()}
 
       {/* ── Related Products ───────────────────────────────────────────────── */}
       {showRelatedProductsSetting && related.length > 0 && (
-        <section style={{ maxWidth: 1200, margin: '48px auto 0', padding: '0 16px', overflow: 'hidden' }}>
-          <h2 style={{
-            fontSize: 'clamp(18px, 3vw, 24px)', fontWeight: 800, color: 'var(--s-text)',
-            margin: '0 0 20px', letterSpacing: '-0.02em', fontFamily: 'var(--s-font)',
-          }}>
-            Vous aimerez aussi
-          </h2>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(140px, 45%), 1fr))', gap: 12 }}>
-            {related.map(p => <RelatedCard key={p._id} product={p} prefix={prefix} store={store} subdomain={store?.subdomain} />)}
-          </div>
-        </section>
+        <LazySection minHeight={180} style={{ maxWidth: 1200, margin: '48px auto 0', padding: '0 16px', overflow: 'hidden' }}>
+          <section>
+            <h2 style={{
+              fontSize: 'clamp(18px, 3vw, 24px)', fontWeight: 800, color: 'var(--s-text)',
+              margin: '0 0 20px', letterSpacing: '-0.02em', fontFamily: 'var(--s-font)',
+            }}>
+              Vous aimerez aussi
+            </h2>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(140px, 45%), 1fr))', gap: 12 }}>
+              {related.map(p => <RelatedCard key={p._id} product={p} prefix={prefix} store={store} subdomain={store?.subdomain} />)}
+            </div>
+          </section>
+        </LazySection>
       )}
 
       {showStickyBar && showStickyOrderBar && product && (

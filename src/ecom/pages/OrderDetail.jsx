@@ -86,6 +86,11 @@ const OrderDetail = () => {
   const [showLivreurMenu, setShowLivreurMenu] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [sendingToPool, setSendingToPool] = useState(false);
+  const [sendingToGroup, setSendingToGroup] = useState(false);
+  const [showGroupModal, setShowGroupModal] = useState(false);
+  const [deliveryGroups, setDeliveryGroups] = useState([]);
+  const [loadingGroups, setLoadingGroups] = useState(false);
+  const [selectedGroups, setSelectedGroups] = useState([]);
   const optionsMenuRef = useRef(null);
   const livreurMenuRef = useRef(null);
 
@@ -277,6 +282,44 @@ const OrderDetail = () => {
     }
   };
 
+  const openGroupModal = async () => {
+    setShowGroupModal(true);
+    setLoadingGroups(true);
+    setSelectedGroups([]);
+    try {
+      const res = await ecomApi.get('/orders/config/whatsapp');
+      const groups = (res.data.data?.deliveryGroupNumbers || []).filter(g => g.isActive !== false && g.phoneNumber);
+      setDeliveryGroups(groups);
+      setSelectedGroups(groups.map((_, i) => i)); // tout sélectionné par défaut
+    } catch (err) {
+      setDeliveryGroups([]);
+    } finally {
+      setLoadingGroups(false);
+    }
+  };
+
+  const handleSendToGroup = async () => {
+    setSendingToGroup(true);
+    setError('');
+    try {
+      const targets = selectedGroups.map(i => deliveryGroups[i]).filter(Boolean);
+      if (targets.length === 0) { setError('Sélectionnez au moins un groupe.'); setSendingToGroup(false); return; }
+      const msg = `🚚 *Commande à livrer*\n👤 ${order.clientName || 'Client'}\n📞 ${order.phone || order.clientPhone || ''}\n📍 ${order.city || order.deliveryLocation || ''}\n📦 ${order.productName || order.product || ''}\n💰 ${order.totalPrice || order.price || ''} FCFA`;
+      await ecomApi.post(`/orders/${id}/send-to-delivery-groups`, {
+        message: msg,
+        targetJids: targets.map(g => g.phoneNumber)
+      });
+      setSuccess(`✅ Message envoyé à ${targets.length} groupe(s).`);
+      setShowGroupModal(false);
+      setShowDeliveryModal(false);
+      setTimeout(() => setSuccess(''), 5000);
+    } catch (err) {
+      setError(err.response?.data?.message || err.message || 'Erreur envoi groupe');
+    } finally {
+      setSendingToGroup(false);
+    }
+  };
+
   const handleTogglePool = async () => {
     setSendingToPool(true);
     setError('');
@@ -431,6 +474,14 @@ const OrderDetail = () => {
                     >
                       <svg className="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
                       {sendingToPool ? '…' : order.readyForDelivery ? 'Retirer du pool' : 'Tous les livreurs'}
+                    </button>
+                    <button
+                      onClick={() => { setShowLivreurMenu(false); openGroupModal(); }}
+                      disabled={sendingToGroup}
+                      className="w-full text-left px-4 py-2.5 text-xs text-gray-700 hover:bg-orange-50 flex items-center gap-2 disabled:opacity-50 border-t border-gray-100"
+                    >
+                      <svg className="w-4 h-4 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                      {sendingToGroup ? '…' : 'Envoyer au groupe'}
                     </button>
                   </div>
                 )}
@@ -857,6 +908,67 @@ const OrderDetail = () => {
         </div>
       </div>
 
+      {/* Group Picker Modal */}
+      {showGroupModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowGroupModal(false)}>
+          <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-5" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center">
+                <svg className="w-5 h-5 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-gray-900">Envoyer au groupe WhatsApp</h3>
+                <p className="text-[11px] text-gray-400">Sélectionnez les groupes destinataires</p>
+              </div>
+            </div>
+            {loadingGroups ? (
+              <div className="py-6 flex justify-center"><div className="w-6 h-6 border-2 border-orange-500 border-t-transparent rounded-full animate-spin"/></div>
+            ) : deliveryGroups.length === 0 ? (
+              <div className="py-4 text-center">
+                <p className="text-sm text-gray-500 mb-3">Aucun groupe de livraison configuré.</p>
+                <button
+                  onClick={() => { setShowGroupModal(false); navigate('/ecom/settings?tab=delivery_groups'); }}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-xl text-xs font-medium hover:bg-orange-600 transition"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                  Configurer les groupes
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-2 mb-4">
+                {deliveryGroups.map((g, i) => (
+                  <label key={i} className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition ${selectedGroups.includes(i) ? 'border-orange-400 bg-orange-50' : 'border-gray-200 hover:bg-gray-50'}`}>
+                    <input
+                      type="checkbox"
+                      checked={selectedGroups.includes(i)}
+                      onChange={() => setSelectedGroups(prev => prev.includes(i) ? prev.filter(x => x !== i) : [...prev, i])}
+                      className="w-4 h-4 accent-orange-500"
+                    />
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-gray-800 truncate">{g.label || 'Groupe sans nom'}</p>
+                      <p className="text-[10px] font-mono text-gray-400 truncate">{g.phoneNumber}</p>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            )}
+            <div className="flex gap-2">
+              {deliveryGroups.length > 0 && (
+                <button
+                  onClick={handleSendToGroup}
+                  disabled={sendingToGroup || selectedGroups.length === 0}
+                  className="flex-1 px-4 py-2.5 bg-orange-500 text-white rounded-xl text-sm font-medium hover:bg-orange-600 disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {sendingToGroup ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"/> : null}
+                  {sendingToGroup ? 'Envoi...' : `Envoyer (${selectedGroups.length})`}
+                </button>
+              )}
+              <button onClick={() => setShowGroupModal(false)} className="px-4 py-2.5 bg-gray-100 text-gray-600 rounded-xl text-sm font-medium hover:bg-gray-200">Annuler</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Delivery Modal */}
       {showDeliveryModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowDeliveryModal(false)}>
@@ -926,6 +1038,10 @@ const OrderDetail = () => {
               <button onClick={() => handleSendToDelivery(true)} className="w-full sm:flex-1 px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 text-xs font-medium flex items-center justify-center gap-1.5">
                 <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
                 Application + WhatsApp
+              </button>
+              <button onClick={handleSendToGroup} disabled={sendingToGroup} className="w-full sm:flex-1 px-4 py-2.5 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50 text-xs font-medium flex items-center justify-center gap-1.5">
+                {sendingToGroup ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"/> : <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>}
+                Envoyer au groupe
               </button>
               <button onClick={() => setShowDeliveryModal(false)} className="w-full sm:w-auto px-4 py-2.5 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 text-xs font-medium">Annuler</button>
             </div>
