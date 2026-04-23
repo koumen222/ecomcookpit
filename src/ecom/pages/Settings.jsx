@@ -1,5 +1,5 @@
 ﻿import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import CurrencySelector from '../components/CurrencySelector.jsx';
 import { useMoney } from '../hooks/useMoney.js';
 import { useEcomAuth } from '../hooks/useEcomAuth.jsx';
@@ -10,6 +10,8 @@ import { getContextualError } from '../utils/errorMessages';
 const Settings = () => {
   const { fmt, currency, symbol } = useMoney();
   const { user, workspace, logout } = useEcomAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
   const {
     isSupported: pushSupported,
     permission: pushPermission,
@@ -20,7 +22,10 @@ const Settings = () => {
     unsubscribeFromPush,
     sendTestNotification
   } = usePushNotifications();
-  const [activeTab, setActiveTab] = useState('general');
+  const [activeTab, setActiveTab] = useState(() => {
+    const params = new URLSearchParams(location.search);
+    return params.get('tab') || 'general';
+  });
   const [hasChanges, setHasChanges] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [sources, setSources] = useState([]);
@@ -42,6 +47,62 @@ const Settings = () => {
   const [deleteConfirmWord, setDeleteConfirmWord] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
+
+  // ── Groupes de livraison WhatsApp ──
+  const [deliveryGroups, setDeliveryGroups] = useState([]);
+  const [loadingGroups, setLoadingGroups] = useState(false);
+  const [savingGroups, setSavingGroups] = useState(false);
+  const [groupsSaved, setGroupsSaved] = useState(false);
+  const [groupsError, setGroupsError] = useState('');
+
+  const fetchDeliveryGroups = async () => {
+    setLoadingGroups(true);
+    try {
+      const res = await ecomApi.get('/orders/config/whatsapp');
+      setDeliveryGroups(res.data.data?.deliveryGroupNumbers || []);
+    } catch {}
+    finally { setLoadingGroups(false); }
+  };
+
+  const saveDeliveryGroups = async () => {
+    setSavingGroups(true);
+    setGroupsError('');
+    try {
+      // On récupère aussi les closeuses pour ne pas les écraser
+      const res = await ecomApi.get('/orders/config/whatsapp');
+      const closeuseNotifNumbers = res.data.data?.closeuseNotifNumbers || [];
+      await ecomApi.patch('/orders/config/whatsapp-notifs', { closeuseNotifNumbers, deliveryGroupNumbers: deliveryGroups });
+      setGroupsSaved(true);
+      setTimeout(() => setGroupsSaved(false), 3000);
+    } catch (err) {
+      setGroupsError(err.response?.data?.message || err.message);
+    } finally {
+      setSavingGroups(false);
+    }
+  };
+
+  const resolveGroupLink = async (idx) => {
+    const item = deliveryGroups[idx];
+    const link = item.inviteLink || item.phoneNumber;
+    setDeliveryGroups(prev => prev.map((n, i) => i === idx ? { ...n, _resolving: true, _resolveError: null } : n));
+    try {
+      const res = await ecomApi.post('/orders/config/whatsapp-group/resolve', { inviteLink: link });
+      if (res.data.success) {
+        setDeliveryGroups(prev => prev.map((n, i) => i === idx ? {
+          ...n, phoneNumber: res.data.groupJid, label: n.label || res.data.groupName,
+          inviteLink: link, _resolving: false, _resolveError: null
+        } : n));
+      }
+    } catch (err) {
+      setDeliveryGroups(prev => prev.map((n, i) => i === idx ? { ...n, _resolving: false, _resolveError: err.response?.data?.message || err.message } : n));
+    }
+  };
+
+  useEffect(() => { if (activeTab === 'delivery_groups') fetchDeliveryGroups(); }, [activeTab]);
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get('tab')) setActiveTab(params.get('tab'));
+  }, [location.search]);
 
   const fetchSources = async () => {
     try {
@@ -205,6 +266,7 @@ const Settings = () => {
     { id: 'notifications', label: 'Notifications', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg> },
     { id: 'google_sheets', label: 'Google Sheets', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg> },
     { id: 'account', label: 'Compte', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg> },
+    { id: 'delivery_groups', label: 'Groupes livraison', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg> },
     { id: 'security', label: 'Sécurité', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg> },
   ];
 
@@ -714,7 +776,124 @@ const Settings = () => {
           )}
 
           {/* === COMPTE === */}
-          {activeTab === 'account' && (
+          {/* ── Onglet Groupes de livraison ── */}
+      {activeTab === 'delivery_groups' && (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center">
+              <svg className="w-5 h-5 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-gray-900">Groupes de Livraison WhatsApp</h2>
+              <p className="text-xs text-gray-400">Ces groupes reçoivent les commandes à livrer quand vous cliquez "Envoyer au groupe".</p>
+            </div>
+          </div>
+
+          <div className="my-4 p-3 bg-orange-50 border border-orange-100 rounded-xl text-xs text-orange-700">
+            <strong>Comment ajouter un groupe :</strong> Collez le lien d'invitation du groupe WhatsApp, cliquez <strong>Ajouter</strong> pour résoudre automatiquement l'ID, puis <strong>Enregistrer</strong>.
+          </div>
+
+          {loadingGroups ? (
+            <div className="py-8 flex justify-center"><div className="w-6 h-6 border-2 border-orange-500 border-t-transparent rounded-full animate-spin"/></div>
+          ) : (
+            <div className="space-y-3 mb-4">
+              {deliveryGroups.length === 0 && (
+                <p className="text-sm text-gray-400 italic py-2">Aucun groupe configuré. Ajoutez-en un ci-dessous.</p>
+              )}
+              {deliveryGroups.map((item, idx) => (
+                <div key={idx} className="bg-orange-50 border border-orange-100 rounded-xl p-3 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      placeholder="Nom du groupe"
+                      value={item.label || ''}
+                      onChange={e => setDeliveryGroups(prev => prev.map((n, i) => i === idx ? { ...n, label: e.target.value } : n))}
+                      className="flex-1 px-3 py-2 border border-orange-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-orange-400 focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setDeliveryGroups(prev => prev.map((n, i) => i === idx ? { ...n, isActive: n.isActive === false ? true : false } : n))}
+                      className={`p-2 rounded-lg border transition ${item.isActive !== false ? 'bg-orange-100 border-orange-300 text-orange-600' : 'bg-gray-50 border-gray-200 text-gray-400'}`}
+                      title={item.isActive !== false ? 'Actif' : 'Inactif'}
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDeliveryGroups(prev => prev.filter((_, i) => i !== idx))}
+                      className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      placeholder="Lien d'invitation (https://chat.whatsapp.com/...) ou JID"
+                      value={item.inviteLink ?? item.phoneNumber ?? ''}
+                      onChange={e => {
+                        const val = e.target.value;
+                        setDeliveryGroups(prev => prev.map((n, i) => {
+                          if (i !== idx) return n;
+                          return { ...n, inviteLink: val, phoneNumber: val.includes('@g.us') ? val : (val.includes('chat.whatsapp.com') ? '' : val) };
+                        }));
+                      }}
+                      className="flex-1 px-3 py-2 border border-orange-200 rounded-lg text-sm font-mono bg-white focus:ring-2 focus:ring-orange-400 focus:outline-none"
+                    />
+                    {(item.inviteLink || item.phoneNumber || '').includes('chat.whatsapp.com') && (
+                      <button
+                        type="button"
+                        disabled={item._resolving}
+                        onClick={() => resolveGroupLink(idx)}
+                        className="inline-flex items-center gap-1.5 px-3 py-2 bg-orange-500 text-white rounded-lg text-sm font-medium hover:bg-orange-600 disabled:opacity-50 transition whitespace-nowrap"
+                      >
+                        {item._resolving
+                          ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"/>
+                          : <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                        }
+                        Ajouter
+                      </button>
+                    )}
+                  </div>
+                  {item.phoneNumber && item.phoneNumber.includes('@g.us') && (
+                    <p className="text-xs text-emerald-600 font-mono">✅ JID : {item.phoneNumber}</p>
+                  )}
+                  {item._resolveError && (
+                    <p className="text-xs text-red-500">❌ {item._resolveError}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="flex items-center gap-3 flex-wrap">
+            <button
+              type="button"
+              onClick={() => setDeliveryGroups(prev => [...prev, { label: '', phoneNumber: '', inviteLink: '', isActive: true }])}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-orange-50 text-orange-700 border border-orange-200 rounded-xl text-sm font-medium hover:bg-orange-100 transition"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
+              Ajouter un groupe
+            </button>
+            <button
+              type="button"
+              onClick={saveDeliveryGroups}
+              disabled={savingGroups}
+              className="inline-flex items-center gap-2 px-5 py-2 bg-emerald-600 text-white rounded-xl text-sm font-medium hover:bg-emerald-700 disabled:opacity-50 transition"
+            >
+              {savingGroups
+                ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"/>
+                : <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg>
+              }
+              {savingGroups ? 'Enregistrement...' : 'Enregistrer'}
+            </button>
+            {groupsSaved && <span className="text-sm text-emerald-600 font-medium">✅ Groupes enregistrés</span>}
+            {groupsError && <span className="text-sm text-red-500">❌ {groupsError}</span>}
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'account' && (
             <div className="space-y-6">
               {/* Sécurité */}
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">

@@ -178,7 +178,7 @@ const OrdersList = () => {
   const [showAddSheetModal, setShowAddSheetModal] = useState(false);
   const [newSheetData, setNewSheetData] = useState({ name: '', spreadsheetId: '', sheetName: 'Sheet1' });
   const [savingSheet, setSavingSheet] = useState(false);
-  const [showGuide, setShowGuide] = useState(() => !localStorage.getItem('ecom_guide_dismissed'));
+
   const [showOrderModal, setShowOrderModal] = useState(false);
   const [editingOrder, setEditingOrder] = useState(null);
   const [orderForm, setOrderForm] = useState({ clientName: '', clientPhone: '', city: '', address: '', product: '', quantity: 1, price: 0, status: 'pending', notes: '' });
@@ -715,6 +715,12 @@ const OrdersList = () => {
     }
   };
 
+  // Ouvrir le modal notifs en rechargeant les groupes depuis la DB
+  const openNotifModal = async () => {
+    await fetchWhatsAppConfig();
+    setShowWhatsAppConfig(true);
+  };
+
   const deleteSource = async (sourceId) => {
     let confirmMessage = 'Êtes-vous sûr de vouloir supprimer cette source ? Cette action est irréversible.';
     
@@ -801,6 +807,13 @@ const OrdersList = () => {
       setLoadingCommissions(false);
     }
   };
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get('whatsappConfig') === '1') {
+      openNotifModal();
+    }
+  }, [location.search]);
 
   useEffect(() => {
     const init = async () => {
@@ -1985,11 +1998,9 @@ const OrdersList = () => {
                   </button>
                 )}
               </div>
-              <button onClick={() => setShowGuide(!showGuide)} className="hidden sm:flex p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition" title="Guide d'utilisation">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-              </button>
+
               <button
-                onClick={() => setShowWhatsAppConfig(true)}
+                onClick={openNotifModal}
                 className="hidden sm:flex p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition"
                 title="Configurer WhatsApp auto"
               >
@@ -2425,88 +2436,7 @@ const OrdersList = () => {
         </div>
       </div>
 
-      {/* Guide visuel */}
-      {showGuide && isAdmin && (
-        <div className="mb-4 bg-gradient-to-br from-emerald-50 via-emerald-50 to-emerald-50 border border-emerald-200 rounded-2xl overflow-hidden shadow-sm">
-          <div className="flex items-center justify-between px-5 py-3 bg-white/60 border-b border-emerald-100">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 bg-emerald-600 rounded-lg flex items-center justify-center">
-                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-              </div>
-              <div>
-                <h3 className="text-sm font-bold text-gray-900">Comment importer et retrouver vos commandes</h3>
-                <p className="text-[11px] text-gray-500">Suivez ces 3 étapes simples</p>
-              </div>
-            </div>
-            <button onClick={() => { setShowGuide(false); localStorage.setItem('ecom_guide_dismissed', '1'); }} className="text-gray-400 hover:text-gray-600 p-1 hover:bg-white/80 rounded-lg transition" title="Fermer le guide">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-            </button>
-          </div>
-          <div className="p-5">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              {/* Etape 1 */}
-              <div className="bg-white rounded-xl p-4 border border-emerald-100 shadow-sm hover:shadow-md transition-shadow">
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="w-7 h-7 bg-emerald-600 text-white rounded-full flex items-center justify-center text-xs font-bold">1</span>
-                  <h4 className="text-sm font-semibold text-gray-900">Importer</h4>
-                </div>
-                <div className="flex items-center gap-2 mb-3 p-2 bg-emerald-50 rounded-lg border border-emerald-100">
-                  <svg className="w-6 h-6 text-emerald-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 11l5-5m0 0l5 5m-5-5v12" /></svg>
-                  <span className="text-xs text-emerald-700 font-medium">Cliquez sur le bouton bleu "Importer" en haut à droite</span>
-                </div>
-                <p className="text-[11px] text-gray-500 leading-relaxed">Collez le lien de votre Google Sheet ou sélectionnez une source configurée, puis lancez l'import.</p>
-                <button onClick={() => navigate('/ecom/import')} className="mt-3 w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition text-xs font-medium">
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 013 3h10a3 3 0 013-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                  Aller à la page d'import
-                </button>
-              </div>
 
-              {/* Etape 2 */}
-              <div className="bg-white rounded-xl p-4 border border-emerald-100 shadow-sm hover:shadow-md transition-shadow">
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="w-7 h-7 bg-emerald-700 text-white rounded-full flex items-center justify-center text-xs font-bold">2</span>
-                  <h4 className="text-sm font-semibold text-gray-900">Retrouver</h4>
-                </div>
-                <div className="flex items-center gap-2 mb-3 p-2 bg-emerald-50 rounded-lg border border-emerald-100">
-                  <svg className="w-6 h-6 text-emerald-700 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" /></svg>
-                  <span className="text-xs text-emerald-800 font-medium">Filtrez par source avec le menu déroulant</span>
-                </div>
-                <p className="text-[11px] text-gray-500 leading-relaxed">Après l'import, vos commandes apparaissent ici. Utilisez le <strong>menu déroulant des sources</strong> (en haut) pour filtrer par Google Sheet.</p>
-                <div className="mt-3 flex items-center gap-2 p-2 bg-gray-50 rounded-lg border border-gray-200">
-                  <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-                  <span className="text-[11px] text-gray-500">Toutes les sources</span>
-                  <svg className="w-3 h-3 text-gray-300 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-                </div>
-              </div>
-
-              {/* Etape 3 */}
-              <div className="bg-white rounded-xl p-4 border border-emerald-100 shadow-sm hover:shadow-md transition-shadow">
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="w-7 h-7 bg-emerald-700 text-white rounded-full flex items-center justify-center text-xs font-bold">3</span>
-                  <h4 className="text-sm font-semibold text-gray-900">Filtrer & Chercher</h4>
-                </div>
-                <div className="flex items-center gap-2 mb-3 p-2 bg-emerald-50 rounded-lg border border-emerald-100">
-                  <svg className="w-6 h-6 text-emerald-700 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-                  <span className="text-xs text-emerald-800 font-medium">Utilisez les filtres et la recherche</span>
-                </div>
-                <p className="text-[11px] text-gray-500 leading-relaxed">Filtrez par <strong>statut</strong> (pastilles colorées), cherchez par <strong>nom, téléphone, ville</strong>, ou utilisez les <strong>filtres avancés</strong> (dates, produit, tag).</p>
-                <div className="mt-3 flex flex-wrap gap-1">
-                  {['Tous', 'En attente', 'Confirmé', 'Livré'].map(s => (
-                    <span key={s} className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-500">{s}</span>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-4 flex items-center justify-between">
-              <p className="text-[11px] text-gray-400">Ce guide s'affiche une seule fois. Cliquez sur <strong>?</strong> en haut pour le revoir.</p>
-              <button onClick={() => { setShowGuide(false); localStorage.setItem('ecom_guide_dismissed', '1'); }} className="text-xs text-emerald-600 hover:text-emerald-700 font-medium">
-                J'ai compris, fermer
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* KPI Cards - Design compact */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
@@ -3107,24 +3037,7 @@ const OrdersList = () => {
       )}
 
       {/* Modal Configuration WhatsApp Automatique */}
-      {showWhatsAppConfig && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowWhatsAppConfig(false)}>
-          <div className="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <div className="sticky top-0 bg-white border-b border-gray-100 px-5 py-4 flex items-center justify-between">
-              <h3 className="text-lg font-bold text-gray-900">Configuration WhatsApp automatique</h3>
-              <button onClick={() => setShowWhatsAppConfig(false)} className="text-gray-400 hover:text-gray-600 p-1">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-              </button>
-            </div>
-            <div className="p-5 space-y-4">
-              <div className="bg-emerald-50 rounded-lg p-3">
-                <p className="text-xs font-medium text-emerald-700 mb-2">Configuration WhatsApp</p>
-                <p className="text-xs text-emerald-600">Configurez les numéros WhatsApp pour recevoir automatiquement les notifications de nouvelles commandes.</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+
 
       {/* Modal Créer/Modifier Commande */}
       {showOrderModal && (
@@ -3272,93 +3185,50 @@ const OrdersList = () => {
 
             {/* ── Section Groupes de Livraison ── */}
             <div className="mt-5 pt-5 border-t border-gray-100">
-              <div className="flex items-center gap-2 mb-3">
-                <svg className="w-4 h-4 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-                <h4 className="text-sm font-bold text-gray-900">Groupes de Livraison</h4>
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <svg className="w-4 h-4 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                  <h4 className="text-sm font-bold text-gray-900">Groupes de Livraison</h4>
+                </div>
+                <a
+                  href="/ecom/settings?tab=delivery_groups"
+                  className="inline-flex items-center gap-1 text-xs text-orange-600 hover:text-orange-700 font-medium"
+                  title="Configurer les groupes dans Paramètres"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                  Gérer les groupes
+                </a>
               </div>
-              <p className="text-xs text-gray-500 mb-1">Collez le lien d'invitation du groupe WhatsApp pour résoudre automatiquement son ID.</p>
-              <p className="text-xs text-gray-400 mb-3 font-mono">Ex : https://chat.whatsapp.com/XXXXXX</p>
-              <div className="space-y-3 mb-3">
-                {deliveryGroupNumbers.map((item, idx) => (
-                  <div key={idx} className="bg-orange-50 border border-orange-100 rounded-xl p-3 space-y-2">
-                    <div className="flex items-center gap-2">
+              <p className="text-xs text-gray-500 mb-3">Activez/désactivez les groupes qui reçoivent les notifications de nouvelles commandes.</p>
+              {deliveryGroupNumbers.length === 0 ? (
+                <div className="py-4 text-center bg-orange-50 rounded-xl border border-orange-100">
+                  <p className="text-xs text-gray-500 mb-2">Aucun groupe configuré.</p>
+                  <a href="/ecom/settings?tab=delivery_groups" className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-orange-500 text-white rounded-lg text-xs font-medium hover:bg-orange-600 transition">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
+                    Ajouter des groupes dans Paramètres
+                  </a>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {deliveryGroupNumbers.map((item, idx) => (
+                    <label key={idx} className={`flex items-center gap-3 p-2.5 rounded-xl border cursor-pointer transition ${item.isActive !== false ? 'border-orange-300 bg-orange-50' : 'border-gray-200 bg-gray-50'}`}>
                       <input
-                        type="text"
-                        placeholder="Nom du groupe"
-                        value={item.label}
-                        onChange={e => setDeliveryGroupNumbers(prev => prev.map((n, i) => i === idx ? { ...n, label: e.target.value } : n))}
-                        className="flex-1 min-w-0 px-2.5 py-1.5 border border-orange-200 rounded-lg text-xs bg-white focus:ring-1 focus:ring-orange-400"
+                        type="checkbox"
+                        checked={item.isActive !== false}
+                        onChange={() => setDeliveryGroupNumbers(prev => prev.map((n, i) => i === idx ? { ...n, isActive: n.isActive === false ? true : false } : n))}
+                        className="w-4 h-4 accent-orange-500 flex-shrink-0"
                       />
-                      <button
-                        type="button"
-                        onClick={() => setDeliveryGroupNumbers(prev => prev.map((n, i) => i === idx ? { ...n, isActive: !n.isActive } : n))}
-                        className={`p-1.5 rounded-lg border transition ${item.isActive ? 'bg-orange-100 border-orange-300 text-orange-600' : 'bg-gray-50 border-gray-200 text-gray-400'}`}
-                        title={item.isActive ? 'Actif' : 'Inactif'}
-                      >
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setDeliveryGroupNumbers(prev => prev.filter((_, i) => i !== idx))}
-                        className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
-                      >
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
-                      </button>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="text"
-                        placeholder="Lien d'invitation ou JID (120363...@g.us)"
-                        value={item.inviteLink || item.phoneNumber}
-                        onChange={e => setDeliveryGroupNumbers(prev => prev.map((n, i) => i === idx ? { ...n, inviteLink: e.target.value, phoneNumber: e.target.value } : n))}
-                        className="flex-1 min-w-0 px-2.5 py-1.5 border border-orange-200 rounded-lg text-xs font-mono bg-white focus:ring-1 focus:ring-orange-400"
-                      />
-                      {(item.inviteLink || item.phoneNumber || '').includes('chat.whatsapp.com') && (
-                        <button
-                          type="button"
-                          disabled={item._resolving}
-                          onClick={async () => {
-                            setDeliveryGroupNumbers(prev => prev.map((n, i) => i === idx ? { ...n, _resolving: true, _resolveError: null } : n));
-                            try {
-                              const res = await ecomApi.post('/orders/config/whatsapp-group/resolve', { inviteLink: item.inviteLink || item.phoneNumber });
-                              if (res.data.success) {
-                                setDeliveryGroupNumbers(prev => prev.map((n, i) => i === idx ? {
-                                  ...n,
-                                  phoneNumber: res.data.groupJid,
-                                  label: n.label || res.data.groupName,
-                                  inviteLink: item.inviteLink || item.phoneNumber,
-                                  _resolving: false,
-                                  _resolveError: null
-                                } : n));
-                              }
-                            } catch (err) {
-                              setDeliveryGroupNumbers(prev => prev.map((n, i) => i === idx ? { ...n, _resolving: false, _resolveError: err.response?.data?.message || err.message } : n));
-                            }
-                          }}
-                          className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-orange-500 text-white rounded-lg text-xs font-medium hover:bg-orange-600 disabled:opacity-50 transition whitespace-nowrap"
-                        >
-                          {item._resolving ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"/> : <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>}
-                          Résoudre
-                        </button>
-                      )}
-                    </div>
-                    {item.phoneNumber && item.phoneNumber.includes('@g.us') && (
-                      <p className="text-xs text-emerald-600 font-mono">✅ JID résolu : {item.phoneNumber}</p>
-                    )}
-                    {item._resolveError && (
-                      <p className="text-xs text-red-500">❌ {item._resolveError}</p>
-                    )}
-                  </div>
-                ))}
-              </div>
-              <button
-                type="button"
-                onClick={() => setDeliveryGroupNumbers(prev => [...prev, { label: '', phoneNumber: '', inviteLink: '', isActive: true }])}
-                className="inline-flex items-center gap-1 px-3 py-1.5 bg-orange-50 text-orange-700 border border-orange-200 rounded-lg text-xs font-medium hover:bg-orange-100 transition"
-              >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
-                Ajouter un groupe
-              </button>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-semibold text-gray-800 truncate">{item.label || 'Groupe sans nom'}</p>
+                        <p className="text-[10px] font-mono text-gray-400 truncate">{item.phoneNumber}</p>
+                      </div>
+                      <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${item.isActive !== false ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-400'}`}>
+                        {item.isActive !== false ? 'Actif' : 'Inactif'}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Bouton de sauvegarde notifs */}
