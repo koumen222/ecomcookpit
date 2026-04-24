@@ -24,12 +24,110 @@ const DEFAULT_FORM_TEXTS = {
 
 const BADGE_ICONS = { shield: Shield, rotate: RotateCcw, truck: Truck };
 
+const COUNTRY_FLAG_CODES = {
+  cameroun: 'CM',
+  cameroon: 'CM',
+  "cote d'ivoire": 'CI',
+  'cote divoire': 'CI',
+  'côte d’ivoire': 'CI',
+  'ivory coast': 'CI',
+  senegal: 'SN',
+  'sénégal': 'SN',
+  ghana: 'GH',
+  togo: 'TG',
+  benin: 'BJ',
+  'bénin': 'BJ',
+  nigeria: 'NG',
+  gabon: 'GA',
+  mali: 'ML',
+  'burkina faso': 'BF',
+  guinee: 'GN',
+  'guinée': 'GN',
+  congo: 'CG',
+  'republique du congo': 'CG',
+  'république du congo': 'CG',
+  rdc: 'CD',
+  'republique democratique du congo': 'CD',
+  'république démocratique du congo': 'CD',
+};
+
+const COUNTRY_PREPOSITIONS = {
+  "cote d'ivoire": 'en',
+  'cote divoire': 'en',
+  'côte d’ivoire': 'en',
+  'ivory coast': 'en',
+  guinee: 'en',
+  'guinée': 'en',
+  rdc: 'en',
+  'republique democratique du congo': 'en',
+  'république démocratique du congo': 'en',
+};
+
+const normalizeCountryKey = (value = '') => String(value || '')
+  .trim()
+  .toLowerCase()
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .replace(/[’']/g, "'")
+  .replace(/[^a-z' ]+/g, ' ')
+  .replace(/\s+/g, ' ')
+  .trim();
+
+const toFlagEmoji = (countryCode = '') => {
+  const normalizedCode = String(countryCode || '').trim().toUpperCase();
+  if (!/^[A-Z]{2}$/.test(normalizedCode)) return '';
+  return String.fromCodePoint(...normalizedCode.split('').map((char) => 127397 + char.charCodeAt(0)));
+};
+
+const getCountryFlagEmoji = (countryName = '') => {
+  const normalized = normalizeCountryKey(countryName);
+  const match = Object.entries(COUNTRY_FLAG_CODES).find(([key]) => normalized.includes(key));
+  return toFlagEmoji(match?.[1] || '');
+};
+
+const getAvailabilityBadge = (countryName = '') => {
+  const cleanCountry = String(countryName || '').trim();
+  if (!cleanCountry) {
+    return {
+      icon: null,
+      emoji: '📍',
+      title: 'Disponible',
+      text: 'Dans votre pays',
+    };
+  }
+
+  const normalized = normalizeCountryKey(cleanCountry);
+  const match = Object.entries(COUNTRY_PREPOSITIONS).find(([key]) => normalized.includes(key));
+  const preposition = match?.[1] || 'au';
+
+  return {
+    icon: null,
+    emoji: getCountryFlagEmoji(cleanCountry) || '📍',
+    title: `Disponible ${preposition}`,
+    text: cleanCountry,
+  };
+};
+
 const StoreProductPageInfographics = ({ product, store, productPageConfig, subdomain }) => {
   const formRef = useRef(null);
   const [showSticky, setShowSticky] = useState(true);
 
   const cfg = productPageConfig?.infographicsForm || {};
-  const badges = cfg.badges || DEFAULT_BADGES;
+  const countryName = product?.country || store?.country || product?.targetMarket || '';
+  const badges = useMemo(() => {
+    const source = cfg.badges || DEFAULT_BADGES;
+    let replaced = false;
+
+    return source.map((badge) => {
+      const normalizedTitle = normalizeCountryKey(badge?.title || '');
+      const isSecurePaymentBadge = badge?.icon === 'shield' || normalizedTitle.includes('paiement securise');
+      if (!replaced && isSecurePaymentBadge) {
+        replaced = true;
+        return getAvailabilityBadge(countryName);
+      }
+      return badge;
+    });
+  }, [cfg.badges, countryName]);
   const formTexts = { ...DEFAULT_FORM_TEXTS, ...cfg, placeholders: { ...DEFAULT_FORM_TEXTS.placeholders, ...(cfg.placeholders || {}) } };
 
   const infographics = useMemo(() => {
@@ -91,10 +189,14 @@ const StoreProductPageInfographics = ({ product, store, productPageConfig, subdo
         textAlign: 'center',
       }}>
         {badges.map((badge, idx) => {
-          const Icon = BADGE_ICONS[badge.icon] || Shield;
+          const Icon = badge.icon ? (BADGE_ICONS[badge.icon] || Shield) : null;
           return (
             <div key={idx} style={{ padding: '0 6px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, borderLeft: idx === 0 ? 'none' : '1px solid rgba(255,255,255,0.2)' }}>
-              <Icon size={18} style={{ marginBottom: 2 }} />
+              {badge.emoji ? (
+                <span style={{ fontSize: 18, lineHeight: 1, marginBottom: 2 }} aria-hidden="true">{badge.emoji}</span>
+              ) : Icon ? (
+                <Icon size={18} style={{ marginBottom: 2 }} />
+              ) : null}
               <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.3 }}>{badge.title}</div>
               <div style={{ fontSize: 10, fontWeight: 500, lineHeight: 1.3, opacity: 0.95 }}>{badge.text}</div>
             </div>

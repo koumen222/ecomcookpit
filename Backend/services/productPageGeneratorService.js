@@ -1113,6 +1113,15 @@ ${modeRules}`;
 
 // ─── Infographics 9:16 product page ─────────────────────────────────────────
 
+// ─── Color presets for infographic generation ────────────────────────────────
+const INFOGRAPHIC_COLOR_PRESETS = {
+  bleu_royal:    { bg: '#1E3A8A', text: '#FFFFFF', accent: '#FACC15', highlight: '#84CC16', description: 'cobalt royal blue full-bleed background' },
+  vert_emeraude: { bg: '#064E3B', text: '#FFFFFF', accent: '#6EE7B7', highlight: '#FACC15', description: 'deep emerald green full-bleed background' },
+  or_premium:    { bg: '#1C1917', text: '#FBBF24', accent: '#F5F5F4', highlight: '#D97706', description: 'dark luxury background with gold headline accents' },
+  rose_feminin:  { bg: '#831843', text: '#FFFFFF', accent: '#FBCFE8', highlight: '#F9A8D4', description: 'deep rose berry full-bleed background' },
+  violet_luxe:   { bg: '#3B0764', text: '#FFFFFF', accent: '#E9D5FF', highlight: '#C084FC', description: 'deep violet luxury full-bleed background' },
+};
+
 const INFOGRAPHIC_BASE_RULES = `
 VERTICAL 9:16 (1080×1920) INFOGRAPHIC IMAGE for a mobile product landing page. Full-bleed, edge-to-edge, no empty margins.
 USE EXACTLY the product appearance from the reference image provided — same shape, color, packaging, label, design. Do NOT redraw, recreate, or redesign the product. If you cannot reproduce the EXACT same product, generate the scene WITHOUT the product rather than inventing a different one.
@@ -1145,13 +1154,13 @@ DESIGN LANGUAGE TO FOLLOW:
 `;
 
 const INFOGRAPHIC_SLIDE_PROMPTS = {
-  hook: ({ productName, targetAudience, painPoint }) => `
+  hook: ({ productName, targetAudience, painPoint, bgColor = '#1E3A8A' }) => `
 SLIDE TYPE: HOOK / PROBLEM — opening slide that stops the scroll by naming the viewer's pain.
 
 SCENE:
 Authentic Black African person (match product target: ${targetAudience || 'adult, gender appropriate for the product'}) showing subtle discomfort or frustration related to: ${painPoint || 'the problem this product solves'}. Natural expression — NOT theatrical. Modern upscale interior. Soft natural lighting.
 The product ${productName || ''} visible in the lower third or background, serving as a visual promise of relief.
-The composition should resemble a premium funnel section: blue full-bleed background, one emotional main subject, and one strong supporting proof or insert.
+The composition should resemble a premium funnel section: ${bgColor} full-bleed background, one emotional main subject, and one strong supporting proof or insert.
 
 TEXT OVERLAY (top of image, large bold):
 A punchy 2-line hook in French that calls out the pain directly. Format example: "[Problème 1], [problème 2], [problème 3]? Vous méritez mieux" or "[Symptôme] vous gâche la vie?". 8-12 words max. Prefer big white text with vivid yellow emphasis.
@@ -1177,7 +1186,7 @@ Optional short subline bottom in lighter weight: a 1-line reassurance.
 MOOD: Confident, bright, benefit-first. Feels aspirational but reachable. No forced centered packshot.
 `,
 
-  avant_apres: ({ productName, bodyZone }) => `
+  avant_apres: ({ productName, bodyZone, bgColor = '#1E3A8A' }) => `
 SLIDE TYPE: AVANT / APRÈS — split-screen transformation.
 
 SCENE:
@@ -1189,16 +1198,16 @@ Modern upscale interior, soft natural light, no aggressive filters.
 Use a premium transformation-page style with one clear arrow or visual transition and at least one framed evidence insert if it improves clarity.
 
 TEXT OVERLAY (optional, small, bottom):
-A 1-line result promise in bold blue #1E3A8A — 6-8 words max.
+A 1-line result promise in bold brand-color (${bgColor}) — 6-8 words max.
 
 MOOD: Credible real transformation, not magical. The change must be visibly tied to the product benefit.
 `,
 
-  testimonials: ({ productName }) => `
+  testimonials: ({ productName, bgColor = '#1E3A8A' }) => `
 SLIDE TYPE: AVIS CLIENTS — grille de témoignages en cartes.
 
 SCENE:
-Create a premium testimonial board on a strong blue landing-page background.
+Create a premium testimonial board on a ${bgColor} landing-page background.
 Use 4 to 6 clearly separated rounded square or near-square testimonial cards arranged in a neat 2x2 or 2x3 grid.
 Each card must look like a clean ecommerce proof block: white card, soft shadow, circular authentic avatar, 5 yellow stars, and a short believable testimonial in perfect French.
 The cards must be large, readable, and visually balanced like a conversion section.
@@ -1230,7 +1239,7 @@ French only, perfectly spelled, very short lines, highly legible on mobile.
 MOOD: Reassuring, premium, structured, and conversion-focused.
 `,
 
-  how_to_use: ({ productName }) => `
+  how_to_use: ({ productName, bgColor = '#1E3A8A' }) => `
 SLIDE TYPE: COMMENT UTILISER — simple step demonstration.
 
 SCENE:
@@ -1238,21 +1247,21 @@ Authentic Black African person naturally using the product ${productName || ''} 
 Prefer a polished editorial funnel section with one demo scene and, if useful, one angled support card or step cue.
 
 TEXT OVERLAY:
-Title top in bold blue #1E3A8A: "Comment utiliser"
+Title top in bold brand-color (${bgColor}): "Comment utiliser"
 Below in regular blue/gray, a 1-2 sentence natural French instruction (12-20 words). Perfect spelling.
 Optional small numbered badges (1, 2, 3) if multi-step, otherwise single clean instruction.
 
 MOOD: Practical, reassuring, friction-removing. The viewer should think "easy, I can do this".
 `,
 
-  cta_final: ({ productName }) => `
+  cta_final: ({ productName, bgColor = '#1E3A8A' }) => `
 SLIDE TYPE: CTA FINAL — closing slide that pushes to order.
 
 SCENE:
 Authentic Black African person, confident positive posture, holding the product ${productName || ''} prominently (one or both hands). Modern upscale interior with soft branded background (subtle pattern or gradient, blue/white palette with subtle botanical or geometric decoration).
 
 TEXT OVERLAY:
-Huge headline top in bold blue #1E3A8A (2-3 lines): "VOTRE MEILLEUR CHOIX EST ENTRE VOS MAINS" or a punchy close line (6-10 words, ALL CAPS).
+Huge headline top in bold brand-color (${bgColor}) (2-3 lines): "VOTRE MEILLEUR CHOIX EST ENTRE VOS MAINS" or a punchy close line (6-10 words, ALL CAPS).
 Sub-headline bottom in slightly lighter weight: a short promise (6-10 words, sentence case) — e.g. "Régulez votre [bénéfice] pour une vie saine".
 
 You may include a premium CTA pill or a clean order-form preview card if it strengthens the landing-page feel, but it must stay elegant, secondary, and highly readable.
@@ -1266,10 +1275,34 @@ const DEFAULT_INFOGRAPHIC_ORDER = ['hook', 'benefits', 'avant_apres', 'testimoni
 function buildInfographicPrompt(slideType, meta = {}) {
   const builder = INFOGRAPHIC_SLIDE_PROMPTS[slideType];
   if (!builder) return null;
-  const slideBody = builder(meta);
+
+  // Resolve color palette from preset + optional custom brand color
+  const preset = INFOGRAPHIC_COLOR_PRESETS[meta.colorStyle] || INFOGRAPHIC_COLOR_PRESETS.bleu_royal;
+  const bgColor = (meta.brandColor && /^#[0-9a-fA-F]{6}$/i.test(meta.brandColor)) ? meta.brandColor : preset.bg;
+  const { text: textColor, accent: accentColor, highlight: highlightColor } = preset;
+
+  // Inject dynamic colors into base rules (replace hardcoded defaults)
+  const dynamicBaseRules = INFOGRAPHIC_BASE_RULES.replace(
+    '- Dominant accent color: deep blue (#1E3A8A) for headlines, green (#84CC16) for positive highlights, red for strikethrough.',
+    `- Dominant color palette: background ${bgColor}, headlines ${textColor}, key emphasis ${accentColor}, positive highlights ${highlightColor}.`
+  );
+  const dynamicFunnelStyle = INFOGRAPHIC_SMART_FUNNEL_STYLE.replace(
+    '- Prefer a cobalt / royal blue full-bleed base with premium contrast, adapted subtly to the brand when needed',
+    `- Use a ${bgColor} (${preset.description}) full-bleed base — this is the mandatory brand color for this generation`
+  );
+
+  const colorOverride = `COLOR PALETTE — MANDATORY OVERRIDE:
+Background: ${bgColor} | Headlines: ${textColor} | Accent/emphasis words: ${accentColor} | Positive highlights: ${highlightColor}
+Apply this palette to ALL backgrounds, headlines, and design elements. Replace any default blue background with ${bgColor}.`;
+
+  // Pass resolved colors to slide builder
+  const enrichedMeta = { ...meta, bgColor, textColor, accentColor, highlightColor };
+  const slideBody = builder(enrichedMeta);
+
   return `FORMAT OVERRIDE: Generate the final image in VERTICAL 9:16 (1080×1920). Ignore any other aspect ratio mentioned.
-${INFOGRAPHIC_BASE_RULES}
-${INFOGRAPHIC_SMART_FUNNEL_STYLE}
+${colorOverride}
+${dynamicBaseRules}
+${dynamicFunnelStyle}
 ${slideBody}`.trim();
 }
 
@@ -1281,9 +1314,10 @@ ${slideBody}`.trim();
  * @param {string[]} params.slideTypes - Ordered list of slide types from DEFAULT_INFOGRAPHIC_ORDER
  * @param {object} params.product - { name, description, targetAudience, painPoint, mainBenefit, bodyZone }
  * @param {Buffer} params.productImageBuffer - Reference product image buffer (required for image-to-image)
+ * @param {(progress: { completed: number, total: number, type: string, order: number, ok: boolean, error?: string }) => void | Promise<void>} [params.onProgress]
  * @returns {Promise<{ infographics: Array<{ type, order, url, prompt }> }>}
  */
-export async function generateInfographicsProductPage({ slideTypes, product = {}, productImageBuffer }) {
+export async function generateInfographicsProductPage({ slideTypes, product = {}, productImageBuffer, onProgress }) {
   if (!Array.isArray(slideTypes) || slideTypes.length === 0) {
     throw new Error('slideTypes required (non-empty array)');
   }
@@ -1298,14 +1332,29 @@ export async function generateInfographicsProductPage({ slideTypes, product = {}
 
   console.log(`🎨 Generating ${validTypes.length} infographics 9:16 in parallel for product: ${product.name || '(unnamed)'}`);
 
+  let completed = 0;
+  const notifyProgress = async (payload) => {
+    completed += 1;
+    if (typeof onProgress === 'function') {
+      await onProgress({
+        completed,
+        total: validTypes.length,
+        ...payload,
+      });
+    }
+  };
+
   const tasks = validTypes.map(async (type, index) => {
     const prompt = buildInfographicPrompt(type, product);
     try {
       const result = await generateNanoBananaImageToImage(prompt, productImageBuffer, '9:16', 1);
       const url = Array.isArray(result?.images) ? result.images[0] : (result?.url || result);
-      return { type, order: index, url: url || null, prompt, ok: !!url };
+      const slideResult = { type, order: index, url: url || null, prompt, ok: !!url };
+      await notifyProgress({ type, order: index, ok: !!url, error: !url ? 'Aucune image retournée' : undefined });
+      return slideResult;
     } catch (err) {
       console.warn(`⚠️ Infographic slide "${type}" failed: ${err.message}`);
+      await notifyProgress({ type, order: index, ok: false, error: err.message });
       return { type, order: index, url: null, prompt, ok: false, error: err.message };
     }
   });

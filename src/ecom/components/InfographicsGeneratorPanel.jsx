@@ -1,5 +1,5 @@
-import React, { useState, useRef, useMemo } from 'react';
-import { Upload, Loader2, X, Check, GripVertical, Sparkles, ImagePlus, AlertTriangle } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { AlertTriangle, CheckCircle, GripVertical, ImagePlus, Sparkles, X } from 'lucide-react';
 
 const API_ORIGIN = (() => {
   const raw = String(import.meta.env.VITE_BACKEND_URL || '').trim();
@@ -36,7 +36,54 @@ const DEFAULT_FORM = {
   },
 };
 
-const InfographicsGeneratorPanel = ({ onGenerated, onCancel }) => {
+const COLOR_PRESETS = [
+  { id: 'bleu_royal',    hex: '#1E3A8A', label: 'Bleu Royal',    textColor: '#fff' },
+  { id: 'vert_emeraude', hex: '#064E3B', label: 'Vert Émeraude', textColor: '#fff' },
+  { id: 'or_premium',    hex: '#1C1917', label: 'Or Premium',    textColor: '#FBBF24' },
+  { id: 'rose_feminin',  hex: '#831843', label: 'Rose Féminin',  textColor: '#fff' },
+  { id: 'violet_luxe',   hex: '#3B0764', label: 'Violet Luxe',   textColor: '#fff' },
+];
+
+const LOADING_STEPS = ['Preparation', 'Direction visuelle', 'Generation', 'Finalisation'];
+
+const getWorkspaceId = () => {
+  const direct = String(localStorage.getItem('ecomWorkspaceId') || '').trim();
+  if (direct) return direct;
+  try {
+    const ws = JSON.parse(localStorage.getItem('ecomWorkspace') || 'null');
+    return ws?._id || ws?.id || '';
+  } catch {
+    return '';
+  }
+};
+
+const getAuthHeaders = () => ({
+  ...(localStorage.getItem('ecomToken') ? { Authorization: `Bearer ${localStorage.getItem('ecomToken')}` } : {}),
+  ...(getWorkspaceId() ? { 'X-Workspace-Id': getWorkspaceId() } : {}),
+});
+
+const getLoadingStepIndex = (progressPercent) => {
+  if (progressPercent >= 90) return 3;
+  if (progressPercent >= 55) return 2;
+  if (progressPercent >= 20) return 1;
+  return 0;
+};
+
+const normalizeInfographicsResult = (payload, fallbackForm = DEFAULT_FORM) => {
+  if (!payload) return null;
+  return {
+    layout: payload.layout || 'infographics',
+    theme: payload.theme || 'infographics',
+    pageStyle: payload.pageStyle || 'infographics',
+    infographics: Array.isArray(payload.infographics) ? payload.infographics : [],
+    form: payload.form || fallbackForm,
+    failed: Array.isArray(payload.failed) ? payload.failed : [],
+    productName: payload.productName || payload.name || '',
+    productDescription: payload.productDescription || '',
+  };
+};
+
+const InfographicsGeneratorPanel = ({ onGenerated, onCancel, onContinueInBackground, initialResult = null, onResetPreview }) => {
   const [photo, setPhoto] = useState(null);
   const [photoPreview, setPhotoPreview] = useState('');
   const [productName, setProductName] = useState('');
@@ -47,10 +94,92 @@ const InfographicsGeneratorPanel = ({ onGenerated, onCancel }) => {
   const [bodyZone, setBodyZone] = useState('');
   const [selectedSlides, setSelectedSlides] = useState(['hook', 'benefits', 'avant_apres', 'testimonials', 'reassurance', 'how_to_use', 'cta_final']);
   const [form, setForm] = useState(DEFAULT_FORM);
-  const [loading, setLoading] = useState(false);
+  const [colorStyle, setColorStyle] = useState('bleu_royal');
+  const [brandColor, setBrandColor] = useState('#1E3A8A');
+  const [phase, setPhase] = useState(initialResult?.infographics?.length ? 'preview' : 'form');
   const [error, setError] = useState('');
-  const [progress, setProgress] = useState('');
+  const [notice, setNotice] = useState('');
+  const [currentTaskId, setCurrentTaskId] = useState('');
+  const [progressPercent, setProgressPercent] = useState(initialResult?.infographics?.length ? 100 : 0);
+  const [currentStepLabel, setCurrentStepLabel] = useState(initialResult?.infographics?.length ? 'Infographies pretes' : '');
+  const [result, setResult] = useState(() => normalizeInfographicsResult(initialResult, DEFAULT_FORM));
   const fileInputRef = useRef(null);
+  const pollTimeoutRef = useRef(null);
+
+  useEffect(() => {
+    const normalized = normalizeInfographicsResult(initialResult, form);
+    if (!normalized?.infographics?.length) return;
+
+    setResult(normalized);
+    setPhase('preview');
+    setCurrentTaskId('');
+    setProgressPercent(100);
+    setCurrentStepLabel('Infographies pretes');
+    setError('');
+    setNotice('');
+  }, [initialResult]);
+
+  useEffect(() => () => {
+    if (pollTimeoutRef.current) clearTimeout(pollTimeoutRef.current);
+  }, []);
+
+  useEffect(() => {
+    if (phase !== 'loading' || !currentTaskId) return undefined;
+
+    let cancelled = false;
+
+    const pollTask = async () => {
+      try {
+        const resp = await fetch(`${API_ORIGIN}/api/ai/product-generator/tasks/${currentTaskId}`, {
+          headers: getAuthHeaders(),
+        });
+        if (!resp.ok || cancelled) throw new Error('Impossible de recuperer la tache');
+
+        const data = await resp.json();
+        if (!data?.success || !data?.task || cancelled) throw new Error(data?.message || 'Tache introuvable');
+
+        const task = data.task;
+        setProgressPercent(task.progressPercent || 0);
+        setCurrentStepLabel(task.currentStep || 'Generation en cours...');
+
+        if (task.status === 'done') {
+          const loadedResult = normalizeInfographicsResult(task.product?.infographicsResult || task.product, form);
+          if (!loadedResult?.infographics?.length) {
+            throw new Error('La tache est terminee mais le resultat est vide');
+          }
+          setResult(loadedResult);
+          setPhase('preview');
+          setCurrentTaskId('');
+          setProgressPercent(100);
+          setCurrentStepLabel('Infographies pretes');
+          setNotice('');
+          return;
+        }
+
+        if (task.status === 'error') {
+          throw new Error(task.errorMessage || 'La generation des infographies a echoue');
+        }
+
+        if (!cancelled) {
+          pollTimeoutRef.current = setTimeout(pollTask, 2500);
+        }
+      } catch (err) {
+        if (cancelled) return;
+        setError(err.message || 'Erreur pendant le suivi de generation');
+        setNotice('La generation continue peut-etre en arriere-plan. Tu peux la rouvrir depuis la liste des taches.');
+        setPhase('form');
+        setCurrentTaskId('');
+        setProgressPercent(0);
+        setCurrentStepLabel('');
+      }
+    };
+
+    pollTimeoutRef.current = setTimeout(pollTask, 1200);
+    return () => {
+      cancelled = true;
+      if (pollTimeoutRef.current) clearTimeout(pollTimeoutRef.current);
+    };
+  }, [currentTaskId, form, phase]);
 
   const onPickPhoto = (file) => {
     if (!file) return;
@@ -77,16 +206,60 @@ const InfographicsGeneratorPanel = ({ onGenerated, onCancel }) => {
     });
   };
 
-  const canGenerate = useMemo(() => photo && productName.trim().length >= 2 && selectedSlides.length > 0 && !loading, [photo, productName, selectedSlides, loading]);
+  const handlePresetClick = (preset) => {
+    setColorStyle(preset.id);
+    setBrandColor(preset.hex);
+  };
+
+  const handleCustomColor = (hex) => {
+    setBrandColor(hex);
+    setColorStyle('personnalise');
+  };
+
+  const canGenerate = useMemo(() => photo && productName.trim().length >= 2 && selectedSlides.length > 0 && phase !== 'loading', [photo, productName, selectedSlides, phase]);
+
+  const loadingStepIndex = useMemo(() => getLoadingStepIndex(progressPercent), [progressPercent]);
+
+  const resetToForm = () => {
+    setPhase('form');
+    setCurrentTaskId('');
+    setProgressPercent(0);
+    setCurrentStepLabel('');
+    setResult(null);
+    setError('');
+    onResetPreview?.();
+  };
+
+  const handleContinueBackgroundClick = () => {
+    setNotice('La generation continue en arriere-plan. Tu pourras rouvrir le resultat depuis la liste des taches.');
+    setPhase('form');
+    setCurrentTaskId('');
+    setProgressPercent(0);
+    setCurrentStepLabel('');
+    if (pollTimeoutRef.current) clearTimeout(pollTimeoutRef.current);
+    onContinueInBackground?.();
+  };
+
+  const handleApplyResult = () => {
+    if (!result?.infographics?.length) {
+      setError('Aucune infographie prete a appliquer.');
+      return;
+    }
+    onGenerated?.(result);
+  };
 
   const handleGenerate = async () => {
     if (!canGenerate) return;
     setError('');
-    setLoading(true);
-    setProgress(`Génération de ${selectedSlides.length} infographies 9:16 en cours...`);
+    setNotice('');
+    setResult(null);
+    onResetPreview?.();
+    setPhase('loading');
+    setProgressPercent(5);
+    setCurrentStepLabel('Preparation de la generation...');
 
     const token = localStorage.getItem('ecomToken');
-    const wsId = localStorage.getItem('ecomWorkspaceId') || '';
+    const wsId = getWorkspaceId();
 
     const fd = new FormData();
     fd.append('image', photo);
@@ -105,6 +278,8 @@ const InfographicsGeneratorPanel = ({ onGenerated, onCancel }) => {
     fd.append('phPhone', form.placeholders.phone);
     fd.append('phAddress', form.placeholders.address);
     fd.append('phCity', form.placeholders.city);
+    fd.append('brandColor', brandColor);
+    fd.append('colorStyle', colorStyle);
 
     try {
       const resp = await fetch(`${API_ORIGIN}/api/ai/product-generator/infographics`, {
@@ -122,22 +297,177 @@ const InfographicsGeneratorPanel = ({ onGenerated, onCancel }) => {
       }
       const data = await resp.json();
       if (!data.success) throw new Error(data.message || 'Génération échouée');
-      onGenerated?.({
-        layout: 'infographics',
-        theme: 'infographics',
-        infographics: data.infographics || [],
-        form: data.form || form,
-        failed: data.failed || [],
-        productName: productName.trim(),
-        productDescription: productDescription.trim(),
-      });
+
+      if (Array.isArray(data.infographics) && data.infographics.length > 0) {
+        const directResult = normalizeInfographicsResult({
+          layout: 'infographics',
+          theme: 'infographics',
+          pageStyle: 'infographics',
+          infographics: data.infographics || [],
+          form: data.form || form,
+          failed: data.failed || [],
+          productName: productName.trim(),
+          productDescription: productDescription.trim(),
+        }, form);
+        setResult(directResult);
+        setPhase('preview');
+        setProgressPercent(100);
+        setCurrentStepLabel('Infographies pretes');
+        return;
+      }
+
+      if (!data.taskId) {
+        throw new Error('Le serveur n\'a pas renvoye de tache a suivre');
+      }
+
+      setCurrentTaskId(String(data.taskId));
+      setProgressPercent(data.progressPercent || 8);
+      setCurrentStepLabel(data.currentStep || `Generation de ${selectedSlides.length} infographies 9:16 en cours...`);
     } catch (err) {
+      setPhase('form');
       setError(err.message || 'Erreur pendant la génération');
-    } finally {
-      setLoading(false);
-      setProgress('');
     }
   };
+
+  if (phase === 'loading') {
+    return (
+      <div className="p-6 sm:p-8">
+        <div className="rounded-2xl border border-gray-200 bg-white p-6">
+          <div className="flex items-center gap-4">
+            <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-[#0F6B4F]">
+              <Sparkles className="h-7 w-7 text-white" />
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-gray-500">Generation en cours</p>
+              <h3 className="mt-1 text-xl font-black text-black">Creation des infographies 9:16</h3>
+            </div>
+          </div>
+
+          <p className="mt-5 min-h-[20px] text-sm text-gray-600">
+            {currentStepLabel || 'Preparation des infographies...'}
+          </p>
+
+          <div className="mt-5">
+            <div className="mb-2 flex items-center justify-between text-xs font-medium text-gray-500">
+              <span>Progression</span>
+              <span>{Math.round(progressPercent)}%</span>
+            </div>
+            <div className="h-3 overflow-hidden rounded-full bg-gray-200">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-[#0A5740] via-[#0F6B4F] to-[#14855F] transition-all duration-500 ease-out"
+                style={{ width: `${progressPercent}%` }}
+              />
+            </div>
+          </div>
+
+          <div className="mt-5 grid grid-cols-4 gap-2">
+            {LOADING_STEPS.map((label, index) => (
+              <div
+                key={label}
+                className={`rounded-lg px-3 py-2 text-center text-xs font-semibold ${
+                  index < loadingStepIndex
+                    ? 'bg-[#E6F2ED] text-[#0A5740]'
+                    : index === loadingStepIndex
+                    ? 'bg-[#0F6B4F] text-white'
+                    : 'bg-gray-100 text-gray-500'
+                }`}
+              >
+                {index + 1}. {label}
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-5 flex flex-wrap items-center justify-center gap-4">
+            <button
+              type="button"
+              onClick={handleContinueBackgroundClick}
+              className="rounded-lg bg-[#0F6B4F] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#0A5740]"
+            >
+              Continuer en arriere-plan
+            </button>
+            <button
+              type="button"
+              onClick={resetToForm}
+              className="text-sm text-gray-500 underline transition hover:text-gray-800"
+            >
+              Revenir au formulaire
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (phase === 'preview' && result?.infographics?.length) {
+    return (
+      <div className="space-y-5 p-5 sm:p-6">
+        <div className="rounded-2xl border border-[#96C7B5] bg-[#E6F2ED] p-4">
+          <div className="flex items-start gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#0F6B4F]">
+              <CheckCircle className="h-6 w-6 text-white" />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-[#0A5740]">Infographies pretes</p>
+              <p className="mt-1 text-xs text-[#0A5740]">
+                {result.productName || productName || 'Produit'} · {result.infographics.length} slide(s) generee(s)
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {Array.isArray(result.failed) && result.failed.length > 0 && (
+          <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>{result.failed.length} slide(s) ont echoue mais le reste est disponible.</span>
+          </div>
+        )}
+
+        <div className="rounded-2xl border border-gray-200 bg-white p-5">
+          <div className="mb-4">
+            <p className="text-sm font-bold text-gray-900">Apercu des slides</p>
+            <p className="text-xs text-gray-500">Tu peux revoir le resultat avant application.</p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 xl:grid-cols-3">
+            {result.infographics.map((slide, index) => {
+              const slideMeta = SLIDE_CATALOG.find((entry) => entry.id === slide.type);
+              return (
+                <div key={`${slide.type}-${index}`} className="overflow-hidden rounded-2xl border border-gray-200 bg-gray-50">
+                  <div className="aspect-[9/16] bg-gray-100">
+                    {slide.url ? (
+                      <img src={slide.url} alt={slideMeta?.label || `Slide ${index + 1}`} className="h-full w-full object-cover" />
+                    ) : (
+                      <div className="flex h-full items-center justify-center text-xs text-gray-400">Image indisponible</div>
+                    )}
+                  </div>
+                  <div className="border-t border-gray-200 px-3 py-2">
+                    <p className="text-xs font-bold text-gray-900">{index + 1}. {slideMeta?.label || slide.type}</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+          <button
+            type="button"
+            onClick={resetToForm}
+            className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+          >
+            Nouvelle generation
+          </button>
+          <button
+            type="button"
+            onClick={handleApplyResult}
+            className="ml-auto flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-blue-700"
+          >
+            <Sparkles className="h-4 w-4" /> Appliquer ces infographies
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5 p-5 sm:p-6">
@@ -150,6 +480,12 @@ const InfographicsGeneratorPanel = ({ onGenerated, onCancel }) => {
           </div>
         </div>
       </div>
+
+      {notice && (
+        <div className="rounded-lg border border-[#96C7B5] bg-[#E6F2ED] px-4 py-3 text-sm text-[#0A5740]">
+          {notice}
+        </div>
+      )}
 
       {/* Photo du produit */}
       <div className="rounded-2xl border border-gray-200 bg-white p-5">
@@ -249,6 +585,40 @@ const InfographicsGeneratorPanel = ({ onGenerated, onCancel }) => {
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
             />
           </div>
+        </div>
+      </div>
+
+      {/* Couleurs & style */}
+      <div className="rounded-2xl border border-gray-200 bg-white p-5">
+        <label className="text-sm font-bold text-gray-900 mb-1 block">Couleurs & style</label>
+        <p className="text-xs text-gray-500 mb-3">La palette choisie sera appliquée à toutes les slides générées.</p>
+        <div className="flex flex-wrap gap-2 mb-4">
+          {COLOR_PRESETS.map(preset => (
+            <button
+              key={preset.id}
+              type="button"
+              onClick={() => handlePresetClick(preset)}
+              className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold border-2 transition-all ${
+                colorStyle === preset.id
+                  ? 'border-white ring-2 ring-blue-500 scale-105 shadow-md'
+                  : 'border-transparent opacity-75 hover:opacity-100'
+              }`}
+              style={{ backgroundColor: preset.hex, color: preset.textColor }}
+            >
+              {colorStyle === preset.id && <span>✓</span>}
+              {preset.label}
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center gap-3">
+          <label className="text-xs font-semibold text-gray-600 whitespace-nowrap">Couleur sur-mesure&nbsp;:</label>
+          <input
+            type="color"
+            value={brandColor}
+            onChange={(e) => handleCustomColor(e.target.value)}
+            className="h-8 w-12 cursor-pointer rounded border border-gray-300"
+          />
+          <span className="text-xs font-mono text-gray-400">{brandColor}</span>
         </div>
       </div>
 
@@ -366,7 +736,7 @@ const InfographicsGeneratorPanel = ({ onGenerated, onCancel }) => {
             type="button"
             onClick={onCancel}
             className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-            disabled={loading}
+            disabled={phase === 'loading'}
           >
             Annuler
           </button>
@@ -377,7 +747,7 @@ const InfographicsGeneratorPanel = ({ onGenerated, onCancel }) => {
           disabled={!canGenerate}
           className="ml-auto flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {loading ? (<><Loader2 className="h-4 w-4 animate-spin" /> {progress || 'Génération...'}</>) : (<><Sparkles className="h-4 w-4" /> Générer {selectedSlides.length} infographies 9:16</>)}
+          <Sparkles className="h-4 w-4" /> Generer {selectedSlides.length} infographies 9:16
         </button>
       </div>
     </div>

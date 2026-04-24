@@ -747,6 +747,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
   const [imageJobId, setImageJobId] = useState(null);
   const [imagesLoading, setImagesLoading] = useState(false);
   const [currentTaskId, setCurrentTaskId] = useState(null);
+  const [infographicsTaskResult, setInfographicsTaskResult] = useState(null);
   const [backgroundTasks, setBackgroundTasks] = useState([]);
   const [showTaskList, setShowTaskList] = useState(false);
   const fileInputRef = useRef(null);
@@ -895,12 +896,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
     };
 
     fetchTasks();
-    // Poll tasks every 10s if there are active ones
-    const interval = setInterval(() => {
-      if (backgroundTasks.some(t => !['done', 'error'].includes(t.status))) {
-        fetchTasks();
-      }
-    }, 10000);
+    const interval = setInterval(fetchTasks, 10000);
     return () => clearInterval(interval);
   }, []);
 
@@ -922,6 +918,17 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
       if (!resp.ok) throw new Error('Erreur chargement');
       const data = await resp.json();
       if (data.success && data.task?.product) {
+        if (data.task.product.layout === 'infographics' || data.task.product.pageStyle === 'infographics') {
+          setInfographicsTaskResult(data.task.product.infographicsResult || data.task.product);
+          setPageStyle('infographics');
+          setShowTaskList(false);
+          setPhase('input');
+          setActiveTab('page');
+          return;
+        }
+
+        setInfographicsTaskResult(null);
+        setPageStyle('classic');
         setProduct(data.task.product);
         if (data.task.product.visualTemplate) {
           setVisualTemplate(data.task.product.visualTemplate);
@@ -1815,6 +1822,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
     setStep(1);
     setProductSubstep(1);
     setProduct(null);
+    setInfographicsTaskResult(null);
     setError('');
     setLimitReached(false);
     setActiveTab('page');
@@ -1946,7 +1954,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <button
                     type="button"
-                    onClick={() => setPageStyle('classic')}
+                    onClick={() => { setPageStyle('classic'); setInfographicsTaskResult(null); }}
                     className={`text-left rounded-xl border-2 px-4 py-3 transition ${pageStyle === 'classic' ? 'border-scalor-green bg-[#E6F2ED]' : 'border-gray-200 bg-white hover:border-gray-300'}`}
                   >
                     <p className="text-sm font-bold text-gray-900">Classique</p>
@@ -1967,6 +1975,9 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
                 <InfographicsGeneratorPanel
                   onGenerated={handleInfographicsGenerated}
                   onCancel={pageMode ? undefined : onClose}
+                  onContinueInBackground={handleContinueInBackground}
+                  initialResult={infographicsTaskResult}
+                  onResetPreview={() => setInfographicsTaskResult(null)}
                 />
               )}
 
@@ -2012,7 +2023,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
                           onClick={() => handleLoadTask(task._id)}
                           className="ml-3 shrink-0 rounded-lg bg-[#0F6B4F] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#0A5740]"
                         >
-                          Voir la page
+                          {task.product?.layout === 'infographics' ? 'Voir le résultat' : 'Voir la page'}
                         </button>
                       )}
                       {task.status === 'error' && (
@@ -2023,7 +2034,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
                               onClick={() => handleLoadTask(task._id)}
                               className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700 transition hover:bg-amber-100"
                             >
-                              Ouvrir contenu
+                              {task.product?.layout === 'infographics' ? 'Ouvrir résultat' : 'Ouvrir contenu'}
                             </button>
                           )}
                           <span className="text-xs text-red-500">{task.errorMessage || 'Erreur'}</span>
