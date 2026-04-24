@@ -996,31 +996,47 @@ function buildArtDirectionProfile(slotIndex = 0, gptResult = {}, template = 'gen
 • Keep strong variation between visuals in the same product page. Do not repeat the same framing rhythm, spacing logic, badge arrangement or text placement from one image to the next.`;
 }
 
+function buildUltraSmartInfographicStyleRules(brandColor = '') {
+  return `
+
+═══ ULTRA SMART DIRECT-RESPONSE STYLE ═══
+• The image must feel like the smartest section of a high-converting mobile landing page, not a plain infographic or generic poster
+• Prefer a deep cobalt / royal blue full-bleed background, adapted from ${brandColor || 'the brand color'} when relevant, with premium contrast and strong sales-page energy
+• Typography must be ultra legible on mobile: huge uppercase headline, very short support text, white text with vivid yellow emphasis on key words
+• Build 2 to 4 clearly separated visual zones with strong hierarchy, spacing rhythm, and subtle divider logic
+• If the product is shown, make it oversized, sharp, premium, and slightly luminous with a soft glow
+• Use one proof device when relevant: a tilted photo card, transformation insert, authority card, result frame, trust chip, or reassurance strip
+• Use thin white borders, soft shadows, rounded cards, and occasional white line-art or botanical accents when they improve polish
+• Composition must feel layered, dynamic, and intentional — never flat, centered, or template-like
+• Keep text blocks short and punchy. No tiny paragraphs. No cluttered brochure layout`;
+}
+
 function buildBenefitsInfographicPrompt(gptResult, template = 'general', visualPrefs = {}) {
   const productName = gptResult.title || 'the product';
   const avatar = resolveHeroAvatar(gptResult, template);
   const brandColor = resolveBrandColor(visualPrefs, template);
-  const productBlock = 'THE EXACT product from the reference image, centered, large, ultra sharp, same packaging, same label, same color, same shape.';
   const pairs = getBenefitPairs(gptResult);
   const pairLines = pairs.map((pair) => `- ${pair.label} -> ${pair.benefit}`).join('\n');
 
-  return `Create a product benefit image for an African ecommerce audience. Vertical 4:5, premium photorealistic quality.
+  return `Create an ultra-smart benefit-first ecommerce infographic for an African audience. Vertical 4:5, premium photorealistic quality.
 
-The product is centered and must be the exact product from the reference image.
-${productBlock}
+This visual must feel like a high-converting product-page section, not a generic ad.
+The product is OPTIONAL and should only appear if it improves clarity, trust, or conversion. If the concept is stronger without it, omit it.
 
-Around the product, show 3 to 4 natural ingredients, active components, or benefit callouts relevant to the product, with clean arrows pointing to the product.
+Around the main idea, show 3 to 4 benefit callouts, active ingredients, emotional outcomes, or result cues relevant to the product.
+Prefer a persuasive poster or smart landing-page block over a centered packshot.
 
 Use these ingredient or benefit associations:
 ${pairLines}
 
-Include ${avatar} in a secondary but realistic position to reinforce trust, natural usage and relatability.
+Include ${avatar} only if it helps embody the result or usage context naturally.
+Use screenshot-style hierarchy when relevant: huge headline, one angled proof card, one reassurance cue, one strong visual anchor.
 
 Style: clean, educational, modern, easy to understand, premium, trustworthy.
 Colors must match this website / brand color: ${brandColor}.
 French text only. Perfect spelling. No fake stock-photo feel. No price, no phone number, no URL, no watermark.
 The design structure must be chosen dynamically by the AI according to the product. Do not use a repeated template.
-${buildArtDirectionProfile(1, gptResult, template, visualPrefs, 'benefits explanation image')}${buildDynamicDesignRules(gptResult, template, visualPrefs, 'benefits explanation image')}${buildProfessionalDescriptionGraphicRules(0, template, visualPrefs)}${buildHumanPhotoRealismRules()}${buildVisualPromptDirectives(visualPrefs)}`;
+${buildUltraSmartInfographicStyleRules(brandColor)}${buildArtDirectionProfile(1, gptResult, template, visualPrefs, 'benefits explanation image')}${buildDynamicDesignRules(gptResult, template, visualPrefs, 'benefits explanation image')}${buildProfessionalDescriptionGraphicRules(0, template, visualPrefs)}${buildHumanPhotoRealismRules()}${buildVisualPromptDirectives(visualPrefs)}`;
 }
 
 function buildSocialProofCollagePrompt(gptResult, template = 'general', visualPrefs = {}) {
@@ -1045,7 +1061,8 @@ Style: UGC, authentic, trust-building, realistic, premium but natural.
 Background must match brand identity and website color: ${brandColor}.
 No stock-photo feeling, no exaggerated poses, no fake hands, no watermark, no phone number, no URL.
 The AI must decide the most convincing single-scene group composition dynamically for this product instead of reusing the same layout.
-${buildArtDirectionProfile(2, gptResult, template, visualPrefs, 'social proof and trust image')}${buildDynamicDesignRules(gptResult, template, visualPrefs, 'social proof and trust image')}${buildProfessionalDescriptionGraphicRules(1, template, visualPrefs)}${buildHumanPhotoRealismRules()}${buildVisualPromptDirectives(visualPrefs)}`;
+Use a smart conversion-page design language: strong blue/yellow/white contrast, one dominant group scene, one subtle trust chip, optional decorative line-art, and a very clear mobile hierarchy.
+${buildUltraSmartInfographicStyleRules(brandColor)}${buildArtDirectionProfile(2, gptResult, template, visualPrefs, 'social proof and trust image')}${buildDynamicDesignRules(gptResult, template, visualPrefs, 'social proof and trust image')}${buildProfessionalDescriptionGraphicRules(1, template, visualPrefs)}${buildHumanPhotoRealismRules()}${buildVisualPromptDirectives(visualPrefs)}`;
 }
 
 /**
@@ -1127,6 +1144,7 @@ The exact product from the reference image must remain visible and accurate.
 ${productNote}
 
 The design must be dynamic and invented specifically for this product. Do not use a repeated template or fixed layout. The AI must decide the best composition, hierarchy, framing, badge placement, callouts, arrows, icons, collage, close-up, split, lifestyle scene, or editorial arrangement according to the product and the angle.
+It should feel like an ultra-smart landing-page section with screenshot-style hierarchy: strong blue foundation, white/yellow headline treatment, one proof insert, and one premium conversion cue when relevant.
 
 If the angle is about a problem, show the problem clearly and concretely.
 If the angle is about a result, make the result visually obvious.
@@ -1134,7 +1152,7 @@ If the angle is about reassurance, trust, ingredients, mechanism, transformation
 
 French text only if necessary, with perfect spelling. No price, no phone number, no URL, no watermark.
 The image must not feel generic and must not look like the same design system reused on every product.
-${buildArtDirectionProfile(slideIndex + 3, gptResult, template, visualPrefs, marketingIntent)}${buildDynamicDesignRules(gptResult, template, visualPrefs, marketingIntent)}${buildHumanPhotoRealismRules()}${buildSemanticIllustrationRules({
+${buildUltraSmartInfographicStyleRules(brandColor)}${buildArtDirectionProfile(slideIndex + 3, gptResult, template, visualPrefs, marketingIntent)}${buildDynamicDesignRules(gptResult, template, visualPrefs, marketingIntent)}${buildHumanPhotoRealismRules()}${buildSemanticIllustrationRules({
     mainClaim: angleTitle,
     supportText: angleExplication,
     promise: anglePromesse,
@@ -1177,7 +1195,8 @@ Build a non-generic marketing image specifically for this product.
 
 Use the exact product from the reference image when visible. Do not invent packaging, labels or colors.
 French text only if truly necessary. No price, no phone number, no URL, no watermark.
-${plan?.artDirection || buildArtDirectionProfile(slideIndex + 3, gptResult, template, visualPrefs, plan?.intent || 'dynamic marketing visual')}${buildDynamicDesignRules(gptResult, template, visualPrefs, plan?.intent || 'dynamic marketing visual')}${buildHumanPhotoRealismRules()}${buildSemanticIllustrationRules({
+Make it feel like a premium mobile landing-page block with a bold white/yellow headline hierarchy, a strong proof cue, and a polished blue-based direct-response composition.
+${buildUltraSmartInfographicStyleRules(brandColor)}${plan?.artDirection || buildArtDirectionProfile(slideIndex + 3, gptResult, template, visualPrefs, plan?.intent || 'dynamic marketing visual')}${buildDynamicDesignRules(gptResult, template, visualPrefs, plan?.intent || 'dynamic marketing visual')}${buildHumanPhotoRealismRules()}${buildSemanticIllustrationRules({
     mainClaim: angleTitle,
     supportText: angleExplication,
     promise: anglePromesse,

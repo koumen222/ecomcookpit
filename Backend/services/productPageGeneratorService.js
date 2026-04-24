@@ -9,6 +9,7 @@
 
 import axios from 'axios';
 import Groq from 'groq-sdk';
+import sharp from 'sharp';
 import { uploadImage, isConfigured } from './cloudflareImagesService.js';
 import { generateAnimatedGifFromImages, generateKieImageToVideo, generateNanoBananaImage, generateNanoBananaImageToImage } from './nanoBananaService.js';
 import { randomUUID } from 'crypto';
@@ -1130,6 +1131,19 @@ TEXT SPELLING CHECK — ZERO TOLERANCE:
 Every French word on the image must be perfectly spelled. Double-check: accents, agreement, spaces. If unsure, prefer shorter simpler words.
 `;
 
+const INFOGRAPHIC_SMART_FUNNEL_STYLE = `
+DESIGN LANGUAGE TO FOLLOW:
+- The image must feel like an ultra-smart direct-response mobile landing page, not a plain brochure or basic infographic
+- Prefer a cobalt / royal blue full-bleed base with premium contrast, adapted subtly to the brand when needed
+- Use strong headline hierarchy: huge uppercase white text with vivid yellow emphasis on key words
+- Build layered sections with visible rhythm: divider lines, rounded cards, soft shadows, and 2 to 4 clear content blocks
+- If the product is visible, make it oversized, sharp, premium, and slightly luminous with soft glow
+- Use at least one proof device when relevant: a tilted photo card, transformation insert, doctor/expert frame, trust chip, reassurance strip, or result card
+- Small decorative white line-art or botanical accents are allowed when they increase polish
+- Prioritize mobile readability and conversion hierarchy over symmetry
+- Avoid tiny paragraphs, clutter, and generic template layouts
+`;
+
 const INFOGRAPHIC_SLIDE_PROMPTS = {
   hook: ({ productName, targetAudience, painPoint }) => `
 SLIDE TYPE: HOOK / PROBLEM — opening slide that stops the scroll by naming the viewer's pain.
@@ -1137,9 +1151,10 @@ SLIDE TYPE: HOOK / PROBLEM — opening slide that stops the scroll by naming the
 SCENE:
 Authentic Black African person (match product target: ${targetAudience || 'adult, gender appropriate for the product'}) showing subtle discomfort or frustration related to: ${painPoint || 'the problem this product solves'}. Natural expression — NOT theatrical. Modern upscale interior. Soft natural lighting.
 The product ${productName || ''} visible in the lower third or background, serving as a visual promise of relief.
+The composition should resemble a premium funnel section: blue full-bleed background, one emotional main subject, and one strong supporting proof or insert.
 
 TEXT OVERLAY (top of image, large bold):
-A punchy 2-line hook in French that calls out the pain directly. Format example: "[Problème 1], [problème 2], [problème 3]? Vous méritez mieux" or "[Symptôme] vous gâche la vie?". 8-12 words max. Bold blue #1E3A8A.
+A punchy 2-line hook in French that calls out the pain directly. Format example: "[Problème 1], [problème 2], [problème 3]? Vous méritez mieux" or "[Symptôme] vous gâche la vie?". 8-12 words max. Prefer big white text with vivid yellow emphasis.
 Optional small badge top-left: "Livraison Gratuite" or 5-star review badge.
 
 MOOD: Empathic, scroll-stopping, targeted. The viewer must feel "that's me".
@@ -1152,9 +1167,10 @@ SCENE:
 Create a concept-led benefit poster or infographic for ${productName || 'the product'}.
 Focus on the result, relief, benefit, ingredient logic, or emotional outcome first.
 The product is OPTIONAL. Do not force it into the frame if that weakens the concept. Bright clean background.
+Make it feel like a smart landing-page block with one dominant visual anchor, one proof insert, and one reassurance cue.
 
 TEXT OVERLAY:
-Main headline centered in bold blue #1E3A8A (2 lines max): "${mainBenefit || 'Équilibrez votre [bénéfice], retrouvez votre [résultat]'}"
+Main headline centered in huge bold uppercase, preferably white with vivid yellow emphasis (2 lines max): "${mainBenefit || 'Équilibrez votre [bénéfice], retrouvez votre [résultat]'}"
 Support it with 2 or 3 concise visual cues: ingredients, result icons, before/after hints, or lifestyle outcome.
 Optional short subline bottom in lighter weight: a 1-line reassurance.
 
@@ -1170,6 +1186,7 @@ AVANT (top/left): authentic Black African person, visible problem on ${bodyZone 
 APRÈS (bottom/right): SAME person, believable improvement on the same zone. The product ${productName || ''} visible in hand or beside, natural scale.
 Small perfectly-spelled French labels "Avant" and "Après" in white on blue rounded pill.
 Modern upscale interior, soft natural light, no aggressive filters.
+Use a premium transformation-page style with one clear arrow or visual transition and at least one framed evidence insert if it improves clarity.
 
 TEXT OVERLAY (optional, small, bottom):
 A 1-line result promise in bold blue #1E3A8A — 6-8 words max.
@@ -1178,19 +1195,39 @@ MOOD: Credible real transformation, not magical. The change must be visibly tied
 `,
 
   testimonials: ({ productName }) => `
-SLIDE TYPE: AVIS CLIENTS — single group social proof scene.
+SLIDE TYPE: AVIS CLIENTS — grille de témoignages en cartes.
 
 SCENE:
-One single natural group scene showing several authentic Black African customers together in the same moment.
-They can interact naturally with ${productName || 'the product'} if it feels believable, but do not force the product if the scene is stronger without it.
-No collage grid, no separate avatar cards, no fake review layout, no isolated portraits.
+Create a premium testimonial board on a strong blue landing-page background.
+Use 4 to 6 clearly separated rounded square or near-square testimonial cards arranged in a neat 2x2 or 2x3 grid.
+Each card must look like a clean ecommerce proof block: white card, soft shadow, circular authentic avatar, 5 yellow stars, and a short believable testimonial in perfect French.
+The cards must be large, readable, and visually balanced like a conversion section.
+You may optionally show ${productName || 'the product'} as a small secondary packshot, but the card grid is the priority.
+Do not generate one group photo. Do not generate a collage of random portraits. Do not generate isolated floating faces without cards.
 
 TEXT OVERLAY:
-Optional title at top: "Ils nous ont fait confiance" in bold blue #1E3A8A.
-Optional short trust line or one subtle chip such as "Des milliers de clients satisfaits".
-If you add review text, keep it minimal and integrated, not as a 2×2 card grid.
+Title at top: "Avis des clients" or "Ils nous ont fait confiance" in a large rounded white header block.
+Each testimonial card should contain a short quote of 12 to 24 words max, readable and natural.
+Use African first names and cities when needed. Keep the text concise, credible, and mobile-readable.
+Optionally add one small trust chip such as "Des milliers de clients satisfaits".
 
-MOOD: Warm, trustworthy, abundant social proof through one believable collective scene.
+MOOD: Warm, trustworthy, high-conversion, and abundant social proof through visible square testimonial cards.
+`,
+
+  reassurance: ({ productName }) => `
+SLIDE TYPE: RÉASSURANCE / CONFIANCE — preuves et garanties.
+
+SCENE:
+Create a premium reassurance board for ${productName || 'the product'} in the same ultra-smart landing-page style.
+Use one dominant product visual or one lifestyle support visual, then add 3 to 5 trust elements in clean blocks: garantie, paiement à la livraison, livraison rapide, produit original, satisfaction client, résultat visible, support client.
+The composition should feel like a persuasive trust section, not a sterile infographic.
+
+TEXT OVERLAY:
+Use a big headline such as "Pourquoi nous faire confiance" or "Une solution fiable pour vous".
+Below, show 3 to 5 short reassurance chips or mini-cards with tiny icons or clean symbols.
+French only, perfectly spelled, very short lines, highly legible on mobile.
+
+MOOD: Reassuring, premium, structured, and conversion-focused.
 `,
 
   how_to_use: ({ productName }) => `
@@ -1198,6 +1235,7 @@ SLIDE TYPE: COMMENT UTILISER — simple step demonstration.
 
 SCENE:
 Authentic Black African person naturally using the product ${productName || ''} in a clean modern setting (bathroom, kitchen, bedroom — whichever matches the product category). The hand grip, scale and motion must look real. Product fully visible, correct packaging.
+Prefer a polished editorial funnel section with one demo scene and, if useful, one angled support card or step cue.
 
 TEXT OVERLAY:
 Title top in bold blue #1E3A8A: "Comment utiliser"
@@ -1217,13 +1255,13 @@ TEXT OVERLAY:
 Huge headline top in bold blue #1E3A8A (2-3 lines): "VOTRE MEILLEUR CHOIX EST ENTRE VOS MAINS" or a punchy close line (6-10 words, ALL CAPS).
 Sub-headline bottom in slightly lighter weight: a short promise (6-10 words, sentence case) — e.g. "Régulez votre [bénéfice] pour une vie saine".
 
-NO button drawn on the image — the actual order form is below in the page.
+You may include a premium CTA pill or a clean order-form preview card if it strengthens the landing-page feel, but it must stay elegant, secondary, and highly readable.
 
 MOOD: Triumphant, decisive, aspirational. Scroll-stopping closer.
 `,
 };
 
-const DEFAULT_INFOGRAPHIC_ORDER = ['hook', 'benefits', 'avant_apres', 'testimonials', 'how_to_use', 'cta_final'];
+const DEFAULT_INFOGRAPHIC_ORDER = ['hook', 'benefits', 'avant_apres', 'testimonials', 'reassurance', 'how_to_use', 'cta_final'];
 
 function buildInfographicPrompt(slideType, meta = {}) {
   const builder = INFOGRAPHIC_SLIDE_PROMPTS[slideType];
@@ -1231,6 +1269,7 @@ function buildInfographicPrompt(slideType, meta = {}) {
   const slideBody = builder(meta);
   return `FORMAT OVERRIDE: Generate the final image in VERTICAL 9:16 (1080×1920). Ignore any other aspect ratio mentioned.
 ${INFOGRAPHIC_BASE_RULES}
+${INFOGRAPHIC_SMART_FUNNEL_STYLE}
 ${slideBody}`.trim();
 }
 
@@ -1341,8 +1380,26 @@ export async function downloadAndUploadToR2(imgUrl, workspaceId, userId) {
       headers: { 'User-Agent': 'ScalorImporter/1.0' },
       maxRedirects: 3
     });
-    const ct = resp.headers['content-type'] || 'image/jpeg';
-    return await uploadBufferToR2(Buffer.from(resp.data), ct, workspaceId, userId);
+    const rawBuffer = Buffer.from(resp.data);
+    const originalKb = Math.round(rawBuffer.length / 1024);
+
+    // Compress to WebP for fast loading — max 1080px wide, quality 80
+    let compressedBuffer;
+    let mimeType = 'image/webp';
+    try {
+      compressedBuffer = await sharp(rawBuffer)
+        .resize(1080, null, { fit: 'inside', withoutEnlargement: true })
+        .webp({ quality: 80, effort: 4, smartSubsample: true })
+        .toBuffer();
+      const compressedKb = Math.round(compressedBuffer.length / 1024);
+      console.log(`🗜️ Infographic compressed: ${originalKb}KB → ${compressedKb}KB (WebP q80)`);
+    } catch (compressErr) {
+      console.warn(`⚠️ Compression failed, uploading original: ${compressErr.message}`);
+      compressedBuffer = rawBuffer;
+      mimeType = resp.headers['content-type'] || 'image/jpeg';
+    }
+
+    return await uploadBufferToR2(compressedBuffer, mimeType, workspaceId, userId);
   } catch (err) {
     console.warn(`⚠️ Download+R2 upload failed: ${err.message}`);
     return null;
