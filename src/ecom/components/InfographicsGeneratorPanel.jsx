@@ -17,7 +17,8 @@ const SLIDE_CATALOG = [
   { id: 'hook', label: 'Hook / Problème', desc: 'Accroche qui stoppe le scroll en nommant la douleur' },
   { id: 'benefits', label: 'Bénéfices', desc: 'Ce que le produit apporte, en un coup d\'œil' },
   { id: 'avant_apres', label: 'Avant / Après', desc: 'Transformation split-screen' },
-  { id: 'testimonials', label: 'Avis clients', desc: 'Grille d\'avis authentiques' },
+  { id: 'testimonials', label: 'Avis clients', desc: 'Cartes d\'avis carrées et témoignages visibles' },
+  { id: 'reassurance', label: 'Réassurance / Confiance', desc: 'Preuves, garanties et éléments qui rassurent' },
   { id: 'how_to_use', label: 'Comment utiliser', desc: 'Démonstration simple d\'usage' },
   { id: 'cta_final', label: 'CTA final', desc: 'Slide de clôture qui pousse à commander' },
 ];
@@ -44,7 +45,7 @@ const InfographicsGeneratorPanel = ({ onGenerated, onCancel }) => {
   const [painPoint, setPainPoint] = useState('');
   const [mainBenefit, setMainBenefit] = useState('');
   const [bodyZone, setBodyZone] = useState('');
-  const [selectedSlides, setSelectedSlides] = useState(['hook', 'benefits', 'avant_apres', 'testimonials', 'how_to_use', 'cta_final']);
+  const [selectedSlides, setSelectedSlides] = useState(['hook', 'benefits', 'avant_apres', 'testimonials', 'reassurance', 'how_to_use', 'cta_final']);
   const [form, setForm] = useState(DEFAULT_FORM);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
