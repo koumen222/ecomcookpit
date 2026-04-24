@@ -1612,6 +1612,8 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
       name: result.productName || 'Produit',
       description: result.productDescription || '',
       images: productImages,
+      country: result.country || '',
+      targetMarket: result.country || '',
       productPageConfig: {
         theme: 'infographics',
         infographics: result.infographics,
@@ -1620,6 +1622,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
       _pageData: {
         pageStyle: 'infographics',
         layout: 'infographics',
+        country: result.country || '',
         infographicsResult: result,
       },
     });

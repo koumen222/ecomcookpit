@@ -162,6 +162,7 @@ function buildInfographicsTaskProduct({ product = {}, formTexts = {}, infographi
     name: product.name || '',
     productName: product.name || '',
     productDescription: product.description || '',
+    country: product.country || '',
     infographics,
     form: formTexts,
     failed,
@@ -2075,6 +2076,7 @@ router.post('/infographics', requireEcomAuth, validateEcomAccess('products', 'wr
     const product = {
       name: String(req.body.productName || '').slice(0, 200),
       description: String(req.body.productDescription || '').slice(0, 800),
+      country: String(req.body.country || '').slice(0, 120),
       targetAudience: String(req.body.targetAudience || '').slice(0, 200),
       painPoint: String(req.body.painPoint || '').slice(0, 200),
       mainBenefit: String(req.body.mainBenefit || '').slice(0, 200),
@@ -2089,6 +2091,8 @@ router.post('/infographics', requireEcomAuth, validateEcomAccess('products', 'wr
       ctaLabel: String(req.body.formCtaLabel || 'CLIQUE POUR CONFIRMER TA COMMANDE').slice(0, 80),
       stickyLabel: String(req.body.formStickyLabel || 'COMMANDEZ').slice(0, 40),
       reassurance: String(req.body.formReassurance || 'Livraison gratuite et paiement après réception').slice(0, 160),
+      brandColor: product.brandColor || '#1E3A8A',
+      colorStyle: product.colorStyle || 'bleu_royal',
       placeholders: {
         fullname: String(req.body.phFullname || 'Saisir votre nom complet').slice(0, 60),
         phone: String(req.body.phPhone || 'Saisir un numero joignable').slice(0, 60),
