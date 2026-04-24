@@ -1319,7 +1319,7 @@ router.post('/', requireEcomAuth, requireWorkspace, requireStoreOwner, checkPlan
       images, category, tags, isPublished,
       seoTitle, seoDescription, linkedProductId, currency,
       targetMarket, country, city, locale,
-      testimonials, faq, _pageData
+      testimonials, faq, _pageData, productPageConfig
     } = req.body;
 
     if (!name || price === undefined) {
@@ -1389,7 +1389,8 @@ router.post('/', requireEcomAuth, requireWorkspace, requireStoreOwner, checkPlan
         createdBy: req.user.id,
         ...(testimonials?.length > 0 && { testimonials: normalizeTestimonials(testimonials) }),
         ...(faq?.length > 0 && { faq: normalizeFaq(faq) }),
-        ...(_pageData && { _pageData })
+        ...(_pageData && { _pageData }),
+        ...(productPageConfig && { productPageConfig })
       });
 
       await product.save();

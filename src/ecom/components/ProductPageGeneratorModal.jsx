@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import TestimonialsCarousel from './TestimonialsCarousel';
 import PaymentModalFrame from './PaymentModalFrame.jsx';
+import InfographicsGeneratorPanel from './InfographicsGeneratorPanel.jsx';
 
 // Product-generator is mounted at /api/ai/product-generator (outside /api/ecom).
 // We must always use API origin only, never a base path like /api/ecom.
@@ -688,6 +689,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
     } catch { return null; }
   });
   const [step, setStep] = useState(1); // 1: Base info, 2: Copywriting, 3: Advanced (optional)
+  const [pageStyle, setPageStyle] = useState('classic'); // 'classic' | 'infographics'
   const [productSubstep, setProductSubstep] = useState(1);
   const [inputMode, setInputMode] = useState('url'); // 'url' ou 'description'
   const [url, setUrl] = useState('');
@@ -834,10 +836,11 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
             const beforeAfterImages = Array.isArray(imgs.beforeAfterImages) ? imgs.beforeAfterImages : (prev.beforeAfterImages || []);
             const socialProofImages = Array.isArray(imgs.socialProofImages)
               ? imgs.socialProofImages
-              : [...peoplePhotos, ...beforeAfterImages].filter((value, index, array) => value && array.indexOf(value) === index);
+              : (prev.socialProofImages || []);
             const descriptionGifs = Array.isArray(imgs.descriptionGifs) ? imgs.descriptionGifs : (prev.descriptionGifs || []);
             const allImages = [
               ...peoplePhotos,
+              ...socialProofImages,
               ...(imgs.heroImage ? [imgs.heroImage] : []),
               ...(imgs.heroPosterImage ? [imgs.heroPosterImage] : []),
               ...beforeAfterImages,
@@ -1437,10 +1440,11 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
             const beforeAfterImages = Array.isArray(imgs.beforeAfterImages) ? imgs.beforeAfterImages : (prev.beforeAfterImages || []);
             const socialProofImages = Array.isArray(imgs.socialProofImages)
               ? imgs.socialProofImages
-              : [...peoplePhotos, ...beforeAfterImages].filter((value, index, array) => value && array.indexOf(value) === index);
+              : (prev.socialProofImages || []);
             const descriptionGifs = Array.isArray(imgs.descriptionGifs) ? imgs.descriptionGifs : (prev.descriptionGifs || []);
             const allImages = [
               ...peoplePhotos,
+              ...socialProofImages,
               ...(imgs.heroImage ? [imgs.heroImage] : []),
               ...(imgs.heroPosterImage ? [imgs.heroPosterImage] : []),
               ...beforeAfterImages,
@@ -1588,6 +1592,34 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
     }
   };
 
+  const handleInfographicsGenerated = (result) => {
+    if (!result?.infographics?.length) {
+      setError('Aucune infographie générée. Vérifie le quota image et réessaie.');
+      return;
+    }
+    const productImages = result.infographics
+      .filter(i => i?.url)
+      .map((i, idx) => ({ url: i.url, alt: `${result.productName || 'Produit'} — slide ${idx + 1}`, type: 'infographic' }));
+
+    onApply({
+      name: result.productName || 'Produit',
+      description: result.productDescription || '',
+      images: productImages,
+      productPageConfig: {
+        theme: 'infographics',
+        infographics: result.infographics,
+        infographicsForm: result.form,
+      },
+      _pageData: {
+        pageStyle: 'infographics',
+        layout: 'infographics',
+        infographicsResult: result,
+      },
+    });
+    clearDraft();
+    setDraftBanner(null);
+  };
+
   const handleApply = () => {
     if (!product) return;
 
@@ -1718,7 +1750,6 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
     }
     beforeAfterImages.forEach((imgUrl, index) => {
       pushUniqueImage(productImages, imgUrl, `Avant / Après ${index + 1} — Résultats visibles`, 'social-proof-before-after');
-      pushUniqueImage(socialProofImages, imgUrl, `Avant / Après ${index + 1} — Résultats visibles`, 'social-proof-before-after');
     });
     if (product.heroPosterImage) {
       pushUniqueImage(productImages, product.heroPosterImage, `Affiche — ${product.title || 'Produit'}`, 'hero-poster');
@@ -1732,24 +1763,13 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
       });
     }
 
-    if (product.peoplePhotos?.length) {
-      product.peoplePhotos.forEach((imgUrl, i) => {
-        pushUniqueImage(socialProofImages, imgUrl, `${product.title || 'Produit'} — client ${i + 1}`, 'social-proof-lifestyle');
-      });
-    }
-
     if ((product.socialProofImages || []).length) {
       (product.socialProofImages || []).forEach((url, index) => {
         pushUniqueImage(socialProofImages, url, `${product.title || 'Produit'} — preuve sociale ${index + 1}`, 'social-proof');
       });
     }
     
-    const finalSocialProofImages = ((product.socialProofImages || []).length
-      ? (product.socialProofImages || []).reduce((acc, url, index) => {
-          pushUniqueImage(acc, url, `${product.title || 'Produit'} — preuve sociale ${index + 1}`, 'social-proof');
-          return acc;
-        }, [])
-      : socialProofImages).slice(0, 3);
+    const finalSocialProofImages = socialProofImages.slice(0, 1);
     
     onApply({
       name: product.title || '',
@@ -1917,6 +1937,39 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
           {phase === 'input' && (
             <div className="p-6 space-y-5">
 
+              {/* Sélecteur style de page */}
+              <div className="rounded-2xl border border-gray-200 bg-white p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <Layers className="h-4 w-4 text-gray-400" />
+                  <label className="text-sm font-bold text-gray-900">Style de page</label>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setPageStyle('classic')}
+                    className={`text-left rounded-xl border-2 px-4 py-3 transition ${pageStyle === 'classic' ? 'border-scalor-green bg-[#E6F2ED]' : 'border-gray-200 bg-white hover:border-gray-300'}`}
+                  >
+                    <p className="text-sm font-bold text-gray-900">Classique</p>
+                    <p className="text-xs text-gray-500 mt-0.5">Hero, bénéfices, avis, FAQ, blocs conversion</p>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPageStyle('infographics')}
+                    className={`text-left rounded-xl border-2 px-4 py-3 transition ${pageStyle === 'infographics' ? 'border-blue-600 bg-blue-50' : 'border-gray-200 bg-white hover:border-gray-300'}`}
+                  >
+                    <p className="text-sm font-bold text-gray-900">Infographies 9:16</p>
+                    <p className="text-xs text-gray-500 mt-0.5">Pile d'infographies verticales + formulaire minimal</p>
+                  </button>
+                </div>
+              </div>
+
+              {pageStyle === 'infographics' && (
+                <InfographicsGeneratorPanel
+                  onGenerated={handleInfographicsGenerated}
+                  onCancel={pageMode ? undefined : onClose}
+                />
+              )}
+
               {/* Background tasks indicator */}
               {backgroundTasks.length > 0 && (
                 <div
@@ -2017,7 +2070,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
               )}
 
               {/* ÉTAPE 1: Informations produit */}
-              {step === 1 && (
+              {pageStyle === 'classic' && step === 1 && (
                 <>
                   {/* Template de page produit */}
                   {productSubstep === 1 && (
@@ -2338,7 +2391,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
               )}
 
               {/* ÉTAPE 2: Méthode Copywriting (simplifié) */}
-              {step === 2 && (
+              {pageStyle === 'classic' && step === 2 && (
                 <>
                   {/* 3 Méthodes Copywriting */}
                   <div className="rounded-[30px] border border-gray-200 bg-white p-5 shadow-[0_16px_40px_rgba(15,23,42,0.06)] sm:p-6">
@@ -2384,7 +2437,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
               )}
 
               {/* ÉTAPE 3: Paramètres avancés (simplifié) */}
-              {step === 3 && (
+              {pageStyle === 'classic' && step === 3 && (
                 <>
                   {/* Header */}
                   <div className="text-center space-y-2 mb-4">
@@ -3351,17 +3404,11 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
                       </div>
                     </div>
                   )}
-                  {((product.socialProofImages || []).length > 0 || (product.peoplePhotos || []).length > 0 || product.beforeAfterImage || product.beforeAfterImages?.length) && (
+                  {(product.socialProofImages || []).length > 0 && (
                     <div>
                       <p className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-[#0A5740]"><Users className="h-3.5 w-3.5" />Preuve sociale générée</p>
                       <div className="grid grid-cols-2 gap-3">
-                        {((product.socialProofImages || []).length > 0
-                          ? product.socialProofImages
-                          : [
-                              ...(product.peoplePhotos || []),
-                              ...((product.beforeAfterImages?.length ? product.beforeAfterImages : (product.beforeAfterImage ? [product.beforeAfterImage] : []))),
-                            ]
-                        ).map((imgUrl, i) => (
+                        {(product.socialProofImages || []).map((imgUrl, i) => (
                           <div key={`sp-${i}`}>
                             <ImagePreview src={imgUrl} label={`Preuve sociale ${i + 1}`} className="aspect-square" />
                             <p className="text-xs text-center text-gray-400 mt-1">Carré 1:1 pour le carousel</p>
@@ -3427,7 +3474,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
 
         {/* Footer */}
               <div className={pageMode ? 'border-t border-gray-200 bg-white px-6 py-4 shadow-[0_-14px_40px_rgba(15,23,42,0.04)] backdrop-blur-sm shrink-0' : 'px-6 py-4 border-t border-gray-100 shrink-0'}>
-          {phase === 'input' && (
+          {phase === 'input' && pageStyle === 'classic' && (
             <>
               {/* Info générations restantes */}
               {generationsInfo && !pageMode && (

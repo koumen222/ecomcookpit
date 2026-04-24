@@ -755,7 +755,7 @@ const EcomLayoutComponent = ({ children }) => {
               </button>
             </div>
             {/* Video */}
-            <div className="relative w-full" style={{ paddingBottom: '56.25%' }}>
+            <div className="relative w-full bg-black" style={{ paddingBottom: '56.25%' }}>
               <iframe
                 className="absolute inset-0 w-full h-full"
                 src="https://www.youtube.com/embed/405eKEysE0Q?autoplay=1"

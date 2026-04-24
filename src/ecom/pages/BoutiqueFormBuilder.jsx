@@ -1210,6 +1210,10 @@ const BoutiqueFormBuilder = () => {
   const storefrontUrl = getActiveStorefrontUrl() || (storeSubdomain ? `https://${storeSubdomain}.scalor.net` : '');
 
   useEffect(() => {
+    // Clean reset: clear previous store's data immediately so no residual config bleeds through
+    setConfig(null);
+    setProducts([]);
+    setLoading(true);
     (async () => {
       try {
         const [configRes, productsRes] = await Promise.all([
