@@ -80,17 +80,25 @@ const buildStorefrontThemeVars = (store) => {
   let ctaBackground = configuredButton || 'var(--s-primary)';
   let ctaText = configuredButton ? '#ffffff' : '#ffffff';
   let ctaBorder = 'transparent';
+  let heroCtaBackground = configuredButton || 'var(--s-primary)';
+  let heroCtaText = '#ffffff';
+  let heroCtaBorder = 'transparent';
 
   if (buttonStyle === 'outline') {
     ctaBackground = 'transparent';
     ctaText = 'var(--s-primary)';
     ctaBorder = 'var(--s-primary)';
+    heroCtaBackground = '#ffffff';
+    heroCtaText = configuredButton || 'var(--s-primary)';
   } else if (buttonStyle === 'soft') {
     ctaBackground = 'color-mix(in srgb, var(--s-primary) 12%, var(--s-bg))';
     ctaText = 'var(--s-primary)';
+    heroCtaBackground = '#ffffff';
+    heroCtaText = configuredButton || 'var(--s-primary)';
   } else if (buttonStyle === 'gradient') {
     ctaBackground = 'linear-gradient(135deg, var(--s-primary) 0%, var(--s-accent) 100%)';
     ctaText = '#ffffff';
+    heroCtaBackground = 'linear-gradient(135deg, var(--s-primary) 0%, var(--s-accent) 100%)';
   }
 
   return {
@@ -103,6 +111,10 @@ const buildStorefrontThemeVars = (store) => {
     '--sf-cta-bg': ctaBackground,
     '--sf-cta-text': ctaText,
     '--sf-cta-border': ctaBorder,
+    '--sf-hero-cta-bg': heroCtaBackground,
+    '--sf-hero-cta-text': heroCtaText,
+    '--sf-hero-cta-border': heroCtaBorder,
+    '--sf-hero-cta-shadow': '0 18px 42px rgba(15, 23, 42, 0.26)',
   };
 };
 
@@ -428,14 +440,14 @@ const AiHeroSection = ({ cfg, store, prefix, products }) => {
               style={{
                 display: 'inline-flex', alignItems: 'center', gap: 10,
                 padding: '16px 36px', borderRadius: '999px',
-                background: 'var(--sf-cta-bg)', color: 'var(--sf-cta-text)',
-                border: '1px solid var(--sf-cta-border)',
+                background: 'var(--sf-hero-cta-bg)', color: 'var(--sf-hero-cta-text)',
+                border: '1px solid var(--sf-hero-cta-border)',
                 fontWeight: 800, fontSize: 15, textDecoration: 'none',
                 letterSpacing: '-0.01em', fontFamily: 'var(--s-font)',
-                boxShadow: 'var(--sf-shadow)', transition: 'transform 0.15s, box-shadow 0.15s',
+                boxShadow: 'var(--sf-hero-cta-shadow)', transition: 'transform 0.15s, box-shadow 0.15s',
               }}
               onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 18px 40px rgba(15, 23, 42, 0.18)'; }}
-              onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = 'var(--sf-shadow)'; }}
+              onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = 'var(--sf-hero-cta-shadow)'; }}
             >{cfg.ctaText || 'Découvrir nos produits'} <ArrowRight size={17} /></Link>
           </div>
           {/* Product image */}
@@ -494,11 +506,11 @@ const HeroContent = ({ cfg, prefix, sectionId = 'hero' }) => {
   const ctaStyle = {
     display: 'inline-flex', alignItems: 'center', gap: 10,
     padding: '17px 40px', borderRadius: '999px',
-    background: 'var(--sf-cta-bg)', color: 'var(--sf-cta-text)',
-    border: '1px solid var(--sf-cta-border)',
+    background: 'var(--sf-hero-cta-bg)', color: 'var(--sf-hero-cta-text)',
+    border: '1px solid var(--sf-hero-cta-border)',
     fontWeight: 800, fontSize: 15.5, textDecoration: 'none',
     letterSpacing: '-0.01em', fontFamily: 'var(--s-font)',
-    boxShadow: 'var(--sf-shadow)', transition: 'transform 0.15s, box-shadow 0.15s',
+    boxShadow: 'var(--sf-hero-cta-shadow)', transition: 'transform 0.15s, box-shadow 0.15s',
   };
   
   return (
@@ -527,7 +539,7 @@ const HeroContent = ({ cfg, prefix, sectionId = 'hero' }) => {
       <Link 
         to={`${prefix}/products`}
         onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 12px 44px rgba(0,0,0,0.28)'; }}
-        onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 6px 30px rgba(0,0,0,0.22)'; }}
+        onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = 'var(--sf-hero-cta-shadow)'; }}
         style={ctaStyle}
       >
         {isEditMode ? (
@@ -3172,7 +3184,7 @@ const PublicStorefrontInner = () => {
             <div style={{ maxWidth: 640, margin: '0 auto' }}>
               <h1 style={{ fontSize: 'clamp(36px, 7vw, 60px)', fontWeight: 900, lineHeight: 1.08, color: '#fff', margin: '0 0 18px', letterSpacing: '-0.03em', fontFamily: 'var(--s-font)' }}>{store?.name}</h1>
               {store?.description && <p style={{ fontSize: 'clamp(15px, 2vw, 18px)', color: 'rgba(255,255,255,0.85)', lineHeight: 1.65, margin: '0 0 40px', fontFamily: 'var(--s-font)' }}>{store.description}</p>}
-              <Link to={`${prefix}/products`} style={{ display: 'inline-flex', alignItems: 'center', gap: 9, padding: '15px 34px', borderRadius: '999px', background: 'var(--sf-cta-bg)', color: 'var(--sf-cta-text)', border: '1px solid var(--sf-cta-border)', fontWeight: 700, fontSize: 15, textDecoration: 'none', boxShadow: 'var(--sf-shadow)' }}>
+              <Link to={`${prefix}/products`} style={{ display: 'inline-flex', alignItems: 'center', gap: 9, padding: '15px 34px', borderRadius: '999px', background: 'var(--sf-hero-cta-bg)', color: 'var(--sf-hero-cta-text)', border: '1px solid var(--sf-hero-cta-border)', fontWeight: 700, fontSize: 15, textDecoration: 'none', boxShadow: 'var(--sf-hero-cta-shadow)' }}>
                 Découvrir nos produits <ArrowRight size={17} />
               </Link>
             </div>

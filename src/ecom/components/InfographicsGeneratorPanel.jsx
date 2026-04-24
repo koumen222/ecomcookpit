@@ -805,7 +805,8 @@ const InfographicsGeneratorPanel = ({ onGenerated, onCancel, onContinueInBackgro
           </div>
         )}
       </div>
-      )}}}
+      )}
+
       <div className="rounded-2xl border border-gray-200 bg-white p-5 space-y-3">
         <label className="text-sm font-bold text-gray-900 block">Textes du formulaire de commande</label>
         <div>
