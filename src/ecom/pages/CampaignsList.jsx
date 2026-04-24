@@ -334,10 +334,16 @@ const CampaignsList = () => {
               log: [{ ...current, index, ts: Date.now() }, ...(p.log || [])].slice(0, 50)
             }));
           } else if (eventType === 'paused') {
-            setSendProgress(p => ({ ...p, sent: eventData.sent, failed: eventData.failed, skipped: eventData.skipped, status: 'paused' }));
+            setSendProgress(p => ({ ...p, sent: eventData.sent, failed: eventData.failed, skipped: eventData.skipped, status: 'paused', batchPause: null }));
             setPausingCampaignId(null);
           } else if (eventType === 'done') {
-            setSendProgress(p => ({ ...p, sent: eventData.sent, failed: eventData.failed, skipped: eventData.skipped, total: eventData.total, status: 'done' }));
+            setSendProgress(p => ({ ...p, sent: eventData.sent, failed: eventData.failed, skipped: eventData.skipped, total: eventData.total, status: 'done', batchPause: null }));
+          } else if (eventType === 'batch_pause') {
+            if (eventData.status === 'done') {
+              setSendProgress(p => ({ ...p, batchPause: null }));
+            } else {
+              setSendProgress(p => ({ ...p, batchPause: { remainingMin: eventData.remainingMin, totalMin: eventData.totalMin } }));
+            }
           }
         }
       }
@@ -922,7 +928,9 @@ const CampaignsList = () => {
             <p className="text-xs font-semibold truncate">{sendProgress.campaignName || 'Campagne'}</p>
             <p className="text-[11px] opacity-80">
               {sendProgress.status === 'sending'
-                ? `${sendProgress.currentIndex || 0}/${sendProgress.total || '?'} envoyés`
+                ? sendProgress.batchPause
+                  ? `⏳ Pause anti-spam — reprise dans ${sendProgress.batchPause.remainingMin}min`
+                  : `${sendProgress.currentIndex || 0}/${sendProgress.total || '?'} envoyés`
                 : sendProgress.status === 'done' ? 'Terminée'
                 : sendProgress.status === 'paused' ? 'En pause'
                 : sendProgress.status === 'reconnecting' ? 'Connexion perdue — envoi en cours...'
@@ -996,6 +1004,7 @@ const CampaignsList = () => {
                   {(sendProgress.status === 'interrupted' || sendProgress.status === 'reconnecting') && <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>}
                   <h3 className="font-semibold text-sm truncate">
                     {sendProgress.status === 'starting' ? 'Préparation...' :
+                     sendProgress.status === 'sending' && sendProgress.batchPause ? `⏳ Pause anti-spam — reprise dans ${sendProgress.batchPause.remainingMin}min — ${sendProgress.campaignName}` :
                      sendProgress.status === 'sending' ? `Envoi ${sendProgress.currentIndex || 0}/${sendProgress.total || '?'} — ${sendProgress.campaignName}` :
                      sendProgress.status === 'done' ? `Campagne terminée — ${sendProgress.campaignName}` :
                      sendProgress.status === 'paused' ? `Campagne en pause — ${sendProgress.campaignName}` :
@@ -1105,11 +1114,13 @@ const CampaignsList = () => {
                   )
                 )}
                 {sendProgress.status === 'sending' && (
-                  <div className="flex items-center gap-2 py-2 px-2 text-xs text-gray-400">
-                    <div className="w-3 h-3 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin"></div>
-                    {sendProgress.currentSubstep?.status === 'sending'
-                      ? (sendProgress.currentSubstep.step === 'text' ? '💬 Envoi du texte en cours...' : '🖼️ Envoi de l\'image en cours...')
-                      : 'Envoi en cours...'}
+                  <div className={`flex items-center gap-2 py-2 px-2 rounded-lg text-xs ${sendProgress.batchPause ? 'bg-orange-50 text-orange-700 font-medium' : 'text-gray-400'}`}>
+                    <div className={`w-3 h-3 border-2 border-t-transparent rounded-full animate-spin flex-shrink-0 ${sendProgress.batchPause ? 'border-orange-500' : 'border-emerald-400'}`}></div>
+                    {sendProgress.batchPause
+                      ? `⏳ Pause anti-spam — reprise dans ${sendProgress.batchPause.remainingMin} min... (${sendProgress.batchPause.totalMin} min au total)`
+                      : sendProgress.currentSubstep?.status === 'sending'
+                        ? (sendProgress.currentSubstep.step === 'text' ? '💬 Envoi du texte en cours...' : '🖼️ Envoi de l\'image en cours...')
+                        : 'Envoi en cours...'}
                   </div>
                 )}
               </div>

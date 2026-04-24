@@ -543,7 +543,7 @@ router.post('/campaigns/:id/send', requireMarketingAccess, async (req, res) => {
 
       for (const { phone, client, orderData } of recipients) {
         // Vérifier demande de pause (seulement via DB, pas via déconnexion client)
-        const fresh = await Campaign.findById(campaign._id).select('pauseRequested').lean();
+        const fresh = await Campaign.findById(campaign._id).select('pauseRequested').lean().catch(() => null);
         if (fresh?.pauseRequested) {
           campaign.status = 'paused';
           campaign.pauseRequested = false;
@@ -630,12 +630,31 @@ router.post('/campaigns/:id/send', requireMarketingAccess, async (req, res) => {
         campaign.sendProgress = { sent, failed, skipped, targeted: totalRecipients };
         await campaign.save().catch(() => {});
 
-        // Pause de 20 min tous les 10 messages envoyés avec succès
+        // Pause anti-spam tous les 10 messages envoyés avec succès
         if (result.success && sent % BATCH_SIZE === 0 && (alreadyProcessed + sent + failed + skipped) < totalRecipients) {
-          console.log(`⏸️ [CAMPAIGN] Pause 20 min après ${sent} messages envoyés...`);
-          emit('substep', { name: '', phone: '', step: 'batch_pause', status: 'pausing', detail: `Pause anti-spam 20 min (${sent} envoyés)` });
-          await new Promise(r => setTimeout(r, BATCH_PAUSE_MS));
-          emit('substep', { name: '', phone: '', step: 'batch_pause', status: 'done' });
+          const BATCH_TOTAL_MIN = Math.round(BATCH_PAUSE_MS / 60000);
+          console.log(`⏸️ [CAMPAIGN] Pause anti-spam ${BATCH_TOTAL_MIN}min après ${sent} messages envoyés...`);
+          let remainingMin = BATCH_TOTAL_MIN;
+          emit('batch_pause', { status: 'start', remainingMin, totalMin: BATCH_TOTAL_MIN, sent });
+          while (remainingMin > 0) {
+            await new Promise(r => setTimeout(r, 60000));
+            remainingMin--;
+            // Vérifier demande de pause pendant la pause anti-spam
+            const freshPause = await Campaign.findById(campaign._id).select('pauseRequested').lean().catch(() => null);
+            if (freshPause?.pauseRequested) {
+              campaign.status = 'paused';
+              campaign.pauseRequested = false;
+              campaign.sendProgress = { sent, failed, skipped, targeted: totalRecipients };
+              await campaign.save().catch(() => {});
+              emit('paused', { sent, failed, skipped, total: totalRecipients });
+              res.end();
+              return;
+            }
+            if (remainingMin > 0) {
+              emit('batch_pause', { status: 'countdown', remainingMin, totalMin: BATCH_TOTAL_MIN, sent });
+            }
+          }
+          emit('batch_pause', { status: 'done', sent });
         } else {
           await new Promise(r => setTimeout(r, MSG_DELAY_MS));
         }
