@@ -110,6 +110,111 @@ function buildStoreLocaleInstruction(country = '', city = '') {
   return `La boutique cible principalement le pays suivant : ${country}${city ? `, avec ${city} comme ville de référence` : ''}. Les témoignages, lieux, expressions et contexte d'achat doivent être cohérents avec ce pays.`;
 }
 
+function countKeywordMatches(source = '', keywords = []) {
+  return keywords.reduce((score, keyword) => (source.includes(keyword) ? score + 1 : score), 0);
+}
+
+function inferInfographicGenderContext(product = {}) {
+  const source = normalizeLocaleKey([
+    product.name,
+    product.description,
+    product.targetAudience,
+    product.painPoint,
+    product.bodyZone,
+  ].filter(Boolean).join(' '));
+
+  const femaleKeywords = [
+    'femme', 'femmes', 'woman', 'women', 'lady', 'ladies', 'feminin', 'femininite', 'feminite',
+    'lingerie', 'soutien gorge', 'rouge a levres', 'menopause', 'ovulation', 'vaginal', 'vagin',
+    'seins', 'post partum', 'perruque', 'wig', 'tissage', 'extensions', 'maquillage', 'bikini'
+  ];
+  const maleKeywords = [
+    'homme', 'hommes', 'man', 'men', 'male', 'masculin', 'virilite', 'viril', 'barbe', 'beard',
+    'moustache', 'rasage', 'shaving', 'prostate', 'testosterone', 'erection', 'penis', 'penile'
+  ];
+
+  const femaleScore = countKeywordMatches(source, femaleKeywords);
+  const maleScore = countKeywordMatches(source, maleKeywords);
+
+  if (femaleScore > maleScore && femaleScore > 0) return 'female';
+  if (maleScore > femaleScore && maleScore > 0) return 'male';
+  return 'neutral';
+}
+
+function buildInfographicCastingInstruction(product = {}) {
+  const genderContext = inferInfographicGenderContext(product);
+
+  if (genderContext === 'female') {
+    return 'Use Black African women only for the visible people and testimonial avatars in this generation. Do not insert men unless the product context explicitly requires a tiny secondary background role.';
+  }
+
+  if (genderContext === 'male') {
+    return 'Use Black African men only for the visible people and testimonial avatars in this generation. Do not insert women unless the product context explicitly requires a tiny secondary background role.';
+  }
+
+  return 'Choose the most natural Black African person for this product. Do NOT automatically mix women and men in the same slide. Keep the casting coherent with the product category and the target audience.';
+}
+
+function buildInfographicLocaleInstruction(country = '', city = '') {
+  const cleanCountry = cleanScrapedText(country || '');
+  if (!cleanCountry) {
+    return 'Keep names, expressions, and social proof credible for a real African e-commerce market.';
+  }
+
+  const locations = getLocalizedTestimonialLocations(cleanCountry, city).slice(0, 4);
+  return `The market focus is ${cleanCountry}${city ? ` with ${cleanScrapedText(city)} as a reference city` : ''}. Review cards, names, styling cues, language tone and city labels must feel native to this country. Prefer locations such as ${locations.join(', ')}. Do not mix multiple countries in the same slide.`;
+}
+
+function clampColorChannel(value) {
+  return Math.max(0, Math.min(255, Math.round(value)));
+}
+
+function hexToRgb(hex) {
+  const cleaned = String(hex || '').trim().replace('#', '');
+  if (!/^[0-9a-fA-F]{6}$/.test(cleaned)) return null;
+  return {
+    r: parseInt(cleaned.slice(0, 2), 16),
+    g: parseInt(cleaned.slice(2, 4), 16),
+    b: parseInt(cleaned.slice(4, 6), 16),
+  };
+}
+
+function rgbToHex({ r, g, b }) {
+  return `#${[r, g, b].map((channel) => clampColorChannel(channel).toString(16).padStart(2, '0')).join('').toUpperCase()}`;
+}
+
+function mixHexColors(baseHex, mixHex, ratio = 0.5) {
+  const base = hexToRgb(baseHex);
+  const mix = hexToRgb(mixHex);
+  if (!base || !mix) return baseHex;
+
+  return rgbToHex({
+    r: base.r + (mix.r - base.r) * ratio,
+    g: base.g + (mix.g - base.g) * ratio,
+    b: base.b + (mix.b - base.b) * ratio,
+  });
+}
+
+function getContrastTextColor(hex) {
+  const rgb = hexToRgb(hex);
+  if (!rgb) return '#FFFFFF';
+  const luminance = (0.2126 * rgb.r + 0.7152 * rgb.g + 0.0722 * rgb.b) / 255;
+  return luminance > 0.62 ? '#111827' : '#FFFFFF';
+}
+
+function buildCustomInfographicPalette(bgColor) {
+  const textColor = getContrastTextColor(bgColor);
+  const blendTarget = textColor === '#FFFFFF' ? '#FFFFFF' : '#111827';
+
+  return {
+    bg: bgColor,
+    text: textColor,
+    accent: mixHexColors(bgColor, blendTarget, textColor === '#FFFFFF' ? 0.18 : 0.12),
+    highlight: mixHexColors(bgColor, blendTarget, textColor === '#FFFFFF' ? 0.38 : 0.24),
+    description: 'custom brand-color full-bleed background',
+  };
+}
+
 function buildDefaultTestimonials(productName, country = '', city = '') {
   const locations = getLocalizedTestimonialLocations(country, city);
 
@@ -1154,46 +1259,52 @@ DESIGN LANGUAGE TO FOLLOW:
 `;
 
 const INFOGRAPHIC_SLIDE_PROMPTS = {
-  hook: ({ productName, targetAudience, painPoint, bgColor = '#1E3A8A' }) => `
+  hook: ({ productName, targetAudience, painPoint, bgColor = '#1E3A8A', textColor = '#FFFFFF', accentColor = '#FACC15', highlightColor = '#84CC16', country = '', city = '' }) => `
 SLIDE TYPE: HOOK / PROBLEM — opening slide that stops the scroll by naming the viewer's pain.
 
 SCENE:
 Authentic Black African person (match product target: ${targetAudience || 'adult, gender appropriate for the product'}) showing subtle discomfort or frustration related to: ${painPoint || 'the problem this product solves'}. Natural expression — NOT theatrical. Modern upscale interior. Soft natural lighting.
+${buildInfographicCastingInstruction({ name: productName, targetAudience, painPoint })}
+${buildInfographicLocaleInstruction(country, city)}
 The product ${productName || ''} visible in the lower third or background, serving as a visual promise of relief.
 The composition should resemble a premium funnel section: ${bgColor} full-bleed background, one emotional main subject, and one strong supporting proof or insert.
 
 TEXT OVERLAY (top of image, large bold):
-A punchy 2-line hook in French that calls out the pain directly. Format example: "[Problème 1], [problème 2], [problème 3]? Vous méritez mieux" or "[Symptôme] vous gâche la vie?". 8-12 words max. Prefer big white text with vivid yellow emphasis.
+A punchy 2-line hook in French that calls out the pain directly. Format example: "[Problème 1], [problème 2], [problème 3]? Vous méritez mieux" or "[Symptôme] vous gâche la vie?". 8-12 words max. Prefer big ${textColor} text with emphasis in ${accentColor} or ${highlightColor}.
 Optional small badge top-left: "Livraison Gratuite" or 5-star review badge.
 
 MOOD: Empathic, scroll-stopping, targeted. The viewer must feel "that's me".
 `,
 
-  benefits: ({ productName, mainBenefit }) => `
+  benefits: ({ productName, mainBenefit, bgColor = '#1E3A8A', textColor = '#FFFFFF', accentColor = '#FACC15', highlightColor = '#84CC16', targetAudience = '', country = '', city = '' }) => `
 SLIDE TYPE: BENEFITS — communicate what the product does in one glance.
 
 SCENE:
 Create a concept-led benefit poster or infographic for ${productName || 'the product'}.
 Focus on the result, relief, benefit, ingredient logic, or emotional outcome first.
 The product is OPTIONAL. Do not force it into the frame if that weakens the concept. Bright clean background.
+${buildInfographicCastingInstruction({ name: productName, targetAudience, mainBenefit })}
+${buildInfographicLocaleInstruction(country, city)}
 Make it feel like a smart landing-page block with one dominant visual anchor, one proof insert, and one reassurance cue.
 
 TEXT OVERLAY:
-Main headline centered in huge bold uppercase, preferably white with vivid yellow emphasis (2 lines max): "${mainBenefit || 'Équilibrez votre [bénéfice], retrouvez votre [résultat]'}"
+Main headline centered in huge bold uppercase, preferably ${textColor} with emphasis in ${accentColor} or ${highlightColor} (2 lines max): "${mainBenefit || 'Équilibrez votre [bénéfice], retrouvez votre [résultat]'}"
 Support it with 2 or 3 concise visual cues: ingredients, result icons, before/after hints, or lifestyle outcome.
 Optional short subline bottom in lighter weight: a 1-line reassurance.
 
 MOOD: Confident, bright, benefit-first. Feels aspirational but reachable. No forced centered packshot.
 `,
 
-  avant_apres: ({ productName, bodyZone, bgColor = '#1E3A8A' }) => `
+  avant_apres: ({ productName, bodyZone, bgColor = '#1E3A8A', textColor = '#FFFFFF', accentColor = '#FACC15', targetAudience = '', country = '', city = '' }) => `
 SLIDE TYPE: AVANT / APRÈS — split-screen transformation.
 
 SCENE:
 Vertical split (top = AVANT, bottom = APRÈS) OR side-by-side depending on framing — choose what shows best on 9:16.
 AVANT (top/left): authentic Black African person, visible problem on ${bodyZone || 'the relevant body zone'} — realistic, subtle, NOT exaggerated.
 APRÈS (bottom/right): SAME person, believable improvement on the same zone. The product ${productName || ''} visible in hand or beside, natural scale.
-Small perfectly-spelled French labels "Avant" and "Après" in white on blue rounded pill.
+${buildInfographicCastingInstruction({ name: productName, targetAudience, bodyZone })}
+${buildInfographicLocaleInstruction(country, city)}
+Small perfectly-spelled French labels "Avant" and "Après" in ${textColor} on a rounded pill using ${accentColor} or ${bgColor}.
 Modern upscale interior, soft natural light, no aggressive filters.
 Use a premium transformation-page style with one clear arrow or visual transition and at least one framed evidence insert if it improves clarity.
 
@@ -1203,32 +1314,37 @@ A 1-line result promise in bold brand-color (${bgColor}) — 6-8 words max.
 MOOD: Credible real transformation, not magical. The change must be visibly tied to the product benefit.
 `,
 
-  testimonials: ({ productName, bgColor = '#1E3A8A' }) => `
+  testimonials: ({ productName, bgColor = '#1E3A8A', textColor = '#FFFFFF', accentColor = '#FACC15', highlightColor = '#84CC16', targetAudience = '', country = '', city = '' }) => `
 SLIDE TYPE: AVIS CLIENTS — grille de témoignages en cartes.
 
 SCENE:
 Create a premium testimonial board on a ${bgColor} landing-page background.
 Use 4 to 6 clearly separated rounded square or near-square testimonial cards arranged in a neat 2x2 or 2x3 grid.
-Each card must look like a clean ecommerce proof block: white card, soft shadow, circular authentic avatar, 5 yellow stars, and a short believable testimonial in perfect French.
+Each card must look like a clean ecommerce proof block: white card, soft shadow, circular authentic avatar, 5 stars in ${highlightColor}, and a short believable testimonial in perfect French.
 The cards must be large, readable, and visually balanced like a conversion section.
 You may optionally show ${productName || 'the product'} as a small secondary packshot, but the card grid is the priority.
 Do not generate one group photo. Do not generate a collage of random portraits. Do not generate isolated floating faces without cards.
+${buildInfographicCastingInstruction({ name: productName, targetAudience })}
+${buildInfographicLocaleInstruction(country, city)}
+If the product is gendered, keep testimonial avatars consistent with that gender. Do not force a male+female mix unless the product is clearly unisex or family-oriented.
 
 TEXT OVERLAY:
 Title at top: "Avis des clients" or "Ils nous ont fait confiance" in a large rounded white header block.
 Each testimonial card should contain a short quote of 12 to 24 words max, readable and natural.
-Use African first names and cities when needed. Keep the text concise, credible, and mobile-readable.
+Use African first names and city labels coherent with ${country || 'the target market'}. Keep the text concise, credible, and mobile-readable.
 Optionally add one small trust chip such as "Des milliers de clients satisfaits".
 
 MOOD: Warm, trustworthy, high-conversion, and abundant social proof through visible square testimonial cards.
 `,
 
-  reassurance: ({ productName }) => `
+  reassurance: ({ productName, targetAudience = '', country = '', city = '' }) => `
 SLIDE TYPE: RÉASSURANCE / CONFIANCE — preuves et garanties.
 
 SCENE:
 Create a premium reassurance board for ${productName || 'the product'} in the same ultra-smart landing-page style.
 Use one dominant product visual or one lifestyle support visual, then add 3 to 5 trust elements in clean blocks: garantie, paiement à la livraison, livraison rapide, produit original, satisfaction client, résultat visible, support client.
+${buildInfographicCastingInstruction({ name: productName, targetAudience })}
+${buildInfographicLocaleInstruction(country, city)}
 The composition should feel like a persuasive trust section, not a sterile infographic.
 
 TEXT OVERLAY:
@@ -1239,29 +1355,33 @@ French only, perfectly spelled, very short lines, highly legible on mobile.
 MOOD: Reassuring, premium, structured, and conversion-focused.
 `,
 
-  how_to_use: ({ productName, bgColor = '#1E3A8A' }) => `
+  how_to_use: ({ productName, bgColor = '#1E3A8A', textColor = '#FFFFFF', targetAudience = '', country = '', city = '' }) => `
 SLIDE TYPE: COMMENT UTILISER — simple step demonstration.
 
 SCENE:
 Authentic Black African person naturally using the product ${productName || ''} in a clean modern setting (bathroom, kitchen, bedroom — whichever matches the product category). The hand grip, scale and motion must look real. Product fully visible, correct packaging.
+${buildInfographicCastingInstruction({ name: productName, targetAudience })}
+${buildInfographicLocaleInstruction(country, city)}
 Prefer a polished editorial funnel section with one demo scene and, if useful, one angled support card or step cue.
 
 TEXT OVERLAY:
-Title top in bold brand-color (${bgColor}): "Comment utiliser"
-Below in regular blue/gray, a 1-2 sentence natural French instruction (12-20 words). Perfect spelling.
+Title top in bold ${textColor} or ${bgColor}: "Comment utiliser"
+Below in a brand-coherent neutral tone, a 1-2 sentence natural French instruction (12-20 words). Perfect spelling.
 Optional small numbered badges (1, 2, 3) if multi-step, otherwise single clean instruction.
 
 MOOD: Practical, reassuring, friction-removing. The viewer should think "easy, I can do this".
 `,
 
-  cta_final: ({ productName, bgColor = '#1E3A8A' }) => `
+  cta_final: ({ productName, bgColor = '#1E3A8A', textColor = '#FFFFFF', accentColor = '#FACC15', targetAudience = '', country = '', city = '' }) => `
 SLIDE TYPE: CTA FINAL — closing slide that pushes to order.
 
 SCENE:
-Authentic Black African person, confident positive posture, holding the product ${productName || ''} prominently (one or both hands). Modern upscale interior with soft branded background (subtle pattern or gradient, blue/white palette with subtle botanical or geometric decoration).
+Authentic Black African person, confident positive posture, holding the product ${productName || ''} prominently (one or both hands). Modern upscale interior with a soft branded background derived from ${bgColor}, with subtle premium decoration if useful.
+${buildInfographicCastingInstruction({ name: productName, targetAudience })}
+${buildInfographicLocaleInstruction(country, city)}
 
 TEXT OVERLAY:
-Huge headline top in bold brand-color (${bgColor}) (2-3 lines): "VOTRE MEILLEUR CHOIX EST ENTRE VOS MAINS" or a punchy close line (6-10 words, ALL CAPS).
+Huge headline top in bold ${textColor} with emphasis in ${accentColor} or ${bgColor} (2-3 lines): "VOTRE MEILLEUR CHOIX EST ENTRE VOS MAINS" or a punchy close line (6-10 words, ALL CAPS).
 Sub-headline bottom in slightly lighter weight: a short promise (6-10 words, sentence case) — e.g. "Régulez votre [bénéfice] pour une vie saine".
 
 You may include a premium CTA pill or a clean order-form preview card if it strengthens the landing-page feel, but it must stay elegant, secondary, and highly readable.
@@ -1277,7 +1397,10 @@ function buildInfographicPrompt(slideType, meta = {}) {
   if (!builder) return null;
 
   // Resolve color palette from preset + optional custom brand color
-  const preset = INFOGRAPHIC_COLOR_PRESETS[meta.colorStyle] || INFOGRAPHIC_COLOR_PRESETS.bleu_royal;
+  const hasCustomBrandColor = meta.colorStyle === 'personnalise' && meta.brandColor && /^#[0-9a-fA-F]{6}$/i.test(meta.brandColor);
+  const preset = hasCustomBrandColor
+    ? buildCustomInfographicPalette(meta.brandColor)
+    : (INFOGRAPHIC_COLOR_PRESETS[meta.colorStyle] || INFOGRAPHIC_COLOR_PRESETS.bleu_royal);
   const bgColor = (meta.brandColor && /^#[0-9a-fA-F]{6}$/i.test(meta.brandColor)) ? meta.brandColor : preset.bg;
   const { text: textColor, accent: accentColor, highlight: highlightColor } = preset;
 
@@ -1289,6 +1412,9 @@ function buildInfographicPrompt(slideType, meta = {}) {
   const dynamicFunnelStyle = INFOGRAPHIC_SMART_FUNNEL_STYLE.replace(
     '- Prefer a cobalt / royal blue full-bleed base with premium contrast, adapted subtly to the brand when needed',
     `- Use a ${bgColor} (${preset.description}) full-bleed base — this is the mandatory brand color for this generation`
+  ).replace(
+    '- Use strong headline hierarchy: huge uppercase white text with vivid yellow emphasis on key words',
+    `- Use strong headline hierarchy: huge uppercase ${textColor} text with emphasis in ${accentColor} or ${highlightColor}`
   );
 
   const colorOverride = `COLOR PALETTE — MANDATORY OVERRIDE:

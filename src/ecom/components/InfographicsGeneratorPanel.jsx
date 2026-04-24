@@ -78,6 +78,7 @@ const normalizeInfographicsResult = (payload, fallbackForm = DEFAULT_FORM) => {
     infographics: Array.isArray(payload.infographics) ? payload.infographics : [],
     form: payload.form || fallbackForm,
     failed: Array.isArray(payload.failed) ? payload.failed : [],
+    country: payload.country || '',
     productName: payload.productName || payload.name || '',
     productDescription: payload.productDescription || '',
   };
@@ -88,6 +89,7 @@ const InfographicsGeneratorPanel = ({ onGenerated, onCancel, onContinueInBackgro
   const [photoPreview, setPhotoPreview] = useState('');
   const [productName, setProductName] = useState('');
   const [productDescription, setProductDescription] = useState('');
+  const [country, setCountry] = useState('');
   const [targetAudience, setTargetAudience] = useState('');
   const [painPoint, setPainPoint] = useState('');
   const [mainBenefit, setMainBenefit] = useState('');
@@ -266,6 +268,7 @@ const InfographicsGeneratorPanel = ({ onGenerated, onCancel, onContinueInBackgro
     fd.append('slideTypes', JSON.stringify(selectedSlides));
     fd.append('productName', productName.trim());
     fd.append('productDescription', productDescription.trim());
+    fd.append('country', country.trim());
     fd.append('targetAudience', targetAudience.trim());
     fd.append('painPoint', painPoint.trim());
     fd.append('mainBenefit', mainBenefit.trim());
@@ -306,6 +309,7 @@ const InfographicsGeneratorPanel = ({ onGenerated, onCancel, onContinueInBackgro
           infographics: data.infographics || [],
           form: data.form || form,
           failed: data.failed || [],
+          country: country.trim(),
           productName: productName.trim(),
           productDescription: productDescription.trim(),
         }, form);
@@ -545,6 +549,16 @@ const InfographicsGeneratorPanel = ({ onGenerated, onCancel, onContinueInBackgro
           />
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label className="text-xs font-semibold text-gray-700 mb-1 block">Pays cible</label>
+            <input
+              type="text"
+              value={country}
+              onChange={(e) => setCountry(e.target.value)}
+              placeholder="ex: Cameroun, Sénégal, Côte d'Ivoire"
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+            />
+          </div>
           <div>
             <label className="text-xs font-semibold text-gray-700 mb-1 block">Cible</label>
             <input

@@ -4,7 +4,7 @@ import EmbeddedOrderForm from './EmbeddedOrderForm';
 import { formatMoney } from '../utils/currency.js';
 
 const DEFAULT_BADGES = [
-  { icon: 'shield', title: 'Paiement sécurisé', text: 'Le paiement est sécurisé dès réception.' },
+  { icon: 'shield', title: 'Livraison gratuite', text: 'Paiement à la livraison.' },
   { icon: 'rotate', title: 'Remboursé', text: 'Nous vous donnons jusqu\'à 7 jours pour retourner votre article s\'il ne vous convient pas.' },
   { icon: 'truck', title: 'Livraison rapide', text: 'Livraison rapide à votre porte et sans frais supplémentaire.' },
 ];
@@ -24,88 +24,21 @@ const DEFAULT_FORM_TEXTS = {
 
 const BADGE_ICONS = { shield: Shield, rotate: RotateCcw, truck: Truck };
 
-const COUNTRY_FLAG_CODES = {
-  cameroun: 'CM',
-  cameroon: 'CM',
-  "cote d'ivoire": 'CI',
-  'cote divoire': 'CI',
-  'côte d’ivoire': 'CI',
-  'ivory coast': 'CI',
-  senegal: 'SN',
-  'sénégal': 'SN',
-  ghana: 'GH',
-  togo: 'TG',
-  benin: 'BJ',
-  'bénin': 'BJ',
-  nigeria: 'NG',
-  gabon: 'GA',
-  mali: 'ML',
-  'burkina faso': 'BF',
-  guinee: 'GN',
-  'guinée': 'GN',
-  congo: 'CG',
-  'republique du congo': 'CG',
-  'république du congo': 'CG',
-  rdc: 'CD',
-  'republique democratique du congo': 'CD',
-  'république démocratique du congo': 'CD',
-};
-
-const COUNTRY_PREPOSITIONS = {
-  "cote d'ivoire": 'en',
-  'cote divoire': 'en',
-  'côte d’ivoire': 'en',
-  'ivory coast': 'en',
-  guinee: 'en',
-  'guinée': 'en',
-  rdc: 'en',
-  'republique democratique du congo': 'en',
-  'république démocratique du congo': 'en',
-};
-
-const normalizeCountryKey = (value = '') => String(value || '')
-  .trim()
-  .toLowerCase()
-  .normalize('NFD')
-  .replace(/[\u0300-\u036f]/g, '')
-  .replace(/[’']/g, "'")
-  .replace(/[^a-z' ]+/g, ' ')
-  .replace(/\s+/g, ' ')
-  .trim();
-
-const toFlagEmoji = (countryCode = '') => {
-  const normalizedCode = String(countryCode || '').trim().toUpperCase();
-  if (!/^[A-Z]{2}$/.test(normalizedCode)) return '';
-  return String.fromCodePoint(...normalizedCode.split('').map((char) => 127397 + char.charCodeAt(0)));
-};
-
-const getCountryFlagEmoji = (countryName = '') => {
-  const normalized = normalizeCountryKey(countryName);
-  const match = Object.entries(COUNTRY_FLAG_CODES).find(([key]) => normalized.includes(key));
-  return toFlagEmoji(match?.[1] || '');
-};
-
-const getAvailabilityBadge = (countryName = '') => {
-  const cleanCountry = String(countryName || '').trim();
-  if (!cleanCountry) {
-    return {
-      icon: null,
-      emoji: '📍',
-      title: 'Disponible',
-      text: 'Dans votre pays',
-    };
-  }
-
-  const normalized = normalizeCountryKey(cleanCountry);
-  const match = Object.entries(COUNTRY_PREPOSITIONS).find(([key]) => normalized.includes(key));
-  const preposition = match?.[1] || 'au';
-
+const hexToRgb = (hex = '') => {
+  const cleaned = String(hex || '').trim().replace('#', '');
+  if (!/^[0-9a-fA-F]{6}$/.test(cleaned)) return null;
   return {
-    icon: null,
-    emoji: getCountryFlagEmoji(cleanCountry) || '📍',
-    title: `Disponible ${preposition}`,
-    text: cleanCountry,
+    r: parseInt(cleaned.slice(0, 2), 16),
+    g: parseInt(cleaned.slice(2, 4), 16),
+    b: parseInt(cleaned.slice(4, 6), 16),
   };
+};
+
+const getReadableTextColor = (hex = '') => {
+  const rgb = hexToRgb(hex);
+  if (!rgb) return '#FFFFFF';
+  const luminance = (0.2126 * rgb.r + 0.7152 * rgb.g + 0.0722 * rgb.b) / 255;
+  return luminance > 0.62 ? '#111827' : '#FFFFFF';
 };
 
 const StoreProductPageInfographics = ({ product, store, productPageConfig, subdomain }) => {
@@ -113,21 +46,7 @@ const StoreProductPageInfographics = ({ product, store, productPageConfig, subdo
   const [showSticky, setShowSticky] = useState(true);
 
   const cfg = productPageConfig?.infographicsForm || {};
-  const countryName = product?.country || store?.country || product?.targetMarket || '';
-  const badges = useMemo(() => {
-    const source = cfg.badges || DEFAULT_BADGES;
-    let replaced = false;
-
-    return source.map((badge) => {
-      const normalizedTitle = normalizeCountryKey(badge?.title || '');
-      const isSecurePaymentBadge = badge?.icon === 'shield' || normalizedTitle.includes('paiement securise');
-      if (!replaced && isSecurePaymentBadge) {
-        replaced = true;
-        return getAvailabilityBadge(countryName);
-      }
-      return badge;
-    });
-  }, [cfg.badges, countryName]);
+  const badges = cfg.badges || DEFAULT_BADGES;
   const formTexts = { ...DEFAULT_FORM_TEXTS, ...cfg, placeholders: { ...DEFAULT_FORM_TEXTS.placeholders, ...(cfg.placeholders || {}) } };
 
   const infographics = useMemo(() => {
@@ -147,9 +66,12 @@ const StoreProductPageInfographics = ({ product, store, productPageConfig, subdo
   const hasDiscount = product?.compareAtPrice && product.compareAtPrice > product.price;
 
   const design = productPageConfig?.design || {};
-  const accent = cfg.accentColor || design.ctaButtonColor || design.buttonColor || '#1E3A8A';
-  const ctaColor = cfg.ctaColor || design.ctaButtonColor || '#84CC16';
-  const stickyColor = cfg.stickyColor || '#3B82F6';
+  const brandColor = cfg.brandColor || cfg.accentColor || design.ctaButtonColor || design.buttonColor || '#1E3A8A';
+  const accent = brandColor;
+  const ctaColor = brandColor;
+  const stickyColor = brandColor;
+  const headerTextColor = cfg.headerTextColor || getReadableTextColor(brandColor);
+  const headerDividerColor = headerTextColor === '#FFFFFF' ? 'rgba(255,255,255,0.22)' : 'rgba(17,24,39,0.16)';
 
   useEffect(() => {
     const onScroll = () => {
@@ -184,19 +106,15 @@ const StoreProductPageInfographics = ({ product, store, productPageConfig, subdo
         gridTemplateColumns: `repeat(${badges.length}, 1fr)`,
         gap: 0,
         background: accent,
-        color: '#fff',
+        color: headerTextColor,
         padding: '14px 8px',
         textAlign: 'center',
       }}>
         {badges.map((badge, idx) => {
-          const Icon = badge.icon ? (BADGE_ICONS[badge.icon] || Shield) : null;
+          const Icon = BADGE_ICONS[badge.icon] || Shield;
           return (
-            <div key={idx} style={{ padding: '0 6px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, borderLeft: idx === 0 ? 'none' : '1px solid rgba(255,255,255,0.2)' }}>
-              {badge.emoji ? (
-                <span style={{ fontSize: 18, lineHeight: 1, marginBottom: 2 }} aria-hidden="true">{badge.emoji}</span>
-              ) : Icon ? (
-                <Icon size={18} style={{ marginBottom: 2 }} />
-              ) : null}
+            <div key={idx} style={{ padding: '0 6px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, borderLeft: idx === 0 ? 'none' : `1px solid ${headerDividerColor}` }}>
+              <Icon size={18} style={{ marginBottom: 2 }} />
               <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.3 }}>{badge.title}</div>
               <div style={{ fontSize: 10, fontWeight: 500, lineHeight: 1.3, opacity: 0.95 }}>{badge.text}</div>
             </div>
@@ -224,41 +142,111 @@ const StoreProductPageInfographics = ({ product, store, productPageConfig, subdo
         )}
       </div>
 
-      {/* Formulaire minimal */}
-      <div ref={formRef} style={{ padding: '32px 20px 24px', background: '#fff' }}>
-        <h2 style={{
-          fontSize: 26,
-          fontWeight: 900,
-          color: accent,
+      {/* Formulaire premium */}
+      <div ref={formRef} style={{ background: '#fff', padding: 0, overflow: 'hidden' }}>
+        {/* Header coloré */}
+        <div style={{
+          background: `linear-gradient(135deg, ${brandColor} 0%, ${brandColor}CC 100%)`,
+          color: '#fff',
+          padding: '28px 20px 24px',
           textAlign: 'center',
-          lineHeight: 1.25,
-          margin: '0 0 28px',
         }}>
-          {formTexts.headline}
-        </h2>
-
-        {/* Prix */}
-        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'baseline', gap: 14, marginBottom: 28 }}>
-          <span style={{ fontSize: 34, fontWeight: 900, color: ctaColor }}>{formatMoney(product?.price ?? 0, currency)}</span>
-          {hasDiscount && (
-            <span style={{ fontSize: 28, fontWeight: 800, color: '#DC2626', textDecoration: 'line-through' }}>
-              {formatMoney(product.compareAtPrice, currency)}
+          <div style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 7,
+            background: 'rgba(255,255,255,0.18)',
+            borderRadius: 20,
+            padding: '5px 14px',
+            marginBottom: 14,
+          }}>
+            <span style={{ fontSize: 14 }}>🛒</span>
+            <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1.2, textTransform: 'uppercase' }}>
+              Commande en ligne
             </span>
-          )}
+          </div>
+          <h2 style={{
+            fontSize: 21,
+            fontWeight: 900,
+            lineHeight: 1.3,
+            margin: 0,
+            maxWidth: 320,
+            marginInline: 'auto',
+          }}>
+            {formTexts.headline}
+          </h2>
         </div>
 
-        {/* Form */}
-        <InfographicsFormOverride
-          product={product}
-          subdomain={subdomain}
-          store={store}
-          productPageConfig={productPageConfig}
-          placeholders={formTexts.placeholders}
-          ctaLabel={formTexts.ctaLabel}
-          ctaColor={ctaColor}
-          reassurance={formTexts.reassurance}
-          accent={accent}
-        />
+        <div style={{ padding: '24px 20px 32px' }}>
+          {/* Prix card */}
+          <div style={{
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'baseline',
+            gap: 12,
+            marginBottom: 24,
+            background: `${brandColor}0C`,
+            borderRadius: 14,
+            padding: '18px 20px',
+            border: `1.5px solid ${brandColor}22`,
+          }}>
+            <span style={{ fontSize: 40, fontWeight: 900, color: brandColor, letterSpacing: -1 }}>
+              {formatMoney(product?.price ?? 0, currency)}
+            </span>
+            {hasDiscount && (
+              <span style={{ fontSize: 24, fontWeight: 700, color: '#9CA3AF', textDecoration: 'line-through' }}>
+                {formatMoney(product.compareAtPrice, currency)}
+              </span>
+            )}
+          </div>
+
+          {/* Formulaire */}
+          <InfographicsFormOverride
+            product={product}
+            subdomain={subdomain}
+            store={store}
+            productPageConfig={productPageConfig}
+            placeholders={formTexts.placeholders}
+            ctaLabel={formTexts.ctaLabel}
+            ctaColor={ctaColor}
+            brandColor={brandColor}
+            accent={brandColor}
+          />
+
+          {/* Badges réassurance */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginTop: 22 }}>
+            {[
+              { emoji: '🚚', label: 'Livraison gratuite' },
+              { emoji: '💳', label: 'Paiement à réception' },
+              { emoji: '🔒', label: 'Commande sécurisée' },
+            ].map(({ emoji, label }) => (
+              <div key={label} style={{
+                textAlign: 'center',
+                padding: '12px 6px',
+                background: '#F8FAFC',
+                borderRadius: 12,
+                border: `1.5px solid ${brandColor}22`,
+              }}>
+                <div style={{ fontSize: 22, marginBottom: 5 }}>{emoji}</div>
+                <div style={{ fontSize: 10, fontWeight: 800, color: brandColor, lineHeight: 1.3, textTransform: 'uppercase', letterSpacing: 0.3 }}>
+                  {label}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Réassurance text */}
+          <p style={{
+            textAlign: 'center',
+            color: brandColor,
+            fontSize: 17,
+            fontWeight: 800,
+            marginTop: 20,
+            lineHeight: 1.4,
+          }}>
+            ✅ {formTexts.reassurance}
+          </p>
+        </div>
       </div>
 
       {/* Bouton sticky */}
@@ -292,7 +280,8 @@ const StoreProductPageInfographics = ({ product, store, productPageConfig, subdo
   );
 };
 
-const InfographicsFormOverride = ({ product, subdomain, store, productPageConfig, placeholders, ctaLabel, ctaColor, reassurance, accent }) => {
+const InfographicsFormOverride = ({ product, subdomain, store, productPageConfig, placeholders, ctaLabel, ctaColor, brandColor = '#1E3A8A', accent }) => {
+  const formClass = `iform-${(brandColor || '#1E3A8A').replace('#', '')}`;
   const overrideConfig = useMemo(() => {
     const general = productPageConfig?.general || {};
     const existingFields = Array.isArray(general.formFields) && general.formFields.length > 0
@@ -316,9 +305,9 @@ const InfographicsFormOverride = ({ product, subdomain, store, productPageConfig
       general: { ...general, formFields: mappedFields, formType: 'embedded' },
       design: {
         ...(productPageConfig?.design || {}),
-        formButtonColor: ctaColor,
+        formButtonColor: brandColor,
         buttonTextColor: '#fff',
-        ctaBorderRadius: '10px',
+        ctaBorderRadius: '12px',
       },
       button: {
         ...(productPageConfig?.button || {}),
@@ -326,22 +315,30 @@ const InfographicsFormOverride = ({ product, subdomain, store, productPageConfig
         subtext: '',
       },
     };
-  }, [productPageConfig, placeholders, ctaLabel, ctaColor]);
+  }, [productPageConfig, placeholders, ctaLabel, ctaColor, brandColor]);
 
   return (
-    <div className="infographics-minimal-form">
+    <div className={formClass}>
       <style>{`
-        .infographics-minimal-form input,
-        .infographics-minimal-form select,
-        .infographics-minimal-form textarea {
-          border: 1px solid #E5E7EB !important;
-          border-radius: 6px !important;
+        .${formClass} input,
+        .${formClass} select,
+        .${formClass} textarea {
+          border: 1.5px solid #E5E7EB !important;
+          border-radius: 10px !important;
           padding: 16px 14px !important;
           font-size: 15px !important;
-          color: #6B7280 !important;
+          color: #111827 !important;
           background: #fff !important;
+          transition: border-color 0.15s, box-shadow 0.15s !important;
         }
-        .infographics-minimal-form label { display: none !important; }
+        .${formClass} input:focus,
+        .${formClass} select:focus,
+        .${formClass} textarea:focus {
+          border-color: ${brandColor} !important;
+          outline: none !important;
+          box-shadow: 0 0 0 3px ${brandColor}33 !important;
+        }
+        .${formClass} label { display: none !important; }
       `}</style>
       <EmbeddedOrderForm
         product={product}
@@ -349,16 +346,6 @@ const InfographicsFormOverride = ({ product, subdomain, store, productPageConfig
         store={store}
         productPageConfig={overrideConfig}
       />
-      <p style={{
-        textAlign: 'center',
-        color: accent,
-        fontSize: 20,
-        fontWeight: 800,
-        marginTop: 20,
-        lineHeight: 1.35,
-      }}>
-        {reassurance}
-      </p>
     </div>
   );
 };
