@@ -374,8 +374,14 @@ const CampaignsList = () => {
     setPausingCampaignId(id);
     try {
       await ecomApi.post(`/marketing/campaigns/${id}/pause`);
+      setSuccess('Pause demandée, arrêt après le message en cours...');
+      // Rafraîchir la liste après quelques secondes pour refléter le nouveau statut
+      setTimeout(() => fetchCampaigns(), 3000);
     } catch (err) {
       setError(err.response?.data?.message || 'Erreur pause');
+    } finally {
+      // Toujours réinitialiser le spinner — si le flux SSE est actif,
+      // l'événement "paused" le réinitialisera également (sans effet secondaire)
       setPausingCampaignId(null);
     }
   };
