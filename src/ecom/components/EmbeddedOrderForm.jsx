@@ -676,6 +676,8 @@ const EmbeddedOrderForm = ({ product, subdomain, store, productPageConfig }) => 
                     color: '#fff', fontWeight: 700, fontSize: 15, cursor: submitting ? 'not-allowed' : 'pointer',
                     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                     transition: 'opacity 0.15s', fontFamily: 'inherit',
+                    animation: submitting ? 'none' : 'pulse 1.9s ease-in-out infinite, glow 1.9s ease-in-out infinite alternate',
+                    willChange: 'opacity, box-shadow',
                   }}>
                     {submitting
                       ? <><Loader2 size={17} style={{ animation: 'spin 1s linear infinite' }} /> Traitement...</>

@@ -90,6 +90,13 @@ const StoreProductPageInfographics = ({ product, store, productPageConfig, subdo
       maxWidth: '100vw',
       paddingBottom: 120,
     }}>
+      <style>{`
+        @keyframes infographicStickyPulse {
+          0%, 100% { transform: translateX(-50%) scale(1); }
+          50% { transform: translateX(-50%) scale(1.04); }
+        }
+      `}</style>
+
       {/* Badges réassurance top */}
       <div style={{
         display: 'flex',
@@ -232,6 +239,8 @@ const StoreProductPageInfographics = ({ product, store, productPageConfig, subdo
             boxShadow: '0 10px 30px rgba(0,0,0,0.25)',
             cursor: 'pointer',
             zIndex: 50,
+            animation: 'infographicStickyPulse 1.8s ease-in-out infinite',
+            willChange: 'transform',
           }}
         >
           {formTexts.stickyLabel}
