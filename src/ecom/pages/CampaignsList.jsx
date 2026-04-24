@@ -921,6 +921,7 @@ const CampaignsList = () => {
           onClick={() => setIsProgressMinimized(false)}
         >
           {sendProgress.status === 'sending' && <div className="w-2.5 h-2.5 rounded-full bg-white animate-pulse flex-shrink-0"></div>}
+          {sendProgress.status === 'reconnecting' && <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin flex-shrink-0"></div>}
           {sendProgress.status === 'done' && <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg>}
           {sendProgress.status === 'paused' && <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>}
           {sendProgress.status === 'interrupted' && <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>}
@@ -951,8 +952,8 @@ const CampaignsList = () => {
           )}
           {/* Expand icon */}
           <svg className="w-4 h-4 flex-shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 4h-4m4 0l-5-5"/></svg>
-          {/* Reprendre button when reconnecting/interrupted */}
-          {['reconnecting', 'interrupted'].includes(sendProgress.status) && showProgress && (
+          {/* Reprendre button when interrupted / Rafraîchir when reconnecting */}
+          {sendProgress.status === 'interrupted' && showProgress && (
             <button
               onClick={(e) => { e.stopPropagation(); handleResume(showProgress); }}
               className="px-2 py-1 bg-white/20 hover:bg-white/30 rounded-lg text-xs font-bold transition flex-shrink-0"
@@ -1155,10 +1156,23 @@ const CampaignsList = () => {
                 ⏸️ Campagne en pause. Utilisez "Reprendre" pour continuer.
               </div>
             )}
-            {(sendProgress.status === 'interrupted' || sendProgress.status === 'reconnecting') && (
+            {sendProgress.status === 'reconnecting' && (
+              <div className="px-5 py-3 border-t bg-blue-50 flex items-center justify-between gap-3">
+                <span className="text-sm text-blue-800 font-medium">
+                  🔄 Connexion perdue — la campagne continue en arrière-plan.
+                </span>
+                <button
+                  onClick={() => { fetchCampaigns(); setSendProgress(null); setShowProgress(null); }}
+                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg transition flex-shrink-0"
+                >
+                  Rafraîchir
+                </button>
+              </div>
+            )}
+            {sendProgress.status === 'interrupted' && (
               <div className="px-5 py-3 border-t bg-yellow-50 flex items-center justify-between gap-3">
                 <span className="text-sm text-yellow-800 font-medium">
-                  ⚡ {sendProgress.status === 'reconnecting' ? 'Connexion perdue — l\'envoi peut continuer en arrière-plan.' : 'Campagne interrompue.'}
+                  ⚡ Campagne interrompue.
                 </span>
                 {showProgress && (
                   <button
