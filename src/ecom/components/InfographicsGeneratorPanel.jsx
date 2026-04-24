@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, CheckCircle, GripVertical, ImagePlus, Sparkles, X } from 'lucide-react';
+import { AlertTriangle, CheckCircle, GripVertical, ImagePlus, Loader2, Sparkles, Upload, X } from 'lucide-react';
+import { storeProductsApi } from '../services/storeApi.js';
 
 const API_ORIGIN = (() => {
   const raw = String(import.meta.env.VITE_BACKEND_URL || '').trim();
@@ -98,6 +99,9 @@ const InfographicsGeneratorPanel = ({ onGenerated, onCancel, onContinueInBackgro
   const [form, setForm] = useState(DEFAULT_FORM);
   const [colorStyle, setColorStyle] = useState('bleu_royal');
   const [brandColor, setBrandColor] = useState('#1E3A8A');
+  const [mode, setMode] = useState('ai'); // 'ai' | 'manual'
+  const [manualSlides, setManualSlides] = useState([]); // [{ file, preview }]
+  const [manualUploading, setManualUploading] = useState(false);
   const [phase, setPhase] = useState(initialResult?.infographics?.length ? 'preview' : 'form');
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -106,6 +110,7 @@ const InfographicsGeneratorPanel = ({ onGenerated, onCancel, onContinueInBackgro
   const [currentStepLabel, setCurrentStepLabel] = useState(initialResult?.infographics?.length ? 'Infographies pretes' : '');
   const [result, setResult] = useState(() => normalizeInfographicsResult(initialResult, DEFAULT_FORM));
   const fileInputRef = useRef(null);
+  const manualFileInputRef = useRef(null);
   const pollTimeoutRef = useRef(null);
 
   useEffect(() => {
@@ -216,6 +221,63 @@ const InfographicsGeneratorPanel = ({ onGenerated, onCancel, onContinueInBackgro
   const handleCustomColor = (hex) => {
     setBrandColor(hex);
     setColorStyle('personnalise');
+  };
+
+  const handleManualFilePick = (files) => {
+    if (!files?.length) return;
+    const newSlides = Array.from(files)
+      .filter(f => f.type.startsWith('image/'))
+      .slice(0, 20)
+      .map(file => ({ file, preview: URL.createObjectURL(file) }));
+    setManualSlides(prev => [...prev, ...newSlides].slice(0, 20));
+    setError('');
+  };
+
+  const removeManualSlide = (index) => {
+    setManualSlides(prev => {
+      const next = [...prev];
+      URL.revokeObjectURL(next[index].preview);
+      next.splice(index, 1);
+      return next;
+    });
+  };
+
+  const handleManualApply = async () => {
+    if (!manualSlides.length) { setError('Ajoute au moins une image.'); return; }
+    setError('');
+    setManualUploading(true);
+    try {
+      const files = manualSlides.map(s => s.file);
+      const res = await storeProductsApi.uploadImages(files);
+      const uploaded = res?.data?.data || res?.data || [];
+      if (!uploaded.length) throw new Error('Aucune image uploadée');
+      const infographics = uploaded.map((img, idx) => ({
+        url: img.url,
+        type: 'manual',
+        order: idx,
+        alt: `Slide ${idx + 1}`,
+      }));
+      const builtResult = {
+        layout: 'infographics',
+        theme: 'infographics',
+        pageStyle: 'infographics',
+        infographics,
+        form: {
+          ...form,
+          brandColor,
+          colorStyle,
+        },
+        failed: [],
+        country: '',
+        productName: '',
+        productDescription: '',
+      };
+      onGenerated?.(builtResult);
+    } catch (err) {
+      setError(err.message || 'Erreur lors de l\'upload des images');
+    } finally {
+      setManualUploading(false);
+    }
   };
 
   const canGenerate = useMemo(() => photo && productName.trim().length >= 2 && selectedSlides.length > 0 && phase !== 'loading', [photo, productName, selectedSlides, phase]);
@@ -491,7 +553,26 @@ const InfographicsGeneratorPanel = ({ onGenerated, onCancel, onContinueInBackgro
         </div>
       )}
 
-      {/* Photo du produit */}
+      {/* Mode toggle */}
+      <div className="grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          onClick={() => setMode('ai')}
+          className={`flex items-center justify-center gap-2 rounded-xl border-2 px-4 py-3 text-sm font-bold transition ${mode === 'ai' ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300'}`}
+        >
+          <Sparkles className="h-4 w-4" /> Générer avec l&apos;IA
+        </button>
+        <button
+          type="button"
+          onClick={() => setMode('manual')}
+          className={`flex items-center justify-center gap-2 rounded-xl border-2 px-4 py-3 text-sm font-bold transition ${mode === 'manual' ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300'}`}
+        >
+          <Upload className="h-4 w-4" /> Importer mes images
+        </button>
+      </div>
+
+      {/* Photo du produit — IA seulement */}
+      {mode === 'ai' && (
       <div className="rounded-2xl border border-gray-200 bg-white p-5">
         <label className="text-sm font-bold text-gray-900 mb-1 block">Photo du produit <span className="text-red-500">*</span></label>
         <p className="text-xs text-gray-500 mb-3">Le même packaging apparaîtra dans chaque infographie (image-to-image).</p>
@@ -524,8 +605,10 @@ const InfographicsGeneratorPanel = ({ onGenerated, onCancel, onContinueInBackgro
           onChange={(e) => onPickPhoto(e.target.files?.[0])}
         />
       </div>
+      )}
 
-      {/* Infos produit */}
+      {/* Infos produit — IA seulement */}
+      {mode === 'ai' && (
       <div className="rounded-2xl border border-gray-200 bg-white p-5 space-y-3">
         <label className="text-sm font-bold text-gray-900 block">Informations produit</label>
         <div>
@@ -601,8 +684,49 @@ const InfographicsGeneratorPanel = ({ onGenerated, onCancel, onContinueInBackgro
           </div>
         </div>
       </div>
+      )}
 
-      {/* Couleurs & style */}
+      {/* Upload manuel — mode manuel seulement */}
+      {mode === 'manual' && (
+        <div className="rounded-2xl border border-gray-200 bg-white p-5">
+          <p className="text-sm font-bold text-gray-900 mb-1">Tes infographies ({manualSlides.length}/20)</p>
+          <p className="text-xs text-gray-500 mb-3">Ajoute tes slides 9:16 dans l&apos;ordre souhaité. Elles s&apos;afficheront empilées sur la page publique.</p>
+          {manualSlides.length > 0 && (
+            <div className="grid grid-cols-3 gap-2 mb-3">
+              {manualSlides.map((slide, idx) => (
+                <div key={idx} className="relative aspect-[9/16] overflow-hidden rounded-xl border border-gray-200 bg-gray-100">
+                  <img src={slide.preview} alt={`Slide ${idx + 1}`} className="h-full w-full object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => removeManualSlide(idx)}
+                    className="absolute top-1 right-1 rounded-full bg-red-500 p-0.5 text-white shadow"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                  <span className="absolute bottom-1 left-1 rounded bg-black/50 px-1.5 py-0.5 text-[10px] font-bold text-white">{idx + 1}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={() => manualFileInputRef.current?.click()}
+            className="flex items-center justify-center gap-2 w-full h-24 rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 hover:bg-gray-100 transition text-gray-600"
+          >
+            <ImagePlus className="h-5 w-5" />
+            <span className="text-sm font-semibold">Ajouter des images</span>
+          </button>
+          <input
+            ref={manualFileInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            className="hidden"
+            onChange={(e) => handleManualFilePick(e.target.files)}
+          />
+        </div>
+      )}
+
       <div className="rounded-2xl border border-gray-200 bg-white p-5">
         <label className="text-sm font-bold text-gray-900 mb-1 block">Couleurs & style</label>
         <p className="text-xs text-gray-500 mb-3">La palette choisie sera appliquée à toutes les slides générées.</p>
@@ -636,7 +760,8 @@ const InfographicsGeneratorPanel = ({ onGenerated, onCancel, onContinueInBackgro
         </div>
       </div>
 
-      {/* Types de slides */}
+      {/* Types de slides — IA seulement */}
+      {mode === 'ai' && (
       <div className="rounded-2xl border border-gray-200 bg-white p-5">
         <label className="text-sm font-bold text-gray-900 mb-1 block">Types d'infographies ({selectedSlides.length})</label>
         <p className="text-xs text-gray-500 mb-3">Coche/décoche et réordonne. Chaque slide génère une image 9:16 dédiée.</p>
@@ -680,8 +805,7 @@ const InfographicsGeneratorPanel = ({ onGenerated, onCancel, onContinueInBackgro
           </div>
         )}
       </div>
-
-      {/* Textes du formulaire */}
+      )}}}
       <div className="rounded-2xl border border-gray-200 bg-white p-5 space-y-3">
         <label className="text-sm font-bold text-gray-900 block">Textes du formulaire de commande</label>
         <div>
@@ -750,19 +874,30 @@ const InfographicsGeneratorPanel = ({ onGenerated, onCancel, onContinueInBackgro
             type="button"
             onClick={onCancel}
             className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-            disabled={phase === 'loading'}
+            disabled={phase === 'loading' || manualUploading}
           >
             Annuler
           </button>
         )}
-        <button
-          type="button"
-          onClick={handleGenerate}
-          disabled={!canGenerate}
-          className="ml-auto flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <Sparkles className="h-4 w-4" /> Generer {selectedSlides.length} infographies 9:16
-        </button>
+        {mode === 'manual' ? (
+          <button
+            type="button"
+            onClick={handleManualApply}
+            disabled={!manualSlides.length || manualUploading}
+            className="ml-auto flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {manualUploading ? <><Loader2 className="h-4 w-4 animate-spin" /> Upload en cours...</> : <><Upload className="h-4 w-4" /> Appliquer {manualSlides.length > 0 ? `${manualSlides.length} image${manualSlides.length > 1 ? 's' : ''}` : ''}</>}
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={handleGenerate}
+            disabled={!canGenerate}
+            className="ml-auto flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Sparkles className="h-4 w-4" /> Generer {selectedSlides.length} infographies 9:16
+          </button>
+        )}
       </div>
     </div>
   );
