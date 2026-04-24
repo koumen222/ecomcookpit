@@ -16,7 +16,7 @@ import multer from 'multer';
 import sharp from 'sharp';
 import axios from 'axios';
 import { requireEcomAuth, validateEcomAccess } from '../middleware/ecomAuth.js';
-import { analyzeWithVision, generateDescriptionGifFromImages, generatePosterImage } from '../services/productPageGeneratorService.js';
+import { analyzeWithVision, generateDescriptionGifFromImages, generatePosterImage, generateInfographicsProductPage, INFOGRAPHIC_SLIDE_TYPES, downloadAndUploadToR2 } from '../services/productPageGeneratorService.js';
 import { uploadImage } from '../services/cloudflareImagesService.js';
 import { extractProductInfo } from '../services/geminiProductExtractor.js';
 import EcomWorkspace from '../models/Workspace.js';
@@ -105,7 +105,6 @@ function buildTaskImagesPayload(imageData = {}) {
     beforeAfterImage: imageData.beforeAfterImage || null,
     beforeAfterImages: Array.isArray(imageData.beforeAfterImages) ? imageData.beforeAfterImages.filter(Boolean) : [],
     angles: Array.isArray(imageData.angles) ? imageData.angles.filter(Boolean) : [],
-    peoplePhotos: Array.isArray(imageData.peoplePhotos) ? imageData.peoplePhotos.filter(Boolean) : [],
     socialProofImages: Array.isArray(imageData.socialProofImages) ? imageData.socialProofImages.filter(Boolean) : [],
     descriptionGifs: Array.isArray(imageData.descriptionGifs)
       ? imageData.descriptionGifs.filter((entry) => entry?.url)
@@ -123,7 +122,6 @@ function mergeTaskProductWithImages(task = {}) {
   if (imgs.beforeAfterImage) product.beforeAfterImage = imgs.beforeAfterImage;
   if (imgs.beforeAfterImages.length) product.beforeAfterImages = imgs.beforeAfterImages;
   if (imgs.descriptionGifs.length) product.descriptionGifs = imgs.descriptionGifs;
-  if (imgs.peoplePhotos.length) product.peoplePhotos = imgs.peoplePhotos;
   if (imgs.socialProofImages.length) product.socialProofImages = imgs.socialProofImages;
 
   if (imgs.angles.length) {
@@ -136,7 +134,7 @@ function mergeTaskProductWithImages(task = {}) {
   }
 
   const allImages = [
-    ...(imgs.peoplePhotos || []),
+    ...(imgs.socialProofImages || []),
     ...(imgs.heroImage ? [imgs.heroImage] : []),
     ...(imgs.heroPosterImage ? [imgs.heroPosterImage] : []),
     ...(imgs.beforeAfterImages || []),
@@ -164,17 +162,14 @@ function buildTaskImageSnapshot(imageResults = []) {
     }))
     .filter((entry) => entry?.poster_url);
 
-  const peoplePhotos = imageResults
-    .filter((entry) => entry?.type === 'people_photo')
-    .sort((left, right) => (left?.index ?? 0) - (right?.index ?? 0))
-    .map((entry) => entry?.url)
-    .filter(Boolean);
-
   const heroImage = imageResults.find((entry) => entry?.type === 'hero')?.url || null;
   const heroPosterImage = angles.find((entry) => entry?.poster_url)?.poster_url || null;
-  const socialProofImages = [...peoplePhotos, ...beforeAfterImages]
-    .filter((url, index, array) => url && array.indexOf(url) === index)
-    .slice(0, 3);
+  const socialProofImages = imageResults
+    .filter((entry) => entry?.type === 'social_proof')
+    .sort((left, right) => (left?.index ?? 0) - (right?.index ?? 0))
+    .map((entry) => entry?.url)
+    .filter(Boolean)
+    .slice(0, 1);
 
   return {
     heroImage,
@@ -182,7 +177,6 @@ function buildTaskImageSnapshot(imageResults = []) {
     beforeAfterImage: beforeAfterImages[0] || null,
     beforeAfterImages,
     angles,
-    peoplePhotos,
     socialProofImages,
   };
 }
@@ -193,7 +187,6 @@ function applyImageSnapshotToJob(jobData, snapshot) {
   if (snapshot.beforeAfterImage) jobData.beforeAfterImage = snapshot.beforeAfterImage;
   if (snapshot.beforeAfterImages?.length) jobData.beforeAfterImages = snapshot.beforeAfterImages;
   if (snapshot.angles?.length) jobData.angles = snapshot.angles;
-  if (snapshot.peoplePhotos?.length) jobData.peoplePhotos = snapshot.peoplePhotos;
   if (snapshot.socialProofImages?.length) jobData.socialProofImages = snapshot.socialProofImages;
   const heroPosterFromAngles = snapshot.heroPosterImage || snapshot.angles?.find((entry) => entry?.poster_url)?.poster_url || null;
   if (heroPosterFromAngles) jobData.heroPosterImage = heroPosterFromAngles;
@@ -414,13 +407,11 @@ async function runBackgroundImageGeneration({
       );
     }
 
-    buildPeopleHoldingProductPrompts(productData, visualContext).forEach((peoplePrompt, index) => {
-      imageTasks.push(
-        () => generateAndUpload(peoplePrompt, `people-${index + 1}-${Date.now()}.png`, 'scene', '1:1')
-          .then((url) => ({ type: 'people_photo', index, url }))
-          .finally(() => { jobData.progress += 1; })
-      );
-    });
+    imageTasks.push(
+      () => generateAndUpload(buildSocialProofCollagePrompt(productData, visualTemplate, visualContext), `social-proof-${Date.now()}.png`, 'scene', '1:1')
+        .then((url) => ({ type: 'social_proof', index: 0, url }))
+        .finally(() => { jobData.progress += 1; })
+    );
 
     const batchSize = 6;
     const batchDelayMs = 800;
@@ -494,7 +485,7 @@ async function runBackgroundImageGeneration({
     const generatedImageCount = [
       jobData.heroImage,
       ...(jobData.beforeAfterImages || []),
-      ...(jobData.peoplePhotos || []),
+      ...(jobData.socialProofImages || []),
       ...((jobData.angles || []).map((entry) => entry?.poster_url).filter(Boolean)),
     ].filter(Boolean).length;
     const generatedGifCount = (jobData.descriptionGifs || []).length;
@@ -544,7 +535,7 @@ async function runBackgroundImageGeneration({
         generatedImageCount: [
           jobData.heroImage,
           ...(jobData.beforeAfterImages || []),
-          ...(jobData.peoplePhotos || []),
+          ...(jobData.socialProofImages || []),
           ...((jobData.angles || []).map((entry) => entry?.poster_url).filter(Boolean)),
         ].filter(Boolean).length,
         generatedGifCount: (jobData.descriptionGifs || []).length,
@@ -554,7 +545,7 @@ async function runBackgroundImageGeneration({
         generatedImageCount: [
           jobData.heroImage,
           ...(jobData.beforeAfterImages || []),
-          ...(jobData.peoplePhotos || []),
+          ...(jobData.socialProofImages || []),
           ...((jobData.angles || []).map((entry) => entry?.poster_url).filter(Boolean)),
         ].filter(Boolean).length,
         generatedGifCount: (jobData.descriptionGifs || []).length,
@@ -1038,18 +1029,22 @@ function buildSocialProofCollagePrompt(gptResult, template = 'general', visualPr
   const brandColor = resolveBrandColor(visualPrefs, template);
   const socialCount = gptResult.urgency_elements?.social_proof_count || '+2500 satisfied customers';
 
-  return `Create a social proof image for an African ecommerce audience. Vertical 4:5, premium realistic quality.
+  return `Create ONE single social proof image for an African ecommerce audience. Vertical 4:5, premium realistic quality.
 
-Show 6 to 9 authentic ${avatar === 'African woman' ? 'African women' : 'African customers'} holding the exact product from the reference image, smiling and reacting naturally.
-The product must stay clearly visible in multiple hands and must remain identical to the reference image.
+Show one natural group scene with 4 to 7 authentic ${avatar === 'African woman' ? 'African women' : 'African customers'} together in the SAME environment.
+They must feel like a real group of satisfied customers sharing one believable moment, not separate portraits merged together.
 
-Add a central badge with this exact text: "${socialCount}".
-Add a visible 5-star rating graphic.
+The product may appear in a few hands or be shared naturally within the group, but only if it looks believable and collective.
+If showing the product makes the scene artificial, focus on the people, their satisfaction, and the trust energy instead.
+
+Do NOT generate a collage grid, do NOT generate separate testimonial cards, do NOT generate isolated portraits, do NOT generate fake press logos, and do NOT generate generic floating trust badges.
+At most, one subtle trust chip may appear with this exact text: "${socialCount}" if it integrates naturally into the composition.
+Any star rating cue must stay subtle and secondary.
 
 Style: UGC, authentic, trust-building, realistic, premium but natural.
 Background must match brand identity and website color: ${brandColor}.
 No stock-photo feeling, no exaggerated poses, no fake hands, no watermark, no phone number, no URL.
-The AI must decide the most convincing collage or group composition dynamically for this product instead of reusing the same layout.
+The AI must decide the most convincing single-scene group composition dynamically for this product instead of reusing the same layout.
 ${buildArtDirectionProfile(2, gptResult, template, visualPrefs, 'social proof and trust image')}${buildDynamicDesignRules(gptResult, template, visualPrefs, 'social proof and trust image')}${buildProfessionalDescriptionGraphicRules(1, template, visualPrefs)}${buildHumanPhotoRealismRules()}${buildVisualPromptDirectives(visualPrefs)}`;
 }
 
@@ -1191,55 +1186,6 @@ ${plan?.artDirection || buildArtDirectionProfile(slideIndex + 3, gptResult, temp
 }
 
 /**
- * 4 lifestyle prompts — photos réalistes de personnes africaines tenant LE produit
- * de référence (même packaging exact). Aucune infographie, aucun texte overlay.
- * Alimente la galerie photo "Photos du produit" sur la page produit.
- */
-function buildPeopleHoldingProductPrompts(gptResult, visualPrefs = {}) {
-  const title = 'the product';
-  const template = visualPrefs?.template || 'general';
-  const productNote = `THE EXACT product from the reference image — same packaging, same shape, same color, same label, same design. CRITICAL: Use the provided product reference image and reproduce the IDENTICAL product as it appears in the photo. Do NOT redraw, redesign, or invent a product. If you cannot faithfully reproduce the EXACT same product, generate the photo WITHOUT the product visible rather than showing a wrong/invented product. A photo without the product is better than a photo with a fake product.`;
-  const nichePrompt = {
-    beauty: 'Niche context: beauty/cosmetics. Use bathroom vanity, skincare routine energy, glow, softness, and beauty confidence when relevant.',
-    health: 'Niche context: health/wellness. Use a credible daily routine, energy, vitality, supplement or wellness context.',
-    tech: 'Niche context: tech/electronics. Use modern desk, sleek living room, setup or gadget usage context.',
-    fashion: 'Niche context: fashion/accessories. Use style confidence, mirror-selfie feel, outfit coordination, and personal lookbook energy.',
-    home: 'Niche context: home/kitchen. Use warm domestic comfort, organization, cooking or home-practicality context.',
-    general: 'Niche context: adapt the customer photo to the real category and benefit of the product.',
-  }[template] || 'Niche context: adapt the customer photo to the real category and benefit of the product.';
-
-  const baseRules = `
-═══ MANDATORY REAL CUSTOMER PHOTO RULES ═══
-• This must look EXACTLY like a real photo taken by a CUSTOMER with their smartphone — NOT a professional photoshoot, NOT AI art, NOT a studio render
-• Think: a real person just received their order, they're happy, they take a quick photo/selfie with the product to share on WhatsApp or Instagram
-• Authentic Black African person (dark brown skin, natural African features, natural African hair or headwrap). Natural skin texture, pores, imperfections — REAL human skin
-• Realistic hands with correct finger count (5 fingers per hand) and natural grip on the product
-• Modern stylish clothing — t-shirt, casual dress, smart casual, regular modern clothes. NOT traditional market attire
-• FACE MUST BE CLEARLY VISIBLE — this is like a selfie or a photo taken by a friend. We see the person's face, their smile, their eyes. The face is a major part of the photo
-• Natural warm lighting — smartphone flash, window light, room light, daylight. Slightly imperfect lighting like a real phone photo
-• The person is HOLDING the EXACT product (from reference image) in their hands clearly — the product packaging/label must be recognizable and readable
-• ${productNote}
-• Mid-range or selfie-style crop. Vertical 4:5 (1080×1250). Smartphone photo quality — sharp but not studio-perfect
-• Setting: MODERN UPSCALE interior — contemporary living room, sleek bedroom, modern kitchen, minimalist bathroom. Modern furniture, clean walls, contemporary decor. NOT a traditional setting, NOT a market
-• NO text overlay, NO caption, NO price, NO CTA, NO logo, NO frame, NO marketing layout
-• NO extra objects arranged around the product — this is NOT a flat lay. It's a person holding the product
-• The overall feel must be: "a real customer took this photo after receiving their package"
-• ${nichePrompt}
-${buildHumanPhotoRealismRules()}`;
-
-  return [
-    `A real smartphone selfie photo of a young African woman (25-35 years old, natural hair or braids, genuine happy smile showing teeth) holding "${title}" up next to her face with one hand while taking the selfie with the other. She is at home in her modern living room — we can see a contemporary sofa, stylish cushions, or modern curtains slightly blurred behind her. The product packaging is clearly visible and facing the camera. Her face takes up about 40% of the frame, the product about 30%. Natural room lighting, slightly warm. This looks like a real photo she just posted on WhatsApp saying "Mon colis est arrivé!" — genuine excitement, not posed.
-${baseRules}`,
-
-    `A real smartphone photo of an African man (28-40 years old, short natural hair or close cut, relaxed genuine smile) sitting on a sofa or chair in his living room, holding "${title}" in both hands at chest level, product label facing the camera. He looks directly at the camera like a friend just took his photo. We see his full face clearly, his modern casual t-shirt or polo. The background shows a modern interior — contemporary TV setup, clean shelves, modern curtains visible but slightly blurred. Natural indoor lighting. This looks like a real testimonial photo a customer would send.
-${baseRules}`,
-
-    `A real smartphone photo of an African woman (30-40 years old, natural hair wrapped in a headwrap, expression of delight and surprise) who just opened her package. She holds "${title}" up with one hand, the product clearly visible with its packaging. There's a torn delivery package or cardboard box visible on the table or her lap. She is sitting in her modern bedroom or sleek living room. Her face is clearly visible — genuine joy of receiving an order. We see the product AND her face prominently. Natural indoor lighting, slightly warm. This looks like a real unboxing moment shared on social media.
-${baseRules}`,
-  ];
-}
-
-/**
  * Construit un 2e prompt avant/après basé sur un bénéfice différent du premier.
  */
 function buildSecondBeforeAfterPrompt(gptResult, visualPrefs = {}) {
@@ -1336,7 +1282,6 @@ router.get('/images/:jobId', requireEcomAuth, (req, res) => {
   if (job.beforeAfterImage) images.beforeAfterImage = job.beforeAfterImage;
   if (job.beforeAfterImages?.length) images.beforeAfterImages = job.beforeAfterImages;
   if (job.angles?.length) images.angles = job.angles;
-  if (job.peoplePhotos?.length) images.peoplePhotos = job.peoplePhotos;
   if (job.socialProofImages?.length) images.socialProofImages = job.socialProofImages;
   if (job.descriptionGifs?.length) images.descriptionGifs = job.descriptionGifs;
 
@@ -1967,6 +1912,93 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       success: false,
       error: error.message || 'Erreur lors de la génération'
     });
+  }
+});
+
+// ── POST /infographics — Generate 9:16 infographics series for a product ──
+router.post('/infographics', requireEcomAuth, validateEcomAccess('products', 'write'), upload.single('image'), async (req, res) => {
+  const userId = req.user?.id || req.user?._id || 'anonymous';
+  const workspaceId = req.workspaceId;
+
+  try {
+    const imageFile = req.file;
+    if (!imageFile || !imageFile.buffer) {
+      return res.status(400).json({ success: false, message: 'Photo du produit requise (image-to-image)' });
+    }
+
+    const rawSlideTypes = req.body.slideTypes;
+    let slideTypes;
+    try {
+      slideTypes = typeof rawSlideTypes === 'string' ? JSON.parse(rawSlideTypes) : rawSlideTypes;
+    } catch {
+      slideTypes = null;
+    }
+    if (!Array.isArray(slideTypes) || slideTypes.length === 0) {
+      return res.status(400).json({ success: false, message: 'slideTypes requis (tableau non vide)' });
+    }
+    const invalid = slideTypes.filter(t => !INFOGRAPHIC_SLIDE_TYPES.includes(t));
+    if (invalid.length > 0) {
+      return res.status(400).json({ success: false, message: `Types de slides invalides: ${invalid.join(', ')}. Autorisés: ${INFOGRAPHIC_SLIDE_TYPES.join(', ')}` });
+    }
+    if (slideTypes.length > 8) {
+      return res.status(400).json({ success: false, message: 'Maximum 8 infographies par génération' });
+    }
+
+    const product = {
+      name: String(req.body.productName || '').slice(0, 200),
+      description: String(req.body.productDescription || '').slice(0, 800),
+      targetAudience: String(req.body.targetAudience || '').slice(0, 200),
+      painPoint: String(req.body.painPoint || '').slice(0, 200),
+      mainBenefit: String(req.body.mainBenefit || '').slice(0, 200),
+      bodyZone: String(req.body.bodyZone || '').slice(0, 120),
+    };
+
+    const formTexts = {
+      headline: String(req.body.formHeadline || 'Remplissez le formulaire, on vous appelle pour valider votre commande').slice(0, 200),
+      ctaLabel: String(req.body.formCtaLabel || 'CLIQUE POUR CONFIRMER TA COMMANDE').slice(0, 80),
+      stickyLabel: String(req.body.formStickyLabel || 'COMMANDEZ').slice(0, 40),
+      reassurance: String(req.body.formReassurance || 'Livraison gratuite et paiement après réception').slice(0, 160),
+      placeholders: {
+        fullname: String(req.body.phFullname || 'Saisir votre nom complet').slice(0, 60),
+        phone: String(req.body.phPhone || 'Saisir un numero joignable').slice(0, 60),
+        address: String(req.body.phAddress || 'Saisir votre adresse').slice(0, 60),
+        city: String(req.body.phCity || 'Saisir votre ville').slice(0, 60),
+      },
+    };
+
+    const productImageBuffer = await sharp(imageFile.buffer)
+      .resize(1024, 1024, { fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: 85 })
+      .toBuffer();
+
+    console.log(`🎨 [Infographics] user=${userId} ws=${workspaceId} slides=${slideTypes.join(',')}`);
+
+    const { infographics, failed } = await generateInfographicsProductPage({
+      slideTypes,
+      product,
+      productImageBuffer,
+    });
+
+    // Upload generated images to R2 for persistence
+    const uploaded = await Promise.all(
+      infographics.map(async (slide) => {
+        if (!slide.url) return slide;
+        const r2 = await downloadAndUploadToR2(slide.url, workspaceId, userId);
+        return { ...slide, url: r2?.url || slide.url };
+      })
+    );
+
+    return res.json({
+      success: true,
+      layout: 'infographics',
+      theme: 'infographics',
+      infographics: uploaded,
+      form: formTexts,
+      failed: failed.map(f => ({ type: f.type, error: f.error })),
+    });
+  } catch (err) {
+    console.error('❌ [Infographics] generation error:', err);
+    return res.status(500).json({ success: false, message: err.message || 'Erreur génération infographies' });
   }
 });
 

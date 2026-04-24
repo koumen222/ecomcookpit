@@ -62,7 +62,6 @@ const generationTaskSchema = new mongoose.Schema({
     beforeAfterImage: String,
     beforeAfterImages: [String],
     angles: [{ type: mongoose.Schema.Types.Mixed }],
-    peoplePhotos: [String],
     socialProofImages: [String],
     descriptionGifs: [String],
   },

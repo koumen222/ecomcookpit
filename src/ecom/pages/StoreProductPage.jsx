@@ -14,6 +14,7 @@ import ProductBenefits from '../components/ProductBenefits';
 import ConversionBlocks, { UrgencyBadge } from '../components/ConversionBlocks';
 import ProductTestimonials from '../components/ProductTestimonials';
 import { StorefrontHeader, StorefrontFooter } from '../components/StorefrontShared';
+import StoreProductPageInfographics from '../components/StoreProductPageInfographics';
 // socket.io-client chargé dynamiquement pour ne pas bloquer le rendu initial
 import { setDocumentMeta } from '../utils/pageMeta';
 import { trackStorefrontEvent } from '../utils/pixelTracking';
@@ -1399,7 +1400,7 @@ const StoreProductPage = () => {
       } : {}),
     },
   };
-  const ppTheme = store?.template || storePC?.theme || productPageConfig?.theme || 'classic';
+  const ppTheme = productPC?.theme || productPageConfig?.theme || store?.template || storePC?.theme || 'classic';
   const ppGeneral = productPageConfig?.general || {};
   const ppDesign = productPageConfig?.design || {};
   const ppButton = productPageConfig?.button || {};
@@ -1829,6 +1830,17 @@ const StoreProductPage = () => {
       </div>
     </div>
   );
+
+  if (ppTheme === 'infographics') {
+    return (
+      <StoreProductPageInfographics
+        product={product}
+        store={store}
+        productPageConfig={productPageConfig}
+        subdomain={subdomain}
+      />
+    );
+  }
 
   return (
     <div className={ppTheme === 'landing' ? 'theme-landing-active' : ''} style={{

@@ -1635,6 +1635,8 @@ router.post('/incoming', async (req, res) => {
           // ─── Détecter message image ───
           const isImage = !!(messageContent?.imageMessage);
           let imageAnalysisResult = null;
+          let rawImageBase64 = null;
+          let rawImageMimeType = 'image/jpeg';
 
           if (isImage && instanceDoc) {
             console.log(`🖼️ [RITA] Image détectée — téléchargement en cours...`);
@@ -1645,11 +1647,15 @@ router.post('/incoming', async (req, res) => {
                 msg.key
               );
               if (mediaData?.base64) {
+                // Conserver le base64 brut pour la vision Rita (analyzeClientImage)
+                rawImageBase64 = mediaData.base64;
+                rawImageMimeType = mediaData.mimetype || messageContent?.imageMessage?.mimetype || 'image/jpeg';
+
                 const workspaceId = instanceDoc.workspaceId;
                 if (workspaceId) {
                   imageAnalysisResult = await analyzeProductImage(
-                    mediaData.base64,
-                    mediaData.mimetype || messageContent?.imageMessage?.mimetype || 'image/jpeg',
+                    rawImageBase64,
+                    rawImageMimeType,
                     workspaceId
                   );
                   console.log(`🖼️ [RITA] Analyse image:`, {
@@ -1673,13 +1679,20 @@ router.post('/incoming', async (req, res) => {
                   }
                   if (userId) logRitaActivity(userId, 'image_analyzed', { customerPhone: from.replace(/@.*$/, ''), details: imageAnalysisResult.description?.substring(0, 200) });
                 } else {
-                  console.log(`⚠️ [RITA] Pas de workspaceId, analyse image impossible.`);
+                  // Pas de workspaceId — pas de matching produit, mais garder le base64 pour Rita
+                  const imageCaption = messageContent?.imageMessage?.caption || '';
+                  text = `[Le client a envoyé une photo]${imageCaption ? ' ' + imageCaption : ''}`;
+                  console.log(`⚠️ [RITA] Pas de workspaceId, analyse produit impossible mais image conservée pour vision Rita.`);
                 }
               } else {
-                console.log(`🖼️ [RITA] Impossible de télécharger l'image.`);
+                // Téléchargement échoué — fallback texte pour que Rita puisse quand même répondre
+                const imageCaption = messageContent?.imageMessage?.caption || '';
+                text = `[Le client a envoyé une photo${imageCaption ? ': ' + imageCaption : ''}]`;
+                console.log(`🖼️ [RITA] Impossible de télécharger l'image, fallback texte utilisé.`);
               }
             } catch (imgErr) {
               console.error(`❌ [RITA] Erreur analyse image:`, imgErr.message);
+              if (!text) text = '[Le client a envoyé une photo]';
             }
           }
 
@@ -1907,6 +1920,9 @@ router.post('/incoming', async (req, res) => {
             instanceDoc,
             workspaceId,
             from,
+            // Vision : transmettre le base64 brut pour que Rita puisse analyser l'image directement
+            imageBase64: rawImageBase64,
+            imageMimeType: rawImageMimeType,
           }, async (messages) => {
             // ─── Traiter tous les messages regroupés ───
             const combinedText = messages.map(m => m.text).join('\n\n');
@@ -1920,7 +1936,10 @@ router.post('/incoming', async (req, res) => {
             const from = firstMsg.from;
             const text = combinedText; // Le texte combiné de tous les messages
 
-            console.log(`📦 [RITA] Traitement groupé de ${messages.length} message(s) de ${firstMsg.senderPhone}`);
+            // Récupérer l'image du premier message contenant un base64 (si plusieurs messages groupés)
+            const imageMsg = messages.find(m => m.imageBase64);
+
+            console.log(`📦 [RITA] Traitement groupé de ${messages.length} message(s) de ${firstMsg.senderPhone}${imageMsg ? ' [+image]' : ''}`);
             if (messages.length > 1) {
               console.log(`📦 [RITA] Messages combinés: "${combinedText.substring(0, 200)}"`);
             }
@@ -1931,7 +1950,13 @@ router.post('/incoming', async (req, res) => {
               firstMsg.userId,
               firstMsg.senderJid,
               combinedText, // Utiliser le texte combiné
-              { agentId: firstMsg.agentId, pushName: firstMsg.pushName }
+              {
+                agentId: firstMsg.agentId,
+                pushName: firstMsg.pushName,
+                // Passer le base64 pour que analyzeClientImage (vision Rita) s'active
+                imageBase64: imageMsg?.imageBase64 || null,
+                imageMimeType: imageMsg?.imageMimeType || 'image/jpeg',
+              }
             );
             const elapsed = Date.now() - startTime;
 

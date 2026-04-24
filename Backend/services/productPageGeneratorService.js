@@ -1110,6 +1110,176 @@ ${modeRules}`;
   }
 }
 
+// ─── Infographics 9:16 product page ─────────────────────────────────────────
+
+const INFOGRAPHIC_BASE_RULES = `
+VERTICAL 9:16 (1080×1920) INFOGRAPHIC IMAGE for a mobile product landing page. Full-bleed, edge-to-edge, no empty margins.
+USE EXACTLY the product appearance from the reference image provided — same shape, color, packaging, label, design. Do NOT redraw, recreate, or redesign the product. If you cannot reproduce the EXACT same product, generate the scene WITHOUT the product rather than inventing a different one.
+
+VISUAL RULES:
+- Authentic Black African person (dark skin, natural African features), MODERN UPSCALE setting (modern apartment, studio, clean interior) — NEVER market, village, or traditional decor.
+- Real photograph look: natural skin texture, correct hands, believable expressions, zero plastic or uncanny AI feel.
+- The product is OPTIONAL in benefits, testimonial, or explanatory slides. Show it only if it improves clarity or trust. If the concept is stronger without the product, omit it.
+- Clean bright layout with PLENTY of whitespace, soft shadows, modern design.
+- Text overlays in 100% PERFECT FRENCH — zero spelling/grammar errors, every accent correct (é è ê à ù ç).
+- Text in BOLD modern sans-serif font (Montserrat/Poppins style), high contrast, easy to read on mobile.
+- Dominant accent color: deep blue (#1E3A8A) for headlines, green (#84CC16) for positive highlights, red for strikethrough.
+- NO fake CTA button, NO price numbers, NO phone number, NO URL, NO watermark.
+
+TEXT SPELLING CHECK — ZERO TOLERANCE:
+Every French word on the image must be perfectly spelled. Double-check: accents, agreement, spaces. If unsure, prefer shorter simpler words.
+`;
+
+const INFOGRAPHIC_SLIDE_PROMPTS = {
+  hook: ({ productName, targetAudience, painPoint }) => `
+SLIDE TYPE: HOOK / PROBLEM — opening slide that stops the scroll by naming the viewer's pain.
+
+SCENE:
+Authentic Black African person (match product target: ${targetAudience || 'adult, gender appropriate for the product'}) showing subtle discomfort or frustration related to: ${painPoint || 'the problem this product solves'}. Natural expression — NOT theatrical. Modern upscale interior. Soft natural lighting.
+The product ${productName || ''} visible in the lower third or background, serving as a visual promise of relief.
+
+TEXT OVERLAY (top of image, large bold):
+A punchy 2-line hook in French that calls out the pain directly. Format example: "[Problème 1], [problème 2], [problème 3]? Vous méritez mieux" or "[Symptôme] vous gâche la vie?". 8-12 words max. Bold blue #1E3A8A.
+Optional small badge top-left: "Livraison Gratuite" or 5-star review badge.
+
+MOOD: Empathic, scroll-stopping, targeted. The viewer must feel "that's me".
+`,
+
+  benefits: ({ productName, mainBenefit }) => `
+SLIDE TYPE: BENEFITS — communicate what the product does in one glance.
+
+SCENE:
+Create a concept-led benefit poster or infographic for ${productName || 'the product'}.
+Focus on the result, relief, benefit, ingredient logic, or emotional outcome first.
+The product is OPTIONAL. Do not force it into the frame if that weakens the concept. Bright clean background.
+
+TEXT OVERLAY:
+Main headline centered in bold blue #1E3A8A (2 lines max): "${mainBenefit || 'Équilibrez votre [bénéfice], retrouvez votre [résultat]'}"
+Support it with 2 or 3 concise visual cues: ingredients, result icons, before/after hints, or lifestyle outcome.
+Optional short subline bottom in lighter weight: a 1-line reassurance.
+
+MOOD: Confident, bright, benefit-first. Feels aspirational but reachable. No forced centered packshot.
+`,
+
+  avant_apres: ({ productName, bodyZone }) => `
+SLIDE TYPE: AVANT / APRÈS — split-screen transformation.
+
+SCENE:
+Vertical split (top = AVANT, bottom = APRÈS) OR side-by-side depending on framing — choose what shows best on 9:16.
+AVANT (top/left): authentic Black African person, visible problem on ${bodyZone || 'the relevant body zone'} — realistic, subtle, NOT exaggerated.
+APRÈS (bottom/right): SAME person, believable improvement on the same zone. The product ${productName || ''} visible in hand or beside, natural scale.
+Small perfectly-spelled French labels "Avant" and "Après" in white on blue rounded pill.
+Modern upscale interior, soft natural light, no aggressive filters.
+
+TEXT OVERLAY (optional, small, bottom):
+A 1-line result promise in bold blue #1E3A8A — 6-8 words max.
+
+MOOD: Credible real transformation, not magical. The change must be visibly tied to the product benefit.
+`,
+
+  testimonials: ({ productName }) => `
+SLIDE TYPE: AVIS CLIENTS — single group social proof scene.
+
+SCENE:
+One single natural group scene showing several authentic Black African customers together in the same moment.
+They can interact naturally with ${productName || 'the product'} if it feels believable, but do not force the product if the scene is stronger without it.
+No collage grid, no separate avatar cards, no fake review layout, no isolated portraits.
+
+TEXT OVERLAY:
+Optional title at top: "Ils nous ont fait confiance" in bold blue #1E3A8A.
+Optional short trust line or one subtle chip such as "Des milliers de clients satisfaits".
+If you add review text, keep it minimal and integrated, not as a 2×2 card grid.
+
+MOOD: Warm, trustworthy, abundant social proof through one believable collective scene.
+`,
+
+  how_to_use: ({ productName }) => `
+SLIDE TYPE: COMMENT UTILISER — simple step demonstration.
+
+SCENE:
+Authentic Black African person naturally using the product ${productName || ''} in a clean modern setting (bathroom, kitchen, bedroom — whichever matches the product category). The hand grip, scale and motion must look real. Product fully visible, correct packaging.
+
+TEXT OVERLAY:
+Title top in bold blue #1E3A8A: "Comment utiliser"
+Below in regular blue/gray, a 1-2 sentence natural French instruction (12-20 words). Perfect spelling.
+Optional small numbered badges (1, 2, 3) if multi-step, otherwise single clean instruction.
+
+MOOD: Practical, reassuring, friction-removing. The viewer should think "easy, I can do this".
+`,
+
+  cta_final: ({ productName }) => `
+SLIDE TYPE: CTA FINAL — closing slide that pushes to order.
+
+SCENE:
+Authentic Black African person, confident positive posture, holding the product ${productName || ''} prominently (one or both hands). Modern upscale interior with soft branded background (subtle pattern or gradient, blue/white palette with subtle botanical or geometric decoration).
+
+TEXT OVERLAY:
+Huge headline top in bold blue #1E3A8A (2-3 lines): "VOTRE MEILLEUR CHOIX EST ENTRE VOS MAINS" or a punchy close line (6-10 words, ALL CAPS).
+Sub-headline bottom in slightly lighter weight: a short promise (6-10 words, sentence case) — e.g. "Régulez votre [bénéfice] pour une vie saine".
+
+NO button drawn on the image — the actual order form is below in the page.
+
+MOOD: Triumphant, decisive, aspirational. Scroll-stopping closer.
+`,
+};
+
+const DEFAULT_INFOGRAPHIC_ORDER = ['hook', 'benefits', 'avant_apres', 'testimonials', 'how_to_use', 'cta_final'];
+
+function buildInfographicPrompt(slideType, meta = {}) {
+  const builder = INFOGRAPHIC_SLIDE_PROMPTS[slideType];
+  if (!builder) return null;
+  const slideBody = builder(meta);
+  return `FORMAT OVERRIDE: Generate the final image in VERTICAL 9:16 (1080×1920). Ignore any other aspect ratio mentioned.
+${INFOGRAPHIC_BASE_RULES}
+${slideBody}`.trim();
+}
+
+/**
+ * Generate a series of 9:16 infographic slides for a product.
+ * Each slide is generated in parallel via NanoBanana image-to-image using the product reference.
+ *
+ * @param {object} params
+ * @param {string[]} params.slideTypes - Ordered list of slide types from DEFAULT_INFOGRAPHIC_ORDER
+ * @param {object} params.product - { name, description, targetAudience, painPoint, mainBenefit, bodyZone }
+ * @param {Buffer} params.productImageBuffer - Reference product image buffer (required for image-to-image)
+ * @returns {Promise<{ infographics: Array<{ type, order, url, prompt }> }>}
+ */
+export async function generateInfographicsProductPage({ slideTypes, product = {}, productImageBuffer }) {
+  if (!Array.isArray(slideTypes) || slideTypes.length === 0) {
+    throw new Error('slideTypes required (non-empty array)');
+  }
+  if (!productImageBuffer) {
+    throw new Error('productImageBuffer required for image-to-image generation');
+  }
+
+  const validTypes = slideTypes.filter(t => INFOGRAPHIC_SLIDE_PROMPTS[t]);
+  if (validTypes.length === 0) {
+    throw new Error(`No valid slide types. Allowed: ${Object.keys(INFOGRAPHIC_SLIDE_PROMPTS).join(', ')}`);
+  }
+
+  console.log(`🎨 Generating ${validTypes.length} infographics 9:16 in parallel for product: ${product.name || '(unnamed)'}`);
+
+  const tasks = validTypes.map(async (type, index) => {
+    const prompt = buildInfographicPrompt(type, product);
+    try {
+      const result = await generateNanoBananaImageToImage(prompt, productImageBuffer, '9:16', 1);
+      const url = Array.isArray(result?.images) ? result.images[0] : (result?.url || result);
+      return { type, order: index, url: url || null, prompt, ok: !!url };
+    } catch (err) {
+      console.warn(`⚠️ Infographic slide "${type}" failed: ${err.message}`);
+      return { type, order: index, url: null, prompt, ok: false, error: err.message };
+    }
+  });
+
+  const results = await Promise.all(tasks);
+  const infographics = results.filter(r => r.ok).map(({ ok, error, ...rest }) => rest);
+  const failed = results.filter(r => !r.ok);
+
+  return { infographics, failed };
+}
+
+export const INFOGRAPHIC_SLIDE_TYPES = Object.keys(INFOGRAPHIC_SLIDE_PROMPTS);
+
 export async function generateDescriptionGif(prompt, imageInput, options = {}) {
   try {
     return await generateKieImageToVideo(prompt, imageInput, {
