@@ -144,6 +144,112 @@ function mergeTaskProductWithImages(task = {}) {
   return product;
 }
 
+const INFOGRAPHIC_PROGRESS_LABELS = {
+  hook: 'Création du hook visuel...',
+  benefits: 'Composition des bénéfices...',
+  avant_apres: 'Construction du avant / après...',
+  testimonials: 'Création des témoignages...',
+  reassurance: 'Ajout des preuves de réassurance...',
+  how_to_use: 'Mise en scène de l\'usage...',
+  cta_final: 'Finalisation du CTA...',
+};
+
+function buildInfographicsTaskProduct({ product = {}, formTexts = {}, infographics = [], failed = [], slideTypes = [] }) {
+  return {
+    layout: 'infographics',
+    theme: 'infographics',
+    pageStyle: 'infographics',
+    name: product.name || '',
+    productName: product.name || '',
+    productDescription: product.description || '',
+    infographics,
+    form: formTexts,
+    failed,
+    slideTypes,
+    generatedAt: new Date().toISOString(),
+  };
+}
+
+async function runBackgroundInfographicGeneration({
+  taskId,
+  workspaceId,
+  userId,
+  slideTypes,
+  product,
+  formTexts,
+  productImageBuffer,
+}) {
+  const totalSlides = Array.isArray(slideTypes) ? slideTypes.length : 0;
+
+  try {
+    await updateTask(taskId, {
+      status: 'generating_images',
+      currentStep: 'Préparation des infographies...',
+      progress: 0,
+      totalImages: totalSlides,
+      progressPercent: 10,
+      errorMessage: null,
+    });
+
+    const { infographics, failed } = await generateInfographicsProductPage({
+      slideTypes,
+      product,
+      productImageBuffer,
+      onProgress: async ({ completed, total, type }) => {
+        const progressPercent = Math.max(15, Math.min(88, 15 + Math.round((completed / Math.max(total || 1, 1)) * 70)));
+        await updateTask(taskId, {
+          progress: completed,
+          totalImages: total,
+          progressPercent,
+          currentStep: INFOGRAPHIC_PROGRESS_LABELS[type] || `Génération de la slide ${completed}/${total}...`,
+        });
+      },
+    });
+
+    await updateTask(taskId, {
+      progress: totalSlides,
+      totalImages: totalSlides,
+      progressPercent: 92,
+      currentStep: 'Finalisation et sauvegarde des infographies...',
+    });
+
+    const uploaded = await Promise.all(
+      infographics.map(async (slide) => {
+        if (!slide?.url) return slide;
+        const r2 = await downloadAndUploadToR2(slide.url, workspaceId, userId);
+        return { ...slide, url: r2?.url || slide.url };
+      })
+    );
+
+    if (!uploaded.length) {
+      throw new Error('Aucune infographie n\'a pu être générée');
+    }
+
+    await updateTask(taskId, {
+      status: 'done',
+      currentStep: 'Infographies prêtes',
+      progress: totalSlides,
+      totalImages: totalSlides,
+      progressPercent: 100,
+      product: buildInfographicsTaskProduct({
+        product,
+        formTexts,
+        infographics: uploaded,
+        failed: failed.map((entry) => ({ type: entry.type, error: entry.error || 'Erreur de génération' })),
+        slideTypes,
+      }),
+      errorMessage: null,
+    });
+  } catch (error) {
+    console.error('❌ [InfographicsTask] generation error:', error);
+    await updateTask(taskId, {
+      status: 'error',
+      currentStep: 'Erreur',
+      errorMessage: error.message || 'Erreur génération infographies',
+    });
+  }
+}
+
 function buildTaskImageSnapshot(imageResults = []) {
   const beforeAfterImages = imageResults
     .filter((entry) => entry?.type === 'before_after')
@@ -1963,6 +2069,9 @@ router.post('/infographics', requireEcomAuth, validateEcomAccess('products', 'wr
       return res.status(400).json({ success: false, message: 'Maximum 8 infographies par génération' });
     }
 
+    const ALLOWED_COLOR_STYLES = ['bleu_royal', 'vert_emeraude', 'or_premium', 'rose_feminin', 'violet_luxe', 'personnalise'];
+    const rawBrandColor = String(req.body.brandColor || '').trim();
+
     const product = {
       name: String(req.body.productName || '').slice(0, 200),
       description: String(req.body.productDescription || '').slice(0, 800),
@@ -1970,6 +2079,9 @@ router.post('/infographics', requireEcomAuth, validateEcomAccess('products', 'wr
       painPoint: String(req.body.painPoint || '').slice(0, 200),
       mainBenefit: String(req.body.mainBenefit || '').slice(0, 200),
       bodyZone: String(req.body.bodyZone || '').slice(0, 120),
+      // Color theming: passed through to buildInfographicPrompt
+      brandColor: /^#[0-9a-fA-F]{6}$/.test(rawBrandColor) ? rawBrandColor : '#1E3A8A',
+      colorStyle: ALLOWED_COLOR_STYLES.includes(req.body.colorStyle) ? req.body.colorStyle : 'bleu_royal',
     };
 
     const formTexts = {
@@ -1992,28 +2104,37 @@ router.post('/infographics', requireEcomAuth, validateEcomAccess('products', 'wr
 
     console.log(`🎨 [Infographics] user=${userId} ws=${workspaceId} slides=${slideTypes.join(',')}`);
 
-    const { infographics, failed } = await generateInfographicsProductPage({
+    const generationTask = await GenerationTask.create({
+      workspaceId,
+      userId,
+      status: 'generating_images',
+      progress: 0,
+      totalImages: slideTypes.length,
+      progressPercent: 5,
+      currentStep: 'Préparation des infographies...',
+      productName: product.name || 'Infographies produit',
+      input: {
+        description: product.description,
+        referenceImageBase64: productImageBuffer.toString('base64'),
+      },
+    });
+
+    void runBackgroundInfographicGeneration({
+      taskId: generationTask._id.toString(),
+      workspaceId,
+      userId,
       slideTypes,
       product,
+      formTexts,
       productImageBuffer,
     });
 
-    // Upload generated images to R2 for persistence
-    const uploaded = await Promise.all(
-      infographics.map(async (slide) => {
-        if (!slide.url) return slide;
-        const r2 = await downloadAndUploadToR2(slide.url, workspaceId, userId);
-        return { ...slide, url: r2?.url || slide.url };
-      })
-    );
-
     return res.json({
       success: true,
-      layout: 'infographics',
-      theme: 'infographics',
-      infographics: uploaded,
-      form: formTexts,
-      failed: failed.map(f => ({ type: f.type, error: f.error })),
+      background: true,
+      taskId: generationTask._id,
+      currentStep: generationTask.currentStep,
+      progressPercent: generationTask.progressPercent,
     });
   } catch (err) {
     console.error('❌ [Infographics] generation error:', err);
