@@ -88,17 +88,18 @@ const buildStorefrontThemeVars = (store) => {
     ctaBackground = 'transparent';
     ctaText = 'var(--s-primary)';
     ctaBorder = 'var(--s-primary)';
-    heroCtaBackground = '#ffffff';
-    heroCtaText = configuredButton || 'var(--s-primary)';
+    heroCtaBackground = configuredButton || 'var(--s-primary)';
+    heroCtaText = '#ffffff';
   } else if (buttonStyle === 'soft') {
     ctaBackground = 'color-mix(in srgb, var(--s-primary) 12%, var(--s-bg))';
     ctaText = 'var(--s-primary)';
-    heroCtaBackground = '#ffffff';
-    heroCtaText = configuredButton || 'var(--s-primary)';
+    heroCtaBackground = configuredButton || 'var(--s-primary)';
+    heroCtaText = '#ffffff';
   } else if (buttonStyle === 'gradient') {
     ctaBackground = 'linear-gradient(135deg, var(--s-primary) 0%, var(--s-accent) 100%)';
     ctaText = '#ffffff';
     heroCtaBackground = 'linear-gradient(135deg, var(--s-primary) 0%, var(--s-accent) 100%)';
+    heroCtaText = '#ffffff';
   }
 
   return {
