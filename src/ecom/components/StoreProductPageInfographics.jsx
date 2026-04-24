@@ -1,17 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Shield, RotateCcw, Truck } from 'lucide-react';
+import { CreditCard, Truck } from 'lucide-react';
 import EmbeddedOrderForm from './EmbeddedOrderForm';
 import { formatMoney } from '../utils/currency.js';
 
-const DEFAULT_BADGES = [
-  { icon: 'shield', title: 'Livraison gratuite', text: 'Paiement à la livraison.' },
-  { icon: 'rotate', title: 'Remboursé', text: 'Nous vous donnons jusqu\'à 7 jours pour retourner votre article s\'il ne vous convient pas.' },
-  { icon: 'truck', title: 'Livraison rapide', text: 'Livraison rapide à votre porte et sans frais supplémentaire.' },
-];
-
 const DEFAULT_FORM_TEXTS = {
   headline: 'Remplissez le formulaire, on vous appelle pour valider votre commande',
-  reassurance: 'Livraison gratuite et paiement après réception',
+  reassurance: 'Livraison gratuite. Paiement à la livraison.',
   ctaLabel: 'CLIQUE POUR CONFIRMER TA COMMANDE',
   stickyLabel: 'COMMANDEZ',
   placeholders: {
@@ -21,8 +15,6 @@ const DEFAULT_FORM_TEXTS = {
     city: 'Saisir votre ville',
   },
 };
-
-const BADGE_ICONS = { shield: Shield, rotate: RotateCcw, truck: Truck };
 
 const hexToRgb = (hex = '') => {
   const cleaned = String(hex || '').trim().replace('#', '');
@@ -46,7 +38,6 @@ const StoreProductPageInfographics = ({ product, store, productPageConfig, subdo
   const [showSticky, setShowSticky] = useState(true);
 
   const cfg = productPageConfig?.infographicsForm || {};
-  const badges = cfg.badges || DEFAULT_BADGES;
   const formTexts = { ...DEFAULT_FORM_TEXTS, ...cfg, placeholders: { ...DEFAULT_FORM_TEXTS.placeholders, ...(cfg.placeholders || {}) } };
 
   const infographics = useMemo(() => {
@@ -71,7 +62,6 @@ const StoreProductPageInfographics = ({ product, store, productPageConfig, subdo
   const ctaColor = brandColor;
   const stickyColor = brandColor;
   const headerTextColor = cfg.headerTextColor || getReadableTextColor(brandColor);
-  const headerDividerColor = headerTextColor === '#FFFFFF' ? 'rgba(255,255,255,0.22)' : 'rgba(17,24,39,0.16)';
 
   useEffect(() => {
     const onScroll = () => {
@@ -102,24 +92,30 @@ const StoreProductPageInfographics = ({ product, store, productPageConfig, subdo
     }}>
       {/* Badges réassurance top */}
       <div style={{
-        display: 'grid',
-        gridTemplateColumns: `repeat(${badges.length}, 1fr)`,
-        gap: 0,
+        display: 'flex',
+        justifyContent: 'center',
         background: accent,
         color: headerTextColor,
-        padding: '14px 8px',
+        padding: '14px 16px',
         textAlign: 'center',
       }}>
-        {badges.map((badge, idx) => {
-          const Icon = BADGE_ICONS[badge.icon] || Shield;
-          return (
-            <div key={idx} style={{ padding: '0 6px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, borderLeft: idx === 0 ? 'none' : `1px solid ${headerDividerColor}` }}>
-              <Icon size={18} style={{ marginBottom: 2 }} />
-              <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.3 }}>{badge.title}</div>
-              <div style={{ fontSize: 10, fontWeight: 500, lineHeight: 1.3, opacity: 0.95 }}>{badge.text}</div>
-            </div>
-          );
-        })}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexWrap: 'wrap',
+          columnGap: 10,
+          rowGap: 6,
+          fontSize: 14,
+          fontWeight: 800,
+          lineHeight: 1.4,
+        }}>
+          <Truck size={18} />
+          <span>Livraison gratuite</span>
+          <span style={{ opacity: 0.45 }}>•</span>
+          <CreditCard size={18} />
+          <span>Paiement à la livraison</span>
+        </div>
       </div>
 
       {/* Stack d'infographies 9:16 */}
@@ -147,7 +143,7 @@ const StoreProductPageInfographics = ({ product, store, productPageConfig, subdo
         {/* Header coloré */}
         <div style={{
           background: `linear-gradient(135deg, ${brandColor} 0%, ${brandColor}CC 100%)`,
-          color: '#fff',
+          color: headerTextColor,
           padding: '28px 20px 24px',
           textAlign: 'center',
         }}>
@@ -155,7 +151,7 @@ const StoreProductPageInfographics = ({ product, store, productPageConfig, subdo
             display: 'inline-flex',
             alignItems: 'center',
             gap: 7,
-            background: 'rgba(255,255,255,0.18)',
+            background: headerTextColor === '#FFFFFF' ? 'rgba(255,255,255,0.18)' : 'rgba(17,24,39,0.10)',
             borderRadius: 20,
             padding: '5px 14px',
             marginBottom: 14,
@@ -169,9 +165,8 @@ const StoreProductPageInfographics = ({ product, store, productPageConfig, subdo
             fontSize: 21,
             fontWeight: 900,
             lineHeight: 1.3,
-            margin: 0,
+            margin: '0 auto',
             maxWidth: 320,
-            marginInline: 'auto',
           }}>
             {formTexts.headline}
           </h2>
@@ -212,40 +207,6 @@ const StoreProductPageInfographics = ({ product, store, productPageConfig, subdo
             brandColor={brandColor}
             accent={brandColor}
           />
-
-          {/* Badges réassurance */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginTop: 22 }}>
-            {[
-              { emoji: '🚚', label: 'Livraison gratuite' },
-              { emoji: '💳', label: 'Paiement à réception' },
-              { emoji: '🔒', label: 'Commande sécurisée' },
-            ].map(({ emoji, label }) => (
-              <div key={label} style={{
-                textAlign: 'center',
-                padding: '12px 6px',
-                background: '#F8FAFC',
-                borderRadius: 12,
-                border: `1.5px solid ${brandColor}22`,
-              }}>
-                <div style={{ fontSize: 22, marginBottom: 5 }}>{emoji}</div>
-                <div style={{ fontSize: 10, fontWeight: 800, color: brandColor, lineHeight: 1.3, textTransform: 'uppercase', letterSpacing: 0.3 }}>
-                  {label}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Réassurance text */}
-          <p style={{
-            textAlign: 'center',
-            color: brandColor,
-            fontSize: 17,
-            fontWeight: 800,
-            marginTop: 20,
-            lineHeight: 1.4,
-          }}>
-            ✅ {formTexts.reassurance}
-          </p>
         </div>
       </div>
 
@@ -325,7 +286,6 @@ const InfographicsFormOverride = ({ product, subdomain, store, productPageConfig
         .${formClass} textarea {
           border: 1.5px solid #E5E7EB !important;
           border-radius: 10px !important;
-          padding: 16px 14px !important;
           font-size: 15px !important;
           color: #111827 !important;
           background: #fff !important;
