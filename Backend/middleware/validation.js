@@ -77,8 +77,8 @@ export const validateProduct = (req, res, next) => {
     errors.push('Nom du produit requis');
   }
   
-  if (name && name.length > 100) {
-    errors.push('Nom du produit trop long (max 100 caractères)');
+  if (name && name.length > 200) {
+    errors.push('Nom du produit trop long (max 200 caractères)');
   }
   
   if (!finalSellingPrice || finalSellingPrice <= 0) {

@@ -396,9 +396,25 @@ const generateAgentResponse = async (conversation, clientMessage, intent, sentim
     const startTime = Date.now();
     let response = '';
     let tokensUsed = 0;
-    let modelUsed = process.env.KIE_MODEL_PATH || 'kie-gpt-5-2';
+    let modelUsed = process.env.AGENT_GROQ_MODEL || 'openai/gpt-oss-20b';
 
     try {
+      if (!groq) {
+        throw new Error('GROQ_API_KEY non configuré');
+      }
+      const completion = await groq.chat.completions.create({
+        model: process.env.AGENT_GROQ_MODEL || 'openai/gpt-oss-20b',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ],
+        max_tokens: 300,
+        temperature: 0.7,
+      });
+      response = completion.choices[0].message.content.trim();
+      tokensUsed = completion.usage?.total_tokens || 0;
+    } catch (groqErr) {
+      console.warn(`⚠️ [AGENT] Groq indisponible, fallback KIE: ${groqErr.message}`);
       const kieResult = await callKieChatCompletion({
         messages: [
           { role: 'system', content: systemPrompt },
@@ -411,21 +427,7 @@ const generateAgentResponse = async (conversation, clientMessage, intent, sentim
       });
       response = kieResult.content;
       tokensUsed = kieResult?.usage?.total_tokens || 0;
-    } catch (kieErr) {
-      if (!groq) throw kieErr;
-      console.warn(`⚠️ [AGENT] KIE indisponible, fallback Groq: ${kieErr.message}`);
-      const completion = await groq.chat.completions.create({
-        model: process.env.AGENT_GROQ_MODEL || 'openai/gpt-oss-20b',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt }
-        ],
-        max_tokens: 300,
-        temperature: 0.7
-      });
-      response = completion.choices[0].message.content.trim();
-      tokensUsed = completion.usage?.total_tokens || 0;
-      modelUsed = process.env.AGENT_GROQ_MODEL || 'openai/gpt-oss-20b';
+      modelUsed = process.env.KIE_MODEL_PATH || 'kie-gpt-5-2';
     }
 
     const processingTime = Date.now() - startTime;
@@ -1013,9 +1015,25 @@ Génère une réponse naturelle qui:
 
   let response = '';
   let tokensUsed = 0;
-  let modelUsed = process.env.KIE_MODEL_PATH || 'kie-gpt-5-2';
+  let modelUsed = process.env.AGENT_GROQ_MODEL || 'meta-llama/llama-4-scout-17b-16e-instruct';
 
   try {
+    if (!groq) {
+      throw new Error('GROQ_API_KEY non configuré');
+    }
+    const completion = await groq.chat.completions.create({
+      model: process.env.AGENT_GROQ_MODEL || 'meta-llama/llama-4-scout-17b-16e-instruct',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+      ],
+      max_tokens: 300,
+      temperature: 0.7,
+    });
+    response = completion.choices[0].message.content.trim();
+    tokensUsed = completion.usage?.total_tokens || 0;
+  } catch (groqErr) {
+    console.warn(`⚠️ [AGENT] Groq indisponible (image-context), fallback KIE: ${groqErr.message}`);
     const kieResult = await callKieChatCompletion({
       messages: [
         { role: 'system', content: systemPrompt },
@@ -1028,21 +1046,7 @@ Génère une réponse naturelle qui:
     });
     response = kieResult.content;
     tokensUsed = kieResult?.usage?.total_tokens || 0;
-  } catch (kieErr) {
-    if (!groq) throw kieErr;
-    console.warn(`⚠️ [AGENT] KIE indisponible (image-context), fallback Groq: ${kieErr.message}`);
-    const completion = await groq.chat.completions.create({
-      model: process.env.AGENT_GROQ_MODEL || 'meta-llama/llama-4-scout-17b-16e-instruct',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
-      ],
-      max_tokens: 300,
-      temperature: 0.7
-    });
-    response = completion.choices[0].message.content.trim();
-    tokensUsed = completion.usage?.total_tokens || 0;
-    modelUsed = process.env.AGENT_GROQ_MODEL || 'meta-llama/llama-4-scout-17b-16e-instruct';
+    modelUsed = process.env.KIE_MODEL_PATH || 'kie-gpt-5-2';
   }
 
   const processingTime = Date.now() - startTime;
