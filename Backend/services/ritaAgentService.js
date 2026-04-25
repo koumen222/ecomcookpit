@@ -10,10 +10,17 @@ import { Readable } from 'stream';
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 const FISH_AUDIO_DIRECT_API_KEY = process.env.FISH_AUDIO_API_KEY || '';
+const HAS_GROQ_API_KEY = !!process.env.GROQ_API_KEY;
 const KIE_API_KEY = process.env.KIE_API_KEY || process.env.NANOBANANA_API_KEY || '';
 const KIE_BASE_URL = (process.env.KIE_BASE_URL || 'https://api.kie.ai').replace(/\/+$/, '');
 const KIE_MODEL_PATH = process.env.KIE_MODEL_PATH || '/gpt-5-2/v1/chat/completions';
 const KIE_TIMEOUT_MS = Number(process.env.KIE_TIMEOUT_MS || 120000);
+const RITA_TEXT_PROVIDER = String(process.env.RITA_TEXT_PROVIDER || 'groq').trim().toLowerCase();
+const DEFAULT_RITA_GROQ_MODELS = Object.freeze([
+  { model: 'openai/gpt-oss-20b', reasoning_effort: 'medium' },
+  { model: 'meta-llama/llama-4-scout-17b-16e-instruct' },
+  { model: 'llama-3.3-70b-versatile' },
+]);
 
 // Historique in-memory par numéro de téléphone (max 500 échanges gardés)
 const conversationHistory = new Map();
@@ -618,6 +625,113 @@ async function callKieChatCompletion({
     throw new Error('KIE response vide');
   }
   return text;
+}
+
+async function callGroqTextCompletion({
+  messages,
+  temperature = 0.4,
+  maxTokens = 4096,
+  models = DEFAULT_RITA_GROQ_MODELS,
+}) {
+  if (!HAS_GROQ_API_KEY) {
+    throw new Error('GROQ_API_KEY non configuré');
+  }
+
+  let lastError = null;
+
+  for (const modelCfg of models) {
+    try {
+      const reqParams = {
+        model: modelCfg.model,
+        messages: normalizeLLMMessages(messages),
+        temperature,
+        max_completion_tokens: maxTokens,
+        top_p: 0.95,
+      };
+      if (modelCfg.reasoning_effort) reqParams.reasoning_effort = modelCfg.reasoning_effort;
+
+      const completion = await groq.chat.completions.create(reqParams);
+      let content = completion.choices[0]?.message?.content?.trim() || '';
+
+      if (!content && completion.choices[0]?.message?.reasoning) {
+        const reasoning = completion.choices[0].message.reasoning;
+        const thinkEnd = reasoning.lastIndexOf('</think>');
+        if (thinkEnd !== -1) {
+          content = reasoning.substring(thinkEnd + 8).trim();
+        }
+      }
+
+      if (content) {
+        return {
+          content,
+          modelUsed: modelCfg.model,
+        };
+      }
+
+      lastError = new Error(`${modelCfg.model} a retourne une reponse vide`);
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw lastError || new Error('Groq response vide');
+}
+
+async function callPreferredRitaTextCompletion({
+  messages,
+  temperature = 0.4,
+  maxTokens = 4096,
+  reasoningEffort = process.env.KIE_REASONING_EFFORT || 'low',
+  includeThoughts = false,
+  groqModels = DEFAULT_RITA_GROQ_MODELS,
+  contextLabel = 'RITA',
+}) {
+  const providers = RITA_TEXT_PROVIDER === 'kie' ? ['kie', 'groq'] : ['groq', 'kie'];
+  let lastError = null;
+
+  for (const provider of providers) {
+    if (provider === 'groq') {
+      try {
+        const groqResult = await callGroqTextCompletion({
+          messages,
+          temperature,
+          maxTokens,
+          models: groqModels,
+        });
+        return {
+          content: groqResult.content,
+          provider: 'groq',
+          modelUsed: groqResult.modelUsed,
+        };
+      } catch (error) {
+        lastError = error;
+        const hasFallback = providers.includes('kie');
+        console.warn(`⚠️ [${contextLabel}] Groq indisponible: ${error.message}${hasFallback ? ' — fallback KIE' : ''}`);
+      }
+      continue;
+    }
+
+    try {
+      const kieText = await callKieChatCompletion({
+        messages,
+        temperature,
+        maxTokens,
+        reasoningEffort,
+        includeThoughts,
+      });
+      return {
+        content: kieText,
+        provider: 'kie',
+        modelUsed: process.env.KIE_MODEL_PATH || 'kie-gpt-5-2',
+      };
+    } catch (error) {
+      lastError = error;
+      const hasFallback = providers.includes('groq');
+      console.warn(`⚠️ [${contextLabel}] KIE indisponible: ${error.message}${hasFallback ? ' — fallback Groq' : ''}`);
+    }
+  }
+
+  throw lastError || new Error('Aucun modele texte configure');
 }
 
 function extractProductFromOrderTag(text = '') {
@@ -3675,38 +3789,26 @@ export async function processBossMessage(userId, from, text) {
   }
 
   const systemPrompt = buildBossSystemPrompt(config);
+  const bossGroqModels = [{ model: 'openai/gpt-oss-20b', reasoning_effort: 'medium' }];
 
   try {
     let reply = null;
-    try {
-      const kie = await callKieChatCompletion({
-        messages: [
-          { role: 'system', content: systemPrompt },
-          ...history,
-        ],
-        temperature: 0.5,
-        maxTokens: 2048,
-        reasoningEffort: process.env.KIE_REASONING_EFFORT || 'low',
-        includeThoughts: false,
-      });
-      reply = kie.content?.trim() || null;
-    } catch (kieErr) {
-      console.warn(`⚠️ [RITA-BOSS] KIE indisponible, fallback Groq: ${kieErr.message}`);
-      const completion = await groq.chat.completions.create({
-        model: 'openai/gpt-oss-20b',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          ...history,
-        ],
-        temperature: 0.5,
-        max_completion_tokens: 2048,
-        top_p: 0.95,
-        reasoning_effort: 'medium',
-      });
-      reply = completion.choices[0]?.message?.content?.trim() || null;
-    }
+    const completion = await callPreferredRitaTextCompletion({
+      messages: [
+        { role: 'system', content: systemPrompt },
+        ...history,
+      ],
+      temperature: 0.5,
+      maxTokens: 2048,
+      reasoningEffort: process.env.KIE_REASONING_EFFORT || 'low',
+      includeThoughts: false,
+      groqModels: bossGroqModels,
+      contextLabel: 'RITA-BOSS',
+    });
+    reply = completion.content?.trim() || null;
 
     if (reply) {
+      console.log(`✅ [RITA-BOSS] Réponse générée via ${completion.provider.toUpperCase()} (${completion.modelUsed})`);
       history.push({ role: 'assistant', content: reply });
     }
     return reply || null;
@@ -3878,20 +3980,13 @@ export async function processIncomingMessage(userId, from, text, opts = {}) {
   const approxTokens = Math.round(promptLen / 4);
   console.log(`🤖 [RITA] Appel LLM — userId=${userId} from=${from} state=${clientState.statut} promptMode=${RITA_PROMPT_MODE} promptLen=${promptLen} (~${approxTokens} tokens) historyLen=${history.length}`);
 
-  // ── Appel KIE (Gemini 3.1 Pro) en priorité, fallback Groq si indisponible ──
-  const MODELS = [
-    { model: 'openai/gpt-oss-20b', reasoning_effort: 'medium' },
-    { model: 'meta-llama/llama-4-scout-17b-16e-instruct', reasoning_effort: undefined },
-    { model: 'llama-3.3-70b-versatile', reasoning_effort: undefined },
-  ];
-
   let rawContent = null;
   let lastError = null;
 
   const llmHistory = normalizeLLMMessages(history).slice(-RITA_MAX_LLM_HISTORY);
 
   try {
-    rawContent = await callKieChatCompletion({
+    const completion = await callPreferredRitaTextCompletion({
       messages: [
         { role: 'system', content: systemPrompt },
         ...llmHistory,
@@ -3900,55 +3995,13 @@ export async function processIncomingMessage(userId, from, text, opts = {}) {
       maxTokens: RITA_MAX_RESPONSE_TOKENS,
       reasoningEffort: process.env.KIE_REASONING_EFFORT || 'low',
       includeThoughts: false,
+      groqModels: DEFAULT_RITA_GROQ_MODELS,
+      contextLabel: 'RITA',
     });
-    console.log('✅ [RITA] Réponse générée via KIE (Gemini 3.1 Pro)');
-  } catch (kieErr) {
-    lastError = kieErr;
-    console.warn(`⚠️ [RITA] KIE indisponible: ${kieErr.message} — fallback Groq`);
-
-    for (const modelCfg of MODELS) {
-      try {
-        const reqParams = {
-          model: modelCfg.model,
-          messages: [
-            { role: 'system', content: systemPrompt },
-            ...llmHistory,
-          ],
-          temperature: 0.4,
-          max_completion_tokens: RITA_MAX_RESPONSE_TOKENS,
-          top_p: 0.95,
-        };
-        if (modelCfg.reasoning_effort) reqParams.reasoning_effort = modelCfg.reasoning_effort;
-
-        const completion = await groq.chat.completions.create(reqParams);
-
-        rawContent = completion.choices[0]?.message?.content?.trim() || '';
-
-        // GPT-OSS peut retourner content vide si tout part en reasoning — extraire si besoin
-        if (!rawContent && completion.choices[0]?.message?.reasoning) {
-          const reasoning = completion.choices[0].message.reasoning;
-          const thinkEnd = reasoning.lastIndexOf('</think>');
-          if (thinkEnd !== -1) {
-            rawContent = reasoning.substring(thinkEnd + 8).trim();
-          }
-          if (!rawContent) {
-            console.warn(`⚠️ [RITA] ${modelCfg.model} → content vide, reasoning=${reasoning.length} chars — retry prochain modèle`);
-            continue;
-          }
-        }
-
-        if (rawContent) {
-          if (modelCfg.model !== MODELS[0].model) {
-            console.log(`🔄 [RITA] Réponse obtenue via modèle de secours: ${modelCfg.model}`);
-          }
-          break;
-        }
-        console.warn(`⚠️ [RITA] ${modelCfg.model} → réponse vide, retry prochain modèle`);
-      } catch (error) {
-        lastError = error;
-        console.warn(`⚠️ [RITA] ${modelCfg.model} échoué: ${error.message} (status=${error.status || 'N/A'}) — retry prochain modèle`);
-      }
-    }
+    rawContent = completion.content || '';
+    console.log(`✅ [RITA] Réponse générée via ${completion.provider.toUpperCase()} (${completion.modelUsed})`);
+  } catch (error) {
+    lastError = error;
   }
 
   if (!rawContent) {
@@ -4031,49 +4084,23 @@ export async function generateTestReply(config, messages) {
   const activeConversation = buildActiveConversationContext(config, messages, latestUserMessage);
   const systemPrompt = buildSystemPrompt(config, { activeConversation });
 
-  const MODELS = [
-    { model: 'openai/gpt-oss-20b', reasoning_effort: 'medium' },
-    { model: 'meta-llama/llama-4-scout-17b-16e-instruct' },
-    { model: 'llama-3.3-70b-versatile' },
-  ];
-
   try {
-    const kie = await callKieChatCompletion({
+    const completion = await callPreferredRitaTextCompletion({
       messages: [{ role: 'system', content: systemPrompt }, ...messages],
       temperature: 0.4,
       maxTokens: 4096,
       reasoningEffort: process.env.KIE_REASONING_EFFORT || 'low',
       includeThoughts: false,
+      groqModels: DEFAULT_RITA_GROQ_MODELS,
+      contextLabel: 'RITA-TEST',
     });
-    const sanitized = sanitizeReply(kie.content || '', config) || '';
-    if (sanitized) return sanitized;
-  } catch (kieErr) {
-    console.warn(`⚠️ [RITA-TEST] KIE indisponible, fallback Groq: ${kieErr.message}`);
-  }
-
-  for (const modelCfg of MODELS) {
-    try {
-      const reqParams = {
-        model: modelCfg.model,
-        messages: [{ role: 'system', content: systemPrompt }, ...messages],
-        temperature: 0.4,
-        max_completion_tokens: 4096,
-        top_p: 0.95,
-      };
-      if (modelCfg.reasoning_effort) reqParams.reasoning_effort = modelCfg.reasoning_effort;
-
-      const completion = await groq.chat.completions.create(reqParams);
-      let content = completion.choices[0]?.message?.content?.trim() || '';
-      if (!content && completion.choices[0]?.message?.reasoning) {
-        const reasoning = completion.choices[0].message.reasoning;
-        const thinkEnd = reasoning.lastIndexOf('</think>');
-        if (thinkEnd !== -1) content = reasoning.substring(thinkEnd + 8).trim();
-      }
-      if (content) return sanitizeReply(content, config) || '';
-      console.warn(`⚠️ [RITA-TEST] ${modelCfg.model} → réponse vide, retry`);
-    } catch (err) {
-      console.warn(`⚠️ [RITA-TEST] ${modelCfg.model} échoué: ${err.message}`);
+    const sanitized = sanitizeReply(completion.content || '', config) || '';
+    if (sanitized) {
+      console.log(`✅ [RITA-TEST] Réponse générée via ${completion.provider.toUpperCase()} (${completion.modelUsed})`);
     }
+    if (sanitized) return sanitized;
+  } catch (error) {
+    console.warn(`⚠️ [RITA-TEST] Tous les providers ont échoué: ${error.message}`);
   }
   return '';
 }

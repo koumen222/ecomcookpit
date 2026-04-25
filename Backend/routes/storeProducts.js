@@ -18,6 +18,7 @@ const getOpenAI = () => {
 };
 
 const router = express.Router();
+const MAX_PRODUCT_NAME_LENGTH = 200;
 
 /**
  * Build a product filter scoped to the active store.
@@ -1322,10 +1323,19 @@ router.post('/', requireEcomAuth, requireWorkspace, requireStoreOwner, checkPlan
       testimonials, faq, _pageData, productPageConfig
     } = req.body;
 
-    if (!name || price === undefined) {
+    const normalizedName = String(name || '').trim();
+
+    if (!normalizedName || price === undefined) {
       return res.status(400).json({
         success: false,
         message: 'Nom et prix requis'
+      });
+    }
+
+    if (normalizedName.length > MAX_PRODUCT_NAME_LENGTH) {
+      return res.status(400).json({
+        success: false,
+        message: `Nom du produit trop long (max ${MAX_PRODUCT_NAME_LENGTH} caractères)`
       });
     }
 
@@ -1348,7 +1358,7 @@ router.post('/', requireEcomAuth, requireWorkspace, requireStoreOwner, checkPlan
       }
     } else {
       const systemProduct = new Product(buildSystemProductPayload({
-        name,
+        name: normalizedName,
         price,
         stock,
         workspaceId: req.workspaceId,
@@ -1365,7 +1375,7 @@ router.post('/', requireEcomAuth, requireWorkspace, requireStoreOwner, checkPlan
       product = new StoreProduct({
         workspaceId: req.workspaceId,
         storeId: req.activeStoreId || null,
-        name,
+        name: normalizedName,
         description: description || '',
         price: Number(price),
         compareAtPrice: compareAtPrice ? Number(compareAtPrice) : null,
@@ -1377,7 +1387,7 @@ router.post('/', requireEcomAuth, requireWorkspace, requireStoreOwner, checkPlan
         stock: Number(stock) || 0,
         images: (images || []).map((img, i) => ({
           url: img.url,
-          alt: img.alt || name,
+          alt: img.alt || normalizedName,
           order: img.order ?? i
         })),
         category: category || '',
@@ -1418,6 +1428,12 @@ router.post('/', requireEcomAuth, requireWorkspace, requireStoreOwner, checkPlan
         message: 'Un produit avec ce nom existe déjà'
       });
     }
+    if (error?.name === 'ValidationError') {
+      return res.status(400).json({
+        success: false,
+        message: Object.values(error.errors || {}).map((item) => item.message).filter(Boolean).join(', ') || 'Données produit invalides'
+      });
+    }
     console.error('Erreur POST /store-products:', error.message);
     res.status(500).json({ success: false, message: 'Erreur serveur' });
   }
@@ -1441,9 +1457,23 @@ router.put('/:id', requireEcomAuth, requireWorkspace, requireStoreOwner, async (
       testimonials, faq, variants, _pageData, pageBuilder, productPageConfig
     } = req.body;
 
+    const normalizedName = name === undefined ? undefined : String(name || '').trim();
+
+    if (normalizedName !== undefined) {
+      if (!normalizedName) {
+        return res.status(400).json({ success: false, message: 'Nom du produit requis' });
+      }
+      if (normalizedName.length > MAX_PRODUCT_NAME_LENGTH) {
+        return res.status(400).json({
+          success: false,
+          message: `Nom du produit trop long (max ${MAX_PRODUCT_NAME_LENGTH} caractères)`
+        });
+      }
+    }
+
     // Build update object — only include provided fields
     const update = {};
-    if (name !== undefined) update.name = name;
+    if (normalizedName !== undefined) update.name = normalizedName;
     if (description !== undefined) update.description = description;
     if (price !== undefined) update.price = Number(price);
     if (compareAtPrice !== undefined) update.compareAtPrice = compareAtPrice ? Number(compareAtPrice) : null;
@@ -1474,10 +1504,10 @@ router.put('/:id', requireEcomAuth, requireWorkspace, requireStoreOwner, async (
     if (productPageConfig !== undefined) update.productPageConfig = productPageConfig;
 
     // Only regenerate slug if name actually changed
-    if (name) {
+    if (normalizedName) {
       const existing = await StoreProduct.findOne({ _id: req.params.id, workspaceId: req.workspaceId }).select('name').lean();
-      if (existing && existing.name !== name) {
-        update.slug = name
+      if (existing && existing.name !== normalizedName) {
+        update.slug = normalizedName
           .toLowerCase()
           .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
           .replace(/[^a-z0-9]+/g, '-')
@@ -1506,6 +1536,12 @@ router.put('/:id', requireEcomAuth, requireWorkspace, requireStoreOwner, async (
       return res.status(409).json({
         success: false,
         message: 'Un produit avec ce nom existe déjà'
+      });
+    }
+    if (error?.name === 'ValidationError') {
+      return res.status(400).json({
+        success: false,
+        message: Object.values(error.errors || {}).map((item) => item.message).filter(Boolean).join(', ') || 'Données produit invalides'
       });
     }
     console.error('Erreur PUT /store-products/:id:', error.message);
