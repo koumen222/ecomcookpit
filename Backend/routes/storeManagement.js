@@ -1103,11 +1103,8 @@ router.put('/subdomain', requireEcomAuth, requireWorkspace, requireStoreOwner, a
 
     // Skip uniqueness check if subdomain hasn't changed
     if (subdomain !== previousSubdomain) {
-      const storeExcludeQuery = store
-        ? { _id: { $ne: store._id } }
-        : { workspaceId: { $ne: req.workspaceId } };
       const [storeConflict, wsConflict] = await Promise.all([
-        Store.findOne({ subdomain, ...storeExcludeQuery }).select('_id').lean(),
+        Store.findOne({ subdomain, workspaceId: { $ne: req.workspaceId } }).select('_id').lean(),
         EcomWorkspace.findOne({ subdomain, _id: { $ne: req.workspaceId } }).select('_id').lean()
       ]);
 
@@ -1220,7 +1217,7 @@ router.post('/generate-subdomain', requireEcomAuth, requireWorkspace, async (req
     while (!isAvailable && suffix <= 99) {
       const [wsEx, storeEx] = await Promise.all([
         EcomWorkspace.findOne({ subdomain: finalSubdomain, _id: { $ne: req.workspaceId } }).select('_id').lean(),
-        Store.findOne({ subdomain: finalSubdomain }).select('_id').lean()
+        Store.findOne({ subdomain: finalSubdomain, workspaceId: { $ne: req.workspaceId } }).select('_id').lean()
       ]);
       if (!wsEx && !storeEx) {
         isAvailable = true;
@@ -1264,10 +1261,16 @@ router.get('/subdomain/check/:subdomain', requireEcomAuth, async (req, res) => {
       return res.json({ success: true, data: { available: false } });
     }
 
+    // Always exclude the current owner's workspace so they can keep/change to their own subdomain
+    const wsId = req.workspaceId;
+    const wsQuery    = wsId ? { subdomain, _id: { $ne: wsId } }           : { subdomain };
+    const storeQuery = wsId ? { subdomain, workspaceId: { $ne: wsId } }   : { subdomain };
+
     const [wsExisting, storeExisting] = await Promise.all([
-      EcomWorkspace.findOne({ subdomain }).select('_id').lean(),
-      Store.findOne({ subdomain }).select('_id').lean()
+      EcomWorkspace.findOne(wsQuery).select('_id').lean(),
+      Store.findOne(storeQuery).select('_id').lean()
     ]);
+
     res.json({
       success: true,
       data: { available: !wsExisting && !storeExisting }

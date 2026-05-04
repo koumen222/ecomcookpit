@@ -79,10 +79,14 @@ function buildLegacyWorkspaceStore(workspace) {
 // Helper: check subdomain availability across Store + Workspace (for backward compat)
 async function isSubdomainAvailable(subdomain, excludeStoreId = null, excludeWorkspaceId = null) {
   const cleanSub = subdomain.toLowerCase().trim();
+  // Always exclude all stores belonging to the same workspace
   const storeQuery = { subdomain: cleanSub };
-  if (excludeStoreId) storeQuery._id = { $ne: excludeStoreId };
+  if (excludeWorkspaceId) storeQuery.workspaceId = { $ne: excludeWorkspaceId };
+  else if (excludeStoreId) storeQuery._id = { $ne: excludeStoreId };
+
   const wsQuery = { subdomain: cleanSub };
   if (excludeWorkspaceId) wsQuery._id = { $ne: excludeWorkspaceId };
+
   const [storeConflict, wsConflict] = await Promise.all([
     Store.findOne(storeQuery).select('_id').lean(),
     Workspace.findOne(wsQuery).select('_id').lean()
@@ -216,6 +220,21 @@ router.post('/', requireEcomAuth, checkPlanLimit('stores'), async (req, res) => 
   }
 });
 
+// GET /api/ecom/stores/check-subdomain/:subdomain — availability check
+// IMPORTANT: must be defined before /:storeId to avoid route conflict
+router.get('/check-subdomain/:subdomain', requireEcomAuth, async (req, res) => {
+  try {
+    const clean = req.params.subdomain.toLowerCase().trim();
+    if (!/^[a-z0-9-]{3,30}$/.test(clean)) {
+      return res.json({ success: true, available: false, reason: 'Format invalide' });
+    }
+    const available = await isSubdomainAvailable(clean, req.query.excludeStoreId || null, req.workspaceId);
+    res.json({ success: true, available });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
 // GET /api/ecom/stores/:storeId — get one store
 router.get('/:storeId', requireEcomAuth, async (req, res) => {
   try {
@@ -307,20 +326,6 @@ router.put('/:storeId/subdomain', requireEcomAuth, async (req, res) => {
       return res.status(409).json({ success: false, message: 'Ce sous-domaine est déjà utilisé' });
     }
     console.error('❌ Erreur update subdomain:', err);
-    res.status(500).json({ success: false, message: 'Erreur serveur' });
-  }
-});
-
-// GET /api/ecom/stores/check-subdomain/:subdomain — availability check
-router.get('/check-subdomain/:subdomain', requireEcomAuth, async (req, res) => {
-  try {
-    const clean = req.params.subdomain.toLowerCase().trim();
-    if (!/^[a-z0-9-]{3,30}$/.test(clean)) {
-      return res.json({ success: true, available: false, reason: 'Format invalide' });
-    }
-    const available = await isSubdomainAvailable(clean, req.query.excludeStoreId || null, req.workspaceId);
-    res.json({ success: true, available });
-  } catch (err) {
     res.status(500).json({ success: false, message: 'Erreur serveur' });
   }
 });

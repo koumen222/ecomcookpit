@@ -1,6 +1,5 @@
 import express from 'express';
 import mongoose from 'mongoose';
-import OpenAI from 'openai';
 import Transaction from '../models/Transaction.js';
 import Budget from '../models/Budget.js';
 import Product from '../models/Product.js';
@@ -17,7 +16,50 @@ import {
   notifyCriticalTransaction
 } from '../core/notifications/notification.service.js';
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+// Helper KIE.AI (claude-sonnet-4-6) with retry + 120s timeout
+async function kieAiChat(prompt, maxTokens = 2000, retries = 3) {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 600_000); // 10 min
+    let response;
+    try {
+      response = await fetch('https://api.kie.ai/claude/v1/messages', {
+        method: 'POST',
+        signal: controller.signal,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${process.env.KIE_API_KEY}`
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-6',
+          messages: [{ role: 'user', content: prompt }],
+          max_tokens: maxTokens
+        })
+      });
+    } finally {
+      clearTimeout(timer);
+    }
+
+    if (response.ok) {
+      const data = await response.json();
+      return data.content?.[0]?.text || '';
+    }
+
+    const err = await response.json().catch(() => ({}));
+    const isOverload = response.status === 529 || response.status === 503 ||
+      (err.error?.message || '').toLowerCase().includes('system load') ||
+      (err.error?.message || '').toLowerCase().includes('overloaded');
+
+    if (isOverload && attempt < retries) {
+      const delay = attempt * 5000; // 5s, 10s
+      console.warn(`⚠️  KIE.AI overloaded — retry ${attempt}/${retries} in ${delay}ms`);
+      await new Promise(r => setTimeout(r, delay));
+      continue;
+    }
+
+    throw new Error(err.error?.message || `KIE.AI error ${response.status}`);
+  }
+}
 
 // Seuil transaction critique (configurable via env)
 const CRITICAL_TX_THRESHOLD = parseInt(process.env.CRITICAL_TX_THRESHOLD || '100000', 10);
@@ -885,28 +927,20 @@ Réponds UNIQUEMENT avec un JSON valide (sans markdown, sans \`\`\`json) avec ce
 }
 `;
 
-      const completion = await openai.chat.completions.create({
-        model: process.env.OPENAI_MODEL || 'gpt-4o',
-        messages: [{ role: 'user', content: summary }],
-        temperature: 0.4,
-        max_tokens: 2000
-      });
-
-      const raw = completion.choices[0].message.content.trim();
+      const raw = (await kieAiChat(summary, 2000)).trim();
 
       let analysis;
       try {
         analysis = JSON.parse(raw);
       } catch {
-        // Si GPT retourne du markdown malgré tout
         const jsonMatch = raw.match(/\{[\s\S]*\}/);
         analysis = jsonMatch ? JSON.parse(jsonMatch[0]) : { resume: raw, diagnostic: '', points_forts: [], points_faibles: [], opportunites: [], risques: [], actions_prioritaires: [], prevision_optimiste: '', prevision_pessimiste: '', conseil_expert: '' };
       }
 
-      res.json({ success: true, analysis, tokensUsed: completion.usage?.total_tokens });
+      res.json({ success: true, analysis });
     } catch (error) {
       console.error('Erreur forecast/ai:', error);
-      res.status(500).json({ success: false, message: error.message || 'Erreur OpenAI' });
+      res.status(500).json({ success: false, message: error.message || 'Erreur analyse IA' });
     }
   }
 );
@@ -933,6 +967,7 @@ router.post('/strategic-analysis',
       const prevStart = new Date(prevEnd.getTime() - periodDays * 24 * 60 * 60 * 1000);
 
       const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
       const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
       const daysPassed = now.getDate();
       const daysLeft = daysInMonth - daysPassed;
@@ -1195,136 +1230,34 @@ router.post('/strategic-analysis',
         return { month: mk, income: Math.round(inc), expenses: Math.round(exp), profit: Math.round(inc - exp), margin: inc > 0 ? Math.round((inc - exp) / inc * 100) : 0 };
       });
 
-      // ── Construction du prompt GPT-4o ──
-      const prompt = `Tu es un consultant senior combinant les compétences d'un Data Analyst senior, d'un Contrôleur de gestion et d'un Consultant business stratégique.
+      // ── Construction du prompt compact ──
+      const fmt = n => Math.round(n).toString();
+      const prompt = `Analyste e-commerce senior. Données boutique en ligne — réponds UNIQUEMENT en JSON valide (pas de markdown).
 
-Analyse les données financières suivantes d'une boutique e-commerce et produis un rapport stratégique ULTRA DÉTAILLÉ en français. Tu ne dois PAS simplement reformuler les chiffres — tu dois ANALYSER, INTERPRÉTER, IDENTIFIER LES PROBLÈMES, IDENTIFIER LES OPPORTUNITÉS et DONNER DES RECOMMANDATIONS CONCRÈTES ET ACTIONNABLES.
+PÉRIODE: ${periodStart.toLocaleDateString('fr-FR')} → ${periodEnd.toLocaleDateString('fr-FR')} (${periodDays}j)
+CA: ${fmt(curIncome)} FCFA (${Math.round(incomeGrowth)}%Δ) | Dépenses: ${fmt(curExpense)} FCFA (${Math.round(expenseGrowth)}%Δ) | Profit: ${fmt(curProfit)} FCFA (${Math.round(profitGrowth)}%Δ)
+Santé: ${healthScore}/100 | Burn: ${fmt(burnRate)}/j | Proj. fin mois: CA ${fmt(projectedIncome)} / Dep ${fmt(projectedExpense)} | ${daysPassed}/${daysInMonth}j
 
-═══════════════════════════════════════
-1. DONNÉES FINANCIÈRES — PÉRIODE ANALYSÉE
-═══════════════════════════════════════
-Période: ${periodStart.toLocaleDateString('fr-FR')} → ${periodEnd.toLocaleDateString('fr-FR')} (${periodDays} jours)
+DÉPENSES: ${categoryData.map(c => `${c.category}:${fmt(c.amount)}(${c.percentage}%,${c.variation}%Δ)`).join(' | ')}
 
-• Chiffre d'affaires: ${curIncome.toLocaleString('fr-FR')} FCFA (${incomeGrowth > 0 ? '+' : ''}${Math.round(incomeGrowth)}% vs période précédente)
-• Total dépenses: ${curExpense.toLocaleString('fr-FR')} FCFA (${expenseGrowth > 0 ? '+' : ''}${Math.round(expenseGrowth)}% vs période précédente)
-• Bénéfice net: ${curProfit.toLocaleString('fr-FR')} FCFA (${profitGrowth > 0 ? '+' : ''}${Math.round(profitGrowth)}% vs période précédente)
-• Cash flow: ${cashFlow.toLocaleString('fr-FR')} FCFA
-• Score santé financière: ${healthScore}/100
-• Burn rate journalier: ${Math.round(burnRate).toLocaleString('fr-FR')} FCFA/jour
-• Rythme entrées/jour: ${Math.round(dailyIncRate).toLocaleString('fr-FR')} FCFA/jour
-• Projection fin de mois: Revenus ${Math.round(projectedIncome).toLocaleString('fr-FR')} FCFA — Dépenses ${Math.round(projectedExpense).toLocaleString('fr-FR')} FCFA
-• Avancement mois: ${daysPassed}/${daysInMonth} jours (${daysLeft} jours restants)
+COMMANDES: ${totalOrders} cmd (${Math.round(orderGrowth)}%Δ) | Livraison: ${Math.round(deliveryRate)}% | CA perdu: ${fmt(lostRevenue)} FCFA
+Statuts: ${ordersPeriod.map(o => `${o._id}:${o.count}`).join(',')}
 
-═══════════════════════════════════════
-2. DÉPENSES PAR CATÉGORIE
-═══════════════════════════════════════
-${categoryData.map(c => `• ${c.category}: ${c.amount.toLocaleString('fr-FR')} FCFA (${c.percentage}% du total, ${c.variation > 0 ? '+' : ''}${c.variation}% vs précédent, ${c.txCount} transactions)`).join('\n')}
+PRODUITS TOP5: ${productData.slice(0, 5).map(p => `${p.name}:${p.orders}cmd,livr${p.deliveryRate}%,ret${p.returnRate}%,marge${p.margin}FCFA(${p.marginPct}%),profit${fmt(p.estimatedProfit)}`).join(' | ')}
 
-═══════════════════════════════════════
-3. COMMANDES & LIVRAISON
-═══════════════════════════════════════
-• Total commandes: ${totalOrders} (${orderGrowth > 0 ? '+' : ''}${Math.round(orderGrowth)}% vs précédent)
-• CA commandes: ${totalRevenue.toLocaleString('fr-FR')} FCFA
-• Taux de livraison: ${Math.round(deliveryRate)}%
-• CA perdu (non livré): ${Math.round(lostRevenue).toLocaleString('fr-FR')} FCFA (${Math.round(deliveryImpact)}% du CA)
-• Répartition statuts: ${ordersPeriod.map(o => `${o._id}: ${o.count}`).join(', ')}
+VILLES TOP5: ${cityData.slice(0, 5).map(c => `${c.city}:${c.orders}cmd,livr${c.deliveryRate}%`).join(' | ') || 'N/A'}
 
-═══════════════════════════════════════
-4. PERFORMANCE PAR PRODUIT (ROI & Rentabilité)
-═══════════════════════════════════════
-${productData.slice(0, 8).map(p => `• ${p.name}: ${p.orders} cmd, ${p.delivered} livrées, taux livr. ${p.deliveryRate}%, taux retour ${p.returnRate}%, marge unitaire ${p.margin.toLocaleString('fr-FR')} FCFA (${p.marginPct}%), profit estimé ${p.estimatedProfit.toLocaleString('fr-FR')} FCFA, ROI pub ${p.roi}%, coût acquisition ${p.costAcquisition.toLocaleString('fr-FR')} FCFA, stock: ${p.stock ?? 'N/A'}, statut: ${p.status || 'N/A'}`).join('\n')}
+BUDGETS: ${budgetData.map(b => `${b.name}:${fmt(b.spent)}/${fmt(b.limit)}(${b.percentage}%,${b.status})`).join(' | ') || 'N/A'}
 
-═══════════════════════════════════════
-5. PERFORMANCE PAR VILLE (Top 10)
-═══════════════════════════════════════
-${cityData.map(c => `• ${c.city}: ${c.orders} cmd, CA ${c.revenue.toLocaleString('fr-FR')} FCFA, taux livr. ${c.deliveryRate}%, taux retour ${c.returnRate}%`).join('\n') || 'Aucune donnée ville'}
+STOCK ALERTE: ${stockAlerts.map(s => `${s.name}:${s.stock}u`).join(',') || 'aucune'}
+Pub totale: ${fmt(totalAdSpend)} FCFA
 
-═══════════════════════════════════════
-6. PERFORMANCE PAR CLOSEUSE/LIVREUR
-═══════════════════════════════════════
-${livreurData.map(l => `• ${l.name}: ${l.orders} cmd, ${l.delivered} livrées, taux livr. ${l.deliveryRate}%, CA ${l.revenue.toLocaleString('fr-FR')} FCFA`).join('\n') || 'Aucune donnée closeuse'}
+TENDANCE 3M: ${monthlyData.slice(-3).map(m => `${m.month}:CA${fmt(m.income)},dep${fmt(m.expenses)},marge${m.margin}%`).join(' | ')}
 
-═══════════════════════════════════════
-7. BUDGETS (défini vs réel)
-═══════════════════════════════════════
-${budgetData.map(b => `• ${b.name} (${b.category}${b.product ? ' — ' + b.product : ''}): limite ${b.limit.toLocaleString('fr-FR')} FCFA, dépensé ${b.spent.toLocaleString('fr-FR')} FCFA (${b.percentage}%), projeté fin mois ${b.projected.toLocaleString('fr-FR')} FCFA, statut: ${b.status}`).join('\n') || 'Aucun budget défini'}
+JSON attendu:
+{"situation_globale":{"resume_executif":"","interpretation":"","chiffres_cles":[{"label":"","valeur":"","tendance":"hausse|baisse|stable","commentaire":""}],"cash_flow_analyse":""},"analyse_depenses":{"synthese":"","categorie_critique":"","anomalies":[],"optimisations":[]},"roi_rentabilite":{"synthese":"","produit_star":{"nom":"","raison":"","action":""},"produit_probleme":{"nom":"","raison":"","action":""},"produits_a_surveiller":[],"cout_acquisition_moyen":"","marge_nette_reelle":""},"analyse_operationnelle":{"impact_livraison":"","performance_closeuses":[],"ville_plus_rentable":{"nom":"","raison":""},"ville_problematique":{"nom":"","raison":"","action":""},"segment_performant":""},"projections_risques":{"projection_fin_mois":"","risque_perte":"","burn_rate_analyse":"","ruptures_stock":[],"desequilibre_budget":[],"score_risque_global":"faible|moyen|élevé|critique"},"recommandations":[{"priorite":"CRITIQUE","action":"","impact":"","categorie":""},{"priorite":"IMPORTANT","action":"","impact":"","categorie":""},{"priorite":"OPPORTUNITE","action":"","impact":"","categorie":""}],"note_strategique":""}`;
 
-═══════════════════════════════════════
-8. CAMPAGNES MARKETING (30 derniers jours)
-═══════════════════════════════════════
-${campaignData.map(c => `• ${c.name} (${c.type}): statut ${c.status}, ciblés ${c.targeted}, envoyés ${c.sent}, taux succès ${c.successRate}%`).join('\n') || 'Aucune campagne'}
-Dépenses pub totales (rapports journaliers): ${totalAdSpend.toLocaleString('fr-FR')} FCFA
-
-═══════════════════════════════════════
-9. ALERTES STOCK
-═══════════════════════════════════════
-${stockAlerts.map(s => `• ${s.name}: ${s.stock} unités (seuil: ${s.threshold}), statut produit: ${s.status}`).join('\n') || 'Aucune alerte stock'}
-
-═══════════════════════════════════════
-10. TENDANCE MENSUELLE (6 mois)
-═══════════════════════════════════════
-${monthlyData.map(m => `• ${m.month}: CA ${m.income.toLocaleString('fr-FR')}, dépenses ${m.expenses.toLocaleString('fr-FR')}, profit ${m.profit.toLocaleString('fr-FR')}, marge ${m.margin}%`).join('\n')}
-
-═══════════════════════════════════════
-FORMAT DE RÉPONSE ATTENDU
-═══════════════════════════════════════
-
-Réponds UNIQUEMENT avec un JSON valide (sans markdown, sans \`\`\`json) avec cette structure EXACTE:
-
-{
-  "situation_globale": {
-    "resume_executif": "Résumé en 3-4 phrases percutantes de la situation globale",
-    "interpretation": "Analyse détaillée: la situation est-elle saine, stable, risquée ou critique ? Pourquoi ?",
-    "chiffres_cles": [
-      {"label": "...", "valeur": "...", "tendance": "hausse|baisse|stable", "commentaire": "..."}
-    ],
-    "cash_flow_analyse": "Analyse du cash flow et de la trésorerie"
-  },
-  "analyse_depenses": {
-    "synthese": "Synthèse en 2-3 phrases sur la structure des dépenses",
-    "categorie_critique": "Quelle catégorie pose problème et pourquoi",
-    "anomalies": ["anomalie 1 détectée", "anomalie 2"],
-    "optimisations": ["optimisation possible 1", "optimisation possible 2"]
-  },
-  "roi_rentabilite": {
-    "synthese": "Synthèse ROI global en 2-3 phrases",
-    "produit_star": {"nom": "...", "raison": "...", "action": "..."},
-    "produit_probleme": {"nom": "...", "raison": "...", "action": "..."},
-    "produits_a_surveiller": [{"nom": "...", "raison": "..."}],
-    "cout_acquisition_moyen": "Analyse du coût d'acquisition client",
-    "marge_nette_reelle": "Analyse de la marge nette réelle"
-  },
-  "analyse_operationnelle": {
-    "impact_livraison": "Impact du taux de livraison sur le profit — chiffré",
-    "performance_closeuses": [{"nom": "...", "verdict": "...", "action": "..."}],
-    "ville_plus_rentable": {"nom": "...", "raison": "..."},
-    "ville_problematique": {"nom": "...", "raison": "...", "action": "..."},
-    "segment_performant": "Segment client/produit le plus performant"
-  },
-  "projections_risques": {
-    "projection_fin_mois": "Projection détaillée fin de mois avec chiffres",
-    "risque_perte": "Évaluation du risque de perte — probabilité et montant",
-    "burn_rate_analyse": "Analyse du burn rate et de la viabilité",
-    "ruptures_stock": ["produit à risque 1", "produit à risque 2"],
-    "desequilibre_budget": ["budget en danger 1", "budget en danger 2"],
-    "score_risque_global": "faible|moyen|élevé|critique"
-  },
-  "recommandations": [
-    {"priorite": "CRITIQUE", "action": "Action concrète et précise", "impact": "Impact attendu chiffré", "categorie": "finance|produit|operations|marketing|stock"},
-    {"priorite": "IMPORTANT", "action": "...", "impact": "...", "categorie": "..."},
-    {"priorite": "OPPORTUNITE", "action": "...", "impact": "...", "categorie": "..."}
-  ],
-  "note_strategique": "Conseil stratégique global d'expert en 2-3 phrases puissantes"
-}`;
-
-      const completion = await openai.chat.completions.create({
-        model: process.env.OPENAI_MODEL || 'gpt-4o',
-        messages: [{ role: 'user', content: prompt }],
-        temperature: 0.35,
-        max_tokens: 4000
-      });
-
-      const raw = completion.choices[0].message.content.trim();
+      const raw = (await kieAiChat(prompt, 4000)).trim();
 
       let analysis;
       try {
@@ -1350,13 +1283,19 @@ Réponds UNIQUEMENT avec un JSON valide (sans markdown, sans \`\`\`json) avec ce
             projectedIncome: Math.round(projectedIncome), projectedExpense: Math.round(projectedExpense)
           },
           details: { categoryData, productData, cityData, livreurData, budgetData, campaignData, stockAlerts, monthlyData }
-        },
-        tokensUsed: completion.usage?.total_tokens
+        }
       });
 
     } catch (error) {
       console.error('Erreur strategic-analysis:', error);
-      res.status(500).json({ success: false, message: error.message || 'Erreur serveur' });
+      const isOverload = (error.message || '').toLowerCase().includes('system load') ||
+        (error.message || '').toLowerCase().includes('overloaded');
+      res.status(isOverload ? 503 : 500).json({
+        success: false,
+        message: isOverload
+          ? "Le service IA est temporairement surchargé. Réessayez dans quelques secondes."
+          : error.message || 'Erreur serveur'
+      });
     }
   }
 );

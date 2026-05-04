@@ -213,6 +213,7 @@ const PLATFORM_TITLE_RULES = [
   { path: '/ecom/clients/new', title: 'Nouveau client' },
   { path: '/ecom/clients/:id/edit', title: 'Modifier le client' },
   { path: '/ecom/clients', title: 'Clients' },
+  { path: '/ecom/stats/rapports', title: 'Rapports' },
   { path: '/ecom/reports/new', title: 'Nouveau rapport' },
   { path: '/ecom/reports/insights', title: 'Insights Rapports' },
   { path: '/ecom/reports/product/:productId', title: 'Rapport produit' },
@@ -670,6 +671,7 @@ const EcomApp = () => {
               <Route path="/ecom/clients/:id/edit" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse']}><ClientForm /></LayoutRoute>} />
 
               {/* Routes rapports */}
+              <Route path="/ecom/stats/rapports" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse']}><Navigate to="/ecom/reports" replace /></LayoutRoute>} />
               <Route path="/ecom/reports" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse']}><ReportsList /></LayoutRoute>} />
               <Route path="/ecom/reports/new" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse']}><ReportForm /></LayoutRoute>} />
               <Route path="/ecom/reports/insights" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse']}><ReportsInsightsPage /></LayoutRoute>} />
@@ -683,7 +685,7 @@ const EcomApp = () => {
               <Route path="/ecom/sourcing/:id" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_compta']}><SupplierDetail /></LayoutRoute>} />
 
               {/* Routes stock */}
-              <Route path="/ecom/stock" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse']}><StockOrdersList /></LayoutRoute>} />
+              <Route path="/ecom/stock" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse']}><StockManagement /></LayoutRoute>} />
               <Route path="/ecom/stock/orders" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse']}><StockOrdersList /></LayoutRoute>} />
               <Route path="/ecom/stock/orders/new" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse']}><StockOrdersList /></LayoutRoute>} />
               <Route path="/ecom/stock/orders/:id" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse']}><StockOrdersList /></LayoutRoute>} />

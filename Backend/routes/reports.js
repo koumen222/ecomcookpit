@@ -350,8 +350,8 @@ router.post('/analyze-global',
   validateEcomAccess('finance', 'read'),
   async (req, res) => {
     try {
-      if (!process.env.OPENAI_API_KEY) {
-        return res.status(500).json({ success: false, message: 'OPENAI_API_KEY manquant' });
+      if (!process.env.KIE_API_KEY) {
+        return res.status(500).json({ success: false, message: 'KIE_API_KEY manquant' });
       }
 
       const { date, startDate, endDate } = req.body || {};
@@ -372,30 +372,26 @@ Contraintes:
 - Format: 1) Diagnostic global 2) Points forts 3) Points faibles 4) Top opportunités (3-5) 5) Plan d'action (5 actions max) 6) Alertes risques
 - Réponse courte et actionnable (max ~350 mots)`;
 
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      const response = await fetch('https://api.kie.ai/claude/v1/messages', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`
+          'Authorization': `Bearer ${process.env.KIE_API_KEY}`
         },
         body: JSON.stringify({
-          model: process.env.OPENAI_MINI_MODEL || 'gpt-4o-mini',
-          messages: [
-            { role: 'system', content: 'Tu analyses des KPI e-commerce et tu fournis une synthèse ultra actionnable.' },
-            { role: 'user', content: prompt }
-          ],
-          temperature: 0.3,
-          max_tokens: 700
+          model: 'claude-sonnet-4-6',
+          messages: [{ role: 'user', content: prompt }],
+          max_tokens: 1024
         })
       });
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        return res.status(response.status).json({ success: false, message: errorData.error?.message || 'Erreur OpenAI' });
+        return res.status(response.status).json({ success: false, message: errorData.error?.message || 'Erreur KIE.AI' });
       }
 
       const data = await response.json();
-      const analysis = data.choices?.[0]?.message?.content?.trim() || '';
+      const analysis = data.content?.[0]?.text?.trim() || '';
 
       res.json({ success: true, data: { analysis, overview } });
     } catch (error) {

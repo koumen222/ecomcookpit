@@ -76,7 +76,67 @@ const defaultOrderStatusColorMap = {
 
 const typeLabels = { relance_pending: 'Relance en attente', relance_cancelled: 'Relance annulés', promo: 'Promotion', followup: 'Suivi livraison', custom: 'Personnalisée' };
 
+const typeToneClasses = {
+  relance_pending: 'bg-amber-50 text-amber-700 border-amber-200',
+  relance_cancelled: 'bg-rose-50 text-rose-700 border-rose-200',
+  promo: 'bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200',
+  followup: 'bg-cyan-50 text-cyan-700 border-cyan-200',
+  custom: 'bg-slate-100 text-slate-700 border-slate-200'
+};
+
+const campaignToneMap = {
+  draft: {
+    accent: 'from-slate-400 to-slate-500',
+    icon: 'bg-slate-100 text-slate-600',
+    panel: 'border-slate-200 bg-slate-50/80',
+    progress: 'from-slate-500 to-slate-600'
+  },
+  scheduled: {
+    accent: 'from-emerald-400 to-emerald-500',
+    icon: 'bg-emerald-100 text-emerald-700',
+    panel: 'border-emerald-200 bg-emerald-50/70',
+    progress: 'from-emerald-500 to-emerald-600'
+  },
+  sending: {
+    accent: 'from-amber-400 to-orange-500',
+    icon: 'bg-amber-100 text-amber-700',
+    panel: 'border-amber-200 bg-amber-50/80',
+    progress: 'from-amber-500 to-orange-500'
+  },
+  sent: {
+    accent: 'from-green-400 to-green-500',
+    icon: 'bg-green-100 text-green-700',
+    panel: 'border-green-200 bg-green-50/80',
+    progress: 'from-green-500 to-green-600'
+  },
+  paused: {
+    accent: 'from-orange-400 to-orange-500',
+    icon: 'bg-orange-100 text-orange-700',
+    panel: 'border-orange-200 bg-orange-50/80',
+    progress: 'from-orange-500 to-orange-600'
+  },
+  failed: {
+    accent: 'from-red-400 to-red-500',
+    icon: 'bg-red-100 text-red-700',
+    panel: 'border-red-200 bg-red-50/80',
+    progress: 'from-red-500 to-red-600'
+  },
+  interrupted: {
+    accent: 'from-violet-400 to-violet-500',
+    icon: 'bg-violet-100 text-violet-700',
+    panel: 'border-violet-200 bg-violet-50/80',
+    progress: 'from-violet-500 to-violet-600'
+  }
+};
+
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : '-';
+
+const getCampaignTone = (status) => campaignToneMap[status] || campaignToneMap.draft;
+const getTypeTone = (type) => typeToneClasses[type] || typeToneClasses.custom;
+const compactMessage = (message, limit = 180) => {
+  if (!message) return '';
+  return message.length > limit ? `${message.slice(0, limit).trim()}...` : message;
+};
 
 const Badge = ({ status }) => {
   const color = statusColors[status] || statusColors.draft;
@@ -123,6 +183,7 @@ const CampaignsList = () => {
   const [pausingCampaignId, setPausingCampaignId] = useState(null);
   const [isProgressMinimized, setIsProgressMinimized] = useState(false);
   const [availableOrderStatuses, setAvailableOrderStatuses] = useState([]);
+  const [campaignStatusFilter, setCampaignStatusFilter] = useState('all');
 
   // 🆕 États pour l'aperçu à une personne
   const [showPreview, setShowPreview] = useState(null);
@@ -136,6 +197,15 @@ const CampaignsList = () => {
   const [loadingInstances, setLoadingInstances] = useState(false);
   const [manualPhone, setManualPhone] = useState('');
   const [manualName, setManualName] = useState('');
+
+  const closePreviewModal = () => {
+    setShowPreview(null);
+    setPreviewData(null);
+    setSelectedClient(null);
+    setPreviewSending(false);
+    setManualPhone('');
+    setManualName('');
+  };
 
   const fetchCampaigns = async (useCache = true) => {
     try {
@@ -238,7 +308,7 @@ const CampaignsList = () => {
         const response = await ecomApi.post('/campaigns/preview-send', payload);
         if (response.data.success) {
           setSuccess(`Message envoyé à ${targetLabel} !`);
-          setShowPreview(null); setSelectedClient(null); setManualPhone(''); setManualName('');
+          closePreviewModal();
         } else { setError(response.data.message || 'Erreur lors de l\'envoi'); }
       } catch (err) { setError('Erreur lors de l\'envoi du message'); }
       finally { setSending(null); }
@@ -437,6 +507,7 @@ const CampaignsList = () => {
       setPreviewData(res.data.data);
       setShowPreview(campaignId);
       setSelectedClient(null);
+      setPreviewSending(false);
       setManualPhone('');
       setManualName('');
     } catch (err) {
@@ -477,157 +548,366 @@ const CampaignsList = () => {
     </div>
   );
 
+  const totalTargeted = campaigns.reduce((sum, campaign) => sum + (campaign.stats?.targeted || campaign.recipientSnapshotIds?.length || campaign.selectedClientIds?.length || 0), 0);
+  const totalSentCount = campaigns.reduce((sum, campaign) => sum + (campaign.stats?.sent || 0), 0);
+  const liveCount = campaigns.filter(campaign => campaign.status === 'sending').length;
+  const pausedCount = campaigns.filter(campaign => campaign.status === 'paused').length;
+  const summaryCards = [
+    {
+      label: 'Brouillons',
+      value: stats.draft || 0,
+      caption: 'Campagnes à finaliser',
+      valueClassName: 'text-slate-700',
+      chipClassName: 'bg-slate-100 text-slate-700 border-slate-200',
+      accentClassName: 'from-slate-400 to-slate-500'
+    },
+    {
+      label: 'Programmées',
+      value: stats.scheduled || 0,
+      caption: 'Déclenchement planifié',
+      valueClassName: 'text-emerald-700',
+      chipClassName: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+      accentClassName: 'from-emerald-400 to-emerald-500'
+    },
+    {
+      label: 'En cours',
+      value: stats.sending || 0,
+      caption: 'Diffusions actives',
+      valueClassName: 'text-amber-700',
+      chipClassName: 'bg-amber-50 text-amber-700 border-amber-200',
+      accentClassName: 'from-amber-400 to-orange-500'
+    },
+    {
+      label: 'Envoyées',
+      value: stats.sent || 0,
+      caption: 'Campagnes terminées',
+      valueClassName: 'text-green-700',
+      chipClassName: 'bg-green-50 text-green-700 border-green-200',
+      accentClassName: 'from-green-400 to-green-500'
+    }
+  ];
+  const statusFilterOptions = [
+    { key: 'all', label: 'Toutes', count: campaigns.length },
+    ...['draft', 'scheduled', 'sending', 'paused', 'sent', 'failed', 'interrupted'].map((status) => ({
+      key: status,
+      label: statusLabels[status] || status,
+      count: campaigns.filter((campaign) => campaign.status === status).length
+    }))
+  ].filter((option) => option.key === 'all' || option.count > 0 || campaignStatusFilter === option.key);
+  const filteredCampaigns = campaignStatusFilter === 'all'
+    ? campaigns
+    : campaigns.filter((campaign) => campaign.status === campaignStatusFilter);
+  const activeFilterLabel = campaignStatusFilter === 'all'
+    ? 'Toutes les campagnes'
+    : statusLabels[campaignStatusFilter] || campaignStatusFilter;
+
   return (
     <div className="p-3 sm:p-4 lg:p-6 max-w-7xl mx-auto">
       {success && <div className="mb-3 p-2.5 bg-green-50 text-green-800 rounded-lg text-sm border border-green-200 flex items-center gap-2"><svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/></svg>{success}</div>}
       {error && <div className="mb-3 p-2.5 bg-red-50 text-red-800 rounded-lg text-sm border border-red-200">{error}</div>}
 
       {!(showProgress && sendProgress && !isProgressMinimized) && (<>
-      {/* Header */}
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Marketing</h1>
-          <p className="text-sm text-gray-500 mt-0.5">{stats.total || 0} campagne{(stats.total || 0) > 1 ? 's' : ''}</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Link to="/ecom/campaigns/stats" className="px-4 py-2 bg-emerald-100 text-emerald-800 rounded-lg hover:bg-emerald-200 transition text-sm font-medium flex items-center gap-1.5">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
-            Statistiques
-          </Link>
-          <Link to="/ecom/campaigns/new" className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition text-sm font-medium flex items-center gap-1.5">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
-            Nouvelle campagne
-          </Link>
-        </div>
-      </div>
+      <div className="relative mb-5 overflow-hidden rounded-[30px] border border-emerald-100 bg-white p-4 shadow-sm shadow-emerald-100/60 sm:p-6">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-gradient-to-r from-emerald-50 via-white to-white" />
+        <div className="relative flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-700">
+                Centre marketing
+              </span>
+              <span className="inline-flex items-center rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-500">
+                {stats.total || 0} campagne{(stats.total || 0) > 1 ? 's' : ''}
+              </span>
+            </div>
+            <h1 className="mt-3 text-2xl font-bold tracking-tight text-gray-900 sm:text-3xl">Marketing</h1>
+            <p className="mt-2 max-w-2xl text-sm text-gray-500 sm:text-[15px]">
+              Pilotez les relances, suivez les diffusions WhatsApp et repérez rapidement les campagnes à reprendre ou à optimiser.
+            </p>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 mb-4">
-        {[
-          { label: 'Brouillons', value: stats.draft || 0, color: 'text-gray-600', bg: 'bg-gray-50' },
-          { label: 'Programmées', value: stats.scheduled || 0, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-          { label: 'En cours', value: stats.sending || 0, color: 'text-yellow-600', bg: 'bg-yellow-50' },
-          { label: 'Envoyées', value: stats.sent || 0, color: 'text-green-600', bg: 'bg-green-50' }
-        ].map((s, i) => (
-          <div key={i} className={`${s.bg} rounded-lg p-3 text-center`}>
-            <p className={`text-xl font-bold ${s.color}`}>{s.value}</p>
-            <p className="text-[10px] text-gray-500 uppercase font-medium mt-0.5">{s.label}</p>
+            <div className="mt-5 flex flex-wrap gap-2">
+              <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                {totalTargeted.toLocaleString('fr-FR')} ciblés
+              </span>
+              <span className="inline-flex items-center rounded-full border border-green-200 bg-green-50 px-3 py-1 text-xs font-semibold text-green-700">
+                {totalSentCount.toLocaleString('fr-FR')} envoyés
+              </span>
+              <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
+                {liveCount} diffusion{liveCount > 1 ? 's' : ''} en cours
+              </span>
+              <span className="inline-flex items-center rounded-full border border-orange-200 bg-orange-50 px-3 py-1 text-xs font-semibold text-orange-700">
+                {pausedCount} en pause
+              </span>
+            </div>
           </div>
-        ))}
+
+          <div className="flex w-full flex-col gap-3 sm:flex-row sm:flex-wrap xl:w-auto xl:justify-end">
+            <Link to="/ecom/campaigns/stats" className="inline-flex items-center justify-center gap-2 rounded-2xl border border-emerald-200 bg-white px-4 py-3 text-sm font-semibold text-emerald-700 shadow-sm shadow-emerald-100 transition hover:border-emerald-300 hover:bg-emerald-50">
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+              Statistiques
+            </Link>
+            <Link to="/ecom/campaigns/new" className="inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white shadow-sm shadow-emerald-200 transition hover:bg-emerald-700">
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
+              Nouvelle campagne
+            </Link>
+          </div>
+        </div>
+
+        <div className="relative mt-5 grid grid-cols-2 gap-3 xl:grid-cols-4">
+          {summaryCards.map((card) => (
+            <div key={card.label} className="overflow-hidden rounded-3xl border border-gray-100 bg-gradient-to-br from-white to-gray-50/80 p-4 shadow-sm">
+              <div className={`h-1.5 w-full rounded-full bg-gradient-to-r ${card.accentClassName}`} />
+              <div className="mt-4 flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400">{card.label}</p>
+                  <p className={`mt-2 text-2xl font-bold sm:text-[30px] ${card.valueClassName}`}>{card.value}</p>
+                </div>
+                <span className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold ${card.chipClassName}`}>
+                  {card.label}
+                </span>
+              </div>
+              <p className="mt-3 text-xs text-gray-500">{card.caption}</p>
+            </div>
+          ))}
+        </div>
       </div>
 
-      {/* Campaigns list */}
       {campaigns.length === 0 ? (
-        <div className="bg-white rounded-lg shadow p-8 text-center">
-          <div className="w-14 h-14 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-3">
-            <svg className="w-7 h-7 text-emerald-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z"/></svg>
+        <div className="rounded-[28px] border border-dashed border-emerald-200 bg-white px-6 py-12 text-center shadow-sm">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-3xl bg-emerald-100 text-emerald-700">
+            <svg className="h-8 w-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z"/></svg>
           </div>
-          <p className="text-gray-500 text-sm mb-1">Aucune campagne</p>
-          <p className="text-gray-400 text-xs mb-3">Créez votre première campagne de relance WhatsApp</p>
-          <Link to="/ecom/campaigns/new" className="inline-block text-sm text-emerald-600 hover:text-emerald-700 font-medium">
+          <p className="text-base font-semibold text-gray-800">Aucune campagne pour le moment</p>
+          <p className="mt-2 text-sm text-gray-500">Créez votre première campagne de relance WhatsApp pour activer ce centre marketing.</p>
+          <Link to="/ecom/campaigns/new" className="mt-5 inline-flex items-center justify-center rounded-2xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700">
             Créer une campagne
           </Link>
         </div>
       ) : (
-        <div className="space-y-2">
-          {campaigns.map(c => (
-            <div key={c._id} className="bg-white rounded-xl shadow-sm border p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <Link to={`/campaigns/${c._id}/edit`} className="text-sm font-semibold text-gray-900 hover:text-emerald-600 truncate">{c.name}</Link>
-                    <Badge status={c.status} />
-                    <span className="text-[10px] text-gray-400 bg-gray-50 px-1.5 py-0.5 rounded">{typeLabels[c.type] || c.type}</span>
-                  </div>
-                  <div className="flex items-center gap-3 mt-1.5 text-xs text-gray-400">
-                    <span className="flex items-center gap-1">
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857L11.828 15H9v-2.828l8.586-8.586z"/></svg>
-                      {(c.stats?.targeted || c.recipientSnapshotIds?.length || c.selectedClientIds?.length || 0)} ciblés
-                    </span>
-                    {c.stats?.sent > 0 && (
-                      <span className="text-green-600 font-medium">{c.stats.sent} envoyés</span>
-                    )}
-                    {c.stats?.failed > 0 && (
-                      <span className="text-red-500">{c.stats.failed} échoués</span>
-                    )}
-                    <span>{fmtDate(c.createdAt)}</span>
-                    {c.scheduledAt && <span className="text-emerald-600">Programmée: {fmtDate(c.scheduledAt)}</span>}
-                  </div>
-                  {c.messageTemplate && (
-                    <p className="text-xs text-gray-400 mt-1.5 line-clamp-2 italic">"{c.messageTemplate.substring(0, 120)}{c.messageTemplate.length > 120 ? '...' : ''}"</p>
-                  )}
-                  {(c.tags || []).length > 0 && (
-                    <div className="flex gap-1 mt-1.5">
-                      {c.tags.map(t => <span key={t} className="text-[9px] font-medium px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800">{t}</span>)}
-                    </div>
-                  )}
-                </div>
-                <div className="flex items-center gap-1 flex-shrink-0">
-                  {/* Boutons pour campagnes en brouillon ou planifiées */}
-                  {(c.status === 'draft' || c.status === 'scheduled') && (
-                    <>
-                      <button onClick={() => handlePreview(c._id)} disabled={sending === c._id} className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition text-xs font-medium disabled:opacity-50 flex items-center gap-1">
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
-                        Aperçu
-                      </button>
-                      <button onClick={() => handleSend(c._id)} disabled={sending === c._id} className="px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-xs font-medium disabled:opacity-50 flex items-center gap-1">
-                        {sending === c._id ? (<><div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div> Envoi...</>) : (<><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>{c.status === 'scheduled' ? 'Envoyer maintenant' : 'Envoyer'}</>)}
-                      </button>
-                    </>
-                  )}
-                  
-                  {/* Bouton Pause uniquement pour campagnes en cours d'envoi */}
-                  {c.status === 'sending' && (
-                    <button onClick={() => handlePause(c._id)} disabled={pausingCampaignId === c._id} className="px-3 py-1.5 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition text-xs font-medium flex items-center gap-1 disabled:opacity-60">
-                      {pausingCampaignId === c._id ? (<><div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div> Arrêt...</>) : (<><svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg> Pause</>)}
-                    </button>
-                  )}
-                  
-                  {/* Boutons Reprendre pour campagnes en pause/interrompues/échouées */}
-                  {['paused', 'interrupted', 'failed'].includes(c.status) && (
-                    <>
-                      <button onClick={() => handleResume(c._id)} className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-xs font-medium flex items-center gap-1">
-                        <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><polygon points="5,3 19,12 5,21"/></svg>
-                        Reprendre
-                      </button>
-                      <button onClick={() => handleRestart(c._id)} className="px-3 py-1.5 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition text-xs font-medium flex items-center gap-1">
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-                        Relancer
-                      </button>
-                    </>
-                  )}
-                  
-                  {/* Boutons pour campagnes envoyées */}
-                  {c.status === 'sent' && (
-                    <>
-                      <Link to={`/ecom/campaigns/${c._id}`} className="px-3 py-1.5 bg-emerald-100 text-emerald-800 rounded-lg hover:bg-emerald-200 transition text-xs font-medium flex items-center gap-1">
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/></svg>
-                        Activité
-                      </Link>
-                      <button onClick={() => handleRestart(c._id)} className="px-3 py-1.5 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition text-xs font-medium flex items-center gap-1">
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-                        Relancer
-                      </button>
-                    </>
-                  )}
-                  
-                  {/* Bouton Éditer - masqué pendant l'envoi */}
-                  {c.status !== 'sending' && (
-                    <Link to={`/ecom/campaigns/${c._id}/edit`} className="p-1.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
-                    </Link>
-                  )}
-                  
-                  {/* Bouton Supprimer - masqué pendant l'envoi */}
-                  {isAdmin && c.status !== 'sending' && (
-                    <button onClick={() => handleDelete(c._id, c.name)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                    </button>
-                  )}
-                </div>
+        <div className="space-y-4">
+          <div className="rounded-[24px] border border-gray-100 bg-white px-4 py-4 shadow-sm sm:px-5">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400">Campagnes récentes</p>
+                <h2 className="mt-1 text-xl font-bold text-gray-900">Suivi des diffusions</h2>
+                <p className="mt-1 text-sm text-gray-500">Une vue plus lisible des brouillons, diffusions en cours et campagnes à relancer.</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
+                  {liveCount} en cours
+                </span>
+                <span className="inline-flex items-center rounded-full border border-orange-200 bg-orange-50 px-3 py-1 text-xs font-semibold text-orange-700">
+                  {pausedCount} en pause
+                </span>
+                <span className="inline-flex items-center rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-500">
+                  {filteredCampaigns.length} carte{filteredCampaigns.length > 1 ? 's' : ''}
+                </span>
               </div>
             </div>
-          ))}
+          </div>
+
+          <div className="rounded-[24px] border border-gray-100 bg-white px-4 py-4 shadow-sm sm:px-5">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400">Filtrer la liste</p>
+                <p className="mt-1 text-sm font-semibold text-gray-900">{activeFilterLabel}</p>
+                <p className="mt-1 text-sm text-gray-500">Affiche seulement les campagnes du statut choisi.</p>
+              </div>
+              <div className="sm:hidden">
+                <select
+                  value={campaignStatusFilter}
+                  onChange={(e) => setCampaignStatusFilter(e.target.value)}
+                  className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm text-gray-700 outline-none transition focus:border-emerald-300 focus:bg-white focus:ring-2 focus:ring-emerald-100"
+                >
+                  {statusFilterOptions.map((option) => (
+                    <option key={option.key} value={option.key}>{option.label} ({option.count})</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="mt-4 hidden flex-wrap gap-2 sm:flex">
+              {statusFilterOptions.map((option) => {
+                const isActive = campaignStatusFilter === option.key;
+                return (
+                  <button
+                    key={option.key}
+                    onClick={() => setCampaignStatusFilter(option.key)}
+                    className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${isActive ? 'border-emerald-200 bg-emerald-50 text-emerald-700 shadow-sm shadow-emerald-100' : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300 hover:text-gray-700'}`}
+                  >
+                    <span>{option.label}</span>
+                    <span className={`inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[10px] ${isActive ? 'bg-white text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>
+                      {option.count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {filteredCampaigns.length === 0 ? (
+            <div className="rounded-[28px] border border-dashed border-gray-200 bg-white px-6 py-12 text-center shadow-sm">
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-3xl bg-gray-100 text-gray-400">
+                <svg className="h-8 w-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z"/></svg>
+              </div>
+              <p className="text-base font-semibold text-gray-800">Aucune campagne dans ce segment</p>
+              <p className="mt-2 text-sm text-gray-500">Changez le filtre pour revenir à une autre vue de vos campagnes.</p>
+              <button onClick={() => setCampaignStatusFilter('all')} className="mt-5 inline-flex items-center justify-center rounded-2xl border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-50">
+                Voir toutes les campagnes
+              </button>
+            </div>
+          ) : filteredCampaigns.map(c => {
+            const targetedCount = c.stats?.targeted || c.recipientSnapshotIds?.length || c.selectedClientIds?.length || 0;
+            const sentCount = c.stats?.sent || 0;
+            const failedCount = c.stats?.failed || 0;
+            const processedCount = sentCount + failedCount;
+            const progressPercent = targetedCount > 0 ? Math.min(100, Math.round((processedCount / targetedCount) * 100)) : 0;
+            const tone = getCampaignTone(c.status);
+
+            return (
+              <article key={c._id} className="overflow-hidden rounded-[28px] border border-gray-100 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+                <div className={`h-1.5 w-full bg-gradient-to-r ${tone.accent}`} />
+                <div className="p-4 sm:p-5">
+                  <div className="flex flex-col gap-4 2xl:flex-row 2xl:items-start 2xl:justify-between">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start gap-3">
+                        <div className={`mt-0.5 flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl ${tone.icon}`}>
+                          <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z"/></svg>
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Link to={`/ecom/campaigns/${c._id}/edit`} className="max-w-full break-words text-base font-semibold text-gray-900 transition hover:text-emerald-600 sm:text-lg">
+                              {c.name}
+                            </Link>
+                            <Badge status={c.status} />
+                            <span className={`inline-flex max-w-full items-center rounded-full border px-2 py-1 text-[10px] font-semibold ${getTypeTone(c.type)}`}>
+                              {typeLabels[c.type] || c.type}
+                            </span>
+                          </div>
+
+                          <div className="mt-3 grid gap-2 sm:grid-cols-2 2xl:grid-cols-4">
+                            <div className="rounded-2xl border border-gray-100 bg-gray-50/80 p-3">
+                              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-400">Ciblés</p>
+                              <p className="mt-1 text-xl font-bold text-gray-900">{targetedCount}</p>
+                            </div>
+                            <div className="rounded-2xl border border-green-100 bg-green-50/80 p-3">
+                              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-green-500">Envoyés</p>
+                              <p className="mt-1 text-xl font-bold text-green-700">{sentCount}</p>
+                            </div>
+                            <div className="rounded-2xl border border-red-100 bg-red-50/80 p-3">
+                              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-red-500">Échecs</p>
+                              <p className="mt-1 text-xl font-bold text-red-600">{failedCount}</p>
+                            </div>
+                            <div className="rounded-2xl border border-gray-100 bg-gray-50/80 p-3">
+                              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-400">Créée</p>
+                              <p className="mt-1 break-words text-sm font-semibold text-gray-900">{fmtDate(c.createdAt)}</p>
+                            </div>
+                          </div>
+
+                          {c.messageTemplate && (
+                            <div className="mt-4 overflow-hidden rounded-2xl border border-gray-100 bg-gray-50/70 p-3.5">
+                              <div className="flex items-center justify-between gap-3">
+                                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-gray-400">Aperçu message</p>
+                                {c.scheduledAt && <span className="text-[11px] font-medium text-emerald-600">Programmée: {fmtDate(c.scheduledAt)}</span>}
+                              </div>
+                              <p className="mt-2 break-words text-sm leading-6 text-gray-600">"{compactMessage(c.messageTemplate)}"</p>
+                            </div>
+                          )}
+
+                          {(c.tags || []).length > 0 && (
+                            <div className="mt-3 flex flex-wrap gap-1.5">
+                              {c.tags.map(t => <span key={t} className="rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-semibold text-emerald-700">{t}</span>)}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="min-w-0 2xl:w-[280px] 2xl:flex-shrink-0">
+                      <div className={`rounded-3xl border p-4 ${tone.panel}`}>
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-400">Diffusion</p>
+                            <p className="mt-1 text-sm font-semibold text-gray-900">{progressPercent}% traité</p>
+                          </div>
+                          <span className="text-xs font-medium text-gray-500">{processedCount}/{targetedCount || 0}</span>
+                        </div>
+                        <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-white/80">
+                          <div className={`h-full rounded-full bg-gradient-to-r ${tone.progress}`} style={{ width: `${Math.max(progressPercent, targetedCount > 0 ? 8 : 0)}%` }} />
+                        </div>
+                        <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                          <div className="rounded-2xl bg-white/70 px-3 py-2">
+                            <p className="text-gray-400">Type</p>
+                            <p className="mt-1 font-semibold text-gray-800">{typeLabels[c.type] || c.type}</p>
+                          </div>
+                          <div className="rounded-2xl bg-white/70 px-3 py-2">
+                            <p className="text-gray-400">Statut</p>
+                            <p className="mt-1 font-semibold text-gray-800">{statusLabels[c.status] || c.status}</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mt-3 flex flex-wrap gap-2 2xl:justify-end">
+                        {(c.status === 'draft' || c.status === 'scheduled') && (
+                          <>
+                            <button onClick={() => handlePreview(c._id)} disabled={sending === c._id} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-2xl bg-emerald-600 px-3.5 py-2.5 text-xs font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-50">
+                              <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                              Aperçu
+                            </button>
+                            <button onClick={() => handleSend(c._id)} disabled={sending === c._id} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-2xl bg-green-600 px-3.5 py-2.5 text-xs font-semibold text-white transition hover:bg-green-700 disabled:opacity-50">
+                              {sending === c._id ? (<><div className="h-3.5 w-3.5 rounded-full border-2 border-white border-t-transparent animate-spin"></div> Envoi...</>) : (<><svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>{c.status === 'scheduled' ? 'Envoyer maintenant' : 'Envoyer'}</>)}
+                            </button>
+                          </>
+                        )}
+
+                        {c.status === 'sending' && (
+                          <button onClick={() => handlePause(c._id)} disabled={pausingCampaignId === c._id} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-2xl bg-orange-500 px-3.5 py-2.5 text-xs font-semibold text-white transition hover:bg-orange-600 disabled:opacity-60">
+                            {pausingCampaignId === c._id ? (<><div className="h-3.5 w-3.5 rounded-full border-2 border-white border-t-transparent animate-spin"></div> Arrêt...</>) : (<><svg className="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg> Pause</>)}
+                          </button>
+                        )}
+
+                        {['paused', 'interrupted', 'failed'].includes(c.status) && (
+                          <>
+                            <button onClick={() => handleResume(c._id)} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-2xl bg-blue-600 px-3.5 py-2.5 text-xs font-semibold text-white transition hover:bg-blue-700">
+                              <svg className="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 24 24"><polygon points="5,3 19,12 5,21"/></svg>
+                              Reprendre
+                            </button>
+                            <button onClick={() => handleRestart(c._id)} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-2xl bg-gray-700 px-3.5 py-2.5 text-xs font-semibold text-white transition hover:bg-gray-800">
+                              <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                              Relancer
+                            </button>
+                          </>
+                        )}
+
+                        {c.status === 'sent' && (
+                          <>
+                            <Link to={`/ecom/campaigns/${c._id}`} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-2xl bg-emerald-100 px-3.5 py-2.5 text-xs font-semibold text-emerald-800 transition hover:bg-emerald-200">
+                              <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/></svg>
+                              Activité
+                            </Link>
+                            <button onClick={() => handleRestart(c._id)} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-2xl bg-gray-600 px-3.5 py-2.5 text-xs font-semibold text-white transition hover:bg-gray-700">
+                              <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                              Relancer
+                            </button>
+                          </>
+                        )}
+
+                        {c.status !== 'sending' && (
+                          <Link to={`/ecom/campaigns/${c._id}/edit`} className="inline-flex min-w-0 items-center justify-center rounded-2xl border border-gray-200 bg-white px-3 py-2.5 text-xs font-semibold text-gray-600 transition hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700">
+                            Modifier
+                          </Link>
+                        )}
+
+                        {isAdmin && c.status !== 'sending' && (
+                          <button onClick={() => handleDelete(c._id, c.name)} className="inline-flex min-w-0 items-center justify-center rounded-2xl border border-red-200 bg-red-50 px-3 py-2.5 text-xs font-semibold text-red-700 transition hover:bg-red-100">
+                            Supprimer
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </article>
+            );
+          })}
         </div>
       )}
       </>)}
@@ -635,157 +915,228 @@ const CampaignsList = () => {
 
       {/* 🆕 Modale d'aperçu */}
       {showPreview && previewData && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
-            {/* Header */}
-            <div className="bg-gradient-to-r from-emerald-600 to-emerald-700 text-white p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-lg font-semibold">Aperçu de la campagne</h3>
-                  <p className="text-sm opacity-90 mt-1">
-                    {previewData.clients?.length || 0} client{previewData.clients?.length > 1 ? 's' : ''} ciblé{previewData.clients?.length > 1 ? 's' : ''}
+        <div className="fixed inset-0 z-50 bg-slate-950/55 backdrop-blur-sm p-3 sm:p-4" onClick={closePreviewModal}>
+          <div className="mx-auto flex max-w-6xl flex-col overflow-hidden rounded-[32px] border border-white/70 bg-white shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="relative overflow-hidden bg-gradient-to-r from-emerald-600 via-emerald-600 to-green-600 px-5 py-5 text-white sm:px-6">
+              <div className="absolute inset-y-0 right-0 w-40 bg-[radial-gradient(circle_at_center,_rgba(255,255,255,0.18),_transparent_70%)]" />
+              <div className="relative flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="inline-flex items-center rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/90">
+                      Aperçu campagne
+                    </span>
+                    <span className="inline-flex items-center rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-medium text-white/90">
+                      {previewData.clients?.length || 0} cible{(previewData.clients?.length || 0) > 1 ? 's' : ''}
+                    </span>
+                  </div>
+                  <h3 className="mt-3 text-xl font-bold sm:text-2xl">Tester avant diffusion</h3>
+                  <p className="mt-2 max-w-2xl text-sm text-emerald-50/90">
+                    Vérifiez le message, sélectionnez un destinataire précis puis envoyez un aperçu sans lancer toute la campagne.
                   </p>
                 </div>
-                <button 
-                  onClick={() => {
-                    setShowPreview(null);
-                    setSelectedClient(null); // 🆕 Réinitialiser la sélection
-                    setManualPhone('');
-                    setManualName('');
-                  }}
-                  className="text-white hover:bg-white hover:bg-opacity-20 rounded-lg p-1 transition"
+                <button
+                  onClick={closePreviewModal}
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-white/10 text-white transition hover:bg-white/20"
                 >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/>
                   </svg>
                 </button>
               </div>
             </div>
-            
-            {/* Message template */}
-            <div className="p-4 border-b border-gray-200 bg-gray-50">
-              <p className="text-sm font-medium text-gray-700 mb-2">Message template:</p>
-              <div className="bg-white p-3 rounded-lg border border-gray-200">
-                <p className="text-sm text-gray-800 whitespace-pre-wrap">{previewData.messageTemplate}</p>
-              </div>
-            </div>
-            
-            {/* Liste des clients */}
-            <div className="p-4">
-              <div className="mb-4 p-3 border border-emerald-200 rounded-lg bg-emerald-50">
-                <p className="text-sm font-semibold text-gray-900 mb-3">Ajouter un numéro manuellement</p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <input
-                    type="text"
-                    value={manualName}
-                    onChange={(e) => setManualName(e.target.value)}
-                    placeholder="Nom du destinataire"
-                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  />
-                  <input
-                    type="text"
-                    value={manualPhone}
-                    onChange={(e) => {
-                      setManualPhone(e.target.value);
-                      setSelectedClient(null);
-                    }}
-                    placeholder="Numéro WhatsApp"
-                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  />
-                </div>
-                <p className="text-xs text-gray-500 mt-2">Saisis un numéro pour envoyer ou relancer cette campagne vers un destinataire précis.</p>
-              </div>
 
-              <div className="flex items-center justify-between mb-3">
-                <p className="text-sm font-semibold text-gray-900">Clients ciblés</p>
-                <p className="text-xs text-gray-500">Cliquez sur "Aperçu" pour envoyer à une seule personne</p>
-              </div>
-              
-              {/* 🆕 Indication de personne sélectionnée */}
-              {selectedClient && (
-                <div className="mb-3 p-3 bg-green-50 border border-green-200 rounded-lg">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                      </svg>
-                      <span className="text-sm font-medium text-green-800">
-                        {selectedClient.firstName} {selectedClient.lastName} sélectionné(e)
+            <div className="grid min-h-0 flex-1 xl:grid-cols-[380px,minmax(0,1fr)]">
+              <div className="max-h-[calc(90vh-120px)] overflow-y-auto border-b border-gray-100 bg-gray-50/80 p-4 sm:p-5 lg:border-b-0 lg:border-r">
+                <div className="space-y-4">
+                  <section className="rounded-3xl border border-emerald-100 bg-white p-4 shadow-sm">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400">Message</p>
+                      <span className="inline-flex items-center rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-[11px] font-medium text-gray-500">
+                        {previewData.messageTemplate?.length || 0} caractères
                       </span>
                     </div>
-                    <button
-                      onClick={() => handleSend(showPreview)}
-                      disabled={sending === showPreview}
-                      className="px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-xs font-medium disabled:opacity-50 flex items-center gap-1"
-                    >
-                      {sending === showPreview ? (
-                        <>
-                          <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-                          </svg>
-                          Envoi...
-                        </>
-                      ) : (
-                        <>
-                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
-                          </svg>
-                          Envoyer
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </div>
-              )}
-              
-              <div className="max-h-96 overflow-y-auto space-y-2">
-                {previewData.clients?.map(client => (
-                  <div 
-                    key={client._id} 
-                    className={`flex items-center gap-3 p-3 rounded-lg transition cursor-pointer ${
-                      selectedClient?._id === client._id 
-                        ? 'bg-green-50 border border-green-200' 
-                        : 'bg-gray-50 border border-transparent hover:bg-gray-100'
-                    }`}
-                    onClick={() => setSelectedClient(client)}
-                  >
-                    <div className="flex-1">
-                      <p className="font-medium text-gray-900">{client.firstName} {client.lastName}</p>
-                      <p className="text-sm text-gray-500">{client.phone}</p>
-                      {client.city && <p className="text-xs text-gray-400">{client.city}</p>}
+                    <div className="mt-3 rounded-2xl border border-gray-100 bg-gray-50/70 p-4">
+                      <p className="whitespace-pre-wrap text-sm leading-6 text-gray-700">{previewData.messageTemplate}</p>
                     </div>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation(); // Empêcher la sélection du client
-                        handlePreviewSend(client);
-                      }}
-                      disabled={previewSending}
-                      className={`px-3 py-1.5 rounded-lg transition text-xs font-medium disabled:opacity-50 flex items-center gap-1 ${
-                        selectedClient?._id === client._id
-                          ? 'bg-green-600 text-white hover:bg-green-700'
-                          : 'bg-emerald-700 text-white hover:bg-emerald-800'
-                      }`}
-                    >
-                      {previewSending ? (
-                        <>
-                          <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-                          </svg>
-                          Envoi...
-                        </>
-                      ) : (
-                        <>
-                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z"/>
-                          </svg>
-                          {selectedClient?._id === client._id ? 'Envoyer' : 'Aperçu'}
-                        </>
+                  </section>
+
+                  <section className="rounded-3xl border border-emerald-100 bg-white p-4 shadow-sm">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400">Destinataire manuel</p>
+                    <p className="mt-2 text-sm text-gray-500">Saisissez un numéro WhatsApp pour envoyer ce message à un contact précis hors de la liste.</p>
+                    <div className="mt-4 grid gap-3">
+                      <input
+                        type="text"
+                        value={manualName}
+                        onChange={(e) => setManualName(e.target.value)}
+                        placeholder="Nom du destinataire"
+                        className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-3 py-3 text-sm text-gray-900 outline-none transition focus:border-emerald-300 focus:bg-white focus:ring-2 focus:ring-emerald-100"
+                      />
+                      <input
+                        type="text"
+                        value={manualPhone}
+                        onChange={(e) => {
+                          setManualPhone(e.target.value);
+                          setSelectedClient(null);
+                        }}
+                        placeholder="Numéro WhatsApp"
+                        className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-3 py-3 text-sm text-gray-900 outline-none transition focus:border-emerald-300 focus:bg-white focus:ring-2 focus:ring-emerald-100"
+                      />
+                      <button
+                        onClick={() => handleSend(showPreview)}
+                        disabled={sending === showPreview || !manualPhone.trim()}
+                        className="inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-50"
+                      >
+                        {sending === showPreview && manualPhone.trim() ? (
+                          <>
+                            <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                            </svg>
+                            Envoi...
+                          </>
+                        ) : (
+                          <>
+                            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
+                            </svg>
+                            Envoyer à ce numéro
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </section>
+
+                  <section className="rounded-3xl border border-green-200 bg-green-50 p-4 shadow-sm">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-green-600">Sélection active</p>
+                        <p className="mt-2 break-words text-sm font-semibold text-green-900">
+                          {manualPhone.trim()
+                            ? `${manualName.trim() || 'Destinataire'} (${manualPhone.trim()})`
+                            : selectedClient
+                              ? `${selectedClient.firstName} ${selectedClient.lastName}`
+                              : 'Aucun destinataire sélectionné'}
+                        </p>
+                        <p className="mt-1 text-xs text-green-700/80">
+                          {manualPhone.trim()
+                            ? 'Le message partira uniquement vers ce numéro.'
+                            : selectedClient
+                              ? 'Le message partira uniquement vers ce client ciblé.'
+                              : 'Choisissez un client à droite ou saisissez un numéro manuel.'}
+                        </p>
+                      </div>
+                      {(selectedClient || manualPhone.trim()) && (
+                        <button
+                          onClick={() => handleSend(showPreview)}
+                          disabled={sending === showPreview}
+                          className="inline-flex items-center justify-center gap-2 rounded-2xl bg-green-600 px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-green-700 disabled:opacity-50"
+                        >
+                          {sending === showPreview ? (
+                            <>
+                              <svg className="h-3.5 w-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                              </svg>
+                              Envoi...
+                            </>
+                          ) : (
+                            <>
+                              <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
+                              </svg>
+                              Envoyer
+                            </>
+                          )}
+                        </button>
                       )}
-                    </button>
+                    </div>
+                  </section>
+                </div>
+              </div>
+
+              <div className="min-h-0 bg-white p-4 sm:p-5">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400">Clients ciblés</p>
+                    <h4 className="mt-1 text-lg font-bold text-gray-900">Choisir un destinataire</h4>
+                    <p className="mt-1 text-sm text-gray-500">Cliquez sur une carte pour la sélectionner, ou utilisez “Aperçu test” pour un envoi rapide.</p>
                   </div>
-                ))}
+                  <span className="inline-flex items-center rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-xs font-medium text-gray-500">
+                    {previewData.clients?.length || 0} profil{(previewData.clients?.length || 0) > 1 ? 's' : ''}
+                  </span>
+                </div>
+
+                <div className="mt-4 max-h-[calc(90vh-220px)] space-y-3 overflow-y-auto pr-1">
+                  {previewData.clients?.map(client => {
+                    const isSelected = selectedClient?._id === client._id && !manualPhone.trim();
+
+                    return (
+                      <div
+                        key={client._id}
+                        className={`rounded-3xl border p-4 transition ${isSelected ? 'border-green-200 bg-green-50/80 shadow-sm' : 'border-gray-100 bg-gray-50/70 hover:border-emerald-200 hover:bg-emerald-50/40'}`}
+                        onClick={() => {
+                          setSelectedClient(client);
+                          setManualPhone('');
+                        }}
+                      >
+                        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="max-w-full break-words text-sm font-semibold text-gray-900">{client.firstName} {client.lastName}</p>
+                              {isSelected && (
+                                <span className="inline-flex items-center rounded-full border border-green-200 bg-green-100 px-2 py-1 text-[10px] font-semibold text-green-700">
+                                  Sélectionné
+                                </span>
+                              )}
+                            </div>
+                            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-500">
+                              <span className="rounded-full bg-white px-2.5 py-1 font-medium text-gray-700">{client.phone}</span>
+                              {client.city && <span>{client.city}</span>}
+                            </div>
+                          </div>
+
+                          <div className="flex flex-wrap gap-2 lg:justify-end">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedClient(client);
+                                setManualPhone('');
+                              }}
+                              className={`inline-flex items-center justify-center rounded-2xl px-3 py-2 text-xs font-semibold transition ${isSelected ? 'bg-green-600 text-white hover:bg-green-700' : 'bg-white text-gray-700 border border-gray-200 hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700'}`}
+                            >
+                              {isSelected ? 'Choisi' : 'Sélectionner'}
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handlePreviewSend(client);
+                              }}
+                              disabled={previewSending}
+                              className="inline-flex items-center justify-center gap-1.5 rounded-2xl bg-emerald-700 px-3 py-2 text-xs font-semibold text-white transition hover:bg-emerald-800 disabled:opacity-50"
+                            >
+                              {previewSending ? (
+                                <>
+                                  <svg className="h-3.5 w-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                                  </svg>
+                                  Envoi...
+                                </>
+                              ) : (
+                                <>
+                                  <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                                  </svg>
+                                  Aperçu test
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           </div>

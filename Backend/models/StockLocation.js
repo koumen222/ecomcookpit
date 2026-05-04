@@ -22,6 +22,11 @@ const stockLocationSchema = new mongoose.Schema({
     trim: true,
     default: ''
   },
+  stockDate: {
+    type: Date,
+    default: Date.now,
+    index: true
+  },
   quantity: {
     type: Number,
     required: true,
