@@ -51,10 +51,31 @@ function getStockStatus(current) {
   return { label: 'Bon stock', color: 'bg-emerald-100 text-emerald-700 border-emerald-200', dot: 'bg-emerald-500' };
 }
 
-const EMPTY_FORM = {
-  productId: '', city: '', agency: '',
-  quantity: '', sales: '', notes: ''
+const getTodayInputDate = () => new Date().toISOString().split('T')[0];
+
+const toInputDate = (value) => {
+  if (!value) return getTodayInputDate();
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return getTodayInputDate();
+  return parsed.toISOString().split('T')[0];
 };
+
+const formatStockDate = (value) => {
+  if (!value) return '';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return '';
+  return parsed.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit' });
+};
+
+const createEmptyForm = () => ({
+  productId: '',
+  city: '',
+  agency: '',
+  quantity: '',
+  sales: '',
+  stockDate: getTodayInputDate(),
+  notes: ''
+});
 
 const StockManagement = () => {
   const [entries, setEntries] = useState([]);
@@ -68,7 +89,7 @@ const StockManagement = () => {
   const [search, setSearch] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState(null);
-  const [form, setForm] = useState(EMPTY_FORM);
+  const [form, setForm] = useState(createEmptyForm);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => { loadAll(); }, []);
@@ -100,7 +121,7 @@ const StockManagement = () => {
     return <IconFillLoader />;
   }
 
-  const openAdd = () => { setEditingId(null); setForm(EMPTY_FORM); setShowModal(true); };
+  const openAdd = () => { setEditingId(null); setForm(createEmptyForm()); setShowModal(true); };
 
   const openEdit = (entry) => {
     setEditingId(entry._id);
@@ -110,16 +131,17 @@ const StockManagement = () => {
       agency: entry.agency || '',
       quantity: entry.quantity?.toString() || '',
       sales: entry.sales?.toString() || '0',
+      stockDate: toInputDate(entry.stockDate || entry.createdAt),
       notes: entry.notes || ''
     });
     setShowModal(true);
   };
 
-  const closeModal = () => { setShowModal(false); setEditingId(null); setForm(EMPTY_FORM); setError(''); };
+  const closeModal = () => { setShowModal(false); setEditingId(null); setForm(createEmptyForm()); setError(''); };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.productId || !form.quantity) { setError('Produit et stock initial sont requis'); return; }
+    if (!form.productId || !form.quantity || !form.stockDate) { setError('Produit, date et stock initial sont requis'); return; }
     setSubmitting(true); setError('');
     try {
       const payload = {
@@ -128,6 +150,7 @@ const StockManagement = () => {
         agency: form.agency.trim(),
         quantity: parseInt(form.quantity) || 0,
         sales: parseInt(form.sales) || 0,
+        stockDate: form.stockDate,
         notes: form.notes
       };
       if (editingId) {
@@ -201,6 +224,18 @@ const StockManagement = () => {
           <button onClick={() => setSuccess('')} className="ml-3 text-emerald-400 hover:text-emerald-600">&times;</button>
         </div>
       )}
+
+      <div className="flex flex-col gap-3 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:p-5">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-600">Gestion du stock</p>
+          <h1 className="mt-1 text-xl font-bold text-gray-900 sm:text-2xl">État du stock par date</h1>
+          <p className="mt-1 text-sm text-gray-500">Suivez le stock par produit, ville et agence, avec une date visible sur chaque ligne.</p>
+        </div>
+        <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3">
+          <p className="text-xs font-medium text-emerald-700">Stock total</p>
+          <p className="mt-1 text-2xl font-bold text-emerald-900">{totalStock.toLocaleString('fr-FR')}</p>
+        </div>
+      </div>
 
       {/* KPI Cards - Mobile optimized */}
       <div className="grid grid-cols-3 gap-2 sm:gap-3">
@@ -324,8 +359,8 @@ const StockManagement = () => {
                     <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${status.dot}`}></span>
                     {status.label}
                   </span>
-                  {entry.createdAt && (
-                    <span className="text-[10px] text-gray-400">{new Date(entry.createdAt).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit' })}</span>
+                  {(entry.stockDate || entry.createdAt) && (
+                    <span className="text-[10px] text-gray-400">{formatStockDate(entry.stockDate || entry.createdAt)}</span>
                   )}
                 </div>
               </div>
@@ -369,7 +404,7 @@ const StockManagement = () => {
                 return (
                   <tr key={entry._id} className="hover:bg-gray-50/60 transition-colors">
                     <td className="px-4 py-3.5 text-gray-500 text-xs whitespace-nowrap">
-                      {entry.createdAt ? new Date(entry.createdAt).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit' }) : ''}
+                      {formatStockDate(entry.stockDate || entry.createdAt)}
                     </td>
                     <td className="px-4 py-3.5">
                       <span className="font-medium text-gray-900">{entry.productId?.name || ''}</span>
@@ -447,11 +482,25 @@ const StockManagement = () => {
                   <label className="block text-xs font-medium text-gray-700 mb-1">Produit *</label>
                   <select value={form.productId} onChange={e => {
                     const p = products.find(p => p._id === e.target.value);
-                    setForm(prev => ({ ...prev, productId: e.target.value, productName: p?.name || '' }));
+                    // Find last stock entry for this product, pre-fill quantity with its current stock
+                    const prevEntries = entries
+                      .filter(en => (en.productId?._id || en.productId) === e.target.value)
+                      .sort((a, b) => new Date(b.stockDate || b.createdAt) - new Date(a.stockDate || a.createdAt));
+                    const lastEntry = prevEntries[0];
+                    const prevStock = lastEntry
+                      ? Math.max(0, (lastEntry.quantity || 0) - (lastEntry.sales || 0)).toString()
+                      : '';
+                    setForm(prev => ({ ...prev, productId: e.target.value, productName: p?.name || '', quantity: prevStock, sales: '0' }));
                   }} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-600 outline-none" required>
                     <option value="">-- Choisir un produit --</option>
                     {products.map(p => <option key={p._id} value={p._id}>{p.name}</option>)}
                   </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Date du stock *</label>
+                  <input type="date" value={form.stockDate} onChange={e => setForm(p => ({ ...p, stockDate: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-600 outline-none"
+                    required />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">Ville</label>
@@ -466,7 +515,22 @@ const StockManagement = () => {
                     placeholder="Ex: Lygos, Anka" />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Stock initial *</label>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Stock du jour *
+                    {form.productId && (() => {
+                      const prevEntries = entries
+                        .filter(en => (en.productId?._id || en.productId) === form.productId)
+                        .sort((a, b) => new Date(b.stockDate || b.createdAt) - new Date(a.stockDate || a.createdAt));
+                      const last = prevEntries[0];
+                      if (!last) return null;
+                      const prevStock = Math.max(0, (last.quantity || 0) - (last.sales || 0));
+                      return (
+                        <span className="ml-1.5 text-[10px] font-normal text-emerald-600">
+                          ← {prevStock} hier ({formatStockDate(last.stockDate || last.createdAt)})
+                        </span>
+                      );
+                    })()}
+                  </label>
                   <input type="number" min="0" value={form.quantity} onChange={e => setForm(p => ({ ...p, quantity: e.target.value }))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-600 outline-none"
                     placeholder="100" required />

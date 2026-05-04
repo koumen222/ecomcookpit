@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useEcomAuth } from '../hooks/useEcomAuth';
 import { useStore } from '../contexts/StoreContext.jsx';
 import api from '../../lib/api';
@@ -58,12 +58,16 @@ const BoutiqueDomains = () => {
   const [activeStep, setActiveStep] = useState(0);
   const [domainInput, setDomainInput] = useState('');
   const [domainError, setDomainError] = useState('');
+  const [subdomainInput, setSubdomainInput] = useState(''); // what user is typing
+  const [subdomainStatus, setSubdomainStatus] = useState(null); // null | 'checking' | 'available' | 'taken' | 'invalid'
   const subdomainGeneratedRef = useRef(false);
+  const subdomainCheckRef = useRef(null);
   const preferredStoreName = activeStore?.storeSettings?.storeName || activeStore?.name || workspace?.storeSettings?.storeName || workspace?.name || '';
 
   useEffect(() => {
     if (!activeStore?.subdomain) return;
     setSubdomain((current) => current || activeStore.subdomain);
+    setSubdomainInput((current) => current || activeStore.subdomain);
     subdomainGeneratedRef.current = true;
   }, [activeStore?.subdomain]);
 
@@ -72,19 +76,56 @@ const BoutiqueDomains = () => {
       try {
         const res = await api.get('/store/domains');
         if (res.data?.data) {
-          setSubdomain(res.data.data.subdomain || activeStore?.subdomain || '');
+          const sd = res.data.data.subdomain || activeStore?.subdomain || '';
+          setSubdomain(sd);
+          setSubdomainInput(sd);
           const cd = res.data.data.customDomain || '';
           setCustomDomain(cd);
           setDomainInput(cd);
           setSslStatus(res.data.data.sslStatus || 'none');
           setDnsVerified(res.data.data.dnsVerified || false);
-          // Si domaine déjà connecté, sauter à l'étape 2
           if (cd) setActiveStep(cd && res.data.data.dnsVerified ? 2 : 1);
         }
       } catch { /* defaults */ }
     };
     load();
   }, [activeStore?.subdomain]);
+
+  // Live availability check with debounce (only checks the input, not the active saved subdomain)
+  useEffect(() => {
+    if (subdomainCheckRef.current) clearTimeout(subdomainCheckRef.current);
+
+    const clean = subdomainInput.trim().toLowerCase();
+
+    // Same as what's already saved — no need to check
+    if (clean === subdomain) {
+      setSubdomainStatus(null);
+      return;
+    }
+
+    if (!clean || clean.length < 3) {
+      setSubdomainStatus(clean.length > 0 ? 'invalid' : null);
+      return;
+    }
+
+    if (!/^[a-z0-9-]{3,30}$/.test(clean)) {
+      setSubdomainStatus('invalid');
+      return;
+    }
+
+    setSubdomainStatus('checking');
+    subdomainCheckRef.current = setTimeout(async () => {
+      try {
+        const res = await api.get(`/store-manage/subdomain/check/${clean}`);
+        const available = res.data?.data?.available ?? res.data?.available;
+        setSubdomainStatus(available ? 'available' : 'taken');
+      } catch {
+        setSubdomainStatus(null);
+      }
+    }, 500);
+
+    return () => clearTimeout(subdomainCheckRef.current);
+  }, [subdomainInput, subdomain]);
 
   useEffect(() => {
     const autoGenerateSubdomain = async () => {
@@ -94,7 +135,7 @@ const BoutiqueDomains = () => {
       try {
         subdomainGeneratedRef.current = true;
         const res = await api.post('/store-manage/generate-subdomain', { storeName: storeName.trim() });
-        if (res.data?.success) setSubdomain(res.data.data.subdomain);
+        if (res.data?.success) setSubdomainInput(res.data.data.subdomain);
       } catch { /* silent */ }
     };
     autoGenerateSubdomain();
@@ -111,7 +152,7 @@ const BoutiqueDomains = () => {
       const res = await api.post('/store-manage/generate-subdomain', { storeName: storeName.trim() });
       if (res.data?.success) {
         const generatedSubdomain = res.data.data.subdomain;
-        setSubdomain(generatedSubdomain);
+        setSubdomainInput(generatedSubdomain);
         setSaved(false);
         if (confirm(`✅ Domaine généré: ${res.data.data.fullDomain}\n\nVoulez-vous l'utiliser maintenant?`)) {
           handleSave(generatedSubdomain);
@@ -124,13 +165,20 @@ const BoutiqueDomains = () => {
     }
   };
 
-  const handleSave = async (nextSubdomain = subdomain) => {
+  const handleSave = async (overrideSubdomain) => {
+    if (subdomainStatus === 'taken') return;
+    // Guard against React synthetic event being passed accidentally via onClick={handleSave}
+    const rawValue = (overrideSubdomain && typeof overrideSubdomain === 'string') ? overrideSubdomain : (subdomainInput || subdomain);
+    const toSave = String(rawValue ?? '').trim().toLowerCase();
     setSaving(true);
     try {
-      const normalizedSubdomain = String(nextSubdomain || '').trim().toLowerCase();
-      const res = await api.put('/store/domains', { subdomain: normalizedSubdomain, customDomain: customDomain.trim() });
-      const savedSubdomain = res.data?.data?.subdomain;
-      if (typeof savedSubdomain === 'string') setSubdomain(savedSubdomain);
+      const res = await api.put('/store/domains', { subdomain: toSave, customDomain: customDomain.trim() });
+      const confirmed = res.data?.data?.subdomain;
+      if (typeof confirmed === 'string') {
+        setSubdomain(confirmed);
+        setSubdomainInput(confirmed);
+        setSubdomainStatus(null);
+      }
       await refreshStores();
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
@@ -153,10 +201,9 @@ const BoutiqueDomains = () => {
       if (data.ok) {
         setDnsVerified(true);
         setSslStatus('active');
-        setActiveStep(2);
       }
     } catch {
-              handleSave(res.data.data.subdomain);
+      setDnsResult({ ok: false });
     } finally {
       setChecking(false);
     }
@@ -180,8 +227,8 @@ const BoutiqueDomains = () => {
     setSaving(true);
     try {
       const res = await api.put('/store/domains', { subdomain: subdomain.trim().toLowerCase(), customDomain: '' });
-      const savedSubdomain = res.data?.data?.subdomain;
-      if (typeof savedSubdomain === 'string') setSubdomain(savedSubdomain);
+      const confirmed = res.data?.data?.subdomain;
+      if (typeof confirmed === 'string') { setSubdomain(confirmed); setSubdomainInput(confirmed); }
       await refreshStores();
       setCustomDomain('');
       setDomainInput('');
@@ -200,8 +247,8 @@ const BoutiqueDomains = () => {
     setSaving(true);
     try {
       const res = await api.put('/store/domains', { subdomain: subdomain.trim().toLowerCase(), customDomain: customDomain.trim() });
-      const savedSubdomain = res.data?.data?.subdomain;
-      if (typeof savedSubdomain === 'string') setSubdomain(savedSubdomain);
+      const confirmed = res.data?.data?.subdomain;
+      if (typeof confirmed === 'string') { setSubdomain(confirmed); setSubdomainInput(confirmed); }
       await refreshStores();
     } catch { /* handled */ } finally {
       setSaving(false);
@@ -221,10 +268,12 @@ const BoutiqueDomains = () => {
           <p className="text-sm text-gray-500 mt-0.5">Configurez l'adresse de votre boutique</p>
         </div>
         <button
-          onClick={handleSave}
-          disabled={saving}
+          onClick={() => handleSave()}
+          disabled={saving || subdomainStatus === 'taken' || subdomainStatus === 'checking' || subdomainStatus === 'invalid'}
           className={`px-5 py-2.5 rounded-xl text-sm font-bold text-white transition shadow-md ${
-            saved ? 'bg-green-500' : 'bg-[#0F6B4F] hover:bg-[#0A5740]'
+            saved ? 'bg-green-500' :
+            subdomainStatus === 'taken' ? 'bg-red-400 cursor-not-allowed' :
+            'bg-[#0F6B4F] hover:bg-[#0A5740]'
           } disabled:opacity-60`}
         >
           {saving ? 'Enregistrement...' : saved ? '✓ Sauvegardé' : 'Sauvegarder'}
@@ -247,15 +296,41 @@ const BoutiqueDomains = () => {
 
         <div className="space-y-3">
           <div className="flex items-center gap-2">
-            <input
-              type="text"
-              value={subdomain}
-              onChange={(e) => { setSubdomain(e.target.value.replace(/[^a-z0-9-]/gi, '').toLowerCase()); setSaved(false); }}
-              placeholder="boutique"
-              className="flex-1 px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#0F6B4F] focus:border-transparent transition bg-gray-50 focus:bg-white font-mono"
-            />
+            <div className="flex-1 relative">
+              <input
+                type="text"
+                value={subdomainInput}
+                onChange={(e) => { setSubdomainInput(e.target.value.replace(/[^a-z0-9-]/gi, '').toLowerCase()); setSaved(false); }}
+                placeholder="boutique"
+                className={`w-full px-3 py-2.5 pr-8 text-sm border rounded-xl focus:ring-2 focus:border-transparent transition bg-gray-50 focus:bg-white font-mono ${
+                  subdomainStatus === 'taken' ? 'border-red-400 focus:ring-red-400' :
+                  subdomainStatus === 'available' ? 'border-green-400 focus:ring-green-400' :
+                  'border-gray-200 focus:ring-[#0F6B4F]'
+                }`}
+              />
+              {subdomainStatus === 'checking' && (
+                <span className="absolute right-2.5 top-1/2 -translate-y-1/2">
+                  <svg className="animate-spin h-3.5 w-3.5 text-gray-400" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                </span>
+              )}
+              {subdomainStatus === 'available' && (
+                <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-green-500 text-base leading-none">✓</span>
+              )}
+              {subdomainStatus === 'taken' && (
+                <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-red-500 text-base leading-none">✗</span>
+              )}
+            </div>
             <span className="text-sm font-semibold text-gray-500 whitespace-nowrap">.scalor.net</span>
           </div>
+          {subdomainStatus === 'taken' && (
+            <p className="text-xs text-red-600 font-medium">Ce sous-domaine est déjà pris — choisissez-en un autre</p>
+          )}
+          {subdomainStatus === 'available' && (
+            <p className="text-xs text-green-600 font-medium">Disponible ✓</p>
+          )}
+          {subdomainStatus === 'invalid' && (
+            <p className="text-xs text-amber-600 font-medium">3 à 30 caractères, lettres, chiffres et tirets uniquement</p>
+          )}
 
           <button
             onClick={generateSubdomainFromStoreName}
@@ -421,7 +496,7 @@ const BoutiqueDomains = () => {
 
               <div className="flex gap-2 pt-1">
                 <button
-                  onClick={async () => { await saveDomainAndNext(); setActiveStep(2); }}
+                  onClick={async () => { await saveDomainAndNext(); setActiveStep(2); setTimeout(checkDns, 300); }}
                   disabled={saving}
                   className="flex-1 px-4 py-2.5 bg-[#0F6B4F] hover:bg-[#0A5740] text-white text-sm font-bold rounded-xl transition disabled:opacity-60"
                 >

@@ -602,14 +602,11 @@ router.put('/domains', requireEcomAuth, requireWorkspace, async (req, res) => {
         return res.status(400).json({ success: false, message: 'Ce sous-domaine est réservé' });
       }
 
-      // Check uniqueness (exclude current workspace AND current store / all stores in current workspace)
+      // Check uniqueness — always exclude the entire current workspace (all its stores)
       if (subdomain) {
-        const storeExcludeQuery = activeStore
-          ? { _id: { $ne: activeStore._id } }
-          : { workspaceId: { $ne: req.workspaceId } };
         const [existingWorkspace, existingStore] = await Promise.all([
           Workspace.findOne({ subdomain, _id: { $ne: req.workspaceId } }).select('_id').lean(),
-          Store.findOne({ subdomain, ...storeExcludeQuery }).select('_id').lean(),
+          Store.findOne({ subdomain, workspaceId: { $ne: req.workspaceId } }).select('_id').lean(),
         ]);
         if (existingWorkspace || existingStore) {
           console.log('🌐 Subdomain conflict:', { subdomain, existingWorkspace: !!existingWorkspace, existingStore: !!existingStore });

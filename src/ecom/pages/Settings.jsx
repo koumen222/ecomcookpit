@@ -55,11 +55,18 @@ const Settings = () => {
   const [groupsSaved, setGroupsSaved] = useState(false);
   const [groupsError, setGroupsError] = useState('');
 
+  // ── Numéro WhatsApp pour les rapports ──
+  const [reportWANumber, setReportWANumber] = useState('');
+  const [savingReportWA, setSavingReportWA] = useState(false);
+  const [reportWASaved, setReportWASaved] = useState(false);
+  const [reportWAError, setReportWAError] = useState('');
+
   const fetchDeliveryGroups = async () => {
     setLoadingGroups(true);
     try {
       const res = await ecomApi.get('/orders/config/whatsapp');
       setDeliveryGroups(res.data.data?.deliveryGroupNumbers || []);
+      setReportWANumber(res.data.data?.reportNotifNumber || '');
     } catch {}
     finally { setLoadingGroups(false); }
   };
@@ -68,16 +75,33 @@ const Settings = () => {
     setSavingGroups(true);
     setGroupsError('');
     try {
-      // On récupère aussi les closeuses pour ne pas les écraser
       const res = await ecomApi.get('/orders/config/whatsapp');
       const closeuseNotifNumbers = res.data.data?.closeuseNotifNumbers || [];
-      await ecomApi.patch('/orders/config/whatsapp-notifs', { closeuseNotifNumbers, deliveryGroupNumbers: deliveryGroups });
+      const reportNotifNumber = res.data.data?.reportNotifNumber || '';
+      await ecomApi.patch('/orders/config/whatsapp-notifs', { closeuseNotifNumbers, deliveryGroupNumbers: deliveryGroups, reportNotifNumber });
       setGroupsSaved(true);
       setTimeout(() => setGroupsSaved(false), 3000);
     } catch (err) {
       setGroupsError(err.response?.data?.message || err.message);
     } finally {
       setSavingGroups(false);
+    }
+  };
+
+  const saveReportWANumber = async () => {
+    setSavingReportWA(true);
+    setReportWAError('');
+    try {
+      const res = await ecomApi.get('/orders/config/whatsapp');
+      const closeuseNotifNumbers = res.data.data?.closeuseNotifNumbers || [];
+      const deliveryGroupNumbers = res.data.data?.deliveryGroupNumbers || [];
+      await ecomApi.patch('/orders/config/whatsapp-notifs', { closeuseNotifNumbers, deliveryGroupNumbers, reportNotifNumber: reportWANumber });
+      setReportWASaved(true);
+      setTimeout(() => setReportWASaved(false), 3000);
+    } catch (err) {
+      setReportWAError(err.response?.data?.message || err.message);
+    } finally {
+      setSavingReportWA(false);
     }
   };
 
@@ -778,6 +802,45 @@ const Settings = () => {
           {/* === COMPTE === */}
           {/* ── Onglet Groupes de livraison ── */}
       {activeTab === 'delivery_groups' && (
+        <div className="space-y-5">
+
+        {/* ── Numéro rapport ── */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center">
+              <svg className="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-gray-900">Numéro WhatsApp — Rapports</h2>
+              <p className="text-xs text-gray-400">Ce numéro reçoit automatiquement la notification lors de la soumission d'un rapport.</p>
+            </div>
+          </div>
+          <div className="flex gap-3">
+            <input
+              type="tel"
+              value={reportWANumber}
+              onChange={e => setReportWANumber(e.target.value)}
+              placeholder="ex : 237699887766"
+              className="flex-1 px-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-gray-50 focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400 focus:bg-white focus:outline-none transition placeholder:text-gray-400"
+            />
+            <button
+              type="button"
+              onClick={saveReportWANumber}
+              disabled={savingReportWA}
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-semibold hover:bg-emerald-700 disabled:opacity-50 transition"
+            >
+              {savingReportWA
+                ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"/>
+                : <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg>
+              }
+              {savingReportWA ? 'Enregistrement…' : 'Enregistrer'}
+            </button>
+          </div>
+          {reportWASaved && <p className="mt-2 text-sm text-emerald-600 font-medium">✅ Numéro enregistré</p>}
+          {reportWAError && <p className="mt-2 text-sm text-red-500">❌ {reportWAError}</p>}
+        </div>
+
+        {/* ── Groupes livraison ── */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
           <div className="flex items-center gap-3 mb-2">
             <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center">
@@ -890,6 +953,8 @@ const Settings = () => {
             {groupsSaved && <span className="text-sm text-emerald-600 font-medium">✅ Groupes enregistrés</span>}
             {groupsError && <span className="text-sm text-red-500">❌ {groupsError}</span>}
           </div>
+        </div>
+
         </div>
       )}
 

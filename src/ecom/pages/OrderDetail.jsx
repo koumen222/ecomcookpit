@@ -194,21 +194,25 @@ const OrderDetail = () => {
   };
 
   const buildDeliveryMessage = () => {
-    const total = (order.price || 0) * (order.quantity || 1);
-    const brandName = workspace?.name || 'Notre boutique';
-    const now = new Date();
     const dayNames = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
-    const todayName = dayNames[now.getDay()];
+    const todayName = dayNames[new Date().getDay()];
+    const deliveryDay = editData.deliveryDay || order.deliveryDay || `aujourd'hui ${todayName}`;
+
+    const quantity = editData.quantity ?? order.quantity ?? 1;
+    const price    = editData.price    ?? order.price    ?? 0;
+    const total    = price * quantity;
+
+    const brandName = workspace?.name || 'Notre boutique';
 
     let msg = `*${brandName}*\n\n`;
     msg += `Nom du client : ${order.clientName || '—'}\n\n`;
     msg += `Ville : ${order.city || '—'}\n\n`;
     msg += `Lieu de la livraison : ${editData.deliveryLocation || order.deliveryLocation || order.rawData?.['Address 1'] || '—'}\n\n`;
-    msg += `Jour de la livraison : aujourd'hui ${todayName}\n\n`;
+    msg += `Jour de la livraison : ${deliveryDay}\n\n`;
     msg += `Numéro : ${getEffectivePhone(order) || '—'}\n\n`;
     msg += `Heure de livraison : ${editData.deliveryTime || order.deliveryTime || 'Disponible maintenant'}\n\n`;
     msg += `Article : ${getDisplayProduct(order)}\n\n`;
-    msg += `Quantité : ${String(order.quantity || 1).padStart(2, '0')}\n\n`;
+    msg += `Quantité : ${String(quantity).padStart(2, '0')}\n\n`;
     msg += `Montant : ${total.toLocaleString('fr-FR')} ${order.currency || symbol}`;
     if (order.notes) msg += `\n\nNotes : ${order.notes}`;
     if (deliveryNote) msg += `\n\nInstructions : ${deliveryNote}`;
@@ -225,7 +229,7 @@ const OrderDetail = () => {
     if (showDeliveryModal && order) {
       setDeliveryMessage(buildDeliveryMessage());
     }
-  }, [showDeliveryModal, deliveryNote, editData.deliveryLocation, editData.deliveryTime]);
+  }, [showDeliveryModal, deliveryNote, editData.deliveryLocation, editData.deliveryTime, editData.deliveryDay, editData.price, editData.quantity]);
 
   const handleCopyMessage = async () => {
     try {
@@ -321,9 +325,8 @@ const OrderDetail = () => {
     try {
       const targets = selectedGroups.map(i => deliveryGroups[i]).filter(Boolean);
       if (targets.length === 0) { setError('Sélectionnez au moins un groupe.'); setSendingToGroup(false); return; }
-      const msg = `🚚 *Commande à livrer*\n👤 ${order.clientName || 'Client'}\n📞 ${order.phone || order.clientPhone || ''}\n📍 ${order.city || order.deliveryLocation || ''}\n📦 ${order.productName || order.product || ''}\n💰 ${order.totalPrice || order.price || ''} FCFA`;
       await ecomApi.post(`/orders/${id}/send-to-delivery-groups`, {
-        message: msg,
+        message: deliveryMessage || buildDeliveryMessage(),
         targetJids: targets.map(g => g.phoneNumber)
       });
       setSuccess(`✅ Message envoyé à ${targets.length} groupe(s).`);
@@ -1029,6 +1032,20 @@ const OrderDetail = () => {
               <div>
                 <label className="block text-[10px] font-medium text-gray-500 mb-1">Heure de livraison</label>
                 <input type="text" value={editData.deliveryTime || ''} onChange={e => { setEditData(p => ({ ...p, deliveryTime: e.target.value })); }} placeholder="Ex: Disponible maintenant" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600" />
+              </div>
+              <div>
+                <label className="block text-[10px] font-medium text-gray-500 mb-1">Jour de livraison</label>
+                <input type="text" value={editData.deliveryDay || ''} onChange={e => { setEditData(p => ({ ...p, deliveryDay: e.target.value })); }} placeholder={`Ex: aujourd'hui lundi`} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600" />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[10px] font-medium text-gray-500 mb-1">Quantité</label>
+                  <input type="number" min="1" value={editData.quantity ?? order?.quantity ?? 1} onChange={e => { setEditData(p => ({ ...p, quantity: parseInt(e.target.value) || 1 })); }} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600" />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-medium text-gray-500 mb-1">Prix unitaire</label>
+                  <input type="number" min="0" value={editData.price ?? order?.price ?? 0} onChange={e => { setEditData(p => ({ ...p, price: parseFloat(e.target.value) || 0 })); }} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600" />
+                </div>
               </div>
             </div>
 

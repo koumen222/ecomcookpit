@@ -11,6 +11,20 @@ import ecomApi from '../services/ecommApi.js';
 const ACCENT = '#0F6B4F';
 const ACCENT_LIGHT = 'rgba(15,107,79,0.08)';
 
+const WhatsAppBrandLogo = ({ className = 'h-8 w-8' }) => (
+  <svg viewBox="0 0 32 32" className={className} aria-hidden="true">
+    <circle cx="16" cy="16" r="16" fill="#25D366" />
+    <path fill="#FFF" d="M23.18 8.68A10.1 10.1 0 0 0 7.36 20.84L6 26l5.29-1.34a10.07 10.07 0 0 0 4.81 1.23h.01c5.57 0 10.12-4.53 10.12-10.1 0-2.7-1.05-5.23-3.05-7.11Zm-7.07 15.5h-.01a8.38 8.38 0 0 1-4.28-1.17l-.31-.18-3.14.8.83-3.06-.2-.32a8.4 8.4 0 1 1 7.11 3.93Zm4.6-6.28c-.25-.13-1.48-.73-1.71-.81-.22-.08-.38-.13-.54.13-.16.24-.62.8-.76.96-.14.16-.29.18-.54.06-.25-.13-1.06-.39-2.01-1.24-.75-.67-1.26-1.49-1.41-1.74-.15-.25-.02-.38.11-.51.11-.11.25-.29.37-.43.12-.15.16-.25.25-.42.08-.17.04-.31-.02-.43-.06-.13-.54-1.29-.74-1.76-.2-.49-.4-.42-.54-.43l-.46-.01c-.17 0-.43.06-.66.31-.23.25-.87.85-.87 2.08s.9 2.42 1.03 2.58c.13.17 1.76 2.68 4.26 3.77.59.25 1.05.41 1.41.52.59.19 1.14.16 1.57.1.48-.07 1.48-.6 1.69-1.17.21-.57.21-1.05.15-1.15-.07-.1-.24-.16-.49-.29Z" />
+  </svg>
+);
+
+const MetaBusinessLogo = ({ className = 'h-8 w-8' }) => (
+  <svg viewBox="0 0 64 64" className={className} aria-hidden="true">
+    <rect width="64" height="64" rx="18" fill="#EFF6FF" />
+    <path fill="#0866FF" d="M30.77 18.88c-4.11 0-7.25 1.8-10.07 5.83l-7.74 11.11c-1.37 1.97-1.43 4.55-.15 6.58 1.17 1.86 3.18 2.96 5.38 2.96 3.1 0 5.49-1.35 7.8-4.39l4.24-5.58 3.91 5.57c2.8 3.99 5.94 5.78 10.17 5.78 4.13 0 7.22-1.76 9.2-5.23 1.73-3.04 1.67-7.14-.16-10.18l-2.8-4.67h-6.24l3.74 6.24c.84 1.4.88 3.23.11 4.59-.78 1.37-2 2.01-3.85 2.01-2.18 0-3.71-.95-5.61-3.66l-5.7-8.12 6.04-7.95c1.83-2.4 3.28-3.42 4.87-3.42 1.45 0 2.45.56 3.17 1.76.74 1.24.71 2.85-.08 4.18l-1.01 1.7h6.27l.07-.12c1.64-2.8 1.67-6.21.07-8.88-1.86-3.1-4.84-4.67-8.87-4.67-4.05 0-7.04 1.56-9.99 5.21l-3.18 4-2.97-4.03c-2.8-3.8-5.83-5.49-9.83-5.49Zm-12.36 20.4c-.93 1.21-1.92 1.73-3.33 1.73-.8 0-1.38-.31-1.77-.92-.42-.67-.37-1.59.14-2.32l7.74-11.1c2-2.87 4.08-4.16 6.75-4.16 2.16 0 3.77.92 5.58 3.37l2.5 3.38-6.2 8.17-4.3-5.89h-6.21l7.23 9.88-2.13 2.86Z" />
+  </svg>
+);
+
 const WEBHOOK_EVENTS = [
   { id: 'MESSAGES_UPSERT',   label: 'Messages reçus' },
   { id: 'MESSAGES_UPDATE',   label: 'Statuts messages' },
@@ -123,8 +137,8 @@ const WhatsAppService = () => {
 
   // ═══ Création d'instance ═══
   const SERVICE_TYPES = [
-    { id: 'whatsapp-baileys', label: 'WhatsApp', desc: 'Connexion via QR code (gratuit)', icon: '📱', color: 'emerald' },
-    { id: 'business-api',     label: 'Business API', desc: 'API officielle Meta (entreprise)', icon: '🏢', color: 'blue' },
+    { id: 'whatsapp-baileys', label: 'WhatsApp', desc: 'Connexion via QR code (gratuit)', logo: WhatsAppBrandLogo, color: 'emerald' },
+    { id: 'business-api',     label: 'Business API', desc: 'API officielle Meta (entreprise)', logo: MetaBusinessLogo, color: 'blue' },
   ];
 
   const openCreateModal = () => {
@@ -253,64 +267,75 @@ const WhatsAppService = () => {
     <div className="px-4 sm:px-6 py-5 sm:py-6 space-y-5">
 
       {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: ACCENT_LIGHT }}>
-            <MessageSquare className="w-[18px] h-[18px]" style={{ color: ACCENT }} />
+      <div className="relative overflow-hidden rounded-[30px] border border-emerald-100 bg-white p-4 shadow-sm shadow-emerald-100/60 sm:p-6">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-r from-emerald-50 via-white to-white" />
+        <div className="relative flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-start gap-3 sm:gap-4">
+              <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700 shadow-sm shadow-emerald-100">
+                <MessageSquare className="h-6 w-6" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="inline-flex items-center rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-500">
+                    {instances.length} instance{instances.length !== 1 ? 's' : ''} · {connectedCount} en ligne
+                  </span>
+                </div>
+                <h1 className="mt-2 text-2xl font-bold tracking-tight text-gray-900 sm:text-3xl">WhatsApp Service</h1>
+                <p className="mt-1 max-w-2xl text-sm text-gray-500 sm:text-[15px]">
+                  Gérez vos instances WhatsApp sans surcharge d’information.
+                </p>
+              </div>
+            </div>
           </div>
-          <div>
-            <h1 className="text-[17px] font-semibold text-gray-900 leading-tight">WhatsApp Service</h1>
-            <p className="text-xs text-gray-400 mt-0.5">
-              {instances.length} instance{instances.length !== 1 ? 's' : ''}{' · '}
-              <span className="text-emerald-600 font-medium">{connectedCount} en ligne</span>
-            </p>
+
+          <div className="flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap xl:w-auto xl:justify-end">
+            <button onClick={refreshAllStatuses} disabled={loading}
+              className="inline-flex items-center justify-center gap-2 rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-600 transition hover:bg-gray-50 disabled:opacity-50">
+              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+              Synchroniser
+            </button>
+            <button onClick={openCreateModal}
+              className="inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold text-white shadow-sm shadow-emerald-200 transition hover:brightness-95"
+              style={{ background: ACCENT }}>
+              <Plus className="h-4 w-4" />
+              Créer une instance
+            </button>
           </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <button onClick={refreshAllStatuses} disabled={loading}
-            className="inline-flex items-center gap-1.5 px-3 py-[7px] text-[13px] font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50">
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-            <span className="hidden sm:inline">Synchroniser</span>
-          </button>
-          <button onClick={openCreateModal}
-            className="inline-flex items-center gap-1.5 px-3.5 py-[7px] text-[13px] font-semibold text-white rounded-lg transition-colors shadow-sm"
-            style={{ background: ACCENT }}>
-            <Plus className="w-3.5 h-3.5" />
-            Créer une instance
-          </button>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="border-b border-gray-200 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-        <nav className="flex gap-0 -mb-px overflow-x-auto">
+      <div className="rounded-[24px] border border-gray-100 bg-white p-2 shadow-sm sm:p-3">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <nav className="flex gap-2 overflow-x-auto">
           {TABS.map(tab => {
             const Icon = tab.icon;
             const active = activeTab === tab.id;
             return (
               <button key={tab.id} onClick={() => setTab(tab.id)}
-                className={`relative flex items-center gap-2 px-4 py-2.5 text-[13px] font-medium transition-colors whitespace-nowrap ${active ? 'text-gray-900' : 'text-gray-400 hover:text-gray-600'}`}>
+                className={`relative flex items-center gap-2 rounded-2xl px-4 py-2.5 text-[13px] font-semibold transition whitespace-nowrap ${active ? 'bg-emerald-50 text-emerald-700 shadow-sm shadow-emerald-100' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'}`}>
                 <Icon className="w-4 h-4" />
                 {tab.label}
                 {tab.count !== undefined && (
-                  <span className={`text-[11px] font-semibold px-1.5 py-0.5 rounded-md ${active ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-500'}`}>
+                  <span className={`text-[11px] font-semibold px-1.5 py-0.5 rounded-full ${active ? 'bg-white text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>
                     {tab.count}
                   </span>
                 )}
-                {active && <span className="absolute bottom-0 left-0 right-0 h-[2px] rounded-t" style={{ background: ACCENT }} />}
               </button>
             );
           })}
         </nav>
 
-        <div className="flex items-center gap-2 pb-2 sm:pb-2">
+        <div className="flex items-center gap-2">
           <button
             onClick={() => navigate('/ecom/whatsapp/agent-config')}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium transition-all whitespace-nowrap text-gray-500 bg-gray-50 hover:bg-gray-100 hover:text-gray-700"
+            className="inline-flex items-center gap-1.5 rounded-2xl border border-violet-200 bg-violet-50 px-3.5 py-2 text-[12px] font-semibold text-violet-700 transition hover:bg-violet-100 whitespace-nowrap"
           >
             <Bot className="w-3.5 h-3.5" />
             <span>Configurer Rita IA</span>
           </button>
+        </div>
         </div>
       </div>
 
@@ -368,6 +393,7 @@ const WhatsAppService = () => {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {SERVICE_TYPES.map(svc => {
                       const selected = createData.serviceType === svc.id;
+                      const Logo = svc.logo;
                       return (
                         <button
                           key={svc.id}
@@ -384,7 +410,9 @@ const WhatsAppService = () => {
                               <Check className="w-3 h-3" />
                             </span>
                           )}
-                          <span className="text-xl mb-2 block">{svc.icon}</span>
+                          <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-white shadow-sm ring-1 ring-black/5">
+                            <Logo className="h-8 w-8" />
+                          </div>
                           <p className={`text-[13px] font-semibold ${selected ? `text-${svc.color}-800` : 'text-gray-900'}`}>{svc.label}</p>
                           <p className={`text-[11px] mt-0.5 ${selected ? `text-${svc.color}-600` : 'text-gray-400'}`}>{svc.desc}</p>
                         </button>
@@ -552,20 +580,35 @@ const WhatsAppService = () => {
 
           {/* Empty */}
           {!loading && instances.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-20 px-4">
-              <div className="w-16 h-16 rounded-2xl bg-gray-100 flex items-center justify-center mb-5">
-                <Smartphone className="w-8 h-8 text-gray-300" />
+            <div className="overflow-hidden rounded-[30px] border border-gray-100 bg-white shadow-sm">
+              <div className="relative overflow-hidden px-6 py-12 text-center sm:px-8 sm:py-14">
+                <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-emerald-50 via-white to-white" />
+                <div className="relative mx-auto max-w-lg">
+                  <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-3xl bg-emerald-100 text-emerald-700 shadow-sm shadow-emerald-100">
+                    <Smartphone className="h-8 w-8" />
+                  </div>
+                  <h2 className="mt-5 text-2xl font-bold tracking-tight text-gray-900 sm:text-3xl">Aucune instance WhatsApp</h2>
+                  <p className="mt-3 text-sm leading-6 text-gray-500 sm:text-[15px]">
+                    Créez votre première instance pour connecter votre WhatsApp et commencer à envoyer des messages.
+                  </p>
+
+                  <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">
+                    <button onClick={openCreateModal}
+                      className="inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-3 text-sm font-semibold text-white shadow-sm shadow-emerald-200 transition hover:brightness-95"
+                      style={{ background: ACCENT }}>
+                      <Plus className="h-4 w-4" />
+                      Créer une instance
+                    </button>
+                    <button
+                      onClick={() => navigate('/ecom/whatsapp/agent-config')}
+                      className="inline-flex items-center justify-center gap-2 rounded-2xl border border-violet-200 bg-violet-50 px-5 py-3 text-sm font-semibold text-violet-700 transition hover:bg-violet-100"
+                    >
+                      <Bot className="h-4 w-4" />
+                      Configurer Rita IA
+                    </button>
+                  </div>
+                </div>
               </div>
-              <p className="text-base font-semibold text-gray-900 mb-1">Aucune instance WhatsApp</p>
-              <p className="text-sm text-gray-400 text-center max-w-sm mb-6">
-                Créez votre première instance pour connecter votre WhatsApp et commencer à envoyer des messages.
-              </p>
-              <button onClick={openCreateModal}
-                className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white rounded-xl shadow-sm transition-all hover:shadow-md"
-                style={{ background: ACCENT }}>
-                <Plus className="w-4 h-4" />
-                Créer ma première instance
-              </button>
             </div>
           )}
 

@@ -148,7 +148,7 @@ const StatsPage = () => {
         
         {/* Date Range Filter */}
         <div className="flex items-center gap-2">
-          <button onClick={() => navigate('/ecom/stats/rapports')}
+          <button onClick={() => navigate('/ecom/reports')}
             className="flex items-center gap-2 px-4 py-2 bg-emerald-700 text-white rounded-xl hover:bg-emerald-800 transition shadow-sm text-sm font-medium">
             <BarChart3 size={16} />
             Stats Rapports

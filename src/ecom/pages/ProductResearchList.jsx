@@ -1,497 +1,439 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-  Search, 
-  Plus, 
-  Edit, 
-  Trash2, 
-  ExternalLink, 
-  TrendingUp, 
-  TrendingDown, 
-  Minus,
-  Filter,
-  Download,
-  Upload
+import {
+  Search, Plus, Edit, Trash2, Download, Upload,
+  Package, FlaskConical, BarChart3, BadgeCheck, X, ExternalLink
 } from 'lucide-react';
 import ecomApi from '../services/ecommApi.js';
 import ProductImport from '../components/ProductImport.jsx';
 import { getContextualError } from '../utils/errorMessages';
 
+const fmt = (n) => new Intl.NumberFormat('fr-FR').format(n || 0);
+const fmtF = (n) => `${fmt(n)} F`;
+
+const STATUS = {
+  research:  { label: 'Recherche', cls: 'bg-sky-100 text-sky-700' },
+  testing:   { label: 'Test',      cls: 'bg-amber-100 text-amber-700' },
+  validated: { label: 'Validé',    cls: 'bg-emerald-100 text-emerald-700' },
+  rejected:  { label: 'Rejeté',    cls: 'bg-red-100 text-red-600' },
+};
+
+const marginColor = (m) =>
+  m >= 60 ? 'text-emerald-600' : m >= 40 ? 'text-amber-500' : 'text-red-500';
+
+const Badge = ({ status }) => {
+  const s = STATUS[status] || STATUS.research;
+  return <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold ${s.cls}`}>{s.label}</span>;
+};
+
+const LinkPill = ({ href, label }) =>
+  href ? (
+    <a href={href} target="_blank" rel="noopener noreferrer"
+      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#E6F2ED] text-[#0F6B4F] text-[11px] font-semibold hover:bg-emerald-100 transition">
+      {label} <ExternalLink className="w-2.5 h-2.5" />
+    </a>
+  ) : null;
+
+// ─── Detail drawer ───────────────────────────────────────────────────────────
+const DetailPanel = ({ product, onClose, onEdit, onDelete, onPassToTest }) => {
+  if (!product) return null;
+  const m = product.margin || 0;
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div className="fixed inset-0 bg-black/20 z-40" onClick={onClose} />
+
+      {/* Panel */}
+      <div className="fixed right-0 top-0 h-full w-full max-w-md bg-white shadow-2xl z-50 flex flex-col overflow-hidden">
+        {/* Header */}
+        <div className="flex items-start gap-3 px-5 py-4 border-b border-gray-100">
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold text-gray-900 leading-snug">{product.name}</p>
+            <div className="flex items-center gap-2 mt-1">
+              <Badge status={product.status} />
+              <span className="text-[11px] text-gray-400">
+                {new Date(product.researchDate || product.createdAt).toLocaleDateString('fr-FR')}
+              </span>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-xl hover:bg-gray-100 text-gray-400 transition flex-shrink-0">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+
+          {/* KPIs */}
+          <div className="grid grid-cols-3 gap-2">
+            <div className="bg-gray-50 rounded-xl p-3 text-center">
+              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Marge</p>
+              <p className={`text-lg font-bold mt-0.5 ${marginColor(m)}`}>{m.toFixed(1)}%</p>
+            </div>
+            <div className="bg-gray-50 rounded-xl p-3 text-center">
+              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Bénéfice</p>
+              <p className="text-lg font-bold mt-0.5 text-emerald-600">{fmtF(product.profit)}</p>
+            </div>
+            <div className="bg-gray-50 rounded-xl p-3 text-center">
+              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Score</p>
+              <p className="text-lg font-bold mt-0.5 text-amber-500">{product.opportunityScore || 3}/5</p>
+            </div>
+          </div>
+
+          {/* Finances */}
+          <div>
+            <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-2">Finances</p>
+            <div className="space-y-1.5">
+              {[
+                ['Prix de vente',   fmtF(product.sellingPrice), 'font-bold text-gray-900 text-base'],
+                ['Sourcing brut',   fmtF(product.sourcingPrice)],
+                ['Frais livraison', fmtF(product.shippingUnitCost)],
+                ['Coût total (COGS)', fmtF(product.cogs)],
+                product.weight ? ['Poids', `${product.weight} kg`] : null,
+              ].filter(Boolean).map(([label, value, cls = 'text-gray-700']) => (
+                <div key={label} className="flex items-center justify-between py-1.5 border-b border-gray-50 last:border-0">
+                  <span className="text-xs text-gray-500">{label}</span>
+                  <span className={`text-sm font-semibold ${cls}`}>{value}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Marché */}
+          {(product.demand || product.competition || product.trend) && (
+            <div>
+              <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-2">Marché</p>
+              <div className="flex flex-wrap gap-2">
+                {product.demand && (
+                  <span className="px-2.5 py-1 bg-gray-100 rounded-full text-xs font-medium text-gray-600">
+                    Demande: {product.demand === 'high' ? 'Élevée' : product.demand === 'low' ? 'Faible' : 'Moyenne'}
+                  </span>
+                )}
+                {product.competition && (
+                  <span className="px-2.5 py-1 bg-gray-100 rounded-full text-xs font-medium text-gray-600">
+                    Concurrence: {product.competition === 'high' ? 'Élevée' : product.competition === 'low' ? 'Faible' : 'Moyenne'}
+                  </span>
+                )}
+                {product.trend && (
+                  <span className="px-2.5 py-1 bg-gray-100 rounded-full text-xs font-medium text-gray-600">
+                    {product.trend === 'rising' ? '📈 Montante' : product.trend === 'falling' ? '📉 Déclinante' : '➡️ Stable'}
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Liens */}
+          {(product.creative || product.alibabaLink || product.researchLink || product.websiteUrl) && (
+            <div>
+              <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-2">Sources</p>
+              <div className="flex flex-wrap gap-2">
+                <LinkPill href={product.creative} label="Creative" />
+                <LinkPill href={product.alibabaLink} label="Alibaba" />
+                <LinkPill href={product.researchLink} label="Recherche" />
+                <LinkPill href={product.websiteUrl} label="Site web" />
+              </div>
+            </div>
+          )}
+
+          {/* Pros / Cons */}
+          {((product.pros?.filter(p=>p).length > 0) || (product.cons?.filter(c=>c).length > 0)) && (
+            <div className="grid grid-cols-2 gap-3">
+              {product.pros?.filter(p=>p).length > 0 && (
+                <div>
+                  <p className="text-[11px] font-bold text-emerald-600 uppercase tracking-widest mb-1.5">✓ Forces</p>
+                  <ul className="space-y-1">
+                    {product.pros.filter(p=>p).map((p,i) => (
+                      <li key={i} className="text-xs text-gray-600 flex items-start gap-1.5">
+                        <span className="text-emerald-400 mt-0.5">•</span>{p}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {product.cons?.filter(c=>c).length > 0 && (
+                <div>
+                  <p className="text-[11px] font-bold text-red-500 uppercase tracking-widest mb-1.5">✗ Faiblesses</p>
+                  <ul className="space-y-1">
+                    {product.cons.filter(c=>c).map((c,i) => (
+                      <li key={i} className="text-xs text-gray-600 flex items-start gap-1.5">
+                        <span className="text-red-400 mt-0.5">•</span>{c}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Notes */}
+          {product.notes && (
+            <div>
+              <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">Notes</p>
+              <p className="text-xs text-gray-600 leading-relaxed bg-gray-50 rounded-xl p-3">{product.notes}</p>
+            </div>
+          )}
+        </div>
+
+        {/* Actions footer */}
+        <div className="px-5 py-4 border-t border-gray-100 flex items-center gap-2">
+          <button onClick={() => onEdit(product._id)}
+            className="flex-1 flex items-center justify-center gap-1.5 py-2.5 border border-gray-200 rounded-xl text-sm font-semibold text-gray-700 hover:bg-gray-50 transition">
+            <Edit className="w-4 h-4" />Modifier
+          </button>
+          {!['testing','validated'].includes(product.status) && (
+            <button onClick={() => onPassToTest(product)}
+              className="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-[#0F6B4F] rounded-xl text-sm font-semibold text-white hover:bg-[#0a5740] transition">
+              <FlaskConical className="w-4 h-4" />Passer en test
+            </button>
+          )}
+          <button onClick={() => onDelete(product._id)}
+            className="p-2.5 border border-red-100 rounded-xl text-red-500 hover:bg-red-50 transition">
+            <Trash2 className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+    </>
+  );
+};
+
+// ─── Main ─────────────────────────────────────────────────────────────────────
 const ProductResearchList = () => {
   const navigate = useNavigate();
-  const [products, setProducts] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [searchTerm, setSearchTerm] = useState('');
+  const [products, setProducts]       = useState([]);
+  const [loading, setLoading]         = useState(true);
+  const [error, setError]             = useState('');
+  const [searchTerm, setSearchTerm]   = useState('');
   const [statusFilter, setStatusFilter] = useState('');
-  const [sortBy, setSortBy] = useState('researchDate');
-  const [sortOrder, setSortOrder] = useState('desc');
-  const [showImport, setShowImport] = useState(false);
+  const [sortBy, setSortBy]           = useState('researchDate');
+  const [sortOrder, setSortOrder]     = useState('desc');
+  const [showImport, setShowImport]   = useState(false);
+  const [selected, setSelected]       = useState(null);
 
-  useEffect(() => {
-    loadProducts();
-  }, [searchTerm, statusFilter, sortBy, sortOrder]);
+  useEffect(() => { loadProducts(); }, [searchTerm, statusFilter, sortBy, sortOrder]);
 
   const loadProducts = async () => {
     try {
       setLoading(true);
-      
-      const params = new URLSearchParams();
-      if (searchTerm) params.append('search', searchTerm);
-      if (statusFilter) params.append('status', statusFilter);
-      params.append('sortBy', sortBy);
-      params.append('sortOrder', sortOrder);
-      params.append('limit', '100');
-      
-      const response = await ecomApi.get(`/products-research/research?${params.toString()}`);
-      
-      if (response.data.success) {
-        setProducts(response.data.data);
-      }
-    } catch (error) {
-      console.error('Erreur chargement produits:', error);
-      setError(getContextualError(error, 'load_products'));
+      const p = new URLSearchParams();
+      if (searchTerm)   p.append('search', searchTerm);
+      if (statusFilter) p.append('status', statusFilter);
+      p.append('sortBy', sortBy);
+      p.append('sortOrder', sortOrder);
+      p.append('limit', '100');
+      const res = await ecomApi.get(`/products-research/research?${p.toString()}`);
+      if (res.data.success) setProducts(res.data.data);
+    } catch (e) {
+      setError(getContextualError(e, 'load_products'));
     } finally {
       setLoading(false);
     }
   };
 
-  const deleteProduct = async (productId) => {
-    if (!confirm('Êtes-vous sûr de vouloir supprimer ce produit ?')) return;
-    
+  const deleteProduct = async (id) => {
+    if (!confirm('Supprimer ce produit ?')) return;
     try {
-      await ecomApi.delete(`/products-research/research/${productId}`);
+      await ecomApi.delete(`/products-research/research/${id}`);
+      setSelected(null);
       loadProducts();
-    } catch (error) {
-      console.error('Erreur suppression produit:', error);
-      setError(getContextualError(error, 'delete_product'));
-    }
+    } catch (e) { setError(getContextualError(e, 'delete_product')); }
   };
 
-  const updateProductStatus = async (productId, newStatus) => {
+  const passToTest = async (p) => {
+    if (!confirm(`Créer un produit de test pour "${p.name}" ?`)) return;
     try {
-      await ecomApi.put(`/products-research/research/${productId}/status`, { status: newStatus });
+      await ecomApi.post('/products', {
+        name: p.name, status: 'test',
+        sellingPrice: p.sellingPrice || 0,
+        productCost: p.sourcingPrice || 0,
+        deliveryCost: p.shippingUnitCost || 0,
+        avgAdsCost: 0, stock: 0, reorderThreshold: 10, isActive: true,
+      });
+      await ecomApi.put(`/products-research/research/${p._id}/status`, { status: 'testing' });
+      setSelected(null);
       loadProducts();
-    } catch (error) {
-      console.error('Erreur mise à jour statut:', error);
-    }
+    } catch { setError('Erreur lors de la création'); }
   };
 
-  const passToTest = async (researchProduct) => {
-    if (!confirm(`Créer un produit de test pour "${researchProduct.name}" ?`)) return;
-    
-    try {
-      // Créer le produit dans la plateforme
-      const productData = {
-        name: researchProduct.name,
-        status: 'test',
-        sellingPrice: researchProduct.sellingPrice || 0,
-        productCost: researchProduct.sourcingPrice || 0,
-        deliveryCost: researchProduct.shippingUnitCost || 0,
-        avgAdsCost: 0,
-        stock: 0,
-        reorderThreshold: 10,
-        isActive: true
-      };
-      
-      await ecomApi.post('/products', productData);
-      
-      // Mettre à jour le statut du produit de recherche
-      await updateProductStatus(researchProduct._id, 'testing');
-      
-      alert('Produit ajouté avec succès à la plateforme !');
-      loadProducts();
-    } catch (error) {
-      console.error('Erreur création produit:', error);
-      setError('Erreur lors de la création du produit');
-    }
+  const exportCSV = () => {
+    const headers = ['PRODUIT','PRIX SOURCING','POIDS','LIVRAISON','COGS','PRIX VENTE','MARGE','BÉNÉFICE','SCORE','STATUT','DATE'];
+    const rows = products.map(p => [
+      `"${p.name}"`, p.sourcingPrice||0, p.weight||0, p.shippingUnitCost||0,
+      p.cogs||0, p.sellingPrice||0, `${(p.margin||0).toFixed(1)}%`,
+      p.profit||0, `${p.opportunityScore||3}/5`, p.status,
+      new Date(p.researchDate).toLocaleDateString('fr-FR'),
+    ].join(','));
+    const blob = new Blob([[headers.join(','), ...rows].join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `veille-${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
   };
 
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('fr-FR').format(amount);
-  };
-
-  const getMarginColor = (margin) => {
-    if (margin >= 40) return 'text-green-600 font-semibold';
-    if (margin >= 20) return 'text-yellow-600 font-semibold';
-    return 'text-red-600 font-semibold';
-  };
-
-  const getStatusBadge = (status) => {
-    const statusConfig = {
-      research: { color: 'bg-emerald-100 text-emerald-800', label: 'Recherche' },
-      testing: { color: 'bg-yellow-100 text-yellow-800', label: 'Test' },
-      validated: { color: 'bg-green-100 text-green-800', label: 'Validé' },
-      rejected: { color: 'bg-red-100 text-red-800', label: 'Rejeté' }
-    };
-    
-    const config = statusConfig[status] || statusConfig.research;
-    return (
-      <span className={`px-2 py-1 text-xs font-medium rounded-full ${config.color}`}>
-        {config.label}
-      </span>
-    );
-  };
-
-  const getOpportunityIcon = (score) => {
-    if (score >= 4) return <TrendingUp className="w-4 h-4 text-green-600" />;
-    if (score <= 2) return <TrendingDown className="w-4 h-4 text-red-600" />;
-    return <Minus className="w-4 h-4 text-yellow-600" />;
-  };
-
-  const exportToCSV = () => {
-    const headers = [
-      'PRODUIT', 'IMAGE', 'CREATIVE', 'ALIBABA', 'RECHERCHE', 'SITE WEB',
-      'PRIX SOURCING BRUT', 'POIDS (KG)', 'FRAIS DE LIVRAISON UNITAIRE', 
-      'COÛT DE REVIENT (COGS)', 'PRIX DE VENTE', 'MARGE (%)', 'BÉNÉFICE (FCFA)',
-      'SCORE OPPORTUNITÉ', 'STATUT', 'DATE RECHERCHE'
-    ];
-    
-    const csvContent = [
-      headers.join(','),
-      ...products.map(product => [
-        `"${product.name}"`,
-        `"${product.imageUrl || ''}"`,
-        `"${product.creative || ''}"`,
-        `"${product.alibabaLink || ''}"`,
-        `"${product.researchLink || ''}"`,
-        `"${product.websiteUrl || ''}"`,
-        product.sourcingPrice || 0,
-        product.weight || 0,
-        product.shippingUnitCost || 0,
-        product.cogs || 0,
-        product.sellingPrice || 0,
-        `${(product.margin || 0).toFixed(1)}%`,
-        product.profit || 0,
-        `${product.opportunityScore || 3}/5`,
-        product.status,
-        new Date(product.researchDate).toLocaleDateString('fr-FR')
-      ].join(','))
-    ].join('\n');
-    
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `veille-produits-complet-${new Date().toISOString().split('T')[0]}.csv`;
-    link.click();
-  };
-
-  const handleSort = (field) => {
-    if (sortBy === field) {
-      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortBy(field);
-      setSortOrder('desc');
-    }
-  };
+  const researchCount  = products.filter(p => p.status === 'research').length;
+  const testingCount   = products.filter(p => p.status === 'testing').length;
+  const validatedCount = products.filter(p => p.status === 'validated').length;
+  const avgMargin      = products.length ? products.reduce((s,p) => s+(p.margin||0),0)/products.length : 0;
 
   if (loading) return (
-    <div className="p-3 sm:p-4 lg:p-6">
-      <div className="flex justify-between items-center mb-4">
-        <div className="h-8 w-44 bg-gray-200 rounded-lg animate-pulse" />
-        <div className="h-9 w-28 bg-gray-200 rounded-lg animate-pulse" />
-      </div>
-      <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
-        {[...Array(8)].map((_, i) => (
-          <div key={i} className="flex items-center gap-4 px-4 py-3 border-b border-gray-50">
-            <div className="h-4 w-36 bg-gray-200 rounded animate-pulse" />
-            <div className="h-4 w-20 bg-gray-100 rounded animate-pulse ml-auto" />
-            <div className="h-6 w-16 bg-gray-100 rounded-full animate-pulse" />
-            <div className="h-8 w-8 bg-gray-100 rounded-lg animate-pulse" />
-          </div>
-        ))}
+    <div className="min-h-screen bg-gray-50 p-4 sm:p-6">
+      <div className="max-w-3xl mx-auto space-y-3">
+        {[...Array(8)].map((_,i) => <div key={i} className="h-14 bg-white rounded-2xl animate-pulse border border-gray-100" />)}
       </div>
     </div>
   );
 
   return (
-    <div className="p-6">
+    <div className="min-h-screen bg-gray-50">
+
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Veille Produits</h1>
-          <p className="text-gray-600 mt-1">Tableau de bord de vos produits en recherche</p>
-        </div>
-        <div className="flex gap-3">
-          <button
-            onClick={() => setShowImport(!showImport)}
-            className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-2"
-          >
-            <Upload className="w-4 h-4" />
-            Importer CSV
-          </button>
-          <button
-            onClick={exportToCSV}
-            className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-2"
-          >
-            <Download className="w-4 h-4" />
-            Exporter CSV
-          </button>
-          <button
-            onClick={() => navigate('/ecom/product-finder')}
-            className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 flex items-center gap-2"
-          >
-            <Plus className="w-4 h-4" />
-            Ajouter Produit
-          </button>
+      <div className="bg-white border-b border-gray-100 px-4 sm:px-6 py-4">
+        <div className="max-w-3xl mx-auto flex items-center justify-between gap-3">
+          <div>
+            <h1 className="text-base font-bold text-gray-900">Veille Produits</h1>
+            <p className="text-[11px] text-gray-400 mt-0.5">
+              {products.length} produit{products.length !== 1 ? 's' : ''} · {researchCount} en recherche · {testingCount} en test · {validatedCount} validés
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={() => setShowImport(v => !v)}
+              className="p-2 rounded-xl border border-gray-200 text-gray-500 hover:bg-gray-50 transition" title="Importer CSV">
+              <Upload className="w-4 h-4" />
+            </button>
+            <button onClick={exportCSV}
+              className="p-2 rounded-xl border border-gray-200 text-gray-500 hover:bg-gray-50 transition" title="Exporter CSV">
+              <Download className="w-4 h-4" />
+            </button>
+            <button onClick={() => navigate('/ecom/product-finder')}
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-[#0F6B4F] hover:bg-[#0a5740] text-white text-sm font-bold rounded-xl transition shadow-sm">
+              <Plus className="w-4 h-4" />
+              <span className="hidden sm:inline">Ajouter</span>
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Section Importation */}
-      {showImport && (
-        <div className="mb-6">
-          <ProductImport onImportSuccess={() => {
-            loadProducts();
-            setShowImport(false);
-          }} />
-        </div>
-      )}
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-4 space-y-3">
 
-      {/* Filtres */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Rechercher un produit..."
-              className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-600 focus:border-transparent"
+        {/* KPIs */}
+        <div className="grid grid-cols-4 gap-2">
+          {[
+            { label: 'Total', value: products.length, color: 'text-gray-900' },
+            { label: 'En test', value: testingCount, color: 'text-amber-600' },
+            { label: 'Validés', value: validatedCount, color: 'text-emerald-600' },
+            { label: 'Marge moy.', value: `${avgMargin.toFixed(0)}%`, color: marginColor(avgMargin) },
+          ].map(({ label, value, color }) => (
+            <div key={label} className="bg-white rounded-2xl border border-gray-100 p-3 text-center">
+              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">{label}</p>
+              <p className={`text-xl font-bold mt-0.5 ${color}`}>{value}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* Import */}
+        {showImport && (
+          <div className="bg-white rounded-2xl border border-gray-100 p-4">
+            <ProductImport onImportSuccess={() => { loadProducts(); setShowImport(false); }} />
+          </div>
+        )}
+
+        {/* Filters */}
+        <div className="flex gap-2">
+          <label className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+            <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
+              placeholder="Rechercher…"
+              className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-xl bg-white outline-none focus:ring-2 focus:ring-[#0F6B4F]/20 focus:border-[#0F6B4F] transition"
             />
-          </div>
-          
-          <div>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-600 focus:border-transparent"
-            >
-              <option value="">Tous les statuts</option>
-              <option value="research">Recherche</option>
-              <option value="testing">Test</option>
-              <option value="validated">Validé</option>
-              <option value="rejected">Rejeté</option>
-            </select>
-          </div>
-          
-          <div>
-            <select
-              value={`${sortBy}-${sortOrder}`}
-              onChange={(e) => {
-                const [field, order] = e.target.value.split('-');
-                setSortBy(field);
-                setSortOrder(order);
-              }}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-600 focus:border-transparent"
-            >
-              <option value="researchDate-desc">Plus récents</option>
-              <option value="researchDate-asc">Plus anciens</option>
-              <option value="margin-desc">Marge décroissante</option>
-              <option value="margin-asc">Marge croissante</option>
-              <option value="opportunityScore-desc">Score décroissant</option>
-              <option value="name-asc">Nom A-Z</option>
-            </select>
-          </div>
-          
-          <div className="flex items-center text-sm text-gray-600">
-            {products.length} produit{products.length > 1 ? 's' : ''}
-          </div>
+          </label>
+          <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
+            className="px-3 py-2 text-sm border border-gray-200 rounded-xl bg-white outline-none focus:ring-2 focus:ring-[#0F6B4F]/20 focus:border-[#0F6B4F] text-gray-600">
+            <option value="">Tous</option>
+            <option value="research">Recherche</option>
+            <option value="testing">Test</option>
+            <option value="validated">Validé</option>
+            <option value="rejected">Rejeté</option>
+          </select>
+          <select value={`${sortBy}-${sortOrder}`}
+            onChange={e => { const [f,o] = e.target.value.split('-'); setSortBy(f); setSortOrder(o); }}
+            className="px-3 py-2 text-sm border border-gray-200 rounded-xl bg-white outline-none focus:ring-2 focus:ring-[#0F6B4F]/20 focus:border-[#0F6B4F] text-gray-600">
+            <option value="researchDate-desc">Récents</option>
+            <option value="researchDate-asc">Anciens</option>
+            <option value="margin-desc">Marge ↓</option>
+            <option value="margin-asc">Marge ↑</option>
+            <option value="opportunityScore-desc">Score ↓</option>
+            <option value="name-asc">A-Z</option>
+          </select>
         </div>
+
+        {error && (
+          <div className="px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">{error}</div>
+        )}
+
+        {/* List */}
+        {products.length === 0 ? (
+          <div className="bg-white rounded-2xl border border-gray-100 px-6 py-16 text-center">
+            <div className="w-12 h-12 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-4">
+              <Package className="w-5 h-5 text-gray-400" />
+            </div>
+            <p className="text-sm font-semibold text-gray-900">Aucun produit</p>
+            <p className="text-xs text-gray-400 mt-1 mb-5">Ajoutez votre premier produit de veille</p>
+            <button onClick={() => navigate('/ecom/product-finder')}
+              className="inline-flex items-center gap-2 px-4 py-2.5 bg-[#0F6B4F] text-white text-sm font-bold rounded-xl hover:bg-[#0a5740] transition">
+              <Plus className="w-4 h-4" />Ajouter un produit
+            </button>
+          </div>
+        ) : (
+          <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+            {products.map((p, i) => (
+              <button key={p._id} onClick={() => setSelected(p)}
+                className={`w-full text-left flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50/80 transition ${i < products.length-1 ? 'border-b border-gray-100' : ''} ${selected?._id === p._id ? 'bg-[#E6F2ED]/50' : ''}`}>
+
+                {/* Image or icon */}
+                <div className="w-9 h-9 rounded-xl bg-gray-100 flex-shrink-0 flex items-center justify-center overflow-hidden">
+                  {p.imageUrl
+                    ? <img src={p.imageUrl} alt="" className="w-9 h-9 object-cover rounded-xl" />
+                    : <Package className="w-4 h-4 text-gray-400" />
+                  }
+                </div>
+
+                {/* Name */}
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-gray-900 truncate">{p.name}</p>
+                  <p className="text-[11px] text-gray-400 mt-0.5">{new Date(p.researchDate || p.createdAt).toLocaleDateString('fr-FR')}</p>
+                </div>
+
+                {/* Margin */}
+                <div className="text-right flex-shrink-0">
+                  <p className={`text-sm font-bold ${marginColor(p.margin||0)}`}>{(p.margin||0).toFixed(0)}%</p>
+                  <p className="text-[11px] text-gray-400">{fmtF(p.sellingPrice)}</p>
+                </div>
+
+                {/* Badge */}
+                <div className="flex-shrink-0 hidden sm:block">
+                  <Badge status={p.status} />
+                </div>
+
+                {/* Chevron */}
+                <svg className="w-4 h-4 text-gray-300 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
-      {error && (
-        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
-          {error}
-        </div>
+      {/* Detail panel */}
+      {selected && (
+        <DetailPanel
+          product={selected}
+          onClose={() => setSelected(null)}
+          onEdit={(id) => navigate(`/ecom/product-finder/${id}/edit`)}
+          onDelete={deleteProduct}
+          onPassToTest={passToTest}
+        />
       )}
-
-      {/* Tableau */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-x-auto">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  PRODUIT
-                </th>
-                <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  CREATIVE
-                </th>
-                <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  ALIBABA
-                </th>
-                <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  SITE WEB
-                </th>
-                <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  POIDS
-                </th>
-                <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  LIVRAISON
-                </th>
-                <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  COGS
-                </th>
-                <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  VENTE
-                </th>
-                <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  MARGE
-                </th>
-                <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  SCORE
-                </th>
-                <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  STATUT
-                </th>
-                <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  ACTIONS
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {products.length === 0 ? (
-                <tr>
-                  <td colSpan="12" className="px-6 py-12 text-center text-gray-500">
-                    <div className="flex flex-col items-center">
-                      <Search className="w-12 h-12 text-gray-300 mb-4" />
-                      <p className="text-lg font-medium mb-2">Aucun produit trouvé</p>
-                      <p className="text-sm mb-4">Commencez par ajouter un produit de veille</p>
-                      <button
-                        onClick={() => navigate('/ecom/product-finder')}
-                        className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700"
-                      >
-                        Ajouter un produit
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ) : (
-                products.map((product) => (
-                  <tr key={product._id} className="hover:bg-gray-50">
-                    <td className="px-2 py-2">
-                      <div className="max-w-xs">
-                        <div className="text-sm font-medium text-gray-900 truncate" title={product.name}>
-                          {product.name}
-                        </div>
-                        {product.weight && (
-                          <div className="text-xs text-gray-500">{product.weight} kg</div>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-2 py-2">
-                      {product.creative ? (
-                        <a
-                          href={product.creative}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-emerald-600 hover:text-emerald-800 truncate max-w-xs block"
-                          title={product.creative}
-                        >
-                          <ExternalLink className="w-4 h-4" />
-                        </a>
-                      ) : (
-                        <span className="text-gray-400">-</span>
-                      )}
-                    </td>
-                    <td className="px-2 py-2">
-                      {product.alibabaLink ? (
-                        <a
-                          href={product.alibabaLink}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-emerald-600 hover:text-emerald-800"
-                          title="Voir sur Alibaba"
-                        >
-                          <ExternalLink className="w-4 h-4" />
-                        </a>
-                      ) : (
-                        <span className="text-gray-400">-</span>
-                      )}
-                    </td>
-                    <td className="px-2 py-2">
-                      {product.websiteUrl ? (
-                        <a
-                          href={product.websiteUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-emerald-600 hover:text-emerald-800 truncate max-w-xs block"
-                          title={product.websiteUrl}
-                        >
-                          <ExternalLink className="w-4 h-4" />
-                        </a>
-                      ) : (
-                        <span className="text-gray-400">-</span>
-                      )}
-                    </td>
-                    <td className="px-2 py-2 text-sm text-gray-900">
-                      {product.weight || '-'}
-                    </td>
-                    <td className="px-2 py-2 text-sm text-gray-900">
-                      {formatCurrency(product.shippingUnitCost || 0)}
-                    </td>
-                    <td className="px-2 py-2 text-sm text-gray-900">
-                      {formatCurrency(product.cogs || 0)}
-                    </td>
-                    <td className="px-2 py-2 text-sm font-medium text-gray-900">
-                      {formatCurrency(product.sellingPrice || 0)}
-                    </td>
-                    <td className="px-2 py-2 text-sm">
-                      <div className={getMarginColor(product.margin || 0)}>
-                        {(product.margin || 0).toFixed(1)}%
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        {formatCurrency(product.profit || 0)}
-                      </div>
-                    </td>
-                    <td className="px-2 py-2">
-                      <div className="flex items-center space-x-2">
-                        {getOpportunityIcon(product.opportunityScore || 3)}
-                        <span className="text-sm text-gray-900">
-                          {product.opportunityScore || 3}/5
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-2 py-2">
-                      {getStatusBadge(product.status)}
-                    </td>
-                    <td className="px-2 py-2">
-                      <div className="flex flex-col space-y-1">
-                        <div className="flex space-x-2">
-                          <button
-                            onClick={() => navigate(`/ecom/product-finder/${product._id}/edit`)}
-                            className="text-emerald-600 hover:text-emerald-800"
-                            title="Modifier"
-                          >
-                            <Edit className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => deleteProduct(product._id)}
-                            className="text-red-600 hover:text-red-800"
-                            title="Supprimer"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                        {product.status !== 'testing' && product.status !== 'validated' && (
-                          <button
-                            onClick={() => passToTest(product)}
-                            className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded hover:bg-green-200 whitespace-nowrap"
-                            title="Créer un produit de test dans la plateforme"
-                          >
-                            Passer en test
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
     </div>
   );
 };

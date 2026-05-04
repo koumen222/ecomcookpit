@@ -322,70 +322,84 @@ const TransactionsList = () => {
   const handlePeriod = (id) => { setPeriod(id); setShowCustom(id === 'custom'); };
 
   return (
-    <div className="min-h-screen bg-gray-50/50">
-      <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-5 sm:py-6">
+    <div className="min-h-screen bg-[#f8f9fb] flex flex-col">
 
-        {/* Header */}
-        <div className="mb-5">
-          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 mb-4">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Centre financier</h1>
-              <p className="text-[13px] text-gray-400 mt-0.5">{now.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}</p>
-            </div>
-            <div className="flex gap-2 flex-shrink-0">
-              {tab === 'transactions' && (
-                <Link to="/ecom/transactions/new" className="inline-flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-xl hover:bg-gray-800 transition text-sm font-semibold">
-                  <Ico d={I.plus} className="w-4 h-4"/>Nouvelle transaction
-                </Link>
-              )}
-              {tab === 'budgets' && (
-                <button onClick={()=>{setShowBudgetForm(true);setEditingBudget(null);setBudgetForm({name:'',category:'publicite',amount:'',productId:'',month:budgetMonth});loadProducts();}}
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-xl hover:bg-gray-800 transition text-sm font-semibold">
-                  <Ico d={I.plus} className="w-4 h-4"/>Nouveau budget
-                </button>
-              )}
-            </div>
+      {/* ── Topbar ─────────────────────────────────────────────── */}
+      <div className="bg-white border-b border-gray-100 px-4 sm:px-6 lg:px-8 py-4 sticky top-0 z-20">
+        <div className="max-w-[1440px] mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h1 className="text-[17px] font-bold text-gray-900 tracking-tight leading-none">Centre financier</h1>
+            <p className="text-xs text-gray-400 mt-1 leading-none capitalize">
+              {now.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}
+            </p>
           </div>
-
-          {/* Period selector */}
-          <div className="bg-white rounded-xl border border-gray-200/60 p-1.5 flex flex-wrap items-center gap-1">
-            {PERIODS.filter(p=>p.id!=='custom').map(p=>(
-              <button key={p.id} onClick={()=>handlePeriod(p.id)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                  period===p.id ? 'bg-gray-900 text-white' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
-                }`}>{p.label}</button>
-            ))}
-            <button onClick={()=>handlePeriod('custom')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 ${
-                period==='custom' ? 'bg-gray-900 text-white' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
-              }`}>
-              <Ico d={I.cal} className="w-3.5 h-3.5"/>Personnalisé
-            </button>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {/* Period pill */}
             {period !== 'custom' && (
-              <span className="ml-auto text-[11px] text-gray-400 font-medium px-2 hidden sm:block">
+              <span className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 rounded-full text-[11px] font-semibold text-gray-500">
+                <Ico d={I.cal} className="w-3 h-3"/>
                 {fmtDateShort(pStart)} — {fmtDateFull(pEnd)}
               </span>
             )}
-            {showCustom && (
-              <div className="w-full flex flex-wrap items-center gap-1.5 sm:gap-2 pt-2 border-t border-gray-100 mt-1">
-                <label className="text-[10px] sm:text-[11px] font-medium text-gray-400">Du</label>
-                <input type="date" value={customDates.startDate} onChange={e=>setCustomDates(p=>({...p,startDate:e.target.value}))}
-                  className="px-1.5 sm:px-2.5 py-1 sm:py-1.5 border border-gray-200 rounded-lg text-[10px] sm:text-xs bg-gray-50 focus:ring-2 focus:ring-gray-900/10 w-[110px] sm:w-auto"/>
-                <label className="text-[10px] sm:text-[11px] font-medium text-gray-400">Au</label>
-                <input type="date" value={customDates.endDate} onChange={e=>setCustomDates(p=>({...p,endDate:e.target.value}))}
-                  className="px-1.5 sm:px-2.5 py-1 sm:py-1.5 border border-gray-200 rounded-lg text-[10px] sm:text-xs bg-gray-50 focus:ring-2 focus:ring-gray-900/10 w-[110px] sm:w-auto"/>
-                <button onClick={()=>loadTab()} className="px-2.5 sm:px-3 py-1 sm:py-1.5 bg-gray-900 text-white rounded-lg text-[10px] sm:text-xs font-semibold hover:bg-gray-800 transition">Appliquer</button>
-              </div>
+            {tab === 'transactions' && (
+              <Link to="/ecom/transactions/new"
+                className="inline-flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[13px] font-semibold shadow-sm shadow-emerald-200 transition-all active:scale-95">
+                <Ico d={I.plus} className="w-4 h-4"/>Nouvelle transaction
+              </Link>
+            )}
+            {tab === 'budgets' && (
+              <button
+                onClick={()=>{setShowBudgetForm(true);setEditingBudget(null);setBudgetForm({name:'',category:'publicite',amount:'',productId:'',month:budgetMonth});loadProducts();}}
+                className="inline-flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[13px] font-semibold shadow-sm shadow-emerald-200 transition-all active:scale-95">
+                <Ico d={I.plus} className="w-4 h-4"/>Nouveau budget
+              </button>
             )}
           </div>
         </div>
+      </div>
 
-        {/* Navigation */}
-        <div className="flex flex-wrap gap-0.5 mb-5 bg-white rounded-xl border border-gray-200/60 p-1">
+      <div className="flex-1 max-w-[1440px] mx-auto w-full px-4 sm:px-6 lg:px-8 py-5 space-y-4">
+
+        {/* ── Period selector ──────────────────────────────────── */}
+        <div className="bg-white border border-gray-100 rounded-xl p-1.5 shadow-sm flex flex-wrap items-center gap-1">
+          {PERIODS.filter(p=>p.id!=='custom').map(p=>(
+            <button key={p.id} onClick={()=>handlePeriod(p.id)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                period===p.id
+                  ? 'bg-gray-900 text-white shadow-sm'
+                  : 'text-gray-400 hover:bg-gray-100 hover:text-gray-700'
+              }`}>{p.label}</button>
+          ))}
+          <button onClick={()=>handlePeriod('custom')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+              period==='custom' ? 'bg-gray-900 text-white shadow-sm' : 'text-gray-400 hover:bg-gray-100 hover:text-gray-700'
+            }`}>
+            <Ico d={I.cal} className="w-3 h-3"/>Personnalisé
+          </button>
+          {showCustom && (
+            <div className="w-full flex flex-wrap items-center gap-2 pt-2 border-t border-gray-100 mt-1">
+              <span className="text-[11px] font-semibold text-gray-400">Du</span>
+              <input type="date" value={customDates.startDate} onChange={e=>setCustomDates(p=>({...p,startDate:e.target.value}))}
+                className="px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs bg-gray-50 focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400"/>
+              <span className="text-[11px] font-semibold text-gray-400">au</span>
+              <input type="date" value={customDates.endDate} onChange={e=>setCustomDates(p=>({...p,endDate:e.target.value}))}
+                className="px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs bg-gray-50 focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400"/>
+              <button onClick={()=>loadTab()}
+                className="px-3 py-1.5 bg-gray-900 text-white rounded-lg text-xs font-semibold hover:bg-gray-800 transition">
+                Appliquer
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* ── Navigation tabs ──────────────────────────────────── */}
+        <div className="bg-white border border-gray-100 rounded-xl p-1 shadow-sm flex flex-wrap gap-0.5">
           {NAV.map(n=>(
             <button key={n.id} onClick={()=>setTab(n.id)}
-              className={`flex items-center gap-2 px-3 py-2 rounded-lg text-[13px] font-semibold transition-all whitespace-nowrap ${
-                tab===n.id ? 'bg-gray-900 text-white shadow-sm' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-[13px] font-semibold transition-all whitespace-nowrap ${
+                tab===n.id
+                  ? 'bg-gray-900 text-white shadow-sm'
+                  : 'text-gray-400 hover:text-gray-700 hover:bg-gray-50'
               }`}>
               <NavIcon d={n.ico}/>{n.label}
             </button>
@@ -393,7 +407,7 @@ const TransactionsList = () => {
         </div>
 
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-5 text-sm font-medium flex items-center gap-2.5">
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm font-medium flex items-center gap-2.5">
             <Ico d={I.alert} className="w-4 h-4 flex-shrink-0"/>{error}
           </div>
         )}
@@ -402,11 +416,11 @@ const TransactionsList = () => {
           <TransactionSkeleton />
         ) : (
           <>
-            {tab === 'overview' && <OverviewTab summary={summary} budgets={budgets} budgetSummary={budgetSummary} forecast={forecast} fmt={fmt} fmtC={fmtCompact} setTab={setTab} periodLabel={periodLabel} pStart={pStart} pEnd={pEnd}/>}
-            {tab === 'transactions' && <TransactionsTab transactions={transactions} summary={summary} balance={bal} filters={filters} setFilters={setFilters} handleDelete={handleDelete} fmt={fmt} fmtCompact={fmtCompact} periodLabel={periodLabel}/>}
-            {tab === 'budgets' && <BudgetsTab budgets={budgets} budgetSummary={budgetSummary} showBudgetForm={showBudgetForm} setShowBudgetForm={setShowBudgetForm} editingBudget={editingBudget} setEditingBudget={setEditingBudget} budgetForm={budgetForm} setBudgetForm={setBudgetForm} handleBudgetSubmit={handleBudgetSubmit} handleDeleteBudget={handleDeleteBudget} products={products} fmt={fmt} fmtC={fmtCompact} budgetMonth={budgetMonth} setBudgetMonth={setBudgetMonth} loadProducts={loadProducts}/>}
-            {tab === 'analyse' && <AnalyseTab accountingSummary={accountingSummary} fmt={fmt} fmtC={fmtCompact} periodLabel={periodLabel} pStart={pStart} pEnd={pEnd}/>}
-            {tab === 'previsions' && <PrevisionsTab forecast={forecast} fmt={fmt} fmtC={fmtCompact}/>}
+            {tab === 'overview'      && <OverviewTab summary={summary} budgets={budgets} budgetSummary={budgetSummary} forecast={forecast} fmt={fmt} fmtC={fmtCompact} setTab={setTab} periodLabel={periodLabel} pStart={pStart} pEnd={pEnd}/>}
+            {tab === 'transactions'  && <TransactionsTab transactions={transactions} summary={summary} balance={bal} filters={filters} setFilters={setFilters} handleDelete={handleDelete} fmt={fmt} fmtCompact={fmtCompact} periodLabel={periodLabel}/>}
+            {tab === 'budgets'       && <BudgetsTab budgets={budgets} budgetSummary={budgetSummary} showBudgetForm={showBudgetForm} setShowBudgetForm={setShowBudgetForm} editingBudget={editingBudget} setEditingBudget={setEditingBudget} budgetForm={budgetForm} setBudgetForm={setBudgetForm} handleBudgetSubmit={handleBudgetSubmit} handleDeleteBudget={handleDeleteBudget} products={products} fmt={fmt} fmtC={fmtCompact} budgetMonth={budgetMonth} setBudgetMonth={setBudgetMonth} loadProducts={loadProducts}/>}
+            {tab === 'analyse'       && <AnalyseTab accountingSummary={accountingSummary} fmt={fmt} fmtC={fmtCompact} periodLabel={periodLabel} pStart={pStart} pEnd={pEnd}/>}
+            {tab === 'previsions'    && <PrevisionsTab forecast={forecast} fmt={fmt} fmtC={fmtCompact}/>}
           </>
         )}
       </div>
@@ -425,193 +439,199 @@ const OverviewTab = ({ summary, budgets, forecast, fmt, fmtC, setTab, periodLabe
   const scoreStroke = score>=70?'#059669':score>=40?'#d97706':'#ef4444';
   const orders = f.orders||{};
   const topBudgets = budgets.slice(0,3);
-  const alerts = (f.budgetAlerts||[]).slice(0,3);
-  const recs = (f.recommendations||[]).slice(0,3);
+  const alerts = (f.budgetAlerts||[]).slice(0,2);
+  const recs = (f.recommendations||[]).slice(0,2);
 
   return (
-    <div className="space-y-5">
-      {/* Period banner */}
-      <div className="flex items-center gap-2.5 px-4 py-2.5 bg-gray-100/80 border border-gray-200/60 rounded-xl">
-        <Ico d={I.cal} className="w-4 h-4 text-gray-400 flex-shrink-0"/>
-        <span className="text-xs font-semibold text-gray-600">{periodLabel}</span>
-        <span className="text-xs text-gray-400">{fmtDateShort(pStart)} — {fmtDateFull(pEnd)}</span>
-      </div>
-
+    <div className="space-y-4">
       {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <Metric label="Entrées" value={fmt(summary.totalIncome)} mobileValue={fmtC(summary.totalIncome)} sub={`${summary.incomeCount||0} transactions`} icon={I.trend} color="text-emerald-600" iconBg="bg-emerald-50"/>
-        <Metric label="Dépenses" value={fmt(summary.totalExpense)} mobileValue={fmtC(summary.totalExpense)} sub={`${summary.expenseCount||0} transactions`} icon={I.down} color="text-red-500" iconBg="bg-red-50"/>
-        <Metric label="Solde net" value={fmt(bal)} mobileValue={fmtC(bal)} sub={bal>=0?'Excédentaire':'Déficitaire'} icon={I.wallet} color={bal>=0?'text-emerald-600':'text-red-500'} iconBg={bal>=0?'bg-emerald-50':'bg-red-50'}/>
-        <Metric label="Santé" value={`${score}/100`} sub={f.healthLabel||'—'} icon={I.heart} color={scoreColor} iconBg="bg-gray-100"/>
+        {/* Entrées */}
+        <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
+          <div className="flex items-start justify-between mb-3">
+            <div className="w-9 h-9 rounded-xl bg-emerald-50 flex items-center justify-center">
+              <Ico d={I.trend} className="w-4.5 h-4.5 text-emerald-600"/>
+            </div>
+            <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">{summary.incomeCount||0} tx</span>
+          </div>
+          <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">Entrées</p>
+          <p className="text-xl font-bold text-gray-900 tabular-nums leading-tight">{fmtC(summary.totalIncome)}</p>
+          <p className="text-[11px] text-gray-400 mt-0.5 hidden sm:block tabular-nums">{fmt(summary.totalIncome)}</p>
+        </div>
+        {/* Dépenses */}
+        <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
+          <div className="flex items-start justify-between mb-3">
+            <div className="w-9 h-9 rounded-xl bg-red-50 flex items-center justify-center">
+              <Ico d={I.down} className="w-4.5 h-4.5 text-red-500"/>
+            </div>
+            <span className="text-[10px] font-bold text-red-600 bg-red-50 px-2 py-0.5 rounded-full">{summary.expenseCount||0} tx</span>
+          </div>
+          <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">Dépenses</p>
+          <p className="text-xl font-bold text-gray-900 tabular-nums leading-tight">{fmtC(summary.totalExpense)}</p>
+          <p className="text-[11px] text-gray-400 mt-0.5 hidden sm:block tabular-nums">{fmt(summary.totalExpense)}</p>
+        </div>
+        {/* Solde */}
+        <div className={`border rounded-2xl p-4 shadow-sm ${bal>=0?'bg-emerald-50 border-emerald-100':'bg-red-50 border-red-100'}`}>
+          <div className="flex items-start justify-between mb-3">
+            <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${bal>=0?'bg-emerald-100':'bg-red-100'}`}>
+              <Ico d={I.wallet} className={`w-4.5 h-4.5 ${bal>=0?'text-emerald-700':'text-red-600'}`}/>
+            </div>
+            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${bal>=0?'bg-emerald-100 text-emerald-700':'bg-red-100 text-red-700'}`}>
+              {bal>=0?'Excédent':'Déficit'}
+            </span>
+          </div>
+          <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-0.5">Solde net</p>
+          <p className={`text-xl font-bold tabular-nums leading-tight ${bal>=0?'text-emerald-700':'text-red-700'}`}>{fmtC(bal)}</p>
+          <p className={`text-[11px] mt-0.5 hidden sm:block tabular-nums ${bal>=0?'text-emerald-600':'text-red-600'}`}>{fmt(bal)}</p>
+        </div>
+        {/* Santé */}
+        <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
+          <div className="flex items-start justify-between mb-3">
+            <div className="w-9 h-9 rounded-xl bg-gray-50 flex items-center justify-center">
+              <Ico d={I.heart} className={`w-4.5 h-4.5 ${scoreColor}`}/>
+            </div>
+            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${score>=70?'bg-emerald-50 text-emerald-700':score>=40?'bg-amber-50 text-amber-700':'bg-red-50 text-red-700'}`}>
+              {f.healthLabel||'—'}
+            </span>
+          </div>
+          <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">Santé financière</p>
+          <div className="flex items-end gap-2">
+            <p className={`text-xl font-bold tabular-nums leading-tight ${scoreColor}`}>{score}</p>
+            <p className="text-xs text-gray-400 mb-0.5">/100</p>
+          </div>
+          <div className="mt-2 w-full bg-gray-100 rounded-full h-1.5">
+            <div className="h-1.5 rounded-full transition-all" style={{width:`${score}%`,backgroundColor:scoreStroke}}/>
+          </div>
+        </div>
       </div>
 
-      {/* Alerte: Montant en caisse insuffisant */}
-      {(() => {
-        const totalIncome = summary.totalIncome || 0;
-        const totalExpense = summary.totalExpense || 0;
-        const cashBalance = bal;
-        const minCashRequired = totalIncome * 0.30;
-        const expenseRatio = totalIncome > 0 ? (totalExpense / totalIncome * 100) : 0;
-        
-        if (totalIncome > 0 && cashBalance < minCashRequired) {
-          return (
-            <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-3 mt-4">
-              <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center flex-shrink-0">
-                <Ico d={I.alert} className="w-5 h-5 text-red-600"/>
-              </div>
-              <div className="flex-1 min-w-0">
-                <h4 className="text-sm font-bold text-red-900 mb-1">🚨 Alerte : Déséquilibre financier critique</h4>
-                <p className="text-xs text-red-700 leading-relaxed">
-                  Vos dépenses ({fmt(totalExpense)}) représentent <strong>{expenseRatio.toFixed(0)}%</strong> de vos entrées. 
-                  Vous avez trop dépensé par rapport à vos revenus. Il est recommandé de maintenir au moins <strong>30%</strong> des entrées en caisse.
-                  <br/>
-                  <span className="text-[11px] opacity-90 mt-1 block">
-                    Entrées: {fmt(totalIncome)} • Sorties: {fmt(totalExpense)} • Caisse: {fmt(cashBalance)} • Min. requis: {fmt(minCashRequired)}
-                  </span>
-                </p>
-                <button 
-                  onClick={() => setTab('transactions')} 
-                  className="mt-2 text-xs font-semibold text-red-700 hover:text-red-900 underline"
-                >
-                  Voir les transactions →
-                </button>
-              </div>
-            </div>
-          );
-        }
-        return null;
-      })()}
-
-      {/* Row 2: Score + Orders + Budgets */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <Card className="p-5">
-          <SectionTitle>Santé financière</SectionTitle>
-          <div className="flex items-center gap-5 mb-4">
-            <div className="relative w-20 h-20 flex-shrink-0">
-              <svg className="w-20 h-20 -rotate-90" viewBox="0 0 36 36">
-                <path d="M18 2.0845a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#f3f4f6" strokeWidth="3"/>
-                <path d="M18 2.0845a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke={scoreStroke} strokeWidth="3" strokeDasharray={`${score}, 100`} strokeLinecap="round"/>
-              </svg>
-              <div className="absolute inset-0 flex items-center justify-center"><span className={`text-xl font-bold ${scoreColor}`}>{score}</span></div>
-            </div>
-            <div className="min-w-0">
-              <p className={`text-base font-bold ${scoreColor}`}>{f.healthLabel||'—'}</p>
-              <div className="mt-2 space-y-1 text-xs text-gray-400">
-                <div className="flex justify-between gap-4"><span>Dép./jour</span><span className="text-red-500 font-semibold">{fmtC(f.dailyExpenseRate)}</span></div>
-                <div className="flex justify-between gap-4"><span>Ent./jour</span><span className="text-emerald-600 font-semibold">{fmtC(f.dailyIncomeRate)}</span></div>
-              </div>
-            </div>
-          </div>
-          <div className="bg-gray-50 rounded-lg p-3">
-            <div className="flex justify-between text-[11px] text-gray-400 mb-1.5 font-medium"><span>Avancement</span><span>{f.daysPassed||0}/{f.daysInMonth||30}j</span></div>
-            <div className="w-full bg-gray-200 rounded-full h-1.5"><div className="h-1.5 rounded-full bg-gray-900 transition-all" style={{width:`${f.daysInMonth>0?(f.daysPassed/f.daysInMonth*100):0}%`}}/></div>
-          </div>
-        </Card>
-
-        <Card className="p-5">
-          <SectionTitle>Commandes</SectionTitle>
-          <div className="grid grid-cols-3 gap-2 mb-4">
-            <div className="text-center bg-gray-50 rounded-lg p-3">
-              <p className="text-xl font-bold text-gray-900">{orders.thisMonth||0}</p>
-              <p className="text-[10px] text-gray-400 font-medium mt-0.5">Total</p>
-              {orders.growth!==undefined && <p className={`text-[10px] font-bold mt-0.5 ${varColor(orders.growth)}`}>{arr(orders.growth)} {Math.abs(orders.growth)}%</p>}
-            </div>
-            <div className="text-center bg-gray-50 rounded-lg p-3">
-              <p className="text-xl font-bold text-emerald-600 truncate">{fmtC(orders.revenueThisMonth)}</p>
-              <p className="text-[10px] text-gray-400 font-medium mt-0.5">CA</p>
-            </div>
-            <div className="text-center bg-gray-50 rounded-lg p-3">
-              <p className="text-xl font-bold text-gray-900">{orders.deliveryRate||0}%</p>
-              <p className="text-[10px] text-gray-400 font-medium mt-0.5">Livraison</p>
-            </div>
-          </div>
-          {(orders.byStatus||[]).length>0 && (
-            <div className="space-y-1.5">
-              {(orders.byStatus||[]).slice(0,4).map((s,idx)=>{
-                const total = orders.thisMonth||1;
-                const pct = Math.round(s.count/total*100);
-                const colors = {delivered:'bg-emerald-500',pending:'bg-amber-400',confirmed:'bg-emerald-600',shipped:'bg-emerald-600',returned:'bg-red-400',no_answer:'bg-orange-400',cancelled:'bg-gray-400'};
-                return (
-                  <div key={idx} className="flex items-center gap-2 text-xs">
-                    <span className="w-20 text-gray-500 truncate font-medium">{STATUS_LABELS[s.status]||s.status}</span>
-                    <div className="flex-1 bg-gray-100 rounded-full h-1.5"><div className={`h-1.5 rounded-full ${colors[s.status]||'bg-gray-300'}`} style={{width:`${pct}%`}}/></div>
-                    <span className="text-gray-600 font-semibold w-6 text-right">{s.count}</span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </Card>
-
-        <Card className="p-5">
-          <SectionTitle action={<button onClick={()=>setTab('budgets')} className="text-xs text-gray-500 font-semibold hover:text-gray-900 transition">Tout voir</button>}>Budgets</SectionTitle>
-          {topBudgets.length===0 ? (
-            <EmptyState icon={I.target} title="Aucun budget défini" sub="Créez des budgets pour suivre vos dépenses"
-              action={<button onClick={()=>setTab('budgets')} className="text-xs text-gray-900 font-semibold hover:underline">Créer un budget</button>}/>
-          ) : (
-            <div className="space-y-3">
-              {topBudgets.map(b=>{
-                const pct = b.percentage||0;
-                const barColor = pct>100?'bg-red-500':pct>=70?'bg-amber-400':'bg-emerald-500';
-                return (
-                  <div key={b._id}>
-                    <div className="flex justify-between items-center mb-1">
-                      <span className="text-sm font-medium text-gray-700 truncate">{b.name}</span>
-                      <span className={`text-xs font-bold ${pct>100?'text-red-500':pct>=70?'text-amber-600':'text-emerald-600'}`}>{pct.toFixed(0)}%</span>
-                    </div>
-                    <div className="w-full bg-gray-100 rounded-full h-1.5"><div className={`h-1.5 rounded-full transition-all ${barColor}`} style={{width:`${Math.min(pct,100)}%`}}/></div>
-                    <div className="flex justify-between text-[10px] text-gray-400 mt-1"><span>{fmtC(b.totalSpent)}</span><span>{fmtC(b.amount)}</span></div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </Card>
-      </div>
-
-      {/* Row 3: Projections + Alerts */}
+      {/* Row 2: Commandes */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card className="p-5">
-          <SectionTitle action={<button onClick={()=>setTab('previsions')} className="text-xs text-gray-500 font-semibold hover:text-gray-900 transition">Analyse IA</button>}>Projections fin de mois</SectionTitle>
-          <div className="grid grid-cols-3 gap-3">
+          <SectionTitle>Commandes ce mois</SectionTitle>
+          <div className="grid grid-cols-3 gap-2">
             {[
-              {label:'Dépenses', value:fmtC(f.projectedExpense), vs:f.expenseVsAvg, color:'text-red-500', bg:'bg-red-50', inv:true},
-              {label:'Entrées', value:fmtC(f.projectedIncome), vs:f.incomeVsAvg, color:'text-emerald-600', bg:'bg-emerald-50'},
-              {label:'Solde', value:fmtC(f.projectedBalance), color:(f.projectedBalance||0)>=0?'text-emerald-600':'text-red-500', bg:(f.projectedBalance||0)>=0?'bg-emerald-50':'bg-red-50', sub:`${f.daysLeft||0}j restants`},
+              {label:'Total', value:orders.thisMonth||0, sub: orders.growth!==undefined?`${arr(orders.growth)} ${Math.abs(orders.growth)}%`:null, subColor:varColor(orders.growth||0)},
+              {label:'CA', value:fmtC(orders.revenueThisMonth), color:'text-emerald-700'},
+              {label:'Livraison', value:`${orders.deliveryRate||0}%`},
+            ].map(c=>(
+              <div key={c.label} className="bg-gray-50 rounded-xl p-3 text-center">
+                <p className="text-[10px] text-gray-400 font-semibold uppercase">{c.label}</p>
+                <p className={`text-lg font-bold mt-0.5 tabular-nums ${c.color||'text-gray-900'}`}>{c.value}</p>
+                {c.sub && <p className={`text-[10px] font-bold ${c.subColor}`}>{c.sub}</p>}
+              </div>
+            ))}
+          </div>
+        </Card>
+        <Card className="p-5">
+          <SectionTitle>Avancement du mois</SectionTitle>
+          <div className="grid grid-cols-2 gap-3 mb-4">
+            {[
+              {label:'Dép. / jour', value:fmtC(f.dailyExpenseRate), color:'text-red-600', bg:'bg-red-50'},
+              {label:'Ent. / jour',  value:fmtC(f.dailyIncomeRate),  color:'text-emerald-700', bg:'bg-emerald-50'},
+            ].map(m=>(
+              <div key={m.label} className={`${m.bg} rounded-xl p-3.5`}>
+                <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">{m.label}</p>
+                <p className={`text-lg font-bold tabular-nums mt-0.5 ${m.color}`}>{m.value}</p>
+              </div>
+            ))}
+          </div>
+          <div className="bg-gray-50 rounded-xl p-3">
+            <div className="flex justify-between text-[11px] font-semibold text-gray-400 mb-1.5">
+              <span>{f.daysPassed||0} / {f.daysInMonth||30} jours</span>
+              <span>{Math.round(f.daysInMonth>0?(f.daysPassed/f.daysInMonth*100):0)}%</span>
+            </div>
+            <div className="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
+              <div className="h-1.5 rounded-full bg-gray-800 transition-all"
+                style={{width:`${f.daysInMonth>0?(f.daysPassed/f.daysInMonth*100):0}%`}}/>
+            </div>
+          </div>
+        </Card>
+      </div>
+
+      {/* Row 3: Projections + Budgets + Alertes */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+
+        {/* Projections */}
+        <Card className="p-5">
+          <SectionTitle action={
+            <button onClick={()=>setTab('previsions')} className="text-[11px] font-semibold text-gray-400 hover:text-gray-700 transition">
+              Prévisions IA →
+            </button>
+          }>Projections fin de mois</SectionTitle>
+          <div className="space-y-2.5">
+            {[
+              {label:'Dépenses',  value:fmtC(f.projectedExpense),  color:'text-red-600',     bg:'bg-red-50'},
+              {label:'Entrées',   value:fmtC(f.projectedIncome),   color:'text-emerald-700', bg:'bg-emerald-50'},
+              {label:'Solde',     value:fmtC(f.projectedBalance),  color:(f.projectedBalance||0)>=0?'text-emerald-700':'text-red-600', bg:(f.projectedBalance||0)>=0?'bg-emerald-50':'bg-red-50'},
             ].map((p,idx)=>(
-              <div key={idx} className={`${p.bg} rounded-xl p-3 text-center`}>
-                <p className="text-[10px] text-gray-500 font-semibold uppercase">{p.label}</p>
-                <p className={`text-base font-bold mt-1 ${p.color}`}>{p.value}</p>
-                {p.vs!==undefined && <p className={`text-[10px] font-bold ${p.inv?varColorInv(p.vs):varColor(p.vs)}`}>{p.vs>0?'+':''}{p.vs}% vs moy.</p>}
-                {p.sub && <p className="text-[10px] text-gray-400">{p.sub}</p>}
+              <div key={idx} className={`flex items-center justify-between px-3.5 py-3 rounded-xl ${p.bg}`}>
+                <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">{p.label}</p>
+                <p className={`text-base font-bold tabular-nums ${p.color}`}>{p.value}</p>
               </div>
             ))}
           </div>
         </Card>
 
+        {/* Budgets */}
         <Card className="p-5">
-          <SectionTitle>Alertes</SectionTitle>
+          <SectionTitle action={
+            <button onClick={()=>setTab('budgets')} className="text-[11px] font-semibold text-gray-400 hover:text-gray-700 transition">
+              Tout voir →
+            </button>
+          }>Budgets</SectionTitle>
+          {topBudgets.length===0 ? (
+            <EmptyState icon={I.target} title="Aucun budget défini" sub="Créez des budgets pour suivre vos dépenses"
+              action={<button onClick={()=>setTab('budgets')} className="mt-1 px-3 py-1.5 bg-gray-900 text-white rounded-lg text-xs font-semibold hover:bg-gray-800 transition">Créer un budget</button>}/>
+          ) : (
+            <div className="space-y-3.5">
+              {topBudgets.map(b=>{
+                const pct = b.percentage||0;
+                const barColor = pct>100?'bg-red-500':pct>=70?'bg-amber-400':'bg-emerald-500';
+                const txtColor = pct>100?'text-red-600':pct>=70?'text-amber-700':'text-emerald-700';
+                return (
+                  <div key={b._id}>
+                    <div className="flex justify-between items-baseline mb-1.5">
+                      <span className="text-[13px] font-semibold text-gray-700 truncate max-w-[130px]">{b.name}</span>
+                      <span className={`text-xs font-bold tabular-nums ${txtColor}`}>{pct.toFixed(0)}%</span>
+                    </div>
+                    <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
+                      <div className={`h-1.5 rounded-full transition-all ${barColor}`} style={{width:`${Math.min(pct,100)}%`}}/>
+                    </div>
+                    <div className="flex justify-between text-[10px] text-gray-400 mt-1 tabular-nums">
+                      <span>{fmtC(b.totalSpent)}</span><span>{fmtC(b.amount)}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </Card>
+
+        {/* Alertes */}
+        <Card className="p-5">
+          <SectionTitle>Alertes & Conseils</SectionTitle>
           {alerts.length===0 && recs.length===0 ? (
             <EmptyState icon={I.check} title="Aucune alerte" sub="Tout est sous contrôle"/>
           ) : (
-            <div className="space-y-2 max-h-52 overflow-y-auto">
+            <div className="space-y-2 max-h-[220px] overflow-y-auto pr-0.5">
               {alerts.map((a,idx)=>(
-                <div key={`a${idx}`} className={`flex items-center gap-3 p-3 rounded-xl border ${a.severity==='critical'?'bg-red-50 border-red-200':'bg-amber-50 border-amber-200'}`}>
-                  <Ico d={I.alert} className={`w-4 h-4 flex-shrink-0 ${a.severity==='critical'?'text-red-500':'text-amber-500'}`}/>
-                  <div className="min-w-0 flex-1">
-                    <p className={`text-xs font-bold ${a.severity==='critical'?'text-red-700':'text-amber-700'}`}>{a.name}</p>
-                    <p className="text-[10px] text-gray-500">{a.percentage}% utilisé — Projeté : {a.projectedPercentage}%</p>
+                <div key={`a${idx}`} className={`flex gap-2.5 p-3 rounded-xl border ${a.severity==='critical'?'bg-red-50 border-red-200':'bg-amber-50 border-amber-200'}`}>
+                  <Ico d={I.alert} className={`w-4 h-4 mt-0.5 flex-shrink-0 ${a.severity==='critical'?'text-red-500':'text-amber-500'}`}/>
+                  <div className="min-w-0">
+                    <p className={`text-xs font-bold leading-tight ${a.severity==='critical'?'text-red-700':'text-amber-700'}`}>{a.name}</p>
+                    <p className="text-[10px] text-gray-500 mt-0.5">{a.percentage}% utilisé — Projeté : {a.projectedPercentage}%</p>
                   </div>
                 </div>
               ))}
               {recs.map((r,idx)=>{
                 const cfg = SEV_CFG[r.type]||SEV_CFG.info;
                 return (
-                  <div key={`r${idx}`} className={`flex items-center gap-3 p-3 rounded-xl border ${cfg.bg}`}>
-                    <Ico d={r.type==='critical'?I.alert:r.type==='warning'?I.alert:r.type==='success'?I.check:I.ai} className={`w-4 h-4 flex-shrink-0 ${cfg.text}`}/>
-                    <div className="min-w-0 flex-1">
-                      <p className={`text-xs font-bold ${cfg.text}`}>{r.title}</p>
-                      <p className="text-[10px] text-gray-500 truncate">{r.action}</p>
+                  <div key={`r${idx}`} className={`flex gap-2.5 p-3 rounded-xl border ${cfg.bg}`}>
+                    <Ico d={r.type==='critical'||r.type==='warning'?I.alert:r.type==='success'?I.check:I.ai} className={`w-4 h-4 mt-0.5 flex-shrink-0 ${cfg.text}`}/>
+                    <div className="min-w-0">
+                      <p className={`text-xs font-bold leading-tight ${cfg.text}`}>{r.title}</p>
+                      <p className="text-[10px] text-gray-500 mt-0.5 line-clamp-2">{r.action}</p>
                     </div>
                   </div>
                 );
@@ -621,27 +641,6 @@ const OverviewTab = ({ summary, budgets, forecast, fmt, fmtC, setTab, periodLabe
         </Card>
       </div>
 
-      {/* Quick actions */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {[
-          {label:'Nouvelle transaction', href:'/ecom/transactions/new', icon:I.plus, bg:'bg-gray-50 hover:bg-gray-100 border-gray-200'},
-          {label:'Gérer les budgets', tab:'budgets', icon:I.target, bg:'bg-gray-50 hover:bg-gray-100 border-gray-200'},
-          {label:'Voir l\'analyse', tab:'analyse', icon:I.chart, bg:'bg-gray-50 hover:bg-gray-100 border-gray-200'},
-          {label:'Prévisions IA', tab:'previsions', icon:I.bolt, bg:'bg-gray-50 hover:bg-gray-100 border-gray-200'},
-        ].map((a,idx)=>(
-          a.href ? (
-            <Link key={idx} to={a.href} className={`flex items-center gap-3 p-4 rounded-xl border transition-colors ${a.bg}`}>
-              <div className="w-9 h-9 rounded-lg bg-white border border-gray-200 flex items-center justify-center flex-shrink-0"><Ico d={a.icon} className="w-4 h-4 text-gray-600"/></div>
-              <span className="text-[13px] font-semibold text-gray-700">{a.label}</span>
-            </Link>
-          ) : (
-            <button key={idx} onClick={()=>setTab(a.tab)} className={`flex items-center gap-3 p-4 rounded-xl border transition-colors text-left ${a.bg}`}>
-              <div className="w-9 h-9 rounded-lg bg-white border border-gray-200 flex items-center justify-center flex-shrink-0"><Ico d={a.icon} className="w-4 h-4 text-gray-600"/></div>
-              <span className="text-[13px] font-semibold text-gray-700">{a.label}</span>
-            </button>
-          )
-        ))}
-      </div>
     </div>
   );
 };
@@ -1096,95 +1095,6 @@ const AnalyseTab = ({ accountingSummary, fmt, fmtC, periodLabel, pStart, pEnd })
         <Metric label="Mois précédent" value={fmt(lastBal)} mobileValue={fmtC(lastBal)} sub={lastBal>=0?'Excédentaire':'Déficitaire'} icon={I.cal} color={lastBal>=0?'text-emerald-600':'text-red-500'} iconBg="bg-gray-100"/>
       </div>
 
-      {/* Analyse Stratégique */}
-      {(() => {
-        const categoryBreakdown = a.categoryBreakdown || [];
-        const totalIncome = a.totalIncome || 0;
-        const totalExpense = a.totalExpenses || 0;
-        
-        if (categoryBreakdown.length === 0) return null;
-        
-        // Filtrer par type
-        const expensesByCat = categoryBreakdown.filter(c => c._id.type === 'expense').sort((a, b) => b.total - a.total);
-        const incomeByCat = categoryBreakdown.filter(c => c._id.type === 'income').sort((a, b) => b.total - a.total);
-        
-        // Top catégories
-        const topExpense = expensesByCat[0];
-        const topExpenseName = topExpense ? (CAT[topExpense._id.category] || topExpense._id.category) : '';
-        const topExpensePct = totalExpense > 0 && topExpense ? (topExpense.total / totalExpense * 100) : 0;
-        
-        // Analyse stratégique
-        const pubExpense = expensesByCat.find(c => c._id.category === 'publicite');
-        const productExpense = expensesByCat.find(c => c._id.category === 'produit');
-        const livraisonExpense = expensesByCat.find(c => c._id.category === 'livraison');
-        
-        const pubRatio = totalIncome > 0 && pubExpense ? (pubExpense.total / totalIncome * 100) : 0;
-        const productRatio = totalIncome > 0 && productExpense ? (productExpense.total / totalIncome * 100) : 0;
-        const livraisonRatio = totalIncome > 0 && livraisonExpense ? (livraisonExpense.total / totalIncome * 100) : 0;
-        
-        // Déterminer les alertes stratégiques
-        const insights = [];
-        if (pubRatio > 30) insights.push({ type: 'warning', text: `Publicité: ${pubRatio.toFixed(0)}% des entrées - optimiser vos campagnes` });
-        if (productRatio > 50) insights.push({ type: 'warning', text: `Coût produits: ${productRatio.toFixed(0)}% - renégocier les prix fournisseurs` });
-        if (livraisonRatio > 15) insights.push({ type: 'warning', text: `Livraison: ${livraisonRatio.toFixed(0)}% - revoir vos tarifs de livraison` });
-        if (topExpensePct > 40) insights.push({ type: 'info', text: `${topExpenseName} représente ${topExpensePct.toFixed(0)}% des dépenses` });
-        
-        // Calcul de marge estimée
-        const venteIncome = incomeByCat.find(c => c._id.category === 'vente');
-        const venteTotal = venteIncome?.total || 0;
-        const productCost = productExpense?.total || 0;
-        const livraisonCost = livraisonExpense?.total || 0;
-        const pubCost = pubExpense?.total || 0;
-        const estimatedMargin = venteTotal > 0 ? ((venteTotal - productCost - livraisonCost - pubCost) / venteTotal * 100) : 0;
-        
-        return (
-          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-4">
-            <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center flex-shrink-0">
-                <Ico d={I.chart} className="w-5 h-5 text-blue-600"/>
-              </div>
-              <div className="flex-1 min-w-0">
-                <h4 className="text-sm font-bold text-blue-900 mb-2">📊 Analyse stratégique</h4>
-                
-                {/* Répartition des dépenses */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
-                  {expensesByCat.slice(0, 4).map((cat, idx) => {
-                    const pct = totalExpense > 0 ? (cat.total / totalExpense * 100) : 0;
-                    const catName = CAT[cat._id.category] || cat._id.category;
-                    return (
-                      <div key={idx} className="bg-white/60 rounded-lg p-2">
-                        <p className="text-[10px] text-blue-600 font-semibold uppercase">{catName}</p>
-                        <p className="text-sm font-bold text-blue-900">{fmt(cat.total)}</p>
-                        <p className="text-[10px] text-blue-700">{pct.toFixed(0)}%</p>
-                      </div>
-                    );
-                  })}
-                </div>
-                
-                {/* Insights */}
-                {insights.length > 0 && (
-                  <div className="space-y-1 mb-3">
-                    {insights.map((insight, idx) => (
-                      <div key={idx} className={`flex items-center gap-2 text-xs ${insight.type === 'warning' ? 'text-amber-700' : 'text-blue-700'}`}>
-                        <span>{insight.type === 'warning' ? '⚠️' : '💡'}</span>
-                        <span>{insight.text}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                
-                {/* Marge estimée */}
-                <div className="bg-white/80 rounded-lg p-2 flex items-center justify-between">
-                  <span className="text-xs text-blue-700 font-medium">Marge nette estimée</span>
-                  <span className={`text-sm font-bold ${estimatedMargin >= 20 ? 'text-emerald-600' : estimatedMargin >= 10 ? 'text-amber-600' : 'text-red-600'}`}>
-                    {estimatedMargin.toFixed(1)}%
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
 
       {/* Category breakdowns */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

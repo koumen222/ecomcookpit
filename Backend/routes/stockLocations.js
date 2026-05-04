@@ -7,6 +7,18 @@ import { adjustStockLocationQuantity, StockAdjustmentError } from '../services/s
 
 const router = express.Router();
 
+const normalizeStockDate = (value) => {
+  if (!value) return new Date();
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
+
+  const raw = String(value).trim();
+  const parsed = /^\d{4}-\d{2}-\d{2}$/.test(raw)
+    ? new Date(`${raw}T12:00:00.000Z`)
+    : new Date(raw);
+
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
 // GET /api/ecom/stock-locations - Liste du stock par emplacement
 router.get('/',
   requireEcomAuth,
@@ -22,7 +34,7 @@ router.get('/',
       const entries = await StockLocation.find(filter)
         .populate('productId', 'name sellingPrice productCost')
         .populate('updatedBy', 'email')
-        .sort({ city: 1, agency: 1 });
+        .sort({ stockDate: -1, createdAt: -1, city: 1, agency: 1 });
 
       res.json({ success: true, data: entries });
     } catch (error) {
@@ -148,10 +160,15 @@ router.post('/',
   validateEcomAccess('products', 'write'),
   async (req, res) => {
     try {
-      const { productId, city, agency, quantity, unitCost, notes, sales } = req.body;
+      const { productId, city, agency, quantity, unitCost, notes, sales, stockDate: stockDateValue } = req.body;
 
-      if (!productId || quantity === undefined) {
-        return res.status(400).json({ success: false, message: 'Produit et quantité sont requis' });
+      if (!productId || quantity === undefined || !stockDateValue) {
+        return res.status(400).json({ success: false, message: 'Produit, date et quantité sont requis' });
+      }
+
+      const stockDate = normalizeStockDate(stockDateValue);
+      if (!stockDate) {
+        return res.status(400).json({ success: false, message: 'Date de stock invalide' });
       }
 
       // Vérifier que le produit existe
@@ -170,6 +187,7 @@ router.post('/',
         },
         {
           $set: {
+            stockDate,
             quantity: parseInt(quantity),
             unitCost: parseFloat(unitCost) || product.productCost || 0,
             sales: parseInt(sales) || 0,
@@ -210,9 +228,16 @@ router.put('/:id',
         return res.status(404).json({ success: false, message: 'Emplacement non trouvé' });
       }
 
-      const { city, agency, quantity, unitCost, notes, sales } = req.body;
+      const { city, agency, quantity, unitCost, notes, sales, stockDate: stockDateValue } = req.body;
       if (city !== undefined) entry.city = city.trim();
       if (agency !== undefined) entry.agency = (agency || '').trim();
+      if (stockDateValue !== undefined) {
+        const stockDate = normalizeStockDate(stockDateValue);
+        if (!stockDate) {
+          return res.status(400).json({ success: false, message: 'Date de stock invalide' });
+        }
+        entry.stockDate = stockDate;
+      }
       if (quantity !== undefined) entry.quantity = parseInt(quantity);
       if (unitCost !== undefined) entry.unitCost = parseFloat(unitCost);
       if (sales !== undefined) entry.sales = Math.max(0, parseInt(sales) || 0);

@@ -371,6 +371,50 @@ async function resolveRitaTargetUserId(req) {
   return String(req.ecomUser?._id || '');
 }
 
+async function buildWhatsAppInstanceScopeQuery(req, requestedUserId = '', { activeOnly = false } = {}) {
+  const requester = req.ecomUser;
+  if (!requester?._id) return null;
+
+  const isSuperAdmin = requester.role === 'super_admin';
+  const effectiveUserId = requestedUserId ? String(requestedUserId) : String(requester._id);
+
+  let query = { userId: isSuperAdmin ? effectiveUserId : String(requester._id) };
+
+  if (!isSuperAdmin && requester.workspaceId) {
+    const workspaceMembers = await EcomUser.find({ workspaceId: requester.workspaceId }).select('_id').lean();
+    const workspaceUserIds = workspaceMembers.map((userDoc) => String(userDoc._id));
+
+    query = {
+      $or: [
+        { workspaceId: requester.workspaceId },
+        { userId: { $in: workspaceUserIds } },
+      ],
+    };
+  }
+
+  if (activeOnly) {
+    return {
+      ...query,
+      isActive: true,
+    };
+  }
+
+  return query;
+}
+
+async function findAccessibleWhatsAppInstance(req, instanceId, options = {}) {
+  const scopeQuery = await buildWhatsAppInstanceScopeQuery(req, options.requestedUserId, {
+    activeOnly: options.activeOnly,
+  });
+
+  if (!scopeQuery) return null;
+
+  return WhatsAppInstance.findOne({
+    _id: instanceId,
+    ...scopeQuery,
+  });
+}
+
 function normalizeHeaderSecret(value) {
   if (Array.isArray(value)) {
     return String(value[0] || '').trim();
@@ -801,29 +845,25 @@ router.post('/verify-instance', async (req, res) => {
 /**
  * @route   DELETE /api/ecom/v1/  external/whatsapp/instances/:id
  * @desc    Supprimer une instance WhatsApp
- * @access  Public (Sécurisé par userId)
+ * @access  Private
  */
-router.delete('/instances/:id', async (req, res) => {
+router.delete('/instances/:id', requireEcomAuth, async (req, res) => {
   try {
     const { id } = req.params;
-    const { userId } = req.query;
-
-    if (!userId) {
-      return res.status(400).json({ success: false, error: "userId est requis" });
-    }
+    const requestedUserId = req.query.userId ? String(req.query.userId) : '';
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({ success: false, error: 'ID invalide' });
     }
 
-    const instance = await WhatsAppInstance.findOne({ _id: id, userId });
+    const instance = await findAccessibleWhatsAppInstance(req, id, { requestedUserId });
     if (!instance) {
       return res.status(404).json({ success: false, error: "Instance introuvable ou non autorisée" });
     }
 
     await WhatsAppInstance.findByIdAndDelete(id);
 
-    console.log(`🗑️ Instance WhatsApp supprimée : ${instance.instanceName} (user: ${userId})`);
+    console.log(`🗑️ Instance WhatsApp supprimée : ${instance.instanceName} (requestedBy: ${req.ecomUser?._id})`);
 
     res.status(200).json({
       success: true,
@@ -942,26 +982,11 @@ router.get('/instances', requireEcomAuth, async (req, res) => {
     const requestedUserId = req.query.userId ? String(req.query.userId) : String(requester._id);
     const isSuperAdmin = requester.role === 'super_admin';
 
-    // Non super-admin users must stay in their own workspace scope.
-    const effectiveUserId = isSuperAdmin ? requestedUserId : String(requester._id);
-
-    let query = { userId: effectiveUserId, isActive: true };
-
-    if (!isSuperAdmin && requester.workspaceId) {
-      const workspaceMembers = await EcomUser.find({ workspaceId: requester.workspaceId }).select('_id').lean();
-      const workspaceUserIds = workspaceMembers.map((u) => String(u._id));
-      query = {
-        isActive: true,
-        $or: [
-          { workspaceId: requester.workspaceId },
-          { userId: { $in: workspaceUserIds } },
-        ],
-      };
-    }
+    const query = await buildWhatsAppInstanceScopeQuery(req, requestedUserId, { activeOnly: true });
 
     const instances = await WhatsAppInstance.find(query);
 
-    console.log(`📋 [INSTANCES] Trouvé ${instances.length} instance(s) pour scope: ${isSuperAdmin ? `userId=${effectiveUserId}` : `workspaceId=${requester.workspaceId || 'N/A'}`}`);
+    console.log(`📋 [INSTANCES] Trouvé ${instances.length} instance(s) pour scope: ${isSuperAdmin ? `userId=${requestedUserId}` : `workspaceId=${requester.workspaceId || 'N/A'}`}`);
     instances.forEach(inst => {
       console.log(`   - ${inst.instanceName} | status: ${inst.status} | workspaceId: ${inst.workspaceId || 'N/A'}`);
     });
@@ -1021,24 +1046,8 @@ router.get('/instances/all', async (req, res) => {
  */
 router.post('/refresh-status', requireEcomAuth, async (req, res) => {
   try {
-    const requester = req.ecomUser;
-    const requestedUserId = req.body?.userId ? String(req.body.userId) : String(requester._id);
-    const isSuperAdmin = requester.role === 'super_admin';
-    const effectiveUserId = isSuperAdmin ? requestedUserId : String(requester._id);
-
-    let query = { userId: effectiveUserId, isActive: true };
-
-    if (!isSuperAdmin && requester.workspaceId) {
-      const workspaceMembers = await EcomUser.find({ workspaceId: requester.workspaceId }).select('_id').lean();
-      const workspaceUserIds = workspaceMembers.map((u) => String(u._id));
-      query = {
-        isActive: true,
-        $or: [
-          { workspaceId: requester.workspaceId },
-          { userId: { $in: workspaceUserIds } },
-        ],
-      };
-    }
+    const requestedUserId = req.body?.userId ? String(req.body.userId) : String(req.ecomUser._id);
+    const query = await buildWhatsAppInstanceScopeQuery(req, requestedUserId, { activeOnly: true });
 
     const instances = await WhatsAppInstance.find(query);
 
@@ -1084,16 +1093,15 @@ router.post('/refresh-status', requireEcomAuth, async (req, res) => {
  * @desc    Configurer le webhook Evolution API d'une instance
  * @access  Private
  */
-router.post('/instances/:id/webhook', async (req, res) => {
+router.post('/instances/:id/webhook', requireEcomAuth, async (req, res) => {
   try {
     const { id } = req.params;
     const { userId, enabled, url, webhookByEvents, webhookBase64, events } = req.body;
 
-    if (!userId) return res.status(400).json({ success: false, error: 'userId requis' });
     if (enabled && !url) return res.status(400).json({ success: false, error: 'URL requise pour activer le webhook' });
     if (enabled && (!events || events.length === 0)) return res.status(400).json({ success: false, error: 'Au moins un événement est requis' });
 
-    const instance = await WhatsAppInstance.findOne({ _id: id, userId });
+    const instance = await findAccessibleWhatsAppInstance(req, id, { requestedUserId: userId });
     if (!instance) return res.status(404).json({ success: false, error: 'Instance introuvable ou non autorisée' });
 
     const result = await evolutionApiService.setWebhook(instance.instanceName, instance.instanceToken, {
@@ -1120,14 +1128,12 @@ router.post('/instances/:id/webhook', async (req, res) => {
  * @desc    Récupérer la config webhook actuelle d'une instance
  * @access  Private
  */
-router.get('/instances/:id/webhook', async (req, res) => {
+router.get('/instances/:id/webhook', requireEcomAuth, async (req, res) => {
   try {
     const { id } = req.params;
-    const { userId } = req.query;
+    const requestedUserId = req.query.userId ? String(req.query.userId) : '';
 
-    if (!userId) return res.status(400).json({ success: false, error: 'userId requis' });
-
-    const instance = await WhatsAppInstance.findOne({ _id: id, userId });
+    const instance = await findAccessibleWhatsAppInstance(req, id, { requestedUserId });
     if (!instance) return res.status(404).json({ success: false, error: 'Instance introuvable ou non autorisée' });
 
     const result = await evolutionApiService.getWebhook(instance.instanceName, instance.instanceToken);
@@ -2916,18 +2922,14 @@ router.post('/incoming', async (req, res) => {
 /**
  * @route   GET /api/ecom/v1/external/whatsapp/instances/:id/usage
  * @desc    Consulter la consommation de messages d'une instance
- * @access  Public (Sécurisé par userId)
+ * @access  Private
  */
-router.get('/instances/:id/usage', async (req, res) => {
+router.get('/instances/:id/usage', requireEcomAuth, async (req, res) => {
   try {
     const { id } = req.params;
-    const { userId } = req.query;
+    const requestedUserId = req.query.userId ? String(req.query.userId) : '';
 
-    if (!userId) {
-      return res.status(400).json({ success: false, error: "userId est requis" });
-    }
-
-    const instance = await WhatsAppInstance.findOne({ _id: id, userId });
+    const instance = await findAccessibleWhatsAppInstance(req, id, { requestedUserId });
     if (!instance) {
       return res.status(404).json({ success: false, error: "Instance introuvable ou non autorisée" });
     }
@@ -2952,7 +2954,6 @@ router.get('/instances/:id/usage', async (req, res) => {
  */
 router.patch('/instances/:id/plan', requireEcomAuth, async (req, res) => {
   try {
-    const userId = req.ecomUser._id.toString();
     const role = req.ecomUser?.role;
     if (!['ecom_admin', 'super_admin'].includes(role)) {
       return res.status(403).json({ success: false, error: 'Action non autorisée' });
@@ -2964,7 +2965,7 @@ router.patch('/instances/:id/plan', requireEcomAuth, async (req, res) => {
       return res.status(400).json({ success: false, error: 'Plan invalide. Utilisez free, pro ou plus.' });
     }
 
-    const instance = await WhatsAppInstance.findOne({ _id: req.params.id, userId, isActive: true });
+    const instance = await findAccessibleWhatsAppInstance(req, req.params.id, { activeOnly: true });
     if (!instance) {
       return res.status(404).json({ success: false, error: 'Instance introuvable ou non autorisée' });
     }

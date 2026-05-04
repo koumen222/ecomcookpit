@@ -681,6 +681,11 @@ const AdminDashboard = () => {
     }
   ];
 
+  const topProductsPreview = (stats.products || []).slice(0, 5);
+  const maxDeliveredCount = Math.max(...topProductsPreview.map(product => product.ordersDelivered || 0), 1);
+  const lowStockProducts = stats.stockAlerts?.lowStockProducts?.slice(0, 5) || [];
+  const lowStockCount = stats.stockAlerts?.summary?.lowStockCount || 0;
+
   // Attendre le chargement de l'état boutique avant d'afficher le dashboard.
   if (storesLoading) {
     return <DashboardSkeleton />;
@@ -1013,60 +1018,103 @@ const AdminDashboard = () => {
         {/* Top Products & Stock Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Top Products */}
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sm:p-6 overflow-hidden">
-            <div className="flex items-center justify-between mb-4 sm:mb-6 gap-2">
-              <div className="min-w-0">
-                <h3 className="text-base sm:text-lg font-bold text-gray-900">� Top produits</h3>
-                <p className="text-xs sm:text-sm text-gray-500 hidden sm:block">Par nombre de ventes livrées</p>
+          <div className="relative overflow-hidden rounded-[28px] border border-emerald-100 bg-white p-4 shadow-sm shadow-emerald-100/60 sm:p-6">
+            <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-r from-emerald-50 via-white to-white" />
+            <div className="relative flex items-center justify-between mb-4 sm:mb-6 gap-3">
+              <div className="min-w-0 flex items-center gap-3">
+                <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700 shadow-sm shadow-emerald-100">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M7 17l4-4 3 3 5-6M7 7h10M7 12h6" />
+                  </svg>
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-base sm:text-lg font-bold text-gray-900">Top produits</h3>
+                  <p className="text-xs sm:text-sm text-gray-500">Par nombre de ventes livrées</p>
+                </div>
               </div>
-              <Link to="/ecom/stats/rapports" className="text-xs sm:text-sm text-emerald-600 hover:text-emerald-700 font-medium whitespace-nowrap flex-shrink-0">
-                Voir tout →
-              </Link>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <span className="hidden sm:inline-flex px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-[11px] font-bold">
+                  {topProductsPreview.length} visibles
+                </span>
+                <Link to="/ecom/reports" className="text-xs sm:text-sm text-emerald-600 hover:text-emerald-700 font-medium whitespace-nowrap">
+                  Voir tout →
+                </Link>
+              </div>
             </div>
-            <div className="space-y-2 sm:space-y-3">
+            <div className="relative space-y-3">
               {loadingSecondary ? (
                 [...Array(5)].map((_, i) => (
-                  <div key={i} className="flex items-center gap-3 p-3">
-                    <div className="w-9 h-9 rounded-xl bg-gray-200 animate-pulse flex-shrink-0" />
+                  <div key={i} className="flex items-center gap-3 rounded-2xl border border-emerald-100/70 bg-gradient-to-r from-emerald-50/70 to-white p-3.5">
+                    <div className="w-10 h-10 rounded-2xl bg-gray-200 animate-pulse flex-shrink-0" />
                     <div className="flex-1 space-y-1.5">
-                      <div className="h-3.5 w-32 bg-gray-200 rounded animate-pulse" />
-                      <div className="h-3 w-20 bg-gray-100 rounded animate-pulse" />
+                      <div className="h-3.5 w-40 bg-gray-200 rounded animate-pulse" />
+                      <div className="h-3 w-28 bg-gray-100 rounded animate-pulse" />
+                      <div className="h-1.5 w-full bg-gray-100 rounded-full animate-pulse" />
                     </div>
-                    <div className="space-y-1 text-right">
+                    <div className="space-y-1 text-right rounded-2xl border border-gray-100 bg-white px-3 py-2">
                       <div className="h-3.5 w-24 bg-gray-200 rounded animate-pulse" />
-                      <div className="h-3 w-16 bg-gray-100 rounded animate-pulse" />
+                      <div className="h-3 w-14 bg-gray-100 rounded animate-pulse" />
                     </div>
                   </div>
                 ))
-              ) : stats.products.slice(0, 5).map((product, i) => {
+              ) : topProductsPreview.map((product, i) => {
                 const deliveryRate = product.ordersReceived > 0
                   ? ((product.ordersDelivered / product.ordersReceived) * 100).toFixed(0)
                   : 0;
+                const deliveredRatio = Math.max(14, Math.round(((product.ordersDelivered || 0) / maxDeliveredCount) * 100));
                 return (
-                  <div key={product._id || i} className="flex items-center gap-2.5 sm:gap-4 p-2.5 sm:p-3 rounded-xl hover:bg-gray-50 transition">
-                    <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-emerald-600 to-emerald-700 text-white flex items-center justify-center font-bold text-xs sm:text-sm flex-shrink-0">
-                      {i + 1}
-                    </div>
-                    <div className="flex-1 min-w-0 overflow-hidden">
-                      <p className="font-medium text-sm text-gray-900 truncate">{product.productName || 'Produit inconnu'}</p>
-                      <div className="flex items-center gap-2 mt-0.5 text-[10px] sm:text-xs text-gray-500">
-                        <span className="text-emerald-600 font-medium">{product.ordersDelivered || 0} livrées</span>
-                        <span>•</span>
-                        <span>{deliveryRate}% livraison</span>
+                  <div key={product._id || i} className="rounded-2xl border border-emerald-100/70 bg-gradient-to-r from-emerald-50/80 via-white to-white p-3.5 shadow-sm shadow-emerald-100/50 transition hover:-translate-y-0.5 hover:shadow-md">
+                    <div className="flex items-start gap-3 sm:gap-4">
+                      <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-gradient-to-br from-emerald-600 to-emerald-700 text-white flex items-center justify-center font-bold text-sm flex-shrink-0 shadow-sm shadow-emerald-200">
+                        {i + 1}
                       </div>
-                    </div>
-                    <div className="text-right flex-shrink-0">
-                      <p className="text-xs sm:text-sm font-bold text-gray-900 whitespace-nowrap">{fmt(product.revenue || 0)}</p>
-                      <p className={`text-[10px] sm:text-xs font-medium ${(product.profit || 0) >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-                        {(product.profit || 0) >= 0 ? '+' : ''}{fmt(product.profit || 0)}
-                      </p>
+                      <div className="flex-1 min-w-0 overflow-hidden">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="font-semibold text-sm sm:text-[15px] text-gray-900 leading-5 break-words">{product.productName || 'Produit inconnu'}</p>
+                            <div className="flex flex-wrap items-center gap-1.5 mt-2 text-[10px] sm:text-xs">
+                              <span className="px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 font-semibold">
+                                {product.ordersDelivered || 0} livrées
+                              </span>
+                              <span className="px-2 py-1 rounded-full bg-gray-100 text-gray-500 font-medium">
+                                {deliveryRate}% livraison
+                              </span>
+                              <span className="px-2 py-1 rounded-full bg-gray-100 text-gray-500 font-medium">
+                                {product.ordersReceived || 0} reçues
+                              </span>
+                            </div>
+                          </div>
+                          <div className="text-right flex-shrink-0 rounded-2xl border border-gray-100 bg-white/90 px-3 py-2.5">
+                            <p className="text-sm sm:text-base font-bold text-gray-900 whitespace-nowrap">{fmt(product.revenue || 0)}</p>
+                            <p className={`mt-1 text-[10px] sm:text-xs font-semibold ${(product.profit || 0) >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                              {(product.profit || 0) >= 0 ? '+' : ''}{fmt(product.profit || 0)}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="mt-3 h-1.5 w-full rounded-full bg-emerald-100/80 overflow-hidden">
+                          <div
+                            className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-emerald-600"
+                            style={{ width: `${deliveredRatio}%` }}
+                          />
+                        </div>
+                        <div className="mt-1.5 flex items-center justify-between text-[10px] text-gray-400">
+                          <span>Volume livré</span>
+                          <span className="tabular-nums">{product.ordersDelivered || 0} / {maxDeliveredCount}</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 );
               })}
-              {!loadingSecondary && stats.products.length === 0 && (
-                <div className="text-center py-8">
-                  <p className="text-gray-400 mb-3">Aucune donnée de vente disponible</p>
+              {!loadingSecondary && topProductsPreview.length === 0 && (
+                <div className="rounded-3xl border border-dashed border-emerald-200 bg-emerald-50/70 px-6 py-10 text-center">
+                  <div className="w-14 h-14 bg-white rounded-2xl shadow-sm flex items-center justify-center mx-auto mb-4 text-emerald-600">
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M7 17l4-4 3 3 5-6M7 7h10M7 12h6" />
+                    </svg>
+                  </div>
+                  <p className="text-gray-700 font-semibold mb-1">Aucune donnée de vente disponible</p>
+                  <p className="text-sm text-gray-500 mb-4">Créez des rapports pour faire remonter les produits leaders.</p>
                   <Link to="/ecom/reports/new" className="text-emerald-600 hover:text-emerald-700 font-medium text-sm">
                     + Créer un rapport
                   </Link>
@@ -1076,71 +1124,121 @@ const AdminDashboard = () => {
           </div>
 
           {/* Stock Alerts */}
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sm:p-6 overflow-hidden">
-            <div className="flex items-center justify-between mb-4 sm:mb-6 gap-2">
-              <div className="min-w-0">
-                <h3 className="text-base sm:text-lg font-bold text-gray-900">Alertes stock</h3>
-                <p className="text-xs sm:text-sm text-gray-500 hidden sm:block">Produits nécessitant réapprovisionnement</p>
+          <div className="relative overflow-hidden rounded-[28px] border border-orange-100 bg-white p-4 shadow-sm shadow-orange-100/60 sm:p-6">
+            <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-r from-orange-50 via-white to-white" />
+            <div className="relative flex items-center justify-between mb-4 sm:mb-6 gap-3">
+              <div className="min-w-0 flex items-center gap-3">
+                <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl bg-orange-100 text-orange-700 shadow-sm shadow-orange-100">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 9v2m0 4h.01m-7.938 4h15.876c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.33 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-base sm:text-lg font-bold text-gray-900">Alertes stock</h3>
+                  <p className="text-xs sm:text-sm text-gray-500">Produits nécessitant réapprovisionnement</p>
+                </div>
               </div>
-              {stats.stockAlerts.summary?.lowStockCount > 0 && (
+              {lowStockCount > 0 && (
                 <span className="px-2.5 py-1 bg-red-100 text-red-700 rounded-full text-[10px] sm:text-xs font-bold whitespace-nowrap flex-shrink-0">
-                  {stats.stockAlerts.summary.lowStockCount} alertes
+                  {lowStockCount} alertes
                 </span>
               )}
             </div>
 
             {loadingSecondary ? (
-              <div className="space-y-2.5">
+              <div className="space-y-3">
                 {[...Array(4)].map((_, i) => (
-                  <div key={i} className="flex items-center gap-3 p-3 rounded-xl bg-gray-50">
-                    <div className="w-9 h-9 rounded-full bg-gray-200 animate-pulse flex-shrink-0" />
+                  <div key={i} className="flex items-center gap-3 p-3.5 rounded-2xl border border-orange-100 bg-gradient-to-r from-orange-50/70 to-white">
+                    <div className="w-10 h-10 rounded-2xl bg-gray-200 animate-pulse flex-shrink-0" />
                     <div className="flex-1 space-y-1.5">
-                      <div className="h-3.5 w-28 bg-gray-200 rounded animate-pulse" />
-                      <div className="h-3 w-20 bg-gray-100 rounded animate-pulse" />
+                      <div className="h-3.5 w-36 bg-gray-200 rounded animate-pulse" />
+                      <div className="h-3 w-24 bg-gray-100 rounded animate-pulse" />
+                      <div className="h-1.5 w-full bg-gray-100 rounded-full animate-pulse" />
                     </div>
-                    <div className="h-8 w-28 bg-gray-100 rounded-lg animate-pulse" />
+                    <div className="h-10 w-28 bg-gray-100 rounded-xl animate-pulse" />
                   </div>
                 ))}
               </div>
-            ) : stats.stockAlerts.lowStockProducts?.length > 0 ? (
-              <div className="space-y-2.5 sm:space-y-3">
-                {stats.stockAlerts.lowStockProducts.slice(0, 5).map((alert, i) => (
-                  <div key={i} className={`flex flex-wrap sm:flex-nowrap items-center gap-2.5 sm:gap-4 p-3 sm:p-4 rounded-xl border ${alert.urgency === 'critical' ? 'bg-red-50 border-red-200' :
-                      alert.urgency === 'high' ? 'bg-orange-50 border-orange-200' :
-                        'bg-yellow-50 border-yellow-200'
-                    }`}>
-                    <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 ${alert.urgency === 'critical' ? 'bg-red-500 text-white' :
-                        alert.urgency === 'high' ? 'bg-orange-500 text-white' :
-                          'bg-yellow-500 text-white'
-                      }`}>
-                      <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                      </svg>
+            ) : lowStockProducts.length > 0 ? (
+              <div className="space-y-3">
+                {lowStockProducts.map((alert, i) => {
+                  const stockProgress = alert.reorderThreshold > 0
+                    ? Math.min(100, Math.max(0, (alert.stock / alert.reorderThreshold) * 100))
+                    : 0;
+                  const tone = alert.urgency === 'critical'
+                    ? {
+                        wrap: 'bg-red-50 border-red-200',
+                        icon: 'bg-red-500 text-white',
+                        badge: 'bg-red-100 text-red-700',
+                        bar: 'from-red-500 to-red-600'
+                      }
+                    : alert.urgency === 'high'
+                      ? {
+                          wrap: 'bg-orange-50 border-orange-200',
+                          icon: 'bg-orange-500 text-white',
+                          badge: 'bg-orange-100 text-orange-700',
+                          bar: 'from-orange-500 to-orange-600'
+                        }
+                      : {
+                          wrap: 'bg-yellow-50 border-yellow-200',
+                          icon: 'bg-yellow-500 text-white',
+                          badge: 'bg-yellow-100 text-yellow-700',
+                          bar: 'from-yellow-500 to-yellow-600'
+                        };
+                  return (
+                    <div key={i} className={`p-3.5 sm:p-4 rounded-2xl border shadow-sm ${tone.wrap}`}>
+                      <div className="flex flex-wrap sm:flex-nowrap items-start gap-3 sm:gap-4">
+                        <div className={`w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0 ${tone.icon}`}>
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                          </svg>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex flex-wrap items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold text-gray-900 break-words">{alert.name}</p>
+                              <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[10px] sm:text-xs text-gray-500">
+                                <span>Stock actuel</span>
+                                <span className="font-bold text-red-600 tabular-nums">{alert.stock}</span>
+                                <span>•</span>
+                                <span>Seuil {alert.reorderThreshold}</span>
+                              </div>
+                            </div>
+                            <span className={`px-2 py-1 rounded-full text-[10px] font-bold ${tone.badge}`}>
+                              {alert.urgency === 'critical' ? 'Critique' : alert.urgency === 'high' ? 'Élevée' : 'À surveiller'}
+                            </span>
+                          </div>
+                          <div className="mt-3 h-1.5 w-full rounded-full bg-white/80 overflow-hidden">
+                            <div
+                              className={`h-full rounded-full bg-gradient-to-r ${tone.bar}`}
+                              style={{ width: `${stockProgress}%` }}
+                            />
+                          </div>
+                          <div className="mt-1.5 flex items-center justify-between text-[10px] text-gray-400">
+                            <span>Niveau de stock</span>
+                            <span className="tabular-nums">{Math.round(stockProgress)}%</span>
+                          </div>
+                        </div>
+                        <Link
+                          to="/ecom/stock/orders/new"
+                          className="w-full sm:w-auto text-center px-3.5 py-2 bg-white border border-gray-200 rounded-xl text-xs sm:text-sm font-semibold text-gray-700 hover:bg-gray-50 transition flex-shrink-0 shadow-sm"
+                        >
+                          Réapprovisionner
+                        </Link>
+                      </div>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 truncate">{alert.name}</p>
-                      <p className="text-xs text-gray-500">
-                        Stock: <span className="font-bold text-red-600">{alert.stock}</span> / Seuil: {alert.reorderThreshold}
-                      </p>
-                    </div>
-                    <Link
-                      to="/ecom/stock/orders/new"
-                      className="w-full sm:w-auto text-center px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs sm:text-sm font-medium text-gray-700 hover:bg-gray-50 transition flex-shrink-0"
-                    >
-                      Réapprovisionner
-                    </Link>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
-              <div className="text-center py-8 sm:py-12">
-                <div className="w-12 h-12 sm:w-16 sm:h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-3 sm:mb-4">
-                  <svg className="w-6 h-6 sm:w-8 sm:h-8 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="rounded-3xl border border-dashed border-emerald-200 bg-emerald-50/70 px-6 py-10 text-center">
+                <div className="w-14 h-14 sm:w-16 sm:h-16 bg-white rounded-2xl shadow-sm flex items-center justify-center mx-auto mb-4 text-emerald-600">
+                  <svg className="w-6 h-6 sm:w-8 sm:h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                 </div>
-                <p className="text-sm sm:text-base text-gray-500 font-medium">Tous les stocks sont au vert !</p>
-                <p className="text-xs sm:text-sm text-gray-400 mt-1">Aucun réapprovisionnement nécessaire</p>
+                <p className="text-sm sm:text-base text-gray-700 font-semibold">Tous les stocks sont au vert</p>
+                <p className="text-xs sm:text-sm text-gray-500 mt-1">Aucun réapprovisionnement nécessaire pour le moment.</p>
               </div>
             )}
 

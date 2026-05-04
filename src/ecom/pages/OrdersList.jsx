@@ -86,7 +86,7 @@ const FILTERS_STORAGE_KEY = 'orders_list_filters';
 const OrdersList = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user } = useEcomAuth();
+  const { user, workspace } = useEcomAuth();
   const { fmt, fmtRaw, symbol, currency: userCurrency } = useMoney();
   // Affiche le montant dans la devise de la commande (pas de conversion, juste le bon symbole)
   const fmtOrder = (amount, orderCurrency) => formatMoney(amount, orderCurrency || userCurrency || 'XAF');
@@ -1405,37 +1405,41 @@ const OrdersList = () => {
     }
   };
 
-  // 📝 Fonction pour copier les infos de la commande dans le presse-papier
-  const handleCopyOrder = (order) => {
+  const buildOrderDeliveryMessage = (order) => {
+    const brandName = workspace?.name || 'Notre boutique';
+    const dayNames = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
+    const todayName = dayNames[new Date().getDay()];
+    const deliveryDay = order.deliveryDay || `aujourd'hui ${todayName}`;
+
     const clientName = getClientName(order);
-    const clientPhone = getClientPhone(order);
+    const phone = getClientPhone(order);
     const city = getCity(order);
-    const address = getAddress(order);
+    const deliveryLocation = getAddress(order) || order.rawData?.['Address 1'] || '—';
+    const deliveryTime = order.deliveryTime || 'Disponible maintenant';
     const product = getProductName(order);
     const quantity = order.quantity || 1;
-    const price = order.price || 0;
-    const total = price * quantity;
-    const status = getStatusLabel(order.status);
+    const total = (order.price || 0) * quantity;
     const notes = getNotes(order);
-    const orderId = order.orderId || order._id;
 
-    const textToCopy = `📝 COMMANDE #${orderId}
-👥 Client: ${clientName}
-📞 Téléphone: ${clientPhone}
-📍 Ville: ${city}
-🏠 Adresse: ${address}
-📦 Produit: ${product}
-📝 Quantité: ${quantity}
-💸 Prix unitaire: ${fmtOrder(price, order.currency)}
-💸 Total: ${fmtOrder(total, order.currency)}
-📝 Statut: ${status}
-📝 Notes: ${notes || 'Aucune'}
-`;
+    let msg = `*${brandName}*\n\n`;
+    msg += `Nom du client : ${clientName || '—'}\n\n`;
+    msg += `Ville : ${city || '—'}\n\n`;
+    msg += `Lieu de la livraison : ${deliveryLocation}\n\n`;
+    msg += `Jour de la livraison : ${deliveryDay}\n\n`;
+    msg += `Numéro : ${phone || '—'}\n\n`;
+    msg += `Heure de livraison : ${deliveryTime}\n\n`;
+    msg += `Article : ${product}\n\n`;
+    msg += `Quantité : ${String(quantity).padStart(2, '0')}\n\n`;
+    msg += `Montant : ${total.toLocaleString('fr-FR')} ${order.currency || 'XAF'}`;
+    if (notes) msg += `\n\nNotes : ${notes}`;
+    return msg;
+  };
 
+  const handleCopyOrder = (order) => {
+    const textToCopy = buildOrderDeliveryMessage(order);
     navigator.clipboard.writeText(textToCopy).then(() => {
       setSuccess('✅ Commande copiée dans le presse-papier !');
-    }).catch((err) => {
-      console.error('Erreur copie:', err);
+    }).catch(() => {
       setError('❌ Impossible de copier dans le presse-papier');
     });
   };
