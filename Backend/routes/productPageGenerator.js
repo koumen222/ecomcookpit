@@ -515,7 +515,7 @@ async function runBackgroundImageGeneration({
     }
 
     imageTasks.push(
-      () => generateAndUpload(buildSocialProofCollagePrompt(productData, visualTemplate, visualContext), `social-proof-${Date.now()}.png`, 'scene', '1:1')
+      () => generateAndUpload(buildSocialProofCollagePrompt(productData, visualTemplate, visualContext), `social-proof-${Date.now()}.png`, 'scene', '4:5')
         .then((url) => ({ type: 'social_proof', index: 0, url }))
         .finally(() => { jobData.progress += 1; })
     );
@@ -1154,21 +1154,28 @@ function buildSocialProofCollagePrompt(gptResult, template = 'general', visualPr
 
   return `Create ONE single social proof image for an African ecommerce audience. Vertical 4:5, premium realistic quality.
 
-Show one natural group scene with 4 to 7 authentic ${avatar === 'African woman' ? 'African women' : 'African customers'} together in the SAME environment.
-They must feel like a real group of satisfied customers sharing one believable moment, not separate portraits merged together.
+Build a MOBILE-FIRST ecommerce testimonial poster specifically for ${productName}.
 
-The product may appear in a few hands or be shared naturally within the group, but only if it looks believable and collective.
-If showing the product makes the scene artificial, focus on the people, their satisfaction, and the trust energy instead.
+Show ONE authentic ${avatar === 'African woman' ? 'African woman' : 'African customer'} in a believable real-life situation linked to the product problem and transformation.
+The person must feel premium, confident and natural, not like a stock model and not like a cutout.
 
-Do NOT generate a collage grid, do NOT generate separate testimonial cards, do NOT generate isolated portraits, do NOT generate fake press logos, and do NOT generate generic floating trust badges.
-At most, one subtle trust chip may appear with this exact text: "${socialCount}" if it integrates naturally into the composition.
-Any star rating cue must stay subtle and secondary.
+The product must appear clearly and prominently in the lower third or foreground as a premium packshot integrated into the scene.
+The layout must feel like a real conversion creative: one dominant lifestyle scene, one oversized product, one bold headline zone, one small trust badge.
 
-Style: UGC, authentic, trust-building, realistic, premium but natural.
+Add one short, bold, highly legible headline directly inside the image.
+The headline must be in the same language as the product copy, maximum 10 words, focused on the main problem and the regain of control or visible result.
+Typography must be large, premium, editorial and mobile-readable.
+
+At most one subtle social proof chip may appear with this exact text: "${socialCount}".
+If a small rating cue appears, keep it secondary and elegant.
+
+Do NOT generate a collage grid, do NOT generate separate testimonial cards, do NOT generate multiple disconnected portraits, do NOT generate fake review widgets, do NOT generate fake press logos, and do NOT generate cluttered infographic blocks.
+
+Style: premium ecommerce poster, trust-building, realistic, editorial, highly converting, African-market relevant.
 Background must match brand identity and website color: ${brandColor}.
+Use a strong premium contrast and clear mobile hierarchy.
 No stock-photo feeling, no exaggerated poses, no fake hands, no watermark, no phone number, no URL.
-The AI must decide the most convincing single-scene group composition dynamically for this product instead of reusing the same layout.
-Use a smart conversion-page design language: strong blue/yellow/white contrast, one dominant group scene, one subtle trust chip, optional decorative line-art, and a very clear mobile hierarchy.
+The AI must decide the most convincing single-scene poster composition dynamically for this product instead of reusing the same layout.
 ${buildUltraSmartInfographicStyleRules(brandColor)}${buildArtDirectionProfile(2, gptResult, template, visualPrefs, 'social proof and trust image')}${buildDynamicDesignRules(gptResult, template, visualPrefs, 'social proof and trust image')}${buildProfessionalDescriptionGraphicRules(1, template, visualPrefs)}${buildHumanPhotoRealismRules()}${buildVisualPromptDirectives(visualPrefs)}`;
 }
 

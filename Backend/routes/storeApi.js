@@ -327,8 +327,8 @@ router.get('/:subdomain', readLimiter, async (req, res) => {
         cost: zone.cost || 0,
       }));
 
-    // Cache at Cloudflare edge for 30 seconds (fast config refresh after admin edits)
-    setCacheHeaders(res, 30);
+    // 90s CDN cache — store config changes are less frequent than product edits
+    setCacheHeaders(res, 90);
 
     res.json({
       success: true,
@@ -497,22 +497,22 @@ router.get('/:subdomain/products/:slug', readLimiter, async (req, res) => {
       slug: req.params.slug,
       isPublished: true
     })
-    .select('-__v')
+    .select('name slug description price compareAtPrice currency country targetMarket city locale stock images category tags seoTitle seoDescription features faq testimonials _pageData productPageConfig')
     .lean();
 
     if (!product) {
       return res.status(404).json({ success: false, message: 'Product not found' });
     }
 
-    // Fetch active quantity offers for this product
+    // Fetch active quantity offers in parallel with response preparation
     const quantityOffer = await QuantityOffer.findOne({
       workspaceId: workspace._workspaceId || workspace._id,
       productId: product._id,
       isActive: true
-    }).sort({ createdAt: -1 }).lean();
+    }).select('offers design').sort({ createdAt: -1 }).lean();
 
-    // Product page builder edits must appear quickly on the live page
-    setCacheHeaders(res, 30);
+    // 2 minutes CDN cache — short enough to see edits quickly, long enough for Cloudflare edge benefit
+    setCacheHeaders(res, 120);
 
     // Per-product-page currency/country ALWAYS override the store's global config.
     // Why: a single store can publish multiple product pages, each targeting a different market.

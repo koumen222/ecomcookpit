@@ -27,7 +27,7 @@ export default function ProductTestimonials({ testimonials = [], visualTheme = n
   if (!validTestimonials.length) return null;
 
   const primary = visualTheme?.primary || 'var(--s-section-social-proof, var(--s-primary))';
-  const socialProofVisual = visualTheme?.socialProofImage || visualTheme?.groupImage || visualTheme?.productImage || null;
+  const socialProofVisual = visualTheme?.socialProofImage || visualTheme?.generatedPosterImage || null;
   const averageRating = (
     validTestimonials.reduce((sum, testimonial) => sum + Number(testimonial.rating || 5), 0) / validTestimonials.length
   ).toFixed(1);

@@ -55,11 +55,30 @@ function withAlpha(color, alphaHex, fallback) {
   return fallback;
 }
 
+const isTransparentThemeColor = (value) => {
+  if (value == null) return true;
+  const normalized = String(value).trim().toLowerCase().replace(/\s+/g, '');
+  return !normalized
+    || normalized === 'transparent'
+    || normalized === 'none'
+    || normalized === 'inherit'
+    || normalized === 'initial'
+    || normalized === 'unset'
+    || normalized === '#0000'
+    || normalized === '#00000000'
+    || /^rgba\([^)]*,0(?:\.0+)?\)$/.test(normalized)
+    || /^hsla\([^)]*,0(?:\.0+)?\)$/.test(normalized);
+};
+
+const resolveThemeColor = (...values) => values.find((value) => !isTransparentThemeColor(value)) || null;
+
 export function injectStoreCssVars(store) {
   if (!store) return;
   const r = document.documentElement.style;
   // Design overrides from productPageConfig take priority
   const d = store.productPageConfig?.design || {};
+  const primaryColor = resolveThemeColor(d.buttonColor, store.primaryColor, '#0F6B4F') || '#0F6B4F';
+  const accentColor = resolveThemeColor(d.ctaButtonColor, d.buttonColor, store.accentColor, primaryColor, '#059669') || '#059669';
   const sectionColors = {
     socialProof: store.sectionColors?.socialProof || store.accentColor || store.primaryColor || '#7C3AED',
     benefits: store.sectionColors?.benefits || store.primaryColor || '#0F6B4F',
@@ -68,8 +87,8 @@ export function injectStoreCssVars(store) {
     solution: store.sectionColors?.solution || d.buttonColor || store.primaryColor || '#059669',
     faq: store.sectionColors?.faq || store.accentColor || store.primaryColor || '#7C3AED',
   };
-  r.setProperty('--s-primary', d.buttonColor || store.primaryColor || '#0F6B4F');
-  r.setProperty('--s-accent', d.ctaButtonColor || d.buttonColor || store.accentColor || '#059669');
+  r.setProperty('--s-primary', primaryColor);
+  r.setProperty('--s-accent', accentColor);
   r.setProperty('--s-bg', d.backgroundColor || store.backgroundColor || '#FFFFFF');
   r.setProperty('--s-text', d.textColor || store.textColor || '#111827');
   r.setProperty('--s-text2', '#6B7280');
@@ -95,7 +114,7 @@ export function injectStoreCssVars(store) {
 }
 
 // ─── sessionStorage cache ─────────────────────────────────────────────────────
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
 
 function readCache(key) {
   try {
@@ -268,17 +287,33 @@ export function useStoreProduct(subdomain, slug) {
     setError(null);
     setLoading(!previewProduct);
 
+    async function fetchWithRetry(fn, retries = 2, delayMs = 800) {
+      for (let attempt = 0; attempt <= retries; attempt++) {
+        try {
+          return await fn();
+        } catch (err) {
+          const isLast = attempt === retries;
+          const status = err?.response?.status;
+          // Don't retry 404 — product genuinely not found
+          if (isLast || status === 404) throw err;
+          await new Promise(r => setTimeout(r, delayMs * (attempt + 1)));
+        }
+      }
+    }
+
     async function load() {
       try {
-        // Always fetch both product AND store to get latest config (productPageConfig, theme, etc.)
-        const [productRes, storeRes] = await Promise.all([
-          publicStoreApi.getProduct(subdomain, slug),
-          publicStoreApi.getStore(subdomain),
-        ]);
+        // If store is already cached, only fetch the product — saves one round-trip
+        const requests = [
+          fetchWithRetry(() => publicStoreApi.getProduct(subdomain, slug)),
+        ];
+        if (!cachedStore) requests.push(fetchWithRetry(() => publicStoreApi.getStore(subdomain)));
+
+        const [productRes, storeRes] = await Promise.all(requests);
 
         if (cancelled) return;
 
-        const productData = productRes.data?.data || null;
+        const productData = productRes?.data?.data || null;
         if (productCacheKey && productData) {
           writeCache(productCacheKey, productData);
         }
@@ -291,7 +326,6 @@ export function useStoreProduct(subdomain, slug) {
           storeData = data.store || data;
           pixelsData = data.pixels || null;
           footerData = data.footer || null;
-          // Cache store data for future navigations
           if (storeCacheKey) writeCache(storeCacheKey, {
             store: storeData,
             sections: data.sections ?? null,
@@ -321,7 +355,13 @@ export function useStoreProduct(subdomain, slug) {
         }
       } catch (err) {
         if (cancelled) return;
-        setError(err?.response?.data?.message || 'Produit introuvable');
+        const status = err?.response?.status;
+        // Only show the error page for genuine 404s — for network/server errors,
+        // keep showing whatever we have (cache preview) rather than a blank error screen
+        if (status === 404) {
+          setError(err?.response?.data?.message || 'Produit introuvable');
+        }
+        // else: stay silent — skeleton stays up, user can retry by scrolling/waiting
       } finally {
         if (!cancelled) setLoading(false);
       }

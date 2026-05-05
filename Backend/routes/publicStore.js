@@ -191,8 +191,7 @@ router.get('/:subdomain/products/:slug', readLimiter, resolveStoreBySubdomain, a
       return res.status(404).json({ success: false, message: 'Produit introuvable' });
     }
 
-    // Keep product detail cache short so image edits propagate quickly
-    setCacheHeaders(res, 30);
+    setCacheHeaders(res, 120);
     res.json({
       success: true,
       data: {
