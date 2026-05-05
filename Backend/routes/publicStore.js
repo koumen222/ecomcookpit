@@ -91,6 +91,7 @@ router.get('/:subdomain', readLimiter, resolveStoreBySubdomain, async (req, res)
         backgroundColor: store.storeSettings?.backgroundColor || '#FFFFFF',
         textColor: store.storeSettings?.textColor || '#111827',
         font: store.storeSettings?.font || 'inter',
+        productPageConfig: store.storeSettings?.productPageConfig || null,
         deliveryCountries: deliveryConfig.countries || [],
         deliveryZones: publicZones
       }
