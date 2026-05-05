@@ -1352,10 +1352,10 @@ const AiBannerSection = ({ cfg }) => (
       {cfg.content && <p style={{ fontSize: 16, color: 'rgba(255,255,255,0.9)', lineHeight: 1.7, margin: '0 0 28px', fontFamily: 'var(--s-font)' }}>{cfg.content.replace(/\*\*/g, '')}</p>}
       {cfg.ctaText && (
         <a href={cfg.ctaLink || '/products'} style={{
-          display: 'inline-block', padding: '16px 40px', borderRadius: 50,
-          backgroundColor: '#fff', color: 'var(--s-primary)',
+          display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '16px 40px', borderRadius: 50,
+          background: 'var(--sf-hero-cta-bg)', color: 'var(--sf-hero-cta-text)', border: '1px solid var(--sf-hero-cta-border)',
           fontSize: 15.5, fontWeight: 800, textDecoration: 'none', fontFamily: 'var(--s-font)',
-          boxShadow: '0 4px 20px rgba(0,0,0,0.15)', transition: 'transform 0.2s',
+          boxShadow: 'var(--sf-hero-cta-shadow)', transition: 'transform 0.2s, box-shadow 0.2s',
         }}>{cfg.ctaText}</a>
       )}
     </div>

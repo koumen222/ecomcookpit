@@ -34,13 +34,15 @@ export default function ConversionBlocks({ blocks = null, compact = false, iconC
   const displayBlocks = blocks && blocks.length > 0 ? blocks : defaultBlocks;
 
   return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8, marginBottom: 6 }}>
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8, marginBottom: 6 }}>
       {displayBlocks.map((block, index) => (
-        <div key={index} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 8px', border: `1px solid ${borderColor}`, borderRadius: 999, whiteSpace: 'nowrap' }}>
-          <span style={{ fontSize: 11, lineHeight: 1 }}>{block.icon}</span>
-          <span style={{ fontSize: 11, fontWeight: 600, color: textColor, fontFamily: 'var(--s-font)' }}>
-            {block.text}
-          </span>
+        <div key={index} title={block.text} style={{
+          width: 34, height: 34, borderRadius: '50%',
+          border: `1px solid ${borderColor}`,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          flexShrink: 0,
+        }}>
+          <span style={{ fontSize: 16, lineHeight: 1 }}>{block.icon}</span>
         </div>
       ))}
     </div>
@@ -60,7 +62,7 @@ export function UrgencyBadge({ stockLimited = false, socialProofCount = null, qu
   ].filter(Boolean);
 
   return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 8, marginBottom: 6 }}>
+    <div style={{ display: 'flex', flexWrap: 'nowrap', gap: 5, marginTop: 8, marginBottom: 6, overflowX: 'auto' }}>
       {items.map((item, i) => (
         <span key={i} style={{
           display: 'inline-flex', alignItems: 'center', gap: 4,

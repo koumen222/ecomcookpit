@@ -656,8 +656,14 @@ const InlinePhotoCarousel = ({ images = [], accentColor = 'var(--s-primary)', co
 };
 
 // ── Product Reviews (Stars) ─────────────────────────────────────────────────
-const ProductReviews = ({ rating = 4.5, reviewCount = 128 }) => {
-  const displayCount = reviewCount > 0 ? reviewCount : 125;
+const ProductReviews = ({
+  rating = 4.5,
+  reviewCount = 128,
+  fallbackCount = 125,
+  label = 'avis',
+  showNumericRating = true,
+}) => {
+  const displayCount = reviewCount > 0 ? reviewCount : fallbackCount;
   const fullStars = Math.floor(rating);
   const hasHalfStar = rating % 1 >= 0.5;
   
@@ -676,11 +682,13 @@ const ProductReviews = ({ rating = 4.5, reviewCount = 128 }) => {
           />
         ))}
       </div>
-      <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--s-text)' }}>
-        {rating.toFixed(1)}
-      </span>
+      {showNumericRating && (
+        <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--s-text)' }}>
+          {rating.toFixed(1)}
+        </span>
+      )}
       <span style={{ fontSize: 13, color: 'var(--s-text2)' }}>
-        ({displayCount} avis)
+        {displayCount} {label}
       </span>
     </div>
   );
@@ -807,14 +815,28 @@ const optimizeDescriptionHtml = (html = '') => {
     const root = doc.getElementById('sf-desc-html');
     if (!root) return html;
 
-    // Strip embedded <style> and <script> tags
-    root.querySelectorAll('style, script').forEach(el => el.remove());
+    const normalizeSectionText = (value = '') => String(value || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase();
 
-    // Strip class and style attributes to prevent injected CSS from overriding page styles
-    root.querySelectorAll('[class], [style]').forEach(el => {
-      el.removeAttribute('class');
-      el.removeAttribute('style');
-    });
+    const guaranteeTitle = 'notre garantie qualite';
+    const guaranteeMarkers = ['satisfait ou rembourse', 'echange facile', 'service client disponible'];
+
+    // Strip only <script> tags for security
+    root.querySelectorAll('script').forEach(el => el.remove());
+    doc.head.querySelectorAll('script').forEach(el => el.remove());
+
+    const guaranteeBlocks = Array.from(root.querySelectorAll('section, article, div'))
+      .filter((element) => {
+        const text = normalizeSectionText(element.textContent || '');
+        return text.includes(guaranteeTitle) && guaranteeMarkers.some(marker => text.includes(marker));
+      })
+      .filter((element, index, all) => !all.some((other, otherIndex) => otherIndex !== index && other.contains(element)));
+
+    guaranteeBlocks.forEach((element) => element.remove());
 
     root.querySelectorAll('img').forEach((img) => {
       img.setAttribute('loading', 'lazy');
@@ -822,29 +844,67 @@ const optimizeDescriptionHtml = (html = '') => {
       img.setAttribute('fetchpriority', 'low');
     });
 
-    return root.innerHTML.trim();
+    // DOMParser moves <style> tags to <head> — re-inject them before the content
+    const styles = Array.from(doc.head.querySelectorAll('style'))
+      .map(s => s.outerHTML)
+      .join('');
+
+    // Premium override: force all section containers to use the premium block style
+    const premiumOverride = `<style>
+      .benefit-section { max-width:100% !important; margin:0 0 16px !important; padding:0 !important; }
+      .benefit-container {
+        border-radius:22px !important; padding:44px 40px !important;
+        font-family:var(--s-font) !important;
+      }
+      .benefit-container h2 {
+        margin:0 0 28px !important; font-size:26px !important; line-height:1.22 !important;
+        font-weight:900 !important; letter-spacing:-0.02em !important; color:#ffffff !important;
+        font-family:var(--s-font) !important;
+      }
+      .benefit-row { display:flex !important; align-items:flex-start !important; gap:18px !important; margin-bottom:20px !important; }
+      .benefit-row:last-child { margin-bottom:0 !important; }
+      .check-icon, .number-icon {
+        width:50px !important; height:50px !important; min-width:50px !important;
+        border-radius:50% !important; border:2px solid rgba(255,255,255,0.4) !important;
+        background:rgba(255,255,255,0.15) !important; color:#ffffff !important;
+        display:flex !important; align-items:center !important; justify-content:center !important;
+        font-size:22px !important; font-weight:900 !important; line-height:1 !important; flex-shrink:0 !important;
+      }
+      .dot-icon {
+        width:14px !important; height:14px !important; min-width:14px !important;
+        border-radius:50% !important; background:rgba(255,255,255,0.75) !important;
+        margin-top:12px !important; flex-shrink:0 !important;
+      }
+      .benefit-row p, .solution-text {
+        margin:0 !important; font-size:18px !important; line-height:1.55 !important;
+        color:#ffffff !important; font-family:var(--s-font) !important; padding-top:10px !important;
+      }
+      .solution-text { padding-top:0 !important; line-height:1.65 !important; }
+      @media(max-width:640px){
+        .benefit-container { border-radius:18px !important; padding:32px 22px !important; }
+        .benefit-container h2 { font-size:20px !important; margin-bottom:22px !important; }
+        .check-icon, .number-icon { width:42px !important; height:42px !important; min-width:42px !important; font-size:18px !important; }
+        .benefit-row p, .solution-text { font-size:15px !important; }
+      }
+    </style>`;
+
+    return premiumOverride + styles + root.innerHTML.trim();
   } catch {
     return html;
   }
 };
 
-const ProductDescription = ({ content }) => {
+const ProductDescription = ({ content, design = {} }) => {
   const rawContent = content?.toString().trim() || '';
   if (!rawContent) return null;
 
   const isHTML = /<[^>]+>/.test(rawContent);
+
   if (!isHTML) {
+    const fontSize = design.fontBase ? parseInt(design.fontBase) : 14;
+    const textColor = design.textColor || 'var(--s-text2)';
     return (
-      <div
-        className="ai-desc"
-        style={{
-          fontSize: 15,
-          lineHeight: 1.75,
-          color: 'var(--s-text2)',
-          fontFamily: 'var(--s-font)',
-          whiteSpace: 'pre-wrap',
-        }}
-      >
+      <div className="ai-desc" style={{ fontSize, lineHeight: 1.75, color: textColor, fontFamily: 'var(--s-font)', whiteSpace: 'pre-wrap' }}>
         {rawContent}
       </div>
     );
@@ -853,14 +913,9 @@ const ProductDescription = ({ content }) => {
   const cleanContent = optimizeDescriptionHtml(rawContent);
   const htmlToRender = (cleanContent && cleanContent.trim()) ? cleanContent : rawContent;
 
+  // HTML with embedded styles — render as-is, only constrain images
   return (
-    <div>
-      <div
-        className="ai-desc"
-        style={{ fontSize: 15, lineHeight: 1.75, color: 'var(--s-text2)', fontFamily: 'var(--s-font)' }}
-        dangerouslySetInnerHTML={{ __html: htmlToRender }}
-      />
-    </div>
+    <div className="ai-desc" dangerouslySetInnerHTML={{ __html: htmlToRender }} />
   );
 };
 
@@ -924,15 +979,15 @@ const extractFaqItemsFromHtml = (html = '') => {
 };
 
 // ── Collapsible Section ──────────────────────────────────────────────────────
-const CollapsibleSection = ({ title, children, defaultOpen = false }) => {
+const CollapsibleSection = ({ title, children, defaultOpen = false, compact = false }) => {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <div style={{ borderTop: '1px solid var(--s-border)', marginTop: 8 }}>
+    <div style={{ borderTop: '1px solid var(--s-border)', marginTop: compact ? 0 : 8 }}>
       <button
         onClick={() => setOpen(o => !o)}
         style={{
           width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '16px 0', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left',
+          padding: compact ? '10px 0' : '16px 0', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left',
         }}
       >
         <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--s-text)', fontFamily: 'var(--s-font)' }}>
@@ -968,29 +1023,31 @@ const StatsBar = ({ stats = [], visualTheme = null }) => {
   );
 };
 
+// ── Shared premium block helpers ──────────────────────────────────────────────
+const mkBlock = (bg) => ({ margin: '16px 0', padding: '44px 40px', borderRadius: 22, background: bg });
+const mkTitle = { margin: '0 0 28px', fontSize: 26, lineHeight: 1.22, fontWeight: 900, letterSpacing: '-0.02em', color: '#ffffff', fontFamily: 'var(--s-font)' };
+const mkRows  = { display: 'flex', flexDirection: 'column', gap: 20 };
+const mkRow   = { display: 'flex', alignItems: 'flex-start', gap: 18 };
+const mkIcon  = { width: 50, height: 50, minWidth: 50, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.4)', background: 'rgba(255,255,255,0.15)', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, fontWeight: 900, lineHeight: 1, flexShrink: 0 };
+const mkText  = { margin: 0, fontSize: 18, lineHeight: 1.55, color: '#ffffff', fontFamily: 'var(--s-font)', paddingTop: 10 };
+const mkDot   = { width: 14, height: 14, minWidth: 14, borderRadius: '50%', background: 'rgba(255,255,255,0.75)', marginTop: 12, flexShrink: 0 };
+
 // ── Problem / Solution sections ───────────────────────────────────────────────
 const ProblemSection = ({ section, visualTheme = null }) => {
   if (!section?.title && !section?.pain_points?.length) return null;
+  const bg = visualTheme?.primary || 'var(--s-section-problem, #a81035)';
   return (
-    <div style={{
-      margin: '24px 0', padding: '22px 20px', borderRadius: 16,
-      background: visualTheme?.softGradient || '#FFF7F7', border: `1px solid ${visualTheme?.softBorder || '#FECACA'}`,
-      boxShadow: visualTheme?.shadow || 'none',
-    }}>
-      {section.title && (
-        <h3 style={{ margin: '0 0 14px', fontSize: 17, fontWeight: 800, color: visualTheme?.text || '#991B1B', fontFamily: 'var(--s-font)', lineHeight: 1.3 }}>
-          {section.title}
-        </h3>
-      )}
+    <div style={mkBlock(bg)}>
+      {section.title && <h3 style={mkTitle}>{section.title}</h3>}
       {section.pain_points?.length > 0 && (
-        <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 9 }}>
+        <div style={mkRows}>
           {section.pain_points.map((point, i) => (
-            <li key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, fontSize: 14, color: visualTheme?.mutedText || '#7F1D1D', lineHeight: 1.6, fontFamily: 'var(--s-font)' }}>
-              <span style={{ flexShrink: 0, marginTop: 2, color: visualTheme?.primary || '#991B1B' }}>●</span>
-              <span>{point}</span>
-            </li>
+            <div key={i} style={mkRow}>
+              <div style={mkDot} />
+              <p style={mkText}>{point}</p>
+            </div>
           ))}
-        </ul>
+        </div>
       )}
     </div>
   );
@@ -998,65 +1055,117 @@ const ProblemSection = ({ section, visualTheme = null }) => {
 
 const SolutionSection = ({ section, visualTheme = null }) => {
   if (!section?.title && !section?.description) return null;
+  const bg = visualTheme?.primary || 'var(--s-section-solution, #5b21b6)';
   return (
-    <div style={{
-      margin: '16px 0 24px', padding: '22px 20px', borderRadius: 16,
-      background: visualTheme?.softGradient || '#F0FDF4', border: `1px solid ${visualTheme?.softBorder || '#A7F3D0'}`,
-      boxShadow: visualTheme?.shadow || 'none',
-    }}>
-      {section.title && (
-        <h3 style={{ margin: '0 0 10px', fontSize: 17, fontWeight: 800, color: visualTheme?.text || '#14532D', fontFamily: 'var(--s-font)', lineHeight: 1.3 }}>
-          {section.title}
-        </h3>
-      )}
-      {section.description && (
-        <p style={{ margin: 0, fontSize: 14.5, color: visualTheme?.mutedText || '#166534', lineHeight: 1.75, fontFamily: 'var(--s-font)' }}>
-          {section.description}
-        </p>
-      )}
+    <div style={mkBlock(bg)}>
+      {section.title && <h3 style={mkTitle}>{section.title}</h3>}
+      {section.description && <p style={{ ...mkText, paddingTop: 0, lineHeight: 1.65 }}>{section.description}</p>}
+    </div>
+  );
+};
+
+// ── Raisons d'acheter ─────────────────────────────────────────────────────────
+const RaisonsAcheter = ({ raisons = [], visualTheme = null }) => {
+  if (!raisons.length) return null;
+  const bg = visualTheme?.primary || 'var(--s-section-benefits, var(--s-primary))';
+  return (
+    <div style={{ ...mkBlock(bg), padding: '28px 28px' }}>
+      <h3 style={mkTitle}>✅ Pourquoi choisir ce produit ?</h3>
+      <div style={mkRows}>
+        {raisons.map((r, i) => (
+          <div key={i} style={mkRow}>
+            <span style={{ ...mkIcon, width: 28, height: 28, minWidth: 28, fontSize: 14 }}>✓</span>
+            <p style={mkText}>{r}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+// ── Guide d'utilisation ───────────────────────────────────────────────────────
+const GuideUtilisation = ({ guide, visualTheme = null }) => {
+  if (!guide?.applicable || !guide?.etapes?.length) return null;
+  const bg = visualTheme?.primary || 'var(--s-section-solution, var(--s-primary))';
+  return (
+    <div style={{ ...mkBlock(bg), padding: '28px 28px' }}>
+      <h3 style={mkTitle}>{guide.titre || 'Comment utiliser ce produit'}</h3>
+      <div style={mkRows}>
+        {guide.etapes.map((e, i) => (
+          <div key={i} style={mkRow}>
+            <div style={{ ...mkIcon, fontSize: 16, fontWeight: 900 }}>{e.numero ?? i + 1}</div>
+            <div>
+              <p style={{ ...mkText, fontWeight: 800, paddingTop: 8, marginBottom: 2 }}>{e.action}</p>
+              {e.detail && <p style={{ ...mkText, paddingTop: 0, fontSize: 15, opacity: 0.8 }}>{e.detail}</p>}
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 };
 
 // ── Offer / Guarantee Block ────────────────────────────────────────────────────
 const OfferBlock = ({ block, visualTheme = null }) => {
-  const text = block?.guarantee_text || block?.hook;
-  if (!text) return null;
+  const items = [block?.guarantee_text, block?.hook].filter(Boolean);
+  if (!items.length) return null;
+  const bg = visualTheme?.primary || 'var(--s-section-trust, #a06800)';
   return (
-    <p style={{ margin: '6px 0', fontSize: 12, color: visualTheme?.primary || 'var(--s-text2)', lineHeight: 1.4, fontWeight: 600, fontFamily: 'var(--s-font)', display: 'flex', alignItems: 'center', gap: 5 }}>
-      <span style={{ flexShrink: 0 }}>✦</span>{text}
-    </p>
+    <div style={mkBlock(bg)}>
+      <h3 style={mkTitle}>Notre garantie</h3>
+      <div style={mkRows}>
+        {items.map((text, i) => (
+          <div key={i} style={mkRow}>
+            <div style={mkIcon}>&#10003;</div>
+            <p style={mkText}>{text}</p>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 };
 
-const ProductFaqAccordion = ({ items = [], visualTheme = null }) => {
+const ProductFaqAccordion = ({ items = [], primaryColor = 'var(--s-primary)' }) => {
   const [openIndex, setOpenIndex] = useState(null);
-
   if (!items.length) return null;
-
   return (
-    <div style={{ marginTop: 28, paddingTop: 20, borderTop: '1px solid var(--s-border)' }}>
-      <h2 style={{ margin: '0 0 18px', fontSize: 20, fontWeight: 800, color: visualTheme?.primary || 'var(--s-section-faq, var(--s-primary))', fontFamily: 'var(--s-font)' }}>
-        Questions fréquentes
-      </h2>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+    <div style={{ marginTop: 20 }}>
+      <style>{`
+        @keyframes faq-bar { from { width: 0; } to { width: 100%; } }
+        @keyframes faq-open { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
+      `}</style>
+
+      {/* Title with animated underline bar */}
+      <div style={{ marginBottom: 18, position: 'relative', paddingBottom: 14, overflow: 'hidden' }}>
+        <h2 style={{ margin: 0, fontSize: '1.2em', fontWeight: 900, color: 'var(--s-text)', fontFamily: 'var(--s-font)', letterSpacing: '-0.01em' }}>
+          Questions fr\u00e9quentes
+        </h2>
+        <div style={{ position: 'absolute', bottom: 0, left: 0, height: 3, borderRadius: 99, background: primaryColor, width: '100%', opacity: 0.25 }} />
+        <div style={{ position: 'absolute', bottom: 0, left: 0, height: 3, borderRadius: 99, background: primaryColor, animation: 'faq-bar 0.8s cubic-bezier(0.22,1,0.36,1) forwards' }} />
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {items.map((item, index) => {
           const opened = openIndex === index;
           return (
-            <div key={`${item.question}-${index}`} style={{ borderRadius: 14, border: '1px solid', overflow: 'hidden', borderColor: opened ? (visualTheme?.primary || 'var(--s-section-faq, var(--s-primary))') : (visualTheme?.softBorder || 'var(--s-section-faq-border, var(--s-border))'), background: opened ? (visualTheme?.softGradient || 'var(--s-section-faq-soft, #FAFFFE)') : (visualTheme?.surface || 'var(--s-bg)'), boxShadow: opened ? (visualTheme?.shadow || 'none') : 'none' }}>
+            <div key={`${item.question}-${index}`} style={{
+              borderRadius: 14, overflow: 'hidden', background: '#ffffff',
+              border: `1.5px solid ${opened ? primaryColor : 'var(--s-border)'}`,
+              transition: 'border-color 0.2s',
+            }}>
               <button
                 onClick={() => setOpenIndex(opened ? null : index)}
-                style={{ width: '100%', padding: '18px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left' }}
+                style={{ width: '100%', padding: '15px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, background: opened ? `color-mix(in srgb, ${primaryColor} 6%, white)` : 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left', transition: 'background 0.2s' }}
               >
-                <span style={{ fontSize: 14.5, fontWeight: 700, color: opened ? (visualTheme?.primary || 'var(--s-section-faq, var(--s-primary))') : 'var(--s-text)', lineHeight: 1.45, fontFamily: 'var(--s-font)' }}>
+                <span style={{ fontSize: 'inherit', fontWeight: 700, color: opened ? primaryColor : 'var(--s-text)', lineHeight: 1.45, fontFamily: 'var(--s-font)', transition: 'color 0.2s' }}>
                   {item.question}
                 </span>
-                <span style={{ flexShrink: 0, color: opened ? (visualTheme?.primary || 'var(--s-section-faq, var(--s-primary))') : 'var(--s-text2)' }}>
-                  {opened ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                <span style={{ flexShrink: 0, width: 24, height: 24, borderRadius: '50%', background: opened ? primaryColor : 'var(--s-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s', transform: opened ? 'rotate(180deg)' : 'rotate(0deg)' }}>
+                  <ChevronDown size={14} color={opened ? '#fff' : 'var(--s-text2)'} />
                 </span>
               </button>
               {opened && (
-                <div style={{ padding: '0 18px 18px', fontSize: 14, color: visualTheme?.mutedText || 'var(--s-text2)', lineHeight: 1.7, fontFamily: 'var(--s-font)' }}>
+                <div style={{ padding: '0 18px 16px', fontSize: 'inherit', color: 'var(--s-text2)', lineHeight: 1.75, fontFamily: 'var(--s-font)', animation: 'faq-open 0.25s ease forwards', borderTop: `1px solid color-mix(in srgb, ${primaryColor} 15%, white)` }}>
                   {item.answer || item.reponse}
                 </div>
               )}
@@ -1068,26 +1177,147 @@ const ProductFaqAccordion = ({ items = [], visualTheme = null }) => {
   );
 };
 
+const normalizeComparisonText = (value = '') => String(value || '')
+  .replace(/^([\s\u2022\-–—>*]+|[\p{Emoji_Presentation}\p{Extended_Pictographic}]+)\s*/gu, '')
+  .replace(/\s+/g, ' ')
+  .trim();
+
+const pickComparisonProductName = (value = '') => {
+  const raw = String(value || '').trim();
+  if (!raw) return 'Notre produit';
+
+  const primaryChunk = raw.split(/[-–|]/)[0]?.trim() || raw;
+  if (primaryChunk.length <= 18) return primaryChunk;
+
+  const words = primaryChunk.split(/\s+/).filter(Boolean);
+  const twoWords = words.slice(0, 2).join(' ');
+  if (twoWords && twoWords.length <= 18) return twoWords;
+
+  return `${primaryChunk.slice(0, 15).trimEnd()}...`;
+};
+
+const buildFallbackComparisonRows = ({ sectionContentMap = {}, product = null }) => {
+  const benefitsCustom = sectionContentMap.benefitsBullets?.items || [];
+  const benefitsAi = product?._pageData?.benefits_bullets || [];
+  const reasons = product?._pageData?.raisons_acheter || [];
+  const heroBaseline = product?._pageData?.hero_baseline ? [product._pageData.hero_baseline] : [];
+  const features = Array.isArray(product?.features)
+    ? product.features.map((feature) => (typeof feature === 'string' ? feature : feature?.text || feature?.title || ''))
+    : [];
+
+  const rows = [];
+  const seen = new Set();
+
+  [benefitsCustom, benefitsAi, reasons, features, heroBaseline].forEach((source) => {
+    source.forEach((entry) => {
+      const label = normalizeComparisonText(entry);
+      const key = label.toLowerCase();
+      if (!label || seen.has(key)) return;
+      seen.add(key);
+      rows.push({ label, ours: true, others: false });
+    });
+  });
+
+  return rows.slice(0, 5);
+};
+// ── Comparison Table ─────────────────────────────────────────────────────────
+const ComparisonTable = ({ rows = [], productName = '', primaryColor = 'var(--s-primary)', note = '' }) => {
+  if (!rows || rows.length === 0) return null;
+  return (
+    <div style={{ margin: '16px 0', overflowX: 'auto' }}>
+      <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, borderRadius: 16, overflow: 'hidden', fontFamily: 'var(--s-font)' }}>
+        <thead>
+          <tr>
+            <th style={{ padding: '14px 16px', textAlign: 'left', fontSize: 13, fontWeight: 700, color: 'var(--s-text2)', background: '#f9fafb', borderBottom: '1px solid var(--s-border)', width: '50%' }}>
+              Critères
+            </th>
+            <th style={{ padding: '14px 16px', textAlign: 'center', fontSize: 13, fontWeight: 800, color: '#fff', background: primaryColor, borderBottom: `1px solid ${primaryColor}`, width: '25%' }}>
+              {productName || 'Notre produit'}
+            </th>
+            <th style={{ padding: '14px 16px', textAlign: 'center', fontSize: 13, fontWeight: 700, color: 'var(--s-text2)', background: '#f9fafb', borderBottom: '1px solid var(--s-border)', width: '25%' }}>
+              Autres produits
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, i) => {
+            const isLast = i === rows.length - 1;
+            const bg = i % 2 === 0 ? '#ffffff' : '#fafafa';
+            return (
+              <tr key={i}>
+                <td style={{ padding: '13px 16px', fontSize: 13.5, fontWeight: 500, color: 'var(--s-text)', background: bg, borderBottom: isLast ? 'none' : '1px solid var(--s-border)' }}>
+                  {row.label}
+                </td>
+                <td style={{ padding: '13px 16px', textAlign: 'center', background: `color-mix(in srgb, ${primaryColor} 8%, white)`, borderBottom: isLast ? 'none' : `1px solid color-mix(in srgb, ${primaryColor} 20%, white)`, borderLeft: `2px solid ${primaryColor}`, borderRight: `2px solid ${primaryColor}` }}>
+                  <span style={{ fontSize: 18, color: row.ours !== false ? primaryColor : '#dc2626', fontWeight: 900, lineHeight: 1 }}>
+                    {row.ours !== false ? '✔' : '✖'}
+                  </span>
+                </td>
+                <td style={{ padding: '13px 16px', textAlign: 'center', background: bg, borderBottom: isLast ? 'none' : '1px solid var(--s-border)' }}>
+                  <span style={{ fontSize: 18, color: row.others !== false ? '#10b981' : '#dc2626', fontWeight: 900, lineHeight: 1 }}>
+                    {row.others !== false ? '✔' : '✖'}
+                  </span>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      {note ? (
+        <div style={{
+          marginTop: 12,
+          padding: '16px 18px',
+          borderLeft: `6px solid ${primaryColor}`,
+          background: `color-mix(in srgb, ${primaryColor} 12%, white)`,
+          color: 'var(--s-text2)',
+          fontSize: 13.5,
+          fontWeight: 700,
+          fontFamily: 'var(--s-font)',
+        }}>
+          {note}
+        </div>
+      ) : null}
+    </div>
+  );
+};
+
 // ── Trust Badges ─────────────────────────────────────────────────────────────
-const TrustBadges = ({ compact = false, accentColor = 'var(--s-section-trust, var(--s-primary))' }) => (
-  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8, marginBottom: 4 }}>
-    {[
-      { icon: <Truck size={11} />, text: 'Livraison rapide' },
-      { icon: <Shield size={11} />, text: 'Paiement sécurisé' },
-      { icon: <RotateCcw size={11} />, text: 'Retours acceptés' },
-    ].map(({ icon, text }) => (
-      <div key={text} style={{
-        display: 'flex', alignItems: 'center', gap: 4,
-        padding: '3px 8px', borderRadius: 999,
-        border: '1px solid var(--s-border)',
-        whiteSpace: 'nowrap',
-      }}>
-        <span style={{ color: accentColor, display: 'flex' }}>{icon}</span>
-        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--s-text2)', fontFamily: 'var(--s-font)' }}>{text}</span>
-      </div>
-    ))}
-  </div>
-);
+const TrustBadges = ({ compact = false, accentColor = 'var(--s-section-trust, var(--s-primary))' }) => {
+  const sections = [
+    {
+      icon: <Truck size={16} />,
+      title: 'Livraison rapide',
+      content: 'Votre commande est expédiée sous 24 à 48 h ouvrées. Livraison suivie directement chez vous.',
+    },
+    {
+      icon: <Shield size={16} />,
+      title: 'Paiement à la livraison',
+      content: 'Réglez votre commande en espèces directement à la réception. Aucun paiement en avance requis.',
+    },
+    {
+      icon: <RotateCcw size={16} />,
+      title: 'Retours acceptés',
+      content: 'Vous disposez de 14 jours pour retourner votre article. Remboursement complet garanti.',
+    },
+  ];
+
+  return (
+    <div>
+      {sections.map(({ icon, title, content }) => (
+        <CollapsibleSection key={title} compact title={
+          <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ width: 28, height: 28, borderRadius: '50%', background: '#fff', color: accentColor, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{icon}</span>
+            {title}
+          </span>
+        } defaultOpen={false}>
+          <p style={{ margin: 0, fontSize: 13, color: 'var(--s-text2)', lineHeight: 1.6, fontFamily: 'var(--s-font)' }}>
+            {content}
+          </p>
+        </CollapsibleSection>
+      ))}
+    </div>
+  );
+};
 
 const SPACING_PRESETS = {
   compact: {
@@ -1391,6 +1621,9 @@ const StoreProductPage = () => {
   const ppSections = mergeProductSections(ppGeneral.sections || []);
   const ppSectionOrder = ppSections.length > 0 ? ppSections : null;
   const sectionContentMap = Object.fromEntries(ppSections.map(s => [s.id, s.content || {}]));
+  const reviewConfig = sectionContentMap.reviews || {};
+  const heroReviewRating = reviewConfig.rating || product?.rating || 4.5;
+  const heroReviewCount = reviewConfig.reviewCount || product?.reviewCount || 100;
 
   // Resolve button icon from config
   const CtaIcon = getIconComponent(ppButton.icon);
@@ -1403,6 +1636,8 @@ const StoreProductPage = () => {
   const trustTheme = buildSectionVisualTheme('trust');
   const problemTheme = buildSectionVisualTheme('problem', { useTextAsTitle: true });
   const solutionTheme = buildSectionVisualTheme('solution', { useTextAsTitle: true });
+  const raisonsTheme = buildSectionVisualTheme('benefits', { useTextAsTitle: true });
+  const guideTheme = buildSectionVisualTheme('solution', { useTextAsTitle: true });
   const faqTheme = buildSectionVisualTheme('faq');
   const ctaBtnColor = ppDesign.ctaButtonColor || ppDesign.buttonColor || aiVisualTheme?.primary || 'var(--s-primary)';
   const ctaBorderRadius = ppDesign.ctaBorderRadius || ppDesign.borderRadius || '14px';
@@ -1610,7 +1845,7 @@ const StoreProductPage = () => {
         color: palette.iconColor,
       },
       title: {
-        fontSize: 13,
+        fontSize: 'inherit',
         fontWeight: 800,
         color: palette.text,
         lineHeight: 1.3,
@@ -1618,7 +1853,7 @@ const StoreProductPage = () => {
       },
       subtitle: {
         marginTop: 3,
-        fontSize: 12,
+        fontSize: 'inherit',
         color: palette.muted,
         lineHeight: 1.45,
         fontFamily: 'var(--s-font)',
@@ -1639,15 +1874,16 @@ const StoreProductPage = () => {
 
   // Build ordered enabled section IDs for rendering
   const sectionToggleOverrides = {
-    reviews: ppDesign.showReviews,
+    reviews: false,
     productGallery: ppDesign.showProductGallery,
     relatedProducts: ppDesign.showRelatedProducts ?? showRelatedProductsFromStore,
-    stockCounter: ppDesign.showStockIndicator,
+    stockCounter: false,
+    urgencyElements: false,
     stickyOrderBar: ppDesign.stickyAddToCart,
     trustBadges: ppDesign.showTrustBadges,
-    shareButtons: ppDesign.showShareButtons,
-    deliveryInfo: ppDesign.showDeliveryInfo,
-    secureBadge: ppDesign.showSecureBadge,
+    shareButtons: false,
+    deliveryInfo: false,
+    secureBadge: false,
     countdownBar: ppDesign.showCountdown,
   };
 
@@ -1657,7 +1893,7 @@ const StoreProductPage = () => {
       : ['heroSlogan', 'heroBaseline', 'reviews', 'stockCounter', 'urgencyBadge', 'countdownBar',
         'orderForm', 'productGallery', 'trustBadges', 'secureBadge', 'deliveryInfo', 'shareButtons', 'statsBar',
          'urgencyElements', 'benefitsBullets', 'conversionBlocks', 'offerBlock', 'description',
-         'problemSection', 'solutionSection', 'faq', 'testimonials', 'relatedProducts',
+         'comparison', 'problemSection', 'solutionSection', 'raisonsAcheter', 'guideUtilisation', 'faq', 'testimonials', 'relatedProducts',
          'stickyOrderBar', 'upsell', 'orderBump'];
 
     const insertAfterMap = {
@@ -1839,6 +2075,7 @@ const StoreProductPage = () => {
       '--pp-mobile-info-padding': spacingPreset.mobileInfoPadding,
       '--pp-desktop-info-padding': spacingPreset.desktopInfoPadding,
       '--pp-landing-padding': spacingPreset.landingPadding,
+      '--pp-current-info-padding': spacingPreset.mobileInfoPadding,
       '--pp-card-radius': ctaBorderRadius,
       '--ai-primary': aiVisualTheme?.primary || 'var(--s-primary)',
       '--ai-accent': aiVisualTheme?.accent || 'var(--s-accent, var(--s-primary))',
@@ -1877,10 +2114,12 @@ const StoreProductPage = () => {
 
         /* ═══ THEME: CLASSIC ═══ */
         .product-grid.theme-classic { display:grid; grid-template-columns:1fr; gap:0; align-items:start; }
+        .theme-classic { --pp-current-info-padding: var(--pp-mobile-info-padding); }
         .theme-classic .product-gallery { position:relative; }
         .theme-classic .product-info { padding:var(--pp-mobile-info-padding) var(--pp-mobile-info-padding) 48px; }
         @media(min-width:769px){
           .product-grid.theme-classic { grid-template-columns:1fr 1fr; gap:var(--pp-gap); }
+          .theme-classic { --pp-current-info-padding: var(--pp-desktop-info-padding); }
           .theme-classic .product-gallery { position:sticky; top:72px; max-height:75vh; overflow-y:auto; }
           .theme-classic .product-info { padding:0 var(--pp-desktop-info-padding) 48px 0; }
         }
@@ -1907,6 +2146,7 @@ const StoreProductPage = () => {
         }
         /* ═══ THEME: LANDING PAGE ═══ */
         .product-grid.theme-landing { display:flex; flex-direction:column; gap:0; background:var(--ai-bg, #fff); }
+        .theme-landing { --pp-current-info-padding: var(--pp-landing-padding); }
         .theme-landing .product-gallery { position:relative; width:100%; height:60vh; min-height:360px; overflow:hidden; }
         .theme-landing .product-gallery img { width:100%; height:100%; object-fit:cover; object-position:center; }
         .theme-landing .product-gallery .thumb-track, .theme-landing .product-gallery .dots-track { display:none !important; }
@@ -1930,6 +2170,7 @@ const StoreProductPage = () => {
         .theme-landing .order-btn-wrapper button { min-height:64px !important; font-size:clamp(16px, 3vw, 20px) !important; border-radius:100px !important; }
         @media(min-width:769px){
           .theme-landing .product-gallery { height:75vh; min-height:500px; }
+          .theme-landing { --pp-current-info-padding: calc(var(--pp-landing-padding) + 8px); }
           .theme-landing .product-info { padding:0 calc(var(--pp-landing-padding) + 8px) 100px; margin-top:-20vh; }
         }
         /* Hide navbar completely for landing pages to remove distractions */
@@ -1937,6 +2178,7 @@ const StoreProductPage = () => {
 
         /* ═══ THEME: MAGAZINE ═══ */
         .product-grid.theme-magazine { display:flex; flex-direction:column; gap:0; position:relative; }
+        .theme-magazine { --pp-current-info-padding: var(--pp-mobile-info-padding); }
         .theme-magazine .product-gallery { position:relative; max-height:75vh; overflow:hidden; }
         .theme-magazine .product-gallery::after {
           content:''; position:absolute; bottom:0; left:0; right:0; height:40%;
@@ -1949,22 +2191,14 @@ const StoreProductPage = () => {
         }
         @media(min-width:769px){
           .theme-magazine .product-gallery { max-height:80vh; }
+          .theme-magazine { --pp-current-info-padding: calc(var(--pp-desktop-info-padding) + 16px); }
           .theme-magazine .product-info {
             margin:-100px auto 0; max-width:720px; padding:40px calc(var(--pp-desktop-info-padding) + 16px) 60px;
             border-radius:var(--pp-card-radius) var(--pp-card-radius) 0 0; box-shadow:0 -12px 60px rgba(0,0,0,0.1);
           }
         }
 
-        .ai-desc h2 { font-size:16px; font-weight:800; color:var(--s-text); margin:16px 0 8px; line-height:1.3; }
-        .ai-desc h3 { font-size:15px; font-weight:800; color:var(--s-text); margin:12px 0 8px; line-height:1.3; }
-        .ai-desc h2 strong, .ai-desc h3 strong { font-weight:800; }
-        .ai-desc p { font-size:14px; line-height:1.75; color:var(--s-text2); margin:0 0 10px; word-wrap:break-word; overflow-wrap:break-word; }
         .ai-desc img { width:auto !important; max-width:100% !important; height:auto !important; aspect-ratio:auto !important; object-fit:contain !important; display:block; margin:0; }
-        .ai-desc ul, .ai-desc ol { margin:0 0 10px; padding:0 0 0 16px; }
-        .ai-desc ul { list-style:disc; }
-        .ai-desc ul li, .ai-desc ol li { font-size:13.5px; line-height:1.6; color:var(--s-text2); margin-bottom:4px; }
-        .ai-desc div { margin:0; padding:0; background:none !important; border:none !important; border-radius:0 !important; }
-        .ai-desc section { margin:0 0 16px; padding:0; background:none !important; border:none !important; }
         .product-info.ai-themed {
           position: relative;
         }
@@ -1993,12 +2227,6 @@ const StoreProductPage = () => {
         .product-info.ai-themed > * {
           position:relative;
           z-index:1;
-        }
-        @media(min-width:769px){
-          .ai-desc h2 { font-size:18px; }
-          .ai-desc h3 { font-size:16px; }
-          .ai-desc p { font-size:14.5px; }
-          .ai-desc ul li, .ai-desc ol li { font-size:14px; }
         }
         /* Mobile-specific fixes */
         @media(max-width:480px){
@@ -2054,9 +2282,16 @@ const StoreProductPage = () => {
           <div className={`product-info ${aiVisualTheme ? 'ai-themed' : ''}`}>
             {product ? (
               <>
+                <ProductReviews
+                  rating={heroReviewRating}
+                  reviewCount={heroReviewCount}
+                  fallbackCount={100}
+                  label="avis positifs"
+                  showNumericRating={false}
+                />
                 {/* Name */}
                 <h1 style={{
-                  fontSize: `clamp(${Math.max(24, (Number.parseInt(ppDesign.fontBase, 10) || 14) + 12)}px, 4vw, ${Math.max(36, (Number.parseInt(ppDesign.fontBase, 10) || 14) + 24)}px)`, fontWeight: 900,
+                  fontSize: `clamp(${Math.max(28, (Number.parseInt(ppDesign.fontBase, 10) || 14) + 16)}px, 5vw, ${Math.max(42, (Number.parseInt(ppDesign.fontBase, 10) || 14) + 30)}px)`, fontWeight: 900,
                   color: 'var(--s-text)', margin: '8px 0 8px',
                   lineHeight: 1.1, letterSpacing: '-0.03em', fontFamily: 'var(--s-font)',
                 }}>
@@ -2112,7 +2347,7 @@ const StoreProductPage = () => {
                         ] : null
                       );
                       return (
-                        <div key={sectionId} style={{ marginBottom: 20 }}>
+                        <div key={sectionId} style={{ marginBottom: 20, margin: '0 calc(var(--pp-current-info-padding, 16px) * -1 + 8px) 20px' }}>
                           {/* ── Variant selectors ── */}
                           {productVariants?.length > 0 && (
                             <div style={{ marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -2253,15 +2488,10 @@ const StoreProductPage = () => {
                       }
 
                     case 'trustBadges':
-                      return <TrustBadges key={sectionId} compact accentColor={trustTheme.primary} />;
+                      return <TrustBadges key={sectionId} compact accentColor={ctaBtnColor} />;
 
                     case 'secureBadge':
-                      return (
-                        <div key={sectionId} style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 6 }}>
-                          <Shield size={12} color={trustTheme.primary} style={{ flexShrink: 0 }} />
-                          <span style={{ fontSize: 11.5, color: 'var(--s-text2)', fontFamily: 'var(--s-font)' }}>Paiement 100% sécurisé</span>
-                        </div>
-                      );
+                      return null;
 
                     case 'deliveryInfo':
                       return (
@@ -2350,56 +2580,51 @@ const StoreProductPage = () => {
                       ) : null;
                     }
 
-                    case 'urgencyElements': {
-                      const ueCustom = sectionContentMap.urgencyElements || {};
-                      const ueAi = product._pageData?.urgency_elements;
-                      const ueData = (ueCustom.stockLimited != null || ueCustom.socialProofCount || ueCustom.quickResult)
-                        ? ueCustom
-                        : ueAi;
-                      return ueData ? (
-                        <UrgencyBadge key={sectionId}
-                          stockLimited={ueData.stockLimited ?? ueData.stock_limited}
-                          socialProofCount={ueData.socialProofCount ?? ueData.social_proof_count}
-                          quickResult={ueData.quickResult ?? ueData.quick_result}
-                        />
-                      ) : null;
-                    }
+                    case 'urgencyElements':
+                      return null;
 
                     case 'benefitsBullets': {
                       const customBullets = sectionContentMap.benefitsBullets?.items?.filter(Boolean);
                       const bulletsData = customBullets?.length > 0 ? customBullets : product._pageData?.benefits_bullets;
                       return bulletsData?.length > 0 ? (
-                        <ProductBenefits key={sectionId} benefits={bulletsData} title="" compact accentColor={benefitsTheme.primary} borderColor={benefitsTheme.softBorder} surfaceColor={benefitsTheme.softGradient} textColor={benefitsTheme.text} />
+                        <ProductBenefits key={sectionId} benefits={bulletsData} title="" accentColor={ctaBtnColor} textColor={ppDesign.textColor || 'var(--s-text)'} />
                       ) : null;
                     }
 
-                    case 'conversionBlocks': {
-                      const cbCustom = sectionContentMap.conversionBlocks?.items?.filter(b => b?.text);
-                      const cbData = cbCustom?.length > 0 ? cbCustom : product._pageData?.conversion_blocks;
-                      return cbData?.length > 0 ? (
-                        <ConversionBlocks key={sectionId} blocks={cbData} compact iconColor={trustTheme.primary} borderColor={trustTheme.softBorder} backgroundColor={trustTheme.softGradient} textColor={trustTheme.text} />
+                    case 'conversionBlocks':
+                      return null;
+
+                    case 'comparison': {
+                      const customRows = sectionContentMap.comparison?.rows?.filter(r => r?.label);
+                      const aiRows = product._pageData?.comparison_rows;
+                      const fallbackRows = buildFallbackComparisonRows({ sectionContentMap, product });
+                      const rows = customRows?.length > 0 ? customRows : (aiRows?.length > 0 ? aiRows : fallbackRows);
+                      const comparisonLabel = sectionContentMap.comparison?.productLabel
+                        || product._pageData?.comparison_product_label
+                        || pickComparisonProductName(product.name);
+                      const comparisonNote = sectionContentMap.comparison?.note?.trim()
+                        || product._pageData?.comparison_note?.trim()
+                        || '';
+                      return rows?.length > 0 ? (
+                        <ComparisonTable
+                          key={sectionId}
+                          rows={rows}
+                          productName={comparisonLabel}
+                          primaryColor={ctaBtnColor}
+                          note={comparisonNote}
+                        />
                       ) : null;
                     }
 
-                    case 'offerBlock': {
-                      const sc = sectionContentMap.offerBlock || {};
-                      const aiBlock = product._pageData?.offer_block;
-                      const mergedBlock = (aiBlock || sc.offerLabel || sc.guaranteeText) ? {
-                        offer_label: sc.offerLabel || aiBlock?.offer_label || 'Offre spéciale',
-                        guarantee_text: sc.guaranteeText || aiBlock?.guarantee_text,
-                      } : null;
-                      return mergedBlock ? <OfferBlock key={sectionId} block={mergedBlock} visualTheme={trustTheme} /> : null;
-                    }
+                    case 'offerBlock':
+                      return null;
 
                     case 'description': {
                       const descCustom = sectionContentMap.description?.text?.trim();
                       const raw = descCustom || product.description?.toString().trim() || '';
                       return raw ? (
                         <div key={sectionId} style={{ borderTop: '1px solid var(--s-border)', marginTop: 8, paddingTop: 16, paddingBottom: 8 }}>
-                          <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--s-text)', fontFamily: 'var(--s-font)', marginBottom: 12 }}>
-                            Description du produit
-                          </div>
-                          <ProductDescription content={raw} />
+                          <ProductDescription content={raw} design={ppDesign} />
                         </div>
                       ) : null;
                     }
@@ -2425,6 +2650,20 @@ const StoreProductPage = () => {
                       return mergedSection ? <SolutionSection key={sectionId} section={mergedSection} visualTheme={solutionTheme} /> : null;
                     }
 
+                    case 'raisonsAcheter': {
+                      const raisons = product._pageData?.raisons_acheter;
+                      return raisons?.length > 0
+                        ? <RaisonsAcheter key={sectionId} raisons={raisons} visualTheme={raisonsTheme} />
+                        : null;
+                    }
+
+                    case 'guideUtilisation': {
+                      const guide = product._pageData?.guide_utilisation;
+                      return guide?.applicable && guide?.etapes?.length > 0
+                        ? <GuideUtilisation key={sectionId} guide={guide} visualTheme={guideTheme} />
+                        : null;
+                    }
+
                     case 'faq': {
                       const raw2 = product.description?.toString().trim() || '';
                       const hasHtml2 = raw2 && /<[^>]+>/.test(raw2);
@@ -2435,7 +2674,7 @@ const StoreProductPage = () => {
                           ? product.faq
                           : (hasHtml2 ? extractFaqItemsFromHtml(raw2) : []);
                       return faqItems.length > 0
-                        ? <LazySection key={sectionId} minHeight={120}><ProductFaqAccordion items={faqItems} visualTheme={faqTheme} /></LazySection>
+                        ? <LazySection key={sectionId} minHeight={120}><ProductFaqAccordion items={faqItems} primaryColor={ctaBtnColor} /></LazySection>
                         : null;
                     }
 
@@ -2470,12 +2709,25 @@ const StoreProductPage = () => {
               ? product.testimonials
               : getDefaultTestimonials(product?.country || store?.country);
         const prodImg = product?.images?.[0]?.url || product?.images?.[0] || product?._pageData?.heroImage || null;
-        const groupImg = product?._pageData?.testimonialsGroupImage || null;
-        const socialImg = product?._pageData?.testimonialsSocialProofImage || null;
+        const socialGallery = buildSocialProofGalleryImages(product);
+        const groupImg = product?._pageData?.peoplePhotos?.[0] || product?._pageData?.testimonialsGroupImage || null;
+        const socialImg = product?._pageData?.socialProofImages?.[0]
+          || product?.socialProofImages?.[0]
+          || socialGallery?.[0]?.url
+          || product?._pageData?.testimonialsSocialProofImage
+          || null;
         return (
           <LazySection minHeight={200}>
             <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 16px', overflow: 'hidden' }}>
-              <ProductTestimonials testimonials={t} productImage={prodImg} groupImage={groupImg} socialProofImage={socialImg} visualTheme={socialProofTheme} />
+              <ProductTestimonials
+                testimonials={t}
+                visualTheme={{
+                  ...socialProofTheme,
+                  productImage: prodImg,
+                  groupImage: groupImg,
+                  socialProofImage: socialImg,
+                }}
+              />
             </div>
           </LazySection>
         );

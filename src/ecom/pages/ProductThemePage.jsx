@@ -281,10 +281,10 @@ const DEFAULT_DESIGN = {
   borderRadius: '12px', shadow: true,
   buttonStyle: 'filled', badgeStyle: 'filled',
   imageRatio: 'square', spacing: 'normal',
-  showReviews: true, showTrustBadges: true, showShareButtons: true,
+  showReviews: false, showTrustBadges: true, showShareButtons: false,
   showRelatedProducts: true, showProductGallery: true, showQuantitySelector: true,
-  showDeliveryInfo: true, showSecureBadge: true,
-  showCountdown: false, showStockIndicator: true,
+  showDeliveryInfo: false, showSecureBadge: false,
+  showCountdown: false, showStockIndicator: false,
   stickyAddToCart: true, imageZoom: true,
 };
 
@@ -340,7 +340,15 @@ const ProductThemePage = () => {
         const config = raw.storeSettings?.productPageConfig || raw.productPageConfig || {};
         const themeData = themeRes.data?.data || {};
         const savedTheme = themeData.template || 'classic';
-        const savedDesign = { ...DEFAULT_DESIGN, ...(config.design || {}) };
+        const savedDesign = {
+          ...DEFAULT_DESIGN,
+          ...(config.design || {}),
+          showReviews: false,
+          showShareButtons: false,
+          showDeliveryInfo: false,
+          showSecureBadge: false,
+          showStockIndicator: false,
+        };
         const savedSectionColors = { ...DEFAULT_SECTION_COLORS, ...(themeData.sectionColors || {}) };
         setCurrentTheme(savedTheme);
         setDesign(savedDesign);
@@ -772,21 +780,12 @@ const ProductThemePage = () => {
                 <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-2"><ShoppingBag size={14} /> Achat</h3>
                 <Toggle label="Sélecteur de quantité" desc="Permet de choisir la quantité avant l'ajout" value={design.showQuantitySelector} onChange={v => updateDesign('showQuantitySelector', v)} accentColor={design.buttonColor || '#7C3AED'} />
                 <Toggle label="Bouton ajout sticky" desc="Le bouton d'ajout reste visible en scrollant" value={design.stickyAddToCart} onChange={v => updateDesign('stickyAddToCart', v)} accentColor={design.buttonColor || '#7C3AED'} />
-                <Toggle label="Indicateur de stock" desc="Affiche le stock restant pour créer l'urgence" value={design.showStockIndicator} onChange={v => updateDesign('showStockIndicator', v)} accentColor={design.buttonColor || '#7C3AED'} />
                 <Toggle label="Compte à rebours" desc="Timer d'urgence pour les offres limitées" value={design.showCountdown} onChange={v => updateDesign('showCountdown', v)} accentColor={design.buttonColor || '#7C3AED'} />
               </div>
 
               <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-3">
                 <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-2"><Shield size={14} /> Confiance</h3>
                 <Toggle label="Badges de confiance" desc="Sécurité, garantie, retours" value={design.showTrustBadges} onChange={v => updateDesign('showTrustBadges', v)} accentColor={design.buttonColor || '#7C3AED'} />
-                <Toggle label="Infos livraison" desc="Délai et coût de livraison estimés" value={design.showDeliveryInfo} onChange={v => updateDesign('showDeliveryInfo', v)} accentColor={design.buttonColor || '#7C3AED'} />
-                <Toggle label="Badge paiement sécurisé" desc="Icône de cadenas + texte sécurisé" value={design.showSecureBadge} onChange={v => updateDesign('showSecureBadge', v)} accentColor={design.buttonColor || '#7C3AED'} />
-              </div>
-
-              <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-3">
-                <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-2"><Star size={14} /> Social</h3>
-                <Toggle label="Avis clients" desc="Section avis et notes sur la page" value={design.showReviews} onChange={v => updateDesign('showReviews', v)} accentColor={design.buttonColor || '#7C3AED'} />
-                <Toggle label="Boutons partage" desc="Partager sur WhatsApp, Facebook, etc." value={design.showShareButtons} onChange={v => updateDesign('showShareButtons', v)} accentColor={design.buttonColor || '#7C3AED'} />
               </div>
 
               <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-3">

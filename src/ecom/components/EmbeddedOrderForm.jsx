@@ -319,7 +319,7 @@ const EmbeddedOrderForm = ({ product, subdomain, store, productPageConfig }) => 
 
   // ── Inline form ──
   return (
-    <div style={{ borderRadius: design.borderRadius || 16, border: `2px solid ${btnColor}25`, padding: '20px 18px', backgroundColor: formBgColor }}>
+    <div style={{ borderRadius: 0, border: 'none', borderTop: `3px solid ${btnColor}`, padding: '24px 16px', backgroundColor: formBgColor }}>
       <h3 style={{ fontSize: 16, fontWeight: 800, color: textColor, margin: '0 0 14px', display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'var(--s-font)' }}>
         <ShoppingCart size={18} color={btnColor} /> {btnCfg.text || 'Commander maintenant'}
       </h3>
