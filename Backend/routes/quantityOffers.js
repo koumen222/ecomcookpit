@@ -1,8 +1,34 @@
 import express from 'express';
 import QuantityOffer from '../models/QuantityOffer.js';
+import StoreProduct from '../models/StoreProduct.js';
 import { requireEcomAuth } from '../middleware/ecomAuth.js';
 
 const router = express.Router();
+
+async function hydrateOfferProducts(offers, workspaceId) {
+  const list = Array.isArray(offers) ? offers : [offers].filter(Boolean);
+  const productIds = [...new Set(
+    list
+      .map((offer) => String(offer.productId || ''))
+      .filter((value) => /^[0-9a-fA-F]{24}$/.test(value))
+  )];
+
+  if (productIds.length === 0) return list;
+
+  const products = await StoreProduct.find({
+    _id: { $in: productIds },
+    workspaceId
+  })
+    .select('name images price currency sku')
+    .lean();
+
+  const productById = new Map(products.map((product) => [String(product._id), product]));
+
+  return list.map((offer) => ({
+    ...offer,
+    productId: productById.get(String(offer.productId)) || offer.productId
+  }));
+}
 
 // GET / — Liste des offres (toutes ou filtrées par produit)
 router.get('/', requireEcomAuth, async (req, res) => {
@@ -14,11 +40,12 @@ router.get('/', requireEcomAuth, async (req, res) => {
     if (isActive !== undefined) filter.isActive = isActive === 'true';
 
     const offers = await QuantityOffer.find(filter)
-      .populate('productId', 'name images price currency')
       .sort({ createdAt: -1 })
       .lean();
 
-    res.json({ success: true, data: offers });
+    const hydratedOffers = await hydrateOfferProducts(offers, req.workspaceId);
+
+    res.json({ success: true, data: hydratedOffers });
   } catch (error) {
     console.error('❌ Erreur liste offres quantité:', error);
     res.status(500).json({ success: false, message: 'Erreur serveur' });
@@ -31,13 +58,15 @@ router.get('/:id', requireEcomAuth, async (req, res) => {
     const offer = await QuantityOffer.findOne({
       _id: req.params.id,
       workspaceId: req.workspaceId
-    }).populate('productId', 'name images price currency').lean();
+    }).lean();
 
     if (!offer) {
       return res.status(404).json({ success: false, message: 'Offre non trouvée' });
     }
 
-    res.json({ success: true, data: offer });
+    const [hydratedOffer] = await hydrateOfferProducts(offer, req.workspaceId);
+
+    res.json({ success: true, data: hydratedOffer });
   } catch (error) {
     console.error('❌ Erreur détail offre quantité:', error);
     res.status(500).json({ success: false, message: 'Erreur serveur' });

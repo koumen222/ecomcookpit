@@ -31,6 +31,7 @@ const defaultConfig = {
       { id: 'urgencyBadge',      label: 'Badge d\'urgence',          enabled: true  },
       { id: 'urgencyElements',   label: 'Éléments d\'urgence',       enabled: true  },
       { id: 'benefitsBullets',   label: 'Bénéfices produit',         enabled: true  },
+      { id: 'comparison',        label: 'Tableau comparatif',        enabled: true  },
       { id: 'conversionBlocks',  label: 'Blocs de réassurance',      enabled: true  },
       { id: 'offerBlock',        label: 'Bloc garantie / offre',     enabled: true  },
       { id: 'description',       label: 'Description produit',       enabled: true  },

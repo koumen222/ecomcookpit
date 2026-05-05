@@ -374,6 +374,7 @@ const FormQuantityOffersWizard = () => {
   const [name, setName] = useState('Nouvelle offre');
   const [isActive, setIsActive] = useState(true);
   const [selectedProduct, setSelectedProduct] = useState(null);
+  const [selectedProductId, setSelectedProductId] = useState('');
   const [offers, setOffers] = useState([
     { quantity: 1, price: '', compare_price: '', discount: 0, label: '' }
   ]);
@@ -415,9 +416,23 @@ const FormQuantityOffersWizard = () => {
       setOffers(data.offers?.length > 0 ? data.offers : [{ quantity: 1, price: '', compare_price: '', discount: 0, label: '' }]);
       if (data.design) setDesign(prev => ({ ...prev, ...data.design, colors: { ...prev.colors, ...data.design.colors } }));
       // Resolve product
-      const pid = data.productId?._id || data.productId;
+      const pid = typeof data.productId === 'object' && data.productId !== null
+        ? (data.productId._id || '')
+        : (data.productId || '');
+      setSelectedProductId(pid);
+      if (data.productId && typeof data.productId === 'object') {
+        setSelectedProduct(data.productId);
+      } else {
+        setSelectedProduct(null);
+      }
       if (pid) {
-        storeProductsApi.getProduct(pid).then(r => setSelectedProduct(r.data?.data || null)).catch(() => {});
+        storeProductsApi.getProduct(pid)
+          .then((r) => {
+            const product = r.data?.data || null;
+            setSelectedProduct(product);
+            if (product?._id) setSelectedProductId(product._id);
+          })
+          .catch(() => {});
       }
     }).catch(() => setError("Erreur de chargement"))
       .finally(() => setLoading(false));
@@ -425,7 +440,8 @@ const FormQuantityOffersWizard = () => {
 
   const handleSave = async () => {
     if (!name.trim()) return setError('Le nom de l\'offre est requis.');
-    if (!selectedProduct) return setError('Veuillez sélectionner un produit.');
+    const productId = selectedProduct?._id || selectedProductId;
+    if (!productId) return setError('Veuillez sélectionner un produit.');
     if (offers.length === 0) return setError('Ajoutez au moins un palier.');
     for (const off of offers) {
       if (!off.quantity || !off.price) return setError('Chaque palier doit avoir une quantité et un prix.');
@@ -433,7 +449,7 @@ const FormQuantityOffersWizard = () => {
     setSaving(true);
     setError(null);
     try {
-      const payload = { name, isActive, productId: selectedProduct._id, offers, design };
+      const payload = { name, isActive, productId, offers, design };
       if (id && id !== 'new') {
         await quantityOffersApi.updateOffer(id, payload);
       } else {
@@ -478,6 +494,7 @@ const FormQuantityOffersWizard = () => {
 
   const handleSelectProduct = (p) => {
     setSelectedProduct(p);
+    setSelectedProductId(p?._id || '');
     setShowProductModal(false);
     // Only auto-generate if offers are still at initial empty state
     const isFreshOffers = offers.length === 1 && !offers[0].price;
@@ -570,9 +587,22 @@ const FormQuantityOffersWizard = () => {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-semibold text-gray-900 truncate">{selectedProduct.name}</div>
-                  <div className="text-[11px] text-gray-400 mt-0.5">{selectedProduct.sku || selectedProduct._id}</div>
+                  <div className="text-[11px] text-gray-400 mt-0.5">{selectedProduct.sku || selectedProduct._id || selectedProductId}</div>
                 </div>
-                <button onClick={() => setSelectedProduct(null)} className="p-1.5 hover:bg-gray-200 rounded-lg transition text-gray-400">
+                <button onClick={() => { setSelectedProduct(null); setSelectedProductId(''); }} className="p-1.5 hover:bg-gray-200 rounded-lg transition text-gray-400">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ) : selectedProductId ? (
+              <div className="flex items-center gap-3 p-3 bg-amber-50 rounded-xl border border-amber-200">
+                <div className="w-10 h-10 rounded-lg bg-amber-100 flex-shrink-0 border border-amber-200 flex items-center justify-center">
+                  <Package className="w-5 h-5 text-amber-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-semibold text-amber-900 truncate">Produit introuvable</div>
+                  <div className="text-[11px] text-amber-700 mt-0.5">{selectedProductId}</div>
+                </div>
+                <button onClick={() => setSelectedProductId('')} className="p-1.5 hover:bg-amber-100 rounded-lg transition text-amber-600">
                   <X className="w-4 h-4" />
                 </button>
               </div>
