@@ -4,84 +4,35 @@ import React from 'react';
  * Composant pour afficher les bénéfices produit avec emojis
  * Format optimisé pour mobile et marché africain
  */
-export default function ProductBenefits({ benefits = [], title = "💥 Les bénéfices", compact = false, accentColor = 'var(--s-section-benefits, var(--s-primary))', borderColor = 'var(--s-section-benefits-border, var(--s-border))', surfaceColor = 'var(--s-section-benefits-soft, var(--s-bg))', textColor = 'var(--s-text)' }) {
+export default function ProductBenefits({ benefits = [], title = "", compact = false, accentColor = 'var(--s-section-benefits, var(--s-primary))', borderColor = 'var(--s-section-benefits-border, var(--s-border))', surfaceColor = 'var(--s-section-benefits-soft, var(--s-bg))', textColor = 'var(--s-text)' }) {
   if (!benefits || benefits.length === 0) return null;
 
   return (
-    <div style={{
-      borderRadius: compact ? 14 : 16,
-      padding: compact ? '10px 10px' : '24px 20px',
-      marginBottom: compact ? 12 : 24,
-    }}>
+    <div style={{ marginBottom: 10 }}>
       {title ? (
-        <h3 style={{
-          fontSize: compact ? 15 : 20,
-          fontWeight: 800,
-          color: 'var(--s-text)',
-          marginBottom: compact ? 10 : 20,
-          fontFamily: 'var(--s-font)',
-          textAlign: compact ? 'left' : 'center',
-        }}>
+        <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--s-text2)', marginBottom: 6, fontFamily: 'var(--s-font)' }}>
           {title}
-        </h3>
+        </p>
       ) : null}
-      
-      <div style={{
-        display: 'flex',
-        flexDirection: 'column',
-        gap: compact ? 8 : 14,
-      }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
         {benefits.map((benefit, index) => {
-          // Supprimer l'emoji de début si présent, garder uniquement le texte
           const emojiMatch = benefit.match(/^([\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}])\s*/u);
           const text = emojiMatch ? benefit.slice(emojiMatch[0].length).trim() : benefit;
-
           return (
-            <div
-              key={index}
-              style={{
-                display: 'flex',
-                alignItems: 'flex-start',
-                gap: compact ? 10 : 12,
-                padding: compact ? '8px 10px' : '14px 16px',
-                backgroundColor: surfaceColor,
-                borderRadius: compact ? 10 : 12,
-                border: `1px solid ${borderColor}`,
-                transition: 'all 0.2s',
-              }}
-              className="benefit-item"
-            >
+            <div key={index} style={{ display: 'flex', alignItems: 'flex-start', gap: 7 }}>
               <span style={{
-                width: compact ? 20 : 24,
-                height: compact ? 20 : 24,
-                borderRadius: '50%',
-                background: accentColor,
-                color: '#fff',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: compact ? 12 : 14,
-                fontWeight: 700,
-                flexShrink: 0,
-                marginTop: compact ? 2 : 1,
-              }}>
-                ✓
-              </span>
-              <p style={{
-                fontSize: compact ? 13 : 15,
-                lineHeight: compact ? 1.45 : 1.6,
-                color: textColor,
-                margin: 0,
-                fontFamily: 'var(--s-font)',
-                fontWeight: 500,
-              }}>
+                width: 16, height: 16, borderRadius: '50%',
+                background: accentColor, color: '#fff',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 10, fontWeight: 700, flexShrink: 0, marginTop: 1,
+              }}>✓</span>
+              <p style={{ fontSize: 12.5, lineHeight: 1.4, color: textColor, margin: 0, fontFamily: 'var(--s-font)', fontWeight: 500 }}>
                 {text}
               </p>
             </div>
           );
         })}
       </div>
-
     </div>
   );
 }

@@ -944,21 +944,15 @@ const CollapsibleSection = ({ title, children, defaultOpen = false }) => {
 const StatsBar = ({ stats = [], visualTheme = null }) => {
   if (!stats || stats.length === 0) return null;
   return (
-    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 16 }}>
+    <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 8 }}>
       {stats.map((stat, i) => (
-        <div key={i} style={{
-          flex: '1 1 auto', minWidth: 90,
-          padding: '12px 14px', borderRadius: 14,
-          background: visualTheme?.gradient || 'var(--s-primary)', color: '#fff',
-          textAlign: 'center',
-          boxShadow: visualTheme?.shadow || 'none',
-        }}>
-          <div style={{ fontSize: 22, fontWeight: 900, lineHeight: 1.1, fontFamily: 'var(--s-font)' }}>
+        <div key={i} style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
+          <span style={{ fontSize: 16, fontWeight: 800, color: visualTheme?.primary || 'var(--s-primary)', fontFamily: 'var(--s-font)' }}>
             {stat.value}
-          </div>
-          <div style={{ fontSize: 11, fontWeight: 600, opacity: 0.85, marginTop: 3, lineHeight: 1.3, fontFamily: 'var(--s-font)' }}>
+          </span>
+          <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--s-text2)', fontFamily: 'var(--s-font)' }}>
             {stat.label}
-          </div>
+          </span>
         </div>
       ))}
     </div>
@@ -1020,17 +1014,9 @@ const OfferBlock = ({ block, visualTheme = null }) => {
   const text = block?.guarantee_text || block?.hook;
   if (!text) return null;
   return (
-    <div style={{
-      margin: '8px 0 10px', padding: '10px 12px', borderRadius: 10,
-      background: visualTheme?.softGradient || '#FFFBEB', border: `1px solid ${visualTheme?.softBorder || '#FDE68A'}`,
-      display: 'flex', alignItems: 'flex-start', gap: 10,
-      boxShadow: visualTheme?.shadow || 'none',
-    }}>
-      <span style={{ fontSize: 18, flexShrink: 0, color: visualTheme?.primary || '#78350F', lineHeight: 1 }}>✦</span>
-      <p style={{ margin: 0, fontSize: 12.5, color: visualTheme?.text || '#78350F', lineHeight: 1.45, fontWeight: 600, fontFamily: 'var(--s-font)' }}>
-        {text}
-      </p>
-    </div>
+    <p style={{ margin: '6px 0', fontSize: 12, color: visualTheme?.primary || 'var(--s-text2)', lineHeight: 1.4, fontWeight: 600, fontFamily: 'var(--s-font)', display: 'flex', alignItems: 'center', gap: 5 }}>
+      <span style={{ flexShrink: 0 }}>✦</span>{text}
+    </p>
   );
 };
 
@@ -1075,32 +1061,20 @@ const ProductFaqAccordion = ({ items = [], visualTheme = null }) => {
 
 // ── Trust Badges ─────────────────────────────────────────────────────────────
 const TrustBadges = ({ compact = false, accentColor = 'var(--s-section-trust, var(--s-primary))' }) => (
-  <div style={{
-    display: 'flex', gap: 8,
-    marginTop: compact ? 24 : 28,
-    padding: compact ? '0 0 4px' : '20px 0 4px',
-    borderTop: compact ? 'none' : '1px solid var(--s-border)',
-    flexWrap: 'wrap',
-  }}>
+  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8, marginBottom: 4 }}>
     {[
-      { icon: <Truck size={14} />, text: 'Livraison rapide' },
-      { icon: <Shield size={14} />, text: 'Paiement sécurisé' },
-      { icon: <RotateCcw size={14} />, text: 'Retours acceptés' },
+      { icon: <Truck size={11} />, text: 'Livraison rapide' },
+      { icon: <Shield size={11} />, text: 'Paiement sécurisé' },
+      { icon: <RotateCcw size={11} />, text: 'Retours acceptés' },
     ].map(({ icon, text }) => (
       <div key={text} style={{
-        display: 'flex', alignItems: 'center', gap: 6,
-        padding: '8px 10px', borderRadius: 999,
-        border: '1px solid var(--ai-soft-border, var(--s-border))',
-        background: 'var(--ai-surface, #fff)',
+        display: 'flex', alignItems: 'center', gap: 4,
+        padding: '3px 8px', borderRadius: 999,
+        border: '1px solid var(--s-border)',
         whiteSpace: 'nowrap',
-        boxShadow: 'var(--ai-shadow, none)',
-        flex: '0 1 auto',
-        minWidth: 0,
       }}>
-        <span style={{ width: 24, height: 24, borderRadius: '50%', background: accentColor, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{icon}</span>
-        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--s-text2)', fontFamily: 'var(--s-font)' }}>
-          {text}
-        </span>
+        <span style={{ color: accentColor, display: 'flex' }}>{icon}</span>
+        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--s-text2)', fontFamily: 'var(--s-font)' }}>{text}</span>
       </div>
     ))}
   </div>
@@ -2268,44 +2242,20 @@ const StoreProductPage = () => {
                       return <TrustBadges key={sectionId} compact accentColor={trustTheme.primary} />;
 
                     case 'secureBadge':
-                      {
-                        const secureCardStyle = resolveThemeInfoCardStyle('neutral');
-                        return (
-                          <div key={sectionId} style={{ marginBottom: 12 }}>
-                            <div style={secureCardStyle.container}>
-                              <div style={secureCardStyle.content}>
-                                <div style={secureCardStyle.iconWrap}>
-                                  <Shield size={16} color={trustTheme.primary} />
-                                </div>
-                                <div style={{ minWidth: 0 }}>
-                                  <div style={secureCardStyle.title}>Paiement 100% sécurisé</div>
-                                  <div style={secureCardStyle.subtitle}>Vos informations sont protégées pendant toute la commande.</div>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      }
+                      return (
+                        <div key={sectionId} style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 6 }}>
+                          <Shield size={12} color={trustTheme.primary} style={{ flexShrink: 0 }} />
+                          <span style={{ fontSize: 11.5, color: 'var(--s-text2)', fontFamily: 'var(--s-font)' }}>Paiement 100% sécurisé</span>
+                        </div>
+                      );
 
                     case 'deliveryInfo':
-                      {
-                        const deliveryCardStyle = resolveThemeInfoCardStyle('neutral');
-                        return (
-                          <div key={sectionId} style={{ marginBottom: 14 }}>
-                            <div style={deliveryCardStyle.container}>
-                              <div style={deliveryCardStyle.content}>
-                                <div style={deliveryCardStyle.iconWrap}>
-                                  <Truck size={16} color={trustTheme.primary} />
-                                </div>
-                                <div style={{ minWidth: 0 }}>
-                                  <div style={deliveryCardStyle.title}>Livraison estimée : 2 à 4 jours</div>
-                                  <div style={deliveryCardStyle.subtitle}>Paiement à la livraison disponible</div>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      }
+                      return (
+                        <div key={sectionId} style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 6 }}>
+                          <Truck size={12} color={trustTheme.primary} style={{ flexShrink: 0 }} />
+                          <span style={{ fontSize: 11.5, color: 'var(--s-text2)', fontFamily: 'var(--s-font)' }}>Livraison 2–4 jours · Paiement à la livraison</span>
+                        </div>
+                      );
 
                     case 'shareButtons':
                       return (
