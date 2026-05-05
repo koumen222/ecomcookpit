@@ -236,6 +236,24 @@ export default function AgentConfig() {
   const [groupInviteLink, setGroupInviteLink] = useState('');
   const [groupJoining, setGroupJoining] = useState(false);
   const [groupAddMode, setGroupAddMode] = useState('invite'); // 'invite' | 'existing' | 'create'
+  const [groupsLoading, setGroupsLoading] = useState(false);
+
+  // Broadcast composer
+  const [bcSelectedGroups, setBcSelectedGroups] = useState(new Set());
+  const [bcMessage, setBcMessage] = useState('');
+  const [bcMediaUrl, setBcMediaUrl] = useState('');
+  const [bcCaption, setBcCaption] = useState('');
+  const [bcScheduleAt, setBcScheduleAt] = useState('');
+  const [bcSending, setBcSending] = useState(false);
+  const [bcResult, setBcResult] = useState(null);
+  const [openedGroup, setOpenedGroup] = useState(null); // { id, name, participants }
+  const [groupSearch, setGroupSearch] = useState('');
+  const [groupView, setGroupView] = useState('list'); // 'list' | 'campaigns'
+  const [campaigns, setCampaigns] = useState([]);
+  const [campaignForm, setCampaignForm] = useState({ name: '', message: '', mediaUrl: '', caption: '', scheduleAt: '', groupJids: [], repeat: false, repeatDays: [], repeatHour: '09:00' });
+  const [campaignMediaUploading, setCampaignMediaUploading] = useState(false);
+  const [campaignEditing, setCampaignEditing] = useState(null); // index ou null
+  const [campaignSaving, setCampaignSaving] = useState(false);
 
   // Chat simulator
   const [simMessages, setSimMessages] = useState([]);
@@ -433,6 +451,7 @@ export default function AgentConfig() {
 
   // Product editing
   const [editingProduct, setEditingProduct] = useState(null);
+  const [focusedDescIdx, setFocusedDescIdx] = useState(null);
   const [selectedProducts, setSelectedProducts] = useState(new Set());
   const [mediaUploadingByProduct, setMediaUploadingByProduct] = useState({});
 
@@ -1145,10 +1164,11 @@ export default function AgentConfig() {
   // ─── Group Animation ───
   const loadGroupAnimation = useCallback(async () => {
     if (!userId) return;
+    setGroupsLoading(true);
     try {
       const [cfgRes, grpRes, ritaRes] = await Promise.all([
         ecomApi.get('/v1/rita-flows/config', { params: { userId } }).catch(() => ({ data: { config: null } })),
-        ecomApi.get('/v1/rita-flows/groups/list', { params: { userId } }).catch(() => ({ data: { groups: [] } })),
+        ecomApi.get('/v1/rita-flows/groups/list', { params: { userId } }).catch(e => { console.error('groups/list error:', e.response?.data || e.message); return { data: { groups: [] } }; }),
         ecomApi.get('/v1/external/whatsapp/rita-config', { params: { userId } }).catch(() => ({ data: { config: null } })),
       ]);
       setGroupConfig(cfgRes.data.config || { enabled: false, flows: [], groups: [], settings: {} });
@@ -1157,6 +1177,8 @@ export default function AgentConfig() {
     } catch (err) {
       console.error('Erreur chargement groupes:', err);
       setGroupConfig({ enabled: false, flows: [], groups: [], settings: {} });
+    } finally {
+      setGroupsLoading(false);
     }
   }, [userId]);
 
@@ -1256,6 +1278,114 @@ export default function AgentConfig() {
     const groups = [...(groupConfig?.groups || [])];
     groups.splice(gi, 1);
     updateGroupConfig('groups', groups);
+  };
+
+  // Campagnes groupes — persistées en localStorage par userId
+  const getCampaignKey = () => `group_campaigns_${userId}`;
+  const loadCampaigns = () => {
+    try { return JSON.parse(localStorage.getItem(getCampaignKey()) || '[]'); } catch { return []; }
+  };
+  const saveCampaignsToStorage = (list) => { try { localStorage.setItem(getCampaignKey(), JSON.stringify(list)); } catch {} };
+
+  const openCampaigns = () => {
+    setCampaigns(loadCampaigns());
+    setCampaignEditing(null);
+    setCampaignForm({ name: '', message: '', mediaUrl: '', caption: '', scheduleAt: '', groupJids: [], repeat: false, repeatDays: [], repeatHour: '09:00' });
+    setGroupView('campaigns');
+  };
+
+  const saveCampaign = () => {
+    if (!campaignForm.name.trim()) return setGroupMsg({ ok: false, text: 'Donnez un nom à la campagne.' });
+    if (!campaignForm.message.trim() && !campaignForm.mediaUrl.trim()) return setGroupMsg({ ok: false, text: 'Ajoutez un message ou un média.' });
+    if (!campaignForm.groupJids.length) return setGroupMsg({ ok: false, text: 'Sélectionnez au moins un groupe.' });
+    setCampaignSaving(true);
+    const current = loadCampaigns();
+    if (campaignEditing !== null) {
+      current[campaignEditing] = { ...campaignForm, updatedAt: new Date().toISOString() };
+    } else {
+      current.push({ ...campaignForm, createdAt: new Date().toISOString(), sent: false });
+    }
+    saveCampaignsToStorage(current);
+    setCampaigns(current);
+    setCampaignEditing(null);
+    setCampaignForm({ name: '', message: '', mediaUrl: '', caption: '', scheduleAt: '', groupJids: [] });
+    setCampaignSaving(false);
+    setGroupMsg({ ok: true, text: '✅ Campagne enregistrée' });
+    setTimeout(() => setGroupMsg(null), 3000);
+  };
+
+  const deleteCampaign = (i) => {
+    const current = loadCampaigns();
+    current.splice(i, 1);
+    saveCampaignsToStorage(current);
+    setCampaigns([...current]);
+  };
+
+  const sendCampaign = async (i) => {
+    const c = campaigns[i];
+    if (!c) return;
+    if (!c.message?.trim() && !c.mediaUrl?.trim()) return setGroupMsg({ ok: false, text: 'Aucun message dans cette campagne.' });
+    if (!c.groupJids?.length) return setGroupMsg({ ok: false, text: 'Aucun groupe dans cette campagne.' });
+    setBcSending(true);
+    try {
+      const { data } = await ecomApi.post('/v1/rita-flows/groups/broadcast', {
+        userId,
+        groupJids: c.groupJids,
+        message: c.message?.trim() || undefined,
+        mediaUrl: c.mediaUrl?.trim() || undefined,
+        caption: c.caption?.trim() || undefined,
+        scheduleAt: (!c.repeat && c.scheduleAt) ? c.scheduleAt : undefined,
+      });
+      if (data.success && data.sent > 0) {
+        setGroupMsg({ ok: true, text: `✅ Envoyée dans ${data.sent} groupe(s)` });
+        const current = loadCampaigns();
+        current[i] = { ...current[i], sent: true, sentAt: new Date().toISOString() };
+        saveCampaignsToStorage(current);
+        setCampaigns([...current]);
+      } else {
+        setGroupMsg({ ok: false, text: data.firstError || data.error || 'Échec envoi' });
+      }
+    } catch (e) {
+      setGroupMsg({ ok: false, text: e.response?.data?.error || e.message });
+    } finally {
+      setBcSending(false);
+      setTimeout(() => setGroupMsg(null), 4000);
+    }
+  };
+
+  const sendBroadcast = async (targetJids) => {
+    const jids = targetJids || [...bcSelectedGroups];
+    if (!jids.length) return setGroupMsg({ ok: false, text: 'Sélectionnez au moins un groupe.' });
+    if (!bcMessage.trim() && !bcMediaUrl.trim()) return setGroupMsg({ ok: false, text: 'Rédigez un message ou ajoutez un média.' });
+    setBcSending(true);
+    setBcResult(null);
+    try {
+      const { data } = await ecomApi.post('/v1/rita-flows/groups/broadcast', {
+        userId,
+        groupJids: jids,
+        message: bcMessage.trim() || undefined,
+        mediaUrl: bcMediaUrl.trim() || undefined,
+        caption: bcCaption.trim() || undefined,
+        scheduleAt: bcScheduleAt || undefined,
+      });
+      setBcResult(data);
+      if (data.success) {
+        if (data.sent > 0) {
+          setGroupMsg({ ok: true, text: data.scheduled ? `✅ Programmé` : `✅ Envoyé dans ${data.sent} groupe(s)` });
+          setBcMessage(''); setBcMediaUrl(''); setBcCaption(''); setBcScheduleAt('');
+          setBcSelectedGroups(new Set());
+        } else {
+          setGroupMsg({ ok: false, text: `Échec envoi : ${data.firstError || 'erreur inconnue'}` });
+        }
+      } else {
+        setGroupMsg({ ok: false, text: data.error || 'Erreur envoi' });
+      }
+    } catch (e) {
+      setGroupMsg({ ok: false, text: e.response?.data?.error || e.message });
+    } finally {
+      setBcSending(false);
+      setTimeout(() => setGroupMsg(null), 4000);
+    }
   };
 
   const GA_DAYS = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'];
@@ -1951,21 +2081,6 @@ export default function AgentConfig() {
                   <Toggle enabled={config.detectInterestLevel} onChange={v => set('detectInterestLevel', v)}
                     label="Évaluer le niveau d'intérêt"
                     description="Mesurer l'intérêt (faible / moyen / élevé) pour adapter la pression" />
-
-                  {config.detectClientType && (
-                    <div className="pt-2 space-y-2">
-                      <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Types de clients détectés</p>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        {CLIENT_TYPES.map(ct => (
-                          <div key={ct.value} className="p-3 bg-gray-50 rounded-xl">
-                            <p className="text-[12px] font-bold text-gray-700">{ct.label}</p>
-                            <p className="text-[10px] text-gray-400 mt-0.5">{ct.desc}</p>
-                            <p className="text-[10px] text-emerald-600 mt-1 font-medium">→ {ct.strategy}</p>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                 </div>
               </div>
 
@@ -1999,188 +2114,6 @@ export default function AgentConfig() {
                     </div>
                   )}
 
-                  <div className="border-t border-gray-100 pt-4 mt-4">
-                    <div className="flex items-center justify-between mb-3">
-                      <div>
-                        <p className="text-[13px] font-bold text-gray-900">Relances manuelles en un clic</p>
-                        <p className="text-[11px] text-gray-400 mt-0.5">Tableau de bord des conversations actives et relances instantanées</p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={loadActiveConversations}
-                        disabled={conversationsLoading}
-                        className="text-[12px] font-semibold px-3 py-1.5 rounded-lg transition-colors flex items-center gap-2"
-                        style={{ color: '#0F6B4F', background: 'rgba(15,107,79,0.08)' }}
-                      >
-                        {conversationsLoading ? (
-                          <>
-                            <Loader2 className="w-3 h-3 animate-spin" />
-                            Chargement...
-                          </>
-                        ) : (
-                          <>
-                            <RotateCcw className="w-3 h-3" />
-                            Actualiser
-                          </>
-                        )}
-                      </button>
-                    </div>
-
-                    {/* Stats rapides */}
-                    {conversationsStats && (
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
-                        <div className="bg-blue-50 rounded-lg p-3 text-center">
-                          <p className="text-[20px] font-bold text-blue-700">{conversationsStats.total}</p>
-                          <p className="text-[10px] text-blue-600 font-medium">Total</p>
-                        </div>
-                        <div className="bg-amber-50 rounded-lg p-3 text-center">
-                          <p className="text-[20px] font-bold text-amber-700">{conversationsStats.waitingResponse}</p>
-                          <p className="text-[10px] text-amber-600 font-medium">En attente</p>
-                        </div>
-                        <div className="bg-red-50 rounded-lg p-3 text-center">
-                          <p className="text-[20px] font-bold text-red-700">{conversationsStats.needRelance}</p>
-                          <p className="text-[10px] text-red-600 font-medium">À relancer</p>
-                        </div>
-                        <div className="bg-emerald-50 rounded-lg p-3 text-center">
-                          <p className="text-[20px] font-bold text-emerald-700">{conversationsStats.ordered}</p>
-                          <p className="text-[10px] text-emerald-600 font-medium">Commandés</p>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Bouton relance bulk */}
-                    {activeConversations.length > 0 && (
-                      <div className="mb-4 flex justify-end">
-                        <button
-                          type="button"
-                          onClick={() => relanceBulkClients('need_relance', 3)}
-                          disabled={relancingBulk || conversationsLoading}
-                          className="text-[12px] font-semibold px-4 py-2 rounded-lg transition-colors flex items-center gap-2 bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          {relancingBulk ? (
-                            <>
-                              <Loader2 className="w-4 h-4 animate-spin" />
-                              Relance en cours...
-                            </>
-                          ) : (
-                            <>
-                              <Send className="w-4 h-4" />
-                              Relancer tous les clients en attente
-                            </>
-                          )}
-                        </button>
-                      </div>
-                    )}
-
-                    {/* Tableau des conversations */}
-                    {conversationsLoading ? (
-                      <div className="rounded-xl border border-purple-100 bg-purple-50/20 p-8 text-center">
-                        <Loader2 className="w-8 h-8 animate-spin mx-auto text-purple-500 mb-2" />
-                        <p className="text-[12px] text-purple-600 font-medium">Chargement des conversations...</p>
-                      </div>
-                    ) : activeConversations.length === 0 ? (
-                      <div className="rounded-xl border border-dashed border-purple-200 p-8 text-center">
-                        <MessageSquare className="w-12 h-12 mx-auto text-purple-200 mb-3" />
-                        <p className="text-[13px] font-bold text-gray-600 mb-1">Aucune conversation active</p>
-                        <p className="text-[11px] text-gray-400">Les conversations avec Rita apparaîtront ici</p>
-                        <button
-                          type="button"
-                          onClick={loadActiveConversations}
-                          className="mt-3 text-[11px] font-semibold px-3 py-1.5 rounded-lg transition-colors"
-                          style={{ color: '#0F6B4F', background: 'rgba(15,107,79,0.08)' }}
-                        >
-                          Actualiser
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="space-y-2 max-h-[500px] overflow-y-auto">
-                        {activeConversations.map((conv, idx) => {
-                          const statusColors = {
-                            waiting_response: 'bg-blue-50 text-blue-700 border-blue-200',
-                            need_relance: 'bg-red-50 text-red-700 border-red-200',
-                            abandoned: 'bg-gray-100 text-gray-600 border-gray-200',
-                            pending: 'bg-amber-50 text-amber-700 border-amber-200',
-                          };
-                          const statusLabels = {
-                            waiting_response: 'En attente',
-                            need_relance: 'À relancer',
-                            abandoned: 'Abandonné',
-                            pending: 'En cours',
-                          };
-                          
-                          return (
-                            <div key={idx} className="rounded-lg border border-purple-100 bg-white p-3 hover:shadow-sm transition-shadow">
-                              <div className="flex items-start justify-between gap-3 mb-2">
-                                <div className="flex-1">
-                                  <div className="flex items-center gap-2 mb-1">
-                                    <Phone className="w-3 h-3 text-gray-400" />
-                                    <p className="text-[12px] font-bold text-gray-900">
-                                      {conv.from.replace(/@.*$/, '')}
-                                    </p>
-                                    <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${statusColors[conv.status] || 'bg-gray-100 text-gray-600'}`}>
-                                      {statusLabels[conv.status] || conv.status}
-                                    </span>
-                                  </div>
-                                  <div className="flex items-center gap-3 text-[10px] text-gray-500">
-                                    <span>💬 {conv.messageCount} messages</span>
-                                    <span>🔄 {conv.relanceCount} relances</span>
-                                    <span>⏱️ {Math.round(conv.hoursSinceLastActivity)}h</span>
-                                    {conv.ordered && <span className="text-emerald-600 font-bold">✅ Commandé</span>}
-                                  </div>
-                                </div>
-                                <button
-                                  type="button"
-                                  onClick={() => relanceSingleClient(conv.from.replace(/@.*$/, ''))}
-                                  disabled={relancingPhone === conv.from || relancingBulk || conv.ordered}
-                                  className="text-[11px] font-semibold px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed"
-                                  style={{ 
-                                    color: conv.ordered ? '#6B7280' : '#0F6B4F', 
-                                    background: conv.ordered ? '#F3F4F6' : 'rgba(15,107,79,0.08)' 
-                                  }}
-                                >
-                                  {relancingPhone === conv.from ? (
-                                    <>
-                                      <Loader2 className="w-3 h-3 animate-spin" />
-                                      Envoi...
-                                    </>
-                                  ) : conv.ordered ? (
-                                    <>
-                                      <ShieldCheck className="w-3 h-3" />
-                                      Commandé
-                                    </>
-                                  ) : (
-                                    <>
-                                      <Send className="w-3 h-3" />
-                                      Relancer
-                                    </>
-                                  )}
-                                </button>
-                              </div>
-
-                              {/* Dernier message */}
-                              {conv.history && conv.history.length > 0 && (
-                                <div className="mt-2 pt-2 border-t border-purple-50">
-                                  <p className="text-[10px] text-gray-400 mb-0.5">Dernier message :</p>
-                                  <p className="text-[11px] text-gray-600 line-clamp-2 italic">
-                                    "{conv.history[conv.history.length - 1]?.content?.substring(0, 100)}..."
-                                  </p>
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-
-                    {/* Info box */}
-                    <div className="mt-4 rounded-xl border border-purple-100 bg-purple-50/40 p-4">
-                      <p className="text-[11px] text-purple-700 leading-relaxed">
-                        <span className="font-bold text-purple-800">💡 Comment ça marche :</span> Rita classe automatiquement les conversations selon leur statut. 
-                        Vous pouvez relancer un client individuellement ou tous les clients "À relancer" en un seul clic. 
-                        Les messages sont générés par IA selon l'historique de chaque conversation.
-                      </p>
-                    </div>
-                  </div>
                 </div>
               </div>
             </div>
@@ -2238,19 +2171,6 @@ export default function AgentConfig() {
                 </div>
               </div>
 
-              {/* Auto-amélioration */}
-              {config.autoImproveEnabled && (
-                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
-                  <p className="text-[12px] font-semibold text-emerald-700 mb-1">🔁 Auto-amélioration active</p>
-                  <p className="text-[11px] text-emerald-600 leading-relaxed">
-                    Après chaque conversation, Rita :<br/>
-                    1. Analyse si elle a bien compris<br/>
-                    2. Vérifie si elle a été naturelle<br/>
-                    3. Évalue sa performance de vente<br/>
-                    4. Garde en mémoire les bonnes pratiques
-                  </p>
-                </div>
-              )}
             </div>
           </div>
         )}
@@ -2287,40 +2207,6 @@ export default function AgentConfig() {
                 </div>
               </div>
 
-              {/* Logique de vente */}
-              <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-                <div className="px-6 py-4 border-b border-gray-100">
-                  <h2 className="text-[15px] font-bold text-gray-900 flex items-center gap-2">
-                    <span className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center">
-                      <TrendingUp className="w-4 h-4 text-blue-600" />
-                    </span>
-                    Logique de Vente
-                  </h2>
-                  <p className="text-[12px] text-gray-400 mt-1">La séquence que Rita suit pour chaque interaction client</p>
-                </div>
-                <div className="p-6">
-                  <div className="flex items-center gap-3 flex-wrap">
-                    {[
-                      { step: '1', label: 'Comprendre', desc: "Identifier l'intention", color: 'bg-blue-50 text-blue-700 border-blue-200' },
-                      { step: '→', label: '', desc: '', color: '' },
-                      { step: '2', label: 'Répondre', desc: 'Répondre clairement', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-                      { step: '→', label: '', desc: '', color: '' },
-                      { step: '3', label: 'Valeur', desc: 'Ajouter de la valeur', color: 'bg-purple-50 text-purple-700 border-purple-200' },
-                      { step: '→', label: '', desc: '', color: '' },
-                      { step: '4', label: 'Question', desc: 'Poser une question', color: 'bg-amber-50 text-amber-700 border-amber-200' },
-                    ].map((s, i) => s.label ? (
-                      <div key={i} className={`flex-1 min-w-[100px] p-3 rounded-xl border ${s.color} text-center`}>
-                        <div className="text-[16px] font-bold">{s.step}</div>
-                        <div className="text-[12px] font-semibold mt-0.5">{s.label}</div>
-                        <div className="text-[10px] opacity-70 mt-0.5">{s.desc}</div>
-                      </div>
-                    ) : (
-                      <span key={i} className="text-gray-300 text-lg font-bold">→</span>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
               {/* Groupe WhatsApp */}
               <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
                 <div className="px-6 py-4 border-b border-gray-100">
@@ -2341,27 +2227,14 @@ export default function AgentConfig() {
                   />
 
                   {config.whatsappGroupLink !== null && (
-                    <>
-                      <Field label="Lien du groupe" hint="Lien d'invitation WhatsApp (https://...)">
-                        <input
-                          value={config.whatsappGroupLink || ''}
-                          onChange={e => set('whatsappGroupLink', e.target.value)}
-                          placeholder="https://..."
-                          className="ac-input"
-                        />
-                      </Field>
-
-                      <div className="rounded-xl border border-green-100 bg-green-50/40 p-4 space-y-2">
-                        <p className="text-[12px] font-bold text-green-800">📋 Quand Rita proposera le groupe :</p>
-                        <ul className="text-[11px] text-green-700 space-y-1 ml-4">
-                          <li>✅ Après une commande confirmée (bonus fidélité)</li>
-                          <li>✅ Quand le client montre de l'intérêt mais n'est pas prêt (ne pas partir)</li>
-                          <li>✅ Quand le client demande à être informé des promos</li>
-                          <li>⛔ JAMAIS au tout début de la conversation</li>
-                          <li>⛔ JAMAIS plus d'une fois par conversation</li>
-                        </ul>
-                      </div>
-                    </>
+                    <Field label="Lien du groupe" hint="Lien d'invitation WhatsApp (https://...)">
+                      <input
+                        value={config.whatsappGroupLink || ''}
+                        onChange={e => set('whatsappGroupLink', e.target.value)}
+                        placeholder="https://..."
+                        className="ac-input"
+                      />
+                    </Field>
                   )}
                 </div>
               </div>
@@ -2487,36 +2360,6 @@ export default function AgentConfig() {
 
             {/* Sidebar */}
             <div className="space-y-6">
-              {/* Résumé des règles actives */}
-              <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-                <div className="px-5 py-4 border-b border-gray-100">
-                  <h2 className="text-[15px] font-bold text-gray-900">État des Règles</h2>
-                </div>
-                <div className="p-5 space-y-2.5">
-                  {[
-                    { label: 'Répondre avant vendre', active: config.alwaysAnswerFirst },
-                    { label: 'Pas de forcing', active: config.neverForceSale },
-                    { label: 'Anti-spam', active: config.noSpam },
-                    { label: 'Discussion naturelle', active: config.naturalConversation },
-                    { label: 'Détection client', active: config.detectClientType },
-                    { label: 'Niveau d\'intérêt', active: config.detectInterestLevel },
-                  ].map(r => (
-                    <div key={r.label} className="flex items-center gap-2.5 text-[12px]">
-                      <span className={`w-2 h-2 rounded-full flex-shrink-0 ${r.active ? 'bg-emerald-400' : 'bg-gray-300'}`} />
-                      <span className={`font-medium ${r.active ? 'text-gray-700' : 'text-gray-400'}`}>{r.label}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
-                <p className="text-[12px] font-semibold text-emerald-700 mb-1">🎯 Objectif Final</p>
-                <p className="text-[11px] text-emerald-600 leading-relaxed">
-                  Rita est une vendeuse intelligente, autonome et performante.
-                  Son objectif : vendre efficacement, créer une bonne expérience client et s'améliorer chaque jour.
-                </p>
-              </div>
-
               <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
                 <div className="px-5 py-4 border-b border-gray-100">
                   <h2 className="text-[15px] font-bold text-gray-900">Prix & Négociation</h2>
@@ -2546,14 +2389,6 @@ export default function AgentConfig() {
                     </>
                   )}
                 </div>
-              </div>
-
-              <div className="rounded-2xl border border-blue-200 bg-blue-50 p-5">
-                <p className="text-[12px] font-semibold text-blue-700 mb-1">💡 Conseil Pro</p>
-                <p className="text-[11px] text-blue-600 leading-relaxed">
-                  Gardez toutes les règles activées pour une vente optimale.
-                  Désactivez un cas spécial uniquement si vous voulez que Rita l'ignore.
-                </p>
               </div>
             </div>
           </div>
@@ -2916,21 +2751,22 @@ export default function AgentConfig() {
         {/* ─── TAB: PRODUITS ─── */}
         {activeTab === 'products' && (
           <div className="space-y-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="min-w-0">
+            {/* Header */}
+            <div className="flex items-center justify-between">
+              <div>
                 <h2 className="text-[16px] font-bold text-gray-900">Catalogue Produits</h2>
-                <p className="text-[12px] text-gray-400 mt-0.5">{config.productCatalog.length} produit{config.productCatalog.length !== 1 ? 's' : ''} configuré{config.productCatalog.length !== 1 ? 's' : ''}</p>
+                <p className="text-[12px] text-gray-400 mt-0.5">{config.productCatalog.length} produit{config.productCatalog.length !== 1 ? 's' : ''}</p>
               </div>
-              <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full sm:w-auto">
+              <div className="flex items-center gap-2">
                 <button onClick={() => setShowImport(!showImport)}
-                  className="inline-flex w-full sm:w-auto justify-center items-center gap-1.5 px-4 py-2.5 text-[13px] font-bold text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl transition-all shadow-sm hover:shadow-md">
-                  <Upload className="w-4 h-4" />
-                  Importer CSV
+                  className="inline-flex items-center gap-1.5 px-3 py-2 text-[12px] font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors">
+                  <Upload className="w-3.5 h-3.5" />
+                  CSV
                 </button>
                 <button onClick={addProduct}
-                  className="inline-flex w-full sm:w-auto justify-center items-center gap-1.5 px-4 py-2.5 text-[13px] font-bold text-white rounded-xl transition-all shadow-sm hover:shadow-md"
+                  className="inline-flex items-center gap-1.5 px-3 py-2 text-[12px] font-semibold text-white rounded-xl transition-colors"
                   style={{ background: ACCENT }}>
-                  + Ajouter un produit
+                  + Produit
                 </button>
               </div>
             </div>
@@ -2938,7 +2774,6 @@ export default function AgentConfig() {
             {showImport && (
               <ProductImportLocal
                 onImportSuccess={(importedProducts) => {
-                  // Ajouter les produits importés au catalogue
                   const newProducts = importedProducts.map(p => ({
                     name: p.name,
                     price: p.price,
@@ -2960,41 +2795,52 @@ export default function AgentConfig() {
             )}
 
             {config.productCatalog.length === 0 ? (
-              <div className="bg-white rounded-2xl border border-gray-200 p-12 text-center">
-                <Package className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+              <div className="bg-white rounded-2xl border-2 border-dashed border-gray-200 p-12 text-center">
+                <Package className="w-10 h-10 text-gray-200 mx-auto mb-3" />
                 <p className="text-[14px] font-semibold text-gray-500">Aucun produit</p>
-                <p className="text-[12px] text-gray-400 mt-1">Ajoutez vos produits pour que l'agent puisse les recommander</p>
+                <p className="text-[12px] text-gray-400 mt-1 mb-4">Ajoutez vos produits pour que l'agent puisse les recommander</p>
+                <button onClick={addProduct}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 text-[13px] font-semibold text-white rounded-xl"
+                  style={{ background: ACCENT }}>
+                  + Ajouter un produit
+                </button>
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {config.productCatalog.map((product, idx) => (
                   <div key={idx} className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+                    {/* Card header */}
                     <button onClick={() => setEditingProduct(editingProduct === idx ? null : idx)} type="button"
-                      className="w-full px-5 py-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between text-left hover:bg-gray-50/50 transition-colors">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-[16px]">
-                          {product.images?.length > 0 ? '🖼️' : '📦'}
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-[13px] font-bold text-gray-900 break-words">{product.name || 'Produit sans nom'}</p>
-                          <p className="text-[12px] text-gray-400 break-words">{product.price || 'Prix non défini'}{product.category ? ` · ${product.category}` : ''}</p>
-                        </div>
+                      className="w-full px-4 py-3.5 flex items-center gap-3 text-left hover:bg-gray-50 transition-colors">
+                      <div className="w-10 h-10 rounded-xl overflow-hidden flex-shrink-0 bg-gray-100 flex items-center justify-center">
+                        {product.images?.[0]
+                          ? <img src={product.images[0]} alt="" className="w-full h-full object-cover" />
+                          : <Package className="w-4 h-4 text-gray-300" />}
                       </div>
-                      <div className="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto">
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${product.inStock !== false ? 'text-emerald-600 bg-emerald-50' : 'text-red-600 bg-red-50'}`}>
-                          {product.inStock !== false ? 'En stock' : 'Rupture'}
-                        </span>
-                        <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${editingProduct === idx ? 'rotate-180' : ''}`} />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[13px] font-semibold text-gray-900 truncate">{product.name || 'Nouveau produit'}</p>
+                        <p className="text-[11px] text-gray-400 truncate">
+                          {product.price || 'Prix non défini'}{product.category ? ` · ${product.category}` : ''}
+                        </p>
                       </div>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 ${product.inStock !== false ? 'text-emerald-600 bg-emerald-50' : 'text-red-500 bg-red-50'}`}>
+                        {product.inStock !== false ? 'En stock' : 'Rupture'}
+                      </span>
+                      <ChevronDown className={`w-4 h-4 text-gray-300 flex-shrink-0 transition-transform ${editingProduct === idx ? 'rotate-180' : ''}`} />
                     </button>
+
+                    {/* Expanded form */}
                     {editingProduct === idx && (
-                      <div className="px-5 pb-5 border-t border-gray-100 pt-4 space-y-4">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          <Field label="Nom du produit" required>
-                            <input value={product.name} onChange={e => updateProduct(idx, 'name', e.target.value)} className="ac-input" />
-                          </Field>
+                      <div className="border-t border-gray-100 px-5 pb-5 pt-4 space-y-5">
+                        {/* Infos de base */}
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="col-span-2 sm:col-span-1">
+                            <Field label="Nom du produit" required>
+                              <input value={product.name} onChange={e => updateProduct(idx, 'name', e.target.value)} className="ac-input" />
+                            </Field>
+                          </div>
                           <Field label="Prix">
-                            <input value={product.price} onChange={e => updateProduct(idx, 'price', e.target.value)} placeholder="15000 FCFA" className="ac-input" />
+                            <input type="number" min="0" value={product.price} onChange={e => updateProduct(idx, 'price', e.target.value)} placeholder="15000" className="ac-input" />
                           </Field>
                           <Field label="Catégorie">
                             <input value={product.category || ''} onChange={e => updateProduct(idx, 'category', e.target.value)} className="ac-input" />
@@ -3003,183 +2849,125 @@ export default function AgentConfig() {
                             <Toggle enabled={product.inStock !== false} onChange={v => updateProduct(idx, 'inStock', v)} label="" />
                           </Field>
                         </div>
+
                         <Field label="Description">
-                          <textarea value={product.description || ''} onChange={e => updateProduct(idx, 'description', e.target.value)} rows={3} className="ac-textarea" />
+                          <textarea value={product.description || ''} onChange={e => updateProduct(idx, 'description', e.target.value)}
+                            rows={focusedDescIdx === idx ? 20 : 4}
+                            className="ac-textarea transition-all duration-200"
+                            style={{ resize: 'none', overflowY: 'auto' }}
+                            onFocus={() => setFocusedDescIdx(idx)}
+                            onBlur={() => setFocusedDescIdx(null)}
+                          />
                         </Field>
-                        <div className="rounded-2xl border border-amber-200 bg-amber-50/40 p-4 space-y-3">
-                          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                            <div>
-                              <p className="text-[13px] font-bold text-amber-800">Offres de quantité</p>
-                              <p className="text-[11px] text-amber-700">Exemple: 1 = 10 000 FCFA, 2 = 15 000 FCFA</p>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => addProductQuantityOffer(idx)}
-                              className="w-full sm:w-auto px-3 py-1.5 rounded-lg bg-amber-600 text-white text-[11px] font-semibold hover:bg-amber-700 transition-colors"
-                            >
+
+                        {/* Offres de quantité */}
+                        <div>
+                          <div className="flex items-center justify-between mb-3">
+                            <p className="text-[13px] font-semibold text-gray-800">Offres de quantité</p>
+                            <button type="button" onClick={() => addProductQuantityOffer(idx)}
+                              className="text-[11px] font-semibold px-2.5 py-1 rounded-lg text-amber-700 bg-amber-50 hover:bg-amber-100 transition-colors">
                               + Ajouter palier
                             </button>
                           </div>
-
                           {(product.quantityOffers || []).length === 0 ? (
-                            <p className="text-[11px] text-amber-700">Aucun palier configuré.</p>
+                            <p className="text-[12px] text-gray-400">Aucun palier configuré</p>
                           ) : (
                             <div className="space-y-2">
                               {(product.quantityOffers || []).map((offer, offerIdx) => (
-                                <div key={offerIdx} className="grid grid-cols-1 md:grid-cols-4 gap-2 rounded-xl border border-amber-100 bg-white p-3">
+                                <div key={offerIdx} className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-3 bg-gray-50 rounded-xl items-end">
                                   <Field label="Qté min">
-                                    <input
-                                      type="number"
-                                      min="1"
-                                      value={offer.minQuantity || 1}
+                                    <input type="number" min="1" value={offer.minQuantity || 1}
                                       onChange={e => updateProductQuantityOffer(idx, offerIdx, 'minQuantity', e.target.value)}
-                                      className="ac-input"
-                                    />
+                                      className="ac-input" />
                                   </Field>
                                   <Field label="Prix total">
-                                    <input
-                                      value={offer.totalPrice || ''}
-                                      onChange={e => updateProductQuantityOffer(idx, offerIdx, 'totalPrice', e.target.value)}
-                                      placeholder="15000 FCFA"
-                                      className="ac-input"
-                                    />
+                                    <input value={offer.totalPrice || ''} onChange={e => updateProductQuantityOffer(idx, offerIdx, 'totalPrice', e.target.value)}
+                                      placeholder="15000 FCFA" className="ac-input" />
                                   </Field>
-                                  <Field label="Prix unitaire (optionnel)">
-                                    <input
-                                      value={offer.unitPrice || ''}
-                                      onChange={e => updateProductQuantityOffer(idx, offerIdx, 'unitPrice', e.target.value)}
-                                      placeholder="7500 FCFA"
-                                      className="ac-input"
-                                    />
+                                  <Field label="Prix unitaire">
+                                    <input value={offer.unitPrice || ''} onChange={e => updateProductQuantityOffer(idx, offerIdx, 'unitPrice', e.target.value)}
+                                      placeholder="7500" className="ac-input" />
                                   </Field>
-                                  <div className="flex items-end">
-                                    <button
-                                      type="button"
-                                      onClick={() => removeProductQuantityOffer(idx, offerIdx)}
-                                      className="w-full px-3 py-2 rounded-lg border border-red-200 text-red-600 text-[11px] font-semibold hover:bg-red-50 transition-colors"
-                                    >
-                                      Retirer
+                                  <Field label="Libellé">
+                                    <input value={offer.label || ''} onChange={e => updateProductQuantityOffer(idx, offerIdx, 'label', e.target.value)}
+                                      placeholder="Pack découverte" className="ac-input" />
+                                  </Field>
+                                  <div className="col-span-2 sm:col-span-4 flex justify-end">
+                                    <button type="button" onClick={() => removeProductQuantityOffer(idx, offerIdx)}
+                                      className="text-[11px] text-red-500 hover:text-red-700 font-medium transition-colors">
+                                      Supprimer ce palier
                                     </button>
-                                  </div>
-                                  <div className="md:col-span-4">
-                                    <Field label="Libellé (optionnel)">
-                                      <input
-                                        value={offer.label || ''}
-                                        onChange={e => updateProductQuantityOffer(idx, offerIdx, 'label', e.target.value)}
-                                        placeholder="Pack découverte"
-                                        className="ac-input"
-                                      />
-                                    </Field>
                                   </div>
                                 </div>
                               ))}
                             </div>
                           )}
                         </div>
+
+                        {/* Médias */}
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                          <div className="rounded-2xl border border-gray-200 p-4 space-y-3">
-                            <div className="flex items-center justify-between gap-3">
-                              <div>
-                                <p className="text-[13px] font-bold text-gray-800">Images du produit</p>
-                                <p className="text-[11px] text-gray-400">Upload direct ou ajout par URL.</p>
-                              </div>
-                              <label className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-[12px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 cursor-pointer transition-colors">
-                                <input
-                                  type="file"
-                                  accept="image/*"
-                                  multiple
-                                  className="hidden"
-                                  onChange={async (e) => {
-                                    await handleProductMediaUpload(idx, 'images', e.target.files);
-                                    e.target.value = '';
-                                  }}
-                                />
-                                Upload images
+                          {/* Images */}
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                              <p className="text-[13px] font-semibold text-gray-800">Images</p>
+                              <label className="text-[11px] font-semibold px-2.5 py-1 rounded-lg text-emerald-700 bg-emerald-50 hover:bg-emerald-100 cursor-pointer transition-colors">
+                                <input type="file" accept="image/*" multiple className="hidden"
+                                  onChange={async (e) => { await handleProductMediaUpload(idx, 'images', e.target.files); e.target.value = ''; }} />
+                                Upload
                               </label>
                             </div>
                             {mediaUploadingByProduct[`${idx}:images`] && (
-                              <div className="text-[11px] text-emerald-600">Upload des images en cours...</div>
+                              <p className="text-[11px] text-emerald-600">Upload en cours...</p>
                             )}
                             {(product.images || []).length > 0 && (
-                              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                              <div className="grid grid-cols-3 gap-2">
                                 {(product.images || []).map((url, imageIndex) => (
-                                  <div key={imageIndex} className="relative group rounded-xl overflow-hidden border border-gray-200 bg-gray-50 aspect-square">
-                                    <img src={url} alt={`Produit ${imageIndex + 1}`} className="w-full h-full object-cover" />
-                                    <div className="absolute inset-x-0 bottom-0 p-2 bg-gradient-to-t from-black/60 to-transparent flex justify-between items-end opacity-0 group-hover:opacity-100 transition-opacity">
-                                      <a href={url} target="_blank" rel="noreferrer" className="text-[10px] text-white underline">Voir</a>
-                                      <button type="button" onClick={() => removeProductMedia(idx, 'images', imageIndex)} className="text-[10px] text-white bg-black/30 px-2 py-1 rounded-md">
-                                        Retirer
-                                      </button>
-                                    </div>
+                                  <div key={imageIndex} className="relative group rounded-xl overflow-hidden border border-gray-200 aspect-square bg-gray-50">
+                                    <img src={url} alt="" className="w-full h-full object-cover" />
+                                    <button type="button" onClick={() => removeProductMedia(idx, 'images', imageIndex)}
+                                      className="absolute top-1 right-1 w-5 h-5 bg-black/50 rounded-full text-white text-[12px] leading-none flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                      ×
+                                    </button>
                                   </div>
                                 ))}
                               </div>
                             )}
-                            <Field label="URLs images" hint="une par ligne">
-                              <textarea
-                                value={(product.images || []).join('\n')}
-                                onChange={e => updateProduct(idx, 'images', e.target.value.split('\n').filter(u => u.trim()))}
-                                rows={3}
-                                className="ac-textarea text-[12px]"
-                                placeholder="https://..."
-                              />
-                            </Field>
                           </div>
 
-                          <div className="rounded-2xl border border-gray-200 p-4 space-y-3">
-                            <div className="flex items-center justify-between gap-3">
-                              <div>
-                                <p className="text-[13px] font-bold text-gray-800">Vidéos du produit</p>
-                                <p className="text-[11px] text-gray-400">Ajoutez les vidéos de démonstration ou de preuve.</p>
-                              </div>
-                              <label className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-[12px] font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 cursor-pointer transition-colors">
-                                <input
-                                  type="file"
-                                  accept="video/*"
-                                  multiple
-                                  className="hidden"
-                                  onChange={async (e) => {
-                                    await handleProductMediaUpload(idx, 'videos', e.target.files);
-                                    e.target.value = '';
-                                  }}
-                                />
-                                Upload vidéos
+                          {/* Vidéos */}
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                              <p className="text-[13px] font-semibold text-gray-800">Vidéos</p>
+                              <label className="text-[11px] font-semibold px-2.5 py-1 rounded-lg text-blue-700 bg-blue-50 hover:bg-blue-100 cursor-pointer transition-colors">
+                                <input type="file" accept="video/*" multiple className="hidden"
+                                  onChange={async (e) => { await handleProductMediaUpload(idx, 'videos', e.target.files); e.target.value = ''; }} />
+                                Upload
                               </label>
                             </div>
                             {mediaUploadingByProduct[`${idx}:videos`] && (
-                              <div className="text-[11px] text-blue-600">Upload des vidéos en cours...</div>
+                              <p className="text-[11px] text-blue-600">Upload en cours...</p>
                             )}
                             {(product.videos || []).length > 0 && (
-                              <div className="space-y-2">
+                              <div className="space-y-1.5">
                                 {(product.videos || []).map((url, videoIndex) => (
-                                  <div key={videoIndex} className="flex items-center justify-between gap-3 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2">
-                                    <div className="min-w-0 flex-1">
-                                      <p className="text-[12px] font-medium text-gray-700 truncate">Vidéo {videoIndex + 1}</p>
-                                      <a href={url} target="_blank" rel="noreferrer" className="text-[11px] text-blue-600 truncate block hover:underline">
-                                        {url}
-                                      </a>
-                                    </div>
-                                    <button type="button" onClick={() => removeProductMedia(idx, 'videos', videoIndex)} className="text-[11px] text-red-500 hover:text-red-700">
+                                  <div key={videoIndex} className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-lg">
+                                    <span className="text-[11px] text-gray-500 flex-1 truncate">Vidéo {videoIndex + 1}</span>
+                                    <a href={url} target="_blank" rel="noreferrer" className="text-[10px] text-blue-500 hover:underline">Voir</a>
+                                    <button type="button" onClick={() => removeProductMedia(idx, 'videos', videoIndex)}
+                                      className="text-[10px] text-red-400 hover:text-red-600 transition-colors">
                                       Retirer
                                     </button>
                                   </div>
                                 ))}
                               </div>
                             )}
-                            <Field label="URLs vidéos" hint="une par ligne">
-                              <textarea
-                                value={(product.videos || []).join('\n')}
-                                onChange={e => updateProduct(idx, 'videos', e.target.value.split('\n').filter(u => u.trim()))}
-                                rows={3}
-                                className="ac-textarea text-[12px]"
-                                placeholder="https://..."
-                              />
-                            </Field>
                           </div>
                         </div>
-                        <div className="flex justify-end pt-2">
+
+                        {/* Supprimer */}
+                        <div className="flex justify-end pt-1 border-t border-gray-100">
                           <button onClick={() => removeProduct(idx)}
-                            className="text-[12px] font-medium text-red-500 hover:text-red-700 hover:bg-red-50 px-3 py-1.5 rounded-lg transition-colors">
+                            className="text-[12px] font-medium text-red-500 hover:text-red-700 px-3 py-1.5 rounded-lg hover:bg-red-50 transition-colors">
                             Supprimer ce produit
                           </button>
                         </div>
@@ -3562,13 +3350,6 @@ export default function AgentConfig() {
                     label="Proposer des améliorations"
                     description="Rita suggère des améliorations pour les prochaines conversations" />
                 </div>
-                <div className="px-6 pb-6">
-                  <div className="bg-blue-50 rounded-xl p-4">
-                    <p className="text-[11px] text-blue-600 leading-relaxed">
-                      <span className="font-semibold text-blue-700">En Mode Boss :</span> Rita ne vend pas. Elle vous répond avec des analyses claires, des chiffres et des recommandations concrètes.
-                    </p>
-                  </div>
-                </div>
               </div>
 
               {/* Mode Exécution Boss */}
@@ -3590,26 +3371,6 @@ export default function AgentConfig() {
                     label="Ne jamais copier-coller"
                     description="Rita ne copie jamais le message du boss tel quel, elle l'adapte" />
 
-                  <div className="pt-2 space-y-2">
-                    <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Exemples d'exécution</p>
-                    {[
-                      { boss: '"Envoie la photo"', rita: '"Je vous envoie la photo 👍 vous en pensez quoi ?"' },
-                      { boss: '"Relance le client"', rita: '"Bonjour 😊 je reviens vers vous pour savoir si vous êtes toujours intéressé"' },
-                      { boss: '"Envoie fichier"', rita: 'Envoi + message naturel d\'accompagnement' },
-                    ].map((ex, i) => (
-                      <div key={i} className="flex gap-3 p-3 bg-gray-50 rounded-xl">
-                        <div className="flex-1">
-                          <p className="text-[11px] text-gray-400">Boss dit :</p>
-                          <p className="text-[12px] font-medium text-gray-600">{ex.boss}</p>
-                        </div>
-                        <div className="text-gray-300 self-center">→</div>
-                        <div className="flex-1">
-                          <p className="text-[11px] text-emerald-500">Rita envoie :</p>
-                          <p className="text-[12px] font-medium text-emerald-700">{ex.rita}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
                 </div>
               </div>
 
@@ -3673,12 +3434,6 @@ export default function AgentConfig() {
                             min="3" max="50" className="ac-input" />
                         </Field>
                       </div>
-                      <div className="bg-gray-50 rounded-xl p-4">
-                        <p className="text-[11px] text-gray-500 leading-relaxed">
-                          <span className="font-semibold text-gray-600">Comment ça marche :</span> Si Rita ne parvient pas à résoudre la demande après <strong>{config.escalateAfterMessages}</strong> messages
-                          ou si le client attend plus de <strong>{config.bossEscalationTimeoutMin} min</strong> sans réponse satisfaisante, elle vous envoie un résumé de la conversation sur votre WhatsApp.
-                        </p>
-                      </div>
                     </div>
                   )}
                 </div>
@@ -3715,35 +3470,6 @@ export default function AgentConfig() {
 
             {/* Sidebar */}
             <div className="space-y-6">
-              {/* Status card */}
-              <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-                <div className="px-5 py-4 border-b border-gray-100">
-                  <h2 className="text-[15px] font-bold text-gray-900">État du pilotage</h2>
-                </div>
-                <div className="p-5 space-y-3">
-                  {[
-                    { label: 'Mode Boss', active: config.modeBossEnabled, icon: UserCog },
-                    { label: 'Mode Exécution', active: config.modeExecutionEnabled, icon: Zap },
-                    { label: 'Notifications', active: config.bossNotifications, icon: Bell },
-                    { label: 'Escalade auto', active: config.bossEscalationEnabled, icon: Headphones },
-                    { label: 'Résumé quotidien', active: config.dailySummary, icon: BarChart3 },
-                  ].map(item => {
-                    const Icon = item.icon;
-                    return (
-                      <div key={item.label} className="flex items-center gap-3 p-2.5 rounded-lg">
-                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${item.active ? 'bg-emerald-50' : 'bg-gray-100'}`}>
-                          <Icon className={`w-4 h-4 ${item.active ? 'text-emerald-600' : 'text-gray-400'}`} />
-                        </div>
-                        <span className="text-[13px] font-medium text-gray-700 flex-1">{item.label}</span>
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${item.active ? 'bg-emerald-50 text-emerald-600' : 'bg-gray-100 text-gray-400'}`}>
-                          {item.active ? 'ACTIF' : 'INACTIF'}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
               {!config.bossPhone && (
                 <div className="rounded-2xl border border-red-200 bg-red-50 p-5">
                   <p className="text-[12px] font-semibold text-red-700 mb-1">⚠️ Numéro admin manquant</p>
@@ -3752,14 +3478,6 @@ export default function AgentConfig() {
                   </p>
                 </div>
               )}
-
-              <div className="rounded-2xl border border-blue-200 bg-blue-50 p-5">
-                <p className="text-[12px] font-semibold text-blue-700 mb-1">🎯 Conseil</p>
-                <p className="text-[11px] text-blue-600 leading-relaxed">
-                  Pour un bon équilibre, activez les notifications sur commandes et le résumé quotidien.
-                  L'escalade automatique est recommandée quand l'autonomie de Rita est à 3 ou plus.
-                </p>
-              </div>
             </div>
           </div>
         )}
@@ -3892,7 +3610,7 @@ export default function AgentConfig() {
                     <tbody>
                       {contactsList.map((c, i) => (
                         <tr key={c.clientNumber} className={`border-b border-gray-50 hover:bg-gray-50/40 transition-colors ${i % 2 === 0 ? '' : 'bg-gray-50/20'}`}>
-                          <td className="px-4 py-3 font-mono text-gray-400">#{c.clientNumber}</td>
+                          <td className="px-4 py-3 font-mono text-gray-400">sc1-{c.clientNumber}</td>
                           <td className="px-4 py-3 font-medium text-gray-800">{c.phone}</td>
                           <td className="px-4 py-3 text-gray-600">{c.nom || c.pushName || <span className="text-gray-300 italic">—</span>}</td>
                           <td className="px-4 py-3 text-gray-600">{c.ville || <span className="text-gray-300 italic">—</span>}</td>
@@ -4407,9 +4125,9 @@ export default function AgentConfig() {
 
         {/* ─── TAB: GROUP ANIMATION ─── */}
         {activeTab === 'group-animation' && (
-          <div className="space-y-6">
+          <div className="space-y-5">
 
-            {/* Flash message */}
+            {/* Flash */}
             {groupMsg && (
               <div className={`text-[13px] px-4 py-2.5 rounded-xl font-medium ${groupMsg.ok ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
                 {groupMsg.text}
@@ -4422,229 +4140,399 @@ export default function AgentConfig() {
               </div>
             ) : (
               <>
-                {/* Stats */}
-                <div className="grid grid-cols-3 gap-3">
-                  {[
-                    { val: groupConfig.groups?.length || 0, label: 'Groupes gérés', color: 'text-gray-900' },
-                    { val: (groupConfig.groups || []).reduce((s, g) => s + (g.scheduledPosts || []).filter(p => p.enabled !== false).length, 0), label: 'Posts actifs', color: 'text-emerald-600' },
-                    { val: (groupConfig.groups || []).reduce((s, g) => s + (g.scheduledPosts || []).filter(p => p.enabled === false).length, 0), label: 'Posts en pause', color: 'text-gray-500' },
-                  ].map((s, i) => (
-                    <div key={i} className="bg-white border rounded-xl p-4 text-center">
-                      <p className={`text-2xl font-bold ${s.color}`}>{s.val}</p>
-                      <p className="text-[11px] text-gray-500">{s.label}</p>
-                    </div>
+                {/* ── Tabs internes : Groupes / Campagnes ── */}
+                <div className="flex gap-1 bg-gray-100 rounded-xl p-1">
+                  {[{ id: 'list', label: '👥 Groupes' }, { id: 'campaigns', label: '📋 Campagnes' }].map(t => (
+                    <button key={t.id} onClick={() => { setGroupView(t.id); setOpenedGroup(null); if (t.id === 'campaigns') openCampaigns(); }}
+                      className={`flex-1 text-[13px] font-semibold py-2 rounded-lg transition ${groupView === t.id ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+                      {t.label}
+                    </button>
                   ))}
                 </div>
 
-                {/* Ajouter un groupe */}
-                <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-4">
-                  <h3 className="text-[15px] font-bold text-gray-900 flex items-center gap-2">
-                    <Plus className="w-4 h-4" /> Connecter un groupe à animer
-                  </h3>
+                {/* ── VUE CAMPAGNES ── */}
+                {groupView === 'campaigns' && (
+                  <div className="space-y-4">
+                    {/* Formulaire nouvelle campagne */}
+                    <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+                      <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+                        <h3 className="text-[15px] font-bold text-gray-900">
+                          {campaignEditing !== null ? 'Modifier la campagne' : 'Nouvelle campagne'}
+                        </h3>
+                        {campaignEditing !== null && (
+                          <button onClick={() => { setCampaignEditing(null); setCampaignForm({ name: '', message: '', mediaUrl: '', caption: '', scheduleAt: '', groupJids: [] }); }}
+                            className="text-[12px] text-gray-400 hover:text-gray-600">Annuler</button>
+                        )}
+                      </div>
+                      <div className="px-5 py-4 space-y-3">
+                        <Field label="Nom de la campagne">
+                          <input value={campaignForm.name} onChange={e => setCampaignForm(f => ({ ...f, name: e.target.value }))}
+                            placeholder="Ex: Promo weekend, Relance clients..." className="ac-input" />
+                        </Field>
+                        <Field label="Message">
+                          <textarea value={campaignForm.message} onChange={e => setCampaignForm(f => ({ ...f, message: e.target.value }))}
+                            rows={4} placeholder="Rédigez votre message..." className="ac-textarea" />
+                        </Field>
 
-                  {/* Mode selector */}
-                  <div className="flex gap-1 bg-gray-100 rounded-xl p-1">
-                    {[
-                      { id: 'invite', label: '🔗 Lien d\'invitation' },
-                      { id: 'existing', label: '📱 Mes groupes' },
-                      { id: 'create', label: '➕ Nouveau groupe' },
-                    ].map(m => (
-                      <button key={m.id} onClick={() => setGroupAddMode(m.id)}
-                        className={`flex-1 text-[12px] font-semibold py-2 rounded-lg transition ${groupAddMode === m.id ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
-                        {m.label}
-                      </button>
-                    ))}
+                        {/* Média : upload ou URL */}
+                        <div className="space-y-2">
+                          <p className="text-[12px] font-semibold text-gray-600">Image / Vidéo</p>
+                          <div className="flex items-center gap-2">
+                            <label className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-[12px] font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 cursor-pointer transition flex-shrink-0">
+                              <input type="file" accept="image/*,video/*" className="hidden"
+                                onChange={async (e) => {
+                                  const file = e.target.files?.[0];
+                                  if (!file) return;
+                                  setCampaignMediaUploading(true);
+                                  const fd = new FormData(); fd.append('file', file);
+                                  try {
+                                    const { data } = await ecomApi.post('/v1/external/whatsapp/upload-image', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+                                    if (data.url) setCampaignForm(f => ({ ...f, mediaUrl: data.url }));
+                                  } catch { setGroupMsg({ ok: false, text: 'Erreur upload' }); }
+                                  setCampaignMediaUploading(false);
+                                  e.target.value = '';
+                                }} />
+                              {campaignMediaUploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : '📎 Upload'}
+                            </label>
+                            <input value={campaignForm.mediaUrl} onChange={e => setCampaignForm(f => ({ ...f, mediaUrl: e.target.value }))}
+                              placeholder="ou coller URL..." className="ac-input flex-1 text-[12px]" />
+                            {campaignForm.mediaUrl && (
+                              <button onClick={() => setCampaignForm(f => ({ ...f, mediaUrl: '', caption: '' }))}
+                                className="text-gray-300 hover:text-red-400 transition text-lg flex-shrink-0">×</button>
+                            )}
+                          </div>
+                          {campaignForm.mediaUrl && (
+                            <div className="flex items-center gap-2">
+                              {/\.(jpg|jpeg|png|webp|gif)$/i.test(campaignForm.mediaUrl) && (
+                                <img src={campaignForm.mediaUrl} alt="" className="w-14 h-14 rounded-lg object-cover border border-gray-200 flex-shrink-0" />
+                              )}
+                              <input value={campaignForm.caption} onChange={e => setCampaignForm(f => ({ ...f, caption: e.target.value }))}
+                                placeholder="Légende (optionnel)..." className="ac-input flex-1 text-[12px]" />
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Envoi ponctuel ou répétitif */}
+                        <div className="space-y-3">
+                          <div className="flex items-center gap-3">
+                            <button type="button" onClick={() => setCampaignForm(f => ({ ...f, repeat: false }))}
+                              className={`flex-1 py-2 rounded-xl text-[12px] font-semibold border transition ${!campaignForm.repeat ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'}`}>
+                              📅 Ponctuel
+                            </button>
+                            <button type="button" onClick={() => setCampaignForm(f => ({ ...f, repeat: true, scheduleAt: '' }))}
+                              className={`flex-1 py-2 rounded-xl text-[12px] font-semibold border transition ${campaignForm.repeat ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'}`}>
+                              🔁 Répétitif
+                            </button>
+                          </div>
+
+                          {!campaignForm.repeat ? (
+                            <input type="datetime-local" value={campaignForm.scheduleAt}
+                              onChange={e => setCampaignForm(f => ({ ...f, scheduleAt: e.target.value }))}
+                              className="ac-input" />
+                          ) : (
+                            <div className="space-y-2">
+                              <p className="text-[11px] text-gray-500">Jours d'envoi</p>
+                              <div className="flex flex-wrap gap-1.5">
+                                {['lundi','mardi','mercredi','jeudi','vendredi','samedi','dimanche'].map(d => {
+                                  const active = campaignForm.repeatDays.includes(d);
+                                  return (
+                                    <button key={d} type="button"
+                                      onClick={() => setCampaignForm(f => ({ ...f, repeatDays: active ? f.repeatDays.filter(x => x !== d) : [...f.repeatDays, d] }))}
+                                      className={`text-[11px] px-2.5 py-1 rounded-full border transition font-medium ${active ? 'bg-emerald-50 border-emerald-400 text-emerald-700' : 'bg-white border-gray-200 text-gray-400'}`}>
+                                      {d.slice(0,2)}
+                                    </button>
+                                  );
+                                })}
+                                <button type="button" onClick={() => setCampaignForm(f => ({ ...f, repeatDays: ['lundi','mardi','mercredi','jeudi','vendredi','samedi','dimanche'] }))}
+                                  className="text-[10px] px-2 text-emerald-600 hover:underline">Tous</button>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <p className="text-[11px] text-gray-500 flex-shrink-0">Heure</p>
+                                <input type="time" value={campaignForm.repeatHour}
+                                  onChange={e => setCampaignForm(f => ({ ...f, repeatHour: e.target.value }))}
+                                  className="ac-input w-32" />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-[12px] font-semibold text-gray-600 mb-2">Groupes destinataires</p>
+                          {whatsappGroups.length === 0 ? (
+                            <p className="text-[12px] text-gray-400">Chargez d'abord vos groupes dans l'onglet Groupes</p>
+                          ) : (
+                            <div className="max-h-48 overflow-y-auto space-y-1 border border-gray-200 rounded-xl p-2">
+                              {whatsappGroups.map(wg => {
+                                const sel = campaignForm.groupJids.includes(wg.id);
+                                return (
+                                  <label key={wg.id} className={`flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition ${sel ? 'bg-emerald-50' : 'hover:bg-gray-50'}`}>
+                                    <input type="checkbox" checked={sel}
+                                      onChange={() => setCampaignForm(f => ({
+                                        ...f,
+                                        groupJids: sel ? f.groupJids.filter(id => id !== wg.id) : [...f.groupJids, wg.id]
+                                      }))}
+                                      className="w-4 h-4 rounded border-gray-300 text-emerald-600" />
+                                    <span className="text-[13px] font-medium text-gray-800 truncate flex-1">{wg.name}</span>
+                                    <span className="text-[10px] text-gray-400">{wg.participants} membres</span>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                        <button onClick={saveCampaign} disabled={campaignSaving}
+                          className="w-full py-2.5 rounded-xl text-[13px] font-bold text-white disabled:opacity-40"
+                          style={{ background: ACCENT }}>
+                          {campaignSaving ? 'Enregistrement...' : '💾 Enregistrer la campagne'}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Liste des campagnes */}
+                    {campaigns.length > 0 && (
+                      <div className="space-y-2">
+                        <p className="text-[13px] font-semibold text-gray-700">{campaigns.length} campagne{campaigns.length > 1 ? 's' : ''} enregistrée{campaigns.length > 1 ? 's' : ''}</p>
+                        {campaigns.map((c, i) => (
+                          <div key={i} className="bg-white rounded-2xl border border-gray-200 p-4 space-y-2">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0 flex-1">
+                                <p className="text-[14px] font-bold text-gray-900">{c.name}</p>
+                                <p className="text-[11px] text-gray-400 mt-0.5">
+                                  {c.groupJids.length} groupe{c.groupJids.length > 1 ? 's' : ''}
+                                  {c.scheduleAt ? ` · 📅 ${new Date(c.scheduleAt).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}` : ''}
+                                  {c.sent ? ' · ✅ Envoyée' : ''}
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-1 flex-shrink-0">
+                                <button onClick={() => { setCampaignEditing(i); setCampaignForm({ name: c.name, message: c.message, mediaUrl: c.mediaUrl || '', caption: c.caption || '', scheduleAt: c.scheduleAt || '', groupJids: c.groupJids }); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                                  className="text-[11px] px-2.5 py-1 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 transition">
+                                  Modifier
+                                </button>
+                                <button onClick={() => sendCampaign(i)} disabled={bcSending}
+                                  className="text-[11px] px-2.5 py-1 rounded-lg text-white transition disabled:opacity-40"
+                                  style={{ background: ACCENT }}>
+                                  {bcSending ? '...' : '📤 Envoyer'}
+                                </button>
+                                <button onClick={() => deleteCampaign(i)}
+                                  className="text-[11px] px-2 py-1 rounded-lg text-red-400 hover:bg-red-50 transition">
+                                  ✕
+                                </button>
+                              </div>
+                            </div>
+                            {c.message && <p className="text-[12px] text-gray-500 line-clamp-2">{c.message}</p>}
+                            {c.mediaUrl && (
+                              <div className="flex items-center gap-2">
+                                {/\.(jpg|jpeg|png|webp|gif)$/i.test(c.mediaUrl) && (
+                                  <img src={c.mediaUrl} alt="" className="w-10 h-10 rounded-lg object-cover border border-gray-200" />
+                                )}
+                                <span className="text-[11px] text-blue-500 truncate">{c.mediaUrl}</span>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
+                )}
 
-                  {/* Mode: Coller un lien d'invitation */}
-                  {groupAddMode === 'invite' && (
-                    <div className="space-y-2">
-                      <p className="text-[12px] text-gray-500">Collez le lien d'invitation WhatsApp et Rita rejoindra automatiquement le groupe.</p>
+                {/* ── VUE GROUPES ── */}
+                {groupView === 'list' && (
+                <>
+                {/* ── Vue détail groupe ouvert ── */}
+                {openedGroup ? (
+                  <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+                    {/* Header avec retour */}
+                    <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-3">
+                      <button onClick={() => { setOpenedGroup(null); setBcMessage(''); setBcMediaUrl(''); setBcCaption(''); setBcScheduleAt(''); }}
+                        className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition">
+                        <ChevronDown className="w-4 h-4 text-gray-600 rotate-90" />
+                      </button>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-[15px] font-bold text-gray-900 truncate">{openedGroup.name}</h3>
+                        <p className="text-[11px] text-gray-400">{openedGroup.participants} membre{openedGroup.participants !== 1 ? 's' : ''}</p>
+                      </div>
+                    </div>
+
+                    {/* Composer */}
+                    <div className="px-5 py-4 space-y-3">
+                      <textarea value={bcMessage} onChange={e => setBcMessage(e.target.value)}
+                        rows={4} placeholder="Rédigez votre message..."
+                        className="ac-textarea w-full" />
+
+                      {/* Upload ou URL média */}
+                      <div className="flex items-center gap-2">
+                        <label className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-[12px] font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 cursor-pointer transition">
+                          <input type="file" accept="image/*,video/*" className="hidden"
+                            onChange={async (e) => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              const fd = new FormData(); fd.append('file', file);
+                              try {
+                                const { data } = await ecomApi.post('/v1/external/whatsapp/upload-image', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+                                if (data.url) setBcMediaUrl(data.url);
+                              } catch { setBcMediaUrl(''); }
+                              e.target.value = '';
+                            }} />
+                          📎 Fichier
+                        </label>
+                        <input value={bcMediaUrl} onChange={e => setBcMediaUrl(e.target.value)}
+                          placeholder="ou coller URL image/vidéo..."
+                          className="ac-input flex-1 text-[12px]" />
+                      </div>
+
+                      {bcMediaUrl && (
+                        <div className="flex items-center gap-2">
+                          {/\.(jpg|jpeg|png|webp|gif)$/i.test(bcMediaUrl) && (
+                            <img src={bcMediaUrl} alt="" className="w-16 h-16 rounded-lg object-cover border border-gray-200 flex-shrink-0" />
+                          )}
+                          <input value={bcCaption} onChange={e => setBcCaption(e.target.value)}
+                            placeholder="Légende (optionnel)..." className="ac-input flex-1 text-[12px]" />
+                          <button onClick={() => { setBcMediaUrl(''); setBcCaption(''); }}
+                            className="text-gray-300 hover:text-red-400 transition flex-shrink-0">×</button>
+                        </div>
+                      )}
+
+                      <input type="datetime-local" value={bcScheduleAt} onChange={e => setBcScheduleAt(e.target.value)}
+                        className="ac-input text-[12px]" />
+
+                      <button onClick={() => sendBroadcast([openedGroup.id])}
+                        disabled={bcSending || (!bcMessage.trim() && !bcMediaUrl.trim())}
+                        className="w-full py-3 rounded-xl text-[14px] font-bold text-white disabled:opacity-40 transition"
+                        style={{ background: ACCENT }}>
+                        {bcSending ? 'Envoi...' : bcScheduleAt ? '📅 Programmer' : '📤 Envoyer dans ce groupe'}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  /* ── Vue liste groupes ── */
+                  <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+                    <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+                      <div>
+                        <h3 className="text-[15px] font-bold text-gray-900">Mes groupes WhatsApp</h3>
+                        <p className="text-[12px] text-gray-400 mt-0.5">Cliquez sur un groupe pour envoyer</p>
+                      </div>
+                      <button onClick={loadGroupAnimation} disabled={groupsLoading}
+                        className="text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 transition disabled:opacity-40 flex items-center gap-1">
+                        {groupsLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : '↻ Rafraîchir'}
+                      </button>
+                    </div>
+
+                    {/* Barre de recherche */}
+                    {whatsappGroups.length > 0 && (
+                      <div className="px-5 py-3 border-b border-gray-100">
+                        <input
+                          value={groupSearch}
+                          onChange={e => setGroupSearch(e.target.value)}
+                          placeholder="Rechercher un groupe..."
+                          className="ac-input w-full text-[13px]"
+                        />
+                      </div>
+                    )}
+
+                    {groupsLoading ? (
+                      <div className="px-5 py-10 flex items-center justify-center gap-2">
+                        <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
+                        <span className="text-[13px] text-gray-400">Chargement des groupes...</span>
+                      </div>
+                    ) : whatsappGroups.length === 0 ? (
+                      <div className="px-5 py-10 text-center">
+                        <Users className="w-8 h-8 text-gray-200 mx-auto mb-2" />
+                        <p className="text-[13px] text-gray-500">Aucun groupe trouvé</p>
+                        <p className="text-[11px] text-gray-400 mt-1">Vérifiez que Rita est connectée à WhatsApp, puis rafraîchissez</p>
+                      </div>
+                    ) : (
+                      <div className="divide-y divide-gray-50">
+                        {whatsappGroups.filter(wg => wg.name.toLowerCase().includes(groupSearch.toLowerCase())).map(wg => (
+                          <button key={wg.id} type="button"
+                            onClick={() => setOpenedGroup(wg)}
+                            className="w-full flex items-center gap-3 px-5 py-3.5 text-left hover:bg-emerald-50/50 transition group">
+                            <div className="w-9 h-9 rounded-full bg-emerald-100 flex items-center justify-center text-[14px] flex-shrink-0">
+                              👥
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-[13px] font-semibold text-gray-900 truncate">{wg.name}</p>
+                              <p className="text-[11px] text-gray-400">{wg.participants} membre{wg.participants !== 1 ? 's' : ''}</p>
+                            </div>
+                            <ChevronDown className="w-4 h-4 text-gray-300 -rotate-90 group-hover:text-emerald-500 transition" />
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Rejoindre via lien */}
+                    <div className="px-5 py-4 border-t border-gray-100 bg-gray-50/50">
+                      <p className="text-[11px] text-gray-500 mb-2">Rejoindre un groupe via lien d'invitation</p>
                       <div className="flex gap-2">
                         <input type="text" value={groupInviteLink} onChange={e => setGroupInviteLink(e.target.value)}
-                          placeholder="https://chat.whatsapp.com/ABC123..."
-                          className="ac-input flex-1" onKeyDown={e => e.key === 'Enter' && joinGroupByInvite()} />
+                          placeholder="https://chat.whatsapp.com/..."
+                          className="ac-input flex-1 text-[12px]"
+                          onKeyDown={e => e.key === 'Enter' && joinGroupByInvite()} />
                         <button onClick={joinGroupByInvite} disabled={groupJoining || !groupInviteLink.trim()}
-                          className="px-4 py-2 rounded-xl text-[13px] font-bold text-white disabled:opacity-50 transition whitespace-nowrap"
+                          className="px-3 py-2 rounded-xl text-[12px] font-bold text-white disabled:opacity-50 whitespace-nowrap"
                           style={{ background: ACCENT }}>
-                          {groupJoining ? 'Connexion...' : 'Rejoindre'}
+                          {groupJoining ? '...' : 'Rejoindre'}
                         </button>
                       </div>
-                    </div>
-                  )}
-
-                  {/* Mode: Sélectionner un groupe existant */}
-                  {groupAddMode === 'existing' && (
-                    <div className="space-y-2">
-                      <p className="text-[12px] text-gray-500">Sélectionnez un groupe WhatsApp déjà présent sur votre instance.</p>
-                      {whatsappGroups.filter(w => !(groupConfig.groups || []).some(g => g.groupJid === w.id)).length > 0 ? (
-                        <div className="flex gap-2">
-                          <select value={groupSelectedAdd} onChange={e => setGroupSelectedAdd(e.target.value)} className="ac-input flex-1">
-                            <option value="">— Choisir un groupe —</option>
-                            {whatsappGroups.filter(w => !(groupConfig.groups || []).some(g => g.groupJid === w.id)).map(g => (
-                              <option key={g.id} value={g.id}>{g.name} ({g.participants} membres)</option>
-                            ))}
-                          </select>
-                          <button onClick={addExistingGroupToAnimation} disabled={!groupSelectedAdd}
-                            className="px-4 py-2 rounded-xl text-[13px] font-bold text-white disabled:opacity-50 transition"
-                            style={{ background: ACCENT }}>
-                            Ajouter
-                          </button>
-                        </div>
-                      ) : (
-                        <p className="text-[12px] text-gray-400 italic py-2">Tous les groupes sont déjà connectés, ou aucun groupe n'est trouvé sur l'instance.</p>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Mode: Créer un nouveau groupe */}
-                  {groupAddMode === 'create' && (
-                    <div className="space-y-2">
-                      <p className="text-[12px] text-gray-500">Créez un nouveau groupe WhatsApp directement depuis Rita.</p>
-                      <div className="flex gap-2">
-                        <input type="text" value={groupNewName} onChange={e => setGroupNewName(e.target.value)}
-                          placeholder="Ex: 🛒 Clients Premium"
-                          className="ac-input flex-1" onKeyDown={e => e.key === 'Enter' && createNewGroup()} />
-                        <button onClick={createNewGroup} disabled={groupCreating || !groupNewName.trim()}
-                          className="px-4 py-2 rounded-xl text-[13px] font-bold text-white disabled:opacity-50 transition"
-                          style={{ background: ACCENT }}>
-                          {groupCreating ? '...' : 'Créer'}
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Liste de tous les groupes WhatsApp avec checkbox */}
-                {whatsappGroups.length > 0 && (
-                  <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-[15px] font-bold text-gray-900 flex items-center gap-2">
-                        <Users className="w-4 h-4" /> Groupes sur votre WhatsApp
-                      </h3>
-                      <span className="text-[11px] text-gray-400">{whatsappGroups.length} groupe{whatsappGroups.length > 1 ? 's' : ''} trouvé{whatsappGroups.length > 1 ? 's' : ''}</span>
-                    </div>
-                    <p className="text-[12px] text-gray-500">Cochez les groupes que Rita doit animer :</p>
-                    <div className="max-h-64 overflow-y-auto space-y-1 pr-1">
-                      {whatsappGroups.map(wg => {
-                        const isManaged = (groupConfig.groups || []).some(g => g.groupJid === wg.id);
-                        return (
-                          <label key={wg.id} className={`flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition ${isManaged ? 'bg-emerald-50 border border-emerald-200' : 'bg-gray-50 border border-transparent hover:bg-gray-100'}`}>
-                            <input type="checkbox" checked={isManaged} onChange={() => {
-                              if (isManaged) {
-                                // Retirer
-                                const idx = (groupConfig.groups || []).findIndex(g => g.groupJid === wg.id);
-                                if (idx !== -1) removeGroupFromAnimation(idx);
-                              } else {
-                                // Ajouter
-                                updateGroupConfig('groups', [...(groupConfig.groups || []), { groupJid: wg.id, name: wg.name, inviteUrl: '', role: 'custom', autoCreated: false, scheduledPosts: [] }]);
-                              }
-                            }}
-                              className="w-4 h-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500" />
-                            <div className="flex-1 min-w-0">
-                              <span className="text-[13px] font-medium text-gray-900 truncate block">{wg.name}</span>
-                              <span className="text-[10px] text-gray-400">{wg.participants} membre{wg.participants > 1 ? 's' : ''}</span>
-                            </div>
-                            {isManaged && (
-                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-medium whitespace-nowrap">✓ Animé</span>
-                            )}
-                          </label>
-                        );
-                      })}
                     </div>
                   </div>
                 )}
 
-                {/* Groupes gérés */}
-                {!(groupConfig.groups?.length) ? (
-                  <div className="text-center py-12 bg-white border rounded-2xl">
-                    <Megaphone className="w-10 h-10 mx-auto text-gray-300 mb-2" />
-                    <p className="text-[15px] font-bold text-gray-700">Aucun groupe à animer</p>
-                    <p className="text-[12px] text-gray-400 mt-1">Créez ou ajoutez un groupe pour que Rita l'anime automatiquement.</p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {groupConfig.groups.map((group, gi) => {
-                      const postsCount = group.scheduledPosts?.length || 0;
-                      const activeCount = (group.scheduledPosts || []).filter(p => p.enabled !== false).length;
-                      const isExpanded = groupExpandedIdx === gi;
-                      const roleObj = GA_ROLES.find(r => r.value === group.role);
-
-                      return (
-                        <div key={gi} className="bg-white border rounded-2xl overflow-hidden">
-                          {/* Group header */}
-                          <div className="px-5 py-4 flex items-center gap-3 cursor-pointer hover:bg-gray-50 transition" onClick={() => setGroupExpandedIdx(isExpanded ? null : gi)}>
-                            <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center text-lg flex-shrink-0">
-                              {group.role === 'clients' ? '🛒' : group.role === 'prospects' ? '🎯' : group.role === 'vip' ? '⭐' : '👥'}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <h4 className="text-[14px] font-bold text-gray-900 truncate">{group.name || group.groupJid}</h4>
-                              <div className="flex items-center gap-2 mt-0.5">
-                                <span className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-gray-100 text-gray-600">{roleObj?.label || group.role}</span>
-                                <span className="text-[10px] text-gray-400">{postsCount} post{postsCount > 1 ? 's' : ''} • {activeCount} actif{activeCount > 1 ? 's' : ''}</span>
+                {/* ── SECTION 3 : Posts récurrents (config avancée) ── */}
+                {groupConfig.groups?.length > 0 && (
+                  <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+                    <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+                      <div>
+                        <h3 className="text-[15px] font-bold text-gray-900">Posts récurrents</h3>
+                        <p className="text-[12px] text-gray-400 mt-0.5">Messages automatiques planifiés par groupe</p>
+                      </div>
+                      <button onClick={saveGroupConfig} disabled={groupSaving}
+                        className="text-[12px] font-bold px-3 py-1.5 rounded-xl text-white disabled:opacity-50"
+                        style={{ background: ACCENT }}>
+                        {groupSaving ? '...' : 'Sauvegarder'}
+                      </button>
+                    </div>
+                    <div className="divide-y divide-gray-50">
+                      {groupConfig.groups.map((group, gi) => {
+                        const postsCount = group.scheduledPosts?.length || 0;
+                        const isExpanded = groupExpandedIdx === gi;
+                        return (
+                          <div key={gi}>
+                            <button type="button" onClick={() => setGroupExpandedIdx(isExpanded ? null : gi)}
+                              className="w-full px-5 py-3.5 flex items-center gap-3 text-left hover:bg-gray-50 transition">
+                              <div className="w-8 h-8 rounded-full bg-emerald-50 flex items-center justify-center text-[14px] flex-shrink-0">
+                                {group.role === 'clients' ? '🛒' : group.role === 'prospects' ? '🎯' : group.role === 'vip' ? '⭐' : '👥'}
                               </div>
-                            </div>
-                            <button onClick={e => { e.stopPropagation(); removeGroupFromAnimation(gi); }}
-                              className="text-[11px] text-gray-400 hover:text-red-500 transition mr-2">Retirer</button>
-                            <ChevronDown className={`w-5 h-5 text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
-                          </div>
-
-                          {isExpanded && (
-                            <div className="px-5 pb-5 space-y-4 border-t">
-                              {/* Actions */}
-                              <div className="flex flex-wrap gap-2 pt-3">
-                                <select value={group.role} onChange={e => updateManagedGroup(gi, { ...group, role: e.target.value })}
-                                  className="text-[12px] border rounded-lg px-2 py-1.5 bg-gray-50 font-medium">
-                                  {GA_ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
-                                </select>
-                                {group.inviteUrl ? (
-                                  <button onClick={() => { navigator.clipboard.writeText(group.inviteUrl); setGroupMsg({ ok: true, text: '📋 Lien copié !' }); setTimeout(() => setGroupMsg(null), 2000); }}
-                                    className="text-[12px] px-3 py-1.5 rounded-lg border border-emerald-200 text-emerald-700 hover:bg-emerald-50 transition font-medium">
-                                    📋 Copier le lien
-                                  </button>
-                                ) : (
-                                  <button onClick={() => refreshGroupInvite(group.groupJid, gi)}
-                                    className="text-[12px] px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition font-medium">
-                                    🔗 Générer lien d'invitation
-                                  </button>
-                                )}
+                              <div className="flex-1 min-w-0">
+                                <p className="text-[13px] font-semibold text-gray-900 truncate">{group.name || group.groupJid}</p>
+                                <p className="text-[11px] text-gray-400">{postsCount} post{postsCount !== 1 ? 's' : ''} planifié{postsCount !== 1 ? 's' : ''}</p>
                               </div>
+                              <button onClick={e => { e.stopPropagation(); removeGroupFromAnimation(gi); }}
+                                className="text-[11px] text-gray-300 hover:text-red-400 transition mr-1">Retirer</button>
+                              <ChevronDown className={`w-4 h-4 text-gray-300 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                            </button>
 
-                              {/* Invite URL */}
-                              {group.inviteUrl && (
-                                <div className="flex items-center gap-2 bg-emerald-50 rounded-lg px-3 py-2">
-                                  <span className="text-[11px] text-emerald-600 truncate flex-1">{group.inviteUrl}</span>
-                                  <button onClick={() => refreshGroupInvite(group.groupJid, gi)}
-                                    className="text-[10px] text-emerald-700 hover:underline font-medium whitespace-nowrap">🔄 Régénérer</button>
-                                </div>
-                              )}
-
-                              {/* Scheduled Posts */}
-                              <div className="space-y-3">
-                                <div className="flex items-center justify-between">
-                                  <h5 className="text-[12px] font-bold text-gray-700 uppercase tracking-wide">📢 Posts planifiés</h5>
+                            {isExpanded && (
+                              <div className="px-5 pb-5 space-y-3 bg-gray-50/30">
+                                <div className="flex items-center justify-between pt-2">
+                                  <p className="text-[12px] font-semibold text-gray-600">Posts planifiés</p>
                                   <button onClick={() => {
                                     const posts = [...(group.scheduledPosts || []), { type: 'text', content: '', productName: '', days: [], hour: '09:00', enabled: true }];
                                     updateManagedGroup(gi, { ...group, scheduledPosts: posts });
-                                  }}
-                                    className="text-[12px] px-3 py-1 rounded-lg text-white font-medium transition" style={{ background: ACCENT }}>
+                                  }} className="text-[11px] font-semibold px-2.5 py-1 rounded-lg text-white" style={{ background: ACCENT }}>
                                     + Ajouter
                                   </button>
                                 </div>
 
                                 {!postsCount && (
-                                  <div className="text-center py-6 bg-gray-50 rounded-xl">
-                                    <p className="text-[11px] text-gray-400">Aucun post planifié. Rita peut animer ce groupe !</p>
-                                  </div>
+                                  <p className="text-[12px] text-gray-400 py-2">Aucun post planifié.</p>
                                 )}
 
                                 {(group.scheduledPosts || []).map((post, pi) => (
-                                  <div key={pi} className="bg-gray-50 border rounded-xl p-4 space-y-3">
-                                    <div className="flex items-center gap-3 flex-wrap">
+                                  <div key={pi} className="bg-white border border-gray-200 rounded-xl p-3 space-y-2.5">
+                                    <div className="flex items-center gap-2 flex-wrap">
                                       <select value={post.type} onChange={e => {
                                         const ps = [...group.scheduledPosts]; ps[pi] = { ...ps[pi], type: e.target.value };
                                         updateManagedGroup(gi, { ...group, scheduledPosts: ps });
-                                      }} className="text-[12px] border rounded-lg px-3 py-1.5 bg-white font-medium">
+                                      }} className="text-[12px] border rounded-lg px-2 py-1.5 bg-gray-50">
                                         <option value="text">📝 Texte</option>
                                         <option value="image">🖼️ Image</option>
                                         <option value="product">🛍️ Produit</option>
@@ -4653,20 +4541,17 @@ export default function AgentConfig() {
                                         const ps = [...group.scheduledPosts]; ps[pi] = { ...ps[pi], hour: e.target.value };
                                         updateManagedGroup(gi, { ...group, scheduledPosts: ps });
                                       }} className="text-[12px] border rounded-lg px-2 py-1.5" />
-                                      <label className="flex items-center gap-1.5 ml-auto cursor-pointer">
-                                        <div className={`relative w-9 h-5 rounded-full transition ${post.enabled !== false ? 'bg-emerald-500' : 'bg-gray-300'}`}
-                                          onClick={() => {
-                                            const ps = [...group.scheduledPosts]; ps[pi] = { ...ps[pi], enabled: !(post.enabled !== false) };
-                                            updateManagedGroup(gi, { ...group, scheduledPosts: ps });
-                                          }}>
-                                          <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${post.enabled !== false ? 'translate-x-4' : 'translate-x-0.5'}`} />
-                                        </div>
-                                        <span className="text-[11px] font-medium text-gray-600">{post.enabled !== false ? 'Actif' : 'Pause'}</span>
-                                      </label>
+                                      <div className={`relative w-8 h-4 rounded-full cursor-pointer transition ml-auto ${post.enabled !== false ? 'bg-emerald-500' : 'bg-gray-300'}`}
+                                        onClick={() => {
+                                          const ps = [...group.scheduledPosts]; ps[pi] = { ...ps[pi], enabled: !(post.enabled !== false) };
+                                          updateManagedGroup(gi, { ...group, scheduledPosts: ps });
+                                        }}>
+                                        <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full shadow transition-transform ${post.enabled !== false ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                                      </div>
                                       <button onClick={() => {
                                         const ps = [...group.scheduledPosts]; ps.splice(pi, 1);
                                         updateManagedGroup(gi, { ...group, scheduledPosts: ps });
-                                      }} className="text-gray-400 hover:text-red-500 transition">
+                                      }} className="text-gray-300 hover:text-red-400 transition">
                                         <Trash2 className="w-4 h-4" />
                                       </button>
                                     </div>
@@ -4675,13 +4560,13 @@ export default function AgentConfig() {
                                       <textarea value={post.content || ''} onChange={e => {
                                         const ps = [...group.scheduledPosts]; ps[pi] = { ...ps[pi], content: e.target.value };
                                         updateManagedGroup(gi, { ...group, scheduledPosts: ps });
-                                      }} rows={2} placeholder="Message à envoyer..." className="ac-textarea" />
+                                      }} rows={2} placeholder="Message..." className="ac-textarea" />
                                     )}
                                     {post.type === 'image' && (
-                                      <input type="text" value={post.content || ''} onChange={e => {
+                                      <input value={post.content || ''} onChange={e => {
                                         const ps = [...group.scheduledPosts]; ps[pi] = { ...ps[pi], content: e.target.value };
                                         updateManagedGroup(gi, { ...group, scheduledPosts: ps });
-                                      }} placeholder="https://example.com/image.jpg" className="ac-input" />
+                                      }} placeholder="https://..." className="ac-input" />
                                     )}
                                     {post.type === 'product' && (
                                       <select value={post.productName || ''} onChange={e => {
@@ -4693,52 +4578,34 @@ export default function AgentConfig() {
                                       </select>
                                     )}
 
-                                    {/* Days */}
-                                    <div className="flex flex-wrap gap-1.5">
+                                    <div className="flex flex-wrap gap-1">
                                       {GA_DAYS.map(d => (
                                         <button key={d} onClick={() => {
                                           const days = (post.days || []).includes(d) ? post.days.filter(x => x !== d) : [...(post.days || []), d];
                                           const ps = [...group.scheduledPosts]; ps[pi] = { ...ps[pi], days };
                                           updateManagedGroup(gi, { ...group, scheduledPosts: ps });
                                         }}
-                                          className={`text-[11px] px-2 py-0.5 rounded-full border transition font-medium ${(post.days || []).includes(d) ? 'bg-emerald-50 border-emerald-400 text-emerald-700' : 'bg-white border-gray-200 text-gray-400'}`}>
-                                          {d.charAt(0).toUpperCase() + d.slice(1, 3)}
+                                          className={`text-[10px] px-1.5 py-0.5 rounded-full border transition ${(post.days || []).includes(d) ? 'bg-emerald-50 border-emerald-400 text-emerald-700' : 'bg-white border-gray-200 text-gray-400'}`}>
+                                          {d.slice(0, 2)}
                                         </button>
                                       ))}
                                       <button onClick={() => {
                                         const ps = [...group.scheduledPosts]; ps[pi] = { ...ps[pi], days: GA_DAYS.slice() };
                                         updateManagedGroup(gi, { ...group, scheduledPosts: ps });
-                                      }} className="text-[10px] px-2 text-emerald-600 hover:underline font-medium">Tous</button>
+                                      }} className="text-[10px] px-1.5 text-emerald-600 hover:underline">Tous</button>
                                     </div>
                                   </div>
                                 ))}
                               </div>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
-
-                {/* Save button */}
-                <div className="flex items-center justify-between">
-                  <button onClick={saveGroupConfig} disabled={groupSaving}
-                    className="px-5 py-2.5 rounded-xl text-[13px] font-bold text-white disabled:opacity-50 transition"
-                    style={{ background: ACCENT }}>
-                    {groupSaving ? 'Enregistrement...' : '💾 Sauvegarder l\'animation'}
-                  </button>
-                </div>
-
-                {/* Info */}
-                <div className="p-4 rounded-xl border border-blue-200 bg-blue-50 text-[12px] text-blue-700 space-y-1">
-                  <p className="font-bold">💡 Comment fonctionne l'animation ?</p>
-                  <p>• <strong>Rejoindre un groupe</strong> : collez un lien d'invitation et Rita rejoint automatiquement le groupe.</p>
-                  <p>• <strong>Programmer des produits</strong> : ajoutez des posts de type "Produit" → Rita envoie la fiche + photo aux jours/heures choisis.</p>
-                  <p>• <strong>Calendrier automatique</strong> : choisissez les jours de la semaine et l'heure d'envoi pour chaque post.</p>
-                  <p>• Rita vérifie toutes les minutes si un post doit être envoyé (fuseau Africa/Douala).</p>
-                  <p>• Mettez un post en pause avec le toggle Actif/Pause sans le supprimer.</p>
-                </div>
+                </>
+                )}
               </>
             )}
           </div>

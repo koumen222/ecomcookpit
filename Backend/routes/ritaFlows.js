@@ -348,4 +348,80 @@ router.delete('/groups/scheduled-post', requireEcomAuth, requireRitaAgentAccess,
   }
 });
 
+/**
+ * POST /groups/broadcast
+ * Envoie un message (texte, image, vidéo) dans plusieurs groupes
+ * Body: { groupJids: string[], message?: string, mediaUrl?: string, caption?: string, scheduleAt?: ISO string }
+ */
+router.post('/groups/broadcast', requireEcomAuth, requireRitaAgentAccess, async (req, res) => {
+  try {
+    const { groupJids, message, mediaUrl, caption, scheduleAt } = req.body;
+    const userId = await resolveRitaFlowUserId(req);
+
+    if (!userId || !groupJids?.length) {
+      return res.status(400).json({ success: false, error: 'userId et groupJids requis' });
+    }
+    if (!message && !mediaUrl) {
+      return res.status(400).json({ success: false, error: 'message ou mediaUrl requis' });
+    }
+
+    // Si programmé → stocker dans les scheduledPosts de chaque groupe
+    if (scheduleAt) {
+      const scheduledDate = new Date(scheduleAt);
+      const hour = `${String(scheduledDate.getHours()).padStart(2, '0')}:${String(scheduledDate.getMinutes()).padStart(2, '0')}`;
+      const days = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
+      const day = days[scheduledDate.getDay()];
+      const post = {
+        type: mediaUrl ? 'image' : 'text',
+        content: mediaUrl || message,
+        caption: caption || '',
+        days: [day],
+        hour,
+        enabled: true,
+        scheduledOnce: scheduleAt,
+      };
+      for (const jid of groupJids) {
+        await RitaFlow.findOneAndUpdate(
+          { userId, 'groups.groupJid': jid },
+          { $push: { 'groups.$.scheduledPosts': post } },
+          { upsert: false }
+        );
+      }
+      return res.json({ success: true, scheduled: true, count: groupJids.length });
+    }
+
+    // Envoi immédiat
+    const ritaConfig = await RitaConfig.findOne({ userId }).lean();
+    if (!ritaConfig?.instanceId) {
+      return res.status(400).json({ success: false, error: 'Rita non configurée avec une instance' });
+    }
+    const inst = await WhatsAppInstance.findById(ritaConfig.instanceId).lean();
+    if (!inst) return res.status(400).json({ success: false, error: 'Instance WhatsApp introuvable' });
+
+    const results = [];
+    for (const jid of groupJids) {
+      try {
+        let r;
+        if (mediaUrl) {
+          r = await evolutionApiService.sendMedia(inst.instanceName, inst.instanceToken, jid, mediaUrl, caption || message || '');
+        } else {
+          r = await evolutionApiService.sendMessage(inst.instanceName, inst.instanceToken, jid, message);
+        }
+        console.log(`📤 [broadcast] jid=${jid} ok=${r.success} err=${r.error || ''}`);
+        results.push({ jid, ok: r.success, error: r.error });
+      } catch (e) {
+        console.error(`📤 [broadcast] jid=${jid} exception:`, e.message);
+        results.push({ jid, ok: false, error: e.message });
+      }
+    }
+
+    const sent = results.filter(r => r.ok).length;
+    const firstError = results.find(r => !r.ok)?.error;
+    res.json({ success: true, sent, failed: results.length - sent, results, firstError });
+  } catch (err) {
+    console.error('❌ [RitaFlows] POST /groups/broadcast:', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 export default router;

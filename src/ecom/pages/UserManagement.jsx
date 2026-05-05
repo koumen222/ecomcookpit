@@ -41,6 +41,14 @@ const roleAvatarColors = {
   ecom_livreur: 'bg-orange-100 text-orange-700'
 };
 
+const roleFilterOptions = [
+  ['', 'Tous'],
+  ['ecom_closeuse', 'Closeuses'],
+  ['ecom_compta', 'Comptables'],
+  ['ecom_livreur', 'Livreurs'],
+  ['ecom_admin', 'Admins']
+];
+
 const auditActionLabels = {
   CREATE_USER: 'Utilisateur créé',
   UPDATE_USER: 'Utilisateur modifié',
@@ -317,8 +325,12 @@ const UserManagement = () => {
     { id: 'audit', label: 'Activité' },
   ];
 
+  const totalMembers = stats.total || 0;
+  const activeMembers = stats.active || 0;
+  const currentRoleFilterLabel = roleFilterOptions.find(([value]) => value === filterRole)?.[1] || 'Tous';
+
   return (
-    <div className="p-3 sm:p-4 lg:p-6 max-w-5xl mx-auto">
+    <div className="mx-auto max-w-6xl p-3 sm:p-4 lg:p-6">
       {success && (
         <div className="fixed top-4 right-4 z-50 flex items-center gap-2 bg-green-600 text-white px-4 py-3 rounded-xl shadow-lg text-sm font-medium">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
@@ -332,115 +344,211 @@ const UserManagement = () => {
         </div>
       )}
 
-      {/* Header */}
-      <div className="flex items-center justify-between mb-5">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Gestion Équipe</h1>
-          <p className="text-xs text-gray-500 mt-0.5">{stats.total || 0} membres · {stats.active || 0} actifs</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Link to="/ecom/users/team/performance" className="flex items-center gap-1.5 px-3 py-2 bg-emerald-100 text-emerald-800 rounded-lg hover:bg-emerald-200 text-sm font-medium">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
-            Performances
-          </Link>
-          {activeTab === 'team' && (
-            <button onClick={() => setShowCreateModal(true)} className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 text-sm font-medium">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-              Ajouter
-            </button>
-          )}
-          {activeTab === 'invites' && (
-            <button onClick={handleGenerateInvite} disabled={generatingInvite} className="flex items-center gap-1.5 px-3 py-2 bg-emerald-700 text-white rounded-lg hover:bg-emerald-800 disabled:opacity-50 text-sm font-medium">
-              {generatingInvite
-                ? <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-                : <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
-              }
-              Nouveau lien
-            </button>
-          )}
-        </div>
-      </div>
+      <div className="relative mb-6 overflow-hidden rounded-[30px] border border-emerald-100 bg-white p-4 shadow-sm shadow-emerald-100/60 sm:p-6">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-gradient-to-r from-emerald-50 via-white to-white" />
+        <div className="relative flex flex-col gap-5">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-700">
+                  Workspace
+                </span>
+                <span className="inline-flex items-center rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-500">
+                  {totalMembers} membres · {activeMembers} actifs
+                </span>
+              </div>
+              <h1 className="mt-3 text-2xl font-bold tracking-tight text-gray-900 sm:text-3xl">Gestion Équipe</h1>
+              <p className="mt-2 max-w-2xl text-sm text-gray-500 sm:text-[15px]">
+                Gérez les accès, les invitations et l’activité de votre équipe dans une vue plus claire.
+              </p>
+            </div>
 
-      {/* Tabs */}
-      <div className="flex border-b border-gray-200 mb-5">
-        {tabs.map(tab => (
-          <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-            className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px flex items-center gap-1.5 transition ${activeTab === tab.id ? 'border-emerald-600 text-emerald-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
-            {tab.label}
-            {tab.count > 0 && <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${activeTab === tab.id ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-600'}`}>{tab.count}</span>}
-          </button>
-        ))}
+            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap xl:justify-end">
+              <Link
+                to="/ecom/users/team/performance"
+                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-100"
+              >
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                Performances
+              </Link>
+
+              {activeTab === 'team' && (
+                <button
+                  onClick={() => setShowCreateModal(true)}
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700"
+                >
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                  Ajouter
+                </button>
+              )}
+
+              {activeTab === 'invites' && (
+                <button
+                  onClick={handleGenerateInvite}
+                  disabled={generatingInvite}
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-700 px-4 py-3 text-sm font-semibold text-white transition hover:bg-emerald-800 disabled:opacity-50"
+                >
+                  {generatingInvite
+                    ? <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                    : <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
+                  }
+                  Nouveau lien
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="grid gap-2 sm:grid-cols-3">
+            {tabs.map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center justify-between rounded-2xl border px-4 py-3 text-left transition ${activeTab === tab.id ? 'border-emerald-200 bg-emerald-50 text-emerald-800 shadow-sm shadow-emerald-100/70' : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50'}`}
+              >
+                <div>
+                  <p className="text-sm font-semibold">{tab.label}</p>
+                  <p className="text-[11px] uppercase tracking-[0.18em] text-gray-400">Section</p>
+                </div>
+                {tab.count > 0 ? (
+                  <span className={`inline-flex min-w-8 items-center justify-center rounded-full px-2 py-1 text-[11px] font-bold ${activeTab === tab.id ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-600'}`}>
+                    {tab.count}
+                  </span>
+                ) : (
+                  <span className={`inline-flex h-2.5 w-2.5 rounded-full ${activeTab === tab.id ? 'bg-emerald-500' : 'bg-gray-300'}`} />
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       {/* ── TAB: ÉQUIPE ── */}
       {activeTab === 'team' && (
         <>
-          <div className="flex flex-wrap gap-2 mb-4">
-            {[['', 'Tous'], ['ecom_closeuse', 'Closeuses'], ['ecom_compta', 'Comptables'], ['ecom_livreur', 'Livreurs'], ['ecom_admin', 'Admins']].map(([val, label]) => (
-              <button key={val} onClick={() => setFilterRole(val)}
-                className={`px-3 py-1.5 rounded-full text-xs font-medium transition ${filterRole === val ? 'bg-emerald-600 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:border-emerald-400'}`}>
-                {label}
-              </button>
-            ))}
-          </div>
-          {loadingUsers ? (
-            <UserSkeleton />
-          ) : users.length === 0 ? (
-            <div className="bg-white rounded-2xl border-2 border-dashed border-gray-200 p-10 text-center">
-              <div className="w-14 h-14 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-3">
-                <svg className="w-7 h-7 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+          <div className="rounded-[28px] border border-gray-100 bg-white p-4 shadow-sm shadow-gray-100/80 sm:p-5">
+            <div className="flex flex-col gap-4 border-b border-gray-100 pb-4 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400">Équipe</p>
+                <h2 className="mt-1 text-lg font-bold text-gray-900 sm:text-xl">Membres du workspace</h2>
+                <p className="mt-1 text-sm text-gray-500">
+                  {users.length} affiché{users.length > 1 ? 's' : ''} · filtre {currentRoleFilterLabel.toLowerCase()}
+                </p>
               </div>
-              <p className="font-semibold text-gray-900 mb-1">Aucun membre pour l'instant</p>
-              <p className="text-sm text-gray-500 mb-4">Ajoutez des membres ou envoyez un lien d'invitation.</p>
-              <div className="flex gap-2 justify-center">
-                <button onClick={() => setShowCreateModal(true)} className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700">Ajouter</button>
-                <button onClick={() => setActiveTab('invites')} className="px-4 py-2 border border-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50">Inviter</button>
+
+              <div className="flex flex-wrap gap-2">
+                {roleFilterOptions.map(([val, label]) => (
+                  <button
+                    key={val}
+                    onClick={() => setFilterRole(val)}
+                    className={`rounded-full border px-3 py-2 text-xs font-semibold transition ${filterRole === val ? 'border-emerald-600 bg-emerald-600 text-white shadow-sm shadow-emerald-200' : 'border-gray-200 bg-gray-50 text-gray-600 hover:border-gray-300 hover:bg-white'}`}
+                  >
+                    {label}
+                  </button>
+                ))}
               </div>
             </div>
-          ) : (
-            <div className="space-y-2">
-              {users.map((u) => (
-                <div key={u._id} className={`bg-white rounded-xl border border-gray-100 p-3 sm:p-4 flex items-center gap-3 ${!u.isActive ? 'opacity-55' : ''}`}>
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-bold ${roleAvatarColors[u.role] || 'bg-gray-100 text-gray-600'}`}>
-                    {(u.name || u.email)?.charAt(0).toUpperCase()}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className="text-sm font-semibold text-gray-900 truncate">{u.name || u.email}</p>
-                      {u.name && <p className="text-xs text-gray-400 truncate hidden sm:block">{u.email}</p>}
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${roleColors[u.role]}`}>{roleLabels[u.role]}</span>
-                      {u.role === 'ecom_admin' && (
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${hasRitaAgentAccess(u) ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-                          {hasRitaAgentAccess(u) ? 'Rita autorise' : 'Rita bloque'}
-                        </span>
-                      )}
-                      {!u.isActive && <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700">Inactif</span>}
-                    </div>
-                    {u.lastLogin && <p className="text-[10px] text-gray-400 mt-0.5">Connexion {timeAgo(u.lastLogin)}</p>}
-                  </div>
-                  {u._id === currentUser?.id ? (
-                    <span className="text-xs text-gray-400 italic flex-shrink-0">Vous</span>
-                  ) : (
-                    <div className="flex items-center gap-1.5 flex-shrink-0">
-                      <button onClick={() => handleToggleActive(u)} title={u.isActive ? 'Désactiver' : 'Activer'}
-                        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${u.isActive ? 'bg-green-400' : 'bg-gray-200'}`}>
-                        <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${u.isActive ? 'translate-x-4' : 'translate-x-0.5'}`} />
-                      </button>
-                      <button onClick={() => openEdit(u)} className="p-1.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition" title="Modifier">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                      </button>
-                      <button onClick={() => openResetPw(u)} className="p-1.5 text-gray-400 hover:text-yellow-600 hover:bg-yellow-50 rounded-lg transition" title="Mot de passe">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" /></svg>
-                      </button>
-                      <button onClick={() => handleDelete(u._id)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition" title="Supprimer">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                      </button>
-                    </div>
-                  )}
+
+            {loadingUsers ? (
+              <UserSkeleton />
+            ) : users.length === 0 ? (
+              <div className="py-12 text-center">
+                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-3xl bg-emerald-50 text-emerald-600">
+                  <svg className="h-8 w-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                 </div>
-              ))}
-            </div>
-          )}
+                <p className="text-lg font-semibold text-gray-900">Aucun membre pour l'instant</p>
+                <p className="mx-auto mt-2 max-w-md text-sm text-gray-500">Ajoutez des membres ou passez par un lien d'invitation pour démarrer l'équipe.</p>
+                <div className="mt-6 flex flex-col justify-center gap-3 sm:flex-row">
+                  <button onClick={() => setShowCreateModal(true)} className="rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700">Ajouter un membre</button>
+                  <button onClick={() => setActiveTab('invites')} className="rounded-2xl border border-gray-200 px-5 py-3 text-sm font-semibold text-gray-700 transition hover:bg-gray-50">Voir les invitations</button>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-4 space-y-3">
+                <div className="hidden xl:grid xl:grid-cols-[minmax(0,2.2fr)_minmax(0,1.25fr)_minmax(0,0.95fr)_auto] xl:gap-4 xl:px-4 xl:text-[11px] xl:font-semibold xl:uppercase xl:tracking-[0.18em] xl:text-gray-400">
+                  <span>Membre</span>
+                  <span>Accès</span>
+                  <span>Activité</span>
+                  <span className="text-right">Actions</span>
+                </div>
+
+                {users.map((u) => {
+                  const isCurrentUser = u._id === currentUser?.id || u._id === currentUser?._id;
+                  return (
+                    <div
+                      key={u._id}
+                      className={`rounded-[26px] border border-gray-100 bg-white px-4 py-4 shadow-sm shadow-gray-100/80 transition hover:border-emerald-200 hover:shadow-md ${!u.isActive ? 'opacity-60' : ''}`}
+                    >
+                      <div className="flex flex-col gap-4 xl:grid xl:grid-cols-[minmax(0,2.2fr)_minmax(0,1.25fr)_minmax(0,0.95fr)_auto] xl:items-center xl:gap-4">
+                        <div className="flex min-w-0 items-center gap-3">
+                          <div className={`flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl text-sm font-bold ${roleAvatarColors[u.role] || 'bg-gray-100 text-gray-600'}`}>
+                            {(u.name || u.email)?.charAt(0).toUpperCase()}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="truncate text-sm font-semibold text-gray-900">{u.name || u.email}</p>
+                              {isCurrentUser && (
+                                <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
+                                  Vous
+                                </span>
+                              )}
+                            </div>
+                            <p className="mt-1 truncate text-xs text-gray-500">{u.email}</p>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-2 xl:justify-start">
+                          <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-bold ${roleColors[u.role]}`}>
+                            {roleLabels[u.role]}
+                          </span>
+                          {u.role === 'ecom_admin' && (
+                            <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-bold ${hasRitaAgentAccess(u) ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                              {hasRitaAgentAccess(u) ? 'Rita autorise' : 'Rita bloque'}
+                            </span>
+                          )}
+                          {!u.isActive && (
+                            <span className="inline-flex items-center rounded-full bg-red-100 px-2.5 py-1 text-[11px] font-bold text-red-700">
+                              Inactif
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="min-w-0">
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400 xl:hidden">Activité</p>
+                          <p className="mt-1 text-sm font-medium text-gray-700 xl:mt-0">
+                            {u.lastLogin ? `Connexion ${timeAgo(u.lastLogin)}` : 'Jamais connecté'}
+                          </p>
+                        </div>
+
+                        {isCurrentUser ? (
+                          <div className="flex justify-start xl:justify-end">
+                            <span className="inline-flex items-center rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-xs font-medium text-gray-500">
+                              Compte actuel
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1.5 xl:justify-end">
+                            <button onClick={() => handleToggleActive(u)} title={u.isActive ? 'Désactiver' : 'Activer'}
+                              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${u.isActive ? 'bg-green-400' : 'bg-gray-200'}`}>
+                              <span className={`inline-block h-4.5 w-4.5 transform rounded-full bg-white shadow transition-transform ${u.isActive ? 'translate-x-6' : 'translate-x-1'}`} />
+                            </button>
+                            <button onClick={() => openEdit(u)} className="rounded-xl p-2 text-gray-400 transition hover:bg-emerald-50 hover:text-emerald-600" title="Modifier">
+                              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                            </button>
+                            <button onClick={() => openResetPw(u)} className="rounded-xl p-2 text-gray-400 transition hover:bg-yellow-50 hover:text-yellow-600" title="Mot de passe">
+                              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" /></svg>
+                            </button>
+                            <button onClick={() => handleDelete(u._id)} className="rounded-xl p-2 text-gray-400 transition hover:bg-red-50 hover:text-red-600" title="Supprimer">
+                              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </>
       )}
 

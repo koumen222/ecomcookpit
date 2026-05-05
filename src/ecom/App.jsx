@@ -130,6 +130,7 @@ const AgentOnboarding = lazy(() => import('./pages/AgentOnboarding.jsx'));
 const ConnectShopify = lazy(() => import('./pages/ConnectShopify.jsx'));
 const BillingPage = lazy(() => import('./pages/BillingPage.jsx'));
 const BillingSuccess = lazy(() => import('./pages/BillingSuccess.jsx'));
+const GenerationSuccess = lazy(() => import('./pages/GenerationSuccess.jsx'));
 const ProviderService = lazy(() => import('./pages/ProviderService.jsx'));
 const ProductSettingsPage = lazy(() => import('./pages/ProductSettingsPage.jsx'));
 const ProductThemePage = lazy(() => import('./pages/ProductThemePage.jsx'));
@@ -244,6 +245,7 @@ const PLATFORM_TITLE_RULES = [
   { path: '/ecom/whatsapp/conversations', title: 'Conversations Rita' },
   { path: '/ecom/integrations/shopify', title: 'Intégration Shopify' },
   { path: '/ecom/billing/success', title: 'Paiement réussi' },
+  { path: '/ecom/billing/generation-success', title: 'Crédits ajoutés' },
   { path: '/ecom/billing', title: 'Facturation' },
   { path: '/ecom/assignments', title: 'Affectations' },
   { path: '/ecom/users/team/performance', title: 'Performance équipe' },
@@ -717,6 +719,7 @@ const EcomApp = () => {
               {/* Routes Billing / Abonnement */}
               <Route path="/ecom/billing" element={<BillingPage />} />
               <Route path="/ecom/billing/success" element={<BillingSuccess />} />
+              <Route path="/ecom/billing/generation-success" element={<GenerationSuccess />} />
 
               {/* Routes affectations */}
               <Route path="/ecom/assignments" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse']}><AssignmentsManager /></LayoutRoute>} />
