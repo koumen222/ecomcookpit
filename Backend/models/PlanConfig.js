@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 
 const PLAN_KEYS = ['free', 'starter', 'pro', 'ultra'];
+let _productLimitsMigrated = false;
 
 const planConfigSchema = new mongoose.Schema({
   key: {
@@ -64,7 +65,16 @@ planConfigSchema.methods.getEffectivePrice = function () {
 // Seed the default config if no docs exist yet
 planConfigSchema.statics.seedDefaults = async function () {
   const count = await this.countDocuments();
-  if (count > 0) return;
+  if (count > 0) {
+    if (!_productLimitsMigrated) {
+      _productLimitsMigrated = true;
+      await this.updateMany(
+        { key: { $in: ['starter', 'pro', 'ultra'] }, 'limits.maxProducts': { $ne: -1 } },
+        { $set: { 'limits.maxProducts': -1 } }
+      );
+    }
+    return;
+  }
   const now = Date.now();
   const in24h = new Date(now + 24 * 60 * 60 * 1000);
   const defaults = [

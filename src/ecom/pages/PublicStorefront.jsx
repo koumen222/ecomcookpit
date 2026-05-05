@@ -72,15 +72,33 @@ const resolveThemeRadius = (value, fallback = '20px') => {
 
 const resolveThemeShadow = (value) => SHADOW_MAP[String(value || 'soft').trim().toLowerCase()] || SHADOW_MAP.soft;
 
+const isTransparentThemeColor = (value) => {
+  if (value == null) return true;
+  const normalized = String(value).trim().toLowerCase().replace(/\s+/g, '');
+  return !normalized
+    || normalized === 'transparent'
+    || normalized === 'none'
+    || normalized === 'inherit'
+    || normalized === 'initial'
+    || normalized === 'unset'
+    || normalized === '#0000'
+    || normalized === '#00000000'
+    || /^rgba\([^)]*,0(?:\.0+)?\)$/.test(normalized)
+    || /^hsla\([^)]*,0(?:\.0+)?\)$/.test(normalized);
+};
+
+const resolveThemeColor = (...values) => values.find((value) => !isTransparentThemeColor(value)) || null;
+
 const buildStorefrontThemeVars = (store) => {
   const design = store?.productPageConfig?.design || {};
   const buttonStyle = String(design.buttonStyle || '').trim().toLowerCase();
-  const configuredButton = design.ctaButtonColor || design.buttonColor || null;
+  const primaryColor = resolveThemeColor(design.buttonColor, store?.primaryColor, '#0F6B4F') || '#0F6B4F';
+  const configuredButton = resolveThemeColor(design.ctaButtonColor, design.buttonColor, store?.accentColor, primaryColor, null);
 
-  let ctaBackground = configuredButton || 'var(--s-primary)';
+  let ctaBackground = configuredButton || primaryColor;
   let ctaText = configuredButton ? '#ffffff' : '#ffffff';
   let ctaBorder = 'transparent';
-  let heroCtaBackground = configuredButton || 'var(--s-primary)';
+  let heroCtaBackground = configuredButton || primaryColor;
   let heroCtaText = '#ffffff';
   let heroCtaBorder = 'transparent';
 
@@ -88,12 +106,12 @@ const buildStorefrontThemeVars = (store) => {
     ctaBackground = 'transparent';
     ctaText = 'var(--s-primary)';
     ctaBorder = 'var(--s-primary)';
-    heroCtaBackground = configuredButton || 'var(--s-primary)';
+    heroCtaBackground = configuredButton || primaryColor;
     heroCtaText = '#ffffff';
   } else if (buttonStyle === 'soft') {
     ctaBackground = 'color-mix(in srgb, var(--s-primary) 12%, var(--s-bg))';
     ctaText = 'var(--s-primary)';
-    heroCtaBackground = configuredButton || 'var(--s-primary)';
+    heroCtaBackground = configuredButton || primaryColor;
     heroCtaText = '#ffffff';
   } else if (buttonStyle === 'gradient') {
     ctaBackground = 'linear-gradient(135deg, var(--s-primary) 0%, var(--s-accent) 100%)';
@@ -388,6 +406,8 @@ const AnnouncementBar = ({ store }) => {
 };
 
 // ─── HERO ─────────────────────────────────────────────────────────────────────
+const HOMEPAGE_HERO_CTA_BLUE = '#2563EB';
+
 const AiHeroSection = ({ cfg, store, prefix, products }) => {
   const heroImg = cfg.backgroundImage || null;
   const featuredProduct = products?.find(p => p.image) || null;
@@ -441,8 +461,8 @@ const AiHeroSection = ({ cfg, store, prefix, products }) => {
               style={{
                 display: 'inline-flex', alignItems: 'center', gap: 10,
                 padding: '16px 36px', borderRadius: '999px',
-                background: 'var(--sf-hero-cta-bg)', color: 'var(--sf-hero-cta-text)',
-                border: '1px solid var(--sf-hero-cta-border)',
+                background: HOMEPAGE_HERO_CTA_BLUE, backgroundColor: HOMEPAGE_HERO_CTA_BLUE, color: '#ffffff',
+                border: `1px solid ${HOMEPAGE_HERO_CTA_BLUE}`,
                 fontWeight: 800, fontSize: 15, textDecoration: 'none',
                 letterSpacing: '-0.01em', fontFamily: 'var(--s-font)',
                 boxShadow: 'var(--sf-hero-cta-shadow)', transition: 'transform 0.15s, box-shadow 0.15s',
@@ -507,8 +527,8 @@ const HeroContent = ({ cfg, prefix, sectionId = 'hero' }) => {
   const ctaStyle = {
     display: 'inline-flex', alignItems: 'center', gap: 10,
     padding: '17px 40px', borderRadius: '999px',
-    background: 'var(--sf-hero-cta-bg)', color: 'var(--sf-hero-cta-text)',
-    border: '1px solid var(--sf-hero-cta-border)',
+    background: HOMEPAGE_HERO_CTA_BLUE, backgroundColor: HOMEPAGE_HERO_CTA_BLUE, color: '#ffffff',
+    border: `1px solid ${HOMEPAGE_HERO_CTA_BLUE}`,
     fontWeight: 800, fontSize: 15.5, textDecoration: 'none',
     letterSpacing: '-0.01em', fontFamily: 'var(--s-font)',
     boxShadow: 'var(--sf-hero-cta-shadow)', transition: 'transform 0.15s, box-shadow 0.15s',
@@ -549,7 +569,7 @@ const HeroContent = ({ cfg, prefix, sectionId = 'hero' }) => {
             sectionId={sectionId}
             field="ctaText"
             as="span"
-            style={{ fontWeight: 800, fontSize: 15.5 }}
+            style={{ fontWeight: 800, fontSize: 15.5, color: '#ffffff' }}
             placeholder="Texte du bouton..."
           />
         ) : (
@@ -3185,7 +3205,7 @@ const PublicStorefrontInner = () => {
             <div style={{ maxWidth: 640, margin: '0 auto' }}>
               <h1 style={{ fontSize: 'clamp(36px, 7vw, 60px)', fontWeight: 900, lineHeight: 1.08, color: '#fff', margin: '0 0 18px', letterSpacing: '-0.03em', fontFamily: 'var(--s-font)' }}>{store?.name}</h1>
               {store?.description && <p style={{ fontSize: 'clamp(15px, 2vw, 18px)', color: 'rgba(255,255,255,0.85)', lineHeight: 1.65, margin: '0 0 40px', fontFamily: 'var(--s-font)' }}>{store.description}</p>}
-              <Link to={`${prefix}/products`} style={{ display: 'inline-flex', alignItems: 'center', gap: 9, padding: '15px 34px', borderRadius: '999px', background: 'var(--sf-hero-cta-bg)', color: 'var(--sf-hero-cta-text)', border: '1px solid var(--sf-hero-cta-border)', fontWeight: 700, fontSize: 15, textDecoration: 'none', boxShadow: 'var(--sf-hero-cta-shadow)' }}>
+              <Link to={`${prefix}/products`} style={{ display: 'inline-flex', alignItems: 'center', gap: 9, padding: '15px 34px', borderRadius: '999px', background: HOMEPAGE_HERO_CTA_BLUE, backgroundColor: HOMEPAGE_HERO_CTA_BLUE, color: '#ffffff', border: `1px solid ${HOMEPAGE_HERO_CTA_BLUE}`, fontWeight: 700, fontSize: 15, textDecoration: 'none', boxShadow: 'var(--sf-hero-cta-shadow)' }}>
                 Découvrir nos produits <ArrowRight size={17} />
               </Link>
             </div>

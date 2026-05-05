@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import {
   ChevronLeft, ChevronRight, ShoppingCart, MessageCircle,
@@ -838,6 +838,12 @@ const optimizeDescriptionHtml = (html = '') => {
 
     guaranteeBlocks.forEach((element) => element.remove());
 
+    // Remove "Pourquoi choisir" blocks — rendered separately as RaisonsAcheter component
+    Array.from(root.querySelectorAll('section, article, div, ul, ol'))
+      .filter(el => /pourquoi choisir|raisons? (d['']acheter|de choisir)|avantages/i.test(el.textContent || ''))
+      .filter((el, i, all) => !all.some((other, j) => j !== i && other.contains(el)))
+      .forEach(el => el.remove());
+
     root.querySelectorAll('img').forEach((img) => {
       img.setAttribute('loading', 'lazy');
       img.setAttribute('decoding', 'async');
@@ -917,6 +923,25 @@ const ProductDescription = ({ content, design = {} }) => {
   return (
     <div className="ai-desc" dangerouslySetInnerHTML={{ __html: htmlToRender }} />
   );
+};
+
+// Extraire les raisons d'achat depuis le HTML (bloc "Pourquoi choisir ce produit ?")
+const extractRaisonsFromHtml = (html = '') => {
+  if (!html || typeof DOMParser === 'undefined') return [];
+  try {
+    const doc = new DOMParser().parseFromString(`<div id="r">${html}</div>`, 'text/html');
+    const root = doc.getElementById('r');
+    const container = Array.from(root.querySelectorAll('*')).find(el => {
+      if (!/^(DIV|SECTION|ARTICLE|UL|OL)$/.test(el.tagName)) return false;
+      const text = el.textContent || '';
+      return /pourquoi choisir|raisons? (d['']acheter|de choisir)|avantages/i.test(text);
+    });
+    if (!container) return [];
+    const items = Array.from(container.querySelectorAll('li, p'))
+      .map(el => el.textContent?.trim().replace(/^[✓✅•\-–]\s*/, ''))
+      .filter(t => t && t.length > 4 && !/pourquoi choisir|raisons?|avantages/i.test(t));
+    return items.slice(0, 8);
+  } catch { return []; }
 };
 
 // Extraire Q/R depuis le HTML pour les anciens produits
@@ -1024,7 +1049,7 @@ const StatsBar = ({ stats = [], visualTheme = null }) => {
 };
 
 // ── Shared premium block helpers ──────────────────────────────────────────────
-const mkBlock = (bg) => ({ margin: '16px 0', padding: '44px 40px', borderRadius: 22, background: bg });
+const mkBlock = (bg) => ({ margin: '16px calc(var(--pp-current-info-padding, 16px) * -1)', padding: '44px 40px', borderRadius: 0, background: bg });
 const mkTitle = { margin: '0 0 28px', fontSize: 26, lineHeight: 1.22, fontWeight: 900, letterSpacing: '-0.02em', color: '#ffffff', fontFamily: 'var(--s-font)' };
 const mkRows  = { display: 'flex', flexDirection: 'column', gap: 20 };
 const mkRow   = { display: 'flex', alignItems: 'flex-start', gap: 18 };
@@ -1069,15 +1094,24 @@ const RaisonsAcheter = ({ raisons = [], visualTheme = null }) => {
   if (!raisons.length) return null;
   const bg = visualTheme?.primary || 'var(--s-section-benefits, var(--s-primary))';
   return (
-    <div style={{ ...mkBlock(bg), padding: '28px 28px' }}>
-      <h3 style={mkTitle}>✅ Pourquoi choisir ce produit ?</h3>
-      <div style={mkRows}>
-        {raisons.map((r, i) => (
-          <div key={i} style={mkRow}>
-            <span style={{ ...mkIcon, width: 28, height: 28, minWidth: 28, fontSize: 14 }}>✓</span>
-            <p style={mkText}>{r}</p>
-          </div>
-        ))}
+    <div style={{ ...mkBlock(bg), padding: '32px 28px', overflow: 'hidden' }}>
+      <style>{`
+        @keyframes ra-slide-in { from { opacity: 0; transform: translateX(-28px); } to { opacity: 1; transform: translateX(0); } }
+        @keyframes ra-check-pop { 0% { transform: scale(0) rotate(-15deg); opacity: 0; } 60% { transform: scale(1.3) rotate(5deg); opacity: 1; } 100% { transform: scale(1) rotate(0deg); opacity: 1; } }
+        .ra-row { opacity: 0; animation: ra-slide-in 0.45s cubic-bezier(0.22,1,0.36,1) forwards; }
+        .ra-check { animation: ra-check-pop 0.4s cubic-bezier(0.34,1.56,0.64,1) forwards; animation-delay: inherit; }
+      `}</style>
+      <h3 style={{ ...mkTitle, marginBottom: 20 }}>Pourquoi choisir ce produit ?</h3>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {raisons.map((r, i) => {
+          const delay = `${i * 0.1}s`;
+          return (
+            <div key={i} className="ra-row" style={{ display: 'flex', alignItems: 'center', gap: 12, animationDelay: delay }}>
+              <span className="ra-check" style={{ width: 26, height: 26, borderRadius: '50%', background: '#fff', color: bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 900, flexShrink: 0, boxShadow: '0 2px 8px rgba(0,0,0,0.15)', animationDelay: delay }}>✓</span>
+              <p style={{ fontSize: 'inherit', lineHeight: 1.5, color: '#fff', margin: 0, fontFamily: 'var(--s-font)', fontWeight: 600 }}>{r}</p>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -1138,7 +1172,7 @@ const ProductFaqAccordion = ({ items = [], primaryColor = 'var(--s-primary)' }) 
       {/* Title with animated underline bar */}
       <div style={{ marginBottom: 18, position: 'relative', paddingBottom: 14, overflow: 'hidden' }}>
         <h2 style={{ margin: 0, fontSize: '1.2em', fontWeight: 900, color: 'var(--s-text)', fontFamily: 'var(--s-font)', letterSpacing: '-0.01em' }}>
-          Questions fr\u00e9quentes
+          Questions fréquentes
         </h2>
         <div style={{ position: 'absolute', bottom: 0, left: 0, height: 3, borderRadius: 99, background: primaryColor, width: '100%', opacity: 0.25 }} />
         <div style={{ position: 'absolute', bottom: 0, left: 0, height: 3, borderRadius: 99, background: primaryColor, animation: 'faq-bar 0.8s cubic-bezier(0.22,1,0.36,1) forwards' }} />
@@ -1585,7 +1619,7 @@ const StoreProductPage = () => {
   }, []);
 
 
-  const images = buildAiGalleryImages(product);
+  const images = useMemo(() => buildAiGalleryImages(product), [product]);
   const hasDiscount = product?.compareAtPrice && product.compareAtPrice > product.price;
   const pct = hasDiscount ? Math.round((1 - product.price / product.compareAtPrice) * 100) : 0;
   const inStock = !product || product.stock > 0;
@@ -1598,9 +1632,10 @@ const StoreProductPage = () => {
   const storePC = store?.productPageConfig || {};
   const productPC = product?.productPageConfig || {};
   const previewPC = livePageConfig || {};
+  const productPageConfig = useMemo(() => {
   const baseProductPageConfig = buildMergedProductPageConfig(storePC, productPC);
   const liveMergedProductPageConfig = buildMergedProductPageConfig(baseProductPageConfig, previewPC);
-  const productPageConfig = {
+  return {
     ...liveMergedProductPageConfig,
     conversion: {
       ...(baseProductPageConfig.conversion || {}),
@@ -1613,14 +1648,17 @@ const StoreProductPage = () => {
       } : {}),
     },
   };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [store?.productPageConfig, product?.productPageConfig, livePageConfig, product?.quantityOffers, product?.quantityOfferDesign]);
+
   const ppTheme = productPC?.theme || productPageConfig?.theme || store?.template || storePC?.theme || 'classic';
   const ppGeneral = productPageConfig?.general || {};
   const ppDesign = productPageConfig?.design || {};
   const ppButton = productPageConfig?.button || {};
   const ppConversion = productPageConfig?.conversion || {};
-  const ppSections = mergeProductSections(ppGeneral.sections || []);
+  const ppSections = useMemo(() => mergeProductSections(ppGeneral.sections || []), [ppGeneral.sections]);
   const ppSectionOrder = ppSections.length > 0 ? ppSections : null;
-  const sectionContentMap = Object.fromEntries(ppSections.map(s => [s.id, s.content || {}]));
+  const sectionContentMap = useMemo(() => Object.fromEntries(ppSections.map(s => [s.id, s.content || {}])), [ppSections]);
   const reviewConfig = sectionContentMap.reviews || {};
   const heroReviewRating = reviewConfig.rating || product?.rating || 4.5;
   const heroReviewCount = reviewConfig.reviewCount || product?.reviewCount || 100;
@@ -1630,15 +1668,15 @@ const StoreProductPage = () => {
   const ctaAnimation = ppButton.animation || 'none';
   const ppFormType = ppGeneral.formType || 'popup';
   const spacingPreset = SPACING_PRESETS[ppDesign.spacing] || SPACING_PRESETS.normal;
-  const aiVisualTheme = buildAiVisualTheme({ store, design: ppDesign, product });
-  const socialProofTheme = buildSectionVisualTheme('socialProof');
-  const benefitsTheme = buildSectionVisualTheme('benefits');
-  const trustTheme = buildSectionVisualTheme('trust');
-  const problemTheme = buildSectionVisualTheme('problem', { useTextAsTitle: true });
-  const solutionTheme = buildSectionVisualTheme('solution', { useTextAsTitle: true });
-  const raisonsTheme = buildSectionVisualTheme('benefits', { useTextAsTitle: true });
-  const guideTheme = buildSectionVisualTheme('solution', { useTextAsTitle: true });
-  const faqTheme = buildSectionVisualTheme('faq');
+  const aiVisualTheme = useMemo(() => buildAiVisualTheme({ store, design: ppDesign, product }), [store, ppDesign, product]);
+  const socialProofTheme = useMemo(() => buildSectionVisualTheme('socialProof'), []);
+  const benefitsTheme = useMemo(() => buildSectionVisualTheme('benefits'), []);
+  const trustTheme = useMemo(() => buildSectionVisualTheme('trust'), []);
+  const problemTheme = useMemo(() => buildSectionVisualTheme('problem', { useTextAsTitle: true }), []);
+  const solutionTheme = useMemo(() => buildSectionVisualTheme('solution', { useTextAsTitle: true }), []);
+  const raisonsTheme = useMemo(() => buildSectionVisualTheme('benefits', { useTextAsTitle: true }), []);
+  const guideTheme = useMemo(() => buildSectionVisualTheme('solution', { useTextAsTitle: true }), []);
+  const faqTheme = useMemo(() => buildSectionVisualTheme('faq'), []);
   const ctaBtnColor = ppDesign.ctaButtonColor || ppDesign.buttonColor || aiVisualTheme?.primary || 'var(--s-primary)';
   const ctaBorderRadius = ppDesign.ctaBorderRadius || ppDesign.borderRadius || '14px';
   const ctaButtonStyle = ppDesign.buttonStyle || 'filled';
@@ -1887,7 +1925,7 @@ const StoreProductPage = () => {
     countdownBar: ppDesign.showCountdown,
   };
 
-  const enabledSectionIds = (() => {
+  const enabledSectionIds = useMemo(() => {
     const ids = ppSectionOrder
       ? ppSectionOrder.filter(s => s.enabled).map(s => s.id)
       : ['heroSlogan', 'heroBaseline', 'reviews', 'stockCounter', 'urgencyBadge', 'countdownBar',
@@ -1919,12 +1957,27 @@ const StoreProductPage = () => {
     });
 
     return ids;
-  })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ppSectionOrder, ppDesign.showProductGallery, ppDesign.showRelatedProducts, ppDesign.stickyAddToCart, ppDesign.showTrustBadges, ppDesign.showCountdown, showRelatedProductsFromStore]);
 
   const showStickyBar = enabledSectionIds.includes('stickyOrderBar');
   const showRelatedProductsSetting = enabledSectionIds.includes('relatedProducts');
   const showTestimonials = enabledSectionIds.includes('testimonials');
   const showCountdownBarSetting = enabledSectionIds.includes('countdownBar');
+
+  // Pre-compute expensive HTML extractions once per product
+  const descriptionRaw = product?.description?.toString().trim() || '';
+  const descriptionIsHtml = descriptionRaw && /<[^>]+>/.test(descriptionRaw);
+  const htmlRaisonsAcheter = useMemo(
+    () => descriptionIsHtml ? extractRaisonsFromHtml(descriptionRaw) : [],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [product?._id, descriptionRaw]
+  );
+  const htmlFaqItems = useMemo(
+    () => descriptionIsHtml ? extractFaqItemsFromHtml(descriptionRaw) : [],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [product?._id, descriptionRaw]
+  );
   const ctaAnimClass = ctaAnimation === 'pulse' ? 'pp-pulse' : ctaAnimation === 'bounce' ? 'pp-bounce' : ctaAnimation === 'shake' ? 'pp-shake' : ctaAnimation === 'glow' ? 'pp-glow' : '';
   const shareUrl = typeof window !== 'undefined' ? window.location.href : '';
   const shareText = product?.name ? `${product.name} - ${shareUrl}` : shareUrl;
@@ -2035,6 +2088,20 @@ const StoreProductPage = () => {
           </div>
           <div className="skel" style={{ width: '100%', height: 56, borderRadius: 14, marginTop: 16 }} />
         </div>
+      </div>
+    </div>
+  );
+
+  // Network/server error but no product — show retry instead of hard error screen
+  if (!loading && !product && !error) return (
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Inter, sans-serif' }}>
+      <div style={{ textAlign: 'center', padding: 40 }}>
+        <p style={{ fontSize: 42, margin: '0 0 12px' }}>📶</p>
+        <h2 style={{ color: '#111', fontWeight: 700, margin: '0 0 8px', fontSize: 18 }}>Chargement lent</h2>
+        <p style={{ color: '#6B7280', fontSize: 14, marginBottom: 20 }}>Vérifiez votre connexion internet</p>
+        <button onClick={() => window.location.reload()} style={{ padding: '12px 24px', borderRadius: 12, background: 'var(--s-primary, #0f6b4f)', color: '#fff', border: 'none', fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>
+          Réessayer
+        </button>
       </div>
     </div>
   );
@@ -2651,8 +2718,10 @@ const StoreProductPage = () => {
                     }
 
                     case 'raisonsAcheter': {
-                      const raisons = product._pageData?.raisons_acheter;
-                      return raisons?.length > 0
+                      const raisons = product._pageData?.raisons_acheter?.length > 0
+                        ? product._pageData.raisons_acheter
+                        : htmlRaisonsAcheter;
+                      return raisons.length > 0
                         ? <RaisonsAcheter key={sectionId} raisons={raisons} visualTheme={raisonsTheme} />
                         : null;
                     }
@@ -2665,14 +2734,12 @@ const StoreProductPage = () => {
                     }
 
                     case 'faq': {
-                      const raw2 = product.description?.toString().trim() || '';
-                      const hasHtml2 = raw2 && /<[^>]+>/.test(raw2);
                       const customFaq = sectionContentMap.faq?.faqItems?.filter(f => f.question && f.answer);
                       const faqItems = customFaq?.length > 0
                         ? customFaq
                         : product.faq?.length > 0
                           ? product.faq
-                          : (hasHtml2 ? extractFaqItemsFromHtml(raw2) : []);
+                          : htmlFaqItems;
                       return faqItems.length > 0
                         ? <LazySection key={sectionId} minHeight={120}><ProductFaqAccordion items={faqItems} primaryColor={ctaBtnColor} /></LazySection>
                         : null;
@@ -2709,11 +2776,14 @@ const StoreProductPage = () => {
               ? product.testimonials
               : getDefaultTestimonials(product?.country || store?.country);
         const prodImg = product?.images?.[0]?.url || product?.images?.[0] || product?._pageData?.heroImage || null;
-        const socialGallery = buildSocialProofGalleryImages(product);
+        const generatedPosterImage = product?._pageData?.heroPosterImage
+          || product?.heroPosterImage
+          || product?._pageData?.angles?.find((entry) => entry?.poster_url)?.poster_url
+          || product?.angles?.find((entry) => entry?.poster_url)?.poster_url
+          || null;
         const groupImg = product?._pageData?.peoplePhotos?.[0] || product?._pageData?.testimonialsGroupImage || null;
         const socialImg = product?._pageData?.socialProofImages?.[0]
           || product?.socialProofImages?.[0]
-          || socialGallery?.[0]?.url
           || product?._pageData?.testimonialsSocialProofImage
           || null;
         return (
@@ -2724,6 +2794,7 @@ const StoreProductPage = () => {
                 visualTheme={{
                   ...socialProofTheme,
                   productImage: prodImg,
+                  generatedPosterImage,
                   groupImage: groupImg,
                   socialProofImage: socialImg,
                 }}
