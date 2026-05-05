@@ -645,7 +645,7 @@ router.post('/buy-generation', requireEcomAuth, async (req, res) => {
       ],
       numeroSend: String(phone).trim(),
       nomclient: String(clientName).trim(),
-      return_url: `${frontendUrl}/ecom/products`,
+      return_url: `${frontendUrl}/ecom/billing/generation-success`,
       webhook_url: `${backendUrl}/api/ecom/billing/webhook`
     };
 

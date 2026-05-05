@@ -281,12 +281,56 @@ const StoreCheckout = () => {
   const cartCurrencies = [...new Set(cartProducts.map((p) => String(p.currency || '').trim().toUpperCase()).filter(Boolean))];
   const currency = cartCurrencies.length === 1 ? cartCurrencies[0] : (store?.currency || 'XAF');
 
-  // Input focus ring using themeColor (CSS custom property approach)
+  // ── Design config from form builder ──────────────────────────────────────
+  const fd = store?.productPageConfig?.design || {};
+  const formBgColor       = fd.formBgColor       || '#ffffff';
+  const formBorderColor   = fd.formBorderColor   || '#e5e7eb';
+  const formBorderWidth   = fd.formBorderWidth   || '1px';
+  const formBorderRadius  = fd.formBorderRadius  || '12px';
+  const formShadowVal     = parseInt(fd.formShadow) || 0;
+  const formShadow        = formShadowVal > 0
+    ? `0 ${formShadowVal}px ${formShadowVal * 2}px rgba(0,0,0,${Math.min(formShadowVal * 0.02, 0.3).toFixed(2)})`
+    : 'none';
+  const formTextColor     = fd.formTextColor     || '#1F2937';
+  const formFontSize      = fd.fontSize          ? parseInt(fd.fontSize)   : 14;
+  const formBold          = fd.formBold          || false;
+  const formItalic        = fd.formItalic        || false;
+  const labelAlign        = fd.labelAlign        || 'left';
+  const fieldBgColor      = fd.fieldBgColor      || '#ffffff';
+  const fieldTextColor    = fd.fieldTextColor    || '#1F2937';
+  const fieldIconColor    = fd.fieldIconColor    || '#9b9b9b';
+  const fieldIconBg       = fd.fieldIconBg       || '#f3f4f6';
+  const btnColor          = fd.formButtonColor   || themeColor;
+  const inputRadius       = fd.formInputRadius   || formBorderRadius;
+
+  const formContainerStyle = {
+    backgroundColor: formBgColor,
+    border: `${formBorderWidth} solid ${formBorderColor}`,
+    borderRadius: formBorderRadius,
+    boxShadow: formShadow,
+    color: formTextColor,
+    fontSize: formFontSize,
+    fontWeight: formBold ? 700 : 400,
+    fontStyle: formItalic ? 'italic' : 'normal',
+  };
+
+  const labelStyle = { textAlign: labelAlign, color: formTextColor };
+
+  const fieldStyle = {
+    backgroundColor: fieldBgColor,
+    color: fieldTextColor,
+    borderColor: formBorderColor,
+    borderRadius: inputRadius,
+    fontSize: formFontSize,
+  };
+
+  // Input focus ring
   const [focusedField, setFocusedField] = useState(null);
   const inputStyle = (field) => ({
+    ...fieldStyle,
     outline: 'none',
-    borderColor: focusedField === field ? themeColor : '',
-    boxShadow: focusedField === field ? `0 0 0 2px ${themeColor}33` : '',
+    borderColor: focusedField === field ? btnColor : formBorderColor,
+    boxShadow: focusedField === field ? `0 0 0 2px ${btnColor}33` : 'none',
   });
   const inputProps = (field) => ({
     onFocus: () => setFocusedField(field),
@@ -540,42 +584,42 @@ const StoreCheckout = () => {
 
       <div className="max-w-lg mx-auto px-4 py-5 space-y-5">
         {/* Order summary */}
-        <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-3">
-          <h2 className="text-sm font-semibold text-gray-900">Récapitulatif</h2>
+        <div className="p-4 space-y-3" style={formContainerStyle}>
+          <h2 className="text-sm font-semibold" style={{ color: formTextColor }}>Récapitulatif</h2>
           {cartProducts.map((p, i) => (
             <div key={i} className="flex items-center gap-3">
               {p.image && (
                 <img src={p.image} alt={p.name} className="w-12 h-12 rounded-lg object-cover border border-gray-100" loading="lazy" />
               )}
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-900 truncate">{p.name}</p>
-                <p className="text-xs text-gray-500">x{p.quantity}</p>
+                <p className="text-sm font-medium truncate" style={{ color: formTextColor }}>{p.name}</p>
+                <p className="text-xs" style={{ color: fieldIconColor }}>x{p.quantity}</p>
               </div>
-              <span className="text-sm font-bold text-gray-900">
+              <span className="text-sm font-bold" style={{ color: formTextColor }}>
                 {formatPrice(p.price * p.quantity, currency)}
               </span>
             </div>
           ))}
-          <div className="pt-2 border-t border-gray-100 space-y-1">
+          <div className="pt-2 space-y-1" style={{ borderTop: `1px solid ${formBorderColor}` }}>
             <div className="flex justify-between text-sm">
-              <span className="text-gray-500">Sous-total</span>
-              <span className="font-medium text-gray-900">{formatPrice(subtotal, currency)}</span>
+              <span style={{ color: fieldIconColor }}>Sous-total</span>
+              <span className="font-medium" style={{ color: formTextColor }}>{formatPrice(subtotal, currency)}</span>
             </div>
             {deliveryCost > 0 && (
               <div className="flex justify-between text-sm">
-                <span className="text-gray-500">Livraison</span>
-                <span className="font-medium text-gray-900">{formatPrice(deliveryCost, currency)}</span>
+                <span style={{ color: fieldIconColor }}>Livraison</span>
+                <span className="font-medium" style={{ color: formTextColor }}>{formatPrice(deliveryCost, currency)}</span>
               </div>
             )}
             {deliveryStatus.type === 'expedition' && (
               <div className="flex justify-between text-sm">
-                <span className="text-gray-500">Expédition</span>
+                <span style={{ color: fieldIconColor }}>Expédition</span>
                 <span className="text-xs text-amber-600 font-medium">À calculer</span>
               </div>
             )}
             <div className="flex justify-between pt-1">
-              <span className="text-sm font-semibold text-gray-900">Total</span>
-              <span className="text-base font-bold" style={{ color: themeColor }}>
+              <span className="text-sm font-semibold" style={{ color: formTextColor }}>Total</span>
+              <span className="text-base font-bold" style={{ color: btnColor }}>
                 {formatPrice(total, currency)}
               </span>
             </div>
@@ -590,12 +634,12 @@ const StoreCheckout = () => {
         )}
 
         {/* Checkout form */}
-        <form onSubmit={handleSubmit} className="bg-white rounded-xl border border-gray-200 p-4 space-y-4">
-          <h2 className="text-sm font-semibold text-gray-900">Vos informations</h2>
+        <form onSubmit={handleSubmit} className="p-4 space-y-4" style={formContainerStyle}>
+          <h2 className="text-sm font-semibold" style={labelStyle}>Vos informations</h2>
 
           <div>
-            <label className="flex items-center gap-1.5 text-sm font-medium text-gray-700 mb-1">
-              <User className="w-3.5 h-3.5" /> Nom complet *
+            <label className="flex items-center gap-1.5 text-sm font-medium mb-1" style={labelStyle}>
+              <User className="w-3.5 h-3.5" style={{ color: fieldIconColor }} /> Nom complet *
             </label>
             <input
               type="text"
@@ -603,28 +647,28 @@ const StoreCheckout = () => {
               onChange={(e) => handleChange('customerName', e.target.value)}
               placeholder="Votre nom"
               required
-              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm transition-all"
+              className="w-full px-3 py-2.5 border transition-all"
               {...inputProps('customerName')}
             />
           </div>
 
           <div>
-            <label className="flex items-center gap-1.5 text-sm font-medium text-gray-700 mb-1">
-              <Phone className="w-3.5 h-3.5" /> Téléphone (WhatsApp) *
+            <label className="flex items-center gap-1.5 text-sm font-medium mb-1" style={labelStyle}>
+              <Phone className="w-3.5 h-3.5" style={{ color: fieldIconColor }} /> Téléphone (WhatsApp) *
             </label>
             <div className="flex gap-0">
               <div className="relative flex-shrink-0">
                 <select
                   value={phoneCode}
                   onChange={(e) => setPhoneCode(e.target.value)}
-                  className="appearance-none pl-2 pr-6 py-2.5 border border-gray-300 border-r-0 rounded-l-lg text-sm bg-gray-50 font-medium cursor-pointer"
-                  style={{ minWidth: 85 }}
+                  className="appearance-none pl-2 pr-6 py-2.5 border border-r-0 text-sm font-medium cursor-pointer"
+                  style={{ ...fieldStyle, minWidth: 85, borderTopRightRadius: 0, borderBottomRightRadius: 0 }}
                 >
                   {PHONE_CODES.map(c => (
                     <option key={c.code} value={c.code}>{c.label}</option>
                   ))}
                 </select>
-                <ChevronDown className="w-3 h-3 text-gray-400 absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <ChevronDown className="w-3 h-3 absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: fieldIconColor }} />
               </div>
               <input
                 type="tel"
@@ -632,8 +676,10 @@ const StoreCheckout = () => {
                 onChange={(e) => handleChange('phone', e.target.value)}
                 placeholder={activePlaceholders.phone}
                 required
-                className="flex-1 min-w-0 px-3 py-2.5 border border-gray-300 rounded-r-lg text-sm transition-all"
-                {...inputProps('phone')}
+                className="flex-1 min-w-0 px-3 py-2.5 border transition-all"
+                style={{ ...inputStyle('phone'), borderTopLeftRadius: 0, borderBottomLeftRadius: 0 }}
+                onFocus={() => setFocusedField('phone')}
+                onBlur={() => setFocusedField(null)}
               />
             </div>
           </div>
@@ -641,14 +687,14 @@ const StoreCheckout = () => {
           {/* Country selector — only if delivery countries are configured */}
           {hasDeliveryConfig && (
             <div>
-              <label className="flex items-center gap-1.5 text-sm font-medium text-gray-700 mb-1">
-                <MapPin className="w-3.5 h-3.5" /> Pays *
+              <label className="flex items-center gap-1.5 text-sm font-medium mb-1" style={labelStyle}>
+                <MapPin className="w-3.5 h-3.5" style={{ color: fieldIconColor }} /> Pays *
               </label>
               <select
                 value={form.country}
                 onChange={(e) => handleChange('country', e.target.value)}
                 required
-                className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm bg-white transition-all"
+                className="w-full px-3 py-2.5 border text-sm transition-all"
                 {...inputProps('country')}
               >
                 <option value="">Sélectionnez votre pays</option>
@@ -669,8 +715,8 @@ const StoreCheckout = () => {
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="flex items-center gap-1.5 text-sm font-medium text-gray-700 mb-1">
-                <MapPin className="w-3.5 h-3.5" /> Ville {hasDeliveryConfig ? '*' : ''}
+              <label className="flex items-center gap-1.5 text-sm font-medium mb-1" style={labelStyle}>
+                <MapPin className="w-3.5 h-3.5" style={{ color: fieldIconColor }} /> Ville {hasDeliveryConfig ? '*' : ''}
               </label>
               <input
                 type="text"
@@ -678,18 +724,18 @@ const StoreCheckout = () => {
                 onChange={(e) => handleChange('city', e.target.value)}
                 placeholder={activePlaceholders.city}
                 required={hasDeliveryConfig}
-                className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm transition-all"
+                className="w-full px-3 py-2.5 border text-sm transition-all"
                 {...inputProps('city')}
               />
             </div>
             <div>
-              <label className="text-sm font-medium text-gray-700 mb-1 block">Email</label>
+              <label className="text-sm font-medium mb-1 block" style={labelStyle}>Email</label>
               <input
                 type="email"
                 value={form.email}
                 onChange={(e) => handleChange('email', e.target.value)}
                 placeholder="optionnel"
-                className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm transition-all"
+                className="w-full px-3 py-2.5 border text-sm transition-all"
                 {...inputProps('email')}
               />
             </div>
@@ -718,29 +764,29 @@ const StoreCheckout = () => {
           )}
 
           <div>
-            <label className="flex items-center gap-1.5 text-sm font-medium text-gray-700 mb-1">
-              <MapPin className="w-3.5 h-3.5" /> Adresse de livraison
+            <label className="flex items-center gap-1.5 text-sm font-medium mb-1" style={labelStyle}>
+              <MapPin className="w-3.5 h-3.5" style={{ color: fieldIconColor }} /> Adresse de livraison
             </label>
             <input
               type="text"
               value={form.address}
               onChange={(e) => handleChange('address', e.target.value)}
               placeholder={activePlaceholders.address}
-              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm transition-all"
+              className="w-full px-3 py-2.5 border text-sm transition-all"
               {...inputProps('address')}
             />
           </div>
 
           <div>
-            <label className="flex items-center gap-1.5 text-sm font-medium text-gray-700 mb-1">
-              <FileText className="w-3.5 h-3.5" /> Notes
+            <label className="flex items-center gap-1.5 text-sm font-medium mb-1" style={labelStyle}>
+              <FileText className="w-3.5 h-3.5" style={{ color: fieldIconColor }} /> Notes
             </label>
             <textarea
               value={form.notes}
               onChange={(e) => handleChange('notes', e.target.value)}
               placeholder="Instructions de livraison, taille, couleur..."
               rows={2}
-              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm resize-none transition-all"
+              className="w-full px-3 py-2.5 border text-sm resize-none transition-all"
               {...inputProps('notes')}
             />
           </div>
@@ -748,8 +794,8 @@ const StoreCheckout = () => {
           <button
             type="submit"
             disabled={submitting || (hasDeliveryConfig && !deliveryStatus.allowed)}
-            className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 text-white rounded-xl font-medium text-sm transition hover:opacity-90 disabled:opacity-50"
-            style={{ backgroundColor: themeColor }}
+            className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 text-white font-medium text-sm transition hover:opacity-90 disabled:opacity-50"
+            style={{ backgroundColor: btnColor, borderRadius: inputRadius }}
           >
             {submitting ? (
               <Loader2 className="w-4 h-4 animate-spin" />

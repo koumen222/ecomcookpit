@@ -246,7 +246,7 @@ const ProductFinder = () => {
             <div>
               <Label required>Prix sourcing brut (FCFA)</Label>
               <TextInput type="number" value={product.sourcingPrice} onChange={e => set('sourcingPrice', e.target.value)}
-                placeholder="Ex: 360" min="0" step="10" />
+                placeholder="Ex: 360" min="0" step="any" />
             </div>
 
             {/* Chine fields */}
@@ -260,7 +260,7 @@ const ProductFinder = () => {
                 <div>
                   <Label>Prix du kilo (FCFA)</Label>
                   <TextInput type="number" value={product.pricePerKg} onChange={e => set('pricePerKg', e.target.value)}
-                    placeholder="12 000" min="0" step="10" />
+                    placeholder="12 000" min="0" step="any" />
                 </div>
                 {product.shippingUnitCost && (
                   <div className="col-span-2 flex items-center justify-between bg-white rounded-lg px-3 py-2 border border-sky-100 text-xs">
@@ -276,7 +276,7 @@ const ProductFinder = () => {
               <Label>Coût d'achat final (FCFA)</Label>
               <div className="relative">
                 <input type="number" value={product.cogs} onChange={e => set('cogs', e.target.value)}
-                  placeholder={calcCOGS() || '0'} min="0" step="10"
+                  placeholder={calcCOGS() || '0'} min="0" step="any"
                   className="w-full px-3.5 py-2.5 pr-16 text-sm border border-gray-200 rounded-xl bg-gray-50/60 focus:bg-white focus:ring-2 focus:ring-[#0F6B4F]/20 focus:border-[#0F6B4F] outline-none transition"
                 />
                 <button type="button" onClick={() => set('cogs', calcCOGS())}
@@ -291,7 +291,7 @@ const ProductFinder = () => {
               <Label required>Prix de vente (FCFA)</Label>
               <div className="relative">
                 <input type="number" value={product.sellingPrice} onChange={e => set('sellingPrice', e.target.value)}
-                  placeholder="Ex: 1 560" min="0" step="10" required
+                  placeholder="Ex: 1 560" min="0" step="any" required
                   className="w-full px-3.5 py-2.5 pr-24 text-sm border border-gray-200 rounded-xl bg-gray-50/60 focus:bg-white focus:ring-2 focus:ring-[#0F6B4F]/20 focus:border-[#0F6B4F] outline-none transition"
                 />
                 <button type="button" onClick={() => set('sellingPrice', suggested())}

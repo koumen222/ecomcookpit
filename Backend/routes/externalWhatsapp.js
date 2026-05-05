@@ -9,6 +9,7 @@ import WhatsAppOrder from '../models/WhatsAppOrder.js';
 import Order from '../models/Order.js';
 import RitaContact from '../models/RitaContact.js';
 import Agent from '../models/Agent.js';
+import Product from '../models/Product.js';
 import { getPhonePrefixFromWorkspace, normalizePhone } from '../utils/phoneUtils.js';
 import evolutionApiService from '../services/evolutionApiService.js';
 import { processIncomingMessage, processBossMessage, generateTestReply, transcribeAudio, textToSpeech, textToSpeechFishAudio, getLastAssistantMessage, getTtsVoiceSettings, getLiveConversations } from '../services/ritaAgentService.js';
@@ -3263,9 +3264,9 @@ router.get('/rita-contacts/export', requireEcomAuth, requireRitaAgentAccess, asy
     const header = ['N°', 'Téléphone', 'Nom', 'Ville', 'Adresse', 'Nb Messages', 'A commandé', 'Premier contact', 'Dernier contact', 'Notes'];
     const escape = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
     const rows = contacts.map(c => [
-      c.clientNumber,
+      `sc1-${c.clientNumber}`,
       c.phone,
-      c.nom || c.pushName || '',
+      (c.nom || c.pushName) ? `sc1-${c.nom || c.pushName}` : '',
       c.ville || '',
       c.adresse || '',
       c.messageCount,
@@ -3731,6 +3732,165 @@ router.get('/rita-conversations', requireEcomAuth, async (req, res) => {
   } catch (error) {
     console.error('❌ Erreur rita-conversations:', error.message);
     res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * @route GET /api/ecom/v1/external/whatsapp/campaign-products
+ * @desc  Liste les produits uniques ayant des commandes ou contacts associés
+ */
+router.get('/campaign-products', requireEcomAuth, async (req, res) => {
+  try {
+    const userId = req.ecomUser._id.toString();
+    const workspaceId = req.ecomUser.workspaceId;
+
+    const [waProducts, orderProducts, catalogProducts] = await Promise.all([
+      WhatsAppOrder.distinct('productName', { userId }),
+      workspaceId ? Order.distinct('product', { workspaceId }) : Promise.resolve([]),
+      workspaceId ? Product.find({ workspaceId, isActive: true }).select('name').lean() : Promise.resolve([]),
+    ]);
+
+    const all = new Set([
+      ...waProducts.filter(Boolean),
+      ...orderProducts.filter(Boolean),
+      ...catalogProducts.map(p => p.name),
+    ]);
+
+    res.json({ success: true, products: [...all].sort() });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * @route POST /api/ecom/v1/external/whatsapp/campaign-launch
+ * @desc  Lance une campagne de relance progressive pour un produit
+ *        Body: { productName, message, instanceId }
+ *        Envoi progressif: 1 message toutes les 4-8s, pauses aléatoires, anti-spam
+ */
+router.post('/campaign-launch', requireEcomAuth, async (req, res) => {
+  try {
+    const userId = req.ecomUser._id.toString();
+    const workspaceId = req.ecomUser.workspaceId;
+    const { productName, message, instanceId } = req.body;
+
+    if (!productName || !message) {
+      return res.status(400).json({ success: false, error: 'productName et message sont requis' });
+    }
+
+    const norm = (s) => (s || '').toLowerCase().trim();
+    const productNorm = norm(productName);
+
+    // Run instance lookup + both order queries in parallel
+    const [instance, waOrders, classicOrders] = await Promise.all([
+      instanceId
+        ? WhatsAppInstance.findOne({ _id: instanceId, userId, isActive: true })
+        : WhatsAppInstance.findOne({ userId, isActive: true, $or: [{ status: 'connected' }, { status: 'active' }] }),
+      WhatsAppOrder.find({ userId }).select('customerPhone productName').limit(5000).lean(),
+      workspaceId
+        ? Order.find({ workspaceId }).select('clientPhone product clientPhoneNormalized').limit(5000).lean()
+        : Promise.resolve([]),
+    ]);
+
+    if (!instance) {
+      return res.status(400).json({ success: false, error: "Aucune instance WhatsApp connectée trouvée" });
+    }
+
+    const limitCheck = await checkMessageLimit(instance);
+    if (!limitCheck.allowed) {
+      return res.status(429).json({ success: false, error: limitCheck.reason });
+    }
+
+    // Collecter les numéros concernés
+    const phoneSet = new Set();
+    for (const o of waOrders) {
+      if (norm(o.productName).includes(productNorm) || productNorm.includes(norm(o.productName))) {
+        if (o.customerPhone) phoneSet.add(o.customerPhone.replace(/\D/g, ''));
+      }
+    }
+    for (const o of classicOrders) {
+      if (norm(o.product).includes(productNorm) || productNorm.includes(norm(o.product))) {
+        const phone = (o.clientPhoneNormalized || o.clientPhone || '').replace(/\D/g, '');
+        if (phone) phoneSet.add(phone);
+      }
+    }
+    const phones = [...phoneSet].filter(p => p.length >= 8 && p.length <= 15);
+
+    if (phones.length === 0) {
+      return res.status(404).json({ success: false, error: "Aucun client trouvé pour ce produit" });
+    }
+
+    // Répondre immédiatement — l'envoi se fait en arrière-plan
+    res.json({ success: true, total: phones.length, message: `Campagne lancée pour ${phones.length} client(s)` });
+
+    // ─── Envoi progressif en arrière-plan ───
+    (async () => {
+      let sent = 0;
+      let failed = 0;
+      for (const phone of phones) {
+        const delay = 4000 + Math.random() * 6000;
+        await new Promise(r => setTimeout(r, delay));
+        try {
+          const freshLimit = await checkMessageLimit(instance);
+          if (!freshLimit.allowed) {
+            console.log(`⚠️ [CAMPAIGN] Limite atteinte après ${sent} envois — campagne stoppée`);
+            break;
+          }
+          await sendMessageAndTrack(instance.instanceName, instance.instanceToken, phone, message);
+          sent++;
+        } catch (e) {
+          failed++;
+          console.error(`❌ [CAMPAIGN] Echec envoi ${phone}:`, e.message);
+        }
+      }
+      console.log(`✅ [CAMPAIGN] Terminée : ${sent} envoyés, ${failed} échecs (produit: "${productName}")`);
+    })();
+
+  } catch (err) {
+    console.error('❌ [CAMPAIGN] Erreur:', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * @route GET /api/ecom/v1/external/whatsapp/campaign-preview
+ * @desc  Retourne le nombre de clients ciblés pour un produit donné
+ */
+router.get('/campaign-preview', requireEcomAuth, async (req, res) => {
+  try {
+    const userId = req.ecomUser._id.toString();
+    const workspaceId = req.ecomUser.workspaceId;
+    const { productName } = req.query;
+
+    if (!productName) return res.status(400).json({ success: false, error: 'productName requis' });
+
+    const norm = (s) => (s || '').toLowerCase().trim();
+    const productNorm = norm(productName);
+
+    const [waOrders, classicOrders] = await Promise.all([
+      WhatsAppOrder.find({ userId }).select('customerPhone productName').limit(5000).lean(),
+      workspaceId
+        ? Order.find({ workspaceId }).select('clientPhone product clientPhoneNormalized').limit(5000).lean()
+        : Promise.resolve([]),
+    ]);
+
+    const phoneSet = new Set();
+    for (const o of waOrders) {
+      if (norm(o.productName).includes(productNorm) || productNorm.includes(norm(o.productName))) {
+        if (o.customerPhone) phoneSet.add(o.customerPhone.replace(/\D/g, ''));
+      }
+    }
+    for (const o of classicOrders) {
+      if (norm(o.product).includes(productNorm) || productNorm.includes(norm(o.product))) {
+        const phone = (o.clientPhoneNormalized || o.clientPhone || '').replace(/\D/g, '');
+        if (phone) phoneSet.add(phone);
+      }
+    }
+
+    const count = [...phoneSet].filter(p => p.length >= 8 && p.length <= 15).length;
+    res.json({ success: true, count });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 
