@@ -515,7 +515,7 @@ async function runBackgroundImageGeneration({
     }
 
     imageTasks.push(
-      () => generateAndUpload(buildSocialProofCollagePrompt(productData, visualTemplate, visualContext), `social-proof-${Date.now()}.png`, 'scene', '4:5')
+      () => generateAndUpload(buildSocialProofCollagePrompt(productData, visualTemplate, visualContext), `social-proof-${Date.now()}.png`, 'social_proof', '3:4')
         .then((url) => ({ type: 'social_proof', index: 0, url }))
         .finally(() => { jobData.progress += 1; })
     );
@@ -1103,14 +1103,47 @@ function buildArtDirectionProfile(slotIndex = 0, gptResult = {}, template = 'gen
 • Keep strong variation between visuals in the same product page. Do not repeat the same framing rhythm, spacing logic, badge arrangement or text placement from one image to the next.`;
 }
 
-function buildUltraSmartInfographicStyleRules(brandColor = '') {
+function getNicheColorDirection(template = 'general', brandColor = '') {
+  const accent = brandColor || 'the brand color';
+  const directions = {
+    beauty: `Use a luminous beauty palette derived from ${accent}: warm ivory, champagne, soft gold, peach highlights, clean white cards and premium cosmetic glow. Avoid heavy cold blue dominance.`,
+    health: `Use a wellness palette derived from ${accent}: clean white, fresh green, soft mint, calm teal or pharmacy-grade natural accents. Keep the result reassuring and fresh.`,
+    tech: `Use a premium tech palette derived from ${accent}: charcoal, deep graphite, electric blue or cyan accents, crisp white panels, sleek contrast.`,
+    fashion: `Use an editorial fashion palette derived from ${accent}: ivory, black, beige, metallic accents, refined contrast and luxury minimalism.`,
+    home: `Use a domestic premium palette derived from ${accent}: airy white, soft sage, clean sky tones, subtle warm neutrals and fresh utility accents.`,
+    general: `Use a premium niche-adapted palette derived from ${accent}. The dominant color family must fit the product category naturally instead of defaulting to generic blue.`,
+  };
+
+  return directions[template] || directions.general;
+}
+
+function buildStructuredProductPageVisualRules(gptResult = {}, template = 'general', brandColor = '', marketingIntent = '') {
+  const productName = gptResult.title || 'the product';
+  const nicheColorDirection = getNicheColorDirection(template, brandColor);
+
+  return `
+
+═══ REFERENCE-INSPIRED PRODUCT PAGE BOARD ═══
+• Use a premium modular board inspired by high-converting infographic grids like a polished 2-column, multi-panel ecommerce creative
+• Prefer 4 to 6 rounded modules or tiles in one coherent board, instead of one single loose lifestyle image
+• Keep one dominant product zone and surround it with supporting modules such as benefits, ingredients, usage, trust, result, comparison, routine fit, or objection handling
+• The exact product ${productName} must stay visually central, sharp and recognizable whenever it appears
+• Modules may contain portrait, ingredient cluster, icon row, checklist, before/after crop, benefit labels or routine cue, but all of them must feel part of the same designed system
+• Typography should be bold, short, mobile-readable, and commercial, like a product-page infographic rather than a random poster
+• Keep generous white or cream breathing space, rounded cards, subtle shadows and clean borders
+• ${nicheColorDirection}
+• Adapt the module content to this intent: ${marketingIntent || 'high-conversion product page visual'}
+• The result must feel like a reusable visual language for AI product pages, but the content inside each module must change according to the current product and niche`;
+}
+
+function buildUltraSmartInfographicStyleRules(brandColor = '', template = 'general') {
   return `
 
 ═══ ULTRA SMART DIRECT-RESPONSE STYLE ═══
 • The image must feel like the smartest section of a high-converting mobile landing page, not a plain infographic or generic poster
-• Prefer a deep cobalt / royal blue full-bleed background, adapted from ${brandColor || 'the brand color'} when relevant, with premium contrast and strong sales-page energy
-• Typography must be ultra legible on mobile: huge uppercase headline, very short support text, white text with vivid yellow emphasis on key words
-• Build 2 to 4 clearly separated visual zones with strong hierarchy, spacing rhythm, and subtle divider logic
+• Prefer a palette that follows the product niche and the brand color ${brandColor || 'the brand color'} instead of falling back to a generic blue background
+• Typography must be ultra legible on mobile: bold headline, very short support text, strong contrast, and clear premium hierarchy
+• Build clearly separated premium modules with strong hierarchy, spacing rhythm, and subtle divider logic
 • If the product is shown, make it oversized, sharp, premium, and slightly luminous with a soft glow
 • Use one proof device when relevant: a tilted photo card, transformation insert, authority card, result frame, trust chip, or reassurance strip
 • Use thin white borders, soft shadows, rounded cards, and occasional white line-art or botanical accents when they improve polish
@@ -1124,59 +1157,103 @@ function buildBenefitsInfographicPrompt(gptResult, template = 'general', visualP
   const brandColor = resolveBrandColor(visualPrefs, template);
   const pairs = getBenefitPairs(gptResult);
   const pairLines = pairs.map((pair) => `- ${pair.label} -> ${pair.benefit}`).join('\n');
+  const productNote = 'THE EXACT product from the reference image must remain visible, recognizable, premium, and central. Same packaging, same label, same colors, same shape.';
 
   return `Create an ultra-smart benefit-first ecommerce infographic for an African audience. Vertical 4:5, premium photorealistic quality.
 
 This visual must feel like a high-converting product-page section, not a generic ad.
-The product is OPTIONAL and should only appear if it improves clarity, trust, or conversion. If the concept is stronger without it, omit it.
+The product is NOT optional for this visual. It must be present as the hero anchor of the board.
 
-Around the main idea, show 3 to 4 benefit callouts, active ingredients, emotional outcomes, or result cues relevant to the product.
-Prefer a persuasive poster or smart landing-page block over a centered packshot.
+Around the main idea, show 3 to 5 benefit callouts, ingredient cues, use-case modules, or result tiles relevant to the product.
+Prefer a structured premium board inspired by a multi-panel ecommerce infographic over a loose freeform poster.
 
 Use these ingredient or benefit associations:
 ${pairLines}
 
 Include ${avatar} only if it helps embody the result or usage context naturally.
-Use screenshot-style hierarchy when relevant: huge headline, one angled proof card, one reassurance cue, one strong visual anchor.
+${productNote}
+Use screenshot-style hierarchy when relevant: bold headline zone, dominant product zone, 3 to 5 surrounding modules, one proof insert, and one reassurance cue.
 
 Style: clean, educational, modern, easy to understand, premium, trustworthy.
 Colors must match this website / brand color: ${brandColor}.
 French text only. Perfect spelling. No fake stock-photo feel. No price, no phone number, no URL, no watermark.
-The design structure must be chosen dynamically by the AI according to the product. Do not use a repeated template.
-${buildUltraSmartInfographicStyleRules(brandColor)}${buildArtDirectionProfile(1, gptResult, template, visualPrefs, 'benefits explanation image')}${buildDynamicDesignRules(gptResult, template, visualPrefs, 'benefits explanation image')}${buildProfessionalDescriptionGraphicRules(0, template, visualPrefs)}${buildHumanPhotoRealismRules()}${buildVisualPromptDirectives(visualPrefs)}`;
+The visual language should stay consistent with a premium modular product-page board while the content adapts to the current product.
+${buildUltraSmartInfographicStyleRules(brandColor, template)}${buildStructuredProductPageVisualRules(gptResult, template, brandColor, 'benefits explanation image')}${buildArtDirectionProfile(1, gptResult, template, visualPrefs, 'benefits explanation image')}${buildProfessionalDescriptionGraphicRules(0, template, visualPrefs)}${buildHumanPhotoRealismRules()}${buildVisualPromptDirectives(visualPrefs)}`;
 }
 
 function buildSocialProofCollagePrompt(gptResult, template = 'general', visualPrefs = {}) {
   const productName = gptResult.title || 'the product';
-  const avatar = resolveHeroAvatar(gptResult, template);
   const brandColor = resolveBrandColor(visualPrefs, template);
-  const socialCount = gptResult.urgency_elements?.social_proof_count || '+2500 satisfied customers';
+  const socialCount = gptResult.urgency_elements?.social_proof_count || '1000+ clients satisfaits';
+  const testimonialCards = Array.isArray(gptResult.testimonials)
+    ? gptResult.testimonials
+        .slice(0, 6)
+        .map((testimonial, index) => {
+          const firstName = String(testimonial?.name || `Client ${index + 1}`)
+            .split(' ')
+            .filter(Boolean)[0] || `Client ${index + 1}`;
+          const location = testimonial?.location || gptResult.city || gptResult.country || 'Afrique';
+          const quote = String(testimonial?.text || testimonial?.comment || '')
+            .replace(/\s+/g, ' ')
+            .trim()
+            .replace(/["“”]/g, '')
+            .slice(0, 110);
+          return `- Carte ${index + 1}: ${firstName}, ${location}, note 5 etoiles, citation courte: ${quote}`;
+        })
+    : [];
+  const benefitChips = [
+    ...(Array.isArray(gptResult.benefits_bullets) ? gptResult.benefits_bullets : []),
+    ...(Array.isArray(gptResult.reasons_to_buy) ? gptResult.reasons_to_buy : []),
+  ]
+    .map((item) => String(item || '').replace(/\s+/g, ' ').trim())
+    .filter(Boolean)
+    .slice(0, 3);
+  const testimonialGuidance = testimonialCards.length > 0
+    ? testimonialCards.join('\n')
+    : '- Carte 1: cliente africaine, note 5 etoiles, resultat visible\n- Carte 2: cliente africaine, note 5 etoiles, utilisation simple\n- Carte 3: cliente africaine, note 5 etoiles, recommandation forte\n- Carte 4: cliente africaine, note 5 etoiles, transformation convaincante';
+  const benefitGuidance = benefitChips.length > 0
+    ? benefitChips.map((item, index) => `${index + 1}. ${item}`).join('\n')
+    : '1. Resultats visibles\n2. Utilisation simple\n3. Confiance et qualite';
 
-  return `Create ONE single social proof image for an African ecommerce audience. Vertical 4:5, premium realistic quality.
+  return `Create ONE single social proof image for an African ecommerce audience. Vertical 3:4, premium realistic quality.
 
 Build a MOBILE-FIRST ecommerce testimonial poster specifically for ${productName}.
+This image must resemble a premium testimonial collage board for a product page, very close to the provided testimonial-board style, not a generic ad.
+USE THE EXACT PRODUCT FROM THE REFERENCE IMAGE. Same packaging, same label, same colors, same shape, no redesign.
 
-Show ONE authentic ${avatar === 'African woman' ? 'African woman' : 'African customer'} in a believable real-life situation linked to the product problem and transformation.
-The person must feel premium, confident and natural, not like a stock model and not like a cutout.
+MANDATORY COMPOSITION:
+1. Very large condensed top title in French such as "TEMOIGNAGES" or "AVIS CLIENTS" in black or very dark text.
+2. Small yellow decorative marks around the title when useful.
+3. One colored ribbon just under the title with a short product line mentioning ${productName}.
+4. The exact product must be large, centered and dominant in the composition, as the hero object of the poster.
+5. Around the product, place 4 to 6 rounded white testimonial cards with authentic African customer portraits.
+6. Each testimonial card must contain: first name, city, five yellow stars, and one short quote of 1 to 3 lines.
+7. Add a clean bottom reassurance strip with 3 simple benefit chips or icons.
+8. Use a warm premium background, cream or soft golden tone, with yellow or golden accents and soft glossy beauty droplets when relevant.
 
-The product must appear clearly and prominently in the lower third or foreground as a premium packshot integrated into the scene.
-The layout must feel like a real conversion creative: one dominant lifestyle scene, one oversized product, one bold headline zone, one small trust badge.
+The poster must feel realistic, premium, structured and conversion-focused.
+Faces must be beautiful and natural, with African-market relevance, but the image must read first as a testimonial board, not as one single lifestyle scene.
 
-Add one short, bold, highly legible headline directly inside the image.
-The headline must be in the same language as the product copy, maximum 10 words, focused on the main problem and the regain of control or visible result.
-Typography must be large, premium, editorial and mobile-readable.
+Use these testimonial card directions as inspiration:
+${testimonialGuidance}
 
-At most one subtle social proof chip may appear with this exact text: "${socialCount}".
-If a small rating cue appears, keep it secondary and elegant.
+Use these bottom reassurance chips as inspiration:
+${benefitGuidance}
 
-Do NOT generate a collage grid, do NOT generate separate testimonial cards, do NOT generate multiple disconnected portraits, do NOT generate fake review widgets, do NOT generate fake press logos, and do NOT generate cluttered infographic blocks.
+One small social proof chip may appear with this exact text: "${socialCount}".
 
-Style: premium ecommerce poster, trust-building, realistic, editorial, highly converting, African-market relevant.
-Background must match brand identity and website color: ${brandColor}.
-Use a strong premium contrast and clear mobile hierarchy.
-No stock-photo feeling, no exaggerated poses, no fake hands, no watermark, no phone number, no URL.
-The AI must decide the most convincing single-scene poster composition dynamically for this product instead of reusing the same layout.
-${buildUltraSmartInfographicStyleRules(brandColor)}${buildArtDirectionProfile(2, gptResult, template, visualPrefs, 'social proof and trust image')}${buildDynamicDesignRules(gptResult, template, visualPrefs, 'social proof and trust image')}${buildProfessionalDescriptionGraphicRules(1, template, visualPrefs)}${buildHumanPhotoRealismRules()}${buildVisualPromptDirectives(visualPrefs)}`;
+Do generate multiple testimonial cards integrated into one single poster.
+Do generate multiple customer portraits if needed inside those cards.
+Do keep the product large and central.
+Do NOT generate one huge background lifestyle photo dominating the entire poster.
+Do NOT generate a dark green magazine poster.
+Do NOT create fake app UI widgets, fake press logos, phone numbers, URLs, or watermarks.
+Do NOT make the product tiny or secondary.
+
+Style: premium ecommerce testimonial poster, trust-building, realistic, editorial, highly converting, African-market relevant.
+French text only. Perfect spelling. Strong mobile readability. Clear hierarchy. No stock-photo feeling, no exaggerated poses, no fake hands.
+The final result must look like a polished product-page review poster with centered product and surrounding client proof.
+${buildHumanPhotoRealismRules()}${buildVisualPromptDirectives(visualPrefs)}`;
 }
 
 /**
@@ -1257,16 +1334,16 @@ This image must express a specific marketing angle for this product.
 The exact product from the reference image must remain visible and accurate.
 ${productNote}
 
-The design must be dynamic and invented specifically for this product. Do not use a repeated template or fixed layout. The AI must decide the best composition, hierarchy, framing, badge placement, callouts, arrows, icons, collage, close-up, split, lifestyle scene, or editorial arrangement according to the product and the angle.
-It should feel like an ultra-smart landing-page section with screenshot-style hierarchy: strong blue foundation, white/yellow headline treatment, one proof insert, and one premium conversion cue when relevant.
+The design must follow a premium modular product-page board structure inspired by high-converting infographic grids, while adapting the module content to this specific angle.
+It should feel like an ultra-smart landing-page section with one dominant product zone, surrounding rounded modules, one proof insert, and one premium conversion cue when relevant.
 
 If the angle is about a problem, show the problem clearly and concretely.
 If the angle is about a result, make the result visually obvious.
 If the angle is about reassurance, trust, ingredients, mechanism, transformation or proof, build the visual language that fits that exact message.
 
 French text only if necessary, with perfect spelling. No price, no phone number, no URL, no watermark.
-The image must not feel generic and must not look like the same design system reused on every product.
-${buildUltraSmartInfographicStyleRules(brandColor)}${buildArtDirectionProfile(slideIndex + 3, gptResult, template, visualPrefs, marketingIntent)}${buildDynamicDesignRules(gptResult, template, visualPrefs, marketingIntent)}${buildHumanPhotoRealismRules()}${buildSemanticIllustrationRules({
+The image must not feel generic, but it should still belong to the same premium modular visual language used across AI product pages.
+${buildUltraSmartInfographicStyleRules(brandColor, template)}${buildStructuredProductPageVisualRules(gptResult, template, brandColor, marketingIntent)}${buildArtDirectionProfile(slideIndex + 3, gptResult, template, visualPrefs, marketingIntent)}${buildHumanPhotoRealismRules()}${buildSemanticIllustrationRules({
     mainClaim: angleTitle,
     supportText: angleExplication,
     promise: anglePromesse,
@@ -1309,8 +1386,8 @@ Build a non-generic marketing image specifically for this product.
 
 Use the exact product from the reference image when visible. Do not invent packaging, labels or colors.
 French text only if truly necessary. No price, no phone number, no URL, no watermark.
-Make it feel like a premium mobile landing-page block with a bold white/yellow headline hierarchy, a strong proof cue, and a polished blue-based direct-response composition.
-${buildUltraSmartInfographicStyleRules(brandColor)}${plan?.artDirection || buildArtDirectionProfile(slideIndex + 3, gptResult, template, visualPrefs, plan?.intent || 'dynamic marketing visual')}${buildDynamicDesignRules(gptResult, template, visualPrefs, plan?.intent || 'dynamic marketing visual')}${buildHumanPhotoRealismRules()}${buildSemanticIllustrationRules({
+Make it feel like a premium mobile landing-page block with a modular product-page board structure, a strong proof cue, and a niche-adapted palette.
+${buildUltraSmartInfographicStyleRules(brandColor, template)}${buildStructuredProductPageVisualRules(gptResult, template, brandColor, plan?.intent || 'dynamic marketing visual')}${plan?.artDirection || buildArtDirectionProfile(slideIndex + 3, gptResult, template, visualPrefs, plan?.intent || 'dynamic marketing visual')}${buildHumanPhotoRealismRules()}${buildSemanticIllustrationRules({
     mainClaim: angleTitle,
     supportText: angleExplication,
     promise: anglePromesse,

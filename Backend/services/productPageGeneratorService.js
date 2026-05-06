@@ -202,16 +202,15 @@ function getContrastTextColor(hex) {
   return luminance > 0.62 ? '#111827' : '#FFFFFF';
 }
 
-function buildCustomInfographicPalette(bgColor) {
-  const textColor = getContrastTextColor(bgColor);
-  const blendTarget = textColor === '#FFFFFF' ? '#FFFFFF' : '#111827';
-
+function buildCustomInfographicPalette(brandColor) {
+  // Always use ivory background — brand color becomes the accent/headline color
   return {
-    bg: bgColor,
-    text: textColor,
-    accent: mixHexColors(bgColor, blendTarget, textColor === '#FFFFFF' ? 0.18 : 0.12),
-    highlight: mixHexColors(bgColor, blendTarget, textColor === '#FFFFFF' ? 0.38 : 0.24),
-    description: 'custom brand-color full-bleed background',
+    bg: '#FFF8F0',
+    card: '#FFFFFF',
+    text: brandColor,
+    accent: brandColor,
+    highlight: brandColor,
+    description: `warm ivory background with custom brand color (${brandColor}) as headline and accent`,
   };
 }
 
@@ -814,7 +813,7 @@ Le champ "prompt_avant_apres" doit décrire un AVANT/APRÈS SPÉCIFIQUE à CE pr
   const messages = [
     {
       role: "system",
-      content: "Tu es expert e-commerce, copywriting et psychologie de l'acheteur, spécialiste marché africain. MISSION : générer une page produit complète et optimisée pour la conversion avec des visuels représentant des personnes africaines authentiques. RÈGLES ABSOLUES : 1) Analyse le produit en profondeur avant de rédiger quoi que ce soit. 2) 100% FRANÇAIS PARFAIT (sauf prompts images en anglais) — zéro faute d'orthographe, zéro faute de grammaire. 3) ZÉRO généricité. 4) ZÉRO exagération. 5) CRITIQUE problem_section : 3 vraies douleurs SPÉCIFIQUES. 6) CRITIQUE solution_section : paragraphe persuasif reliant chaque douleur au produit. 7) CRITIQUE hero_cta : bouton d'achat percutant 3-5 mots. 8) CRITIQUE stats_bar : 3 stats crédibles. 9) CRITIQUE seo : meta_title max 60 chars, meta_description max 155 chars, slug kebab-case. 10) RÈGLE GENRE OBLIGATOIRE pour toutes les images : produit FEMME → femme africaine ; produit HOMME → homme africain ; produit MIXTE → genre le plus naturel selon contexte — JAMAIS de femme par défaut pour un produit masculin ou neutre. 11) RÈGLE ZONE CORPORELLE pour toutes les images : identifier la zone exacte (cheveux, visage, corps, ventre, dents, etc.) et cadrer sur cette zone — JAMAIS le visage par défaut si le produit est pour les cheveux ou le corps. 12) LE PRODUIT LUI-MÊME (packaging, flacon, boîte) doit être visible et grand dans chaque image. 13) prompt_hero_poster = affiche graphique, produit grand sur fond sombre dramatique, SANS TITRE sur l'image, avec EXACTEMENT 3 personnes africaines réelles dans un cadre MODERNE et au moins 2 tenant le produit en main. 14) avant/après : zone correcte + genre correct + produit visible côté APRÈS. 15) angles : 4 visuels, produit visible (40%+) + zone et genre corrects. PAS de titre texte sur les images, uniquement éventuellement une courte phrase descriptive. Quand des humains sont présents dans ces visuels, privilégier EXACTEMENT 3 personnes africaines réelles avec le produit en main au lieu d'icônes ou de personnages génériques. 16) Témoignages : noms et villes adaptés au pays. 17) Le template choisi agit uniquement sur le design visuel des images, icones, fonds, ambiance et palette; il ne doit jamais inventer une promesse, une cible ou un usage produit. 18) Les consignes couleur des affiches, visuel hero, décorations, couleur des titres et couleur du contenu doivent être appliquées réellement aux visuels quand elles sont fournies. 19) Les personnes dans les images doivent ressembler a de vraies personnes photographiees: texture de peau naturelle, legere asymetrie, mains correctes, yeux et dents realistes, zero rendu plastique ou uncanny. 20) Chaque image doit illustrer exactement le texte marketing correspondant; aucun badge, icone ou scene ne doit etre decoratif sans lien direct avec le message. 21) Même si du texte est posé sur l'image, la scène doit rester explicite sans lire ce texte: le visuel seul doit raconter la situation. 22) description_optimisee = chaîne vide. 23) CONTEXTE MODERNE OBLIGATOIRE: les décors des images doivent toujours être MODERNES et HAUT DE GAMME (appartement contemporain, studio design, bureau élégant, espace urbain chic) — JAMAIS de marché, village, décor traditionnel ou rue de quartier populaire. Les personnes africaines sont dans des endroits beaux et modernes. 24) PAS DE TITRE TEXTE sur les images générées. Les prompts d'images ne doivent PAS inclure de headline/titre. 25) TOUS LES PROMPTS D'IMAGES ET TOUTE LA PAGE DOIVENT STRICTEMENT SE BASER SUR LES CARACTÉRISTIQUES IDENTIFIÉES DANS L'IMAGE FOURNIE. 26) JSON uniquement."
+      content: "Tu es expert e-commerce, copywriting et psychologie de l'acheteur, spécialiste marché africain. MISSION : générer une page produit complète et optimisée pour la conversion avec des visuels représentant des personnes africaines authentiques. RÈGLES ABSOLUES : 1) Analyse le produit en profondeur avant de rédiger quoi que ce soit. 2) 100% FRANÇAIS PARFAIT (sauf prompts images en anglais) — zéro faute d'orthographe, zéro faute de grammaire. 3) ZÉRO généricité. 4) ZÉRO exagération. 5) CRITIQUE problem_section : 3 vraies douleurs SPÉCIFIQUES. 6) CRITIQUE solution_section : paragraphe persuasif reliant chaque douleur au produit. 7) CRITIQUE hero_cta : bouton d'achat percutant 3-5 mots. 8) CRITIQUE stats_bar : 3 stats crédibles. 9) CRITIQUE seo : meta_title max 60 chars, meta_description max 155 chars, slug kebab-case. 10) RÈGLE GENRE OBLIGATOIRE pour toutes les images : produit FEMME → femme africaine ; produit HOMME → homme africain ; produit MIXTE → genre le plus naturel selon contexte — JAMAIS de femme par défaut pour un produit masculin ou neutre. 11) RÈGLE ZONE CORPORELLE pour toutes les images : identifier la zone exacte (cheveux, visage, corps, ventre, dents, etc.) et cadrer sur cette zone — JAMAIS le visage par défaut si le produit est pour les cheveux ou le corps. 12) LE PRODUIT LUI-MÊME (packaging, flacon, boîte) doit être visible et grand dans chaque image. 13) prompt_hero_poster = affiche graphique, produit grand sur fond sombre dramatique, SANS TITRE sur l'image, avec EXACTEMENT 3 personnes africaines réelles dans un cadre MODERNE et au moins 2 tenant le produit en main. 14) avant/après : zone correcte + genre correct + produit visible côté APRÈS. 15) angles : 4 visuels, produit visible (40%+) + zone et genre corrects. PAS de titre texte sur les images, uniquement éventuellement une courte phrase descriptive. Quand des humains sont présents dans ces visuels, privilégier EXACTEMENT 3 personnes africaines réelles avec le produit en main au lieu d'icônes ou de personnages génériques. 16) Témoignages : noms et villes adaptés au pays. 17) Le template choisi agit uniquement sur le design visuel des images, icones, fonds, ambiance et palette; il ne doit jamais inventer une promesse, une cible ou un usage produit. 18) Les consignes couleur des affiches, visuel hero, décorations, couleur des titres et couleur du contenu doivent être appliquées réellement aux visuels quand elles sont fournies. 19) Les personnes dans les images doivent ressembler a de vraies personnes photographiees: pores de peau visibles, micro-imperfections naturelles, legere asymetrie du visage, mains anatomiquement correctes, yeux avec texture d'iris reelle, dents legerement inegales et naturelles, cheveux avec variation de boucle/frisure, expression subtile et credible, eclairage avec ombres realistes — ZERO peau lisse comme du plastique, ZERO visage CGI symetrique parfait, ZERO retouche excessive, ZERO teint uniforme artificiel. 20) Chaque image doit illustrer exactement le texte marketing correspondant; aucun badge, icone ou scene ne doit etre decoratif sans lien direct avec le message. 21) Même si du texte est posé sur l'image, la scène doit rester explicite sans lire ce texte: le visuel seul doit raconter la situation. 22) description_optimisee = chaîne vide. 23) CONTEXTE MODERNE OBLIGATOIRE: les décors des images doivent toujours être MODERNES et HAUT DE GAMME (appartement contemporain, studio design, bureau élégant, espace urbain chic) — JAMAIS de marché, village, décor traditionnel ou rue de quartier populaire. Les personnes africaines sont dans des endroits beaux et modernes. 24) PAS DE TITRE TEXTE sur les images générées. Les prompts d'images ne doivent PAS inclure de headline/titre. 25) TOUS LES PROMPTS D'IMAGES ET TOUTE LA PAGE DOIVENT STRICTEMENT SE BASER SUR LES CARACTÉRISTIQUES IDENTIFIÉES DANS L'IMAGE FOURNIE. 26) JSON uniquement."
     },
     {
       role: "user",
@@ -1098,12 +1097,21 @@ export async function generatePosterImage(promptAffiche, originalImageBuffer = n
   try {
     const mode = options?.mode || 'scene';
     const aspectRatio = options?.aspectRatio || '4:5';
-    const ratioPrompt = aspectRatio === '1:1'
+    const isSquare = aspectRatio === '1:1';
+    const isThreeByFour = aspectRatio === '3:4';
+    const formatLabel = isSquare
+      ? 'SQUARE 1:1 (1080×1080)'
+      : (isThreeByFour ? 'VERTICAL 3:4 (1080×1440)' : 'VERTICAL 4:5 (1080×1250)');
+    const ratioPrompt = isSquare
       ? 'Square 1:1 (1080×1080) premium composition, balanced framing, full-bleed crop, ZERO empty margins.'
-      : 'Vertical 4:5 (1080×1250) premium composition, tight crop, full-bleed framing, ZERO empty margins.';
-    const formatOverride = aspectRatio === '1:1'
-      ? 'FORMAT OVERRIDE: Generate the final image in SQUARE 1:1 (1080×1080). Ignore any previous mention of 4:5, portrait, or vertical-only framing elsewhere in the prompt.'
-      : 'FORMAT OVERRIDE: Generate the final image in VERTICAL 4:5 (1080×1250). Ignore any previous mention of other aspect ratios elsewhere in the prompt.';
+      : (isThreeByFour
+        ? 'Vertical 3:4 (1080×1440) premium composition, tight crop, full-bleed framing, ZERO empty margins.'
+        : 'Vertical 4:5 (1080×1250) premium composition, tight crop, full-bleed framing, ZERO empty margins.');
+    const formatOverride = isSquare
+      ? 'FORMAT OVERRIDE: Generate the final image in SQUARE 1:1 (1080×1080). Ignore any previous mention of 4:5, 3:4, portrait, or vertical-only framing elsewhere in the prompt.'
+      : (isThreeByFour
+        ? 'FORMAT OVERRIDE: Generate the final image in VERTICAL 3:4 (1080×1440). Ignore any previous mention of 4:5, 1:1, portrait variants, or other aspect ratios elsewhere in the prompt.'
+        : 'FORMAT OVERRIDE: Generate the final image in VERTICAL 4:5 (1080×1250). Ignore any previous mention of 3:4, 1:1, or other aspect ratios elsewhere in the prompt.');
     console.log(`🎨 Generating ${mode} image with NanoBanana...`);
 
     if (!originalImageBuffer) {
@@ -1117,7 +1125,7 @@ USE EXACTLY the product appearance from the reference image provided — do NOT 
 ${ratioPrompt}
 
 Visual style: Clean, modern, premium. The product is shown in its REAL USAGE CONTEXT — being held IN THE PERSON'S HANDS, opened, applied, used, demonstrated. NOT a static cosmetic studio pose. Contextual background matching the product category (kitchen, desk, bathroom, outdoor, gym, home, etc.). Warm natural lighting, professional quality.
-
+${PHOTO_REALISM_RULES}
 PRODUCT FOCUS (CRITICAL): The product must be the absolute hero of the image — large, sharp, dominant, IN ACTION. Every detail of the product (texture, color, label, shape) must be crystal clear. The product fills at least 50% of the frame and is being actively used or demonstrated.
 HERO HAND RULE: show a real person actually holding the exact product in hand. The grip, fingers and scale must feel natural and photographic.
 
@@ -1157,9 +1165,10 @@ Mood: Bold, aspirational, premium brand launch — think Apple product launch po
 
     const beforeAfterRules = `
 Create a high-converting before/after product transformation image. Ultra realistic, 4K quality, sharp focus, advertising photography style.
-${aspectRatio === '1:1' ? 'Square 1:1 (1080×1080) split-screen visual specific to this product.' : 'Vertical 4:5 (1080×1250) split-screen visual specific to this product.'}
+  ${isSquare ? 'Square 1:1 (1080×1080) split-screen visual specific to this product.' : `${formatLabel} split-screen visual specific to this product.`}
 
 MANDATORY: feature an authentic Black African person (dark brown skin, natural African hair, African facial features). Natural expression, realistic skin and features — not fake or plastic.
+${PHOTO_REALISM_RULES}
 
 Left side BEFORE: The African person clearly showing the PROBLEM or CONTEXT this product solves — visible frustration, discomfort, or issue.
 Right side AFTER: The SAME African person showing the RESULT — improvement, satisfaction, confidence, glowing outcome.
@@ -1172,14 +1181,49 @@ NO arrows, NO heavy graphic overlays, NO empty margins, NO price, NO CTA.
 Mood: Trustworthy, convincing, high-conversion, impossible to ignore in a Facebook or TikTok feed.`;
 
     const sceneRules = `
-QUALITY: Ultra HD 4K, razor-sharp, zero blur. ${aspectRatio === '1:1' ? 'Square 1:1 (1080×1080).' : 'Vertical 4:5 (1080×1250).'}
+  QUALITY: Ultra HD 4K, razor-sharp, zero blur. ${isSquare ? 'Square 1:1 (1080×1080).' : `${formatLabel}.`}
 PRODUCT REFERENCE (CRITICAL): The reference product image provided MUST be reproduced EXACTLY in the output — same packaging, same colors, same label, same shape, same size proportions. Use the EXACT visual appearance from the reference photo, do NOT recreate or redraw the product. If you cannot faithfully reproduce the EXACT same product, generate the scene WITHOUT the product rather than inventing a different one. A scene without the product is ALWAYS better than a scene with a wrong product.
 PERSON: ALWAYS include authentic Black African person (dark skin, natural hair, confident expression) in a MODERN UPSCALE setting.
+${PHOTO_REALISM_RULES}
 PRODUCT: Large, dominant, sharp, 40-60% of frame. Must match the reference image exactly.
 TEXT: NO title/headline on the image. French only if any short descriptive text is needed, 100% perfect spelling with accents. Max 2 short text elements (NO title).
 NO price, NO phone, NO URL, NO CTA button, NO watermark.
 SETTING: MODERN and UPSCALE — contemporary apartment, design studio, sleek office, chic urban area. NEVER a market, village, or traditional setting.
 CRITICAL: Follow the SPECIFIC visual style described above — unique background, unique decorations, unique mood for THIS image.`;
+
+    const socialProofRules = `
+  Create a premium ecommerce testimonial collage poster for THIS exact product. Ultra realistic, polished graphic design, premium African-market beauty or wellness creative.
+  USE EXACTLY the product appearance from the reference image provided — do NOT redraw, recreate, or redesign the product. If you cannot reproduce the EXACT same product, generate the poster WITHOUT the product rather than inventing a different one.
+  ${ratioPrompt}
+
+  MANDATORY LAYOUT TO FOLLOW CLOSELY:
+  - huge condensed uppercase title across the top
+  - small decorative accent marks near the title
+  - one long rounded yellow or golden ribbon subtitle below the main title
+  - one large exact product in the center, visually dominant and perfectly sharp
+  - 4 to 6 rounded white testimonial cards around the product
+  - each testimonial card contains one authentic African customer portrait, one first name, one city, five yellow stars, and one short quote
+  - one bottom reassurance strip with 3 benefit icons or chips
+  - optional bottom mini-brand zone if useful
+
+  BACKGROUND AND COLORS:
+  - warm cream, ivory or soft golden background
+  - elegant yellow or golden accents
+  - use the brand color only as a supporting accent when helpful, not as a dark full background
+  - avoid dark green poster magazine style and avoid a single giant lifestyle scene
+
+  TEXT RULES:
+  - French only, perfect spelling, no gibberish
+  - short readable words only
+  - no CTA button, no price, no phone number, no URL, no fake widget UI
+
+  COMPOSITION RULES:
+  - the product must stay central and larger than all other elements
+  - testimonial cards must feel like real designed modules, not chaotic floating boxes
+  - faces must look like real premium commercial portraits, never like generic stock pasted randomly
+  - the final result must look close to a structured review board for a product page, not a single lifestyle photo
+  ${PHOTO_REALISM_RULES}
+  `;
 
     const productRefRule = `
 ═══ PRODUCT REFERENCE — IMAGE-TO-IMAGE MANDATORY ═══
@@ -1191,6 +1235,7 @@ The product MUST appear in the generated visual. If it cannot be faithfully repr
     if (mode === 'hero') modeRules = heroRules;
     else if (mode === 'hero_poster') modeRules = heroPosterRules;
     else if (mode === 'before_after') modeRules = beforeAfterRules;
+    else if (mode === 'social_proof') modeRules = socialProofRules;
     else modeRules = sceneRules;
 
     // CRITICAL: product reference rule FIRST (survives any truncation),
@@ -1220,173 +1265,222 @@ ${modeRules}`;
 
 // ─── Color presets for infographic generation ────────────────────────────────
 const INFOGRAPHIC_COLOR_PRESETS = {
-  bleu_royal:    { bg: '#1E3A8A', text: '#FFFFFF', accent: '#FACC15', highlight: '#84CC16', description: 'cobalt royal blue full-bleed background' },
-  vert_emeraude: { bg: '#064E3B', text: '#FFFFFF', accent: '#6EE7B7', highlight: '#FACC15', description: 'deep emerald green full-bleed background' },
-  or_premium:    { bg: '#1C1917', text: '#FBBF24', accent: '#F5F5F4', highlight: '#D97706', description: 'dark luxury background with gold headline accents' },
-  rose_feminin:  { bg: '#831843', text: '#FFFFFF', accent: '#FBCFE8', highlight: '#F9A8D4', description: 'deep rose berry full-bleed background' },
-  violet_luxe:   { bg: '#3B0764', text: '#FFFFFF', accent: '#E9D5FF', highlight: '#C084FC', description: 'deep violet luxury full-bleed background' },
+  bleu_royal:    { bg: '#EFF6FF', card: '#FFFFFF', text: '#1E3A8A', accent: '#F59E0B', highlight: '#3B82F6', description: 'clean white/light-blue background with royal blue headlines and amber accents' },
+  vert_emeraude: { bg: '#F0FDF4', card: '#FFFFFF', text: '#064E3B', accent: '#F59E0B', highlight: '#10B981', description: 'soft mint-white background with deep green headlines and amber accents' },
+  or_premium:    { bg: '#FFFBEB', card: '#FFFFFF', text: '#92400E', accent: '#D97706', highlight: '#F59E0B', description: 'warm ivory background with rich amber/gold headlines' },
+  rose_feminin:  { bg: '#FFF1F2', card: '#FFFFFF', text: '#881337', accent: '#F43F5E', highlight: '#FB7185', description: 'soft blush-white background with deep rose headlines and pink accents' },
+  violet_luxe:   { bg: '#FAF5FF', card: '#FFFFFF', text: '#581C87', accent: '#9333EA', highlight: '#C084FC', description: 'soft lavender-white background with deep violet headlines and purple accents' },
 };
 
+const PHOTO_REALISM_RULES = `
+HUMAN REALISM — MANDATORY:
+- Skin texture: visible natural pores, slight variation in tone, micro-imperfections — NEVER smooth porcelain, NEVER plastic-looking or airbrushed to oblivion
+- Face: slight asymmetry, natural shadows under eyes and nose, real depth — NOT a perfectly symmetrical CGI face
+- Eyes: natural iris pattern, slight moisture highlight, real eyelashes — NOT glassy doll eyes
+- Teeth (if visible): slightly uneven, natural off-white — NOT uniform bright-white veneers
+- Hands and fingers: correct anatomy, natural skin folds, realistic proportions
+- Hair: individual strand variation, natural frizz or curl pattern — NOT a uniform plastic mass
+- Expression: subtle, believable — NOT exaggerated happiness or theatrical emotion
+- Lighting: realistic falloff and shadows on skin — NOT uniform flat illumination
+- NO over-retouching: the image should look like a real-world photo, not a beauty filter rendering
+`;
+
 const INFOGRAPHIC_BASE_RULES = `
-VERTICAL 9:16 (1080×1920) INFOGRAPHIC IMAGE for a mobile product landing page. Full-bleed, edge-to-edge, no empty margins.
-USE EXACTLY the product appearance from the reference image provided — same shape, color, packaging, label, design. Do NOT redraw, recreate, or redesign the product. If you cannot reproduce the EXACT same product, generate the scene WITHOUT the product rather than inventing a different one.
+VERTICAL 9:16 (1080×1920) INFOGRAPHIC for a product landing page. Full-bleed, edge-to-edge, no empty margins.
+USE EXACTLY the product appearance from the reference image — same shape, color, packaging, label, design. Do NOT redraw or redesign the product. If you cannot reproduce the EXACT same product, generate the scene WITHOUT the product rather than inventing one.
 
-VISUAL RULES:
-- Authentic Black African person (dark skin, natural African features), MODERN UPSCALE setting (modern apartment, studio, clean interior) — NEVER market, village, or traditional decor.
-- Real photograph look: natural skin texture, correct hands, believable expressions, zero plastic or uncanny AI feel.
-- The product is OPTIONAL in benefits, testimonial, or explanatory slides. Show it only if it improves clarity or trust. If the concept is stronger without the product, omit it.
-- Clean bright layout with PLENTY of whitespace, soft shadows, modern design.
-- Text overlays in 100% PERFECT FRENCH — zero spelling/grammar errors, every accent correct (é è ê à ù ç).
-- Text in BOLD modern sans-serif font (Montserrat/Poppins style), high contrast, easy to read on mobile.
-- Dominant accent color: deep blue (#1E3A8A) for headlines, green (#84CC16) for positive highlights, red for strikethrough.
-- NO fake CTA button, NO price numbers, NO phone number, NO URL, NO watermark.
+DESIGN STYLE — REFERENCE: This image must look like a premium Amazon/Shopify product listing infographic slide:
+- BACKGROUND: warm ivory or light cream (#FFF8F0 to #FFFBF5) or very soft pastel matching the accent color — NEVER a dark background
+- CARDS: white rounded-corner cards (border-radius ~16px) with soft drop shadows (shadow: 0 4px 16px rgba(0,0,0,0.08)) — clean, modern, airy
+- PRODUCT: shown large, sharp, perfectly lit against the card or background — dominant visual anchor
+- TYPOGRAPHY: bold condensed sans-serif (Montserrat/Poppins style), dark headline text, accent color highlights on 1–2 key words per headline — NOT all-white text on dark background
+- ICONS: clean flat or outline icons (circle badges, checkmarks, small line-art) — NOT heavy solid emoji blobs
+- LAYOUT: 2–4 distinct content sections stacked vertically with clear visual rhythm, generous whitespace, thin dividers or spacing
+- ACCENT COLOR: warm amber/orange (#F59E0B) or the brand accent color — used for highlights, badges, underlines, key words, checkmark icons
+- NO dark full-bleed poster aesthetic, NO neon, NO heavy gradients, NO cluttered collage
 
-TEXT SPELLING CHECK — ZERO TOLERANCE:
-Every French word on the image must be perfectly spelled. Double-check: accents, agreement, spaces. If unsure, prefer shorter simpler words.
+PERSONS (when present):
+- Authentic Black African person, MODERN UPSCALE setting, real photograph feel
+${PHOTO_REALISM_RULES}
+
+TEXT RULES:
+- 100% PERFECT FRENCH — zero spelling/grammar errors, every accent correct (é è ê à ù ç)
+- Bold modern sans-serif, high contrast, mobile-readable
+- NO fake CTA button, NO price, NO phone number, NO URL, NO watermark
 `;
 
 const INFOGRAPHIC_SMART_FUNNEL_STYLE = `
-DESIGN LANGUAGE TO FOLLOW:
-- The image must feel like an ultra-smart direct-response mobile landing page, not a plain brochure or basic infographic
-- Prefer a cobalt / royal blue full-bleed base with premium contrast, adapted subtly to the brand when needed
-- Use strong headline hierarchy: huge uppercase white text with vivid yellow emphasis on key words
-- Build layered sections with visible rhythm: divider lines, rounded cards, soft shadows, and 2 to 4 clear content blocks
-- If the product is visible, make it oversized, sharp, premium, and slightly luminous with soft glow
-- Use at least one proof device when relevant: a tilted photo card, transformation insert, doctor/expert frame, trust chip, reassurance strip, or result card
-- Small decorative white line-art or botanical accents are allowed when they increase polish
-- Prioritize mobile readability and conversion hierarchy over symmetry
-- Avoid tiny paragraphs, clutter, and generic template layouts
+LAYOUT & DESIGN LANGUAGE:
+- Think "premium Shopify/Amazon product listing image" — clean, bright, trustworthy, conversion-focused
+- Warm cream or ivory base (NOT dark blue) with white rounded cards and soft shadows
+- Strong headline hierarchy: large bold dark text, 1–2 accent-color words per line, short lines
+- Product appears oversized, sharp, with clean studio lighting — placed on a white card or elevated pedestal feel
+- Use clean icons or simple line-art symbols for feature bullets (circle icons with tick, leaf, shield, drop, star)
+- Each content section should feel like a distinct card block: separated, breathable, scannable at a glance
+- Avoid dense text, avoid dark poster aesthetics, avoid generic blue full-bleed funnels
+- Prioritize: clarity → scannability → product prominence → trust signals
 `;
 
 const INFOGRAPHIC_SLIDE_PROMPTS = {
-  hook: ({ productName, targetAudience, painPoint, bgColor = '#1E3A8A', textColor = '#FFFFFF', accentColor = '#FACC15', highlightColor = '#84CC16', country = '', city = '' }) => `
-SLIDE TYPE: HOOK / PROBLEM — opening slide that stops the scroll by naming the viewer's pain.
+  hook: ({ productName, targetAudience, painPoint, bgColor = '#FFF8F0', textColor = '#1C1917', accentColor = '#F59E0B', highlightColor = '#EA580C', country = '', city = '' }) => `
+SLIDE TYPE: PRODUCT HERO — opening slide, product large and dominant, headline promise.
 
-SCENE:
-Authentic Black African person (match product target: ${targetAudience || 'adult, gender appropriate for the product'}) showing subtle discomfort or frustration related to: ${painPoint || 'the problem this product solves'}. Natural expression — NOT theatrical. Modern upscale interior. Soft natural lighting.
+LAYOUT (follow the reference style closely):
+- Warm ivory/cream background (${bgColor}) filling the full frame
+- TOP SECTION: bold headline in 2 lines, dark text (${textColor}), 1–2 key words in accent color (${accentColor}), large condensed font
+- CENTER: the product LARGE (min 50% height), perfectly sharp, on a clean white rounded card with soft shadow OR floating on the ivory background with subtle shadow beneath it
+- BOTTOM SECTION: 2 or 3 horizontal trust badges in small white rounded pills — e.g. "✓ 100% Naturel", "✓ Sans Parabène", "✓ Livraison Rapide"
+- Small optional certification seal (USDA, Bio, Certifié, etc.) if relevant to the product
+
 ${buildInfographicCastingInstruction({ name: productName, targetAudience, painPoint })}
 ${buildInfographicLocaleInstruction(country, city)}
-The product ${productName || ''} visible in the lower third or background, serving as a visual promise of relief.
-The composition should resemble a premium funnel section: ${bgColor} full-bleed background, one emotional main subject, and one strong supporting proof or insert.
 
-TEXT OVERLAY (top of image, large bold):
-A punchy 2-line hook in French that calls out the pain directly. Format example: "[Problème 1], [problème 2], [problème 3]? Vous méritez mieux" or "[Symptôme] vous gâche la vie?". 8-12 words max. Prefer big ${textColor} text with emphasis in ${accentColor} or ${highlightColor}.
-Optional small badge top-left: "Livraison Gratuite" or 5-star review badge.
+TEXT:
+- Headline: bold uppercase, dark (${textColor}), accent highlight on key benefit word in (${accentColor}) — max 8 words total
+- Sub-badges: very short (2–4 words each), perfect French
+- NO long paragraphs, NO dark background, NO all-white text on dark
 
-MOOD: Empathic, scroll-stopping, targeted. The viewer must feel "that's me".
+MOOD: Clean, premium, trustworthy. Looks like a top-rated Amazon product listing image.
 `,
 
-  benefits: ({ productName, mainBenefit, bgColor = '#1E3A8A', textColor = '#FFFFFF', accentColor = '#FACC15', highlightColor = '#84CC16', targetAudience = '', country = '', city = '' }) => `
-SLIDE TYPE: BENEFITS — communicate what the product does in one glance.
+  benefits: ({ productName, mainBenefit, bgColor = '#FFF8F0', textColor = '#1C1917', accentColor = '#F59E0B', highlightColor = '#EA580C', targetAudience = '', country = '', city = '' }) => `
+SLIDE TYPE: BENEFITS GRID — "N bénéfices en une seule formule" style slide.
 
-SCENE:
-Create a concept-led benefit poster or infographic for ${productName || 'the product'}.
-Focus on the result, relief, benefit, ingredient logic, or emotional outcome first.
-The product is OPTIONAL. Do not force it into the frame if that weakens the concept. Bright clean background.
+LAYOUT (follow the reference style closely):
+- Warm ivory/cream background (${bgColor})
+- TOP: bold headline "X BÉNÉFICES EN CHAQUE DOSE" (or equivalent) — dark (${textColor}), key number/word in accent (${accentColor})
+- CENTER LEFT: the product large, sharp, on a white rounded card
+- CENTER RIGHT or BELOW: a grid of 4–6 benefit icons with short French labels (2–3 words each) — use clean flat circle icons (☀️ Éclat, 💧 Hydratation, 🛡️ Protection, etc.) arranged neatly in 2 or 3 columns
+- Each benefit item: small icon badge + short label in dark text, arranged on a light or white zone
+
 ${buildInfographicCastingInstruction({ name: productName, targetAudience, mainBenefit })}
 ${buildInfographicLocaleInstruction(country, city)}
-Make it feel like a smart landing-page block with one dominant visual anchor, one proof insert, and one reassurance cue.
 
-TEXT OVERLAY:
-Main headline centered in huge bold uppercase, preferably ${textColor} with emphasis in ${accentColor} or ${highlightColor} (2 lines max): "${mainBenefit || 'Équilibrez votre [bénéfice], retrouvez votre [résultat]'}"
-Support it with 2 or 3 concise visual cues: ingredients, result icons, before/after hints, or lifestyle outcome.
-Optional short subline bottom in lighter weight: a 1-line reassurance.
+TEXT:
+- Headline: short, bold, dark with accent color emphasis
+- Benefit labels: 2–3 words each, perfect French, clean and scannable
+- NO wall of text, NO dark background
 
-MOOD: Confident, bright, benefit-first. Feels aspirational but reachable. No forced centered packshot.
+MOOD: Informative, bright, at-a-glance clarity. Shopify product listing style.
 `,
 
-  avant_apres: ({ productName, bodyZone, bgColor = '#1E3A8A', textColor = '#FFFFFF', accentColor = '#FACC15', targetAudience = '', country = '', city = '' }) => `
-SLIDE TYPE: AVANT / APRÈS — split-screen transformation.
+  avant_apres: ({ productName, bodyZone, bgColor = '#FFF8F0', textColor = '#1C1917', accentColor = '#F59E0B', targetAudience = '', country = '', city = '' }) => `
+SLIDE TYPE: AVANT / APRÈS — "Résultats visibles en X jours" transformation slide.
 
-SCENE:
-Vertical split (top = AVANT, bottom = APRÈS) OR side-by-side depending on framing — choose what shows best on 9:16.
-AVANT (top/left): authentic Black African person, visible problem on ${bodyZone || 'the relevant body zone'} — realistic, subtle, NOT exaggerated.
-APRÈS (bottom/right): SAME person, believable improvement on the same zone. The product ${productName || ''} visible in hand or beside, natural scale.
+LAYOUT (follow the reference style closely):
+- Warm ivory/cream background (${bgColor})
+- TOP: bold headline "RÉSULTAT VISIBLE EN QUELQUES JOURS" — dark (${textColor}), key words in accent (${accentColor})
+- CENTER: side-by-side comparison on a white rounded card with soft shadow
+  - LEFT panel: authentic Black African person showing the PROBLEM on ${bodyZone || 'the relevant zone'} — realistic, subtle — small label "Avant" in a rounded accent pill
+  - RIGHT panel: SAME person, believable improvement — small label "Après" in a rounded accent pill
+- The product ${productName || ''} small but visible in a corner of the card or beside it
+- Small close-up crop to emphasize the zone of transformation (skin, hair, body area, etc.)
+
 ${buildInfographicCastingInstruction({ name: productName, targetAudience, bodyZone })}
 ${buildInfographicLocaleInstruction(country, city)}
-Small perfectly-spelled French labels "Avant" and "Après" in ${textColor} on a rounded pill using ${accentColor} or ${bgColor}.
-Modern upscale interior, soft natural light, no aggressive filters.
-Use a premium transformation-page style with one clear arrow or visual transition and at least one framed evidence insert if it improves clarity.
+${PHOTO_REALISM_RULES}
 
-TEXT OVERLAY (optional, small, bottom):
-A 1-line result promise in bold brand-color (${bgColor}) — 6-8 words max.
+TEXT:
+- "Avant" / "Après" labels: perfectly spelled, rounded pill badges in accent color
+- Headline: bold, dark, short — accent on the result word
+- NO dark background, NO heavy poster graphic
 
-MOOD: Credible real transformation, not magical. The change must be visibly tied to the product benefit.
+MOOD: Credible, clean, photographic. Looks like a real before/after product photo card.
 `,
 
-  testimonials: ({ productName, bgColor = '#1E3A8A', textColor = '#FFFFFF', accentColor = '#FACC15', highlightColor = '#84CC16', targetAudience = '', country = '', city = '' }) => `
-SLIDE TYPE: AVIS CLIENTS — grille de témoignages en cartes.
+  testimonials: ({ productName, bgColor = '#FFF8F0', textColor = '#1C1917', accentColor = '#F59E0B', highlightColor = '#F59E0B', targetAudience = '', country = '', city = '' }) => `
+SLIDE TYPE: AVIS CLIENTS — testimonial card grid on light background.
 
-SCENE:
-Create a premium testimonial board on a ${bgColor} landing-page background.
-Use 4 to 6 clearly separated rounded square or near-square testimonial cards arranged in a neat 2x2 or 2x3 grid.
-Each card must look like a clean ecommerce proof block: white card, soft shadow, circular authentic avatar, 5 stars in ${highlightColor}, and a short believable testimonial in perfect French.
-The cards must be large, readable, and visually balanced like a conversion section.
-You may optionally show ${productName || 'the product'} as a small secondary packshot, but the card grid is the priority.
-Do not generate one group photo. Do not generate a collage of random portraits. Do not generate isolated floating faces without cards.
+LAYOUT (follow the reference style closely):
+- Warm ivory/cream background (${bgColor})
+- TOP: large bold headline "ILS NOUS FONT CONFIANCE" — dark (${textColor}), key word in accent (${accentColor})
+- CENTER: grid of 4 testimonial cards arranged 2×2 — each card is WHITE with rounded corners and soft shadow:
+  - Circular customer portrait (authentic African face, real photo look)
+  - First name + city in dark small text
+  - 5 yellow/amber stars (${highlightColor})
+  - Short quote 10–18 words in normal weight dark text
+- BOTTOM: the product ${productName || ''} as a small sharp packshot, optionally with 1–2 reassurance chips
+
 ${buildInfographicCastingInstruction({ name: productName, targetAudience })}
 ${buildInfographicLocaleInstruction(country, city)}
-If the product is gendered, keep testimonial avatars consistent with that gender. Do not force a male+female mix unless the product is clearly unisex or family-oriented.
+${PHOTO_REALISM_RULES}
 
-TEXT OVERLAY:
-Title at top: "Avis des clients" or "Ils nous ont fait confiance" in a large rounded white header block.
-Each testimonial card should contain a short quote of 12 to 24 words max, readable and natural.
-Use African first names and city labels coherent with ${country || 'the target market'}. Keep the text concise, credible, and mobile-readable.
-Optionally add one small trust chip such as "Des milliers de clients satisfaits".
+TEXT:
+- Quotes: short, credible, specific — perfect French
+- Names and cities from ${country || 'the target African market'}
+- Stars in accent amber (${accentColor})
 
-MOOD: Warm, trustworthy, high-conversion, and abundant social proof through visible square testimonial cards.
+MOOD: Warm, trustworthy, social proof abundance. Looks like a real e-commerce review section.
 `,
 
-  reassurance: ({ productName, targetAudience = '', country = '', city = '' }) => `
-SLIDE TYPE: RÉASSURANCE / CONFIANCE — preuves et garanties.
+  reassurance: ({ productName, bgColor = '#FFF8F0', textColor = '#1C1917', accentColor = '#F59E0B', targetAudience = '', country = '', city = '' }) => `
+SLIDE TYPE: FORMULE / INGRÉDIENTS — "Formule propre et éthique" trust slide.
 
-SCENE:
-Create a premium reassurance board for ${productName || 'the product'} in the same ultra-smart landing-page style.
-Use one dominant product visual or one lifestyle support visual, then add 3 to 5 trust elements in clean blocks: garantie, paiement à la livraison, livraison rapide, produit original, satisfaction client, résultat visible, support client.
-${buildInfographicCastingInstruction({ name: productName, targetAudience })}
-${buildInfographicLocaleInstruction(country, city)}
-The composition should feel like a persuasive trust section, not a sterile infographic.
+LAYOUT (follow the reference style closely):
+- Warm ivory/cream background (${bgColor})
+- TOP: bold headline "FORMULE PROPRE & ÉTHIQUE" (or equivalent for the product) — dark (${textColor}), key word in accent (${accentColor})
+- LEFT SIDE: the product ${productName || ''} large, sharp, clean studio lighting on white card
+- RIGHT SIDE: a clean vertical checklist of 4–6 items — each item is a line with:
+  - ✓ checkmark in accent color (${accentColor}) for positive attributes (e.g. "Sans Parabène", "Vegan", "Certifié Bio")
+  - ✗ crossed in muted red for things it does NOT contain (e.g. "Sans Alcool", "Sans Sulfate")
+  - Short text 2–4 words, dark, bold label
 
-TEXT OVERLAY:
-Use a big headline such as "Pourquoi nous faire confiance" or "Une solution fiable pour vous".
-Below, show 3 to 5 short reassurance chips or mini-cards with tiny icons or clean symbols.
-French only, perfectly spelled, very short lines, highly legible on mobile.
-
-MOOD: Reassuring, premium, structured, and conversion-focused.
-`,
-
-  how_to_use: ({ productName, bgColor = '#1E3A8A', textColor = '#FFFFFF', targetAudience = '', country = '', city = '' }) => `
-SLIDE TYPE: COMMENT UTILISER — simple step demonstration.
-
-SCENE:
-Authentic Black African person naturally using the product ${productName || ''} in a clean modern setting (bathroom, kitchen, bedroom — whichever matches the product category). The hand grip, scale and motion must look real. Product fully visible, correct packaging.
-${buildInfographicCastingInstruction({ name: productName, targetAudience })}
-${buildInfographicLocaleInstruction(country, city)}
-Prefer a polished editorial funnel section with one demo scene and, if useful, one angled support card or step cue.
-
-TEXT OVERLAY:
-Title top in bold ${textColor} or ${bgColor}: "Comment utiliser"
-Below in a brand-coherent neutral tone, a 1-2 sentence natural French instruction (12-20 words). Perfect spelling.
-Optional small numbered badges (1, 2, 3) if multi-step, otherwise single clean instruction.
-
-MOOD: Practical, reassuring, friction-removing. The viewer should think "easy, I can do this".
-`,
-
-  cta_final: ({ productName, bgColor = '#1E3A8A', textColor = '#FFFFFF', accentColor = '#FACC15', targetAudience = '', country = '', city = '' }) => `
-SLIDE TYPE: CTA FINAL — closing slide that pushes to order.
-
-SCENE:
-Authentic Black African person, confident positive posture, holding the product ${productName || ''} prominently (one or both hands). Modern upscale interior with a soft branded background derived from ${bgColor}, with subtle premium decoration if useful.
 ${buildInfographicCastingInstruction({ name: productName, targetAudience })}
 ${buildInfographicLocaleInstruction(country, city)}
 
-TEXT OVERLAY:
-Huge headline top in bold ${textColor} with emphasis in ${accentColor} or ${bgColor} (2-3 lines): "VOTRE MEILLEUR CHOIX EST ENTRE VOS MAINS" or a punchy close line (6-10 words, ALL CAPS).
-Sub-headline bottom in slightly lighter weight: a short promise (6-10 words, sentence case) — e.g. "Régulez votre [bénéfice] pour une vie saine".
+TEXT:
+- Checklist items: 2–4 words each, perfect French, clear contrast
+- Headline: bold dark with accent highlight
+- NO dark background, NO clutter
 
-You may include a premium CTA pill or a clean order-form preview card if it strengthens the landing-page feel, but it must stay elegant, secondary, and highly readable.
+MOOD: Transparent, clean, premium ingredient trust. Like a cosmetics brand transparency slide.
+`,
 
-MOOD: Triumphant, decisive, aspirational. Scroll-stopping closer.
+  how_to_use: ({ productName, bgColor = '#FFF8F0', textColor = '#1C1917', accentColor = '#F59E0B', targetAudience = '', country = '', city = '' }) => `
+SLIDE TYPE: UTILISATION — authentic person using the product + step instruction.
+
+LAYOUT (follow the reference style closely):
+- Warm ivory/cream background (${bgColor})
+- TOP: bold headline "PARFAIT POUR [USAGE ZONE]" — dark (${textColor}), key word in accent (${accentColor})
+- CENTER: authentic Black African person naturally using the product ${productName || ''} — real hand grip, correct scale, believable motion, MODERN interior
+- RIGHT or BELOW: clean vertical list of 3–5 usage or suitability points — each line: small circle badge + short French text (3–5 words)
+  Examples: "Tous types de peau", "Usage quotidien", "Formule légère", "Résultats visibles"
+- Product also visible separately (packshot) in a corner card
+
+${buildInfographicCastingInstruction({ name: productName, targetAudience })}
+${buildInfographicLocaleInstruction(country, city)}
+${PHOTO_REALISM_RULES}
+
+TEXT:
+- List items: short, scannable, perfect French
+- Headline: bold dark, 1–2 accent words
+- NO dark background
+
+MOOD: Practical, natural, frictionless. Looks like a real-use product photo with usage callouts.
+`,
+
+  cta_final: ({ productName, bgColor = '#FFF8F0', textColor = '#1C1917', accentColor = '#F59E0B', targetAudience = '', country = '', city = '' }) => `
+SLIDE TYPE: CLÔTURE / INGRÉDIENTS BOTANIQUES — botanical blend or hero ingredient slide.
+
+LAYOUT (follow the reference style closely):
+- Warm ivory/cream background (${bgColor})
+- TOP: bold headline "MÉLANGE D'INGRÉDIENTS [NATURELS/BOTANIQUES]" — dark (${textColor}), key word in accent (${accentColor})
+- CENTER: the product ${productName || ''} large on a clean white rounded card, centered, perfectly sharp
+- AROUND THE PRODUCT: 4–6 key ingredients arranged in a neat grid or radial layout — each ingredient shown as:
+  - Small circular icon or illustration (flat, clean)
+  - Short ingredient name beneath (2–3 words, bold dark)
+  Example items: "Vitamine C", "Aloe Vera", "Huile d'Argan", "Extrait Marin", "Collagène", "Glycérine"
+- BOTTOM: 1 short certification line or quality seal (e.g. "Sans OGM · 100% Naturel · Fabriqué avec soin")
+
+${buildInfographicCastingInstruction({ name: productName, targetAudience })}
+${buildInfographicLocaleInstruction(country, city)}
+
+TEXT:
+- Ingredient names: short, perfectly spelled, dark
+- Headline: bold, accent highlight
+- NO dark background, NO CTA button, NO price
+
+MOOD: Scientific trust, natural luxury, premium ingredient showcase. Looks like a clean botanical brand slide.
 `,
 };
 
@@ -1401,34 +1495,22 @@ function buildInfographicPrompt(slideType, meta = {}) {
   const preset = hasCustomBrandColor
     ? buildCustomInfographicPalette(meta.brandColor)
     : (INFOGRAPHIC_COLOR_PRESETS[meta.colorStyle] || INFOGRAPHIC_COLOR_PRESETS.bleu_royal);
-  const bgColor = (meta.brandColor && /^#[0-9a-fA-F]{6}$/i.test(meta.brandColor)) ? meta.brandColor : preset.bg;
+  const bgColor = preset.bg;
+  const cardColor = preset.card || '#FFFFFF';
   const { text: textColor, accent: accentColor, highlight: highlightColor } = preset;
 
-  // Inject dynamic colors into base rules (replace hardcoded defaults)
-  const dynamicBaseRules = INFOGRAPHIC_BASE_RULES.replace(
-    '- Dominant accent color: deep blue (#1E3A8A) for headlines, green (#84CC16) for positive highlights, red for strikethrough.',
-    `- Dominant color palette: background ${bgColor}, headlines ${textColor}, key emphasis ${accentColor}, positive highlights ${highlightColor}.`
-  );
-  const dynamicFunnelStyle = INFOGRAPHIC_SMART_FUNNEL_STYLE.replace(
-    '- Prefer a cobalt / royal blue full-bleed base with premium contrast, adapted subtly to the brand when needed',
-    `- Use a ${bgColor} (${preset.description}) full-bleed base — this is the mandatory brand color for this generation`
-  ).replace(
-    '- Use strong headline hierarchy: huge uppercase white text with vivid yellow emphasis on key words',
-    `- Use strong headline hierarchy: huge uppercase ${textColor} text with emphasis in ${accentColor} or ${highlightColor}`
-  );
-
-  const colorOverride = `COLOR PALETTE — MANDATORY OVERRIDE:
-Background: ${bgColor} | Headlines: ${textColor} | Accent/emphasis words: ${accentColor} | Positive highlights: ${highlightColor}
-Apply this palette to ALL backgrounds, headlines, and design elements. Replace any default blue background with ${bgColor}.`;
+  const colorOverride = `COLOR PALETTE — MANDATORY:
+Background: ${bgColor} (warm ivory/cream — NEVER dark) | Cards: ${cardColor} rounded with soft shadows | Headlines: ${textColor} | Accent/emphasis: ${accentColor} | Highlights: ${highlightColor}
+This is a LIGHT background design. Do NOT use dark full-bleed backgrounds. Keep the look clean, bright, and airy.`;
 
   // Pass resolved colors to slide builder
-  const enrichedMeta = { ...meta, bgColor, textColor, accentColor, highlightColor };
+  const enrichedMeta = { ...meta, bgColor, cardColor, textColor, accentColor, highlightColor };
   const slideBody = builder(enrichedMeta);
 
   return `FORMAT OVERRIDE: Generate the final image in VERTICAL 9:16 (1080×1920). Ignore any other aspect ratio mentioned.
 ${colorOverride}
-${dynamicBaseRules}
-${dynamicFunnelStyle}
+${INFOGRAPHIC_BASE_RULES}
+${INFOGRAPHIC_SMART_FUNNEL_STYLE}
 ${slideBody}`.trim();
 }
 

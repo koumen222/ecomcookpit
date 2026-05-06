@@ -267,6 +267,10 @@ export const storeProductsApi = {
   generateReviews: (data) =>
     ecomApi.post('/store-products/generate-reviews', data),
 
+  // ─── AI product image generation (KIE.AI gpt-image-2) ───────────────────
+  generateProductImage: (data) =>
+    ecomApi.post('/store-products/generate-product-image', data, { timeout: 130000 }),
+
   // ─── Image Upload via R2 ──────────────────────────────────────────────
   uploadImages: (files) => {
     const formData = new FormData();
