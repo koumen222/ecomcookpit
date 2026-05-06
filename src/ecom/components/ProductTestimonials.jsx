@@ -143,37 +143,6 @@ export default function ProductTestimonials({ testimonials = [], visualTheme = n
                   background: 'transparent',
                 }}
               />
-
-              <div
-                style={{
-                  position: 'absolute',
-                  left: 18,
-                  right: 18,
-                  bottom: 18,
-                  display: 'flex',
-                  justifyContent: 'flex-end',
-                  gap: 12,
-                  flexWrap: 'wrap',
-                }}
-              >
-                <span
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    padding: '10px 14px',
-                    borderRadius: 999,
-                    background: 'rgba(255, 255, 255, 0.88)',
-                    color: '#111827',
-                    fontSize: 12,
-                    fontWeight: 800,
-                    fontFamily: 'var(--s-font)',
-                    backdropFilter: 'blur(8px)',
-                  }}
-                >
-                  {validTestimonials.length} avis clients
-                </span>
-              </div>
             </div>
           </div>
         </div>

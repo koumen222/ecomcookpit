@@ -277,6 +277,9 @@ const SectionContentEditor = ({ section, onChange, product }) => {
   const schema = EDITABLE_SECTIONS[section.id];
   const [galleryUploading, setGalleryUploading] = useState(false);
   const [galleryUploadError, setGalleryUploadError] = useState('');
+  const [aiImagePrompt, setAiImagePrompt] = useState('');
+  const [aiImageGenerating, setAiImageGenerating] = useState(false);
+  const [aiImageError, setAiImageError] = useState('');
   if (!schema) return (
     <div className="text-[11px] text-gray-400 italic py-2">Contenu généré automatiquement par l'IA ou géré via les paramètres de la boutique.</div>
   );
@@ -496,6 +499,24 @@ const SectionContentEditor = ({ section, onChange, product }) => {
       [nextImages[index], nextImages[target]] = [nextImages[target], nextImages[index]];
       saveImages(nextImages);
     };
+    const generateAiImage = async () => {
+      const prompt = aiImagePrompt.trim() || (product?.name ? `Professional product photo of ${product.name}, clean white background, studio lighting, high quality` : '');
+      if (!prompt) return;
+      setAiImageGenerating(true);
+      setAiImageError('');
+      try {
+        const res = await storeProductsApi.generateProductImage({ prompt, aspectRatio: '1:1' });
+        const url = res.data?.data?.url;
+        if (!url) throw new Error('URL manquante dans la réponse');
+        saveImages([...images, { url, alt: product?.name || '' }]);
+        setAiImagePrompt('');
+      } catch (error) {
+        const msg = error?.response?.data?.message || error?.message || 'Erreur inconnue';
+        setAiImageError(`Échec génération : ${msg}`);
+      } finally {
+        setAiImageGenerating(false);
+      }
+    };
     return (
       <div className="space-y-3">
         <label className="flex items-center gap-2 cursor-pointer">
@@ -571,6 +592,31 @@ const SectionContentEditor = ({ section, onChange, product }) => {
               <button onClick={() => setGalleryUploadError('')} className="ml-auto p-0.5 text-red-400 hover:text-red-600"><X size={10} /></button>
             </div>
           )}
+          <div className="rounded-xl border border-violet-200 bg-violet-50/60 p-2.5 space-y-2">
+            <div className="text-[11px] font-semibold text-violet-700">Générer une image IA</div>
+            <textarea
+              className="w-full px-2.5 py-2 rounded-lg border border-violet-200 text-[11px] outline-none focus:border-violet-400 focus:ring-1 focus:ring-violet-200 transition-all bg-white resize-none"
+              rows={2}
+              value={aiImagePrompt}
+              onChange={e => setAiImagePrompt(e.target.value)}
+              placeholder={product?.name ? `Ex: Photo professionnelle de ${product.name}, fond blanc, studio` : 'Décrivez l\'image à générer…'}
+              disabled={aiImageGenerating}
+            />
+            {aiImageError && (
+              <div className="rounded-lg border border-red-200 bg-red-50 px-2 py-1.5 text-[10px] text-red-700 flex items-center gap-1.5">
+                <AlertCircle size={11} className="shrink-0" />
+                <span>{aiImageError}</span>
+                <button onClick={() => setAiImageError('')} className="ml-auto p-0.5 text-red-400 hover:text-red-600"><X size={10} /></button>
+              </div>
+            )}
+            <button
+              onClick={generateAiImage}
+              disabled={aiImageGenerating || (!aiImagePrompt.trim() && !product?.name)}
+              className="flex items-center justify-center gap-1.5 w-full px-3 py-2 rounded-lg bg-violet-600 text-white text-[11px] font-semibold hover:bg-violet-700 disabled:opacity-50 transition"
+            >
+              {aiImageGenerating ? <><Loader2 size={12} className="animate-spin" /> Génération en cours…</> : <><Zap size={12} /> Générer IA</>}
+            </button>
+          </div>
           {images.length === 0 && (
             <div className="text-[10px] text-gray-400">Uploadez vos images ou collez une URL. Si l'option ci-dessus est activée, elles seront ajoutées au carrousel; sinon elles remplaceront les photos produit.</div>
           )}

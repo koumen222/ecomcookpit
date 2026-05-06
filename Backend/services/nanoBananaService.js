@@ -17,7 +17,7 @@ import { spawn } from 'child_process';
 const KIE_API_KEY = process.env.NANOBANANA_PRO_API_KEY;
 const KIE_BASE = 'https://api.kie.ai/api/v1/jobs';
 const KIE_UPLOAD_BASE = 'https://kieai.redpandaai.co';
-const NANOBANANA_MODEL = process.env.NANOBANANA_MODEL || 'nano-banana-2';
+const NANOBANANA_MODEL = process.env.NANOBANANA_MODEL || 'gpt-image-2-text-to-image';
 const KIE_IMAGE_TO_VIDEO_MODEL = process.env.KIE_IMAGE_TO_VIDEO_MODEL || 'grok-imagine/image-to-video';
 
 const NANOBANANA_PRO_COST_USD = 0.09; // 1K Pro

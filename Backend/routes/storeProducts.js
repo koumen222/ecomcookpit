@@ -1193,6 +1193,115 @@ Format JSON strict :
 });
 
 /**
+ * POST /store-products/generate-product-image
+ * Generate a product image using KIE.AI gpt-image-2-text-to-image model (1K).
+ */
+router.post('/generate-product-image', requireEcomAuth, requireWorkspace, async (req, res) => {
+  try {
+    const { prompt, aspectRatio = '1:1' } = req.body || {};
+    if (!prompt || typeof prompt !== 'string' || !prompt.trim()) {
+      return res.status(400).json({ success: false, message: 'Le prompt est requis' });
+    }
+
+    const kieApiKey = process.env.NANOBANANA_PRO_API_KEY;
+    if (!kieApiKey) {
+      return res.status(503).json({ success: false, message: 'Service de génération non configuré' });
+    }
+
+    const { default: axiosLib } = await import('axios');
+
+    // Submit task
+    const submitRes = await axiosLib.post(
+      'https://api.kie.ai/api/v1/jobs/createTask',
+      {
+        model: 'gpt-image-2-text-to-image',
+        input: {
+          prompt: String(prompt).slice(0, 20000),
+          aspect_ratio: aspectRatio,
+          resolution: '1K',
+        },
+      },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${kieApiKey}`,
+        },
+        timeout: 30000,
+      }
+    );
+
+    if (submitRes.data?.code !== 200 || !submitRes.data?.data?.taskId) {
+      const msg = submitRes.data?.msg || submitRes.data?.message || 'KIE.AI task creation failed';
+      console.error('❌ KIE.AI generate-product-image submit failed:', msg);
+      return res.status(502).json({ success: false, message: `Erreur génération image : ${msg}` });
+    }
+
+    const taskId = submitRes.data.data.taskId;
+    console.log(`🎨 KIE.AI gpt-image-2 task submitted: ${taskId}`);
+
+    // Poll for result (max 120s)
+    const maxWaitMs = 120000;
+    const pollInterval = 3000;
+    const startTime = Date.now();
+
+    while (Date.now() - startTime < maxWaitMs) {
+      await new Promise(r => setTimeout(r, pollInterval));
+
+      const pollRes = await axiosLib.get(
+        'https://api.kie.ai/api/v1/jobs/recordInfo',
+        {
+          params: { taskId },
+          headers: { 'Authorization': `Bearer ${kieApiKey}` },
+          timeout: 15000,
+        }
+      );
+
+      const data = pollRes.data?.data;
+      if (!data) continue;
+
+      if (data.state === 'success' || data.state === 'completed') {
+        // Extract image URL from result
+        let imageUrl = null;
+        try {
+          const parsed = typeof data.resultJson === 'string' ? JSON.parse(data.resultJson) : data.resultJson;
+          const candidates = [
+            ...(Array.isArray(parsed?.resultUrls) ? parsed.resultUrls : [parsed?.resultUrls]),
+            ...(Array.isArray(parsed?.images) ? parsed.images : [parsed?.images]),
+            parsed?.output,
+            parsed?.url,
+          ].filter(u => typeof u === 'string' && /^https?:\/\//i.test(u));
+          imageUrl = candidates[0] || null;
+        } catch {}
+        if (!imageUrl) {
+          imageUrl = data.resultUrl || data.result_url || data.imageUrl || data.image_url || data.url || null;
+        }
+
+        if (!imageUrl) {
+          console.error('❌ KIE.AI gpt-image-2 success but no URL. Response:', JSON.stringify(data).slice(0, 400));
+          return res.status(502).json({ success: false, message: 'Image générée mais URL introuvable' });
+        }
+
+        console.log(`✅ KIE.AI gpt-image-2 image: ${imageUrl.slice(0, 80)}...`);
+        return res.json({ success: true, data: { url: imageUrl } });
+      }
+
+      if (data.state === 'fail' || data.state === 'failed' || data.state === 'error') {
+        const msg = data.failMsg || data.failCode || data.message || 'Échec de la génération';
+        console.error('❌ KIE.AI gpt-image-2 task failed:', msg);
+        return res.status(502).json({ success: false, message: `Génération échouée : ${msg}` });
+      }
+
+      console.log(`⏳ KIE.AI gpt-image-2 [${taskId}] state="${data.state}" elapsed=${Math.round((Date.now() - startTime) / 1000)}s`);
+    }
+
+    return res.status(504).json({ success: false, message: 'Délai dépassé pour la génération image (120s)' });
+  } catch (error) {
+    console.error('❌ POST /store-products/generate-product-image error:', error.message);
+    res.status(500).json({ success: false, message: 'Erreur lors de la génération' });
+  }
+});
+
+/**
  * GET /store-products/system-products
  * Return main system products for the store product picker.
  * Lets the store owner pick an existing product to pre-fill name + price.
