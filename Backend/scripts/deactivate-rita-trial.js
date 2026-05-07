@@ -20,6 +20,9 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 // Charger les variables d'environnement depuis le dossier Backend
+// Assurez-vous que le chemin vers le fichier .env est correct
+// Le fichier .env doit être à la racine du dossier Backend`
+
 dotenv.config({ path: join(__dirname, '../.env') });
 
 import EcomUser from '../models/EcomUser.js';

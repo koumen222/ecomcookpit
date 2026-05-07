@@ -22,6 +22,7 @@ import EcomUser from '../models/EcomUser.js';
 import AffiliateUser from '../models/AffiliateUser.js';
 import AffiliateConversion from '../models/AffiliateConversion.js';
 import { requireEcomAuth } from '../middleware/ecomAuth.js';
+import { getPlanRuntimeSnapshot } from '../middleware/planLimits.js';
 import { PLAN_DURATION, getPlanCheckoutAmount } from '../services/billingPricing.js';
 import { clearSubscriptionWarning, downgradeWorkspaceToFree } from '../services/workspacePlanService.js';
 import { sendNotificationEmail } from '../core/notifications/email.service.js';
@@ -32,51 +33,6 @@ const router = express.Router();
 // ─── Config ──────────────────────────────────────────────────────────────────
 const MF_API_URL = 'https://www.pay.moneyfusion.net/scalor/597e2cf962834532/pay/';
 const MF_STATUS_URL = (token) => `https://www.pay.moneyfusion.net/paiementNotif/${token}`;
-
-// Per-plan resource limits
-export const PLAN_LIMITS = {
-  free:  {
-    agents: 0,
-    instances: 0,
-    messagesPerDay: 0,
-    messagesPerMonth: 0,
-    generationCredits: 0,
-    whatsappAgent: false,
-    maxOrders: 50,
-    maxClients: 50,
-    maxProducts: 10,
-    maxStores: 1,
-    maxUsers: 1,
-    label: 'Gratuit'
-  },
-  starter: {
-    agents: 0,
-    instances: 0,
-    messagesPerDay: 0,
-    messagesPerMonth: 0,
-    generationCredits: 0,
-    whatsappAgent: false,
-    label: 'Scalor'
-  },
-  pro:   {
-    agents: 1,
-    instances: 1,
-    messagesPerDay: 1000,
-    messagesPerMonth: 50000,
-    generationCredits: 0,
-    whatsappAgent: true,
-    label: 'Scalor + IA'
-  },
-  ultra: {
-    agents: 5,
-    instances: 5,
-    messagesPerDay: null, // Illimité
-    messagesPerMonth: null, // Illimité
-    generationCredits: 10,
-    whatsappAgent: true,
-    label: 'Scalor IA Pro'
-  },
-};
 
 const TRIAL_DAYS = 7;
 
@@ -334,6 +290,8 @@ router.get('/plan', requireEcomAuth, async (req, res) => {
         ? 'pro' // essai 7j → bénéfices du plan Scalor + IA (pro)
         : 'free';
 
+    const { limits } = await getPlanRuntimeSnapshot(effectivePlan);
+
     res.json({
       success: true,
       plan: effectivePlan,
@@ -347,7 +305,7 @@ router.get('/plan', requireEcomAuth, async (req, res) => {
         endsAt: workspace.trialEndsAt,
         startedAt: workspace.trialStartedAt,
       },
-      limits: PLAN_LIMITS[effectivePlan] || PLAN_LIMITS.free,
+      limits,
     });
   } catch (err) {
     console.error('[billing] GET /plan error:', err);

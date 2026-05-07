@@ -25,6 +25,61 @@ const PLAN_LABELS = {
   trial: 'Essai gratuit'
 };
 
+const DEFAULT_RUNTIME_LIMITS = {
+  free: {
+    agents: 0,
+    instances: 0,
+    messagesPerDay: 0,
+    messagesPerMonth: 0,
+    generationCredits: 0,
+    whatsappAgent: false,
+    maxOrders: 50,
+    maxClients: 50,
+    maxProducts: 10,
+    maxStores: 1,
+    maxUsers: 1,
+  },
+  starter: {
+    agents: 0,
+    instances: 0,
+    messagesPerDay: 0,
+    messagesPerMonth: 0,
+    generationCredits: 0,
+    whatsappAgent: false,
+    maxOrders: null,
+    maxClients: null,
+    maxProducts: null,
+    maxStores: 1,
+    maxUsers: 3,
+  },
+  pro: {
+    agents: 1,
+    instances: 1,
+    messagesPerDay: 1000,
+    messagesPerMonth: 50000,
+    generationCredits: 0,
+    whatsappAgent: true,
+    maxOrders: null,
+    maxClients: null,
+    maxProducts: null,
+    maxStores: 1,
+    maxUsers: 5,
+  },
+  ultra: {
+    agents: 5,
+    instances: 5,
+    messagesPerDay: null,
+    messagesPerMonth: null,
+    generationCredits: 10,
+    whatsappAgent: true,
+    maxOrders: null,
+    maxClients: null,
+    maxProducts: null,
+    maxStores: null,
+    maxUsers: null,
+  }
+};
+
 const RESOURCE_LABELS = {
   orders: 'commandes',
   customers: 'clients',
@@ -58,6 +113,54 @@ async function getPlanConfigs() {
 
 function getPlanLabel(planKey, config = null) {
   return config?.displayName || PLAN_LABELS[planKey] || planKey || 'Gratuit';
+}
+
+function toRuntimeLimit(value, fallback) {
+  if (value == null || value === '') return fallback;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return parsed === -1 ? null : parsed;
+}
+
+function getEnabledAgentLimit(planKey, hasAiAgent, fallbackAgents) {
+  if (!hasAiAgent) return 0;
+  if (fallbackAgents > 0) return fallbackAgents;
+  return planKey === 'ultra' ? 5 : 1;
+}
+
+export function buildRuntimePlanLimits(planKey, config = null) {
+  const normalizedPlanKey = planKey || 'free';
+  const defaults = DEFAULT_RUNTIME_LIMITS[normalizedPlanKey] || DEFAULT_RUNTIME_LIMITS.free;
+  const limits = config?.limits || {};
+  const features = config?.features || {};
+  const hasAiAgent = features.hasAiAgent ?? defaults.whatsappAgent;
+
+  return {
+    agents: getEnabledAgentLimit(normalizedPlanKey, hasAiAgent, defaults.agents),
+    instances: toRuntimeLimit(limits.maxWhatsappInstances, defaults.instances),
+    messagesPerDay: toRuntimeLimit(limits.maxWhatsappMessagesPerDay, defaults.messagesPerDay),
+    messagesPerMonth: toRuntimeLimit(limits.maxWhatsappMessagesPerMonth, defaults.messagesPerMonth),
+    generationCredits: toRuntimeLimit(limits.maxAiPageCredits, defaults.generationCredits),
+    whatsappAgent: !!hasAiAgent,
+    maxOrders: toRuntimeLimit(limits.maxOrders, defaults.maxOrders),
+    maxClients: toRuntimeLimit(limits.maxCustomers, defaults.maxClients),
+    maxProducts: toRuntimeLimit(limits.maxProducts, defaults.maxProducts),
+    maxStores: toRuntimeLimit(limits.maxStores, defaults.maxStores),
+    maxUsers: toRuntimeLimit(limits.maxUsers, defaults.maxUsers),
+    label: getPlanLabel(normalizedPlanKey, config)
+  };
+}
+
+export async function getPlanRuntimeSnapshot(planKey) {
+  const plans = await getPlanConfigs();
+  const normalizedPlanKey = plans[planKey] ? planKey : 'free';
+  const config = plans[normalizedPlanKey] || plans.free || null;
+
+  return {
+    planKey: normalizedPlanKey,
+    config,
+    limits: buildRuntimePlanLimits(normalizedPlanKey, config)
+  };
 }
 
 function getResourceLabel(resource) {
@@ -256,4 +359,6 @@ export function requireFeature(featureKey) {
   };
 }
 
-export default { checkPlanLimit, requireFeature, invalidatePlanCache };
+export { getPlanConfigs, getPlanLabel };
+
+export default { checkPlanLimit, requireFeature, invalidatePlanCache, getPlanConfigs, getPlanLabel, buildRuntimePlanLimits, getPlanRuntimeSnapshot };
