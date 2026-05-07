@@ -1,14 +1,14 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useEcomAuth } from '../hooks/useEcomAuth.jsx';
-import { getCurrentPlan, createCheckout, getPaymentStatus, getPaymentHistory, activateTrial, validatePromoCode, checkGlobalPromoCode } from '../services/billingApi.js';
+import { getCurrentPlan, createCheckout, getPaymentStatus, getPaymentHistory, activateTrial, validatePromoCode, checkGlobalPromoCode, getPublicPlans } from '../services/billingApi.js';
 import { Package, Bot, Zap, Clock, CheckCircle2, CalendarDays, CreditCard, Shield, RefreshCw, MessageCircle, AlertTriangle, Lock, Gift, Globe } from 'lucide-react';
 import PaymentModalFrame from '../components/PaymentModalFrame.jsx';
 import { PAYMENT_COUNTRY_CODES } from '../constants/paymentCountryCodes.js';
 import { clearPendingPlanSelection, getPendingPlanSelection } from '../utils/pendingPlanFlow.js';
 
-// ─── Plan definitions ───────────────────────────────────────────────────────────────────────
-const PLAN_TIERS = [
+// ─── Plan definitions (static template — prices overridden at runtime from DB) ────────────
+const BASE_PLAN_TIERS = [
   {
     id: 'free',
     name: 'Gratuit',
@@ -109,9 +109,37 @@ const PLAN_TIERS = [
   },
 ];
 
-const ALL_PLANS = PLAN_TIERS.flatMap(tier =>
-  tier.durations.map(d => ({ ...d, tier: tier.id }))
-);
+/**
+ * Merges dynamic prices from /billing/plans/public into the static tier templates.
+ * Only the monthly price and derived annual price are updated; all UI metadata
+ * (gradient, icon, features list, etc.) stays from BASE_PLAN_TIERS.
+ */
+function applyPublicPrices(baseTiers, publicPlans) {
+  if (!Array.isArray(publicPlans)) return baseTiers;
+  return baseTiers.map(tier => {
+    const apiPlan = publicPlans.find(p => p.key === tier.id);
+    if (!apiPlan) return tier;
+    const originalMonthlyDuration = tier.durations.find(d => d.months === 1);
+    const originalMonthlyPrice = originalMonthlyDuration?.price || 1;
+    // Use effectivePrice (promo applied if active) for the displayed/checkout monthly price
+    const effectiveMonthly = apiPlan.effectivePrice ?? apiPlan.priceRegular ?? originalMonthlyPrice;
+    return {
+      ...tier,
+      priceRegular: apiPlan.priceRegular ?? originalMonthlyPrice,
+      pricePromo: apiPlan.pricePromo ?? null,
+      promoActive: !!apiPlan.promoActive,
+      durations: tier.durations.map(d => {
+        if (d.months === 1) {
+          return { ...d, price: effectiveMonthly, perMonth: effectiveMonthly };
+        }
+        // Multi-month: maintain the same price ratio relative to monthly
+        const ratio = d.price / originalMonthlyPrice;
+        const newPrice = Math.round(effectiveMonthly * ratio / 100) * 100;
+        return { ...d, price: newPrice, perMonth: Math.round(newPrice / d.months) };
+      }),
+    };
+  });
+}
 
 // Helpers
 function formatDate(d) {
@@ -552,6 +580,8 @@ export default function BillingPage() {
   const [globalPromoLoading, setGlobalPromoLoading] = useState(false);
   const [globalPromoError, setGlobalPromoError] = useState('');
   const queuedSelectedPlan = getPendingPlanSelection();
+  const [planTiers, setPlanTiers] = useState(BASE_PLAN_TIERS);
+  const allPlans = planTiers.flatMap(tier => tier.durations.map(d => ({ ...d, tier: tier.id })));
   const autoCheckoutStartedRef = useRef(false);
 
   useEffect(() => {
@@ -562,17 +592,24 @@ export default function BillingPage() {
     autoCheckoutStartedRef.current = true;
     clearPendingPlanSelection();
     const tierName = incoming.includes('ultra') ? 'ultra' : incoming.includes('pro') ? 'pro' : 'starter';
-    const tier = PLAN_TIERS.find(t => t.id === tierName);
-    const plan = ALL_PLANS.find(p => p.id === incoming) || tier?.durations[0];
+    const tier = planTiers.find(t => t.id === tierName);
+    const plan = allPlans.find(p => p.id === incoming) || tier?.durations[0];
     if (tier && plan) handleDirectCheckout({ ...plan, tier: tierName });
   }, [location.state, queuedSelectedPlan, workspaceId]);
 
   const load = useCallback(async () => {
     if (!workspaceId) return;
     try {
-      const [planRes, histRes] = await Promise.all([getCurrentPlan(workspaceId), getPaymentHistory(workspaceId)]);
+      const [planRes, histRes, publicPlansRes] = await Promise.all([
+        getCurrentPlan(workspaceId),
+        getPaymentHistory(workspaceId),
+        getPublicPlans().catch(() => ({ success: false })),
+      ]);
       if (planRes.success) setPlanInfo(planRes);
       if (histRes.success) setHistory(histRes.payments || []);
+      if (publicPlansRes.success && Array.isArray(publicPlansRes.plans)) {
+        setPlanTiers(applyPublicPrices(BASE_PLAN_TIERS, publicPlansRes.plans));
+      }
     } catch (e) { console.error('[billing] load error:', e); }
     finally { setLoading(false); }
   }, [workspaceId]);
@@ -634,7 +671,7 @@ export default function BillingPage() {
     const name = user?.name?.trim() || user?.email?.split('@')[0] || 'Client';
     if (!phone || phone.length < 7 || globalPromo.trim() !== '') {
       // Fallback: show modal if no phone on profile, OR if user wants to use a promo code
-      const tier = PLAN_TIERS.find(t => t.id === (duration.tier || duration.id?.split('_')[0]));
+      const tier = planTiers.find(t => t.id === (duration.tier || duration.id?.split('_')[0]));
       setCheckout({ plan: { ...duration, tier: duration.tier || tier?.id }, tier, initialPromo: globalPromo.trim() });
       return;
     }
@@ -700,7 +737,7 @@ export default function BillingPage() {
             {isActivePaid && (
               <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200">
                 <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="text-[11px] font-bold text-emerald-700">{PLAN_TIERS.find(t => t.id === currentPlan)?.name || 'Actif'}</span>
+                <span className="text-[11px] font-bold text-emerald-700">{planTiers.find(t => t.id === currentPlan)?.name || 'Actif'}</span>
               </div>
             )}
           </div>
@@ -721,10 +758,10 @@ export default function BillingPage() {
            VIEW A: Subscribed / Trial user → "Mon abonnement" dashboard
            ══════════════════════════════════════════════════════════════════ */}
       {(isActivePaid || isTrial) && !loading ? (() => {
-        const activeTier = PLAN_TIERS.find(t => t.id === currentPlan) || PLAN_TIERS[1];
+        const activeTier = planTiers.find(t => t.id === currentPlan) || planTiers[1];
         const remainingDays = isActivePaid ? daysLeft(planInfo?.planExpiresAt) : trialDays;
         const expiryDate = isActivePaid ? (planInfo?.planExpiresAt || workspace?.planExpiresAt) : (planInfo?.trial?.endsAt || fallbackTrialEndsAt);
-        const upgradeTiers = PLAN_TIERS.filter(t => t.id !== currentPlan);
+        const upgradeTiers = planTiers.filter(t => t.id !== currentPlan);
 
         return (
           <div className="max-w-5xl mx-auto px-4 sm:px-6 pt-10 pb-20">
@@ -819,7 +856,7 @@ export default function BillingPage() {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6">
-                {PLAN_TIERS.map(tier => (
+                {planTiers.map(tier => (
                   <PlanCard
                     key={tier.id}
                     tier={tier}
@@ -904,8 +941,8 @@ export default function BillingPage() {
                   <div className="w-2.5 h-2.5 rounded-full bg-gray-400" />
                   <span className="text-sm text-gray-500">
                     {isTrial
-                      ? `Essai ${PLAN_TIERS.find(t => t.id === currentPlan)?.name || 'Scalor + IA'}`
-                      : `Plan ${PLAN_TIERS.find(t => t.id === currentPlan)?.name || 'gratuit'}`}
+                      ? `Essai ${planTiers.find(t => t.id === currentPlan)?.name || 'Scalor + IA'}`
+                      : `Plan ${planTiers.find(t => t.id === currentPlan)?.name || 'gratuit'}`}
                   </span>
                   {!trialUsed && (
                     <button onClick={handleActivateTrial} disabled={trialLoading}
@@ -964,7 +1001,7 @@ export default function BillingPage() {
           {/* Pricing Cards */}
           <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-10 pb-20">
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6">
-              {PLAN_TIERS.map(tier => (
+              {planTiers.map(tier => (
                 <PlanCard
                   key={tier.id}
                   tier={tier}
@@ -984,7 +1021,7 @@ export default function BillingPage() {
                   <thead>
                     <tr className="border-b border-gray-100">
                       <th className="text-left px-6 py-5 text-gray-500 font-medium w-[40%]">Fonctionnalité</th>
-                      {PLAN_TIERS.map(t => (
+                      {planTiers.map(t => (
                         <th key={t.id} className="px-4 py-5 text-center">
                           <span className="text-base font-black text-gray-900">{t.name}</span>
                           <p className="text-xs text-gray-400 font-normal mt-0.5">{formatAmount((isAnnual ? t.durations[1] : t.durations[0]).perMonth)} FCFA/mois</p>

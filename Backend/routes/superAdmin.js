@@ -13,6 +13,7 @@ import SupportConversation from '../models/SupportConversation.js';
 import StoreProduct from '../models/StoreProduct.js';
 import WhatsAppInstance from '../models/WhatsAppInstance.js';
 import { requireEcomAuth, requireSuperAdmin } from '../middleware/ecomAuth.js';
+import { invalidatePlanCache } from '../middleware/planLimits.js';
 import { logAudit, auditSensitiveAccess, AuditLog } from '../middleware/security.js';
 import { sendCustomNotificationEmail, sendNotificationEmail } from '../core/notifications/email.service.js';
 import { sendPushNotification, sendPushNotificationToUser } from '../services/pushService.js';
@@ -1161,8 +1162,9 @@ router.patch('/plans/:key', requireEcomAuth, requireSuperAdmin, async (req, res)
     const plan = await PlanConfig.findOneAndUpdate(
       { key },
       { $set: update },
-      { new: true, upsert: true, setDefaultsOnInsert: true }
+      { new: true, upsert: true, setDefaultsOnInsert: true, runValidators: true }
     );
+    invalidatePlanCache();
     await logAudit(req, 'UPDATE_PLAN_CONFIG', `Plan config ${key} updated`, 'plan', plan._id);
     res.json({ success: true, plan });
   } catch (err) {

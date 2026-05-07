@@ -3,7 +3,7 @@ import Agent from '../models/Agent.js';
 import RitaConfig from '../models/RitaConfig.js';
 import Workspace from '../models/Workspace.js';
 import { requireEcomAuth, requireRitaAgentAccess } from '../middleware/ecomAuth.js';
-import { PLAN_LIMITS } from './billing.js';
+import { getPlanLabel, getPlanRuntimeSnapshot } from '../middleware/planLimits.js';
 
 const router = express.Router();
 
@@ -150,13 +150,16 @@ router.post('/', requireEcomAuth, async (req, res) => {
           && workspace.planExpiresAt && workspace.planExpiresAt > now;
         const trialActive = workspace.trialEndsAt && workspace.trialEndsAt > now;
         const effectivePlan = isPaidActive ? workspace.plan : trialActive ? 'pro' : 'free';
-        const limits = PLAN_LIMITS[effectivePlan] || PLAN_LIMITS.free;
+        const { config, limits } = await getPlanRuntimeSnapshot(effectivePlan);
+        const planLabel = getPlanLabel(effectivePlan, config);
 
         if (limits.agents === 0) {
           return res.status(403).json({
             success: false,
             error: 'upgrade_required',
-            message: `Votre plan ${PLAN_LIMITS[effectivePlan]?.label || effectivePlan} ne permet pas de créer d'agent. Passez à Scalor + IA pour créer jusqu'à 1 agent, ou Scalor IA Pro pour en créer 5.`,
+            plan: effectivePlan,
+            planLabel,
+            message: `Votre plan ${planLabel} ne permet pas de creer d'agent. Activez l'option Agent IA sur ce plan ou passez a un plan superieur.`,
             requiredPlan: 'pro',
           });
         }
@@ -165,11 +168,16 @@ router.post('/', requireEcomAuth, async (req, res) => {
         if (existingCount >= limits.agents) {
           const nextPlan = limits.agents === 1 ? 'ultra' : 'ultra';
           const nextLimit = limits.agents === 1 ? 5 : 10;
+          const { config: nextPlanConfig } = await getPlanRuntimeSnapshot(nextPlan);
+          const nextPlanLabel = getPlanLabel(nextPlan, nextPlanConfig);
           return res.status(403).json({
             success: false,
             error: 'limit_reached',
-            message: `Votre plan ${PLAN_LIMITS[effectivePlan]?.label} est limité à ${limits.agents} agent(s). Passez à ${PLAN_LIMITS[nextPlan]?.label} pour en créer jusqu'à ${nextLimit}.`,
+            plan: effectivePlan,
+            planLabel,
+            message: `Votre plan ${planLabel} est limite a ${limits.agents} agent(s). Passez a ${nextPlanLabel} pour en creer jusqu'a ${nextLimit}.`,
             requiredPlan: nextPlan,
+            requiredPlanLabel: nextPlanLabel,
             currentLimit: limits.agents,
             nextLimit: nextLimit,
           });
