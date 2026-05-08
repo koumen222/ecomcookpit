@@ -21,6 +21,7 @@ import GenerationPricingConfig from '../models/GenerationPricingConfig.js';
 import EcomUser from '../models/EcomUser.js';
 import AffiliateUser from '../models/AffiliateUser.js';
 import AffiliateConversion from '../models/AffiliateConversion.js';
+import Order from '../models/Order.js';
 import { requireEcomAuth } from '../middleware/ecomAuth.js';
 import { getPlanRuntimeSnapshot } from '../middleware/planLimits.js';
 import { PLAN_DURATION, getPlanCheckoutAmount } from '../services/billingPricing.js';
@@ -292,6 +293,18 @@ router.get('/plan', requireEcomAuth, async (req, res) => {
 
     const { limits } = await getPlanRuntimeSnapshot(effectivePlan);
 
+    // Count orders this month so the frontend can display a quota warning
+    let ordersThisMonth = null;
+    if (limits.maxOrders != null) {
+      const startOfMonth = new Date();
+      startOfMonth.setDate(1);
+      startOfMonth.setHours(0, 0, 0, 0);
+      ordersThisMonth = await Order.countDocuments({
+        workspaceId,
+        createdAt: { $gte: startOfMonth }
+      });
+    }
+
     res.json({
       success: true,
       plan: effectivePlan,
@@ -306,6 +319,7 @@ router.get('/plan', requireEcomAuth, async (req, res) => {
         startedAt: workspace.trialStartedAt,
       },
       limits,
+      ordersThisMonth,
     });
   } catch (err) {
     console.error('[billing] GET /plan error:', err);

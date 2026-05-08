@@ -18,6 +18,7 @@ const KIE_API_KEY = process.env.NANOBANANA_PRO_API_KEY;
 const KIE_BASE = 'https://api.kie.ai/api/v1/jobs';
 const KIE_UPLOAD_BASE = 'https://kieai.redpandaai.co';
 const NANOBANANA_MODEL = process.env.NANOBANANA_MODEL || 'gpt-image-2-text-to-image';
+const GPT_IMAGE_2_IMG2IMG_MODEL = process.env.GPT_IMAGE_2_IMG2IMG_MODEL || 'gpt-image-2-image-to-image';
 const KIE_IMAGE_TO_VIDEO_MODEL = process.env.KIE_IMAGE_TO_VIDEO_MODEL || 'grok-imagine/image-to-video';
 
 const NANOBANANA_PRO_COST_USD = 0.09; // 1K Pro
@@ -253,6 +254,25 @@ async function submitGrokImagineTask(prompt, imageUrls = [], aspectRatio = '4:5'
 }
 
 /**
+ * Submit an image-to-image task using GPT Image 2 (gpt-image-2-image-to-image).
+ * Uses `input_urls` as required by the GPT Image 2 API schema.
+ */
+async function submitGptImage2ImageToImageTask(prompt, imageUrls, aspectRatio = 'auto', maxRetries = 3) {
+  const truncatedPrompt = prompt.length > 20000
+    ? prompt.slice(0, 19900) + '\n[...prompt truncated]'
+    : prompt;
+
+  const input = {
+    prompt: truncatedPrompt,
+    input_urls: imageUrls.slice(0, 14),
+    aspect_ratio: aspectRatio || 'auto',
+  };
+
+  const body = { model: GPT_IMAGE_2_IMG2IMG_MODEL, input };
+  return submitKieTask(body, maxRetries);
+}
+
+/**
  * Poll Kie.ai task until completion
  * state: waiting | queuing | generating | success | fail
  */
@@ -343,6 +363,69 @@ export async function generateNanoBananaImageToImage(prompt, imageInput, aspectR
     // Returning null would silently skip the image; throwing lets upstream retry logic work.
     throw err;
   }
+}
+
+/**
+ * GPT Image 2 — Image-to-Image (gpt-image-2-image-to-image, 1K)
+ * Uses input_urls as required by the GPT Image 2 API schema.
+ * imageInput: Buffer | base64 data URL | public https URL
+ */
+export async function generateGptImage2ImageToImage(prompt, imageInput, aspectRatio = 'auto') {
+  if (!KIE_API_KEY) throw new Error('Kie.ai API key not configured (NANOBANANA_PRO_API_KEY)');
+
+  let imageUrls = [];
+
+  if (typeof imageInput === 'string' && /^https?:\/\//i.test(imageInput)) {
+    imageUrls = [imageInput];
+  } else {
+    let base64Image;
+    let imageMimeType = 'image/jpeg';
+
+    if (Buffer.isBuffer(imageInput)) {
+      const resized = await resizeForApi(imageInput);
+      base64Image = resized.buffer.toString('base64');
+      imageMimeType = resized.mimeType;
+    } else if (typeof imageInput === 'string' && imageInput.startsWith('data:')) {
+      const match = imageInput.match(/^data:(image\/[a-z+]+);base64,/);
+      if (match) imageMimeType = match[1];
+      base64Image = imageInput.split(',')[1];
+    } else if (typeof imageInput === 'string') {
+      base64Image = imageInput;
+    }
+
+    if (!base64Image) throw new Error('GPT Image 2 I2I: invalid imageInput');
+
+    try {
+      const imgBuffer = Buffer.from(base64Image, 'base64');
+      const tempName = `gptimg2-ref-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.jpg`;
+      const r2Result = await uploadToR2(imgBuffer, tempName, imageMimeType);
+      if (r2Result?.success && r2Result?.url) {
+        imageUrls = [r2Result.url];
+        console.log(`📎 GPT Image 2 ref uploaded R2: ${r2Result.url.slice(0, 80)}...`);
+      } else {
+        throw new Error(r2Result?.error || 'R2 upload returned no URL');
+      }
+    } catch (r2Err) {
+      console.warn(`⚠️ GPT Image 2 R2 upload failed: ${r2Err.message} — trying Kie.ai upload...`);
+      const kieUrl = await uploadToKieAi(base64Image, imageMimeType);
+      imageUrls = [kieUrl];
+    }
+  }
+
+  if (!imageUrls.length) throw new Error('GPT Image 2 I2I: no reference image URL available');
+
+  console.log(`🤖 GPT Image 2 image-to-image [${GPT_IMAGE_2_IMG2IMG_MODEL}] (${aspectRatio})...`);
+  const taskId = await submitGptImage2ImageToImageTask(prompt, imageUrls, aspectRatio);
+  console.log(`📋 GPT Image 2 task submitted: ${taskId}`);
+
+  const imageUrl = await pollKieTask(taskId, { maxWaitMs: 180000, mediaType: 'image', label: 'GPT Image 2' });
+
+  const costFcfa = Math.round(NANOBANANA_PRO_COST_USD * USD_TO_FCFA);
+  sessionStats.totalImages++;
+  sessionStats.totalCostUsd += NANOBANANA_PRO_COST_USD;
+  sessionStats.totalCostFcfa += costFcfa;
+  console.log(`✅ GPT Image 2 result: ${imageUrl.slice(0, 80)}...`);
+  return imageUrl;
 }
 
 export async function generateKieImageToVideo(prompt, imageInput, options = {}) {

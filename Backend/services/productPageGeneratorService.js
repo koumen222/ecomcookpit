@@ -11,7 +11,7 @@ import axios from 'axios';
 import Groq from 'groq-sdk';
 import sharp from 'sharp';
 import { uploadImage, isConfigured } from './cloudflareImagesService.js';
-import { generateAnimatedGifFromImages, generateKieImageToVideo, generateNanoBananaImage, generateNanoBananaImageToImage } from './nanoBananaService.js';
+import { generateAnimatedGifFromImages, generateKieImageToVideo, generateGptImage2ImageToImage } from './nanoBananaService.js';
 import { randomUUID } from 'crypto';
 import { callKieChatCompletion, isKieConfigured } from './kieChatService.js';
 
@@ -1246,11 +1246,10 @@ ${promptAffiche}
 ${modeRules}`;
 
     console.log('📸 Image-to-image poster generation (with product reference)...');
-    const result = await generateNanoBananaImageToImage(
+    const result = await generateGptImage2ImageToImage(
       posterPrompt,
       originalImageBuffer,
-      aspectRatio,
-      1
+      aspectRatio
     );
 
     return result;
@@ -1555,7 +1554,7 @@ export async function generateInfographicsProductPage({ slideTypes, product = {}
   const tasks = validTypes.map(async (type, index) => {
     const prompt = buildInfographicPrompt(type, product);
     try {
-      const result = await generateNanoBananaImageToImage(prompt, productImageBuffer, '9:16', 1);
+      const result = await generateGptImage2ImageToImage(prompt, productImageBuffer, '9:16');
       const url = Array.isArray(result?.images) ? result.images[0] : (result?.url || result);
       const slideResult = { type, order: index, url: url || null, prompt, ok: !!url };
       await notifyProgress({ type, order: index, ok: !!url, error: !url ? 'Aucune image retournée' : undefined });

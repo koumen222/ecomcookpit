@@ -449,17 +449,23 @@ router.delete('/:id',
 router.get('/me/workspaces', requireEcomAuth, async (req, res) => {
   try {
     const user = req.ecomUser;
-    
+
+    // Backfill legacy users: workspaceId set but workspaces[] empty
+    if (user.workspaceId && user.workspaces.length === 0) {
+      user.addWorkspace(user.workspaceId, user.role || 'ecom_admin');
+      await user.save();
+    }
+
     // Récupérer les détails de tous les workspaces
     const workspaceIds = user.workspaces
       .filter(w => w.status === 'active')
       .map(w => w.workspaceId);
-    
+
     const workspaceDetails = await EcomWorkspace.find({
       _id: { $in: workspaceIds },
       isActive: true
     }).select('name slug inviteCode owner').lean();
-    
+
     // Combiner les infos
     const workspacesWithRoles = user.workspaces
       .filter(w => w.status === 'active')
@@ -467,7 +473,7 @@ router.get('/me/workspaces', requireEcomAuth, async (req, res) => {
         const details = workspaceDetails.find(
           w => w._id.toString() === userWorkspace.workspaceId.toString()
         );
-        
+
         return {
           _id: userWorkspace.workspaceId,
           name: details?.name || 'Workspace',
@@ -478,7 +484,7 @@ router.get('/me/workspaces', requireEcomAuth, async (req, res) => {
           isOwner: details?.owner && details.owner.toString() === user._id.toString()
         };
       });
-    
+
     res.json({
       success: true,
       data: {

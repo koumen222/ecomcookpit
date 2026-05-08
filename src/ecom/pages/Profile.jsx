@@ -101,6 +101,11 @@ const Profile = () => {
   const [disconnectingSession, setDisconnectingSession] = useState(null);
   const [disconnectingAll, setDisconnectingAll] = useState(false);
 
+  // Join workspace by code
+  const [joinCode, setJoinCode] = useState('');
+  const [joiningWorkspace, setJoiningWorkspace] = useState(false);
+  const [joinMsg, setJoinMsg] = useState(null);
+
   // 🆕 État de chargement pour éviter les erreurs
   const [loading, setLoading] = useState(true);
 
@@ -139,6 +144,28 @@ const Profile = () => {
     const ws = myWorkspaces.find(w => (w._id || w.id) === wsId);
     if (!ws) return;
     doWorkspaceSwitch(ws);
+  };
+
+  const handleJoinWorkspace = async (e) => {
+    e.preventDefault();
+    const code = joinCode.trim();
+    if (!code) return;
+    setJoiningWorkspace(true);
+    setJoinMsg(null);
+    try {
+      const res = await authApi.joinWorkspace({ inviteCode: code });
+      const { token, user: nextUser, workspace: nextWs } = res.data?.data || {};
+      if (token && nextUser) {
+        localStorage.setItem('ecomToken', token);
+        localStorage.setItem('ecomUser', JSON.stringify(nextUser));
+        if (nextWs) localStorage.setItem('ecomWorkspace', JSON.stringify(nextWs));
+        window.location.reload();
+      }
+    } catch (err) {
+      setJoinMsg({ type: 'error', text: err.response?.data?.message || 'Code invalide ou espace introuvable' });
+    } finally {
+      setJoiningWorkspace(false);
+    }
   };
 
   const loadSessions = async () => {
@@ -697,6 +724,38 @@ const Profile = () => {
           </div>
         </div>
       )}
+
+      {/* Rejoindre un espace par code */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-6">
+        <div className="px-6 py-4 border-b border-gray-100">
+          <h2 className="text-base font-semibold text-gray-900">Rejoindre un espace</h2>
+          <p className="text-xs text-gray-500 mt-0.5">Entrez un code d'invitation pour rejoindre un nouvel espace de travail.</p>
+        </div>
+        <form onSubmit={handleJoinWorkspace} className="px-6 py-4 flex gap-3">
+          <input
+            type="text"
+            value={joinCode}
+            onChange={e => { setJoinCode(e.target.value); setJoinMsg(null); }}
+            placeholder="Code d'invitation (ex: ABC123)"
+            className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-400 font-mono uppercase placeholder-normal"
+            style={{ textTransform: 'none' }}
+            maxLength={32}
+            disabled={joiningWorkspace}
+          />
+          <button
+            type="submit"
+            disabled={joiningWorkspace || !joinCode.trim()}
+            className="px-4 py-2.5 rounded-xl text-sm font-semibold bg-emerald-600 text-white hover:bg-emerald-700 transition disabled:opacity-50 flex-shrink-0"
+          >
+            {joiningWorkspace ? 'Envoi…' : 'Rejoindre'}
+          </button>
+        </form>
+        {joinMsg && (
+          <p className={`px-6 pb-4 text-xs font-medium ${joinMsg.type === 'error' ? 'text-red-600' : 'text-emerald-600'}`}>
+            {joinMsg.text}
+          </p>
+        )}
+      </div>
 
       {/* 🔔 Notifications push */}
       <PushSection />

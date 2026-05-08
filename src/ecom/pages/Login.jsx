@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useEcomAuth } from '../hooks/useEcomAuth';
 import { getContextualError } from '../utils/errorMessages';
 import { getPendingPlanSelection } from '../utils/pendingPlanFlow.js';
@@ -49,6 +49,8 @@ const IconFillLoader = ({ backgroundClassName = 'bg-[#0F1115]' }) => {
 
 const Login = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const inviteToken = new URLSearchParams(location.search).get('invite') || '';
   const { login, googleLogin, registerDevice, isAuthenticated, loading: authLoading, user } = useEcomAuth();
   const pendingPlanSelection = getPendingPlanSelection();
   const [formData, setFormData] = useState({ email: '', password: '' });
@@ -182,6 +184,10 @@ const Login = () => {
     }
 
     if (isAuthenticated && user) {
+      if (inviteToken) {
+        navigate(`/ecom/invite/${inviteToken}`, { replace: true });
+        return;
+      }
       if (!user.workspaceId && user.role !== 'super_admin') {
         navigate('/ecom/workspace-setup', { replace: true });
         return;
@@ -200,7 +206,7 @@ const Login = () => {
       const dashboardPath = roleDashboardMap[user.role] || '/ecom/dashboard';
       navigate(dashboardPath, { replace: true });
     }
-  }, [authLoading, isAuthenticated, user, navigate, pendingPlanSelection]);
+  }, [authLoading, isAuthenticated, user, navigate, pendingPlanSelection, inviteToken]);
 
   // Afficher un loader pendant la vérification de l'authentification
   // CRITICAL: Timeout de sécurité pour éviter le loader infini
@@ -273,12 +279,11 @@ const Login = () => {
     try {
       await registerDevice();
       setShowDevicePopup(false);
-      navigate('/ecom/dashboard');
+      navigate(inviteToken ? `/ecom/invite/${inviteToken}` : '/ecom/dashboard');
     } catch (error) {
       console.error('Erreur enregistrement appareil:', error);
-      // Continuer vers le dashboard même si l'enregistrement échoue
       setShowDevicePopup(false);
-      navigate('/ecom/dashboard');
+      navigate(inviteToken ? `/ecom/invite/${inviteToken}` : '/ecom/dashboard');
     } finally {
       setRegisteringDevice(false);
     }
@@ -286,7 +291,7 @@ const Login = () => {
 
   const handleSkipDevice = () => {
     setShowDevicePopup(false);
-    navigate('/ecom/dashboard');
+    navigate(inviteToken ? `/ecom/invite/${inviteToken}` : '/ecom/dashboard');
   };
 
   const handleInputChange = (e) => {

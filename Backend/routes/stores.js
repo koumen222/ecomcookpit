@@ -11,6 +11,7 @@ import StoreProduct from '../models/StoreProduct.js';
 import StoreOrder from '../models/StoreOrder.js';
 import { requireEcomAuth } from '../middleware/ecomAuth.js';
 import { checkPlanLimit } from '../middleware/planLimits.js';
+import { invalidateStoreCache } from './storeApi.js';
 
 const router = express.Router();
 
@@ -356,10 +357,14 @@ router.delete('/:storeId', requireEcomAuth, async (req, res) => {
       return res.status(400).json({ success: false, message: 'Impossible de supprimer la seule boutique' });
     }
 
+    const subdomain = store.subdomain;
     store.isActive = false;
     await store.save();
 
-    // If it was primary, set another store as primary
+    // Purge public store cache so the subdomain returns 404 immediately
+    if (subdomain) invalidateStoreCache(subdomain);
+
+    // If it was primary, promote another store
     if (String(ws?.primaryStoreId) === String(store._id)) {
       const next = await Store.findOne({ workspaceId: req.workspaceId, isActive: true, _id: { $ne: store._id } }).select('_id').lean();
       if (next) await Workspace.updateOne({ _id: req.workspaceId }, { $set: { primaryStoreId: next._id } });

@@ -16,6 +16,7 @@ import Product from '../models/Product.js';
 import StoreProduct from '../models/StoreProduct.js';
 import Store from '../models/Store.js';
 import WhatsAppInstance from '../models/WhatsAppInstance.js';
+import EcomUser from '../models/EcomUser.js';
 
 const PLAN_LABELS = {
   free: 'Gratuit',
@@ -85,7 +86,8 @@ const RESOURCE_LABELS = {
   customers: 'clients',
   products: 'produits',
   stores: 'boutiques',
-  whatsappInstances: 'instances WhatsApp'
+  whatsappInstances: 'instances WhatsApp',
+  users: 'membres d\'équipe'
 };
 
 const FEATURE_LABELS = {
@@ -252,6 +254,12 @@ async function countByResource(resource, workspaceId) {
     }
     case 'stores': return Store.countDocuments(filter).catch(() => 0);
     case 'whatsappInstances': return WhatsAppInstance.countDocuments(filter).catch(() => 0);
+    case 'users':
+      // Count all active members who have access to this workspace (excluding the owner)
+      return EcomUser.countDocuments({
+        'workspaces.workspaceId': workspaceId,
+        isActive: true
+      }).catch(() => 0);
     default: return 0;
   }
 }
@@ -261,7 +269,8 @@ const LIMIT_KEY_BY_RESOURCE = {
   customers: 'maxCustomers',
   products: 'maxProducts',
   stores: 'maxStores',
-  whatsappInstances: 'maxWhatsappInstances'
+  whatsappInstances: 'maxWhatsappInstances',
+  users: 'maxUsers'
 };
 
 /**

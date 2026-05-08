@@ -114,23 +114,34 @@ router.get('/:subdomain/products', readLimiter, resolveStoreBySubdomain, async (
     const pageNum = Math.max(1, parseInt(page));
     const limitNum = Math.min(50, Math.max(1, parseInt(limit) || 20));
 
-    // Filter: workspace-scoped + store-scoped + published only
+    // Base filter — always scoped to this workspace (tenant isolation mandatory)
     const filter = {
       workspaceId: req.storeWorkspaceId,
-      isPublished: true
+      isPublished: true,
     };
-    // Multi-store isolation: only show products for this store
+
+    // Multi-store: restrict strictly to this store's products
     if (req.storeId) {
-      filter.$and = [{ $or: [{ storeId: req.storeId }, { storeId: null }] }];
+      filter.storeId = req.storeId;
     }
+
+    const andConditions = [];
+
     if (category) filter.category = category;
+
     if (search) {
-      filter.$or = [
-        { name: { $regex: search, $options: 'i' } },
-        { category: { $regex: search, $options: 'i' } },
-        { tags: { $in: [new RegExp(search, 'i')] } }
-      ];
+      // Escape special regex characters to prevent ReDoS
+      const escapedSearch = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      andConditions.push({
+        $or: [
+          { name: { $regex: escapedSearch, $options: 'i' } },
+          { category: { $regex: escapedSearch, $options: 'i' } },
+          { tags: { $in: [new RegExp(escapedSearch, 'i')] } },
+        ],
+      });
     }
+
+    if (andConditions.length > 0) filter.$and = andConditions;
 
     const [products, total] = await Promise.all([
       StoreProduct.findPaginated(filter, { page: pageNum, limit: limitNum }),
@@ -180,10 +191,10 @@ router.get('/:subdomain/products/:slug', readLimiter, resolveStoreBySubdomain, a
     const detailFilter = {
       workspaceId: req.storeWorkspaceId,
       slug: req.params.slug,
-      isPublished: true
+      isPublished: true,
     };
     if (req.storeId) {
-      detailFilter.$or = [{ storeId: req.storeId }, { storeId: null }];
+      detailFilter.storeId = req.storeId;
     }
     const product = await StoreProduct.findOne(detailFilter).lean();
 
@@ -225,10 +236,10 @@ router.get('/:subdomain/categories', readLimiter, resolveStoreBySubdomain, async
     const catFilter = {
       workspaceId: req.storeWorkspaceId,
       isPublished: true,
-      category: { $ne: '' }
+      category: { $ne: '' },
     };
     if (req.storeId) {
-      catFilter.$or = [{ storeId: req.storeId }, { storeId: null }];
+      catFilter.storeId = req.storeId;
     }
     const categories = await StoreProduct.distinct('category', catFilter);
 
@@ -295,15 +306,15 @@ router.post('/:subdomain/orders', orderLimiter, resolveStoreBySubdomain, async (
       });
     }
 
-    // Validate and fetch product data — workspace-scoped
+    // Validate and fetch product data — scoped strictly to this store
     const productIds = products.map(p => p.productId);
     const productFilter = {
       _id: { $in: productIds },
       workspaceId: req.storeWorkspaceId,
-      isPublished: true
+      isPublished: true,
     };
     if (req.storeId) {
-      productFilter.$or = [{ storeId: req.storeId }, { storeId: null }];
+      productFilter.storeId = req.storeId;
     }
     const dbProducts = await StoreProduct.find(productFilter).lean();
 

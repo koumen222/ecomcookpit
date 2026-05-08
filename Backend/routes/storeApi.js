@@ -145,8 +145,7 @@ async function resolveStore(subdomain) {
 
   const clean = subdomain.toLowerCase().trim();
 
-  // Check cache
-  let cached = getCachedStore(clean);
+  const cached = getCachedStore(clean);
   if (cached) return cached;
 
   // 1. Try Store model first (multi-store)
@@ -159,12 +158,16 @@ async function resolveStore(subdomain) {
   .lean();
 
   if (store) {
-    const result = { ...store, _storeId: store._id, _workspaceId: store.workspaceId, _id: store.workspaceId };
+    // _storeId = real Store document _id
+    // _workspaceId = parent workspace
+    // _id is intentionally kept as the Store._id (NOT overwritten to workspaceId).
+    // Some callers use workspace._id for workspace-level queries — they must use _workspaceId.
+    const result = { ...store, _storeId: store._id, _workspaceId: store.workspaceId };
     setCachedStore(clean, result);
     return result;
   }
 
-  // 2. Fallback: legacy Workspace (pre-migration or disabled stores)
+  // 2. Fallback: legacy Workspace (pre-migration or single-store)
   const workspace = await Workspace.findOne({
     subdomain: clean,
     isActive: true,
@@ -182,18 +185,17 @@ async function resolveStore(subdomain) {
   return null;
 }
 
-// Helper: get product filter for a resolved store (supports multi-store + legacy)
+// Helper: get product filter for a resolved store (strict per-store isolation).
+// Multi-store: ONLY products explicitly assigned to this storeId.
+//   → storeId:null products are NOT shown (they belong to no specific store).
+// Legacy (no storeId on the store doc): scope by workspaceId only.
 function getProductFilter(resolvedStore) {
   if (resolvedStore._storeId) {
-    // Multi-store: filter by storeId, or legacy products without storeId in same workspace
     return {
-      $or: [
-        { storeId: resolvedStore._storeId },
-        { workspaceId: resolvedStore._workspaceId, storeId: null }
-      ]
+      workspaceId: resolvedStore._workspaceId,
+      storeId: resolvedStore._storeId,
     };
   }
-  // Legacy: filter by workspaceId only
   return { workspaceId: resolvedStore._workspaceId };
 }
 
@@ -677,13 +679,17 @@ router.post('/:subdomain/orders', orderLimiter, async (req, res) => {
       });
     }
 
-    // Validate products exist and are in stock
+    // Validate products exist and belong to this exact store
     const productIds = products.map(p => p.productId);
-    const dbProducts = await StoreProduct.find({
+    const productFetchFilter = {
       _id: { $in: productIds },
-      workspaceId: workspace._id,
-      isPublished: true
-    }).lean();
+      workspaceId: workspace._workspaceId,
+      isPublished: true,
+    };
+    if (workspace._storeId) {
+      productFetchFilter.storeId = workspace._storeId;
+    }
+    const dbProducts = await StoreProduct.find(productFetchFilter).lean();
 
     if (dbProducts.length !== products.length) {
       return res.status(400).json({
@@ -792,10 +798,11 @@ router.post('/:subdomain/orders', orderLimiter, async (req, res) => {
 
     await order.save();
 
-    // Decrement stock atomically (synchronous — must complete before confirming)
+    // Decrement stock atomically (synchronous — must complete before confirming).
+    // Scope filter by workspaceId to ensure we never touch another tenant's stock.
     const bulkOps = products.map(item => ({
       updateOne: {
-        filter: { _id: new mongoose.Types.ObjectId(item.productId), workspaceId: workspace._workspaceId || workspace._id },
+        filter: { _id: new mongoose.Types.ObjectId(item.productId), workspaceId: workspace._workspaceId },
         update: { $inc: { stock: -(parseInt(item.quantity) || 1) } }
       }
     }));

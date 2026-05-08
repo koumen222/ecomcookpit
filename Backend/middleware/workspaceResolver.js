@@ -66,43 +66,67 @@ const workspaceCache = new WorkspaceCache();
 setInterval(() => workspaceCache.cleanup(), 10 * 60 * 1000);
 
 /**
- * Resolve workspace from subdomain
- * Attaches req.workspace
+ * Resolve workspace from subdomain (set by extractSubdomain middleware).
+ * Attaches req.workspace and req.workspaceId.
+ *
+ * Lookup order:
+ *   1. Store model by subdomain (multi-store) → load parent Workspace
+ *   2. Workspace model by subdomain (legacy single-store)
+ * Both paths require isActive + isStoreEnabled for tenant safety.
  */
 export const resolveWorkspace = async (req, res, next) => {
   try {
-    // Skip if no subdomain (root domain)
+    // Skip if no subdomain (root domain, API domain, etc.)
     if (!req.subdomain) {
       req.workspace = null;
       return next();
     }
 
+    const cacheKey = req.subdomain;
+
     // Check cache first
-    let workspace = workspaceCache.get(req.subdomain);
+    let workspace = workspaceCache.get(cacheKey);
 
     if (!workspace) {
-      // Cache miss - query database
-      workspace = await Workspace.findOne({ 
+      // 1. Try Store collection first (multi-store support)
+      const Store = (await import('../models/Store.js')).default;
+      const store = await Store.findOne({
         subdomain: req.subdomain,
         isActive: true,
-        'storeSettings.isStoreEnabled': true
-      })
-      .select('_id name subdomain owner storeSettings isActive')
-      .lean(); // Use lean() for better performance
+        'storeSettings.isStoreEnabled': true,
+      }).select('_id workspaceId').lean();
+
+      if (store) {
+        workspace = await Workspace.findOne({
+          _id: store.workspaceId,
+          isActive: true,
+        })
+        .select('_id name subdomain owner storeSettings isActive')
+        .lean();
+      }
+
+      // 2. Fallback: legacy Workspace subdomain
+      if (!workspace) {
+        workspace = await Workspace.findOne({
+          subdomain: req.subdomain,
+          isActive: true,
+          'storeSettings.isStoreEnabled': true,
+        })
+        .select('_id name subdomain owner storeSettings isActive')
+        .lean();
+      }
 
       if (!workspace) {
         return res.status(404).json({
           success: false,
           message: `Store not found: ${req.subdomain}.scalor.net`,
-          code: 'WORKSPACE_NOT_FOUND'
+          code: 'WORKSPACE_NOT_FOUND',
         });
       }
 
-      // Cache the result
-      workspaceCache.set(req.subdomain, workspace);
+      workspaceCache.set(cacheKey, workspace);
     }
 
-    // Attach workspace to request
     req.workspace = workspace;
     req.workspaceId = workspace._id;
 
@@ -112,7 +136,7 @@ export const resolveWorkspace = async (req, res, next) => {
     return res.status(500).json({
       success: false,
       message: 'Error resolving workspace',
-      code: 'WORKSPACE_RESOLVER_ERROR'
+      code: 'WORKSPACE_RESOLVER_ERROR',
     });
   }
 };

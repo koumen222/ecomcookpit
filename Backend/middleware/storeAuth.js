@@ -3,7 +3,7 @@ import Store from '../models/Store.js';
 
 /**
  * Store middleware — validates workspace access for storefront routes.
- * 
+ *
  * Two modes:
  * 1. resolveStoreBySubdomain — public routes: resolves workspace from subdomain param
  * 2. requireStoreOwner — dashboard routes: ensures authenticated user owns the workspace
@@ -12,18 +12,26 @@ import Store from '../models/Store.js';
 /**
  * Resolve store/workspace from subdomain for public store routes.
  * Checks Store collection first (multi-store), then falls back to Workspace (legacy).
- * Sets req.store, req.storeWorkspaceId, and req.storeId for downstream use.
+ *
+ * Sets on req:
+ *   req.store            — the raw Store or Workspace document
+ *   req.storeWorkspaceId — always the parent workspace ObjectId
+ *   req.storeId          — the Store._id (null for legacy workspace-only stores)
+ *   req.workspaceId      — alias for storeWorkspaceId (for downstream compat)
+ *   req.requestHost      — original clean hostname (may already be set by extractSubdomain)
+ *
  * No authentication required — these are public-facing endpoints.
  */
 export const resolveStoreBySubdomain = async (req, res, next) => {
   try {
-    const { subdomain } = req.params;
+    // Prefer req.params.subdomain (URL param), fall back to req.subdomain (set by extractSubdomain middleware)
+    const rawSubdomain = req.params.subdomain || req.subdomain;
 
-    if (!subdomain) {
+    if (!rawSubdomain) {
       return res.status(400).json({ success: false, message: 'Subdomain requis' });
     }
 
-    const clean = subdomain.toLowerCase().trim();
+    const clean = rawSubdomain.toLowerCase().trim();
 
     // 1. Try Store model first (multi-store)
     const store = await Store.findOne({
@@ -33,18 +41,46 @@ export const resolveStoreBySubdomain = async (req, res, next) => {
     }).lean();
 
     if (store) {
-      req.store = { ...store, _id: store.workspaceId };
-      req.storeWorkspaceId = store.workspaceId;
+      // IMPORTANT: keep store._id as the real Store ObjectId, not the workspaceId.
+      // Previous bug: req.store._id was being set to store.workspaceId, causing
+      // downstream queries to scope by the wrong ID.
+      req.store = store;
       req.storeId = store._id;
+      req.storeWorkspaceId = store.workspaceId;
+      req.workspaceId = store.workspaceId; // compat alias
       return next();
     }
 
-    // 2. Fallback: legacy Workspace (pre-migration)
-    const workspace = await EcomWorkspace.findOne({
-      subdomain: clean,
-      isActive: true,
-      'storeSettings.isStoreEnabled': true
-    }).lean();
+    // 2. Fallback: also check by custom domain (req.requestHost set by extractSubdomain)
+    const requestHost = req.requestHost;
+    if (requestHost && requestHost !== `${clean}.scalor.net`) {
+      const storeByDomain = await Store.findOne({
+        'storeDomains.customDomain': requestHost,
+        isActive: true,
+        'storeSettings.isStoreEnabled': true
+      }).lean();
+
+      if (storeByDomain) {
+        req.store = storeByDomain;
+        req.storeId = storeByDomain._id;
+        req.storeWorkspaceId = storeByDomain.workspaceId;
+        req.workspaceId = storeByDomain.workspaceId;
+        return next();
+      }
+    }
+
+    // 3. Fallback: legacy Workspace (pre-migration or single-store setup)
+    const workspaceQuery = { subdomain: clean, isActive: true, 'storeSettings.isStoreEnabled': true };
+    let workspace = await EcomWorkspace.findOne(workspaceQuery).lean();
+
+    // Also try by custom domain for legacy workspaces
+    if (!workspace && requestHost && requestHost !== `${clean}.scalor.net`) {
+      workspace = await EcomWorkspace.findOne({
+        'storeDomains.customDomain': requestHost,
+        isActive: true,
+        'storeSettings.isStoreEnabled': true
+      }).lean();
+    }
 
     if (!workspace) {
       return res.status(404).json({ success: false, message: 'Boutique introuvable' });
@@ -52,7 +88,8 @@ export const resolveStoreBySubdomain = async (req, res, next) => {
 
     req.store = workspace;
     req.storeWorkspaceId = workspace._id;
-    req.storeId = null; // legacy single-store
+    req.workspaceId = workspace._id; // compat alias
+    req.storeId = null; // legacy single-store — no dedicated Store document
     next();
   } catch (error) {
     console.error('Erreur resolveStoreBySubdomain:', error.message);

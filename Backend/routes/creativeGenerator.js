@@ -11,7 +11,7 @@ import axios from 'axios';
 import multer from 'multer';
 import Groq from 'groq-sdk';
 import { requireEcomAuth } from '../middleware/ecomAuth.js';
-import { generateNanoBananaImageToImage, getImageGenerationStats } from '../services/nanoBananaService.js';
+import { generateGptImage2ImageToImage, getImageGenerationStats } from '../services/nanoBananaService.js';
 import { uploadImage } from '../services/cloudflareImagesService.js';
 import { extractProductInfo } from '../services/geminiProductExtractor.js';
 import FeatureUsageLog from '../models/FeatureUsageLog.js';
@@ -938,7 +938,7 @@ router.post('/', requireEcomAuth, upload.single('productImage'), async (req, res
         console.log(`  🎨 Generating ${format.id} (image-to-image)...`);
         
         let imageDataUrl;
-        imageDataUrl = await generateNanoBananaImageToImage(imagePrompt, resolvedImageBuffer, format.aspectRatio, 1);
+        imageDataUrl = await generateGptImage2ImageToImage(imagePrompt, resolvedImageBuffer, format.aspectRatio);
         
         if (imageDataUrl) {
           let finalUrl = imageDataUrl;

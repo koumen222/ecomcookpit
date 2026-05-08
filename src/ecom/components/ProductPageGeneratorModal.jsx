@@ -307,8 +307,13 @@ const buildGeneratedProductPageConfig = (templateTheme, product = {}) => ({
 function FinalPagePreview({ product, templateTheme, selectedTemplate }) {
   if (!product) return null;
 
-  const descriptionTitleColor = templateTheme.primary;
-  const descriptionContentColor = templateTheme.text;
+  const accent = templateTheme.primary;
+  const textDark = templateTheme.text || '#1C1917';
+  const textSoft = `${textDark}AA`;
+  const accentLight = `${accent}18`;
+  const accentMid = `${accent}30`;
+  const bgPage = '#FDFAF6';
+
   const beforeAfterGallery = Array.isArray(product.beforeAfterImages) && product.beforeAfterImages.length > 0
     ? product.beforeAfterImages.map((url, index) => ({ url, alt: `Avant / Après ${index + 1}` }))
     : (product.beforeAfterImage ? [{ url: product.beforeAfterImage, alt: 'Avant / Après' }] : []);
@@ -322,227 +327,268 @@ function FinalPagePreview({ product, templateTheme, selectedTemplate }) {
   ].filter((image, index, array) => image?.url && array.findIndex((entry) => entry.url === image.url) === index);
 
   const stats = Array.isArray(product.stats_bar) ? product.stats_bar.slice(0, 3) : [];
-  const benefits = Array.isArray(product.benefits_bullets) ? product.benefits_bullets.slice(0, 4) : [];
+  const benefits = Array.isArray(product.benefits_bullets) ? product.benefits_bullets.slice(0, 6) : [];
   const conversionBlocks = Array.isArray(product.conversion_blocks) ? product.conversion_blocks.slice(0, 4) : [];
   const testimonials = Array.isArray(product.testimonials) ? product.testimonials : [];
   const faq = Array.isArray(product.faq) ? product.faq.slice(0, 5) : [];
+  const angles = (product.angles || []).filter(a => a.poster_url);
+
+  // Extract ingredients / composition from product data
+  const ingredients = Array.isArray(product.raisons_acheter) ? product.raisons_acheter.slice(0, 6) : [];
+
+  // Clean formula: pain_points as negatives, benefits as positives
+  const negatives = Array.isArray(product.problem_section?.pain_points) ? product.problem_section.pain_points.slice(0, 3) : [];
+  const positives = benefits.slice(0, 3);
+
+  const BENEFIT_ICONS = ['✨','💧','🌿','⚡','🛡️','🌟','💪','🔬','🎯','✅'];
+
+  const panelStyle = {
+    background: '#ffffff',
+    border: `1.5px solid ${accentMid}`,
+    borderRadius: '20px',
+    overflow: 'hidden',
+    boxShadow: '0 4px 24px rgba(0,0,0,0.06)',
+  };
+
+  const labelStyle = {
+    display: 'inline-block',
+    fontSize: '11px',
+    fontWeight: 900,
+    letterSpacing: '0.1em',
+    textTransform: 'uppercase',
+    color: accent,
+    background: accentLight,
+    borderRadius: '20px',
+    padding: '3px 12px',
+    marginBottom: '8px',
+  };
 
   return (
-    <div className="overflow-hidden rounded-[32px] border border-gray-200 bg-white shadow-[0_24px_80px_rgba(15,23,42,0.08)]">
-      <div className="flex items-center justify-between border-b border-gray-200 bg-white px-5 py-4">
-        <div className="flex items-center gap-3">
-          <div
-            className="flex h-11 w-11 items-center justify-center rounded-[18px] text-sm font-black text-white shadow-[0_10px_24px_rgba(0,0,0,0.12)]"
-            style={{ background: descriptionTitleColor }}
-          >
-            {(product.title || 'P').slice(0, 1).toUpperCase()}
-          </div>
-          <div>
-            <p className="text-sm font-black text-[#1f1915]">Boutique preview</p>
-            <p className="text-[11px] text-gray-500">Rendu final avec la direction visuelle {selectedTemplate.label.toLowerCase()}</p>
-          </div>
+    <div style={{ background: bgPage, borderRadius: '28px', overflow: 'hidden', border: `1.5px solid ${accentMid}`, boxShadow: '0 24px 80px rgba(15,23,42,0.10)' }}>
+      {/* Browser bar */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 20px', background: '#fff', borderBottom: `1px solid ${accentMid}` }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#FCA5A5' }} />
+          <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#FDE68A' }} />
+          <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#6EE7B7' }} />
         </div>
-        <div className="rounded-full border border-gray-200 bg-white px-3.5 py-1.5 text-[11px] font-semibold text-gray-600">
-          Page finale
-        </div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: textSoft }}>boutique-preview.scalor.app</div>
+        <div style={{ fontSize: 10, fontWeight: 800, color: accent, background: accentLight, padding: '2px 10px', borderRadius: 20 }}>{selectedTemplate.label}</div>
       </div>
 
-      <div className="max-h-[72vh] overflow-y-auto bg-gray-50">
-        <div
-          className="mx-auto w-full max-w-[980px]"
-          style={{
-            background: '#ffffff',
-            color: descriptionContentColor,
-          }}
-        >
-          <div className="flex items-center justify-between border-b px-4 py-3 sm:px-6" style={{ borderColor: `${templateTheme.accent}20`, backgroundColor: 'rgba(255,255,255,0.96)' }}>
-            <div className="text-sm font-black" style={{ color: descriptionContentColor }}>Ma boutique</div>
-            <div className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold shadow-sm" style={{ borderColor: `${descriptionTitleColor}22`, color: descriptionTitleColor, backgroundColor: '#ffffff' }}>
-              <Package className="h-3.5 w-3.5" />
-              1 produit au panier
-            </div>
-          </div>
+      <div style={{ maxHeight: '72vh', overflowY: 'auto', padding: '20px' }}>
+        {/* 2-column panel grid */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
 
-          <div className="grid gap-0 lg:grid-cols-[1.02fr_0.98fr]">
-            <div className="border-b lg:border-b-0 lg:border-r bg-white" style={{ borderColor: `${templateTheme.accent}16` }}>
-              <div className="aspect-square w-full overflow-hidden bg-white">
-                {gallery[0]?.url ? (
-                  <img src={gallery[0].url} alt={gallery[0].alt} className="h-full w-full object-cover" />
-                ) : (
-                  <div className="flex h-full items-center justify-center text-gray-300">
-                    <ImageIcon className="h-12 w-12" />
-                  </div>
+          {/* ── Panel 1: Hero produit + headline + CTA ── */}
+          <div style={panelStyle}>
+            {/* Image */}
+            <div style={{ aspectRatio: '1/1', background: accentLight, overflow: 'hidden' }}>
+              {gallery[0]?.url
+                ? <img src={gallery[0].url} alt={gallery[0].alt} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: accent, opacity: 0.3 }}><ImageIcon style={{ width: 40, height: 40 }} /></div>
+              }
+            </div>
+            <div style={{ padding: '16px' }}>
+              {product.hero_headline && (
+                <h2 style={{ margin: 0, fontSize: '16px', fontWeight: 900, lineHeight: 1.2, color: textDark }}>
+                  {product.hero_headline.split(' ').map((word, i) => (
+                    i % 4 === 2 ? <span key={i} style={{ color: accent }}>{word} </span> : <span key={i}>{word} </span>
+                  ))}
+                </h2>
+              )}
+              {product.hero_slogan && <p style={{ margin: '6px 0 0', fontSize: 11, color: textSoft, lineHeight: 1.5 }}>{product.hero_slogan}</p>}
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
+                {product.urgency_badge && (
+                  <span style={{ fontSize: 10, fontWeight: 800, background: accentLight, color: accent, borderRadius: 20, padding: '3px 10px', border: `1px solid ${accentMid}` }}>
+                    {product.urgency_badge}
+                  </span>
                 )}
+                <span style={{ fontSize: 10, fontWeight: 800, background: '#f0fdf4', color: '#15803d', borderRadius: 20, padding: '3px 10px', border: '1px solid #bbf7d0' }}>
+                  Paiement à la livraison
+                </span>
               </div>
-              {gallery.length > 1 && (
-                <div className="grid grid-cols-4 gap-2 border-t bg-white p-3" style={{ borderColor: `${templateTheme.accent}14` }}>
-                  {gallery.slice(1, 5).map((image, index) => (
-                    <div key={`${image.url}-${index}`} className="aspect-square overflow-hidden rounded-2xl border shadow-sm" style={{ borderColor: `${templateTheme.accent}14` }}>
-                      <img src={image.url} alt={image.alt} className="h-full w-full object-cover" />
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="p-5 sm:p-6 lg:p-8">
-              <div className="inline-flex items-center gap-2 rounded-full px-3.5 py-1.5 text-[11px] font-bold uppercase tracking-[0.16em] shadow-sm" style={{ backgroundColor: `${descriptionTitleColor}10`, color: descriptionTitleColor }}>
-                <Sparkles className="h-3.5 w-3.5" />
-                {selectedTemplate.label}
-              </div>
-              <h1 className="mt-4 text-3xl font-black leading-[1.02] tracking-[-0.03em] text-gray-950 sm:text-4xl">{product.title}</h1>
-              {product.hero_slogan && (
-                <p className="mt-3 text-sm font-medium leading-6 sm:text-base" style={{ color: `${descriptionContentColor}CC` }}>{product.hero_slogan}</p>
-              )}
-              {product.hero_baseline && (
-                <p className="mt-2 text-xs font-semibold uppercase tracking-[0.14em]" style={{ color: descriptionTitleColor }}>{product.hero_baseline}</p>
-              )}
-
-              <div className="mt-5 grid gap-3 sm:grid-cols-2">
-                <div className="rounded-[22px] border bg-white px-4 py-3 shadow-sm" style={{ borderColor: '#e5e7eb' }}>
-                  <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-gray-500">Titres description</p>
-                  <div className="mt-2 flex items-center gap-2">
-                    <span className="h-4 w-4 rounded-full border border-white/70 shadow-sm" style={{ backgroundColor: descriptionTitleColor }} />
-                    <span className="text-xs font-semibold" style={{ color: descriptionTitleColor }}>{descriptionTitleColor}</span>
-                  </div>
-                </div>
-                <div className="rounded-[22px] border bg-white px-4 py-3 shadow-sm" style={{ borderColor: '#e5e7eb' }}>
-                  <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-gray-500">Contenu description</p>
-                  <div className="mt-2 flex items-center gap-2">
-                    <span className="h-4 w-4 rounded-full border border-white/70 shadow-sm" style={{ backgroundColor: descriptionContentColor }} />
-                    <span className="text-xs font-semibold" style={{ color: descriptionContentColor }}>{descriptionContentColor}</span>
-                  </div>
-                </div>
-              </div>
-
-              {(product.urgency_badge || product.hero_cta) && (
-                <div className="mt-5 flex flex-wrap gap-2">
-                  {product.urgency_badge && (
-                    <span className="rounded-full border px-3 py-1 text-xs font-bold" style={{ borderColor: `${descriptionTitleColor}40`, backgroundColor: `${descriptionTitleColor}14`, color: descriptionContentColor }}>
-                      {product.urgency_badge}
-                    </span>
-                  )}
-                  {product.hero_cta && (
-                    <span className="rounded-full px-3 py-1 text-xs font-bold text-white" style={{ background: descriptionTitleColor }}>
-                      {product.hero_cta}
-                    </span>
-                  )}
-                </div>
-              )}
-
-              {stats.length > 0 && (
-                <div className="mt-6 grid grid-cols-3 gap-3">
-                  {stats.map((stat, index) => (
-                    <div key={`${stat}-${index}`} className="rounded-[22px] px-3 py-3 text-center text-xs font-bold text-white shadow-[0_12px_24px_rgba(0,0,0,0.08)]" style={{ background: descriptionTitleColor }}>
-                      {stat}
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              <div className="mt-6 rounded-[28px] border bg-white p-5 shadow-[0_16px_38px_rgba(15,23,42,0.06)]" style={{ borderColor: '#e5e7eb' }}>
-                <div className="flex items-end gap-3">
-                  <span className="text-3xl font-black" style={{ color: descriptionTitleColor }}>Prix</span>
-                  <span className="text-sm font-semibold text-gray-500">Paiement à la livraison</span>
-                </div>
-                <button
-                  type="button"
-                  className="mt-4 flex w-full items-center justify-center gap-2 rounded-[20px] px-4 py-3.5 text-sm font-black text-white shadow-[0_14px_30px_rgba(0,0,0,0.12)]"
-                  style={{ background: descriptionTitleColor }}
-                >
-                  <ArrowRight className="h-4 w-4" />
-                  {product.hero_cta || templateTheme.cta}
+              {product.hero_cta && (
+                <button type="button" style={{ marginTop: 12, width: '100%', background: accent, color: '#fff', border: 'none', borderRadius: 12, padding: '10px 0', fontWeight: 900, fontSize: 13, cursor: 'pointer' }}>
+                  {product.hero_cta}
                 </button>
-              </div>
-
-              {benefits.length > 0 && (
-                <div className="mt-6 rounded-[28px] border bg-white p-5 shadow-sm" style={{ borderColor: '#e5e7eb' }}>
-                  <p className="text-xs font-bold uppercase tracking-[0.14em]" style={{ color: descriptionTitleColor }}>Bénéfices</p>
-                  <div className="mt-3 space-y-2.5">
-                    {benefits.map((benefit, index) => (
-                      <div key={`${benefit}-${index}`} className="flex items-start gap-3 rounded-[20px] px-3.5 py-3" style={{ backgroundColor: `${descriptionTitleColor}08` }}>
-                        <span className="mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-bold text-white" style={{ backgroundColor: descriptionTitleColor }}>✓</span>
-                        <span className="text-sm" style={{ color: `${descriptionContentColor}D9` }}>{benefit}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
               )}
             </div>
           </div>
 
-            <div className="space-y-5 px-4 py-5 sm:px-6 sm:py-6">
-            {conversionBlocks.length > 0 && (
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                {conversionBlocks.map((block, index) => (
-                  <div key={`${block.text}-${index}`} className="rounded-[24px] border bg-white px-4 py-4 shadow-[0_14px_32px_rgba(15,23,42,0.05)]" style={{ borderColor: '#e5e7eb' }}>
-                    <div className="text-lg">{block.icon}</div>
-                    <p className="mt-2 text-sm font-semibold" style={{ color: descriptionContentColor }}>{block.text}</p>
+          {/* ── Panel 2: Bénéfices en grille d'icônes ── */}
+          <div style={{ ...panelStyle, background: accentLight }}>
+            {/* Model / poster image top half */}
+            {(gallery[1]?.url || gallery[2]?.url) && (
+              <div style={{ height: '160px', overflow: 'hidden', background: '#fff' }}>
+                <img src={gallery[1]?.url || gallery[2]?.url} alt="visuel" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              </div>
+            )}
+            <div style={{ padding: '14px' }}>
+              <div style={labelStyle}>{benefits.length} bénéfices clés</div>
+              <h3 style={{ margin: '4px 0 12px', fontSize: 15, fontWeight: 900, color: textDark }}>
+                DANS <span style={{ color: accent }}>CHAQUE UTILISATION</span>
+              </h3>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                {benefits.slice(0, 6).map((b, i) => (
+                  <div key={i} style={{ background: '#fff', borderRadius: 12, padding: '8px 10px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, textAlign: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
+                    <span style={{ fontSize: 18 }}>{BENEFIT_ICONS[i] || '✅'}</span>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: textDark, lineHeight: 1.3 }}>{b.replace(/^✓\s*/,'').slice(0, 28)}</span>
                   </div>
                 ))}
               </div>
-            )}
+            </div>
+          </div>
 
-            {product.problem_section && (
-              <section className="rounded-[28px] border bg-white p-5 shadow-sm" style={{ borderColor: '#e5e7eb' }}>
-                <p className="text-xs font-bold uppercase tracking-[0.14em]" style={{ color: descriptionTitleColor }}>Problème</p>
-                {product.problem_section.title && <h3 className="mt-2 text-xl font-black" style={{ color: descriptionTitleColor }}>{product.problem_section.title}</h3>}
-                <div className="mt-3 space-y-2.5">
-                  {(product.problem_section.pain_points || []).map((point, index) => (
-                    <div key={`${point}-${index}`} className="flex items-start gap-3 text-sm" style={{ color: `${descriptionContentColor}D0` }}>
-                      <span style={{ color: descriptionTitleColor }}>•</span>
-                      <span>{point}</span>
+          {/* ── Panel 3: Composition / Ingrédients ── */}
+          <div style={{ ...panelStyle, background: '#FFFBF5' }}>
+            <div style={{ padding: '16px' }}>
+              <div style={labelStyle}>Composition</div>
+              <h3 style={{ margin: '4px 0 14px', fontSize: 15, fontWeight: 900, color: textDark }}>
+                {product.solution_section?.title || 'FORMULE PUISSANTE'}
+              </h3>
+              {/* Product image center + ingredients around */}
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                {gallery[0]?.url && (
+                  <div style={{ flexShrink: 0, width: 80, height: 80, borderRadius: 14, overflow: 'hidden', border: `2px solid ${accentMid}` }}>
+                    <img src={gallery[0].url} alt="produit" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  </div>
+                )}
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {(ingredients.length > 0 ? ingredients : benefits).slice(0, 4).map((item, i) => (
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#fff', borderRadius: 10, padding: '5px 10px', border: `1px solid ${accentMid}` }}>
+                      <span style={{ width: 6, height: 6, borderRadius: '50%', background: accent, flexShrink: 0 }} />
+                      <span style={{ fontSize: 10, fontWeight: 700, color: textDark, lineHeight: 1.3 }}>{item.replace(/^[✓✅]\s*/,'').slice(0, 32)}</span>
                     </div>
                   ))}
                 </div>
-              </section>
-            )}
+              </div>
+              {product.solution_section?.description && (
+                <p style={{ margin: '12px 0 0', fontSize: 10, color: textSoft, lineHeight: 1.6 }}>{product.solution_section.description.slice(0, 120)}…</p>
+              )}
+            </div>
+          </div>
 
-            {product.solution_section && (
-              <section className="rounded-[28px] border bg-white p-5 shadow-sm" style={{ borderColor: '#e5e7eb' }}>
-                <p className="text-xs font-bold uppercase tracking-[0.14em]" style={{ color: descriptionTitleColor }}>Solution</p>
-                {product.solution_section.title && <h3 className="mt-2 text-xl font-black" style={{ color: descriptionTitleColor }}>{product.solution_section.title}</h3>}
-                {product.solution_section.description && <p className="mt-3 text-sm leading-7" style={{ color: `${descriptionContentColor}C9` }}>{product.solution_section.description}</p>}
-              </section>
+          {/* ── Panel 4: Avant / Après ── */}
+          <div style={panelStyle}>
+            <div style={{ padding: '14px 14px 0' }}>
+              <div style={labelStyle}>Résultats</div>
+              <h3 style={{ margin: '4px 0 12px', fontSize: 15, fontWeight: 900, color: textDark }}>
+                VISIBLE EN <span style={{ color: accent }}>QUELQUES JOURS !</span>
+              </h3>
+            </div>
+            {beforeAfterGallery[0]?.url ? (
+              <div style={{ margin: '0 14px 14px', borderRadius: 14, overflow: 'hidden', border: `1.5px solid ${accentMid}` }}>
+                <img src={beforeAfterGallery[0].url} alt="avant/après" style={{ width: '100%', display: 'block', objectFit: 'cover' }} />
+              </div>
+            ) : (
+              <div style={{ margin: '0 14px 14px', borderRadius: 14, overflow: 'hidden', border: `1.5px dashed ${accentMid}`, height: 120, background: accentLight, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+                <span style={{ fontSize: 24 }}>🔄</span>
+                <span style={{ fontSize: 10, fontWeight: 700, color: accent }}>Avant / Après</span>
+              </div>
             )}
-
-            {testimonials.length > 0 && (
-              <section className="rounded-[28px] border bg-white p-4 shadow-sm sm:p-5" style={{ borderColor: '#e5e7eb' }}>
-                <p className="text-xs font-bold uppercase tracking-[0.14em]" style={{ color: descriptionTitleColor }}>Avis clients</p>
-                <div className="mt-3">
-                  <TestimonialsCarousel
-                    testimonials={testimonials.map((t) => ({
-                      name: t.name,
-                      location: t.location,
-                      text: t.text,
-                      rating: t.rating || 5,
-                      verified: t.verified !== false,
-                      date: t.date,
-                    }))}
-                    autoPlay={false}
-                  />
-                </div>
-              </section>
-            )}
-
-            {faq.length > 0 && (
-              <section className="rounded-[28px] border bg-white p-5 shadow-sm" style={{ borderColor: '#e5e7eb' }}>
-                <p className="text-xs font-bold uppercase tracking-[0.14em]" style={{ color: descriptionTitleColor }}>Questions fréquentes</p>
-                <div className="mt-3 space-y-3">
-                  {faq.map((item, index) => (
-                    <div key={`${item.question}-${index}`} className="rounded-[18px] border px-4 py-3" style={{ borderColor: `${templateTheme.accent}20`, backgroundColor: `${descriptionTitleColor}05` }}>
-                      <p className="text-sm font-bold" style={{ color: descriptionTitleColor }}>{item.question}</p>
-                      <p className="mt-1 text-sm leading-6" style={{ color: `${descriptionContentColor}C9` }}>{item.reponse}</p>
-                    </div>
-                  ))}
-                </div>
-              </section>
+            {/* Stat bar below */}
+            {stats.length > 0 && (
+              <div style={{ display: 'flex', gap: 6, padding: '0 14px 14px' }}>
+                {stats.slice(0, 2).map((s, i) => (
+                  <div key={i} style={{ flex: 1, background: accent, color: '#fff', borderRadius: 10, padding: '6px 8px', textAlign: 'center', fontSize: 9, fontWeight: 800, lineHeight: 1.3 }}>{s}</div>
+                ))}
+              </div>
             )}
           </div>
 
-          <div className="border-t px-4 py-4 text-center text-xs text-gray-500 sm:px-6" style={{ borderColor: `${templateTheme.accent}24` }}>
-            Aperçu storefront généré avec la direction visuelle {selectedTemplate.label.toLowerCase()}.
+          {/* ── Panel 5: Usage / Zones + liste bullets ── */}
+          <div style={panelStyle}>
+            {/* Hero / model image */}
+            {(gallery[2]?.url || gallery[1]?.url) && (
+              <div style={{ height: '150px', overflow: 'hidden' }}>
+                <img src={gallery[2]?.url || gallery[1]?.url} alt="usage" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              </div>
+            )}
+            <div style={{ padding: '14px' }}>
+              <div style={labelStyle}>Usage</div>
+              <h3 style={{ margin: '4px 0 12px', fontSize: 15, fontWeight: 900, color: textDark }}>
+                {product.hero_baseline || <><span style={{ color: accent }}>IDÉAL POUR</span> TOUTE LA FAMILLE</>}
+              </h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+                {(conversionBlocks.length > 0 ? conversionBlocks.map(b => b.text) : benefits).slice(0, 5).map((item, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: accent, flexShrink: 0, boxShadow: `0 0 0 3px ${accentLight}` }} />
+                    <span style={{ fontSize: 11, fontWeight: 600, color: textDark, lineHeight: 1.4 }}>{typeof item === 'string' ? item.replace(/^[✓✅]\s*/,'') : item}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
+
+          {/* ── Panel 6: Formule propre / checklist ── */}
+          <div style={{ ...panelStyle, background: '#F9FAFB' }}>
+            <div style={{ padding: '16px' }}>
+              <div style={labelStyle}>Formule</div>
+              <h3 style={{ margin: '4px 0 14px', fontSize: 15, fontWeight: 900, color: textDark }}>
+                PROPRE <span style={{ color: accent }}>& ÉTHIQUE</span>
+              </h3>
+              {/* Negatives */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 7, marginBottom: 10 }}>
+                {negatives.slice(0, 3).map((item, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                    <span style={{ flexShrink: 0, width: 18, height: 18, borderRadius: '50%', background: '#FEE2E2', color: '#DC2626', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 900 }}>✕</span>
+                    <span style={{ fontSize: 11, fontWeight: 600, color: textDark, lineHeight: 1.4 }}>{item.slice(0, 40)}</span>
+                  </div>
+                ))}
+              </div>
+              {/* Positives */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+                {positives.slice(0, 3).map((item, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                    <span style={{ flexShrink: 0, width: 18, height: 18, borderRadius: '50%', background: '#DCFCE7', color: '#16A34A', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 900 }}>✓</span>
+                    <span style={{ fontSize: 11, fontWeight: 600, color: textDark, lineHeight: 1.4 }}>{item.replace(/^[✓✅]\s*/,'').slice(0, 40)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            {/* Product image bottom */}
+            {gallery[0]?.url && (
+              <div style={{ margin: '0 14px 14px', borderRadius: 14, overflow: 'hidden', height: 80, border: `1px solid ${accentMid}` }}>
+                <img src={gallery[0].url} alt="produit" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ── Section témoignages (pleine largeur) ── */}
+        {testimonials.length > 0 && (
+          <div style={{ marginTop: 14, background: '#fff', borderRadius: 20, border: `1.5px solid ${accentMid}`, padding: '16px', boxShadow: '0 4px 24px rgba(0,0,0,0.05)' }}>
+            <div style={labelStyle}>Avis clients</div>
+            <div style={{ marginTop: 4 }}>
+              <TestimonialsCarousel
+                testimonials={testimonials.map((t) => ({
+                  name: t.name, location: t.location, text: t.text,
+                  rating: t.rating || 5, verified: t.verified !== false, date: t.date,
+                }))}
+                autoPlay={false}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* ── FAQ ── */}
+        {faq.length > 0 && (
+          <div style={{ marginTop: 14, background: '#fff', borderRadius: 20, border: `1.5px solid ${accentMid}`, padding: '16px', boxShadow: '0 4px 24px rgba(0,0,0,0.05)' }}>
+            <div style={labelStyle}>Questions fréquentes</div>
+            <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {faq.map((item, i) => (
+                <div key={i} style={{ borderRadius: 14, border: `1px solid ${accentMid}`, background: accentLight, padding: '10px 14px' }}>
+                  <p style={{ margin: 0, fontSize: 12, fontWeight: 800, color: textDark }}>{item.question}</p>
+                  <p style={{ margin: '4px 0 0', fontSize: 11, color: textSoft, lineHeight: 1.6 }}>{item.reponse}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div style={{ marginTop: 14, textAlign: 'center', fontSize: 10, color: textSoft, paddingBottom: 4 }}>
+          Aperçu storefront · Direction visuelle {selectedTemplate.label.toLowerCase()}
         </div>
       </div>
     </div>

@@ -41,14 +41,16 @@ export const getStorefrontUrl = (store, path = '/') => {
 };
 
 const resolvePreferredStore = (stores, savedId) => {
-  const savedStore = stores.find((store) => store._id === savedId) || null;
+  // Always honour the explicitly saved store if it still exists and is active.
+  // This prevents the context from silently switching back to a "more ready"
+  // store (e.g. one that already has a homepage) when the user just created a
+  // new one that has no homepage yet.
+  const savedStore = stores.find((store) => store._id === savedId && isStoreEnabled(store)) || null;
+  if (savedStore) return savedStore;
 
-  if (isStoreReadyForBoutique(savedStore)) return savedStore;
-
+  // No saved preference — fall back to any ready store, then any enabled store.
   const readyStore = stores.find(isStoreReadyForBoutique);
   if (readyStore) return readyStore;
-
-  if (isStoreEnabled(savedStore)) return savedStore;
 
   return stores.find(isStoreEnabled) || null;
 };
@@ -69,13 +71,16 @@ export const StoreProvider = ({ children }) => {
       const list = res.data?.data || [];
       setStores(list);
 
-      // Restore the last usable store, otherwise prefer an enabled/generated one.
-      const savedId = localStorage.getItem(`activeStore:${wsId}`);
+      // Priority order for active store selection:
+      // 1. window.__activeStoreId__ — set explicitly by switchStore() or wizard (survives refreshStores)
+      // 2. localStorage saved preference for this workspace
+      // 3. resolvePreferredStore fallback (any ready/enabled store)
+      const inMemoryId = window.__activeStoreId__ || null;
+      const savedId = inMemoryId || localStorage.getItem(`activeStore:${wsId}`);
       const match = resolvePreferredStore(list, savedId);
 
       setActiveStore(match);
       lastKnownStoreRef.current = match || list.find((store) => !!store?.subdomain) || null;
-      // Sync global ref for API interceptor
       window.__activeStoreId__ = match?._id || null;
 
       if (match?._id) {

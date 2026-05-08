@@ -1,6 +1,7 @@
 ﻿import React, { useState, useEffect, useMemo, useCallback, useRef, useLayoutEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useEcomAuth } from '../hooks/useEcomAuth';
+import { usePlanGate } from '../contexts/PlanGateContext.jsx';
 import { useMoney } from '../hooks/useMoney.js';
 import { formatMoney } from '../utils/currency.js';
 import { conversionRates } from '../contexts/CurrencyContext.jsx';
@@ -87,6 +88,7 @@ const OrdersList = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, workspace } = useEcomAuth();
+  const { planInfo } = usePlanGate();
   const { fmt, fmtRaw, symbol, currency: userCurrency } = useMoney();
   // Affiche le montant dans la devise de la commande (pas de conversion, juste le bon symbole)
   const fmtOrder = (amount, orderCurrency) => formatMoney(amount, orderCurrency || userCurrency || 'XAF');
@@ -1935,6 +1937,53 @@ const OrdersList = () => {
       )}
       {success && <div className="mb-3 p-2.5 bg-green-50 text-green-800 rounded-lg text-sm border border-green-200 flex items-center gap-2"><svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/></svg>{success}</div>}
       {error && <div className="mb-3 p-2.5 bg-red-50 text-red-800 rounded-lg text-sm border border-red-200 flex items-center gap-2"><svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd"/></svg>{error}</div>}
+
+      {/* Quota commandes plan gratuit */}
+      {(() => {
+        const maxOrders = planInfo?.limits?.maxOrders;
+        const used = planInfo?.ordersThisMonth;
+        if (!maxOrders || maxOrders === -1 || used == null) return null;
+        const pct = Math.min(100, Math.round((used / maxOrders) * 100));
+        const isOver = used >= maxOrders;
+        const isWarning = pct >= 80;
+        const barColor = isOver ? 'bg-red-500' : isWarning ? 'bg-amber-500' : 'bg-emerald-500';
+        const bgStyle = isOver
+          ? 'bg-red-50 border-red-200 text-red-800'
+          : isWarning
+          ? 'bg-amber-50 border-amber-200 text-amber-800'
+          : 'bg-gray-50 border-gray-200 text-gray-700';
+        return (
+          <div className={`mb-3 p-3 rounded-xl border ${bgStyle}`}>
+            <div className="flex flex-wrap items-center justify-between gap-2 text-sm mb-2">
+              <div className="flex items-center gap-2">
+                {isOver || isWarning ? (
+                  <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd"/>
+                  </svg>
+                ) : (
+                  <svg className="w-4 h-4 flex-shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                  </svg>
+                )}
+                <span>
+                  {isOver
+                    ? <>Limite atteinte — <strong>{used}/{maxOrders}</strong> commandes ce mois. Nouvelles commandes bloquées.</>
+                    : isWarning
+                    ? <>Quota presque atteint — <strong>{used}/{maxOrders}</strong> commandes ce mois ({pct}%).</>
+                    : <>Plan Gratuit — <strong>{used}/{maxOrders}</strong> commandes utilisées ce mois.</>
+                  }
+                </span>
+              </div>
+              <a href="/ecom/billing" className={`font-semibold underline underline-offset-2 whitespace-nowrap text-xs ${
+                isOver ? 'text-red-700 hover:text-red-900' : isWarning ? 'text-amber-700 hover:text-amber-900' : 'text-emerald-700 hover:text-emerald-900'
+              }`}>Passer à Scalor →</a>
+            </div>
+            <div className="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
+              <div className={`h-1.5 rounded-full transition-all ${barColor}`} style={{ width: `${pct}%` }} />
+            </div>
+          </div>
+        );
+      })()}
       
       {/* Header */}
       <div className="flex items-start sm:items-center justify-between mb-3 sm:mb-4 gap-2">

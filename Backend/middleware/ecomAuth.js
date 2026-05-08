@@ -2,6 +2,7 @@ import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import EcomUser from '../models/EcomUser.js';
 import Store from '../models/Store.js';
+import EcomWorkspace from '../models/Workspace.js';
 
 // Clé secrète pour les tokens e-commerce (différente du système principal)
 // WARNING: ECOM_JWT_SECRET must be set in production! Fallback is for development only.
@@ -172,6 +173,20 @@ export const requireEcomAuth = async (req, res, next) => {
       }
     } else {
       req.activeStoreId = null;
+    }
+
+    // Safety net: if no X-Store-Id header was sent but Store documents exist,
+    // resolve the primary store so routes never return the whole workspace blindly.
+    if (!req.activeStoreId) {
+      try {
+        const ws = await EcomWorkspace.findById(req.workspaceId).select('primaryStoreId').lean();
+        const query = { workspaceId: req.workspaceId, isActive: true };
+        if (ws?.primaryStoreId) query._id = ws.primaryStoreId;
+        const fallback = await Store.findOne(query).sort({ createdAt: 1 }).select('_id').lean();
+        req.activeStoreId = fallback?._id || null;
+      } catch (_) {
+        // Non-critical — leave activeStoreId null for legacy workspace-only accounts
+      }
     }
 
     next();
