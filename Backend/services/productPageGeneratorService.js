@@ -1322,169 +1322,243 @@ LAYOUT & DESIGN LANGUAGE:
 `;
 
 const INFOGRAPHIC_SLIDE_PROMPTS = {
-  hook: ({ productName, targetAudience, painPoint, bgColor = '#FFF8F0', textColor = '#1C1917', accentColor = '#F59E0B', highlightColor = '#EA580C', country = '', city = '' }) => `
-SLIDE TYPE: PRODUCT HERO — opening slide, product large and dominant, headline promise.
 
-LAYOUT (follow the reference style closely):
-- Warm ivory/cream background (${bgColor}) filling the full frame
-- TOP SECTION: bold headline in 2 lines, dark text (${textColor}), 1–2 key words in accent color (${accentColor}), large condensed font
-- CENTER: the product LARGE (min 50% height), perfectly sharp, on a clean white rounded card with soft shadow OR floating on the ivory background with subtle shadow beneath it
-- BOTTOM SECTION: 2 or 3 horizontal trust badges in small white rounded pills — e.g. "✓ 100% Naturel", "✓ Sans Parabène", "✓ Livraison Rapide"
-- Small optional certification seal (USDA, Bio, Certifié, etc.) if relevant to the product
+  problem: ({ productName, targetAudience, painPoint, bgColor = '#FFF8F0', textColor = '#1C1917', accentColor = '#F59E0B', highlightColor = '#EA580C', country = '', city = '' }) => `
+SLIDE TYPE: PROBLÈME — accroche émotionnelle qui nomme la douleur du client et crée un lien fort avant de parler du produit.
+
+═══ LAYOUT OBLIGATOIRE ═══
+FOND: blanc cassé (${bgColor}) — propre, aéré, jamais sombre
+ZONE HAUTE (30% de la slide) — bloc émotionnel fort:
+  - Titre choc en 2 lignes, gras condensé, MAJUSCULES, texte sombre (${textColor}), 1 mot-clé en couleur vive (${highlightColor})
+  - Exemple de formulation: "VOUS EN AVEZ ASSEZ DE [PROBLÈME] ?" — émotionnel, direct, personnel
+  - Sous-titre court en italique ou texte normal : "Vous n'êtes pas seul(e). Des milliers de personnes vivent la même chose."
+
+ZONE CENTRALE (45% de la slide) — carte blanche arrondie avec ombre douce:
+  - Personne africaine authentique montrant clairement la SOUFFRANCE liée au problème (${painPoint || 'le problème principal du produit'}) — expression de frustration, fatigue ou inconfort réel et crédible
+  - La zone affectée est visible et reconnaissable (cheveux, peau, corps, etc.)
+  - Lumière naturelle, style photo réelle — PAS de mise en scène artificielle
+
+ZONE BASSE (25% de la slide) — liste de symptômes/signes reconnaissables:
+  - 3 lignes, chaque ligne: icône ronde (❌ ou ⚠️ dans cercle coloré) + texte court (4–6 mots)
+    Exemples: "❌ Chute de cheveux visible" · "❌ Peau terne et fatiguée" · "❌ Résultats décevants après tout"
+  - Fond blanc, coins arrondis, ombre légère — style carte infographie Shopify premium
+
+${buildInfographicCastingInstruction({ name: productName, targetAudience, painPoint })}
+${buildInfographicLocaleInstruction(country, city)}
+${PHOTO_REALISM_RULES}
+
+TEXTE — RÈGLES ABSOLUES:
+- FRANÇAIS PARFAIT — zéro faute, tous les accents corrects (é è ê à ù ç)
+- Ton: direct, empathique, "je comprends ce que vous vivez"
+- PAS de nom de produit, PAS de CTA, PAS de prix — cette slide parle UNIQUEMENT du problème
+- PAS de fond sombre, PAS de texte blanc sur fond coloré
+
+AMBIANCE: Empathique, reconnaissable, émotionnellement fort. Le lecteur se dit "c'est exactement mon problème !".
+`,
+
+  hook: ({ productName, targetAudience, painPoint, bgColor = '#FFF8F0', textColor = '#1C1917', accentColor = '#F59E0B', highlightColor = '#EA580C', country = '', city = '' }) => `
+SLIDE TYPE: SOLUTION HERO — le produit est présenté comme LA réponse au problème, avec une promesse de transformation claire.
+
+═══ LAYOUT OBLIGATOIRE ═══
+FOND: blanc cassé (${bgColor})
+
+ZONE HAUTE (25%) — promesse de transformation:
+  - Titre 2 lignes: "LA SOLUTION QUE VOUS ATTENDIEZ" suivi de la promesse principale en accent (${accentColor})
+  - Exemple: "FINI [PROBLÈME]. PLACE À [RÉSULTAT]" — direct, affirmé, en gras condensé MAJUSCULES
+  - Petit badge arrondi sous le titre: "✓ Prouvé · ✓ Naturel · ✓ Résultats rapides"
+
+ZONE CENTRALE (50%) — le produit en héros:
+  - Le produit ${productName || ''} GRAND (min 55% de hauteur), parfaitement net, sur carte blanche avec ombre douce
+  - Lumière studio propre — chaque détail de l'emballage, étiquette, forme est fidèle à la référence
+  - Effet "présentation produit premium" — pas de fond plein ni de poster sombre
+
+ZONE BASSE (25%) — preuve sociale:
+  - 3 petites pastilles horizontales en blanc sur fond clair: "⭐ 4.9/5 · 2 300 avis" + "✓ Stock limité" + "🚚 Livraison rapide"
+  - Optionnel: petit bandeau de certification (Bio, Sans Parabène, Vegan, etc.) adapté au produit
 
 ${buildInfographicCastingInstruction({ name: productName, targetAudience, painPoint })}
 ${buildInfographicLocaleInstruction(country, city)}
 
-TEXT:
-- Headline: bold uppercase, dark (${textColor}), accent highlight on key benefit word in (${accentColor}) — max 8 words total
-- Sub-badges: very short (2–4 words each), perfect French
-- NO long paragraphs, NO dark background, NO all-white text on dark
+TEXTE:
+- FRANÇAIS PARFAIT, gras sans-serif condensé, contraste élevé mobile
+- PAS de fond sombre, PAS de long texte, PAS de bouton CTA, PAS de prix
 
-MOOD: Clean, premium, trustworthy. Looks like a top-rated Amazon product listing image.
+AMBIANCE: Révélation, soulagement, confiance. Le lecteur pense "c'est exactement ce qu'il me faut".
 `,
 
   benefits: ({ productName, mainBenefit, bgColor = '#FFF8F0', textColor = '#1C1917', accentColor = '#F59E0B', highlightColor = '#EA580C', targetAudience = '', country = '', city = '' }) => `
-SLIDE TYPE: BENEFITS GRID — "N bénéfices en une seule formule" style slide.
+SLIDE TYPE: BÉNÉFICES — liste des transformations concrètes que le produit apporte, en un coup d'œil.
 
-LAYOUT (follow the reference style closely):
-- Warm ivory/cream background (${bgColor})
-- TOP: bold headline "X BÉNÉFICES EN CHAQUE DOSE" (or equivalent) — dark (${textColor}), key number/word in accent (${accentColor})
-- CENTER LEFT: the product large, sharp, on a white rounded card
-- CENTER RIGHT or BELOW: a grid of 4–6 benefit icons with short French labels (2–3 words each) — use clean flat circle icons (☀️ Éclat, 💧 Hydratation, 🛡️ Protection, etc.) arranged neatly in 2 or 3 columns
-- Each benefit item: small icon badge + short label in dark text, arranged on a light or white zone
+═══ LAYOUT OBLIGATOIRE ═══
+FOND: blanc cassé (${bgColor})
+
+ZONE HAUTE (20%):
+  - Titre court 1 ligne: "CE QUE ÇA CHANGE POUR VOUS" — (${textColor}) gras, 1 mot en (${accentColor})
+  - Sous-titre 1 ligne: le bénéfice principal (${mainBenefit || 'résultats visibles rapidement'}) en italique clair
+
+ZONE CENTRALE (50%) — grille 2×3 ou 3×2 de bénéfices:
+  - Chaque case: icône ronde flat (cercle + pictogramme propre : feuille, bouclier, goutte, étoile, etc.) + label 2–3 mots en gras sombre
+  - Exemples adaptés au produit: "Éclat naturel", "Hydratation intense", "Pousse accélérée", "Peau lisse", "Force & vitalité", "Protection totale"
+  - Fond de chaque case: blanc, coins arrondis, légère ombre — style Shopify premium
+
+ZONE BASSE (30%) — le produit:
+  - Le produit ${productName || ''} net et grand sur carte blanche, centré
+  - 1 ligne de réassurance très courte sous le produit: "100% Naturel · Sans Effets Secondaires · Livraison Gratuite"
 
 ${buildInfographicCastingInstruction({ name: productName, targetAudience, mainBenefit })}
 ${buildInfographicLocaleInstruction(country, city)}
 
-TEXT:
-- Headline: short, bold, dark with accent color emphasis
-- Benefit labels: 2–3 words each, perfect French, clean and scannable
-- NO wall of text, NO dark background
-
-MOOD: Informative, bright, at-a-glance clarity. Shopify product listing style.
+TEXTE: Labels courts, FRANÇAIS PARFAIT, lisible sur mobile. PAS de fond sombre.
+AMBIANCE: Clair, rapide à scanner, convaincant. Comme une fiche produit Amazon top-rated.
 `,
 
   avant_apres: ({ productName, bodyZone, bgColor = '#FFF8F0', textColor = '#1C1917', accentColor = '#F59E0B', targetAudience = '', country = '', city = '' }) => `
-SLIDE TYPE: AVANT / APRÈS — "Résultats visibles en X jours" transformation slide.
+SLIDE TYPE: AVANT / APRÈS — comparaison transformation choc, résultats concrets et crédibles.
 
-LAYOUT (follow the reference style closely):
-- Warm ivory/cream background (${bgColor})
-- TOP: bold headline "RÉSULTAT VISIBLE EN QUELQUES JOURS" — dark (${textColor}), key words in accent (${accentColor})
-- CENTER: side-by-side comparison on a white rounded card with soft shadow
-  - LEFT panel: authentic Black African person showing the PROBLEM on ${bodyZone || 'the relevant zone'} — realistic, subtle — small label "Avant" in a rounded accent pill
-  - RIGHT panel: SAME person, believable improvement — small label "Après" in a rounded accent pill
-- The product ${productName || ''} small but visible in a corner of the card or beside it
-- Small close-up crop to emphasize the zone of transformation (skin, hair, body area, etc.)
+═══ LAYOUT OBLIGATOIRE ═══
+FOND: blanc cassé (${bgColor})
+
+ZONE HAUTE (20%):
+  - Titre fort 2 lignes: "AVANT vs APRÈS" en très gros, gras, MAJUSCULES — "AVANT" en gris-rouge doux, "APRÈS" en (${accentColor}) vif
+  - Sous-titre court sous le titre: "Résultats visibles dès les premières semaines d'utilisation"
+
+ZONE CENTRALE (55%) — carte blanche large, ombre douce, split vertical:
+  - GAUCHE "AVANT": personne africaine authentique montrant le PROBLÈME sur (${bodyZone || 'la zone concernée du corps'}) — frustration visible, zone problématique nette et reconnaissable
+    Petit badge arrondi "AVANT" dans le coin supérieur gauche de la carte — fond rouge-corail doux, texte blanc
+  - SÉPARATEUR vertical: ligne fine sombre ou gradient léger entre les deux panels
+  - DROITE "APRÈS": MÊME personne, MÊME angle, MÊME mise en scène — amélioration nette et crédible de la zone
+    Petit badge arrondi "APRÈS" dans le coin supérieur droit — fond (${accentColor}), texte blanc
+  - Les deux photos doivent paraître authentiques, photographiques, naturelles — PAS retouchées artificiellement
+
+ZONE BASSE (25%):
+  - Le produit ${productName || ''} centré, net, sur mini carte blanche
+  - À côté: 3 pastilles résultats horizontales: "✓ Résultats en 3 semaines" · "✓ Testé et approuvé" · "✓ 100% Naturel"
 
 ${buildInfographicCastingInstruction({ name: productName, targetAudience, bodyZone })}
 ${buildInfographicLocaleInstruction(country, city)}
 ${PHOTO_REALISM_RULES}
 
-TEXT:
-- "Avant" / "Après" labels: perfectly spelled, rounded pill badges in accent color
-- Headline: bold, dark, short — accent on the result word
-- NO dark background, NO heavy poster graphic
-
-MOOD: Credible, clean, photographic. Looks like a real before/after product photo card.
+TEXTE: "Avant" / "Après" parfaitement orthographiés, FRANÇAIS PARFAIT. PAS de fond sombre.
+AMBIANCE: Choc visuel, preuve concrète. Le lecteur voit la différence immédiatement et y croit.
 `,
 
   testimonials: ({ productName, bgColor = '#FFF8F0', textColor = '#1C1917', accentColor = '#F59E0B', highlightColor = '#F59E0B', targetAudience = '', country = '', city = '' }) => `
-SLIDE TYPE: AVIS CLIENTS — testimonial card grid on light background.
+SLIDE TYPE: AVIS CLIENTS — témoignages authentiques de vraies personnes qui ont vu des résultats.
 
-LAYOUT (follow the reference style closely):
-- Warm ivory/cream background (${bgColor})
-- TOP: large bold headline "ILS NOUS FONT CONFIANCE" — dark (${textColor}), key word in accent (${accentColor})
-- CENTER: grid of 4 testimonial cards arranged 2×2 — each card is WHITE with rounded corners and soft shadow:
-  - Circular customer portrait (authentic African face, real photo look)
-  - First name + city in dark small text
-  - 5 yellow/amber stars (${highlightColor})
-  - Short quote 10–18 words in normal weight dark text
-- BOTTOM: the product ${productName || ''} as a small sharp packshot, optionally with 1–2 reassurance chips
+═══ LAYOUT OBLIGATOIRE ═══
+FOND: blanc cassé (${bgColor})
+
+ZONE HAUTE (15%):
+  - Titre: "+2 300 PERSONNES ONT ESSAYÉ" en gras MAJUSCULES — chiffre en (${accentColor})
+  - Sous-titre court: "Voici ce qu'ils disent"
+
+ZONE CENTRALE (70%) — grille 2×2 de cartes avis, chacune en blanc, coins arrondis, ombre:
+  CHAQUE CARTE CONTIENT:
+  - Portrait rond en haut à gauche: personne africaine authentique, sourire naturel, fond dépouillé
+  - Prénom + ville à droite du portrait (ex: "Fatima K. · Abidjan") — texte sombre petit
+  - 5 étoiles ambrées alignées juste en dessous (${highlightColor})
+  - Citation courte 12–20 mots, SPÉCIFIQUE à un résultat concret: "J'ai vu la différence en 2 semaines, mes cheveux repoussent !" — texte normal sombre
+  - Optionnel: petit badge vert "✓ Achat vérifié" en bas de la carte
+
+ZONE BASSE (15%):
+  - Le produit ${productName || ''} centré, mini packshot net
+  - "Rejoignez des milliers de clients satisfaits" en petit italique
 
 ${buildInfographicCastingInstruction({ name: productName, targetAudience })}
 ${buildInfographicLocaleInstruction(country, city)}
 ${PHOTO_REALISM_RULES}
 
-TEXT:
-- Quotes: short, credible, specific — perfect French
-- Names and cities from ${country || 'the target African market'}
-- Stars in accent amber (${accentColor})
-
-MOOD: Warm, trustworthy, social proof abundance. Looks like a real e-commerce review section.
+TEXTE: Citations CRÉDIBLES et SPÉCIFIQUES, FRANÇAIS PARFAIT. Noms et villes du marché africain (${country || 'Côte d\'Ivoire, Sénégal, Cameroun'}). PAS de fond sombre.
+AMBIANCE: Social proof abondant, chaleureux, authentique. Exactement comme une section avis Shopify premium.
 `,
 
   reassurance: ({ productName, bgColor = '#FFF8F0', textColor = '#1C1917', accentColor = '#F59E0B', targetAudience = '', country = '', city = '' }) => `
-SLIDE TYPE: FORMULE / INGRÉDIENTS — "Formule propre et éthique" trust slide.
+SLIDE TYPE: CONFIANCE & FORMULE — garanties, ingrédients propres, preuves de sérieux.
 
-LAYOUT (follow the reference style closely):
-- Warm ivory/cream background (${bgColor})
-- TOP: bold headline "FORMULE PROPRE & ÉTHIQUE" (or equivalent for the product) — dark (${textColor}), key word in accent (${accentColor})
-- LEFT SIDE: the product ${productName || ''} large, sharp, clean studio lighting on white card
-- RIGHT SIDE: a clean vertical checklist of 4–6 items — each item is a line with:
-  - ✓ checkmark in accent color (${accentColor}) for positive attributes (e.g. "Sans Parabène", "Vegan", "Certifié Bio")
-  - ✗ crossed in muted red for things it does NOT contain (e.g. "Sans Alcool", "Sans Sulfate")
-  - Short text 2–4 words, dark, bold label
+═══ LAYOUT OBLIGATOIRE ═══
+FOND: blanc cassé (${bgColor})
+
+ZONE HAUTE (15%):
+  - Titre: "POURQUOI NOUS FAIRE CONFIANCE ?" en gras (${textColor}), dernier mot en (${accentColor})
+
+ZONE CENTRALE GAUCHE (50% largeur × 60% hauteur):
+  - Le produit ${productName || ''} GRAND, net, sur carte blanche avec ombre douce
+  - Lumière studio propre — tous les détails de l'emballage sont parfaitement visibles
+
+ZONE CENTRALE DROITE (50% largeur × 60% hauteur) — checklist verticale:
+  - 3 items ✓ (positif, ce que LE PRODUIT CONTIENT ou GARANTIT):
+    ✓ en (${accentColor}) + texte 3–5 mots gras sombre (ex: "✓ Ingrédients 100% naturels", "✓ Formule sans danger", "✓ Testé dermatologiquement")
+  - 2 items ✗ (ce que LE PRODUIT N'A PAS):
+    ✗ en rouge-corail doux + texte 3–5 mots gras barré ou estompé (ex: "✗ Sans Parabène", "✗ Sans Alcool")
+  - Séparation visuelle claire entre ✓ et ✗ sections
+
+ZONE BASSE (25%):
+  - Rangée horizontale de 3 mini sceaux / badges ronds: ex "🌿 Bio", "🛡 Certifié", "💧 Sans Sulfate"
+  - 1 ligne de garantie: "Satisfait ou remboursé · Livraison garantie"
 
 ${buildInfographicCastingInstruction({ name: productName, targetAudience })}
 ${buildInfographicLocaleInstruction(country, city)}
 
-TEXT:
-- Checklist items: 2–4 words each, perfect French, clear contrast
-- Headline: bold dark with accent highlight
-- NO dark background, NO clutter
-
-MOOD: Transparent, clean, premium ingredient trust. Like a cosmetics brand transparency slide.
+TEXTE: Items 3–5 mots, FRANÇAIS PARFAIT. PAS de fond sombre.
+AMBIANCE: Transparent, sérieux, premium. Le lecteur se sent en sécurité pour acheter.
 `,
 
   how_to_use: ({ productName, bgColor = '#FFF8F0', textColor = '#1C1917', accentColor = '#F59E0B', targetAudience = '', country = '', city = '' }) => `
-SLIDE TYPE: UTILISATION — authentic person using the product + step instruction.
+SLIDE TYPE: MODE D'EMPLOI — 3 étapes simples pour utiliser le produit et obtenir des résultats.
 
-LAYOUT (follow the reference style closely):
-- Warm ivory/cream background (${bgColor})
-- TOP: bold headline "PARFAIT POUR [USAGE ZONE]" — dark (${textColor}), key word in accent (${accentColor})
-- CENTER: authentic Black African person naturally using the product ${productName || ''} — real hand grip, correct scale, believable motion, MODERN interior
-- RIGHT or BELOW: clean vertical list of 3–5 usage or suitability points — each line: small circle badge + short French text (3–5 words)
-  Examples: "Tous types de peau", "Usage quotidien", "Formule légère", "Résultats visibles"
-- Product also visible separately (packshot) in a corner card
+═══ LAYOUT OBLIGATOIRE ═══
+FOND: blanc cassé (${bgColor})
+
+ZONE HAUTE (15%):
+  - Titre: "3 ÉTAPES SIMPLES" en gras MAJUSCULES — "3 ÉTAPES" en (${accentColor}), "SIMPLES" en (${textColor})
+
+ZONE CENTRALE (55%) — 3 étapes verticales, chacune sur carte blanche arrondie:
+  ÉTAPE 1: numéro cerclé "①" en (${accentColor}) + courte instruction (5–7 mots) + icône flat (ex: 🧴 ou 💧)
+  ÉTAPE 2: numéro cerclé "②" + instruction + icône
+  ÉTAPE 3: numéro cerclé "③" + instruction + icône
+  - Flèche ou trait thin reliant chaque étape vers la suivante
+  - Exemple adapté au produit: "① Nettoyez la zone · ② Appliquez le produit · ③ Observez les résultats"
+
+ZONE BASSE (30%):
+  - La personne africaine tenant le produit ${productName || ''} — geste naturel d'application — photo réelle
+  - Sous la photo: "Usage quotidien · Résultats progressifs · Simple et efficace"
 
 ${buildInfographicCastingInstruction({ name: productName, targetAudience })}
 ${buildInfographicLocaleInstruction(country, city)}
 ${PHOTO_REALISM_RULES}
 
-TEXT:
-- List items: short, scannable, perfect French
-- Headline: bold dark, 1–2 accent words
-- NO dark background
-
-MOOD: Practical, natural, frictionless. Looks like a real-use product photo with usage callouts.
+TEXTE: Instructions courtes, claires, FRANÇAIS PARFAIT. PAS de fond sombre.
+AMBIANCE: Simple, actionnable, sans friction. Le lecteur sait exactement quoi faire.
 `,
 
   cta_final: ({ productName, bgColor = '#FFF8F0', textColor = '#1C1917', accentColor = '#F59E0B', targetAudience = '', country = '', city = '' }) => `
-SLIDE TYPE: CLÔTURE / INGRÉDIENTS BOTANIQUES — botanical blend or hero ingredient slide.
+SLIDE TYPE: CLÔTURE URGENCE — dernière slide qui crée l'urgence et synthétise la proposition de valeur.
 
-LAYOUT (follow the reference style closely):
-- Warm ivory/cream background (${bgColor})
-- TOP: bold headline "MÉLANGE D'INGRÉDIENTS [NATURELS/BOTANIQUES]" — dark (${textColor}), key word in accent (${accentColor})
-- CENTER: the product ${productName || ''} large on a clean white rounded card, centered, perfectly sharp
-- AROUND THE PRODUCT: 4–6 key ingredients arranged in a neat grid or radial layout — each ingredient shown as:
-  - Small circular icon or illustration (flat, clean)
-  - Short ingredient name beneath (2–3 words, bold dark)
-  Example items: "Vitamine C", "Aloe Vera", "Huile d'Argan", "Extrait Marin", "Collagène", "Glycérine"
-- BOTTOM: 1 short certification line or quality seal (e.g. "Sans OGM · 100% Naturel · Fabriqué avec soin")
+═══ LAYOUT OBLIGATOIRE ═══
+FOND: blanc cassé (${bgColor}) — propre, pas sombre
+
+ZONE HAUTE (20%):
+  - Titre 2 lignes CHOC: "NE LAISSEZ PLUS [PROBLÈME] GÂCHER VOTRE VIE" en gras MAJUSCULES — mots émotionnels en (${accentColor || '#EA580C'})
+  - Sous-titre: "Des milliers de personnes ont déjà transformé leur quotidien avec ${productName || 'ce produit'}."
+
+ZONE CENTRALE (40%) — produit en position de force:
+  - Le produit ${productName || ''} GRAND, net, parfaitement centré sur carte blanche
+  - Autour du produit: 4 petites pastilles rondes avec les 4 bénéfices clés (2–3 mots chacun)
+
+ZONE BASSE (40%) — récapitulatif valeur + urgence:
+  - 3 lignes de garanties / valeur avec icônes: "✓ Résultats visibles rapidement" · "🚚 Livraison rapide" · "💯 Satisfait ou Remboursé"
+  - Bandeau d'urgence en bas: fond (${accentColor}) clair, texte sombre: "⚡ OFFRE LIMITÉE — COMMANDEZ MAINTENANT"
+  - Petit compteur social: "🔥 127 personnes ont commandé ces 24 dernières heures"
 
 ${buildInfographicCastingInstruction({ name: productName, targetAudience })}
 ${buildInfographicLocaleInstruction(country, city)}
 
-TEXT:
-- Ingredient names: short, perfectly spelled, dark
-- Headline: bold, accent highlight
-- NO dark background, NO CTA button, NO price
-
-MOOD: Scientific trust, natural luxury, premium ingredient showcase. Looks like a clean botanical brand slide.
+TEXTE: FRANÇAIS PARFAIT, ton urgent et émotionnel. PAS de bouton faux, PAS de prix, PAS d'URL.
+AMBIANCE: Urgence, valeur, transformation. C'est la dernière image avant que le lecteur commande.
 `,
 };
 
-const DEFAULT_INFOGRAPHIC_ORDER = ['hook', 'benefits', 'avant_apres', 'testimonials', 'reassurance', 'how_to_use', 'cta_final'];
+const DEFAULT_INFOGRAPHIC_ORDER = ['problem', 'hook', 'avant_apres', 'benefits', 'testimonials', 'reassurance', 'how_to_use', 'cta_final'];
 
 function buildInfographicPrompt(slideType, meta = {}) {
   const builder = INFOGRAPHIC_SLIDE_PROMPTS[slideType];
