@@ -473,7 +473,7 @@ async function runBackgroundImageGeneration({
     const descriptionGifSpecs = buildDescriptionGifSpecs(productData);
 
     imageTasks.push(
-      () => generateAndUpload(buildHeroPrompt(productData, true, visualTemplate, visualContext), `hero-${Date.now()}.png`, 'hero', productData.imageAspectRatio || '4:5')
+      () => generateAndUpload(buildHeroPrompt(productData, true, visualTemplate, visualContext), `hero-${Date.now()}.png`, 'hero', '1:1')
         .then((url) => ({ type: 'hero', url }))
         .finally(() => { jobData.progress += 1; })
     );
@@ -811,6 +811,36 @@ function buildHumanPhotoRealismRules() {
 • Hairline, braids, locs, afro texture, edges and baby hairs must look naturally photographed, never plastic or painted
 • Avoid uncanny AI traits: plastic skin, fake smile, glassy eyes, over-beautified face, over-sharpened pores, blurred accessories, broken jewelry, distorted backgrounds
 • Final result must feel like a real commercial photo captured by a skilled photographer with a real model`;
+}
+
+function buildGenderConstraintRules(targetGender = 'auto') {
+  if (targetGender === 'female') {
+    return `
+
+═══ GENDER CONSTRAINT — MANDATORY ═══
+• ALL people visible in this image MUST be women. No men, no boys, no male figures anywhere.
+• Every customer portrait, avatar, lifestyle model, hand, silhouette or person shown must be female.
+• This applies to testimonial cards, before/after subjects, hero models, background figures — every single person.
+• Black African women only: dark brown skin, natural African hair (braids, afro, locs, twists), feminine features.`;
+  }
+  if (targetGender === 'male') {
+    return `
+
+═══ GENDER CONSTRAINT — MANDATORY ═══
+• ALL people visible in this image MUST be men. No women, no girls, no female figures anywhere.
+• Every customer portrait, avatar, lifestyle model, hand, silhouette or person shown must be male.
+• This applies to testimonial cards, before/after subjects, hero models, background figures — every single person.
+• Black African men only: dark brown skin, natural African hair (short cut, fade, twists, locs), masculine features.`;
+  }
+  if (targetGender === 'mixed') {
+    return `
+
+═══ GENDER CONSTRAINT — MANDATORY ═══
+• This image targets a MIXED audience. Include BOTH men and women.
+• Distribute genders naturally: if multiple people appear, show a realistic mix of Black African men and women.
+• Do NOT make the image exclusively male or exclusively female.`;
+  }
+  return '';
 }
 
 function buildSemanticIllustrationRules({ mainClaim = '', supportText = '', promise = '', bullets = [] } = {}) {
@@ -1178,7 +1208,7 @@ Style: clean, educational, modern, easy to understand, premium, trustworthy.
 Colors must match this website / brand color: ${brandColor}.
 French text only. Perfect spelling. No fake stock-photo feel. No price, no phone number, no URL, no watermark.
 The visual language should stay consistent with a premium modular product-page board while the content adapts to the current product.
-${buildUltraSmartInfographicStyleRules(brandColor, template)}${buildStructuredProductPageVisualRules(gptResult, template, brandColor, 'benefits explanation image')}${buildArtDirectionProfile(1, gptResult, template, visualPrefs, 'benefits explanation image')}${buildProfessionalDescriptionGraphicRules(0, template, visualPrefs)}${buildHumanPhotoRealismRules()}${buildVisualPromptDirectives(visualPrefs)}`;
+${buildUltraSmartInfographicStyleRules(brandColor, template)}${buildStructuredProductPageVisualRules(gptResult, template, brandColor, 'benefits explanation image')}${buildArtDirectionProfile(1, gptResult, template, visualPrefs, 'benefits explanation image')}${buildProfessionalDescriptionGraphicRules(0, template, visualPrefs)}${buildHumanPhotoRealismRules()}${buildGenderConstraintRules(visualPrefs?.targetGender)}${buildVisualPromptDirectives(visualPrefs)}`;
 }
 
 function buildSocialProofCollagePrompt(gptResult, template = 'general', visualPrefs = {}) {
@@ -1253,7 +1283,7 @@ Do NOT make the product tiny or secondary.
 Style: premium ecommerce testimonial poster, trust-building, realistic, editorial, highly converting, African-market relevant.
 French text only. Perfect spelling. Strong mobile readability. Clear hierarchy. No stock-photo feeling, no exaggerated poses, no fake hands.
 The final result must look like a polished product-page review poster with centered product and surrounding client proof.
-${buildHumanPhotoRealismRules()}${buildVisualPromptDirectives(visualPrefs)}`;
+${buildHumanPhotoRealismRules()}${buildGenderConstraintRules(visualPrefs?.targetGender)}${buildVisualPromptDirectives(visualPrefs)}`;
 }
 
 /**
@@ -1265,42 +1295,52 @@ function buildHeroPrompt(gptResult, hasProductRef, template = 'general', visualP
   const mainBenefit = getMainBenefit(gptResult);
   const brandColor = resolveBrandColor(visualPrefs, template);
   const heroContext = getHeroContextHints(gptResult, template);
-  const productNote = 'THE EXACT product from the reference image, same packaging, same label, same colors, same shape, no redesign, no approximation.';
+  const productName = gptResult.title || 'the product';
+  const socialProof = gptResult.urgency_elements?.social_proof_count || '1000+';
+  const benefits = (gptResult.benefits_bullets || gptResult.raisons_acheter || []).filter(Boolean).slice(0, 3);
+  const benefitLines = benefits.length > 0
+    ? benefits.map(b => `"${String(b).slice(0, 60)}"`).join(', ')
+    : '"Résultats rapides", "Formule naturelle", "Qualité prouvée"';
+  const productNote = 'THE EXACT product from the reference image — same packaging, same label, same colors, same shape. No redesign, no approximation.';
+  const reassurance = [
+    gptResult.reassurance?.points?.[0] || 'Satisfait ou Remboursé',
+    gptResult.reassurance?.points?.[1] || 'Livraison Rapide',
+    gptResult.reassurance?.points?.[2] || 'Service Client 24/7',
+  ].join(' | ');
+  const ctaLabel = gptResult.hero_cta || 'COMMANDER MAINTENANT';
+  const subheadline = gptResult.hero_baseline || gptResult.hero_slogan || '';
 
-  return `Create a high-converting ecommerce hero image for an African audience.
+  return `Create a high-converting ecommerce hero image for ${productName}. Square 1:1 (1080×1080) premium layout.
 
-A realistic hero scene showing ${heroContext.subject}.
+═══ MANDATORY COMPOSITION STRUCTURE — FOLLOW EXACTLY ═══
+Reproduce this EXACT split-panel layout (same as a high-performing African ecommerce ad):
 
-Scene and environment: ${heroContext.scene}.
-Composition goal: ${heroContext.composition}.
-Emotional tone: ${heroContext.mood}.
+LEFT HALF — COPY ZONE (white or very light background, ${brandColor} accent):
+① TOP: Brand/product icon or small heart/leaf accent in ${brandColor}, then a bold 2-line French headline (large, high contrast, premium weight). Headline reflects: "${mainBenefit}"
+② BELOW HEADLINE: one short supporting subtitle (1–2 lines, regular weight)
+③ BENEFIT BULLETS: 3 benefit lines with a check icon (✓ or ✅) in ${brandColor}. Use: ${benefitLines}
+④ TRUST BADGE: a round seal or badge shape in ${brandColor} showing "${socialProof}" in bold white text, placed naturally in the lower-left area
+⑤ BOTTOM STRIP: thin separator line, then a single line of 3 short reassurance promises separated by "|": "${reassurance}"
+⑥ CTA BUTTON: full-width rounded button in ${brandColor} with white bold text "${ctaLabel}"
 
-The person must naturally HOLD the product in hand, or wear/use it in the most obvious way for the niche, so the product is immediately identifiable in the hero.
-The product must be clearly visible and placed naturally in the usage scene.
+RIGHT HALF — LIFESTYLE PHOTO ZONE (blends into the left background):
+The ${heroContext.subject} naturally using ${productName}.
+${heroContext.scene}
+The person HOLDS the exact product clearly visible in hand at natural scale.
 ${productNote}
-${heroContext.placement}.
+The photo must look like a real premium commercial photograph — natural skin, real hands, photorealistic quality.
 
-Clean soft lighting, premium ecommerce photography style, realistic and trustworthy.
-Background color must match the website color: ${brandColor}.
-
-Text structure must resemble a high-end hero advertising board, not just a lifestyle photo with one small badge.
-Use French text only, with perfect spelling and premium ad hierarchy.
-You may use:
-- one strong headline
-- one short supporting subtitle
-- 3 to 4 short benefit bullets
-- one social proof badge
-- one bottom reassurance strip
-- one CTA button label
-
-Suggested CTA language can be direct and conversion-oriented, such as a premium variation of "Je commande maintenant" adapted to the product.
-Do NOT use long paragraphs. Keep every text block short, high-impact and highly legible.
-The main promise must reflect this benefit: "${mainBenefit}"
-
-Style: realistic, premium, trustworthy, no stock feeling, no fake hands, no watermark, no phone number, no URL.
-Do not force the product near the face unless that is the natural real usage of the product.
-For home, bathroom, kitchen or cleaning products, the image must prioritize the exact usage context and the solved problem in the room itself.
-${buildStructuredHeroDesignRules(gptResult, template, visualPrefs)}${buildArtDirectionProfile(0, gptResult, template, visualPrefs, 'hero hook image')}${buildDynamicDesignRules(gptResult, template, visualPrefs, 'hero hook image')}${buildHumanPhotoRealismRules()}${buildVisualPromptDirectives(visualPrefs)}`;
+═══ DESIGN RULES ═══
+• Overall background: white or very light off-white — clean, airy, premium
+• All accent elements (icons, badge, CTA button, check marks, headline emphasis) use ${brandColor} consistently
+• Typography: bold condensed headline (large), elegant subtitle, readable bullet text — all French, 100% correct spelling
+• The lifestyle photo blends into the right half with no hard border, soft vignette or natural fade into white
+• The badge floats naturally between the two halves or in the lower left
+• CTA button is the visual anchor at the bottom — large, solid, impossible to miss
+• Layout must feel like a polished marketplace ad board: structured, airy, premium, mobile-ready
+• Do NOT place random text on the photo. All text lives in the left copy zone.
+• No watermark, no price, no phone number, no URL
+${buildHumanPhotoRealismRules()}${buildGenderConstraintRules(visualPrefs?.targetGender)}${buildVisualPromptDirectives(visualPrefs)}`;
 }
 
 /**
@@ -1343,7 +1383,7 @@ If the angle is about reassurance, trust, ingredients, mechanism, transformation
 
 French text only if necessary, with perfect spelling. No price, no phone number, no URL, no watermark.
 The image must not feel generic, but it should still belong to the same premium modular visual language used across AI product pages.
-${buildUltraSmartInfographicStyleRules(brandColor, template)}${buildStructuredProductPageVisualRules(gptResult, template, brandColor, marketingIntent)}${buildArtDirectionProfile(slideIndex + 3, gptResult, template, visualPrefs, marketingIntent)}${buildHumanPhotoRealismRules()}${buildSemanticIllustrationRules({
+${buildUltraSmartInfographicStyleRules(brandColor, template)}${buildStructuredProductPageVisualRules(gptResult, template, brandColor, marketingIntent)}${buildArtDirectionProfile(slideIndex + 3, gptResult, template, visualPrefs, marketingIntent)}${buildHumanPhotoRealismRules()}${buildGenderConstraintRules(visualPrefs?.targetGender)}${buildSemanticIllustrationRules({
     mainClaim: angleTitle,
     supportText: angleExplication,
     promise: anglePromesse,
@@ -1387,7 +1427,7 @@ Build a non-generic marketing image specifically for this product.
 Use the exact product from the reference image when visible. Do not invent packaging, labels or colors.
 French text only if truly necessary. No price, no phone number, no URL, no watermark.
 Make it feel like a premium mobile landing-page block with a modular product-page board structure, a strong proof cue, and a niche-adapted palette.
-${buildUltraSmartInfographicStyleRules(brandColor, template)}${buildStructuredProductPageVisualRules(gptResult, template, brandColor, plan?.intent || 'dynamic marketing visual')}${plan?.artDirection || buildArtDirectionProfile(slideIndex + 3, gptResult, template, visualPrefs, plan?.intent || 'dynamic marketing visual')}${buildHumanPhotoRealismRules()}${buildSemanticIllustrationRules({
+${buildUltraSmartInfographicStyleRules(brandColor, template)}${buildStructuredProductPageVisualRules(gptResult, template, brandColor, plan?.intent || 'dynamic marketing visual')}${plan?.artDirection || buildArtDirectionProfile(slideIndex + 3, gptResult, template, visualPrefs, plan?.intent || 'dynamic marketing visual')}${buildHumanPhotoRealismRules()}${buildGenderConstraintRules(visualPrefs?.targetGender)}${buildSemanticIllustrationRules({
     mainClaim: angleTitle,
     supportText: angleExplication,
     promise: anglePromesse,
@@ -1403,6 +1443,7 @@ function buildSecondBeforeAfterPrompt(gptResult, visualPrefs = {}) {
   const secondBenefit = (benefits[1] || benefits[2] || benefits[0] || 'improved appearance').replace(/^[^\w]*/, '');
   const targetPerson = gptResult.hero_target_person || 'african person';
   const template = visualPrefs?.template || 'general';
+  const explicitGender = visualPrefs?.targetGender;
   const nichePrompt = {
     beauty: 'Adapt the transformation to skincare, haircare, beauty comfort or visible aesthetic improvement.',
     health: 'Adapt the transformation to wellness, relief, energy, posture, comfort or health-related improvement.',
@@ -1411,10 +1452,18 @@ function buildSecondBeforeAfterPrompt(gptResult, visualPrefs = {}) {
     home: 'Adapt the transformation to cleanliness, comfort, organization, cooking ease or household practicality.',
     general: 'Adapt the transformation to the product niche and make the benefit visually obvious.',
   }[template] || 'Adapt the transformation to the product niche and make the benefit visually obvious.';
-  // Inverser le genre pour varier
-  const altPerson = targetPerson.toLowerCase().includes('woman') || targetPerson.toLowerCase().includes('femme')
-    ? 'an African man (30-40 years old, short natural hair, confident expression)'
-    : 'an African woman (25-35 years old, natural braids or afro, warm expression)';
+  // Respecter le genre explicite — ne pas inverser si un genre est imposé
+  let altPerson;
+  if (explicitGender === 'female') {
+    altPerson = 'an African woman (28-38 years old, natural braids or afro, warm confident expression)';
+  } else if (explicitGender === 'male') {
+    altPerson = 'an African man (28-38 years old, short natural hair, confident expression)';
+  } else {
+    // Inverser le genre pour varier (comportement original quand genre = auto)
+    altPerson = targetPerson.toLowerCase().includes('woman') || targetPerson.toLowerCase().includes('femme')
+      ? 'an African man (30-40 years old, short natural hair, confident expression)'
+      : 'an African woman (25-35 years old, natural braids or afro, warm expression)';
+  }
   const painPoints = gptResult.problem_section?.pain_points || [];
   const secondProblem = painPoints[1] || painPoints[0] || secondBenefit;
 
@@ -1434,7 +1483,7 @@ MANDATORY:
 - PHOTOREALISTIC — must look like a REAL photograph, NOT AI-generated
 - NO title text, NO price, NO CTA, NO URL
 - Tight crop, ZERO empty margins
-- ${nichePrompt}${buildHumanPhotoRealismRules()}`;
+- ${nichePrompt}${buildHumanPhotoRealismRules()}${buildGenderConstraintRules(explicitGender)}`;
 }
 
 // Plusieurs générations simultanées autorisées — lock supprimé
@@ -1717,6 +1766,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
     titleColor,
     contentColor,
     fashionConfig,
+    targetGender: ['female', 'male', 'mixed'].includes(targetGender) ? targetGender : 'auto',
   };
 
   // ── Validation selon le mode ──────────────────────────────────────────────
@@ -2016,6 +2066,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       decorationDirection,
       titleColor,
       contentColor,
+      _targetGender: ['female', 'male', 'mixed'].includes(targetGender) ? targetGender : 'auto',
     };
 
     // Récupérer le nombre de générations restantes

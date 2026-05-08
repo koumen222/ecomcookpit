@@ -1913,7 +1913,6 @@ const StoreProductPage = () => {
   // Build ordered enabled section IDs for rendering
   const sectionToggleOverrides = {
     reviews: false,
-    productGallery: ppDesign.showProductGallery,
     relatedProducts: ppDesign.showRelatedProducts ?? showRelatedProductsFromStore,
     stockCounter: false,
     urgencyElements: false,
@@ -1929,14 +1928,13 @@ const StoreProductPage = () => {
     const ids = ppSectionOrder
       ? ppSectionOrder.filter(s => s.enabled).map(s => s.id)
       : ['heroSlogan', 'heroBaseline', 'reviews', 'stockCounter', 'urgencyBadge', 'countdownBar',
-        'orderForm', 'productGallery', 'trustBadges', 'secureBadge', 'deliveryInfo', 'shareButtons', 'statsBar',
+        'orderForm', 'trustBadges', 'secureBadge', 'deliveryInfo', 'shareButtons', 'statsBar',
          'urgencyElements', 'benefitsBullets', 'conversionBlocks', 'offerBlock', 'description',
          'comparison', 'problemSection', 'solutionSection', 'raisonsAcheter', 'guideUtilisation', 'faq', 'testimonials', 'relatedProducts',
          'stickyOrderBar', 'upsell', 'orderBump'];
 
     const insertAfterMap = {
       countdownBar: 'urgencyBadge',
-      productGallery: 'orderForm',
       trustBadges: 'orderForm',
       secureBadge: 'trustBadges',
       deliveryInfo: 'secureBadge',
@@ -1958,7 +1956,7 @@ const StoreProductPage = () => {
 
     return ids;
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ppSectionOrder, ppDesign.showProductGallery, ppDesign.showRelatedProducts, ppDesign.stickyAddToCart, ppDesign.showTrustBadges, ppDesign.showCountdown, showRelatedProductsFromStore]);
+  }, [ppSectionOrder, ppDesign.showRelatedProducts, ppDesign.stickyAddToCart, ppDesign.showTrustBadges, ppDesign.showCountdown, showRelatedProductsFromStore]);
 
   const showStickyBar = enabledSectionIds.includes('stickyOrderBar');
   const showRelatedProductsSetting = enabledSectionIds.includes('relatedProducts');
@@ -2515,20 +2513,6 @@ const StoreProductPage = () => {
                           )}
                           </div>
                         </div>
-                      );
-                    }
-
-                    case 'productGallery': {
-                      const galleryConfig = normalizeProductGalleryConfig(sectionContentMap.productGallery || {});
-                      const galleryImages = resolveProductGalleryImages(galleryConfig, buildProductGalleryFallbackImages(product));
-                      return (
-                        <LazySection key={sectionId} minHeight={180}>
-                          <InlinePhotoCarousel
-                            images={galleryImages}
-                            config={galleryConfig}
-                            accentColor={aiVisualTheme?.primary || 'var(--s-primary)'}
-                          />
-                        </LazySection>
                       );
                     }
 
