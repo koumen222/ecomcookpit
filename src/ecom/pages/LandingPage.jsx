@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 /* ═══ Scroll reveal hook ═══ */
@@ -269,29 +269,54 @@ const SupportChat = () => {
       {/* Floating button */}
       <button
         onClick={() => setOpen(o => !o)}
-        className="fixed bottom-5 right-5 sm:right-7 z-50 group flex items-center gap-3 transition-all duration-300"
+        className="fixed bottom-6 right-6 sm:bottom-8 sm:right-8 z-50 group flex items-center gap-3 transition-all duration-500"
         aria-label="Ouvrir le support"
       >
         {/* Label pill — visible when chat is closed */}
-        <div className={`transition-all duration-300 ${open ? 'opacity-0 scale-90 pointer-events-none' : 'opacity-100 scale-100'}`}>
-          <div className="hidden sm:flex items-center gap-2 bg-white border border-gray-100 shadow-lg shadow-gray-200/60 rounded-full px-4 py-2.5">
-            <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse flex-shrink-0" />
-            <span className="text-sm font-semibold text-gray-800 whitespace-nowrap">Support en ligne</span>
+        <div className={`transition-all duration-500 origin-right ${open ? 'opacity-0 scale-90 translate-x-4 pointer-events-none' : 'opacity-100 scale-100 translate-x-0'}`}>
+          <div className="hidden sm:flex items-center gap-3 bg-white/95 backdrop-blur-md border border-emerald-100 shadow-2xl shadow-emerald-900/10 rounded-full px-5 py-3 hover:bg-white transition-all hover:scale-105">
+            <span className="relative flex h-3 w-3">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+            </span>
+            <span className="text-[15px] font-black bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent whitespace-nowrap">Discuter avec nous</span>
           </div>
         </div>
+        
         {/* Circle icon */}
-        <div className={`relative w-14 h-14 rounded-2xl flex items-center justify-center shadow-xl transition-all duration-300 ${open ? 'bg-gray-700 rotate-0' : 'bg-gradient-to-br from-emerald-500 to-teal-600 hover:scale-105 hover:shadow-emerald-400/40'}`}>
+        <div className={`relative w-16 h-16 rounded-full flex items-center justify-center shadow-2xl transition-all duration-500 overflow-hidden group-hover:scale-110 ${open ? 'bg-gray-800 rotate-90 shadow-gray-900/20' : 'bg-gradient-to-tr from-emerald-500 to-teal-500 shadow-emerald-500/40 hover:shadow-emerald-500/60'}`}>
+          {/* Shine effect */}
+          {!open && (
+            <div className="absolute inset-0 bg-gradient-to-tr from-white/0 via-white/30 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000 ease-in-out" />
+          )}
+
           {/* Unread badge */}
           {!open && unread > 0 && (
-            <span className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center shadow">{unread}</span>
+            <span className="absolute top-0 right-0 w-5 h-5 bg-red-500 text-white text-[11px] font-black rounded-full flex items-center justify-center shadow-lg border-2 border-white z-20 animate-bounce">{unread}</span>
           )}
-          {open ? (
-            <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
-          ) : (
-            <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/>
-            </svg>
-          )}
+          
+          <div className="relative z-10">
+            {open ? (
+              <svg className="w-6 h-6 text-white transition-transform duration-500" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+            ) : (
+              <svg className="w-8 h-8 text-white drop-shadow-md" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                {/* Female Head & Hair */}
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5a5 5 0 00-5 5v2.5a5 5 0 005 5 5 5 0 005-5v-2.5a5 5 0 00-5-5z" fill="currentColor" fillOpacity="0.1" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M16 12c1.5 0 2.5 1 2.5 2.5v1A2.5 2.5 0 0116 18M8 12c-1.5 0-2.5 1-2.5 2.5v1A2.5 2.5 0 008 18" />
+                {/* Headset Band */}
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 11V9a9 9 0 00-18 0v2" />
+                {/* Earcups */}
+                <rect x="2" y="10" width="3" height="5" rx="1.5" fill="currentColor" stroke="none" />
+                <rect x="19" y="10" width="3" height="5" rx="1.5" fill="currentColor" stroke="none" />
+                {/* Microphone */}
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 14.5l-3.5 2a2 2 0 01-1.5.5" />
+                <circle cx="13.5" cy="17" r="1.5" fill="currentColor" stroke="none" />
+                {/* Shoulders */}
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5.5 22v-1.5A3.5 3.5 0 019 17h6a3.5 3.5 0 013.5 3.5V22" fill="currentColor" fillOpacity="0.1" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5.5 22v-1.5A3.5 3.5 0 019 17h6a3.5 3.5 0 013.5 3.5V22" />
+              </svg>
+            )}
+          </div>
         </div>
       </button>
     </>
@@ -401,9 +426,16 @@ const LandingPage = () => {
 
         <div className="relative max-w-3xl mx-auto px-4 sm:px-6 pt-16 sm:pt-24 lg:pt-28 pb-16 text-center">
           <Reveal>
-            <div className="inline-flex items-center gap-2.5 px-4 py-1.5 bg-emerald-50 border border-emerald-200 rounded-full text-xs sm:text-[13px] font-semibold text-emerald-700 mb-6 sm:mb-8">
-              <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
-              Totalement gratuit pour le lancement
+            <div className="inline-flex items-center gap-3 px-4 py-2 bg-emerald-50 border border-emerald-200 rounded-full text-xs sm:text-[13px] font-semibold text-emerald-700 mb-6 sm:mb-8">
+              <div className="flex -space-x-2">
+                <img src="https://randomuser.me/api/portraits/thumb/men/10.jpg" alt="" className="w-7 h-7 rounded-full border-2 border-white object-cover" />
+                <img src="https://randomuser.me/api/portraits/thumb/women/44.jpg" alt="" className="w-7 h-7 rounded-full border-2 border-white object-cover" />
+                <img src="https://randomuser.me/api/portraits/thumb/men/13.jpg" alt="" className="w-7 h-7 rounded-full border-2 border-white object-cover" />
+                <img src="https://randomuser.me/api/portraits/thumb/women/27.jpg" alt="" className="w-7 h-7 rounded-full border-2 border-white object-cover" />
+                <div className="w-7 h-7 rounded-full border-2 border-white bg-emerald-500 flex items-center justify-center text-white text-[9px] font-bold">+k</div>
+              </div>
+              <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+              + de 1 000 utilisateurs en ce moment
             </div>
           </Reveal>
 
@@ -749,27 +781,6 @@ const LandingPage = () => {
         </div>
       </section>
 
-      {/* ══════ CTA ══════ */}
-      <section className="py-16 sm:py-24 px-4 border-t border-gray-100">
-        <div className="max-w-4xl mx-auto text-center">
-          <Reveal>
-            <div className="relative rounded-2xl sm:rounded-3xl px-6 sm:px-16 py-14 sm:py-20 overflow-hidden bg-gradient-to-br from-emerald-600 to-teal-600">
-              <div className="absolute inset-0 opacity-[0.07]" style={{ backgroundImage: 'radial-gradient(circle, #ffffff 1px, transparent 1px)', backgroundSize: '24px 24px' }} />
-              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[400px] h-[200px] bg-white/10 rounded-full blur-[80px]" />
-              <h2 className="relative text-2xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-white mb-4 sm:mb-5">
-                Passez à la vitesse supérieure.
-              </h2>
-              <p className="relative text-base sm:text-lg text-white/80 max-w-lg mx-auto mb-8 sm:mb-10 leading-relaxed">
-                Des centaines de vendeurs structurent déjà leur e-commerce avec Scalor. C'est gratuit pour démarrer.
-              </p>
-              <button onClick={() => navigate('/ecom/register')} className="relative w-full sm:w-auto inline-flex items-center justify-center gap-2.5 px-8 py-4 bg-white text-emerald-700 hover:bg-gray-50 rounded-xl font-bold text-base transition-colors shadow-lg">
-                Créer mon compte gratuitement
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
-              </button>
-            </div>
-          </Reveal>
-        </div>
-      </section>
 
       {/* ══════ FOOTER ══════ */}
       <footer className="border-t border-gray-100 bg-white pt-12 sm:pt-16 pb-8 sm:pb-10">

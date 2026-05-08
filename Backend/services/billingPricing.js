@@ -3,9 +3,9 @@ import PlanConfig from '../models/PlanConfig.js';
 const ROUNDING_STEP = 500;
 
 const DEFAULT_MONTHLY_PRICES = {
-  starter: 5000,
-  pro: 10000,
-  ultra: 15000
+  starter: 7900,
+  pro: 14900,
+  ultra: 34900
 };
 
 const PLAN_DURATION = {

@@ -196,16 +196,23 @@ router.post('/accept/:token', async (req, res) => {
 // Lister les workspaces d'un utilisateur
 router.get('/workspaces', requireEcomAuth, async (req, res) => {
   try {
-    const user = await EcomUser.findById(req.ecomUser._id)
-      .populate('workspaces.workspaceId', 'name description createdAt')
-      .populate('workspaces.invitedBy', 'name email');
+    const user = await EcomUser.findById(req.ecomUser._id);
 
     if (!user) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Utilisateur non trouvé' 
+      return res.status(404).json({
+        success: false,
+        message: 'Utilisateur non trouvé'
       });
     }
+
+    // Backfill legacy users: workspaceId set but workspaces[] empty
+    if (user.workspaceId && user.workspaces.length === 0) {
+      user.addWorkspace(user.workspaceId, user.role || 'ecom_admin');
+      await user.save();
+    }
+
+    await user.populate('workspaces.workspaceId', 'name description createdAt');
+    await user.populate('workspaces.invitedBy', 'name email');
 
     const activeWorkspaces = user.getActiveWorkspaces().map(w => ({
       _id: w.workspaceId._id,

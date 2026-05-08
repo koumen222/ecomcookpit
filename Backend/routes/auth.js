@@ -6,6 +6,7 @@ import EcomUser from '../models/EcomUser.js';
 import Workspace from '../models/Workspace.js';
 import PasswordResetToken from '../models/PasswordResetToken.js';
 import { generateEcomToken, generatePermanentToken, requireEcomAuth } from '../middleware/ecomAuth.js';
+import { checkPlanLimit } from '../middleware/planLimits.js';
 import { validateEmail, validatePassword } from '../middleware/validation.js';
 import { logAudit } from '../middleware/security.js';
 import AnalyticsEvent from '../models/AnalyticsEvent.js';
@@ -890,6 +891,35 @@ router.post('/join-workspace', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Code d\'invitation invalide ou espace inactif' });
     }
 
+    // Vérifier la limite d'utilisateurs du plan avant d'accepter le nouveau membre
+    {
+      const { buildRuntimePlanLimits, getPlanConfigs } = await import('../middleware/planLimits.js');
+      const now = Date.now();
+      let planKey = workspace.plan || 'free';
+      if (planKey !== 'free' && workspace.planExpiresAt && new Date(workspace.planExpiresAt).getTime() < now) planKey = 'free';
+      if (planKey === 'free' && workspace.trialEndsAt && new Date(workspace.trialEndsAt).getTime() > now) planKey = 'starter';
+      const plans = await getPlanConfigs();
+      const cfg = plans[planKey] || plans.free;
+      const limits = buildRuntimePlanLimits(planKey, cfg);
+      if (limits.maxUsers != null) {
+        const currentMembers = await EcomUser.countDocuments({ 'workspaces.workspaceId': workspace._id, isActive: true });
+        if (currentMembers >= limits.maxUsers) {
+          return res.status(403).json({
+            success: false,
+            error: 'PLAN_LIMIT_REACHED',
+            restrictionType: 'plan_limit',
+            resource: 'users',
+            plan: planKey,
+            planLabel: limits.label,
+            limit: limits.maxUsers,
+            current: currentMembers,
+            message: `Le plan ${limits.label} autorise jusqu'à ${limits.maxUsers} membre(s) d'équipe. Passez à un plan supérieur pour ajouter d'autres collaborateurs.`,
+            upgradeUrl: '/ecom/tarifs'
+          });
+        }
+      }
+    }
+
     // Vérifier que l'utilisateur n'est pas déjà dans ce workspace
     if (user.hasWorkspaceAccess(workspace._id)) {
       return res.status(400).json({ success: false, message: 'Vous êtes déjà membre de cet espace' });
@@ -1517,7 +1547,7 @@ router.post('/accept-invite', requireEcomAuth, async (req, res) => {
 });
 
 // POST /api/ecom/auth/generate-invite - Générer un lien d'invitation
-router.post('/generate-invite', requireEcomAuth, async (req, res) => {
+router.post('/generate-invite', requireEcomAuth, checkPlanLimit('users'), async (req, res) => {
   try {
     const user = req.ecomUser;
 

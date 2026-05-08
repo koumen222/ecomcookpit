@@ -19,6 +19,7 @@ const Register = () => {
   const location = useLocation();
   const joinMode = new URLSearchParams(location.search).get('mode') === 'join';
   const affiliateCode = new URLSearchParams(location.search).get('aff') || '';
+  const inviteToken = new URLSearchParams(location.search).get('invite') || '';
   const { register, googleLogin } = useEcomAuth();
   const pendingPlanSelection = getPendingPlanSelection();
 
@@ -48,6 +49,10 @@ const Register = () => {
   }, [resendCooldown]);
 
   const navigateAfterAuth = useCallback((nextUser) => {
+    if (inviteToken) {
+      navigate(`/ecom/invite/${inviteToken}`, { replace: true });
+      return;
+    }
     if (pendingPlanSelection) {
       if (nextUser?.workspaceId) {
         navigate('/ecom/billing', { state: { selectedPlan: pendingPlanSelection }, replace: true });
@@ -58,7 +63,7 @@ const Register = () => {
     }
 
     navigate(nextUser?.workspaceId ? '/ecom/dashboard' : '/ecom/workspace-setup');
-  }, [navigate, pendingPlanSelection]);
+  }, [navigate, pendingPlanSelection, inviteToken]);
 
   const handleGoogleCallback = useCallback(async (response) => {
     console.log('\ud83d\udd11 [Google Auth] Callback reçu (Register):', {

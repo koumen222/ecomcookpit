@@ -70,9 +70,14 @@ function isPlatformHost(hostname) {
 
 export const extractSubdomain = (req, res, next) => {
   try {
-    const host = req.headers['x-forwarded-host'] || req.headers.host || req.hostname || '';
-    const hostname = host.split(':')[0].toLowerCase();
-    
+    const rawHost = req.headers['x-forwarded-host'] || req.headers.host || req.hostname || '';
+    // x-forwarded-host can be comma-separated when multiple proxies chain (e.g. Cloudflare → Railway)
+    // Always take the leftmost (original client-facing) value
+    const hostname = rawHost.split(',')[0].trim().split(':')[0].toLowerCase();
+
+    // Expose the clean hostname for downstream middleware and route handlers
+    req.requestHost = hostname;
+
     // Default flags
     req.subdomain = null;
     req.isRootDomain = false;

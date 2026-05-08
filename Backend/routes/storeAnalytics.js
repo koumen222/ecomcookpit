@@ -55,15 +55,25 @@ router.post('/track', async (req, res) => {
       return res.status(400).json({ error: 'subdomain et eventType requis' });
     }
 
-    // Récupérer le workspaceId depuis le subdomain
-    const Workspace = (await import('../models/Workspace.js')).default;
-    const workspace = await Workspace.findOne({ subdomain }).lean();
-    
-    if (!workspace) {
-      return res.status(404).json({ error: 'Boutique introuvable' });
+    // Validate subdomain format to prevent injection or accidental cross-tenant leaks
+    if (!/^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/.test(subdomain)) {
+      return res.status(400).json({ error: 'Subdomain invalide' });
     }
 
-    const workspaceId = workspace._id.toString();
+    // Récupérer le workspaceId depuis le subdomain — exige isActive pour éviter de tracker une boutique désactivée
+    const Workspace = (await import('../models/Workspace.js')).default;
+    const workspace = await Workspace.findOne({
+      subdomain,
+      isActive: true,
+      'storeSettings.isStoreEnabled': true,
+    }).select('_id').lean();
+
+    if (!workspace) {
+      // Return 200 silently — don't leak whether a subdomain exists or is disabled
+      return res.json({ success: true, skipped: true });
+    }
+
+    const workspaceId = workspace._id;
 
     // Anti-spam : dédupliquer les page_view et product_view par visiteur
     if (['page_view', 'product_view'].includes(eventType)) {
