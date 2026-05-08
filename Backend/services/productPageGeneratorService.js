@@ -142,6 +142,19 @@ function inferInfographicGenderContext(product = {}) {
 }
 
 function buildInfographicCastingInstruction(product = {}) {
+  // 1. Explicit gender set by the user takes absolute priority
+  const explicit = product._targetGender;
+  if (explicit === 'female') {
+    return 'ALL people in this image MUST be Black African women only — every portrait, avatar, model, silhouette or figure. No men. No boys. No male figures anywhere.';
+  }
+  if (explicit === 'male') {
+    return 'ALL people in this image MUST be Black African men only — every portrait, avatar, model, silhouette or figure. No women. No girls. No female figures anywhere.';
+  }
+  if (explicit === 'mixed') {
+    return 'Show a natural mix of Black African men and women. Do NOT make the image exclusively one gender.';
+  }
+
+  // 2. Fall back to keyword inference from product data
   const genderContext = inferInfographicGenderContext(product);
 
   if (genderContext === 'female') {
@@ -1120,22 +1133,10 @@ export async function generatePosterImage(promptAffiche, originalImageBuffer = n
     }
 
     const heroRules = `
-Create a high-converting ecommerce product hero image showing the product IN ACTION. Ultra realistic, 4K quality, sharp focus, advertising photography style.
-USE EXACTLY the product appearance from the reference image provided — do NOT redraw, recreate, or redesign the product. If you cannot reproduce the EXACT same product, generate the scene WITHOUT the product rather than inventing a different one.
-${ratioPrompt}
-
-Visual style: Clean, modern, premium. The product is shown in its REAL USAGE CONTEXT — being held IN THE PERSON'S HANDS, opened, applied, used, demonstrated. NOT a static cosmetic studio pose. Contextual background matching the product category (kitchen, desk, bathroom, outdoor, gym, home, etc.). Warm natural lighting, professional quality.
-${PHOTO_REALISM_RULES}
-PRODUCT FOCUS (CRITICAL): The product must be the absolute hero of the image — large, sharp, dominant, IN ACTION. Every detail of the product (texture, color, label, shape) must be crystal clear. The product fills at least 50% of the frame and is being actively used or demonstrated.
-HERO HAND RULE: show a real person actually holding the exact product in hand. The grip, fingers and scale must feel natural and photographic.
-
-Composition: Product dominates center or bold foreground, shown in the moment of use. Supporting elements reinforce what the product DOES. Rich visual storytelling: how this product is used, what it does, the result it creates.
-
-Text overlay: At most one very short French benefit badge (3 words max, bold modern font) OR no text at all.
-⚠️ CRITICAL SPELLING REQUIREMENT: If there is any French text in the image, it MUST be 100% PERFECT — ZERO spelling errors, ZERO grammar mistakes, ZERO typos. Every single French word must be correctly written. Double-check all accents (é, è, ê, à, ù, etc.).
-NO paragraphs, NO long text, NO button, NO price, NO phone number, NO CTA, NO clutter.
-
-Mood: Premium ecommerce, trustworthy, high-conversion, scroll-stopping — the product in its moment of action.`;
+The layout and copy structure are fully described in the prompt above — follow them exactly.
+USE EXACTLY the product appearance from the reference image provided — do NOT redraw, recreate, or redesign the product. Same shape, color, packaging, label. If you cannot reproduce the EXACT same product, show the scene WITHOUT the product rather than inventing one.
+Quality: Ultra realistic, 4K sharpness, advertising photography standard. The lifestyle photo on the right must look like a real commercial photograph — natural skin texture, real hands, photorealistic quality.
+${PHOTO_REALISM_RULES}`;
 
     const heroPosterRules = `
 Create a bold, visually striking advertising poster for THIS specific product. Premium graphic design meets ultra-realistic product photography.

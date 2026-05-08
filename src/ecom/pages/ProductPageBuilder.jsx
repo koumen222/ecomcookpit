@@ -20,7 +20,6 @@ const SECTION_META = {
   heroSlogan:       { label: 'Slogan marketing IA',       desc: 'Slogan persuasif sous le titre',     icon: Type,         color: 'bg-green-100 text-green-700 border-green-200' },
   heroBaseline:     { label: 'Phrase de réassurance IA',   desc: 'Phrase de réassurance sous le titre', icon: CheckCircle,  color: 'bg-green-100 text-green-700 border-green-200' },
   reviews:          { label: 'Avis clients',              desc: 'Étoiles et nombre d\'avis',           icon: Star,         color: 'bg-yellow-100 text-yellow-700 border-yellow-200' },
-  productGallery:   { label: 'Photos du produit',         desc: 'Titre, photos et tailles',            icon: Image,        color: 'bg-blue-100 text-blue-700 border-blue-200' },
   statsBar:         { label: 'Barre de stats sociales',   desc: 'Chiffres de preuve sociale',          icon: BarChart3,    color: 'bg-purple-100 text-purple-700 border-purple-200' },
   stockCounter:     { label: 'Compteur de stock',         desc: 'Stock restant urgence',               icon: Box,          color: 'bg-orange-100 text-orange-700 border-orange-200' },
   urgencyBadge:     { label: 'Badge d\'urgence',          desc: 'Badge d\'urgence IA',                 icon: Flame,        color: 'bg-red-100 text-red-700 border-red-200' },
@@ -72,7 +71,6 @@ const EDITABLE_SECTIONS = {
   ]},
   urgencyBadge:    { fields: [{ key: 'text', label: 'Texte d\'urgence', placeholder: 'Ex: ⚡ Dernières pièces — 3 restants !', type: 'text' }] },
   statsBar:        { fields: 'stats' },
-  productGallery:  { fields: 'productGallery' },
   benefitsBullets: { fields: 'list', label: 'Bénéfices', placeholder: 'Ex: Résultats en 7 jours' },
   problemSection:  { fields: [
     { key: 'title', label: 'Titre', placeholder: 'Ex: Le problème', type: 'text' },
@@ -207,8 +205,6 @@ const getDefaultContent = (sectionId, product) => {
       return pd.urgency_badge ? { text: pd.urgency_badge } : {};
     case 'statsBar':
       return pd.stats_bar?.length > 0 ? { stats: pd.stats_bar.slice(0, 3).map(s => ({ value: s.value || '', label: s.label || '' })) } : {};
-    case 'productGallery':
-      return PRODUCT_GALLERY_DEFAULTS;
     case 'benefitsBullets':
       return pd.benefits_bullets?.length > 0 ? { items: [...pd.benefits_bullets] } : {};
     case 'problemSection': {
@@ -429,236 +425,6 @@ const SectionContentEditor = ({ section, onChange, product }) => {
             + Ajouter un premier avis
           </button>
         )}
-      </div>
-    );
-  }
-
-  if (schema.fields === 'productGallery') {
-    const gallery = normalizeProductGalleryContent(content);
-    const customImages = Array.isArray(gallery.images) ? gallery.images : [];
-    const validCustomImages = customImages.filter((image) => image?.url);
-    const fallbackImages = buildProductGalleryFallbackImages(product);
-    const usingNativeImages = validCustomImages.length === 0 && gallery.useProductImages !== false && fallbackImages.length > 0;
-    const images = resolveEditorGalleryImages(gallery, validCustomImages, fallbackImages);
-    const mainImageHeight = normalizeToPreset(gallery.mainImageHeight, MAIN_IMAGE_HEIGHT_OPTIONS, PRODUCT_GALLERY_DEFAULTS.mainImageHeight);
-    const thumbnailSize = normalizeToPreset(gallery.thumbnailSize, THUMBNAIL_SIZE_OPTIONS, PRODUCT_GALLERY_DEFAULTS.thumbnailSize);
-    const saveImages = (nextImages, nextUseProductImages = gallery.useProductImages !== false) => {
-      const validNextImages = Array.isArray(nextImages) ? nextImages.filter((image) => image?.url) : [];
-      const shouldRestoreProductImages = validNextImages.length === 0 && fallbackImages.length > 0;
-      onChange({
-        ...section,
-        content: {
-          ...content,
-          ...gallery,
-          images: validNextImages.map((image, index) => ({ ...image, order: index })),
-          useProductImages: shouldRestoreProductImages ? true : nextUseProductImages,
-        },
-      });
-    };
-    const updateImage = (index, key, val) => {
-      const nextImages = [...images];
-      nextImages[index] = { ...nextImages[index], [key]: val };
-      saveImages(nextImages);
-    };
-    const addImage = () => saveImages([...images, { url: '', alt: '' }]);
-    const removeImage = (index) => saveImages(images.filter((_, idx) => idx !== index));
-    const uploadImages = async (files, replaceIndex = null) => {
-      if (!files?.length) return;
-      setGalleryUploading(true);
-      setGalleryUploadError('');
-      try {
-        const res = await storeProductsApi.uploadImages(Array.from(files));
-        // Backend returns { success, data: [{ id, url, key, filename, size }] }
-        const uploaded = res.data?.data || res.data?.urls || res.data?.images || [];
-        const urls = (Array.isArray(uploaded) ? uploaded : [])
-          .map(item => typeof item === 'string' ? item : item?.url)
-          .filter(Boolean);
-        if (!urls.length) {
-          setGalleryUploadError('Aucune URL retournée par le serveur. Vérifiez la configuration Cloudflare Images.');
-          return;
-        }
-
-        if (replaceIndex !== null && urls[0]) {
-          updateImage(replaceIndex, 'url', urls[0]);
-          return;
-        }
-
-        saveImages([...images, ...urls.map((url) => ({ url, alt: '' }))]);
-      } catch (error) {
-        console.error('Gallery image upload failed:', error);
-        const msg = error?.response?.data?.message || error?.message || 'Erreur inconnue';
-        setGalleryUploadError(`Échec de l'upload : ${msg}`);
-      } finally {
-        setGalleryUploading(false);
-      }
-    };
-    const moveImage = (index, direction) => {
-      const target = index + direction;
-      if (target < 0 || target >= images.length) return;
-      const nextImages = [...images];
-      [nextImages[index], nextImages[target]] = [nextImages[target], nextImages[index]];
-      saveImages(nextImages);
-    };
-    const generateAiImage = async () => {
-      const prompt = aiImagePrompt.trim() || (product?.name ? `Professional product photo of ${product.name}, clean white background, studio lighting, high quality` : '');
-      if (!prompt) return;
-      setAiImageGenerating(true);
-      setAiImageError('');
-      try {
-        const res = await storeProductsApi.generateProductImage({ prompt, aspectRatio: '1:1' });
-        const url = res.data?.data?.url;
-        if (!url) throw new Error('URL manquante dans la réponse');
-        saveImages([...images, { url, alt: product?.name || '' }]);
-        setAiImagePrompt('');
-      } catch (error) {
-        const msg = error?.response?.data?.message || error?.message || 'Erreur inconnue';
-        setAiImageError(`Échec génération : ${msg}`);
-      } finally {
-        setAiImageGenerating(false);
-      }
-    };
-    return (
-      <div className="space-y-3">
-        <label className="flex items-center gap-2 cursor-pointer">
-          <input type="checkbox" checked={gallery.showHeader !== false} onChange={e => update('showHeader', e.target.checked)} className="w-4 h-4 accent-emerald-500" />
-          <span className="text-[12px] text-gray-600">Afficher le titre de la section</span>
-        </label>
-        <div className="grid grid-cols-2 gap-2">
-          <div>
-            <div className="text-[11px] font-semibold text-gray-500 mb-1">Titre</div>
-            <input className={inputCls} value={gallery.title || ''} onChange={e => update('title', e.target.value)} placeholder="Ces clients nous ont fait confiance" />
-          </div>
-          <div>
-            <div className="text-[11px] font-semibold text-gray-500 mb-1">Sous-titre</div>
-            <input className={inputCls} value={gallery.subtitle || ''} onChange={e => update('subtitle', e.target.value)} placeholder="Avant / après et clients avec le produit" />
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-2">
-          <div>
-            <div className="text-[11px] font-semibold text-gray-500 mb-1">Hauteur max image principale</div>
-            <select className={inputCls} value={mainImageHeight} onChange={e => update('mainImageHeight', Number.parseInt(e.target.value, 10))}>
-              {MAIN_IMAGE_HEIGHT_OPTIONS.map((size) => (
-                <option key={size} value={size}>{size}px</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <div className="text-[11px] font-semibold text-gray-500 mb-1">Taille miniatures</div>
-            <select className={inputCls} value={thumbnailSize} onChange={e => update('thumbnailSize', Number.parseInt(e.target.value, 10))}>
-              {THUMBNAIL_SIZE_OPTIONS.map((size) => (
-                <option key={size} value={size}>{size}px</option>
-              ))}
-            </select>
-          </div>
-        </div>
-        <label className="flex items-center gap-2 cursor-pointer">
-          <input type="checkbox" checked={gallery.useProductImages !== false} onChange={e => update('useProductImages', e.target.checked)} className="w-4 h-4 accent-emerald-500" />
-          <span className="text-[12px] text-gray-600">Utiliser aussi les photos natives du produit</span>
-                  <span className="text-[12px] text-gray-600">Utiliser les images de preuve sociale générées</span>
-        </label>
-        <div className="space-y-2 rounded-xl border border-gray-200 bg-gray-50/60 p-3">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-semibold text-gray-700">Photos personnalisées</span>
-            <div className="flex items-center gap-2">
-              <label className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-emerald-200 bg-emerald-50 text-[11px] font-semibold text-emerald-700 cursor-pointer hover:bg-emerald-100 transition">
-                {galleryUploading ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
-                Uploader
-                <input
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  className="hidden"
-                  disabled={galleryUploading}
-                  onChange={async (e) => {
-                    await uploadImages(e.target.files);
-                    e.target.value = '';
-                  }}
-                />
-              </label>
-              <button onClick={addImage} className="flex items-center gap-1 text-[11px] text-emerald-600 font-medium hover:text-emerald-700">
-                <Plus size={12} /> Ajouter
-              </button>
-            </div>
-          </div>
-          {usingNativeImages && (
-            <div className="rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-2 text-[10px] text-blue-700">
-              Les photos actuelles du produit sont chargées automatiquement ici. Si tu remplaces, supprimes ou réordonnes une image, la galerie passe en mode personnalisé.
-            </div>
-          )}
-          {galleryUploadError && (
-            <div className="rounded-lg border border-red-200 bg-red-50 px-2.5 py-2 text-[10px] text-red-700 flex items-center gap-1.5">
-              <AlertCircle size={12} className="shrink-0" />
-              <span>{galleryUploadError}</span>
-              <button onClick={() => setGalleryUploadError('')} className="ml-auto p-0.5 text-red-400 hover:text-red-600"><X size={10} /></button>
-            </div>
-          )}
-          <div className="rounded-xl border border-violet-200 bg-violet-50/60 p-2.5 space-y-2">
-            <div className="text-[11px] font-semibold text-violet-700">Générer une image IA</div>
-            <textarea
-              className="w-full px-2.5 py-2 rounded-lg border border-violet-200 text-[11px] outline-none focus:border-violet-400 focus:ring-1 focus:ring-violet-200 transition-all bg-white resize-none"
-              rows={2}
-              value={aiImagePrompt}
-              onChange={e => setAiImagePrompt(e.target.value)}
-              placeholder={product?.name ? `Ex: Photo professionnelle de ${product.name}, fond blanc, studio` : 'Décrivez l\'image à générer…'}
-              disabled={aiImageGenerating}
-            />
-            {aiImageError && (
-              <div className="rounded-lg border border-red-200 bg-red-50 px-2 py-1.5 text-[10px] text-red-700 flex items-center gap-1.5">
-                <AlertCircle size={11} className="shrink-0" />
-                <span>{aiImageError}</span>
-                <button onClick={() => setAiImageError('')} className="ml-auto p-0.5 text-red-400 hover:text-red-600"><X size={10} /></button>
-              </div>
-            )}
-            <button
-              onClick={generateAiImage}
-              disabled={aiImageGenerating || (!aiImagePrompt.trim() && !product?.name)}
-              className="flex items-center justify-center gap-1.5 w-full px-3 py-2 rounded-lg bg-violet-600 text-white text-[11px] font-semibold hover:bg-violet-700 disabled:opacity-50 transition"
-            >
-              {aiImageGenerating ? <><Loader2 size={12} className="animate-spin" /> Génération en cours…</> : <><Zap size={12} /> Générer IA</>}
-            </button>
-          </div>
-          {images.length === 0 && (
-            <div className="text-[10px] text-gray-400">Uploadez vos images ou collez une URL. Si l'option ci-dessus est activée, elles seront ajoutées au carrousel; sinon elles remplaceront les photos produit.</div>
-          )}
-          {images.map((image, index) => (
-            <div key={index} className="rounded-lg border border-gray-200 bg-white p-2 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Photo #{index + 1}</span>
-                <div className="flex items-center gap-1">
-                  <button onClick={() => moveImage(index, -1)} disabled={index === 0} className="p-1 text-gray-300 hover:text-gray-500 disabled:opacity-25">
-                    <ChevronUp size={12} />
-                  </button>
-                  <button onClick={() => moveImage(index, 1)} disabled={index === images.length - 1} className="p-1 text-gray-300 hover:text-gray-500 disabled:opacity-25">
-                    <ChevronDown size={12} />
-                  </button>
-                  <button onClick={() => removeImage(index)} className="p-1 text-gray-300 hover:text-red-400">
-                    <Trash2 size={12} />
-                  </button>
-                </div>
-              </div>
-              {image.url && (
-                <img src={image.url} alt={image.alt || `Photo ${index + 1}`} className="w-full h-28 rounded-lg border border-gray-200 object-cover bg-gray-50" />
-              )}
-              <input className={inputCls} value={image.url || ''} onChange={e => updateImage(index, 'url', e.target.value)} placeholder="https://..." />
-              <label className="flex items-center justify-center gap-1 w-full px-3 py-2 rounded-lg border border-gray-200 bg-gray-50 text-[11px] font-medium text-gray-600 cursor-pointer hover:bg-gray-100 transition">
-                {galleryUploading ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
-                Remplacer par upload
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  disabled={galleryUploading}
-                  onChange={async (e) => {
-                    await uploadImages(e.target.files, index);
-                    e.target.value = '';
-                  }}
-                />
-              </label>
-              <input className={inputCls} value={image.alt || ''} onChange={e => updateImage(index, 'alt', e.target.value)} placeholder="Texte alternatif (optionnel)" />
-            </div>
-          ))}
-        </div>
-        <div className="text-[10px] text-gray-400">Les tailles sont limitées aux formats supportés pour garder une mise en page propre. Si aucune photo personnalisée n'est renseignée, la galerie affiche les images du produit.</div>
       </div>
     );
   }
