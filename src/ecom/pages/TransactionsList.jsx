@@ -47,7 +47,7 @@ const NAV = [
   { id:'transactions', label:'Transactions', ico:'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2' },
   { id:'budgets', label:'Budgets', ico:'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z' },
   { id:'analyse', label:'Analyse', ico:'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z' },
-  { id:'previsions', label:'Prévisions IA', ico:'M13 10V3L4 14h7v7l9-11h-7z' },
+  { id:'previsions', label:'Prévisions', ico:'M13 10V3L4 14h7v7l9-11h-7z' },
 ];
 const STATUS_LABELS = { pending:'En attente', confirmed:'Confirmée', shipped:'Expédiée', delivered:'Livrée', returned:'Retournée', no_answer:'Pas de réponse', cancelled:'Annulée' };
 const SEV_CFG = { critical:{bg:'bg-red-50 border-red-200',text:'text-red-700',badge:'bg-red-100 text-red-700'}, warning:{bg:'bg-orange-50 border-orange-200',text:'text-orange-700',badge:'bg-orange-100 text-orange-700'}, info:{bg:'bg-emerald-50 border-emerald-200',text:'text-emerald-700',badge:'bg-emerald-100 text-emerald-700'}, success:{bg:'bg-emerald-50 border-emerald-200',text:'text-emerald-700',badge:'bg-emerald-100 text-emerald-700'} };

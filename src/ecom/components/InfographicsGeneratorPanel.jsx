@@ -15,7 +15,8 @@ const API_ORIGIN = (() => {
 })();
 
 const SLIDE_CATALOG = [
-  { id: 'hook', label: 'Hook / Problème', desc: 'Accroche qui stoppe le scroll en nommant la douleur' },
+  { id: 'problem', label: 'Problème', desc: 'Slide d\'empathie — agite la douleur, le lecteur se reconnaît' },
+  { id: 'hook', label: 'Solution Hero', desc: 'Le produit révélé comme LA réponse au problème' },
   { id: 'benefits', label: 'Bénéfices', desc: 'Ce que le produit apporte, en un coup d\'œil' },
   { id: 'avant_apres', label: 'Avant / Après', desc: 'Transformation split-screen' },
   { id: 'testimonials', label: 'Avis clients', desc: 'Cartes d\'avis carrées et témoignages visibles' },
@@ -95,7 +96,7 @@ const InfographicsGeneratorPanel = ({ onGenerated, onCancel, onContinueInBackgro
   const [painPoint, setPainPoint] = useState('');
   const [mainBenefit, setMainBenefit] = useState('');
   const [bodyZone, setBodyZone] = useState('');
-  const [selectedSlides, setSelectedSlides] = useState(['hook', 'benefits', 'avant_apres', 'testimonials', 'reassurance', 'how_to_use', 'cta_final']);
+  const [selectedSlides, setSelectedSlides] = useState(['problem', 'hook', 'avant_apres', 'benefits', 'testimonials', 'reassurance', 'how_to_use', 'cta_final']);
   const [form, setForm] = useState(DEFAULT_FORM);
   const [colorStyle, setColorStyle] = useState('bleu_royal');
   const [brandColor, setBrandColor] = useState('#1E3A8A');

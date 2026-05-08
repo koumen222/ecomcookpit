@@ -125,7 +125,7 @@ const StoreProductPageInfographics = ({ product, store, productPageConfig, subdo
         </div>
       </div>
 
-      {/* Stack d'infographies 9:16 */}
+      {/* Stack d'infographies 9:16 avec formulaire intermédiaire */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 0, width: '100%' }}>
         {displayImages.length === 0 ? (
           <div style={{ aspectRatio: '9 / 16', background: '#F3F4F6', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9CA3AF', fontSize: 14, fontWeight: 600, padding: 24, textAlign: 'center' }}>
@@ -133,14 +133,63 @@ const StoreProductPageInfographics = ({ product, store, productPageConfig, subdo
           </div>
         ) : (
           displayImages.map((img, idx) => (
-            <div key={`${img.url}-${idx}`} style={{ width: '100%', aspectRatio: '9 / 16', overflow: 'hidden', background: '#F9FAFB' }}>
-              <img
-                src={img.url}
-                alt={img.alt || `Infographie ${idx + 1}`}
-                loading={idx < 2 ? 'eager' : 'lazy'}
-                style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-              />
-            </div>
+            <React.Fragment key={`${img.url}-${idx}`}>
+              <div style={{ width: '100%', aspectRatio: '9 / 16', overflow: 'hidden', background: '#F9FAFB' }}>
+                <img
+                  src={img.url}
+                  alt={img.alt || `Infographie ${idx + 1}`}
+                  loading={idx < 2 ? 'eager' : 'lazy'}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                />
+              </div>
+              {idx === 1 && (
+                <div style={{ background: '#fff', borderTop: `4px solid ${brandColor}`, padding: '24px 20px', marginBottom: 0 }}>
+                  <div style={{
+                    background: `linear-gradient(135deg, ${brandColor} 0%, ${brandColor}CC 100%)`,
+                    color: headerTextColor,
+                    padding: '18px 20px 16px',
+                    borderRadius: '14px 14px 0 0',
+                    textAlign: 'center',
+                  }}>
+                    <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1.2, textTransform: 'uppercase', opacity: 0.8, marginBottom: 8 }}>
+                      🛒 Commande rapide
+                    </div>
+                    <div style={{ fontSize: 18, fontWeight: 900, lineHeight: 1.3, maxWidth: 300, margin: '0 auto' }}>
+                      {formTexts.headline}
+                    </div>
+                  </div>
+                  <div style={{ background: '#FAFAFA', borderRadius: '0 0 14px 14px', padding: '20px 16px', border: `1px solid ${brandColor}22`, borderTop: 'none' }}>
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: 'center',
+                      alignItems: 'baseline',
+                      gap: 10,
+                      marginBottom: 18,
+                    }}>
+                      <span style={{ fontSize: 34, fontWeight: 900, color: brandColor, letterSpacing: -1 }}>
+                        {formatMoney(product?.price ?? 0, currency)}
+                      </span>
+                      {hasDiscount && (
+                        <span style={{ fontSize: 20, fontWeight: 700, color: '#9CA3AF', textDecoration: 'line-through' }}>
+                          {formatMoney(product.compareAtPrice, currency)}
+                        </span>
+                      )}
+                    </div>
+                    <InfographicsFormOverride
+                      product={product}
+                      subdomain={subdomain}
+                      store={store}
+                      productPageConfig={productPageConfig}
+                      placeholders={formTexts.placeholders}
+                      ctaLabel={formTexts.ctaLabel}
+                      ctaColor={ctaColor}
+                      brandColor={brandColor}
+                      accent={brandColor}
+                    />
+                  </div>
+                </div>
+              )}
+            </React.Fragment>
           ))
         )}
       </div>

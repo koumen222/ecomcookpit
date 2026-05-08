@@ -145,6 +145,7 @@ function mergeTaskProductWithImages(task = {}) {
 }
 
 const INFOGRAPHIC_PROGRESS_LABELS = {
+  problem: 'Création de la slide problème...',
   hook: 'Création du hook visuel...',
   benefits: 'Composition des bénéfices...',
   avant_apres: 'Construction du avant / après...',
