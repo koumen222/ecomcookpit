@@ -908,6 +908,23 @@ router.get('/config', requireEcomAuth, requireWorkspace, async (req, res) => {
  */
 router.post('/generate-logos', requireEcomAuth, requireWorkspace, async (req, res) => {
   try {
+    // ── Plan check: logo IA désactivé sur plan gratuit ───────────────────────
+    const ws = await EcomWorkspace.findById(req.workspaceId).select('plan planExpiresAt trialEndsAt').lean();
+    if (ws) {
+      const now = new Date();
+      const isPaidActive = (ws.plan === 'starter' || ws.plan === 'pro' || ws.plan === 'ultra')
+        && ws.planExpiresAt && new Date(ws.planExpiresAt) > now;
+      const trialActive = ws.trialEndsAt && new Date(ws.trialEndsAt) > now;
+      const effectivePlan = isPaidActive ? ws.plan : trialActive ? 'pro' : 'free';
+      if (effectivePlan === 'free') {
+        return res.status(403).json({
+          success: false,
+          error: 'upgrade_required',
+          message: 'La génération de logo IA est disponible à partir du plan Starter.',
+        });
+      }
+    }
+
     const {
       storeName,
       productType = 'autre',
