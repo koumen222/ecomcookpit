@@ -12,6 +12,7 @@ import WhatsAppLog from '../models/WhatsAppLog.js';
 import SupportConversation from '../models/SupportConversation.js';
 import StoreProduct from '../models/StoreProduct.js';
 import WhatsAppInstance from '../models/WhatsAppInstance.js';
+import ScalorUser from '../models/ScalorUser.js';
 import { requireEcomAuth, requireSuperAdmin } from '../middleware/ecomAuth.js';
 import { invalidatePlanCache } from '../middleware/planLimits.js';
 import { logAudit, auditSensitiveAccess, AuditLog } from '../middleware/security.js';
@@ -20,6 +21,7 @@ import { sendPushNotification, sendPushNotificationToUser } from '../services/pu
 import { buildPlanUpdatedWarning, buildRenewalSubscriptionWarning, clearSubscriptionWarning, downgradeWorkspaceToFree } from '../services/workspacePlanService.js';
 import { emitSupportConversationUpdate } from '../services/socketService.js';
 import { formatInternationalPhone } from '../utils/phoneUtils.js';
+import evolutionApiService from '../services/evolutionApiService.js';
 
 const router = express.Router();
 
@@ -1918,5 +1920,122 @@ router.get('/feature-analytics',
     }
   }
 );
+
+// ═══════════════════════════════════════════════════════════════
+// SCALOR USERS — WhatsApp messaging (via instance du super admin)
+// ═══════════════════════════════════════════════════════════════
+
+// GET /api/ecom/super-admin/scalor-users/whatsapp — liste des users Scalor + état de l'instance
+router.get('/scalor-users/whatsapp', requireEcomAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { search, plan, hasPhone } = req.query;
+
+    // Charger l'instance configurée du super admin
+    const admin = await EcomUser.findById(req.ecomUser._id)
+      .select('supportNotificationInstanceId supportNotificationEnabled')
+      .lean();
+    let adminInstance = null;
+    if (admin?.supportNotificationInstanceId) {
+      adminInstance = await WhatsAppInstance.findById(admin.supportNotificationInstanceId)
+        .select('instanceName instanceToken customName status')
+        .lean();
+    }
+
+    const users = await ScalorUser.find({})
+      .select('_id name email phone plan isActive createdAt')
+      .sort({ createdAt: -1 })
+      .limit(0)
+      .lean();
+
+    res.json({ success: true, data: { users, adminInstance } });
+  } catch (err) {
+    console.error('[SuperAdmin] GET /scalor-users/whatsapp:', err.message);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// POST /api/ecom/super-admin/scalor-users/whatsapp/send — envoi via l'instance du super admin
+router.post('/scalor-users/whatsapp/send', requireEcomAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { userIds, message, allUsers, plan } = req.body;
+
+    if (!message?.trim()) {
+      return res.status(400).json({ success: false, message: 'Message requis' });
+    }
+
+    // Récupérer l'instance configurée du super admin
+    const admin = await EcomUser.findById(req.ecomUser._id)
+      .select('supportNotificationInstanceId')
+      .lean();
+    if (!admin?.supportNotificationInstanceId) {
+      return res.status(400).json({ success: false, message: 'Aucune instance WhatsApp configurée. Configurez-en une dans les paramètres support.' });
+    }
+    const instance = await WhatsAppInstance.findById(admin.supportNotificationInstanceId)
+      .select('instanceName instanceToken status isActive')
+      .lean();
+    if (!instance || !instance.isActive || !['connected', 'active', 'configured'].includes(instance.status)) {
+      return res.status(400).json({ success: false, message: `Instance WhatsApp non connectée (statut: ${instance?.status || 'introuvable'})` });
+    }
+
+    // Construire la liste des destinataires
+    let targets = [];
+    if (allUsers) {
+      const filter = { phone: { $exists: true, $ne: '' }, isActive: true };
+      if (plan) filter.plan = plan;
+      targets = await ScalorUser.find(filter).select('_id name phone').lean();
+    } else {
+      if (!Array.isArray(userIds) || userIds.length === 0) {
+        return res.status(400).json({ success: false, message: 'userIds requis (ou allUsers: true)' });
+      }
+      targets = await ScalorUser.find({
+        _id: { $in: userIds },
+        phone: { $exists: true, $ne: '' }
+      }).select('_id name phone').lean();
+    }
+
+    if (targets.length === 0) {
+      return res.json({ success: true, data: { sent: 0, failed: 0, skipped: 0, results: [] } });
+    }
+
+    const safeMessage = message.trim().slice(0, 4000);
+    const sendResults = [];
+    let sent = 0, failed = 0, skipped = 0;
+
+    for (let i = 0; i < targets.length; i++) {
+      const user = targets[i];
+      const phoneResult = formatInternationalPhone(user.phone);
+      if (!phoneResult.success) {
+        skipped++;
+        sendResults.push({ userId: user._id, name: user.name, phone: user.phone, status: 'skipped', error: phoneResult.error });
+        continue;
+      }
+
+      try {
+        const apiResult = await evolutionApiService.sendMessage(instance.instanceName, instance.instanceToken, phoneResult.formatted, safeMessage);
+        if (apiResult.success) {
+          sent++;
+          sendResults.push({ userId: user._id, name: user.name, phone: phoneResult.display, status: 'sent' });
+        } else {
+          failed++;
+          sendResults.push({ userId: user._id, name: user.name, phone: phoneResult.display, status: 'failed', error: apiResult.error });
+        }
+      } catch (e) {
+        failed++;
+        sendResults.push({ userId: user._id, name: user.name, phone: phoneResult.display, status: 'failed', error: e.message });
+      }
+
+      if (i < targets.length - 1) {
+        await new Promise(r => setTimeout(r, 1500));
+      }
+    }
+
+    await logAudit(req, 'SCALOR_WHATSAPP_SEND', `WhatsApp envoyé à ${sent}/${targets.length} users Scalor via ${instance.instanceName}`, 'system', null);
+
+    res.json({ success: true, data: { sent, failed, skipped, total: targets.length, results: sendResults } });
+  } catch (err) {
+    console.error('[SuperAdmin] POST /scalor-users/whatsapp/send:', err.message);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
 
 export default router;

@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Recrutement — Scalor & Ecom Starter</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --primary: #111827;
+      --accent: #4f46e5;
+      --accent-light: #eef2ff;
+      --text-muted: #6b7280;
+      --border: #e5e7eb;
+      --card-bg: #ffffff;
+      --bg: #f9fafb;
+      --radius: 12px;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: var(--bg);
+      color: var(--primary);
+      line-height: 1.6;
+    }
+
+    /* ── NAV ── */
+    nav {
+      background: #fff;
+      border-bottom: 1px solid var(--border);
+      padding: 0 24px;
+      height: 64px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .nav-brand {
+      font-size: 1rem;
+      font-weight: 700;
+      letter-spacing: -0.3px;
+      color: var(--primary);
+      text-decoration: none;
+    }
+
+    .nav-tag {
+      font-size: 0.75rem;
+      font-weight: 500;
+      color: var(--accent);
+      background: var(--accent-light);
+      padding: 4px 10px;
+      border-radius: 20px;
+      letter-spacing: 0.3px;
+    }
+
+    /* ── HERO ── */
+    .hero {
+      background: var(--primary);
+      color: #fff;
+      padding: 100px 24px 96px;
+      text-align: center;
+    }
+
+    .hero-badge {
+      display: inline-block;
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 1.2px;
+      text-transform: uppercase;
+      color: #a5b4fc;
+      background: rgba(165,180,252,0.12);
+      border: 1px solid rgba(165,180,252,0.25);
+      border-radius: 20px;
+      padding: 6px 16px;
+      margin-bottom: 28px;
+    }
+
+    .hero h1 {
+      font-size: clamp(1.9rem, 4.5vw, 3rem);
+      font-weight: 800;
+      line-height: 1.2;
+      letter-spacing: -0.5px;
+      max-width: 760px;
+      margin: 0 auto 24px;
+    }
+
+    .hero p {
+      font-size: 1.05rem;
+      color: #d1d5db;
+      max-width: 580px;
+      margin: 0 auto 48px;
+      line-height: 1.75;
+    }
+
+    .hero-stats {
+      display: flex;
+      justify-content: center;
+      gap: 48px;
+      flex-wrap: wrap;
+    }
+
+    .hero-stat {
+      text-align: center;
+    }
+
+    .hero-stat strong {
+      display: block;
+      font-size: 1.6rem;
+      font-weight: 800;
+      color: #fff;
+      letter-spacing: -0.5px;
+    }
+
+    .hero-stat span {
+      font-size: 0.8rem;
+      color: #9ca3af;
+      letter-spacing: 0.3px;
+    }
+
+    /* ── SECTION ── */
+    .section {
+      padding: 80px 24px;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    .section-header {
+      text-align: center;
+      margin-bottom: 56px;
+    }
+
+    .section-header h2 {
+      font-size: clamp(1.5rem, 3vw, 2rem);
+      font-weight: 800;
+      letter-spacing: -0.4px;
+      margin-bottom: 12px;
+    }
+
+    .section-header p {
+      color: var(--text-muted);
+      font-size: 1rem;
+    }
+
+    /* ── GRID ── */
+    .cards-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 28px;
+    }
+
+    /* ── CARD ── */
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 36px 32px 32px;
+      display: flex;
+      flex-direction: column;
+      transition: box-shadow 0.2s ease, transform 0.2s ease;
+    }
+
+    .card:hover {
+      box-shadow: 0 8px 32px rgba(17,24,39,0.08);
+      transform: translateY(-2px);
+    }
+
+    .card-badge {
+      display: inline-block;
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--accent);
+      background: var(--accent-light);
+      border-radius: 6px;
+      padding: 4px 10px;
+      margin-bottom: 20px;
+      width: fit-content;
+    }
+
+    .card h3 {
+      font-size: 1.25rem;
+      font-weight: 800;
+      letter-spacing: -0.3px;
+      margin-bottom: 6px;
+      color: var(--primary);
+    }
+
+    .card-salary {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--accent);
+      margin-bottom: 16px;
+    }
+
+    .card-desc {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      line-height: 1.7;
+      margin-bottom: 24px;
+    }
+
+    .card-missions {
+      list-style: none;
+      margin-bottom: 32px;
+      flex: 1;
+    }
+
+    .card-missions li {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      font-size: 0.875rem;
+      color: #374151;
+      line-height: 1.6;
+      padding: 6px 0;
+      border-bottom: 1px solid #f3f4f6;
+    }
+
+    .card-missions li:last-child { border-bottom: none; }
+
+    .card-missions li::before {
+      content: "";
+      display: inline-block;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent);
+      flex-shrink: 0;
+      margin-top: 7px;
+    }
+
+    .btn-apply {
+      display: block;
+      width: 100%;
+      text-align: center;
+      background: var(--primary);
+      color: #fff;
+      font-size: 0.875rem;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+      padding: 14px 24px;
+      border-radius: 8px;
+      text-decoration: none;
+      transition: background 0.2s ease;
+    }
+
+    .btn-apply:hover { background: #1f2937; }
+
+    /* ── PROCESS ── */
+    .process-section {
+      background: var(--primary);
+      color: #fff;
+      padding: 80px 24px;
+      text-align: center;
+    }
+
+    .process-inner {
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    .process-section h2 {
+      font-size: clamp(1.4rem, 3vw, 1.9rem);
+      font-weight: 800;
+      margin-bottom: 12px;
+      letter-spacing: -0.4px;
+    }
+
+    .process-section > .process-inner > p {
+      color: #9ca3af;
+      margin-bottom: 52px;
+      font-size: 0.95rem;
+    }
+
+    .steps {
+      display: flex;
+      justify-content: center;
+      gap: 0;
+      flex-wrap: wrap;
+      position: relative;
+    }
+
+    .step {
+      flex: 1;
+      min-width: 200px;
+      max-width: 220px;
+      padding: 0 16px;
+      position: relative;
+    }
+
+    .step-num {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: var(--accent);
+      color: #fff;
+      font-size: 0.95rem;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 16px;
+    }
+
+    .step h4 {
+      font-size: 0.95rem;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+
+    .step p {
+      font-size: 0.8rem;
+      color: #9ca3af;
+      line-height: 1.6;
+    }
+
+    /* ── FOOTER ── */
+    footer {
+      background: #fff;
+      border-top: 1px solid var(--border);
+      padding: 32px 24px;
+      text-align: center;
+    }
+
+    footer p {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 640px) {
+      .hero { padding: 72px 20px 64px; }
+      .hero-stats { gap: 28px; }
+      .section { padding: 60px 20px; }
+      .card { padding: 28px 24px 24px; }
+      .cards-grid { grid-template-columns: 1fr; }
+      .step { max-width: 100%; padding: 0 8px 32px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- NAV -->
+  <nav>
+    <a href="#" class="nav-brand">Scalor &amp; Ecom Starter</a>
+    <span class="nav-tag">3 postes ouverts</span>
+  </nav>
+
+  <!-- HERO -->
+  <header class="hero">
+    <div class="hero-badge">Recrutement 2026</div>
+    <h1>Rejoins l'équipe derrière Scalor, Ecom Starter et nos projets e-commerce</h1>
+    <p>Nous recrutons des profils sérieux, organisés et motivés pour accompagner la croissance de nos activités : SaaS, formation, contenu et e-commerce.</p>
+    <div class="hero-stats">
+      <div class="hero-stat">
+        <strong>3</strong>
+        <span>Postes ouverts</span>
+      </div>
+      <div class="hero-stat">
+        <strong>100%</strong>
+        <span>Remote friendly</span>
+      </div>
+      <div class="hero-stat">
+        <strong>30 j</strong>
+        <span>Période d'essai</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- CARDS -->
+  <main class="section">
+    <div class="section-header">
+      <h2>Postes disponibles</h2>
+      <p>Trois opportunités pour rejoindre une équipe en croissance.</p>
+    </div>
+
+    <div class="cards-grid">
+
+      <!-- Monteur vidéo -->
+      <div class="card">
+        <span class="card-badge">Contenu</span>
+        <h3>Monteur vidéo</h3>
+        <div class="card-salary">100 000 FCFA / mois</div>
+        <p class="card-desc">Tu prends en charge la production vidéo pour nos marques : formations, contenus marketing et vidéos produits pour nos boutiques e-commerce.</p>
+        <ul class="card-missions">
+          <li>Monter des vidéos de formation et de contenu marketing</li>
+          <li>Créer des vidéos produits pour nos boutiques e-commerce</li>
+          <li>Intégrer sous-titres, graphismes et animations simples</li>
+          <li>Respecter les chartes graphiques de chaque marque</li>
+          <li>Livrer dans les délais avec des fichiers optimisés</li>
+          <li>Proposer des idées créatives pour améliorer l'engagement</li>
+        </ul>
+        <a href="form-monteur-video.html" class="btn-apply">Postuler au poste</a>
+      </div>
+
+      <!-- Community Manager -->
+      <div class="card">
+        <span class="card-badge">Réseaux sociaux</span>
+        <h3>Community Manager</h3>
+        <div class="card-salary">80 000 FCFA / mois</div>
+        <p class="card-desc">Tu gères la présence et l'engagement de nos marques sur les réseaux sociaux : planification, création de contenu et animation de communauté.</p>
+        <ul class="card-missions">
+          <li>Planifier et publier du contenu sur Instagram, TikTok et Facebook</li>
+          <li>Animer les communautés et répondre aux commentaires</li>
+          <li>Créer des visuels et des légendes adaptés à chaque plateforme</li>
+          <li>Analyser les statistiques et ajuster la stratégie</li>
+          <li>Identifier des tendances et les adapter à nos marques</li>
+          <li>Collaborer avec l'équipe création pour les campagnes</li>
+        </ul>
+        <a href="form-community-manager.html" class="btn-apply">Postuler au poste</a>
+      </div>
+
+      <!-- Responsable service client -->
+      <div class="card">
+        <span class="card-badge">Scalor</span>
+        <h3>Responsable service client Scalor</h3>
+        <div class="card-salary">100 000 FCFA / mois</div>
+        <p class="card-desc">Tu es le premier contact de nos utilisateurs Scalor : accompagnement, résolution de problèmes et amélioration continue de l'expérience client.</p>
+        <ul class="card-missions">
+          <li>Répondre aux demandes clients via WhatsApp Business et email</li>
+          <li>Onboarder les nouveaux utilisateurs sur la plateforme Scalor</li>
+          <li>Documenter les problèmes récurrents et proposer des solutions</li>
+          <li>Coordonner les retours clients avec l'équipe technique</li>
+          <li>Suivre les indicateurs de satisfaction et de résolution</li>
+          <li>Former les utilisateurs aux fonctionnalités de Scalor</li>
+        </ul>
+        <a href="form-service-client-scalor.html" class="btn-apply">Postuler au poste</a>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- PROCESS -->
+  <section class="process-section">
+    <div class="process-inner">
+      <h2>Comment ca se passe</h2>
+      <p>Un processus simple et transparent, du formulaire a l'integration dans l'equipe.</p>
+      <div class="steps">
+        <div class="step">
+          <div class="step-num">1</div>
+          <h4>Candidature</h4>
+          <p>Tu remplis le formulaire du poste qui t'interesse. Ton message nous arrive directement sur WhatsApp.</p>
+        </div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <h4>Etude du profil</h4>
+          <p>Nous examinons ta candidature et revenons vers toi sous 72 heures si ton profil correspond.</p>
+        </div>
+        <div class="step">
+          <div class="step-num">3</div>
+          <h4>Test pratique</h4>
+          <p>Un test concret pour evaluer tes competences reelles dans les conditions du poste.</p>
+        </div>
+        <div class="step">
+          <div class="step-num">4</div>
+          <h4>Periode d'essai</h4>
+          <p>30 jours pour te prouver et prouver que la collaboration fonctionne des deux cotes.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer>
+    <p>Scalor &amp; Ecom Starter — Recrutement 2026 — Toutes les candidatures sont traitees avec confidentialite.</p>
+  </footer>
+
+</body>
+</html>

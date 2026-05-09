@@ -109,6 +109,7 @@ const AffiliateCommissions = lazy(() => import('./pages/AffiliateCommissions.jsx
 const AffiliatesAdmin = lazy(() => import('./pages/AffiliatesAdmin.jsx'));
 const SuperAdminWhatsAppPostulations = lazy(() => import('./pages/SuperAdminWhatsAppPostulations.jsx'));
 const SuperAdminWhatsAppLogs = lazy(() => import('./pages/SuperAdminWhatsAppLogs.jsx'));
+const SuperAdminScalorWhatsApp = lazy(() => import('./pages/SuperAdminScalorWhatsApp.jsx'));
 const SuperAdminPushCenter = lazy(() => import('./pages/SuperAdminPushCenter.jsx'));
 const SuperAdminSupport = lazy(() => import('./pages/SuperAdminSupport.jsx'));
 const SuperAdminBilling = lazy(() => import('./pages/SuperAdminBilling.jsx'));
@@ -758,6 +759,7 @@ const EcomApp = () => {
               <Route path="/ecom/super-admin/settings" element={<LayoutRoute requiredRole="super_admin"><SuperAdminSettings /></LayoutRoute>} />
               <Route path="/ecom/super-admin/whatsapp-postulations" element={<LayoutRoute requiredRole="super_admin"><SuperAdminWhatsAppPostulations /></LayoutRoute>} />
               <Route path="/ecom/super-admin/whatsapp-logs" element={<LayoutRoute requiredRole="super_admin"><SuperAdminWhatsAppLogs /></LayoutRoute>} />
+              <Route path="/ecom/super-admin/scalor-whatsapp" element={<LayoutRoute requiredRole="super_admin"><SuperAdminScalorWhatsApp /></LayoutRoute>} />
               <Route path="/ecom/super-admin/push" element={<LayoutRoute requiredRole="super_admin"><SuperAdminPushCenter /></LayoutRoute>} />
               <Route path="/ecom/super-admin/support" element={<LayoutRoute requiredRole="super_admin"><SuperAdminSupport /></LayoutRoute>} />
               <Route path="/ecom/super-admin/billing" element={<LayoutRoute requiredRole="super_admin"><SuperAdminBilling /></LayoutRoute>} />

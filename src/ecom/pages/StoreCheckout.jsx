@@ -565,246 +565,366 @@ const StoreCheckout = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen" style={{ backgroundColor: '#f8f9fb' }}>
+      <style>{`
+        @keyframes fadeInUp {
+          from { opacity: 0; transform: translateY(12px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .fade-in-up { animation: fadeInUp 0.35s ease forwards; }
+        .fade-in-up-2 { animation: fadeInUp 0.35s ease forwards 0.08s; opacity: 0; }
+        .fade-in-up-3 { animation: fadeInUp 0.35s ease forwards 0.16s; opacity: 0; }
+        .checkout-input:focus { outline: none; }
+        .field-row { position: relative; }
+        .field-icon {
+          position: absolute;
+          left: 12px;
+          top: 50%;
+          transform: translateY(-50%);
+          pointer-events: none;
+          z-index: 1;
+        }
+        .field-icon-top {
+          position: absolute;
+          left: 12px;
+          top: 14px;
+          pointer-events: none;
+          z-index: 1;
+        }
+        .has-icon input, .has-icon select, .has-icon textarea {
+          padding-left: 36px !important;
+        }
+        .has-icon-textarea textarea {
+          padding-left: 36px !important;
+        }
+        .submit-btn:not(:disabled):hover { filter: brightness(1.06); }
+        .submit-btn:not(:disabled):active { transform: scale(0.985); }
+      `}</style>
+
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-40 px-4 py-3">
+      <header className="bg-white sticky top-0 z-40 px-4 py-3" style={{ boxShadow: '0 1px 0 rgba(0,0,0,0.07)' }}>
         <div className="max-w-lg mx-auto flex items-center gap-3">
           <button
             onClick={() => navigate(-1)}
-            className="p-1.5 rounded-lg hover:bg-gray-100 transition"
+            className="p-2 rounded-xl hover:bg-gray-100 transition-colors flex-shrink-0"
           >
-            <ArrowLeft className="w-5 h-5 text-gray-600" />
+            <ArrowLeft className="w-4 h-4 text-gray-600" />
           </button>
-          <h1 className="text-base font-semibold text-gray-900 flex items-center gap-2">
-            <ShoppingCart className="w-5 h-5" style={{ color: themeColor }} />
-            Finaliser la commande
-          </h1>
+          <div className="flex-1 min-w-0">
+            <h1 className="text-sm font-bold text-gray-900 truncate">Finaliser la commande</h1>
+            {store?.name && <p className="text-xs text-gray-400 truncate">{store.name}</p>}
+          </div>
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold" style={{ backgroundColor: btnColor + '15', color: btnColor }}>
+            <Package className="w-3 h-3" />
+            <span>COD</span>
+          </div>
         </div>
       </header>
 
-      <div className="max-w-lg mx-auto px-4 py-5 space-y-5">
-        {/* Order summary */}
-        <div className="p-4 space-y-3" style={formContainerStyle}>
-          <h2 className="text-sm font-semibold" style={{ color: formTextColor }}>Récapitulatif</h2>
-          {cartProducts.map((p, i) => (
-            <div key={i} className="flex items-center gap-3">
-              {p.image && (
-                <img src={p.image} alt={p.name} className="w-12 h-12 rounded-lg object-cover border border-gray-100" loading="lazy" />
+      <div className="max-w-lg mx-auto px-4 pt-4 pb-8 space-y-3">
+
+        {/* Order summary card */}
+        <div className="fade-in-up bg-white rounded-2xl overflow-hidden" style={{ boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
+          {/* Colored top bar */}
+          <div className="h-1" style={{ background: `linear-gradient(90deg, ${btnColor}, ${btnColor}99)` }} />
+          <div className="p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-bold text-gray-800 flex items-center gap-1.5">
+                <ShoppingCart className="w-3.5 h-3.5" style={{ color: btnColor }} />
+                Récapitulatif
+              </h2>
+              <span className="text-xs text-gray-400">{cartProducts.length} article{cartProducts.length > 1 ? 's' : ''}</span>
+            </div>
+
+            <div className="space-y-2.5">
+              {cartProducts.map((p, i) => (
+                <div key={i} className="flex items-center gap-3">
+                  {p.image ? (
+                    <img src={p.image} alt={p.name} className="w-11 h-11 rounded-xl object-cover flex-shrink-0" style={{ border: `1px solid ${formBorderColor}` }} loading="lazy" />
+                  ) : (
+                    <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: btnColor + '15' }}>
+                      <Package className="w-5 h-5" style={{ color: btnColor }} />
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-gray-800 truncate">{p.name}</p>
+                    <p className="text-xs text-gray-400">Qté : {p.quantity}</p>
+                  </div>
+                  <span className="text-sm font-bold flex-shrink-0" style={{ color: formTextColor }}>
+                    {formatPrice(p.price * p.quantity, currency)}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            <div className="pt-2.5 space-y-1.5" style={{ borderTop: `1px dashed ${formBorderColor}` }}>
+              <div className="flex justify-between text-xs text-gray-500">
+                <span>Sous-total</span>
+                <span className="font-medium">{formatPrice(subtotal, currency)}</span>
+              </div>
+              {deliveryCost > 0 && (
+                <div className="flex justify-between text-xs text-gray-500">
+                  <span>Livraison</span>
+                  <span className="font-medium text-emerald-600">{formatPrice(deliveryCost, currency)}</span>
+                </div>
               )}
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate" style={{ color: formTextColor }}>{p.name}</p>
-                <p className="text-xs" style={{ color: fieldIconColor }}>x{p.quantity}</p>
+              {deliveryStatus.type === 'expedition' && (
+                <div className="flex justify-between text-xs text-gray-500">
+                  <span>Expédition</span>
+                  <span className="font-medium text-amber-600">À calculer</span>
+                </div>
+              )}
+              <div className="flex justify-between items-center pt-1.5" style={{ borderTop: `1px solid ${formBorderColor}` }}>
+                <span className="text-sm font-bold text-gray-800">Total à payer</span>
+                <span className="text-lg font-extrabold" style={{ color: btnColor }}>
+                  {formatPrice(total, currency)}
+                </span>
               </div>
-              <span className="text-sm font-bold" style={{ color: formTextColor }}>
-                {formatPrice(p.price * p.quantity, currency)}
-              </span>
             </div>
-          ))}
-          <div className="pt-2 space-y-1" style={{ borderTop: `1px solid ${formBorderColor}` }}>
-            <div className="flex justify-between text-sm">
-              <span style={{ color: fieldIconColor }}>Sous-total</span>
-              <span className="font-medium" style={{ color: formTextColor }}>{formatPrice(subtotal, currency)}</span>
-            </div>
-            {deliveryCost > 0 && (
-              <div className="flex justify-between text-sm">
-                <span style={{ color: fieldIconColor }}>Livraison</span>
-                <span className="font-medium" style={{ color: formTextColor }}>{formatPrice(deliveryCost, currency)}</span>
-              </div>
-            )}
-            {deliveryStatus.type === 'expedition' && (
-              <div className="flex justify-between text-sm">
-                <span style={{ color: fieldIconColor }}>Expédition</span>
-                <span className="text-xs text-amber-600 font-medium">À calculer</span>
-              </div>
-            )}
-            <div className="flex justify-between pt-1">
-              <span className="text-sm font-semibold" style={{ color: formTextColor }}>Total</span>
-              <span className="text-base font-bold" style={{ color: btnColor }}>
-                {formatPrice(total, currency)}
-              </span>
-            </div>
+          </div>
+
+          {/* COD badge */}
+          <div className="mx-4 mb-4 flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium" style={{ backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', color: '#16a34a' }}>
+            <svg className="w-3.5 h-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+            </svg>
+            Paiement à la livraison — Payez en recevant votre colis
           </div>
         </div>
 
         {/* Error */}
         {error && (
-          <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+          <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
             <AlertCircle className="w-4 h-4 flex-shrink-0" /> {error}
           </div>
         )}
 
         {/* Checkout form */}
-        <form onSubmit={handleSubmit} className="p-4 space-y-4" style={formContainerStyle}>
-          <h2 className="text-sm font-semibold" style={labelStyle}>Vos informations</h2>
+        <form onSubmit={handleSubmit} className="fade-in-up-2 bg-white rounded-2xl overflow-hidden" style={{ boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
+          <div className="h-1" style={{ background: `linear-gradient(90deg, ${btnColor}60, ${btnColor}20)` }} />
+          <div className="p-4 space-y-4">
+            <h2 className="text-sm font-bold text-gray-800 flex items-center gap-1.5">
+              <User className="w-3.5 h-3.5" style={{ color: btnColor }} />
+              Vos informations de livraison
+            </h2>
 
-          <div>
-            <label className="flex items-center gap-1.5 text-sm font-medium mb-1" style={labelStyle}>
-              <User className="w-3.5 h-3.5" style={{ color: fieldIconColor }} /> Nom complet *
-            </label>
-            <input
-              type="text"
-              value={form.customerName}
-              onChange={(e) => handleChange('customerName', e.target.value)}
-              placeholder="Votre nom"
-              required
-              className="w-full px-3 py-2.5 border transition-all"
-              {...inputProps('customerName')}
-            />
-          </div>
-
-          <div>
-            <label className="flex items-center gap-1.5 text-sm font-medium mb-1" style={labelStyle}>
-              <Phone className="w-3.5 h-3.5" style={{ color: fieldIconColor }} /> Téléphone (WhatsApp) *
-            </label>
-            <div className="flex gap-0">
-              <div className="relative flex-shrink-0">
-                <select
-                  value={phoneCode}
-                  onChange={(e) => setPhoneCode(e.target.value)}
-                  className="appearance-none pl-2 pr-6 py-2.5 border border-r-0 text-sm font-medium cursor-pointer"
-                  style={{ ...fieldStyle, minWidth: 85, borderTopRightRadius: 0, borderBottomRightRadius: 0 }}
-                >
-                  {PHONE_CODES.map(c => (
-                    <option key={c.code} value={c.code}>{c.label}</option>
-                  ))}
-                </select>
-                <ChevronDown className="w-3 h-3 absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: fieldIconColor }} />
+            {/* Nom */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Nom complet *</label>
+              <div className="field-row has-icon">
+                <span className="field-icon"><User className="w-3.5 h-3.5" style={{ color: fieldIconColor }} /></span>
+                <input
+                  type="text"
+                  value={form.customerName}
+                  onChange={(e) => handleChange('customerName', e.target.value)}
+                  placeholder="Votre nom et prénom"
+                  required
+                  className="checkout-input w-full py-3 border text-sm font-medium transition-all"
+                  style={{ ...inputStyle('customerName'), borderRadius: '12px' }}
+                  onFocus={() => setFocusedField('customerName')}
+                  onBlur={() => setFocusedField(null)}
+                />
               </div>
-              <input
-                type="tel"
-                value={form.phone}
-                onChange={(e) => handleChange('phone', e.target.value)}
-                placeholder={activePlaceholders.phone}
-                required
-                className="flex-1 min-w-0 px-3 py-2.5 border transition-all"
-                style={{ ...inputStyle('phone'), borderTopLeftRadius: 0, borderBottomLeftRadius: 0 }}
-                onFocus={() => setFocusedField('phone')}
-                onBlur={() => setFocusedField(null)}
-              />
             </div>
-          </div>
 
-          {/* Country selector — only if delivery countries are configured */}
-          {hasDeliveryConfig && (
+            {/* Téléphone */}
             <div>
-              <label className="flex items-center gap-1.5 text-sm font-medium mb-1" style={labelStyle}>
-                <MapPin className="w-3.5 h-3.5" style={{ color: fieldIconColor }} /> Pays *
-              </label>
-              <select
-                value={form.country}
-                onChange={(e) => handleChange('country', e.target.value)}
-                required
-                className="w-full px-3 py-2.5 border text-sm transition-all"
-                {...inputProps('country')}
-              >
-                <option value="">Sélectionnez votre pays</option>
-                {deliveryCountries.map(c => (
-                  <option key={c} value={c}>{c}</option>
-                ))}
-              </select>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Téléphone WhatsApp *</label>
+              <div className="flex gap-0">
+                <div className="relative flex-shrink-0">
+                  <select
+                    value={phoneCode}
+                    onChange={(e) => setPhoneCode(e.target.value)}
+                    className="checkout-input appearance-none pl-3 pr-7 py-3 border border-r-0 text-sm font-semibold cursor-pointer transition-all"
+                    style={{ ...fieldStyle, minWidth: 90, borderTopRightRadius: 0, borderBottomRightRadius: 0, borderTopLeftRadius: '12px', borderBottomLeftRadius: '12px' }}
+                  >
+                    {PHONE_CODES.map(c => (
+                      <option key={c.code} value={c.code}>{c.label}</option>
+                    ))}
+                  </select>
+                  <ChevronDown className="w-3 h-3 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: fieldIconColor }} />
+                </div>
+                <input
+                  type="tel"
+                  value={form.phone}
+                  onChange={(e) => handleChange('phone', e.target.value)}
+                  placeholder={activePlaceholders.phone}
+                  required
+                  className="checkout-input flex-1 min-w-0 px-3 py-3 border text-sm font-medium transition-all"
+                  style={{ ...inputStyle('phone'), borderTopLeftRadius: 0, borderBottomLeftRadius: 0, borderTopRightRadius: '12px', borderBottomRightRadius: '12px' }}
+                  onFocus={() => setFocusedField('phone')}
+                  onBlur={() => setFocusedField(null)}
+                />
+              </div>
             </div>
-          )}
 
-          {/* Country blocked message */}
-          {deliveryStatus.type === 'blocked' && (
-            <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
-              <AlertCircle className="w-4 h-4 flex-shrink-0" />
-              {deliveryStatus.message}
-            </div>
-          )}
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="flex items-center gap-1.5 text-sm font-medium mb-1" style={labelStyle}>
-                <MapPin className="w-3.5 h-3.5" style={{ color: fieldIconColor }} /> Ville {hasDeliveryConfig ? '*' : ''}
-              </label>
-              <input
-                type="text"
-                value={form.city}
-                onChange={(e) => handleChange('city', e.target.value)}
-                placeholder={activePlaceholders.city}
-                required={hasDeliveryConfig}
-                className="w-full px-3 py-2.5 border text-sm transition-all"
-                {...inputProps('city')}
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium mb-1 block" style={labelStyle}>Email</label>
-              <input
-                type="email"
-                value={form.email}
-                onChange={(e) => handleChange('email', e.target.value)}
-                placeholder="optionnel"
-                className="w-full px-3 py-2.5 border text-sm transition-all"
-                {...inputProps('email')}
-              />
-            </div>
-          </div>
-
-          {/* Delivery status indicator */}
-          {hasDeliveryConfig && form.country && form.city && deliveryStatus.type !== 'blocked' && deliveryStatus.type !== 'pending' && (
-            <div className={`flex items-start gap-2 p-3 rounded-lg text-sm ${
-              deliveryStatus.type === 'livraison'
-                ? 'bg-emerald-50 border border-emerald-200 text-emerald-700'
-                : 'bg-amber-50 border border-amber-200 text-amber-700'
-            }`}>
-              {deliveryStatus.type === 'livraison' ? (
-                <Truck className="w-4 h-4 flex-shrink-0 mt-0.5" />
-              ) : (
-                <Package className="w-4 h-4 flex-shrink-0 mt-0.5" />
-              )}
+            {/* Pays */}
+            {hasDeliveryConfig && (
               <div>
-                <p className="font-medium">{deliveryStatus.type === 'livraison' ? 'Livraison' : 'Expédition'}</p>
-                <p className="text-xs mt-0.5 opacity-80">{deliveryStatus.message}</p>
-                {deliveryStatus.cost > 0 && (
-                  <p className="text-xs font-bold mt-1">Frais : {formatPrice(deliveryStatus.cost, currency)}</p>
-                )}
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Pays *</label>
+                <div className="field-row has-icon">
+                  <span className="field-icon"><MapPin className="w-3.5 h-3.5" style={{ color: fieldIconColor }} /></span>
+                  <select
+                    value={form.country}
+                    onChange={(e) => handleChange('country', e.target.value)}
+                    required
+                    className="checkout-input w-full py-3 border text-sm font-medium transition-all appearance-none"
+                    style={{ ...inputStyle('country'), borderRadius: '12px', paddingRight: '32px' }}
+                    onFocus={() => setFocusedField('country')}
+                    onBlur={() => setFocusedField(null)}
+                  >
+                    <option value="">Sélectionnez votre pays</option>
+                    {deliveryCountries.map(c => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                  <ChevronDown className="w-3.5 h-3.5 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: fieldIconColor }} />
+                </div>
+              </div>
+            )}
+
+            {/* Blocked */}
+            {deliveryStatus.type === 'blocked' && (
+              <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                {deliveryStatus.message}
+              </div>
+            )}
+
+            {/* Ville + Email */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Ville {hasDeliveryConfig ? '*' : ''}</label>
+                <div className="field-row has-icon">
+                  <span className="field-icon"><MapPin className="w-3.5 h-3.5" style={{ color: fieldIconColor }} /></span>
+                  <input
+                    type="text"
+                    value={form.city}
+                    onChange={(e) => handleChange('city', e.target.value)}
+                    placeholder={activePlaceholders.city}
+                    required={hasDeliveryConfig}
+                    className="checkout-input w-full py-3 border text-sm font-medium transition-all"
+                    style={{ ...inputStyle('city'), borderRadius: '12px' }}
+                    onFocus={() => setFocusedField('city')}
+                    onBlur={() => setFocusedField(null)}
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Email</label>
+                <input
+                  type="email"
+                  value={form.email}
+                  onChange={(e) => handleChange('email', e.target.value)}
+                  placeholder="optionnel"
+                  className="checkout-input w-full px-3 py-3 border text-sm font-medium transition-all"
+                  style={{ ...inputStyle('email'), borderRadius: '12px' }}
+                  onFocus={() => setFocusedField('email')}
+                  onBlur={() => setFocusedField(null)}
+                />
               </div>
             </div>
-          )}
 
-          <div>
-            <label className="flex items-center gap-1.5 text-sm font-medium mb-1" style={labelStyle}>
-              <MapPin className="w-3.5 h-3.5" style={{ color: fieldIconColor }} /> Adresse de livraison
-            </label>
-            <input
-              type="text"
-              value={form.address}
-              onChange={(e) => handleChange('address', e.target.value)}
-              placeholder={activePlaceholders.address}
-              className="w-full px-3 py-2.5 border text-sm transition-all"
-              {...inputProps('address')}
-            />
-          </div>
-
-          <div>
-            <label className="flex items-center gap-1.5 text-sm font-medium mb-1" style={labelStyle}>
-              <FileText className="w-3.5 h-3.5" style={{ color: fieldIconColor }} /> Notes
-            </label>
-            <textarea
-              value={form.notes}
-              onChange={(e) => handleChange('notes', e.target.value)}
-              placeholder="Instructions de livraison, taille, couleur..."
-              rows={2}
-              className="w-full px-3 py-2.5 border text-sm resize-none transition-all"
-              {...inputProps('notes')}
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={submitting || (hasDeliveryConfig && !deliveryStatus.allowed)}
-            className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 text-white font-medium text-sm transition hover:opacity-90 disabled:opacity-50"
-            style={{ backgroundColor: btnColor, borderRadius: inputRadius }}
-          >
-            {submitting ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <ShoppingCart className="w-4 h-4" />
+            {/* Delivery status indicator */}
+            {hasDeliveryConfig && form.country && form.city && deliveryStatus.type !== 'blocked' && deliveryStatus.type !== 'pending' && (
+              <div className={`flex items-start gap-2.5 p-3 rounded-xl text-sm ${
+                deliveryStatus.type === 'livraison'
+                  ? 'bg-emerald-50 border border-emerald-200 text-emerald-700'
+                  : 'bg-amber-50 border border-amber-200 text-amber-700'
+              }`}>
+                {deliveryStatus.type === 'livraison' ? (
+                  <Truck className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                ) : (
+                  <Package className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                )}
+                <div>
+                  <p className="font-semibold text-xs">{deliveryStatus.type === 'livraison' ? 'Livraison disponible' : 'Expédition'}</p>
+                  <p className="text-xs mt-0.5 opacity-80">{deliveryStatus.message}</p>
+                  {deliveryStatus.cost > 0 && (
+                    <p className="text-xs font-bold mt-1">Frais : {formatPrice(deliveryStatus.cost, currency)}</p>
+                  )}
+                </div>
+              </div>
             )}
-            {submitting ? 'Traitement...' : `Passer la commande · ${formatPrice(total, currency)}`}
-          </button>
+
+            {/* Adresse */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Adresse de livraison</label>
+              <div className="field-row has-icon">
+                <span className="field-icon"><MapPin className="w-3.5 h-3.5" style={{ color: fieldIconColor }} /></span>
+                <input
+                  type="text"
+                  value={form.address}
+                  onChange={(e) => handleChange('address', e.target.value)}
+                  placeholder={activePlaceholders.address}
+                  className="checkout-input w-full py-3 border text-sm font-medium transition-all"
+                  style={{ ...inputStyle('address'), borderRadius: '12px' }}
+                  onFocus={() => setFocusedField('address')}
+                  onBlur={() => setFocusedField(null)}
+                />
+              </div>
+            </div>
+
+            {/* Notes */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Instructions / Notes</label>
+              <div className="field-row has-icon-textarea relative">
+                <span className="field-icon-top"><FileText className="w-3.5 h-3.5" style={{ color: fieldIconColor }} /></span>
+                <textarea
+                  value={form.notes}
+                  onChange={(e) => handleChange('notes', e.target.value)}
+                  placeholder="Taille, couleur, instructions de livraison..."
+                  rows={2}
+                  className="checkout-input w-full pl-9 pr-3 py-3 border text-sm font-medium resize-none transition-all"
+                  style={{ ...inputStyle('notes'), borderRadius: '12px' }}
+                  onFocus={() => setFocusedField('notes')}
+                  onBlur={() => setFocusedField(null)}
+                />
+              </div>
+            </div>
+
+            {/* Submit */}
+            <button
+              type="submit"
+              disabled={submitting || (hasDeliveryConfig && !deliveryStatus.allowed)}
+              className="submit-btn w-full inline-flex items-center justify-center gap-2.5 px-4 py-3.5 text-white font-bold text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{
+                background: submitting || (hasDeliveryConfig && !deliveryStatus.allowed)
+                  ? '#9ca3af'
+                  : `linear-gradient(135deg, ${btnColor} 0%, ${btnColor}cc 100%)`,
+                borderRadius: '14px',
+                boxShadow: submitting || (hasDeliveryConfig && !deliveryStatus.allowed) ? 'none' : `0 4px 15px ${btnColor}40`,
+              }}
+            >
+              {submitting ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <ShoppingCart className="w-4 h-4" />
+              )}
+              <span>
+                {submitting ? 'Traitement en cours...' : `Commander · ${formatPrice(total, currency)}`}
+              </span>
+            </button>
+
+            <p className="text-center text-xs text-gray-400">
+              En commandant, vous acceptez d'être contacté pour confirmer votre livraison
+            </p>
+          </div>
         </form>
+
+        {/* Trust row */}
+        <div className="fade-in-up-3 grid grid-cols-3 gap-2">
+          {[
+            { icon: '🔒', label: 'Paiement sécurisé' },
+            { icon: '📦', label: 'Livraison rapide' },
+            { icon: '✅', label: 'Satisfaction garantie' },
+          ].map((t, i) => (
+            <div key={i} className="bg-white rounded-xl p-2.5 text-center" style={{ boxShadow: '0 1px 6px rgba(0,0,0,0.05)' }}>
+              <div className="text-lg mb-0.5">{t.icon}</div>
+              <p className="text-xs text-gray-500 leading-tight">{t.label}</p>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );

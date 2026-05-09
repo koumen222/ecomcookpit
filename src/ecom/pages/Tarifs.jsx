@@ -255,92 +255,117 @@ const Tarifs = () => {
       </section>
 
       {/* PRICING CARDS */}
-      <section className="py-16 sm:py-20 px-4">
-        <div className="max-w-7xl mx-auto">
+      <section className="py-16 sm:py-20 px-4 sm:px-6 lg:px-10">
+        <div className="max-w-screen-2xl mx-auto">
           {plansLoading && (
             <div className="text-center text-gray-500 py-12">Chargement des offres…</div>
           )}
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-5 items-stretch">
             {plans.map((plan, index) => (
-              <div 
+              <div
                 key={index}
-                className={`rounded-2xl p-8 ${
-                  plan.highlighted 
-                    ? 'bg-gradient-to-br from-emerald-600 to-emerald-700 text-white shadow-2xl scale-105 border-2 border-emerald-500' 
-                    : 'bg-white border-2 border-gray-200 hover:border-emerald-200 hover:shadow-xl'
-                } transition-all duration-300 relative`}
+                className={`relative flex flex-col rounded-2xl overflow-hidden transition-all duration-200
+                  ${plan.highlighted
+                    ? 'bg-[#1a1a2e] shadow-2xl ring-2 ring-emerald-500/40'
+                    : 'bg-white border border-gray-200 hover:border-emerald-300 hover:shadow-lg'
+                  }`}
               >
-                {plan.highlighted && (
-                  <div className="absolute -top-4 left-1/2 -translate-x-1/2 px-4 py-1 bg-amber-400 text-gray-900 rounded-full text-xs font-bold">
-                    RECOMMANDÉ
+                {/* Promo banner */}
+                <div className={`text-center py-2.5 text-[11px] font-black tracking-wide
+                  ${plan.highlighted
+                    ? 'bg-emerald-500 text-white'
+                    : plan.isFree ? 'bg-gray-100 text-gray-400' : 'bg-emerald-50 text-emerald-700'
+                  }`}>
+                  {plan.isFree ? 'Gratuit pour toujours' : plan.highlighted ? '⭐ Le plus populaire' : '1 mois offert sur 12 mois'}
+                </div>
+
+                <div className="p-7 flex-1 flex flex-col">
+                  {/* Name + tagline */}
+                  <div className="mb-1">
+                    <h3 className={`text-xl font-black ${plan.highlighted ? 'text-white' : 'text-gray-900'}`}>
+                      {plan.name}
+                    </h3>
                   </div>
-                )}
-                
-                <div className="mb-6">
-                  <h3 className={`text-2xl font-bold mb-2 ${plan.highlighted ? 'text-white' : 'text-gray-900'}`}>
-                    {plan.name}
-                  </h3>
-                  <p className={`text-sm ${plan.highlighted ? 'text-emerald-100' : 'text-gray-600'}`}>
+                  <p className={`text-sm mb-6 ${plan.highlighted ? 'text-gray-400' : 'text-gray-500'}`}>
                     {plan.description}
                   </p>
-                </div>
 
-                <div className="mb-8">
-                  <div className="flex items-baseline gap-2">
-                    <span className={`text-5xl font-black ${plan.highlighted ? 'text-white' : 'text-gray-900'}`}>
-                      {plan.price}
-                    </span>
-                    {plan.period && (
-                      <span className={`text-lg ${plan.highlighted ? 'text-emerald-100' : 'text-gray-600'}`}>
-                        {plan.period}
+                  {/* Price */}
+                  <div className="mb-1">
+                    <p className={`text-xs font-semibold mb-1 ${plan.highlighted ? 'text-gray-400' : 'text-gray-400'}`}>
+                      À partir de
+                    </p>
+                    <div className="flex items-end gap-2">
+                      <span className={`text-5xl font-black leading-none ${plan.highlighted ? 'text-white' : 'text-gray-900'}`}>
+                        {plan.price}
                       </span>
-                    )}
+                      {!plan.isFree && (
+                        <span className={`text-sm font-semibold mb-1 ${plan.highlighted ? 'text-gray-400' : 'text-gray-400'}`}>
+                          FCFA/mois
+                        </span>
+                      )}
+                      {plan.isFree && (
+                        <span className={`text-sm font-semibold mb-1 ${plan.highlighted ? 'text-gray-400' : 'text-gray-400'}`}>
+                          FCFA
+                        </span>
+                      )}
+                    </div>
+                    <p className={`text-xs mt-1.5 ${plan.highlighted ? 'text-gray-500' : 'text-gray-400'}`}>
+                      {plan.isFree ? 'Sans carte bancaire' : 'Facturation mensuelle'}
+                    </p>
+                  </div>
+
+                  {/* Divider */}
+                  <div className={`h-px my-5 ${plan.highlighted ? 'bg-white/10' : 'bg-gray-100'}`} />
+
+                  {/* Features */}
+                  <div className="mb-1">
+                    <p className={`text-[11px] font-black uppercase tracking-widest mb-3 ${plan.highlighted ? 'text-gray-400' : 'text-gray-400'}`}>
+                      Fonctionnalités clés
+                    </p>
+                    <ul className="space-y-3 flex-1">
+                      {plan.features.map((feature, i) => (
+                        <li key={i} className="flex items-start gap-2.5">
+                          <svg className={`w-4 h-4 flex-shrink-0 mt-0.5 ${plan.highlighted ? 'text-emerald-400' : 'text-emerald-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                          </svg>
+                          <span className={`text-[13px] leading-snug ${plan.highlighted ? 'text-gray-300' : 'text-gray-600'}`}>
+                            {feature}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
                   </div>
                 </div>
 
-                <ul className="space-y-4 mb-8">
-                  {plan.features.map((feature, i) => (
-                    <li key={i} className="flex items-start gap-3">
-                      <svg 
-                        className={`w-5 h-5 flex-shrink-0 mt-0.5 ${plan.highlighted ? 'text-emerald-200' : 'text-emerald-600'}`} 
-                        fill="none" 
-                        stroke="currentColor" 
-                        viewBox="0 0 24 24"
-                      >
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-                      </svg>
-                      <span className={`text-sm ${plan.highlighted ? 'text-white' : 'text-gray-700'}`}>
-                        {feature}
-                      </span>
-                    </li>
-                  ))}
-                  
-                </ul>
-
-                <button
-                  onClick={() => {
-                    const token = localStorage.getItem('ecomToken');
-                    const workspace = JSON.parse(localStorage.getItem('ecomWorkspace') || 'null');
-                    const workspaceId = workspace?._id || workspace?.id;
-
-                    if (plan.isFree) {
-                      navigate('/ecom/register');
-                    } else if (!token || !workspaceId) {
-                      savePendingPlanSelection(plan.checkoutKey);
-                      navigate('/ecom/register');
-                    } else {
-                      setSelectedPlan(plan);
-                      setShowCheckout(true);
-                    }
-                  }}
-                  className={`w-full py-4 rounded-xl font-bold text-base transition shadow-lg ${
-                    plan.highlighted 
-                      ? 'bg-white text-emerald-700 hover:bg-emerald-50' 
-                      : 'bg-emerald-600 text-white hover:bg-emerald-700'
-                  }`}
-                >
-                  {plan.cta}
-                </button>
+                {/* CTA */}
+                <div className="px-7 pb-7">
+                  <button
+                    onClick={() => {
+                      const token = localStorage.getItem('ecomToken');
+                      const workspace = JSON.parse(localStorage.getItem('ecomWorkspace') || 'null');
+                      const workspaceId = workspace?._id || workspace?.id;
+                      if (plan.isFree) {
+                        navigate('/ecom/register');
+                      } else if (!token || !workspaceId) {
+                        savePendingPlanSelection(plan.checkoutKey);
+                        navigate('/ecom/register');
+                      } else {
+                        setSelectedPlan(plan);
+                        setShowCheckout(true);
+                      }
+                    }}
+                    className={`w-full py-3.5 rounded-xl font-bold text-sm transition-all active:scale-[0.98]
+                      ${plan.highlighted
+                        ? 'bg-emerald-500 text-white hover:bg-emerald-400'
+                        : plan.isFree
+                          ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          : 'bg-gray-900 text-white hover:bg-gray-800'
+                      }`}
+                  >
+                    {plan.isFree ? 'Commencer gratuitement' : plan.cta}
+                  </button>
+                </div>
               </div>
             ))}
           </div>
