@@ -54,8 +54,8 @@ const BASE_PLAN_TIERS = [
       { text: 'Génération de pages IA', included: false },
     ],
     durations: [
-      { id: 'starter_1',  label: 'Mensuel',  price: 5000,   months: 1,  saving: null, perMonth: 5000 },
-      { id: 'starter_12', label: 'Annuel',   price: 45000,  months: 12, saving: 25,   perMonth: 3750 },
+      { id: 'starter_1',  label: 'Mensuel',  price: 6900,  months: 1,  saving: null, perMonth: 6900 },
+      { id: 'starter_12', label: 'Annuel',   price: 62100, months: 12, saving: 25,   perMonth: 5175 },
     ],
   },
   {
@@ -76,11 +76,11 @@ const BASE_PLAN_TIERS = [
       { text: '50 000 messages / mois', included: true },
       { text: 'Réponses automatiques 24h/7j', included: true },
       { text: 'Support prioritaire', included: true },
-      { text: 'Génération de pages IA', included: false },
+      { text: '10 crédits page produit IA / mois', included: true, highlight: true },
     ],
     durations: [
-      { id: 'pro_1',  label: 'Mensuel',  price: 10000, months: 1,  saving: null, perMonth: 10000 },
-      { id: 'pro_12', label: 'Annuel',   price: 90000, months: 12, saving: 25,   perMonth: 7500 },
+      { id: 'pro_1',  label: 'Mensuel',  price: 14900,  months: 1,  saving: null, perMonth: 14900 },
+      { id: 'pro_12', label: 'Annuel',   price: 134100, months: 12, saving: 25,   perMonth: 11175 },
     ],
   },
   {
@@ -97,14 +97,16 @@ const BASE_PLAN_TIERS = [
       { text: '5 agents IA actifs simultanés', included: true, highlight: true },
       { text: '5 numéros WhatsApp connectés', included: true, highlight: true },
       { text: 'Messages illimités', included: true, highlight: true },
-      { text: '10 crédits page produit IA / mois', included: true, highlight: true },
+      { text: '20 crédits page produit IA / mois', included: true, highlight: true },
       { text: 'Gestion multi-boutiques', included: true },
       { text: 'Support 24/7 dédié', included: true },
       { text: 'API & webhooks', included: true },
+      { text: 'Formation complète E-commerce Afrique', included: true },
+      { text: '50 générations de créatives images', included: true },
     ],
     durations: [
-      { id: 'ultra_1',  label: 'Mensuel',  price: 15000,  months: 1,  saving: null, perMonth: 15000 },
-      { id: 'ultra_12', label: 'Annuel',   price: 140000, months: 12, saving: 22,   perMonth: 11667 },
+      { id: 'ultra_1',  label: 'Mensuel',  price: 29899,  months: 1,  saving: null, perMonth: 29899 },
+      { id: 'ultra_12', label: 'Annuel',   price: 269100, months: 12, saving: 25,   perMonth: 22425 },
     ],
   },
 ];
@@ -421,12 +423,15 @@ function CheckoutModal({ plan, tier, onClose, onSuccess, workspaceId, userName, 
   );
 }
 
-// PlanCard
+// PlanCard — Shopify style
 function PlanCard({ tier, isAnnual, onCheckout, currentPlan, isActive, globalPromoData }) {
-  const duration = tier.free ? tier.durations[0] : (isAnnual ? tier.durations[1] : tier.durations[0]);
-  const isCurrentPlan = tier.free ? (currentPlan === 'free' || (!isActive && !['starter','pro','ultra'].includes(currentPlan))) : (currentPlan === tier.id && isActive);
+  const duration = tier.free
+    ? tier.durations[0]
+    : (isAnnual ? (tier.durations[1] ?? tier.durations[0]) : tier.durations[0]);
+  const isCurrentPlan = tier.free
+    ? (currentPlan === 'free' || (!isActive && !['starter','pro','ultra'].includes(currentPlan)))
+    : (currentPlan === tier.id && isActive);
 
-  // Compute promo visual representation
   let displayPrice = duration.price;
   let originalPrice = duration.oldPrice || null;
   let displayPerMonth = duration.perMonth;
@@ -434,111 +439,135 @@ function PlanCard({ tier, isAnnual, onCheckout, currentPlan, isActive, globalPro
 
   if (globalPromoData) {
     const { discountType, discountValue, applicablePlans, applicableDurations, minAmount } = globalPromoData;
-    
-    // Check if promo applies to this specific card
     const matchesPlan = !applicablePlans?.length || applicablePlans.includes(tier.id);
     const matchesDuration = !applicableDurations?.length || applicableDurations.includes(duration.months);
     const matchesAmount = duration.price >= (minAmount || 0);
-
     if (matchesPlan && matchesDuration && matchesAmount) {
       isPromoApplied = true;
       if (!originalPrice) originalPrice = duration.price;
-      
-      let discountAmount = 0;
-      if (discountType === 'percentage') {
-        discountAmount = Math.round((duration.price * discountValue) / 100);
-      } else {
-        discountAmount = Math.min(duration.price, discountValue);
-      }
-      
+      const discountAmount = discountType === 'percentage'
+        ? Math.round((duration.price * discountValue) / 100)
+        : Math.min(duration.price, discountValue);
       displayPrice = Math.max(0, duration.price - discountAmount);
       displayPerMonth = Math.round(displayPrice / duration.months);
     }
   }
 
+  const includedFeatures = tier.features.filter(f => f.included);
+
+  const isPopular = tier.popular;
+
   return (
-    <div className={`relative flex flex-col rounded-2xl border transition-all duration-300 bg-white overflow-hidden h-full
-      ${tier.popular ? 'border-blue-200 shadow-xl shadow-blue-500/10 ring-1 ring-blue-100' : 'border-gray-200 shadow-sm hover:shadow-lg hover:border-gray-300'}`}>
+    <div className={`relative flex flex-col h-full transition-all duration-200
+      ${isPopular
+        ? 'rounded-2xl bg-gradient-to-b from-emerald-600 to-emerald-700 shadow-2xl shadow-emerald-500/30 ring-1 ring-inset ring-white/10'
+        : 'rounded-2xl bg-white border border-gray-200 hover:border-gray-400 hover:shadow-md'
+      }`}>
 
-      {tier.popular && (
-        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-center py-1.5 text-[11px] font-bold uppercase tracking-widest">
-          Le plus populaire
+      {/* Top banner */}
+      <div className={`rounded-t-2xl px-6 py-2.5 text-center text-[11px] font-black tracking-widest uppercase
+        ${isPopular ? 'bg-emerald-500 text-white' : 'bg-gray-50 text-gray-400 border-b border-gray-200'}`}>
+        {isPopular ? '⭐  Le plus populaire' : tier.free ? 'Gratuit pour toujours' : `${isAnnual && duration.saving ? `-${duration.saving}% en annuel` : 'Mensuel ou annuel'}`}
+      </div>
+
+      <div className="p-7 flex-1 flex flex-col">
+
+        {/* Name */}
+        <div className="mb-6">
+          <h3 className={`text-2xl font-black mb-1 ${isPopular ? 'text-white' : 'text-gray-900'}`}>
+            {tier.name}
+          </h3>
+          <p className={`text-sm ${isPopular ? 'text-emerald-100' : 'text-gray-500'}`}>{tier.tagline}</p>
         </div>
-      )}
 
-      <div className="p-6 pb-0 flex-1">
-        <div className="flex items-start justify-between mb-4">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <span className="w-6 h-6 text-gray-700">{tier.icon}</span>
-              <h3 className="text-lg font-black text-gray-900">{tier.name}</h3>
-            </div>
-            <p className="text-sm text-gray-500">{tier.tagline}</p>
-          </div>
-        </div>
-
+        {/* Price block */}
         <div className="mb-6">
           {tier.free ? (
             <>
-              <div className="flex items-baseline gap-1">
-                <span className="text-4xl font-black text-gray-900">0</span>
-                <span className="text-sm font-medium text-gray-400">FCFA</span>
+              <p className={`text-xs font-semibold mb-1 ${isPopular ? 'text-emerald-200' : 'text-gray-400'}`}>À partir de</p>
+              <div className="flex items-end gap-1.5">
+                <span className={`text-5xl font-black leading-none ${isPopular ? 'text-white' : 'text-gray-900'}`}>0</span>
+                <span className={`text-base font-semibold mb-0.5 ${isPopular ? 'text-emerald-200' : 'text-gray-400'}`}>FCFA</span>
               </div>
-              <p className="text-xs text-gray-400 mt-1">Pour toujours, avec des limites</p>
+              <p className={`text-xs mt-1.5 ${isPopular ? 'text-emerald-200' : 'text-gray-400'}`}>Sans carte bancaire requise</p>
             </>
           ) : (
             <>
-              <div className="flex items-baseline gap-2">
+              <p className={`text-xs font-semibold mb-1 ${isPopular ? 'text-emerald-200' : 'text-gray-400'}`}>À partir de</p>
+              <div className="flex items-end gap-2">
                 {originalPrice && (
-                  <span className="text-lg font-bold text-gray-300 line-through">{formatAmount(isAnnual ? Math.round(originalPrice / duration.months) : originalPrice)}</span>
+                  <span className={`text-xl font-bold line-through mb-0.5 ${isPopular ? 'text-emerald-300' : 'text-gray-300'}`}>
+                    {formatAmount(isAnnual ? Math.round(originalPrice / duration.months) : originalPrice)}
+                  </span>
                 )}
-                <span className="text-4xl font-black text-gray-900">{formatAmount(displayPerMonth)}</span>
-                <span className="text-sm font-medium text-gray-400">FCFA/mois</span>
+                <span className={`text-5xl font-black leading-none ${isPopular ? 'text-white' : 'text-gray-900'}`}>
+                  {formatAmount(displayPerMonth)}
+                </span>
+                <span className={`text-base font-semibold mb-0.5 ${isPopular ? 'text-emerald-200' : 'text-gray-400'}`}>FCFA/mois</span>
               </div>
               {isPromoApplied && (
-                <p className="text-xs text-emerald-600 font-bold mt-1">✨ Promo appliquée : {globalPromoData.code}</p>
-              )}
-              {duration.oldPrice && !isPromoApplied && (
-                <p className="text-xs text-red-500 font-bold mt-1">🔥 Offre valable 24h — prix réduit !</p>
-              )}
-              {isAnnual && duration.saving && (
-                <p className="text-xs text-emerald-600 font-semibold mt-1">
-                  {formatAmount(displayPrice)} FCFA/an · Économisez {duration.saving}%
+                <p className={`text-xs font-bold mt-1.5 ${isPopular ? 'text-white' : 'text-emerald-600'}`}>
+                  ✨ Code {globalPromoData.code} appliqué
                 </p>
               )}
-              {!isAnnual && <p className="text-xs text-gray-400 mt-1">Facturation mensuelle, sans engagement</p>}
+              {isAnnual && duration.saving && !isPromoApplied && (
+                <p className={`text-xs font-semibold mt-1.5 ${isPopular ? 'text-emerald-200' : 'text-emerald-600'}`}>
+                  {formatAmount(displayPrice)} FCFA facturé annuellement
+                </p>
+              )}
+              {!isAnnual && !isPromoApplied && (
+                <p className={`text-xs mt-1.5 ${isPopular ? 'text-emerald-200' : 'text-gray-400'}`}>
+                  Facturation mensuelle, sans engagement
+                </p>
+              )}
             </>
           )}
         </div>
 
-        <div className="space-y-2.5 pb-6">
-          {tier.features.map((f, i) => (
-            <div key={i} className={`flex items-start gap-2.5 text-[13px] ${f.included ? (f.highlight ? 'text-gray-900 font-semibold' : 'text-gray-600') : 'text-gray-300'}`}>
-              {f.included
-                ? <div className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 mt-px ${f.highlight ? 'bg-blue-100' : 'bg-gray-100'}`}><CheckIcon className={`w-3 h-3 ${f.highlight ? 'text-blue-600' : 'text-gray-500'}`} /></div>
-                : <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 mt-px bg-gray-50"><XIcon className="w-3 h-3 text-gray-300" /></div>
-              }
-              <span>{f.text}</span>
+        {/* CTA */}
+        <div className="mb-7">
+          {isCurrentPlan ? (
+            <div className={`w-full py-3 rounded-xl text-center text-sm font-bold border
+              ${isPopular ? 'bg-white/10 text-white border-white/20' : 'bg-gray-100 text-gray-400 border-gray-200'}`}>
+              Plan actuel
             </div>
-          ))}
+          ) : tier.free ? (
+            <div className={`w-full py-3 rounded-xl text-center text-sm font-semibold border
+              ${isPopular ? 'bg-white/10 text-white border-white/20' : 'bg-gray-100 text-gray-500 border-gray-200'}`}>
+              Commencer gratuitement
+            </div>
+          ) : (
+            <button
+              onClick={() => onCheckout(duration)}
+              className={`w-full py-3.5 rounded-xl font-bold text-sm transition-all active:scale-[0.98]
+                ${isPopular
+                  ? 'bg-emerald-500 text-white hover:bg-emerald-400'
+                  : 'bg-gray-900 text-white hover:bg-gray-700'}`}>
+              Commencer avec {tier.name}
+            </button>
+          )}
         </div>
-      </div>
 
-      <div className="p-6 pt-0">
-        {isCurrentPlan ? (
-          <div className="w-full py-3 rounded-xl text-center text-sm font-bold text-gray-400 bg-gray-100 border border-gray-200">
-            Plan actuel
-          </div>
-        ) : tier.free ? (
-          <div className="w-full py-3 rounded-xl text-center text-sm font-bold text-gray-500 bg-gray-50 border border-gray-200">
-            Plan de base
-          </div>
-        ) : (
-          <button onClick={() => onCheckout(duration)}
-            className={`w-full py-3 rounded-xl font-bold text-white text-sm transition-all shadow-lg hover:shadow-xl active:scale-[0.98] ${tier.btnClass}`}>
-            Commencer avec {tier.name}
-          </button>
-        )}
+        {/* Divider */}
+        <div className={`h-px mb-5 ${isPopular ? 'bg-white/20' : 'bg-gray-100'}`} />
+
+        {/* Features */}
+        <div>
+          <p className={`text-[10px] font-black uppercase tracking-widest mb-3 ${isPopular ? 'text-emerald-200' : 'text-gray-400'}`}>
+            Fonctionnalités clés
+          </p>
+          <ul className="space-y-3">
+            {includedFeatures.map((f, i) => (
+              <li key={i} className="flex items-start gap-2.5">
+                <CheckIcon className={`w-4 h-4 flex-shrink-0 mt-0.5 ${isPopular ? 'text-emerald-400' : 'text-emerald-500'}`} />
+                <span className={`text-[13px] leading-snug ${isPopular ? (f.highlight ? 'text-white font-semibold' : 'text-emerald-100') : (f.highlight ? 'text-gray-900 font-semibold' : 'text-gray-600')}`}>
+                  {f.text}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+
       </div>
     </div>
   );
@@ -721,11 +750,8 @@ export default function BillingPage() {
               <span className="text-sm font-medium hidden sm:inline">Retour</span>
             </Link>
             <div className="h-6 w-px bg-gray-200 hidden sm:block" />
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center">
-                <span className="text-white font-black text-xs">S</span>
-              </div>
-              <span className="font-black text-gray-900 text-lg tracking-tight hidden sm:inline">Scalor</span>
+            <div className="flex items-center">
+              <img src="/logo.png" alt="Scalor" className="h-8 object-contain" />
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -757,7 +783,7 @@ export default function BillingPage() {
       {/* ══════════════════════════════════════════════════════════════════
            VIEW A: Subscribed / Trial user → "Mon abonnement" dashboard
            ══════════════════════════════════════════════════════════════════ */}
-      {(isActivePaid || isTrial) && !loading ? (() => {
+      {false && (isActivePaid || isTrial) && !loading ? (() => {
         const activeTier = planTiers.find(t => t.id === currentPlan) || planTiers[1];
         const remainingDays = isActivePaid ? daysLeft(planInfo?.planExpiresAt) : trialDays;
         const expiryDate = isActivePaid ? (planInfo?.planExpiresAt || workspace?.planExpiresAt) : (planInfo?.trial?.endsAt || fallbackTrialEndsAt);
@@ -855,7 +881,7 @@ export default function BillingPage() {
                 {globalPromoData && <p className="text-emerald-600 text-[11px] font-bold mt-2">Code {globalPromoData.code} validé !</p>}
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-8">
                 {planTiers.map(tier => (
                   <PlanCard
                     key={tier.id}
@@ -921,54 +947,66 @@ export default function BillingPage() {
          ══════════════════════════════════════════════════════════════════ */
       : (
         <>
-          {/* Hero Section */}
-          <div className="relative overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-b from-white via-blue-50/30 to-transparent pointer-events-none" />
-            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-gradient-to-b from-blue-100/40 to-transparent rounded-full blur-3xl pointer-events-none" />
+          {/* Hero — Shopify style: minimal, centered, toggle prominent */}
+          <div className="bg-white border-b border-gray-100">
+            <div className="max-w-4xl mx-auto px-4 sm:px-6 pt-14 pb-10 text-center">
 
-            <div className="relative max-w-7xl mx-auto px-4 sm:px-6 pt-16 pb-8 text-center">
-              <h1 className="text-4xl sm:text-5xl font-black text-gray-900 tracking-tight leading-tight">
-                Le plan parfait pour<br />
-                <span className="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">développer votre business</span>
-              </h1>
-              <p className="text-gray-500 text-base sm:text-lg mt-4 max-w-2xl mx-auto leading-relaxed">
-                Commencez gratuitement, passez à l'échelle quand vous êtes prêt. Tous les plans incluent un essai gratuit de 7 jours.
-              </p>
-
-              {/* Current plan status bar */}
-              {!loading && (
-                <div className="mt-8 inline-flex items-center gap-3 bg-white border border-gray-200 rounded-full px-5 py-2.5 shadow-sm">
-                  <div className="w-2.5 h-2.5 rounded-full bg-gray-400" />
-                  <span className="text-sm text-gray-500">
-                    {isTrial
-                      ? `Essai ${planTiers.find(t => t.id === currentPlan)?.name || 'Scalor + IA'}`
-                      : `Plan ${planTiers.find(t => t.id === currentPlan)?.name || 'gratuit'}`}
+              {/* Plan actuel banner (connecté + abonné) */}
+              {!loading && isActivePaid && (
+                <div className="inline-flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-full px-4 py-1.5 mb-6">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className="text-xs font-bold text-emerald-700">
+                    Plan actuel : {planTiers.find(t => t.id === currentPlan)?.name || currentPlan}
                   </span>
-                  {!trialUsed && (
-                    <button onClick={handleActivateTrial} disabled={trialLoading}
-                      className="text-sm font-bold text-blue-600 hover:text-blue-700 transition disabled:opacity-50">
-                      {trialLoading ? 'Activation…' : '→ Essai gratuit 7 jours'}
-                    </button>
-                  )}
+                  <span className="text-xs text-emerald-600 ml-1">— Actif</span>
                 </div>
               )}
 
-              {/* Billing toggle */}
-              <div className="mt-8 flex items-center justify-center gap-3">
-                <span className={`text-sm font-semibold transition ${!isAnnual ? 'text-gray-900' : 'text-gray-400'}`}>Mensuel</span>
-                <button onClick={() => setIsAnnual(!isAnnual)}
-                  className={`relative w-14 h-7 rounded-full transition-colors ${isAnnual ? 'bg-blue-600' : 'bg-gray-300'}`}>
-                  <span className={`absolute top-0.5 left-0.5 w-6 h-6 bg-white rounded-full shadow-md transition-transform ${isAnnual ? 'translate-x-7' : ''}`} />
+              {/* Trial banner */}
+              {!loading && !isActivePaid && isTrial && (
+                <div className="inline-flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-full px-4 py-1.5 mb-6">
+                  <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+                  <span className="text-xs font-bold text-blue-700">Essai gratuit en cours — {trialDays}j restants</span>
+                </div>
+              )}
+
+              {/* Activer essai */}
+              {!loading && !isActivePaid && !isTrial && !trialUsed && (
+                <div className="inline-flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-full px-4 py-1.5 mb-6">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className="text-xs font-bold text-emerald-700">Essai gratuit 7 jours disponible</span>
+                  <button onClick={handleActivateTrial} disabled={trialLoading}
+                    className="text-xs font-black text-emerald-600 hover:text-emerald-800 transition disabled:opacity-50 ml-1">
+                    {trialLoading ? '…' : 'Activer →'}
+                  </button>
+                </div>
+              )}
+
+              <h1 className="text-4xl sm:text-5xl font-black text-gray-900 tracking-tight leading-tight mb-4">
+                Des tarifs simples,<br/>sans surprises
+              </h1>
+              <p className="text-gray-500 text-lg max-w-xl mx-auto mb-10">
+                Commencez gratuitement. Passez à l'échelle quand vous êtes prêt.
+              </p>
+
+              {/* Toggle mensuel / annuel — style pill Shopify */}
+              <div className="inline-flex items-center bg-gray-100 rounded-full p-1 gap-1">
+                <button
+                  onClick={() => setIsAnnual(false)}
+                  className={`px-5 py-2 rounded-full text-sm font-bold transition-all ${!isAnnual ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+                  Mensuel
                 </button>
-                <span className={`text-sm font-semibold transition ${isAnnual ? 'text-gray-900' : 'text-gray-400'}`}>
+                <button
+                  onClick={() => setIsAnnual(true)}
+                  className={`px-5 py-2 rounded-full text-sm font-bold transition-all flex items-center gap-2 ${isAnnual ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
                   Annuel
-                </span>
-                {isAnnual && <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full">Jusqu'à -25%</span>}
+                  <span className="text-[10px] font-black bg-emerald-500 text-white px-1.5 py-0.5 rounded-full">-25%</span>
+                </button>
               </div>
-              
-              {/* Promo code input (global) */}
+
+              {/* Promo code */}
               <div className="mt-6 flex flex-col items-center">
-                <form onSubmit={handleCheckGlobalPromo} className="relative w-full max-w-xs transition-all hover:scale-[1.02]">
+                <form onSubmit={handleCheckGlobalPromo} className="relative w-full max-w-xs">
                   <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
                     <Gift className="w-4 h-4 text-gray-400" />
                   </div>
@@ -978,29 +1016,29 @@ export default function BillingPage() {
                     onChange={e => setGlobalPromo(e.target.value.toUpperCase())}
                     disabled={globalPromoData !== null}
                     placeholder="Code promo ?"
-                    className="w-full pl-10 pr-24 py-2.5 bg-white border border-gray-200 rounded-full text-sm font-bold placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition shadow-sm uppercase text-gray-700 disabled:opacity-75 disabled:bg-gray-50"
+                    className="w-full pl-10 pr-24 py-2.5 bg-white border border-gray-200 rounded-full text-sm font-bold placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-300 transition uppercase text-gray-700 disabled:opacity-75 disabled:bg-gray-50"
                   />
                   {!globalPromoData ? (
                     <button type="submit" disabled={globalPromoLoading || !globalPromo.trim()}
-                      className="absolute inset-y-1 right-1 px-4 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-full text-xs font-bold transition disabled:opacity-50">
+                      className="absolute inset-y-1 right-1 px-4 bg-gray-900 hover:bg-gray-700 text-white rounded-full text-xs font-bold transition disabled:opacity-40">
                       {globalPromoLoading ? '…' : 'Appliquer'}
                     </button>
                   ) : (
                     <button type="button" onClick={handleClearGlobalPromo}
-                      className="absolute inset-y-1 right-1 px-4 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-full text-xs font-bold transition">
+                      className="absolute inset-y-1 right-1 px-4 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-full text-xs font-bold transition">
                       Retirer
                     </button>
                   )}
                 </form>
                 {globalPromoError && <p className="text-red-500 text-[11px] font-bold mt-2">{globalPromoError}</p>}
-                {globalPromoData && <p className="text-emerald-600 text-[11px] font-bold mt-2">Code {globalPromoData.code} validé !</p>}
+                {globalPromoData && <p className="text-emerald-600 text-[11px] font-bold mt-2">✓ Code {globalPromoData.code} appliqué</p>}
               </div>
             </div>
           </div>
 
           {/* Pricing Cards */}
-          <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-10 pb-20">
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6">
+          <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-12 py-12 pb-24">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
               {planTiers.map(tier => (
                 <PlanCard
                   key={tier.id}
@@ -1024,7 +1062,7 @@ export default function BillingPage() {
                       {planTiers.map(t => (
                         <th key={t.id} className="px-4 py-5 text-center">
                           <span className="text-base font-black text-gray-900">{t.name}</span>
-                          <p className="text-xs text-gray-400 font-normal mt-0.5">{formatAmount((isAnnual ? t.durations[1] : t.durations[0]).perMonth)} FCFA/mois</p>
+                          <p className="text-xs text-gray-400 font-normal mt-0.5">{formatAmount((isAnnual ? (t.durations[1] ?? t.durations[0]) : t.durations[0]).perMonth)} FCFA/mois</p>
                         </th>
                       ))}
                     </tr>

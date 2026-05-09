@@ -17,17 +17,19 @@ import {
 // ═══════════════════════════════════════════════
 // STATUS BADGE
 // ═══════════════════════════════════════════════
+const STATUS_META = {
+  connected:     { dot: 'bg-emerald-400', bg: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20', label: 'Connecté' },
+  disconnected:  { dot: 'bg-red-400',     bg: 'bg-red-500/10 text-red-400 border-red-500/20',             label: 'Déconnecté' },
+  awaiting_qr:   { dot: 'bg-amber-400 animate-pulse', bg: 'bg-amber-500/10 text-amber-400 border-amber-500/20', label: 'En attente QR' },
+  creating:      { dot: 'bg-blue-400 animate-pulse',  bg: 'bg-blue-500/10 text-blue-400 border-blue-500/20',   label: 'En création' },
+  deleted:       { dot: 'bg-gray-500',    bg: 'bg-gray-500/10 text-gray-500 border-gray-600/20',           label: 'Supprimé' },
+};
 const StatusBadge = ({ status }) => {
-  const colors = {
-    connected: 'bg-green-500/20 text-green-400 border-green-500/30',
-    disconnected: 'bg-red-500/20 text-red-400 border-red-500/30',
-    awaiting_qr: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
-    creating: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
-    deleted: 'bg-gray-500/20 text-gray-400 border-gray-500/30',
-  };
+  const m = STATUS_META[status] || STATUS_META.disconnected;
   return (
-    <span className={`px-2 py-1 rounded-full text-xs font-medium border ${colors[status] || colors.disconnected}`}>
-      {status}
+    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${m.bg}`}>
+      <span className={`w-1.5 h-1.5 rounded-full ${m.dot}`} />
+      {m.label}
     </span>
   );
 };
@@ -362,8 +364,11 @@ export default function ScalorDashboard() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-        <div className="text-green-400 text-xl animate-pulse">Chargement...</div>
+      <div className="min-h-screen bg-[#0f1117] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+          <p className="text-gray-500 text-sm">Chargement…</p>
+        </div>
       </div>
     );
   }
@@ -372,6 +377,739 @@ export default function ScalorDashboard() {
   const instances = dashboard?.instances || [];
   const recentMessages = dashboard?.recentMessages || [];
   const apiKeys = userInfo?.apiKeys || [];
+
+  const TABS = [
+    { id: 'instances', label: 'Instances WhatsApp' },
+    { id: 'api-keys',  label: 'Clés API' },
+    { id: 'logs',      label: 'Logs' },
+    { id: 'provider',  label: 'Provider' },
+    { id: 'docs',      label: 'Référence API' },
+  ];
+
+  return (
+    <div className="min-h-screen bg-[#0f1117] text-gray-100">
+
+      {/* ── Top bar ── */}
+      <header className="sticky top-0 z-40 bg-[#0f1117]/90 backdrop-blur border-b border-white/5">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-7 h-7 rounded-lg bg-emerald-500 flex items-center justify-center">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/></svg>
+            </div>
+            <span className="font-bold text-white text-sm">Scalor API</span>
+            <span className="hidden sm:block text-gray-600">/</span>
+            <span className="hidden sm:block text-gray-400 text-sm">API Développeur</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="hidden sm:block text-xs text-gray-500">{user?.email}</span>
+            <span className="px-2 py-0.5 bg-emerald-500/15 text-emerald-400 rounded text-xs font-semibold uppercase tracking-wide border border-emerald-500/20">{user?.plan || 'free'}</span>
+            <button onClick={handleLogout} className="text-xs text-gray-500 hover:text-red-400 transition-colors">Déconnexion</button>
+          </div>
+        </div>
+      </header>
+
+      {/* ── Page header ── */}
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-8 pb-0">
+        <h1 className="text-2xl font-bold text-white">API Développeur</h1>
+        <p className="text-gray-500 text-sm mt-1">Gérez vos instances WhatsApp, clés API et intégrations via l'API Scalor v1.</p>
+
+        {/* Stats row */}
+        <div className="grid grid-cols-3 gap-3 mt-6">
+          <div className="bg-white/[0.03] border border-white/5 rounded-xl p-4">
+            <p className="text-xs text-gray-500 mb-1">Instances actives</p>
+            <p className="text-xl font-bold text-white">{instances.filter(i => i.status === 'connected').length}
+              {user?.maxInstances !== undefined && <span className="text-gray-600 text-sm font-normal"> / {user.maxInstances}</span>}
+            </p>
+          </div>
+          <div className="bg-white/[0.03] border border-white/5 rounded-xl p-4">
+            <p className="text-xs text-gray-500 mb-1">Messages aujourd'hui</p>
+            <p className="text-xl font-bold text-white">{(user?.messagesSentToday || 0).toLocaleString()}</p>
+          </div>
+          <div className="bg-emerald-500/[0.06] border border-emerald-500/20 rounded-xl p-4">
+            <p className="text-xs text-emerald-400/70 mb-1">Crédits disponibles</p>
+            <p className="text-xl font-bold text-emerald-400">{user?.credits !== undefined ? user.credits.toLocaleString() : '—'}</p>
+          </div>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex gap-1 mt-6 border-b border-white/5 overflow-x-auto">
+          {TABS.map(t => (
+            <button key={t.id} onClick={() => changeTab(t.id)}
+              className={`px-4 py-2.5 text-sm font-medium whitespace-nowrap transition-colors border-b-2 -mb-px ${
+                activeTab === t.id
+                  ? 'text-white border-emerald-500'
+                  : 'text-gray-500 border-transparent hover:text-gray-300'
+              }`}>
+              {t.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Error ── */}
+      {error && (
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 mt-4">
+          <div className="flex items-center justify-between bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-3 rounded-xl text-sm">
+            <span>{error}</span>
+            <button onClick={() => setError('')} className="ml-4 opacity-60 hover:opacity-100">✕</button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Tab content ── */}
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6">
+
+        {/* ══════════════ INSTANCES ══════════════ */}
+        {activeTab === 'instances' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-base font-semibold text-white">Vos instances WhatsApp</h2>
+                <p className="text-xs text-gray-500 mt-0.5">{instances.length} instance{instances.length !== 1 ? 's' : ''}</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button onClick={loadDashboard} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-400 hover:text-white border border-white/10 rounded-lg transition-colors">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
+                  Rafraîchir
+                </button>
+                <button onClick={() => setShowCreateInstance(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-500 rounded-lg transition-colors">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                  Nouvelle instance
+                </button>
+              </div>
+            </div>
+
+            {instances.length === 0 ? (
+              <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-16 text-center">
+                <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center mx-auto mb-4">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+                </div>
+                <h3 className="text-white font-semibold mb-1">Aucune instance</h3>
+                <p className="text-gray-500 text-sm mb-5">Créez votre première instance WhatsApp pour commencer à envoyer des messages.</p>
+                <button onClick={() => setShowCreateInstance(true)} className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold rounded-lg transition-colors">
+                  Créer une instance
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {instances.map(inst => (
+                  <div key={inst._id} className="bg-white/[0.03] border border-white/5 rounded-2xl p-5 hover:border-white/10 transition-colors">
+                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                      {/* Left: identity */}
+                      <div className="flex items-start gap-3 min-w-0">
+                        <div className={`mt-0.5 w-9 h-9 rounded-xl flex-shrink-0 flex items-center justify-center ${inst.status === 'connected' ? 'bg-emerald-500/15' : 'bg-white/5'}`}>
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={inst.status === 'connected' ? '#34d399' : '#6b7280'} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/></svg>
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-white font-semibold">{inst.displayName}</span>
+                            <StatusBadge status={inst.status} />
+                          </div>
+                          <p className="text-gray-600 text-xs font-mono mt-0.5 truncate">{inst.instanceName}</p>
+                          {inst.phoneNumber && <p className="text-gray-400 text-xs mt-1">{inst.phoneNumber}</p>}
+                        </div>
+                      </div>
+                      {/* Right: stats */}
+                      <div className="flex items-center gap-4 text-xs text-gray-500 flex-shrink-0">
+                        <div className="text-right">
+                          <p className="text-white font-semibold">{inst.messagesSentToday || 0}</p>
+                          <p>Aujourd'hui</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-white font-semibold">{inst.messagesSentThisMonth || 0}</p>
+                          <p>Ce mois</p>
+                        </div>
+                        {inst.createdAt && (
+                          <div className="text-right hidden sm:block">
+                            <p className="text-white font-semibold">{new Date(inst.createdAt).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit' })}</p>
+                            <p>Créée</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-white/5">
+                      {inst.status !== 'connected' && (
+                        <button onClick={() => handleGetQr(inst)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-lg hover:bg-amber-500/20 transition-colors">
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="5" height="5"/><rect x="16" y="3" width="5" height="5"/><rect x="3" y="16" width="5" height="5"/><path d="M21 16h-3a2 2 0 00-2 2v3M21 21v.01M12 7v3a2 2 0 01-2 2H7M3 12h.01M12 3h.01M12 16v.01M17 12h1a2 2 0 012 2v1"/></svg>
+                          QR Code
+                        </button>
+                      )}
+                      {inst.status === 'connected' && (
+                        <button onClick={() => { setShowSendMessage(inst); setSendResult(null); }}
+                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-lg hover:bg-emerald-500/20 transition-colors">
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                          Tester statut
+                        </button>
+                      )}
+                      <button onClick={() => { setShowWebhook(inst); setWebhookUrl(inst.webhookUrl || ''); }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-400 bg-blue-500/10 border border-blue-500/20 rounded-lg hover:bg-blue-500/20 transition-colors">
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
+                        Webhook
+                      </button>
+                      <button onClick={() => { navigator.clipboard.writeText(inst.instanceName); }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-400 bg-white/5 border border-white/8 rounded-lg hover:bg-white/10 transition-colors">
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+                        Copier ID
+                      </button>
+                      {inst.status === 'disconnected' && (
+                        <button onClick={() => handleRestart(inst._id)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-400 bg-white/5 border border-white/8 rounded-lg hover:bg-white/10 transition-colors">
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
+                          Redémarrer
+                        </button>
+                      )}
+                      {inst.status === 'connected' && (
+                        <button onClick={() => handleDisconnect(inst._id)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-400 bg-white/5 border border-white/8 rounded-lg hover:bg-white/10 transition-colors">
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18.36 6.64a9 9 0 11-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>
+                          Déconnecter
+                        </button>
+                      )}
+                      <button onClick={() => handleDelete(inst._id)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg hover:bg-red-500/20 transition-colors ml-auto">
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+                        Supprimer
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ══════════════ API KEYS ══════════════ */}
+        {activeTab === 'api-keys' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-base font-semibold text-white">Clés API</h2>
+                <p className="text-xs text-gray-500 mt-0.5">{apiKeys.length} clé{apiKeys.length !== 1 ? 's' : ''}</p>
+              </div>
+              <button onClick={() => { setShowCreateKey(true); setNewKeyResult(null); setNewKeyName(''); }}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-500 rounded-lg transition-colors">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Nouvelle clé
+              </button>
+            </div>
+
+            <div className="bg-white/[0.02] border border-white/5 rounded-2xl overflow-hidden divide-y divide-white/5">
+              {apiKeys.length === 0 && (
+                <div className="p-12 text-center text-gray-600 text-sm">Aucune clé API — créez-en une pour commencer</div>
+              )}
+              {apiKeys.map(key => (
+                <div key={key._id} className="flex items-center justify-between p-4 gap-4">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-white text-sm font-semibold">{key.name}</p>
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${key.isActive ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-gray-500/10 text-gray-500 border-gray-600/20'}`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${key.isActive ? 'bg-emerald-400' : 'bg-gray-500'}`} />
+                        {key.isActive ? 'Active' : 'Révoquée'}
+                      </span>
+                    </div>
+                    <p className="text-gray-600 font-mono text-xs mt-1">{key.keyPrefix}••••••••••••••••</p>
+                    <p className="text-gray-600 text-xs mt-1">
+                      Créée le {new Date(key.createdAt).toLocaleDateString('fr-FR')}
+                      {key.lastUsedAt && <> · Dernière utilisation {new Date(key.lastUsedAt).toLocaleDateString('fr-FR')}</>}
+                    </p>
+                  </div>
+                  {key.isActive && (
+                    <button onClick={() => handleDeleteKey(key._id)}
+                      className="flex-shrink-0 px-3 py-1.5 text-xs font-medium text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg hover:bg-red-500/20 transition-colors">
+                      Révoquer
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ══════════════ LOGS ══════════════ */}
+        {activeTab === 'logs' && (
+          <div className="space-y-4">
+            <h2 className="text-base font-semibold text-white">Historique des messages</h2>
+            <div className="bg-white/[0.02] border border-white/5 rounded-2xl overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-white/5">
+                      <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Statut</th>
+                      <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Numéro</th>
+                      <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide hidden md:table-cell">Type</th>
+                      <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide hidden lg:table-cell">Contenu</th>
+                      <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Date</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {recentMessages.map((msg, i) => (
+                      <tr key={i} className="hover:bg-white/[0.02]">
+                        <td className="px-4 py-3">
+                          <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${msg.status === 'sent' ? 'text-emerald-400' : 'text-red-400'}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${msg.status === 'sent' ? 'bg-emerald-400' : 'bg-red-400'}`} />
+                            {msg.status}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 font-mono text-gray-300 text-xs">{msg.phoneNumber}</td>
+                        <td className="px-4 py-3 text-gray-500 text-xs hidden md:table-cell">{msg.messageType}</td>
+                        <td className="px-4 py-3 text-gray-600 text-xs hidden lg:table-cell max-w-xs truncate">{msg.contentPreview}</td>
+                        <td className="px-4 py-3 text-gray-500 text-xs text-right">{new Date(msg.sentAt).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {recentMessages.length === 0 && (
+                <div className="p-12 text-center text-gray-600 text-sm">Aucun message dans l'historique</div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ══════════════ PROVIDER ══════════════ */}
+        {activeTab === 'provider' && (
+          <div className="space-y-5">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-base font-semibold text-white">Provider Console</h2>
+                <p className="text-xs text-gray-500 mt-0.5">Gérez vos instances en mode provider</p>
+              </div>
+              {provToken && (
+                <button onClick={handleProvLogout} className="text-xs text-red-400 hover:text-red-300 border border-red-500/20 px-3 py-1.5 rounded-lg transition-colors">
+                  Déconnexion provider
+                </button>
+              )}
+            </div>
+
+            {provError && (
+              <div className="flex items-center justify-between bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-3 rounded-xl text-sm">
+                <span>{provError}</span>
+                <button onClick={() => setProvError('')} className="ml-4 opacity-60 hover:opacity-100">✕</button>
+              </div>
+            )}
+            {provMsg && (
+              <div className="flex items-center justify-between bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-4 py-3 rounded-xl text-sm">
+                <span>{provMsg}</span>
+                <button onClick={() => setProvMsg('')} className="ml-4 opacity-60 hover:opacity-100">✕</button>
+              </div>
+            )}
+
+            {!provToken && (
+              <div className="grid lg:grid-cols-2 gap-5">
+                <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-6">
+                  <div className="flex gap-2 mb-5">
+                    {[['login','Connexion'],['register','Inscription'],['verify','Vérification']].map(([m,l]) => (
+                      <button key={m} onClick={() => setProvMode(m)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${provMode === m ? 'bg-white text-gray-900' : 'text-gray-400 bg-white/5 hover:bg-white/10'}`}>
+                        {l}
+                      </button>
+                    ))}
+                  </div>
+                  {provMode === 'login' && (
+                    <form onSubmit={handleProvLogin} className="space-y-3">
+                      <input required type="email" placeholder="Email" value={provLoginForm.email}
+                        onChange={e => setProvLoginForm(f => ({ ...f, email: e.target.value }))}
+                        className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500 text-sm" />
+                      <input required type="password" placeholder="Mot de passe" value={provLoginForm.password}
+                        onChange={e => setProvLoginForm(f => ({ ...f, password: e.target.value }))}
+                        className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500 text-sm" />
+                      <button disabled={provLoading} type="submit"
+                        className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-xl text-sm disabled:opacity-50 transition-colors">
+                        {provLoading ? 'Connexion…' : 'Connexion Provider'}
+                      </button>
+                    </form>
+                  )}
+                  {provMode === 'register' && (
+                    <form onSubmit={handleProvRegister} className="space-y-3">
+                      {[['company','Entreprise','text'],['name','Nom','text'],['email','Email','email'],['phone','Téléphone','tel'],['password','Mot de passe (6+ cars)','password']].map(([k,label,type]) => (
+                        <input key={k} required={['company','name','email','password'].includes(k)}
+                          type={type} placeholder={label} value={provRegForm[k]}
+                          onChange={e => setProvRegForm(f => ({ ...f, [k]: e.target.value }))}
+                          minLength={k === 'password' ? 6 : undefined}
+                          className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500 text-sm" />
+                      ))}
+                      <button disabled={provLoading} type="submit"
+                        className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-xl text-sm disabled:opacity-50 transition-colors">
+                        {provLoading ? 'Création…' : 'Créer compte Provider'}
+                      </button>
+                    </form>
+                  )}
+                  {provMode === 'verify' && (
+                    <form onSubmit={handleProvVerify} className="space-y-3">
+                      <input required placeholder="Token reçu par email" value={provVerifyToken}
+                        onChange={e => setProvVerifyToken(e.target.value)}
+                        className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500 text-sm" />
+                      <button disabled={provLoading} type="submit"
+                        className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl text-sm disabled:opacity-50 transition-colors">
+                        {provLoading ? 'Vérification…' : 'Vérifier email'}
+                      </button>
+                    </form>
+                  )}
+                </div>
+                <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-6">
+                  <h3 className="text-white font-semibold text-sm mb-3">Comment ça marche</h3>
+                  <ol className="list-decimal pl-4 space-y-2 text-sm text-gray-500">
+                    <li>Inscrivez votre entreprise provider.</li>
+                    <li>Vérifiez l'email de validation.</li>
+                    <li>Connectez-vous et recevez votre Bearer token.</li>
+                    <li>Créez des instances sans passer par l'API principale.</li>
+                    <li>Gérez vos instances avec droits complets.</li>
+                  </ol>
+                  <div className="mt-4 bg-white/5 border border-white/5 rounded-xl p-3 font-mono text-xs text-emerald-300">
+                    Authorization: Bearer prov_xxxxxxxxxxxxxxxxx
+                  </div>
+                  <p className="text-xs text-gray-700 mt-2">API: {providerApiBaseUrl()}</p>
+                </div>
+              </div>
+            )}
+
+            {provToken && (
+              <div className="space-y-5">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="bg-white/[0.03] border border-white/5 rounded-xl p-4">
+                    <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Token</p>
+                    <p className="font-mono text-xs text-white break-all">{provToken.length > 24 ? `${provToken.slice(0,12)}…${provToken.slice(-8)}` : provToken}</p>
+                    <button onClick={handleProvRefreshToken} disabled={provLoading}
+                      className="mt-3 px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 text-white text-xs rounded-lg disabled:opacity-50 transition-colors">
+                      Rafraîchir
+                    </button>
+                  </div>
+                  <div className="bg-white/[0.03] border border-white/5 rounded-xl p-4">
+                    <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Entreprise</p>
+                    <p className="text-white font-semibold">{provProfile?.company || '—'}</p>
+                    <p className="text-gray-500 text-xs mt-1">{provProfile?.email || '—'}</p>
+                  </div>
+                  <div className="bg-white/[0.03] border border-white/5 rounded-xl p-4">
+                    <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Instances</p>
+                    <p className="text-2xl font-bold text-white">
+                      {provProfile?.limits?.activeInstances ?? provProfile?.stats?.activeInstances ?? provInstances.length}
+                      <span className="text-gray-600 text-sm font-normal"> / {provProfile?.limits?.instanceLimit ?? 10}</span>
+                    </p>
+                  </div>
+                </div>
+
+                <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-5">
+                  <h3 className="text-white text-sm font-semibold mb-4">Nouvelle instance</h3>
+                  <form onSubmit={handleProvCreateInstance} className="flex flex-wrap gap-3">
+                    <input required placeholder="Nom" value={provInstanceForm.name}
+                      onChange={e => setProvInstanceForm(f => ({ ...f, name: e.target.value }))}
+                      className="flex-1 min-w-36 px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500 text-sm" />
+                    <input placeholder="Subdomain (optionnel)" value={provInstanceForm.subdomain}
+                      onChange={e => setProvInstanceForm(f => ({ ...f, subdomain: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g,'') }))}
+                      className="flex-1 min-w-36 px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500 text-sm" />
+                    <select value={provInstanceForm.currency}
+                      onChange={e => setProvInstanceForm(f => ({ ...f, currency: e.target.value }))}
+                      className="px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-emerald-500 text-sm">
+                      {['XAF','XOF','USD','EUR'].map(c => <option key={c} value={c} className="bg-gray-900">{c}</option>)}
+                    </select>
+                    <button disabled={provLoading} type="submit"
+                      className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-xl text-sm disabled:opacity-50 transition-colors">
+                      {provLoading ? 'Création…' : '+ Créer'}
+                    </button>
+                  </form>
+                </div>
+
+                <div className="bg-white/[0.02] border border-white/5 rounded-2xl overflow-hidden">
+                  <div className="flex items-center justify-between px-5 py-4 border-b border-white/5">
+                    <h3 className="text-white text-sm font-semibold">Mes instances</h3>
+                    <button onClick={loadProviderDashboard} disabled={provLoading}
+                      className="text-xs text-gray-500 hover:text-white border border-white/10 px-3 py-1.5 rounded-lg transition-colors">
+                      Rafraîchir
+                    </button>
+                  </div>
+                  <div className="divide-y divide-white/5">
+                    {provInstances.length === 0 && <div className="p-10 text-center text-gray-600 text-sm">Aucune instance</div>}
+                    {provInstances.map(inst => (
+                      <div key={inst.id} className="p-4">
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                          <div>
+                            <p className="text-white font-semibold text-sm">{inst.name}</p>
+                            <p className="text-gray-600 text-xs mt-0.5">slug: {inst.slug || '—'} · statut: {inst.status || '—'}</p>
+                            {inst.accessUrl && <a href={inst.accessUrl} target="_blank" rel="noreferrer" className="text-xs text-emerald-400 hover:underline mt-1 inline-block">Ouvrir la boutique ↗</a>}
+                          </div>
+                          <div className="flex gap-2">
+                            <button onClick={() => { setProvEditing(inst.id); setProvInstanceForm({ name: inst.name||'', subdomain: inst.subdomain||'', currency: 'XAF' }); }}
+                              className="px-3 py-1.5 text-xs font-medium text-gray-400 bg-white/5 border border-white/10 rounded-lg hover:bg-white/10 transition-colors">Modifier</button>
+                            <button onClick={() => handleProvDeleteInstance(inst.id)}
+                              className="px-3 py-1.5 text-xs font-medium text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg hover:bg-red-500/20 transition-colors">Supprimer</button>
+                          </div>
+                        </div>
+                        {provEditing === inst.id && (
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            <input value={provInstanceForm.name}
+                              onChange={e => setProvInstanceForm(f => ({ ...f, name: e.target.value }))}
+                              className="flex-1 min-w-36 px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-white text-sm" />
+                            <button onClick={() => handleProvSaveEdit(inst.id)}
+                              className="px-4 py-2 bg-white text-gray-900 font-semibold rounded-xl text-sm">Enregistrer</button>
+                            <button onClick={() => setProvEditing(null)}
+                              className="px-4 py-2 bg-white/5 text-gray-400 rounded-xl text-sm">Annuler</button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ══════════════ DOCS ══════════════ */}
+        {activeTab === 'docs' && (
+          <div className="space-y-5">
+            <div>
+              <h2 className="text-base font-semibold text-white">Référence API</h2>
+              <p className="text-xs text-gray-500 mt-0.5">Documentation complète pour intégrer l'API Scalor v1</p>
+            </div>
+
+            <div className="grid lg:grid-cols-3 gap-5">
+              {/* Left: endpoints */}
+              <div className="lg:col-span-2 space-y-4">
+                {[
+                  { method: 'POST', path: '/message/send/text', title: 'Envoyer un message texte', body: `{\n  "instanceName": "scalor_xxx_boutique",\n  "number": "237691234567",\n  "message": "Bonjour ! 🚀"\n}` },
+                  { method: 'POST', path: '/message/send/media', title: 'Envoyer une image', body: `{\n  "instanceName": "scalor_xxx_boutique",\n  "number": "237691234567",\n  "mediaUrl": "https://example.com/image.jpg",\n  "caption": "Mon image"\n}` },
+                  { method: 'POST', path: '/message/send/bulk', title: 'Envoi en masse', body: `{\n  "instanceName": "scalor_xxx_boutique",\n  "messages": [\n    { "number": "237691234567", "message": "Promo -20% !" },\n    { "number": "237698765432", "message": "Offre spéciale !" }\n  ]\n}` },
+                  { method: 'POST', path: '/instance/create', title: 'Créer une instance', body: `{\n  "name": "ma_boutique"\n}` },
+                  { method: 'GET',  path: '/instance/{id}/qrcode', title: 'QR Code', body: null },
+                  { method: 'PUT',  path: '/instance/{id}/webhook', title: 'Configurer un webhook', body: `{\n  "url": "https://monsite.com/webhook",\n  "events": ["messages.upsert", "connection.update"]\n}` },
+                ].map(ep => (
+                  <div key={ep.path} className="bg-white/[0.02] border border-white/5 rounded-2xl overflow-hidden">
+                    <div className="flex items-center gap-3 px-4 py-3 border-b border-white/5">
+                      <span className={`px-2 py-0.5 rounded text-xs font-bold font-mono ${ep.method === 'POST' ? 'bg-blue-500/15 text-blue-400' : ep.method === 'PUT' ? 'bg-amber-500/15 text-amber-400' : 'bg-emerald-500/15 text-emerald-400'}`}>{ep.method}</span>
+                      <code className="text-gray-300 text-xs font-mono flex-1">/api/scalor{ep.path}</code>
+                      <span className="text-gray-500 text-xs">{ep.title}</span>
+                    </div>
+                    {ep.body && (
+                      <pre className="px-4 py-3 text-xs text-gray-400 font-mono overflow-x-auto">{ep.body}</pre>
+                    )}
+                  </div>
+                ))}
+
+                <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-4">
+                  <p className="text-xs text-gray-500 uppercase tracking-wide font-medium mb-3">Exemple cURL</p>
+                  <pre className="text-xs text-gray-300 font-mono overflow-x-auto whitespace-pre-wrap">{`curl -X POST https://api.scalor.net/api/scalor/message/send/text \\
+  -H "Content-Type: application/json" \\
+  -H "Authorization: Bearer sk_live_xxx" \\
+  -d '{"instanceName":"scalor_xxx_boutique","number":"237691234567","message":"Commande prête !"}'`}</pre>
+                </div>
+              </div>
+
+              {/* Right: info */}
+              <div className="space-y-4">
+                <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-4">
+                  <p className="text-xs text-gray-500 uppercase tracking-wide font-medium mb-2">Base URL</p>
+                  <code className="block bg-white/5 border border-white/5 p-2.5 rounded-xl text-emerald-300 text-xs font-mono">https://api.scalor.net/api/scalor</code>
+                </div>
+                <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-4">
+                  <p className="text-xs text-gray-500 uppercase tracking-wide font-medium mb-2">Authentification</p>
+                  <code className="block bg-white/5 border border-white/5 p-2.5 rounded-xl text-emerald-300 text-xs font-mono break-all">Authorization: Bearer sk_live_xxxxxxxx</code>
+                </div>
+
+                {/* Credits system */}
+                <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">Système de crédits</p>
+                    <span className="text-xs text-emerald-400 font-semibold">Pay-as-you-go</span>
+                  </div>
+                  <p className="text-gray-500 text-xs mb-4">Chaque action consomme des crédits. Rechargez à tout moment, sans abonnement.</p>
+
+                  {/* Solde actuel */}
+                  <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3 mb-4">
+                    <p className="text-xs text-emerald-400/70 mb-0.5">Votre solde</p>
+                    <p className="text-2xl font-bold text-emerald-400">{(user?.credits ?? 0).toLocaleString()}
+                      <span className="text-sm font-normal text-emerald-400/60 ml-1">crédits</span>
+                    </p>
+                  </div>
+
+                  {/* Coût par action */}
+                  <div className="space-y-1.5 mb-4">
+                    <p className="text-xs text-gray-600 uppercase tracking-wide font-medium mb-2">Coût par action</p>
+                    {[
+                      { label: 'Message texte',  cost: '1 crédit' },
+                      { label: 'Message média',  cost: '2 crédits' },
+                      { label: 'Envoi en masse', cost: '1 cr./dest.' },
+                    ].map(r => (
+                      <div key={r.label} className="flex items-center justify-between py-1.5 border-b border-white/5 last:border-0">
+                        <span className="text-gray-400 text-xs">{r.label}</span>
+                        <span className="text-white text-xs font-semibold font-mono">{r.cost}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Packs */}
+                  <p className="text-xs text-gray-600 uppercase tracking-wide font-medium mb-2">Packs de crédits</p>
+                  <div className="space-y-1.5">
+                    {[
+                      { credits: '1 000',   price: '2 000 FCFA',  note: '' },
+                      { credits: '5 000',   price: '8 000 FCFA',  note: '-20%' },
+                      { credits: '20 000',  price: '25 000 FCFA', note: '-38%' },
+                      { credits: '100 000', price: '100 000 FCFA',note: '-50%' },
+                    ].map(p => (
+                      <div key={p.credits} className="flex items-center justify-between py-1.5 border-b border-white/5 last:border-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-white text-xs font-semibold">{p.credits} cr.</span>
+                          {p.note && <span className="px-1.5 py-0.5 bg-emerald-500/15 text-emerald-400 text-[10px] font-bold rounded">{p.note}</span>}
+                        </div>
+                        <span className="text-gray-400 text-xs">{p.price}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  <button className="mt-4 w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-xl transition-colors">
+                    Recharger des crédits
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ══════════════ MODALS ══════════════ */}
+
+      {showCreateInstance && (
+        <Modal onClose={() => setShowCreateInstance(false)} title="Nouvelle instance WhatsApp">
+          <div className="space-y-4">
+            <div>
+              <label className="block text-xs font-medium text-gray-400 mb-1.5">Nom de l'instance</label>
+              <input type="text" value={newInstanceName} onChange={e => setNewInstanceName(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500 text-sm"
+                placeholder="ma_boutique" maxLength={30} autoFocus />
+              <p className="text-gray-600 text-xs mt-1.5">Lettres, chiffres, tirets et underscores uniquement</p>
+            </div>
+            <button onClick={handleCreateInstance} disabled={actionLoading || !newInstanceName.trim()}
+              className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-xl disabled:opacity-50 transition-colors text-sm">
+              {actionLoading ? 'Création…' : 'Créer l\'instance'}
+            </button>
+          </div>
+        </Modal>
+      )}
+
+      {showQrCode && (
+        <Modal onClose={() => setShowQrCode(null)} title={`QR Code — ${showQrCode.displayName}`}>
+          <div className="text-center">
+            <div className="flex justify-end mb-3">
+              <button onClick={() => handleGetQr(showQrCode, true)}
+                className="px-3 py-1.5 text-xs font-medium text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-lg hover:bg-amber-500/20 transition-colors">
+                Actualiser
+              </button>
+            </div>
+            {qrData?.qrcode ? (
+              <>
+                <img src={qrData.qrcode.startsWith('data:') ? qrData.qrcode : `data:image/png;base64,${qrData.qrcode}`}
+                  alt="QR Code" className="mx-auto w-56 h-56 rounded-xl border border-white/10" />
+                <p className="text-gray-500 text-sm mt-4">Scannez avec WhatsApp sur votre téléphone</p>
+                {qrData.pairingCode && <p className="text-emerald-400 font-mono text-lg mt-2 font-bold tracking-widest">{qrData.pairingCode}</p>}
+              </>
+            ) : (
+              <div className="py-12 flex flex-col items-center gap-3">
+                <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                <p className="text-gray-500 text-sm">Chargement du QR code…</p>
+              </div>
+            )}
+          </div>
+        </Modal>
+      )}
+
+      {showSendMessage && (
+        <Modal onClose={() => setShowSendMessage(null)} title={`Test message — ${showSendMessage.displayName}`}>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-xs font-medium text-gray-400 mb-1.5">Numéro (format international)</label>
+              <input type="text" value={sendForm.number} onChange={e => setSendForm(f => ({ ...f, number: e.target.value }))}
+                className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500 text-sm"
+                placeholder="237691234567" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-400 mb-1.5">Message</label>
+              <textarea value={sendForm.message} onChange={e => setSendForm(f => ({ ...f, message: e.target.value }))}
+                className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500 resize-y text-sm"
+                rows={3} placeholder="Votre message…" />
+            </div>
+            {sendResult && (
+              <div className={`p-3 rounded-xl text-sm ${sendResult.success ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400' : 'bg-red-500/10 border border-red-500/20 text-red-400'}`}>
+                {sendResult.success ? `✓ Message envoyé (ID: ${sendResult.messageId})` : `✕ ${sendResult.error}`}
+              </div>
+            )}
+            <button onClick={handleSendMessage} disabled={actionLoading || !sendForm.number || !sendForm.message}
+              className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-xl disabled:opacity-50 transition-colors text-sm">
+              {actionLoading ? 'Envoi…' : 'Envoyer'}
+            </button>
+          </div>
+        </Modal>
+      )}
+
+      {showWebhook && (
+        <Modal onClose={() => setShowWebhook(null)} title={`Webhook — ${showWebhook.displayName}`}>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-xs font-medium text-gray-400 mb-1.5">URL du webhook</label>
+              <input type="url" value={webhookUrl} onChange={e => setWebhookUrl(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500 text-sm"
+                placeholder="https://monsite.com/webhook" autoFocus />
+              <p className="text-gray-600 text-xs mt-1.5">Les événements WhatsApp seront envoyés à cette URL via POST</p>
+            </div>
+            <button onClick={handleSetWebhook} disabled={actionLoading || !webhookUrl}
+              className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl disabled:opacity-50 transition-colors text-sm">
+              {actionLoading ? 'Mise à jour…' : 'Sauvegarder'}
+            </button>
+          </div>
+        </Modal>
+      )}
+
+      {showCreateKey && (
+        <Modal onClose={() => setShowCreateKey(false)} title="Nouvelle clé API">
+          {newKeyResult ? (
+            <div className="space-y-4">
+              <div className="bg-amber-500/10 border border-amber-500/20 p-4 rounded-xl">
+                <p className="text-amber-400 text-sm font-semibold mb-3">Sauvegardez cette clé maintenant — elle ne sera plus affichée.</p>
+                <code className="block bg-white/5 border border-white/10 p-3 rounded-xl text-emerald-300 text-xs break-all font-mono">{newKeyResult.apiKey}</code>
+              </div>
+              <button onClick={() => navigator.clipboard.writeText(newKeyResult.apiKey)}
+                className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-xl transition-colors text-sm">
+                Copier la clé
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-400 mb-1.5">Nom de la clé</label>
+                <input type="text" value={newKeyName} onChange={e => setNewKeyName(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500 text-sm"
+                  placeholder="Production API Key" autoFocus />
+              </div>
+              <button onClick={handleCreateKey} disabled={actionLoading}
+                className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-xl disabled:opacity-50 transition-colors text-sm">
+                {actionLoading ? 'Génération…' : 'Générer la clé'}
+              </button>
+            </div>
+          )}
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════
+// MODAL
+// ═══════════════════════════════════════════════
+function Modal({ children, onClose, title }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={onClose}>
+      <div className="bg-[#1a1d27] border border-white/10 rounded-2xl w-full max-w-md shadow-2xl" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-white/5">
+          <h3 className="text-white font-semibold text-sm">{title}</h3>
+          <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-500 hover:text-white hover:bg-white/10 transition-colors text-lg leading-none">✕</button>
+        </div>
+        <div className="p-5">{children}</div>
+      </div>
+    </div>
+  );
+}
 
   return (
     <div className="min-h-screen bg-gray-900">
@@ -872,133 +1610,6 @@ export default function ScalorDashboard() {
           </div>
         )}
 
-        {/* ═══════ DOCS TAB ═══════ */}
-        {activeTab === 'docs' && (
-          <div className="space-y-6">
-            <h2 className="text-xl font-bold text-white">Documentation API</h2>
-
-            <div className="bg-gray-800 rounded-xl p-6 border border-gray-700 space-y-6">
-              <div>
-                <h3 className="text-green-400 font-semibold mb-2">Base URL</h3>
-                <code className="block bg-gray-900 p-3 rounded-lg text-green-300 text-sm">https://api.scalor.net/api/scalor</code>
-              </div>
-
-              <div>
-                <h3 className="text-green-400 font-semibold mb-2">Authentification</h3>
-                <p className="text-gray-400 text-sm mb-2">Ajoutez votre clé API dans le header Authorization :</p>
-                <code className="block bg-gray-900 p-3 rounded-lg text-green-300 text-sm">
-                  Authorization: Bearer sk_live_xxxxxxxxxxxxxx
-                </code>
-              </div>
-
-              <div>
-                <h3 className="text-green-400 font-semibold mb-2">Envoyer un message texte</h3>
-                <pre className="bg-gray-900 p-4 rounded-lg text-sm text-gray-300 overflow-x-auto">{`POST /api/scalor/message/send/text
-Content-Type: application/json
-Authorization: Bearer sk_live_xxx
-
-{
-  "instanceName": "scalor_xxx_mon_instance",
-  "number": "237691234567",
-  "message": "Bonjour depuis Scalor API ! 🚀"
-}`}</pre>
-              </div>
-
-              <div>
-                <h3 className="text-green-400 font-semibold mb-2">Envoyer une image</h3>
-                <pre className="bg-gray-900 p-4 rounded-lg text-sm text-gray-300 overflow-x-auto">{`POST /api/scalor/message/send/media
-Content-Type: application/json
-Authorization: Bearer sk_live_xxx
-
-{
-  "instanceName": "scalor_xxx_mon_instance",
-  "number": "237691234567",
-  "mediaUrl": "https://example.com/image.jpg",
-  "caption": "Mon image",
-  "fileName": "photo.jpg"
-}`}</pre>
-              </div>
-
-              <div>
-                <h3 className="text-green-400 font-semibold mb-2">Envoi en masse (bulk)</h3>
-                <pre className="bg-gray-900 p-4 rounded-lg text-sm text-gray-300 overflow-x-auto">{`POST /api/scalor/message/send/bulk
-Content-Type: application/json
-Authorization: Bearer sk_live_xxx
-
-{
-  "instanceName": "scalor_xxx_mon_instance",
-  "messages": [
-    { "number": "237691234567", "message": "Promo -20% !" },
-    { "number": "237698765432", "message": "Offre spéciale !" }
-  ]
-}`}</pre>
-              </div>
-
-              <div>
-                <h3 className="text-green-400 font-semibold mb-2">Créer une instance</h3>
-                <pre className="bg-gray-900 p-4 rounded-lg text-sm text-gray-300 overflow-x-auto">{`POST /api/scalor/instance/create
-Content-Type: application/json
-Authorization: Bearer sk_live_xxx
-
-{
-  "name": "mon_whatsapp"
-}`}</pre>
-              </div>
-
-              <div>
-                <h3 className="text-green-400 font-semibold mb-2">Récupérer le QR Code</h3>
-                <pre className="bg-gray-900 p-4 rounded-lg text-sm text-gray-300 overflow-x-auto">{`GET /api/scalor/instance/{id}/qrcode
-Authorization: Bearer sk_live_xxx`}</pre>
-              </div>
-
-              <div>
-                <h3 className="text-green-400 font-semibold mb-2">Configurer un webhook</h3>
-                <pre className="bg-gray-900 p-4 rounded-lg text-sm text-gray-300 overflow-x-auto">{`PUT /api/scalor/instance/{id}/webhook
-Content-Type: application/json
-Authorization: Bearer sk_live_xxx
-
-{
-  "url": "https://monsite.com/webhook",
-  "events": ["messages.upsert", "connection.update"]
-}`}</pre>
-              </div>
-
-              <div>
-                <h3 className="text-green-400 font-semibold mb-2">Exemple cURL complet</h3>
-                <pre className="bg-gray-900 p-4 rounded-lg text-sm text-gray-300 overflow-x-auto">{`curl -X POST https://api.scalor.net/api/scalor/message/send/text \\
-  -H "Content-Type: application/json" \\
-  -H "Authorization: Bearer sk_live_xxx" \\
-  -d '{
-    "instanceName": "scalor_xxx_boutique",
-    "number": "237691234567",
-    "message": "Votre commande est prête !"
-  }'`}</pre>
-              </div>
-
-              <div>
-                <h3 className="text-green-400 font-semibold mb-3">Limites par plan</h3>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  {[
-                    { plan: 'Starter', instances: '1', daily: '500', monthly: '10K', rate: '30/min' },
-                    { plan: 'Pro', instances: '5', daily: '5K', monthly: '100K', rate: '120/min' },
-                    { plan: 'Business', instances: '20', daily: '50K', monthly: '500K', rate: '300/min' },
-                    { plan: 'Enterprise', instances: '∞', daily: '∞', monthly: '∞', rate: '600/min' },
-                  ].map(p => (
-                    <div key={p.plan} className="bg-gray-900 rounded-lg p-3 text-center">
-                      <div className="text-green-400 font-semibold">{p.plan}</div>
-                      <div className="text-gray-500 text-xs mt-2 space-y-1">
-                        <div>{p.instances} instances</div>
-                        <div>{p.daily} msg/jour</div>
-                        <div>{p.monthly} msg/mois</div>
-                        <div>{p.rate} requêtes</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* ═══════ MODALS ═══════ */}

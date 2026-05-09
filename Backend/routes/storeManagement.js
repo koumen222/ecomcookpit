@@ -356,36 +356,9 @@ async function downloadImageBuffer(url) {
  * Returns { heroImageUrl, featuresImageUrl }.
  * Non-blocking: if image generation fails, returns null for that image.
  */
-async function generateHomepageImages(s) {
-  const results = { heroImageUrl: null };
-
-  try {
-    const [heroResult] = await Promise.allSettled([
-      (async () => {
-        console.log('🎨 [Homepage] Generating AI hero image...');
-        const heroPrompt = buildHomepageHeroImagePrompt(s);
-        const heroTempUrl = await generateNanoBananaImage(heroPrompt, '16:9');
-        const heroBuffer = await downloadImageBuffer(heroTempUrl);
-        const heroR2 = await uploadToR2(heroBuffer, `homepage-hero-${Date.now()}.jpg`, 'image/jpeg');
-        if (heroR2.success) {
-          console.log('✅ [Homepage] Hero image generated and uploaded to R2');
-          return heroR2.url;
-        }
-        console.warn('⚠️ [Homepage] Hero R2 upload failed, using temp URL');
-        return heroTempUrl;
-      })(),
-    ]);
-
-    results.heroImageUrl = heroResult.status === 'fulfilled' ? heroResult.value : null;
-
-    if (heroResult.status === 'rejected') {
-      console.warn('⚠️ [Homepage] Hero image generation failed:', heroResult.reason?.message);
-    }
-  } catch (err) {
-    console.warn('⚠️ [Homepage] Image generation error:', err.message);
-  }
-
-  return results;
+async function generateHomepageImages(_s) {
+  // AI hero image generation disabled — homepage uses a gradient color banner.
+  return { heroImageUrl: null };
 }
 
 /**
@@ -609,7 +582,7 @@ async function generateAIHomepageSections(s) {
 
   try {
     // Generate text content AND AI images in parallel
-    const [textResult, imagesResult] = await Promise.allSettled([
+    const [textResult] = await Promise.allSettled([
       // 1. Groq text generation
       (async () => {
         const prompt = buildHomepagePrompt(s);
@@ -644,8 +617,6 @@ RÈGLES DE QUALITÉ NON-NÉGOCIABLES:
         }
         return sections;
       })(),
-      // 2. AI image generation (hero + "why choose us")
-      generateHomepageImages(s),
     ]);
 
     // Process text result
@@ -664,16 +635,14 @@ RÈGLES DE QUALITÉ NON-NÉGOCIABLES:
       visible: true,
     }));
 
-    // Inject AI-generated images (overrides Unsplash fallback)
-    const aiImages = imagesResult.status === 'fulfilled' ? imagesResult.value : {};
-    if (aiImages.heroImageUrl) {
-      sections = injectAIImages(sections, aiImages);
-    }
-
-    // Fallback: inject Unsplash hero only if no AI hero image
-    if (!aiImages.heroImageUrl) {
-      sections = injectHeroImage(sections, s.productType, s.country);
-    }
+    // No AI hero image — hero uses theme color gradient banner (no background image)
+    sections = sections.map(sec => {
+      if (sec.type === 'hero') {
+        const { backgroundImage, ...cfgWithoutBg } = sec.config || {};
+        return { ...sec, config: { ...cfgWithoutBg, backgroundImage: null } };
+      }
+      return sec;
+    });
 
     return sections;
   } catch (aiError) {

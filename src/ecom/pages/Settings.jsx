@@ -4,12 +4,12 @@ import CurrencySelector from '../components/CurrencySelector.jsx';
 import { useMoney } from '../hooks/useMoney.js';
 import { useEcomAuth } from '../hooks/useEcomAuth.jsx';
 import { usePushNotifications } from '../hooks/usePushNotifications.jsx';
-import ecomApi, { settingsApi } from '../services/ecommApi.js';
+import ecomApi, { settingsApi, authApi } from '../services/ecommApi.js';
 import { getContextualError } from '../utils/errorMessages';
 
 const Settings = () => {
   const { fmt, currency, symbol } = useMoney();
-  const { user, workspace, logout } = useEcomAuth();
+  const { user, workspace, logout, loadUser } = useEcomAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const {
@@ -43,6 +43,35 @@ const Settings = () => {
     push_low_stock: true,
     push_sync_completed: true
   });
+  const [profileName, setProfileName] = useState('');
+  const [profilePhone, setProfilePhone] = useState('');
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileSaved, setProfileSaved] = useState(false);
+  const [profileError, setProfileError] = useState('');
+
+  useEffect(() => {
+    if (user) {
+      setProfileName(user.name || user.email?.split('@')[0] || '');
+      setProfilePhone(user.phone || '');
+    }
+  }, [user?.name, user?.phone]);
+
+  const saveProfile = async () => {
+    setProfileSaving(true);
+    setProfileError('');
+    setProfileSaved(false);
+    try {
+      await authApi.updateProfile({ name: profileName.trim(), phone: profilePhone.trim() });
+      await loadUser();
+      setProfileSaved(true);
+      setTimeout(() => setProfileSaved(false), 3000);
+    } catch (err) {
+      setProfileError(err.response?.data?.message || 'Erreur lors de la sauvegarde');
+    } finally {
+      setProfileSaving(false);
+    }
+  };
+
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteConfirmWord, setDeleteConfirmWord] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
@@ -385,12 +414,21 @@ const Settings = () => {
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                     <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Nom complet</label>
+                      <div className="relative">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                          <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                        </div>
+                        <input type="text" value={profileName} onChange={e => setProfileName(e.target.value)} placeholder="Votre nom" className="w-full pl-10 pr-3 py-2.5 text-sm text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-colors" />
+                      </div>
+                    </div>
+                    <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
                       <div className="relative">
                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                           <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
                         </div>
-                        <input type="text" value={user?.email || '—'} readOnly className="w-full pl-10 pr-3 py-2.5 text-sm text-gray-900 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:border-transparent" />
+                        <input type="text" value={user?.email || '—'} readOnly className="w-full pl-10 pr-3 py-2.5 text-sm text-gray-500 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none cursor-default select-none" />
                       </div>
                     </div>
                     <div>
@@ -399,26 +437,30 @@ const Settings = () => {
                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                           <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
                         </div>
-                        <input type="text" value={user?.phone || 'Non renseigné'} readOnly className="w-full pl-10 pr-3 py-2.5 text-sm text-gray-900 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:border-transparent" />
+                        <input type="tel" value={profilePhone} onChange={e => setProfilePhone(e.target.value)} placeholder="+225 07 00 00 00 00" className="w-full pl-10 pr-3 py-2.5 text-sm text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-colors" />
                       </div>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">Rôle</label>
                       <div className="relative">
                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                          <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                          <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
                         </div>
-                        <input type="text" value={roleLabels[user?.role] || user?.role} readOnly className="w-full pl-10 pr-3 py-2.5 text-sm text-gray-900 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:border-transparent" />
+                        <input type="text" value={roleLabels[user?.role] || user?.role} readOnly className="w-full pl-10 pr-3 py-2.5 text-sm text-gray-500 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none cursor-default select-none" />
                       </div>
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Membre depuis</label>
-                      <div className="relative">
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                          <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                        </div>
-                        <input type="text" value={user?.createdAt ? new Date(user.createdAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }) : '—'} readOnly className="w-full pl-10 pr-3 py-2.5 text-sm text-gray-900 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:border-transparent" />
+                    <div className="sm:col-span-2 flex items-center justify-between gap-3 pt-1">
+                      <div className="flex-1">
+                        {profileError && <p className="text-sm text-red-600">{profileError}</p>}
+                        {profileSaved && <p className="text-sm text-emerald-600 flex items-center gap-1"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>Profil mis à jour</p>}
                       </div>
+                      <button
+                        onClick={saveProfile}
+                        disabled={profileSaving}
+                        className="px-5 py-2.5 bg-emerald-600 text-white text-sm font-semibold rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
+                      >
+                        {profileSaving ? <><svg className="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>Sauvegarde...</> : 'Sauvegarder'}
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -461,68 +503,6 @@ const Settings = () => {
                 </div>
               )}
 
-              {/* Plan & Abonnement */}
-              <div className="bg-gradient-to-br from-emerald-50 to-emerald-50 rounded-xl shadow-sm border border-emerald-200 overflow-hidden">
-                <div className="px-6 py-5 border-b border-emerald-200 bg-white/50">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h2 className="text-lg font-bold text-gray-900">Plan & Abonnement</h2>
-                      <p className="text-sm text-gray-600 mt-1">Gérez votre abonnement et votre facturation</p>
-                    </div>
-                    <span className="px-3 py-1.5 bg-emerald-100 text-emerald-700 rounded-full text-xs font-bold uppercase tracking-wide">
-                      Free
-                    </span>
-                  </div>
-                </div>
-                <div className="p-6">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                    <div className="bg-white rounded-lg p-4 border border-emerald-200">
-                      <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Utilisateurs</p>
-                      <p className="text-2xl font-bold text-gray-900">5 / 10</p>
-                      <p className="text-xs text-gray-500 mt-1">membres actifs</p>
-                    </div>
-                    <div className="bg-white rounded-lg p-4 border border-emerald-200">
-                      <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Commandes</p>
-                      <p className="text-2xl font-bold text-gray-900">∞</p>
-                      <p className="text-xs text-gray-500 mt-1">illimitées</p>
-                    </div>
-                    <div className="bg-white rounded-lg p-4 border border-emerald-200">
-                      <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Stockage</p>
-                      <p className="text-2xl font-bold text-gray-900">2 GB</p>
-                      <p className="text-xs text-gray-500 mt-1">sur 5 GB</p>
-                    </div>
-                  </div>
-                  
-                  <div className="bg-white rounded-xl p-5 border border-emerald-200">
-                    <div className="flex flex-col sm:flex-row items-start justify-between gap-4">
-                      <div className="flex-1">
-                        <h3 className="text-base font-bold text-gray-900 mb-2">Passez à Pro pour débloquer plus de fonctionnalités</h3>
-                        <ul className="space-y-2">
-                          <li className="flex items-center gap-2 text-sm text-gray-600">
-                            <svg className="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
-                            Utilisateurs illimités
-                          </li>
-                          <li className="flex items-center gap-2 text-sm text-gray-600">
-                            <svg className="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
-                            Stockage illimité
-                          </li>
-                          <li className="flex items-center gap-2 text-sm text-gray-600">
-                            <svg className="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
-                            Support prioritaire
-                          </li>
-                          <li className="flex items-center gap-2 text-sm text-gray-600">
-                            <svg className="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
-                            Analytics avancées
-                          </li>
-                        </ul>
-                      </div>
-                      <button className="px-6 py-3 bg-gradient-to-r from-emerald-600 to-emerald-700 text-white font-bold rounded-lg hover:from-emerald-700 hover:to-emerald-800 transition-all shadow-lg hover:shadow-xl">
-                        Upgrade vers Pro
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
             </div>
           )}
 
