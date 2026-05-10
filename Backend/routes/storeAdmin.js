@@ -9,6 +9,13 @@ import Store from '../models/Store.js';
 import { requireEcomAuth, requireWorkspace } from '../middleware/ecomAuth.js';
 import { emitThemeUpdate } from '../services/socketService.js';
 import { invalidateStoreCache } from './storeApi.js';
+import {
+  createCustomHostname,
+  deleteCustomHostname,
+  getCustomHostnameStatus,
+  findCustomHostnameByName,
+  isCfConfigured,
+} from '../services/cloudflareCustomHostnames.js';
 
 const router = express.Router();
 const DEBUG_TAG = '[StoreAdmin:Settings]';
@@ -557,6 +564,7 @@ router.get('/domains', requireEcomAuth, requireWorkspace, async (req, res) => {
         customDomain: workspace?.storeDomains?.customDomain || '',
         sslStatus: workspace?.storeDomains?.sslStatus || 'none',
         dnsVerified: workspace?.storeDomains?.dnsVerified === true,
+        cfHostnameId: workspace?.storeDomains?.cfHostnameId || null,
         storeUrl: buildPublicStoreUrl(workspace),
         publicUrl: buildPublicStoreUrl(workspace)
       }
@@ -622,7 +630,41 @@ router.put('/domains', requireEcomAuth, requireWorkspace, async (req, res) => {
       }
     }
 
-    if (customDomain !== undefined) update['storeDomains.customDomain'] = customDomain;
+    if (customDomain !== undefined) {
+      update['storeDomains.customDomain'] = customDomain;
+
+      // Fetch current domain state to handle CF hostname lifecycle
+      const currentDoc = activeStore
+        ? await Store.findById(activeStore._id).select('storeDomains').lean()
+        : await Workspace.findById(req.workspaceId).select('storeDomains').lean();
+
+      const prevDomain = currentDoc?.storeDomains?.customDomain;
+      const prevCfId = currentDoc?.storeDomains?.cfHostnameId;
+
+      // Delete old CF hostname when domain changes or is cleared
+      if (prevCfId && prevDomain !== customDomain) {
+        try { await deleteCustomHostname(prevCfId); } catch (e) { console.warn('CF delete warn:', e.message); }
+        update['storeDomains.cfHostnameId'] = null;
+        update['storeDomains.sslStatus'] = 'none';
+        update['storeDomains.dnsVerified'] = false;
+      }
+
+      // Create new CF hostname when a non-empty domain is set
+      if (customDomain && customDomain !== prevDomain && isCfConfigured()) {
+        try {
+          const cfResult = await createCustomHostname(customDomain, String(req.workspaceId));
+          update['storeDomains.cfHostnameId'] = cfResult.id;
+          update['storeDomains.sslStatus'] = cfResult.sslStatus === 'active' ? 'active' : 'pending';
+          update['storeDomains.dnsVerified'] = false;
+          console.log('☁️  CF hostname created:', cfResult.id, 'for', customDomain);
+        } catch (cfErr) {
+          // CF failure is non-blocking — domain is still saved, SSL pending
+          console.error('☁️  CF createCustomHostname error:', cfErr.message);
+          update['storeDomains.sslStatus'] = 'pending';
+          update['storeDomains.dnsVerified'] = false;
+        }
+      }
+    }
 
     if (activeStore) {
       await Store.findByIdAndUpdate(activeStore._id, { $set: update }, { new: true });
@@ -659,6 +701,7 @@ router.put('/domains', requireEcomAuth, requireWorkspace, async (req, res) => {
         customDomain: latestDomainState?.storeDomains?.customDomain || customDomain || '',
         sslStatus: latestDomainState?.storeDomains?.sslStatus || 'none',
         dnsVerified: latestDomainState?.storeDomains?.dnsVerified === true,
+        cfHostnameId: latestDomainState?.storeDomains?.cfHostnameId || null,
         storeUrl: buildPublicStoreUrl(latestDomainState),
         publicUrl: buildPublicStoreUrl(latestDomainState),
       }
@@ -682,56 +725,118 @@ router.post('/domains/check-dns', requireEcomAuth, requireWorkspace, async (req,
 
     const cleanDomain = domain.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
 
-    // Railway target — customers should CNAME to this
+    const activeStore = req.activeStoreId
+      ? await Store.findOne({ _id: req.activeStoreId, workspaceId: req.workspaceId, isActive: true }).select('_id subdomain storeDomains').lean()
+      : null;
+
+    const currentDoc = activeStore
+      || await Workspace.findById(req.workspaceId).select('storeDomains').lean();
+
+    let cfHostnameId = currentDoc?.storeDomains?.cfHostnameId;
+
+    // ── Cloudflare path (preferred) ────────────────────────────────────────────
+    if (isCfConfigured()) {
+      // Recover cfHostnameId if missing from DB
+      if (!cfHostnameId) {
+        const found = await findCustomHostnameByName(cleanDomain);
+        if (found?.id) {
+          cfHostnameId = found.id;
+          const idUpdate = { 'storeDomains.cfHostnameId': cfHostnameId };
+          if (activeStore) {
+            await Store.findByIdAndUpdate(activeStore._id, { $set: idUpdate });
+          } else {
+            await Workspace.findByIdAndUpdate(req.workspaceId, { $set: idUpdate });
+          }
+        }
+      }
+
+      if (cfHostnameId) {
+        const cfStatus = await getCustomHostnameStatus(cfHostnameId);
+        const isActive = cfStatus.isActive;
+
+        if (isActive) {
+          const dbUpdate = { 'storeDomains.sslStatus': 'active', 'storeDomains.dnsVerified': true };
+          if (activeStore) {
+            await Store.findByIdAndUpdate(activeStore._id, { $set: dbUpdate });
+            const workspace = await Workspace.findById(req.workspaceId).select('primaryStoreId').lean();
+            if (String(workspace?.primaryStoreId) === String(activeStore._id)) {
+              await Workspace.findByIdAndUpdate(req.workspaceId, { $set: dbUpdate });
+            }
+          } else {
+            await Workspace.findByIdAndUpdate(req.workspaceId, { $set: dbUpdate });
+          }
+        }
+
+        return res.json({
+          success: true,
+          data: {
+            ok: isActive,
+            sslStatus: cfStatus.sslStatus,
+            ownershipStatus: cfStatus.ownershipStatus,
+            cfHostnameId: cfStatus.id,
+            source: 'cloudflare',
+          }
+        });
+      }
+
+      // CF configured but hostname not found — create it now (recovery)
+      try {
+        const cfResult = await createCustomHostname(cleanDomain, String(req.workspaceId));
+        const idUpdate = {
+          'storeDomains.cfHostnameId': cfResult.id,
+          'storeDomains.sslStatus': 'pending',
+          'storeDomains.dnsVerified': false,
+        };
+        if (activeStore) {
+          await Store.findByIdAndUpdate(activeStore._id, { $set: idUpdate });
+        } else {
+          await Workspace.findByIdAndUpdate(req.workspaceId, { $set: idUpdate });
+        }
+        return res.json({
+          success: true,
+          data: { ok: false, sslStatus: 'pending', ownershipStatus: 'pending', cfHostnameId: cfResult.id, source: 'cloudflare' }
+        });
+      } catch (cfErr) {
+        console.error('☁️  CF check-dns recovery error:', cfErr.message);
+        // Fall through to legacy DNS check
+      }
+    }
+
+    // ── Legacy DNS path (fallback when CF not configured) ─────────────────────
     const CNAME_TARGET = process.env.RAILWAY_DOMAIN || 'ecomcookpit-production-0ec4.up.railway.app';
-    // Accepted IPs: VPS (Caddy proxy) + Railway + Cloudflare proxy for shops.scalor.net
     const VPS_IP = process.env.CUSTOM_DOMAIN_VPS_IP || '45.76.27.120';
     const baseIps = '151.101.2.15,104.21.75.212,172.67.182.57';
     const ACCEPTED_IPS = (process.env.ACCEPTED_DNS_IPS || `${VPS_IP},${baseIps}`).split(',').map(s => s.trim()).filter(Boolean);
 
     const dns = await import('dns');
     const dnsPromises = dns.promises;
-
     const results = { aRecords: [], cnameRecords: [], aOk: false, cnameOk: false };
 
-    // Check A records
     try {
       results.aRecords = await dnsPromises.resolve4(cleanDomain);
       results.aOk = results.aRecords.some(ip => ACCEPTED_IPS.includes(ip));
-    } catch { /* ENODATA or ENOTFOUND — no A record */ }
+    } catch { /* no A record */ }
 
-    // Check CNAME records
     try {
       results.cnameRecords = await dnsPromises.resolveCname(cleanDomain);
       results.cnameOk = results.cnameRecords.some(cname => {
         const c = cname.toLowerCase().replace(/\.$/, '');
         return c === CNAME_TARGET || c.endsWith('.scalor.net') || c.endsWith('.railway.app');
       });
-    } catch { /* ENODATA or ENOTFOUND — no CNAME record */ }
+    } catch { /* no CNAME */ }
 
     const ok = results.aOk || results.cnameOk;
 
-    const activeStore = req.activeStoreId
-      ? await Store.findOne({ _id: req.activeStoreId, workspaceId: req.workspaceId, isActive: true }).select('_id subdomain').lean()
-      : null;
-
-    // If DNS is OK, update SSL status
     if (ok) {
+      const dbUpdate = { 'storeDomains.sslStatus': 'active', 'storeDomains.dnsVerified': true };
       if (activeStore) {
-        await Store.findByIdAndUpdate(activeStore._id, {
-          $set: { 'storeDomains.sslStatus': 'active', 'storeDomains.dnsVerified': true }
-        });
-
+        await Store.findByIdAndUpdate(activeStore._id, { $set: dbUpdate });
         const workspace = await Workspace.findById(req.workspaceId).select('primaryStoreId').lean();
         if (String(workspace?.primaryStoreId) === String(activeStore._id)) {
-          await Workspace.findByIdAndUpdate(req.workspaceId, {
-            $set: { 'storeDomains.sslStatus': 'active', 'storeDomains.dnsVerified': true }
-          });
+          await Workspace.findByIdAndUpdate(req.workspaceId, { $set: dbUpdate });
         }
       } else {
-        await Workspace.findByIdAndUpdate(req.workspaceId, {
-          $set: { 'storeDomains.sslStatus': 'active', 'storeDomains.dnsVerified': true }
-        });
+        await Workspace.findByIdAndUpdate(req.workspaceId, { $set: dbUpdate });
       }
     }
 
@@ -743,15 +848,59 @@ router.post('/domains/check-dns', requireEcomAuth, requireWorkspace, async (req,
         cnameRecords: results.cnameRecords,
         aOk: results.aOk,
         cnameOk: results.cnameOk,
-        expected: {
-          cnameTarget: CNAME_TARGET,
-          acceptedIps: ACCEPTED_IPS
-        }
+        source: 'dns',
+        expected: { cnameTarget: CNAME_TARGET, acceptedIps: ACCEPTED_IPS }
       }
     });
   } catch (error) {
     console.error('Error POST /store/domains/check-dns:', error);
     res.status(500).json({ success: false, message: 'Error checking DNS' });
+  }
+});
+
+// ─── CLOUDFLARE WEBHOOK ────────────────────────────────────────────────────────
+// Receives real-time SSL activation events from Cloudflare (no auth needed — CF signs with a shared secret)
+router.post('/domains/cf-webhook', async (req, res) => {
+  try {
+    const secret = process.env.CF_WEBHOOK_SECRET;
+    if (secret) {
+      const sig = req.headers['cf-webhook-auth'] || req.headers['x-cf-webhook-auth'] || '';
+      if (sig !== secret) {
+        return res.status(401).json({ success: false, message: 'Unauthorized' });
+      }
+    }
+
+    const alerts = Array.isArray(req.body) ? req.body : [req.body];
+
+    for (const alert of alerts) {
+      const eventType = alert?.alert_type || alert?.data?.alert_type || '';
+      // ssl.custom_hostname_certificate.validation.succeeded or ssl.custom_hostname.activated
+      if (!eventType.includes('custom_hostname')) continue;
+
+      const hostname = alert?.data?.hostname || alert?.hostname || '';
+      if (!hostname) continue;
+
+      console.log('☁️  CF webhook event:', eventType, hostname);
+
+      // Find the doc with this customDomain
+      const [store, workspace] = await Promise.all([
+        Store.findOne({ 'storeDomains.customDomain': hostname }).select('_id workspaceId storeDomains').lean(),
+        Workspace.findOne({ 'storeDomains.customDomain': hostname }).select('_id storeDomains').lean(),
+      ]);
+
+      const isActive = eventType.includes('activated') || eventType.includes('succeeded');
+      const dbUpdate = isActive
+        ? { 'storeDomains.sslStatus': 'active', 'storeDomains.dnsVerified': true }
+        : { 'storeDomains.sslStatus': 'pending' };
+
+      if (store) await Store.findByIdAndUpdate(store._id, { $set: dbUpdate });
+      if (workspace) await Workspace.findByIdAndUpdate(workspace._id, { $set: dbUpdate });
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error POST /store/domains/cf-webhook:', error);
+    res.status(500).json({ success: false });
   }
 });
 

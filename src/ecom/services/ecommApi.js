@@ -89,7 +89,7 @@ const RETRY_DELAY_MS = 700;
 const _cache = new Map();
 const _inflight = new Map();
 
-function clearGetCache() {
+export function clearEcomGetCache() {
   _cache.clear();
   _inflight.clear();
 }
@@ -217,7 +217,7 @@ ecomApi.interceptors.response.use(
 
     // Any successful mutation invalidates short-lived GET cache entries.
     if (method !== 'get') {
-      clearGetCache();
+      clearEcomGetCache();
       return response;
     }
 

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 const API_ORIGIN = import.meta.env.VITE_BACKEND_URL || '';
@@ -7,6 +7,41 @@ export default function GenerationSuccess() {
   const navigate = useNavigate();
   const token = sessionStorage.getItem('mf_pending_generation_token');
   const [status, setStatus] = useState('checking');
+  const [syncing, setSyncing] = useState(false);
+  const [syncMsg, setSyncMsg] = useState('');
+
+  const getHeaders = () => {
+    const t = localStorage.getItem('ecomToken');
+    const ws = (() => { try { return JSON.parse(localStorage.getItem('ecomWorkspace') || 'null'); } catch { return null; } })();
+    const h = { 'Content-Type': 'application/json' };
+    if (t) h['Authorization'] = `Bearer ${t}`;
+    if (ws?._id || ws?.id) h['X-Workspace-Id'] = ws._id || ws.id;
+    return h;
+  };
+
+  const syncCredits = useCallback(async () => {
+    setSyncing(true);
+    setSyncMsg('');
+    try {
+      const res = await fetch(`${API_ORIGIN}/api/ecom/billing/sync-pending-generations`, {
+        method: 'POST',
+        headers: getHeaders(),
+      });
+      const data = await res.json();
+      if (data.success && data.credited > 0) {
+        sessionStorage.removeItem('mf_pending_generation_token');
+        setStatus('paid');
+      } else if (data.success) {
+        setSyncMsg('Aucun paiement confirmé trouvé. Réessaye dans quelques minutes.');
+      } else {
+        setSyncMsg('Erreur lors de la synchronisation.');
+      }
+    } catch {
+      setSyncMsg('Erreur réseau.');
+    } finally {
+      setSyncing(false);
+    }
+  }, []);
 
   useEffect(() => {
     if (!token) {
@@ -123,12 +158,27 @@ export default function GenerationSuccess() {
               </svg>
             </div>
             <h1 className="text-xl font-bold text-gray-900 mb-2">Paiement en attente</h1>
-            <p className="text-gray-600 text-sm mb-6">
-              Ton paiement est en cours de traitement. Tes crédits seront ajoutés automatiquement dès confirmation. Tu peux fermer cette page.
+            <p className="text-gray-600 text-sm mb-4">
+              Ton paiement est en cours de traitement. Tes crédits seront ajoutés automatiquement dès confirmation.
+            </p>
+            <p className="text-gray-500 text-xs mb-6">
+              Si tu as déjà validé le paiement sur Mobile Money mais que tes crédits ne sont pas apparus, clique sur le bouton ci-dessous.
             </p>
             <button
+              onClick={syncCredits}
+              disabled={syncing}
+              className="w-full py-3 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl transition mb-3 disabled:opacity-60 flex items-center justify-center gap-2"
+            >
+              {syncing ? (
+                <><svg className="animate-spin w-4 h-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>Vérification…</>
+              ) : 'J\'ai payé — Vérifier mes crédits'}
+            </button>
+            {syncMsg && (
+              <p className="text-xs text-gray-500 mb-3">{syncMsg}</p>
+            )}
+            <button
               onClick={() => navigate('/ecom/products')}
-              className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition"
+              className="w-full py-2.5 border border-gray-200 text-gray-600 hover:bg-gray-50 font-semibold rounded-xl transition text-sm"
             >
               Retour aux produits
             </button>

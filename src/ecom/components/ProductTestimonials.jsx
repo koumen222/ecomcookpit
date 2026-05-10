@@ -12,7 +12,7 @@ const getInitials = (name = 'C') => String(name)
   .slice(0, 2)
   .toUpperCase();
 
-export default function ProductTestimonials({ testimonials = [], visualTheme = null }) {
+export default function ProductTestimonials({ testimonials = [], visualTheme = null, settings = null }) {
   const [showAll, setShowAll] = useState(false);
 
   const validTestimonials = (testimonials || []).filter((testimonial) => {
@@ -27,7 +27,11 @@ export default function ProductTestimonials({ testimonials = [], visualTheme = n
   if (!validTestimonials.length) return null;
 
   const primary = visualTheme?.primary || 'var(--s-section-social-proof, var(--s-primary))';
-  const socialProofVisual = visualTheme?.socialProofImage || visualTheme?.generatedPosterImage || null;
+  const showEyebrowLine = settings?.showEyebrowLine !== false;
+  const showSocialProofImage = settings?.showSocialProofImage !== false;
+  const socialProofVisual = showSocialProofImage
+    ? (visualTheme?.socialProofImage || visualTheme?.generatedPosterImage || null)
+    : null;
   const averageRating = (
     validTestimonials.reduce((sum, testimonial) => sum + Number(testimonial.rating || 5), 0) / validTestimonials.length
   ).toFixed(1);
@@ -64,7 +68,7 @@ export default function ProductTestimonials({ testimonials = [], visualTheme = n
             fontFamily: 'var(--s-font)',
           }}
         >
-          <span style={{ width: 28, height: 2, background: primary, borderRadius: 999 }} />
+          {showEyebrowLine && <span style={{ width: 28, height: 2, background: primary, borderRadius: 999 }} />}
           Avis clients
         </div>
 

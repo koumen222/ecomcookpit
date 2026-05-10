@@ -2757,6 +2757,7 @@ const StoreProductPage = () => {
       {showTestimonials && (() => {
         // Priority: custom testimonials from builder > AI-generated > product > country defaults
         const testimonialsSection = productPageConfig?.general?.sections?.find(s => s.id === 'testimonials');
+        const testimonialsDisplayConfig = testimonialsSection?.content || {};
         const customT = testimonialsSection?.content?.items;
         const t = (customT?.length > 0)
           ? customT
@@ -2776,17 +2777,19 @@ const StoreProductPage = () => {
           || product?.socialProofImages?.[0]
           || product?._pageData?.testimonialsSocialProofImage
           || null;
+        const customSocialProofImage = String(testimonialsDisplayConfig.socialProofImageUrl || '').trim();
         return (
           <LazySection minHeight={200}>
             <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 16px', overflow: 'hidden' }}>
               <ProductTestimonials
                 testimonials={t}
+                settings={testimonialsDisplayConfig}
                 visualTheme={{
                   ...socialProofTheme,
                   productImage: prodImg,
                   generatedPosterImage,
                   groupImage: groupImg,
-                  socialProofImage: socialImg,
+                  socialProofImage: customSocialProofImage || socialImg,
                 }}
               />
             </div>

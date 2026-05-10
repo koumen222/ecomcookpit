@@ -3,11 +3,7 @@ import { useEcomAuth } from '../hooks/useEcomAuth';
 import { useStore } from '../contexts/StoreContext.jsx';
 import api from '../../lib/api';
 
-// DNS target constants (mirrors backend env)
-// VPS_IP = Caddy reverse proxy VPS that auto-provisions SSL
-const VPS_IP = import.meta.env.VITE_CUSTOM_DOMAIN_IP || '45.76.27.120';
-const CNAME_TARGET = 'shops.scalor.net';
-const A_RECORDS = [VPS_IP];
+const CNAME_TARGET = 'origin.scalor.net';
 
 function CopyButton({ value }) {
   const [copied, setCopied] = useState(false);
@@ -453,34 +449,19 @@ const BoutiqueDomains = () => {
                 <button onClick={() => setActiveStep(0)} className="text-xs text-gray-400 hover:text-gray-600 underline">Changer</button>
               </div>
 
-              {/* Option 1 : A record */}
+              {/* Instruction unique : CNAME vers origin.scalor.net */}
               <div className="space-y-2">
                 <p className="text-[11px] font-semibold text-gray-600 flex items-center gap-1.5">
-                  <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded text-[10px] font-bold">RECOMMANDÉ</span>
-                  Enregistrement A — fonctionne partout, SSL automatique
-                </p>
-                <div className="space-y-1.5">
-                  <DnsRow type="A" name="@" value={VPS_IP} />
-                  <DnsRow type="CNAME" name="www" value={customDomain || 'votredomaine.com'} />
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <div className="flex-1 h-px bg-gray-200" />
-                <span className="text-[11px] font-semibold text-gray-400">OU</span>
-                <div className="flex-1 h-px bg-gray-200" />
-              </div>
-
-              {/* Option 2 : CNAME */}
-              <div className="space-y-2">
-                <p className="text-[11px] font-semibold text-gray-600 flex items-center gap-1.5">
-                  <span className="px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded text-[10px] font-bold">ALTERNATIVE</span>
-                  CNAME — Cloudflare ou registrar avec CNAME flattening
+                  <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded text-[10px] font-bold">REQUIS</span>
+                  Ajoutez ces enregistrements CNAME chez votre registrar
                 </p>
                 <div className="space-y-1.5">
                   <DnsRow type="CNAME" name="@" value={CNAME_TARGET} />
                   <DnsRow type="CNAME" name="www" value={CNAME_TARGET} />
                 </div>
+                <p className="text-[11px] text-gray-500 mt-1">
+                  Si votre registrar ne supporte pas CNAME sur <span className="font-mono">@</span>, utilisez uniquement l'entrée <span className="font-mono">www</span> et redirigez le domaine racine vers <span className="font-mono">www</span>.
+                </p>
               </div>
 
               <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-[11px] text-amber-700 space-y-1">
@@ -489,14 +470,14 @@ const BoutiqueDomains = () => {
                   <li><span className="font-semibold">Namecheap :</span> Domain List → Manage → Advanced DNS</li>
                   <li><span className="font-semibold">GoDaddy :</span> My Products → DNS → Add record</li>
                   <li><span className="font-semibold">OVH :</span> Domaines → Zone DNS → Ajouter une entrée</li>
-                  <li><span className="font-semibold">Cloudflare :</span> DNS → Records → Add record (proxy OFF)</li>
+                  <li><span className="font-semibold">Cloudflare :</span> DNS → Records → Add record (proxy <strong>OFF</strong> — nuage gris)</li>
                 </ul>
-                <p className="text-amber-500 mt-1">La propagation DNS peut prendre jusqu'à 48h.</p>
+                <p className="text-amber-500 mt-1">La propagation DNS peut prendre jusqu'à 48h. Le SSL se génère automatiquement dès que le CNAME est détecté.</p>
               </div>
 
               <div className="flex gap-2 pt-1">
                 <button
-                  onClick={async () => { await saveDomainAndNext(); setActiveStep(2); setTimeout(checkDns, 300); }}
+                  onClick={async () => { await saveDomainAndNext(); setActiveStep(2); checkDns(); }}
                   disabled={saving}
                   className="flex-1 px-4 py-2.5 bg-[#0F6B4F] hover:bg-[#0A5740] text-white text-sm font-bold rounded-xl transition disabled:opacity-60"
                 >
@@ -519,15 +500,29 @@ const BoutiqueDomains = () => {
                 <button onClick={() => setActiveStep(1)} className="text-xs text-gray-400 hover:text-gray-600 underline">Modifier les DNS</button>
               </div>
 
+              {/* Vérification en cours */}
+              {checking && (
+                <div className="flex items-center gap-3 px-4 py-3 bg-blue-50 border border-blue-200 rounded-xl">
+                  <svg className="animate-spin h-4 w-4 text-blue-600 flex-shrink-0" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                  </svg>
+                  <div>
+                    <p className="text-sm font-semibold text-blue-700">Vérification DNS en cours…</p>
+                    <p className="text-[11px] text-blue-500">Interrogation des serveurs DNS pour <span className="font-mono">{customDomain}</span></p>
+                  </div>
+                </div>
+              )}
+
               {/* DNS check result */}
-              {dnsResult !== null && (
+              {!checking && dnsResult !== null && (
                 <div className={`px-4 py-3 rounded-xl space-y-2 ${dnsResult.ok ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
                   <div className="flex items-center gap-2">
                     {dnsResult.ok ? (
-                      <><svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                      <><svg className="w-4 h-4 text-green-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
                       <span className="text-sm text-green-700 font-semibold">DNS configuré correctement — <a href={`https://${customDomain}`} target="_blank" rel="noopener noreferrer" className="hover:underline">https://{customDomain}</a></span></>
                     ) : (
-                      <><svg className="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                      <><svg className="w-4 h-4 text-red-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                       <span className="text-sm text-red-700 font-semibold">DNS pas encore propagés</span></>
                     )}
                   </div>
@@ -547,12 +542,13 @@ const BoutiqueDomains = () => {
                     <p className="text-xs text-red-600">Aucun enregistrement détecté. Vérifiez votre configuration DNS et réessayez dans quelques minutes.</p>
                   )}
                   {!dnsResult.ok && (
-                    <p className="text-xs text-gray-500">Cible attendue : <span className="font-mono">{dnsResult.expected?.cnameTarget || CNAME_TARGET}</span></p>
+                    <p className="text-xs text-gray-500 mt-1">Cible attendue : <span className="font-mono">{dnsResult.expected?.cnameTarget || CNAME_TARGET}</span></p>
                   )}
                 </div>
               )}
 
-              {isConnected && !dnsResult && (
+              {/* Déjà vérifié (chargement initial), pas de résultat encore affiché */}
+              {!checking && dnsResult === null && isConnected && (
                 <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-xl px-4 py-3">
                   <svg className="w-4 h-4 text-green-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
                   <a href={`https://${customDomain}`} target="_blank" rel="noopener noreferrer" className="text-sm font-semibold text-green-700 hover:underline">
@@ -561,6 +557,21 @@ const BoutiqueDomains = () => {
                 </div>
               )}
 
+              {/* SSL status inline */}
+              <div className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-xs font-semibold ${
+                sslStatus === 'active'
+                  ? 'bg-green-50 border-green-200 text-green-700'
+                  : 'bg-gray-50 border-gray-200 text-gray-500'
+              }`}>
+                <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+                SSL :&nbsp;
+                <span className={`font-bold ${sslStatus === 'active' ? 'text-green-700' : 'text-gray-400'}`}>
+                  {sslStatus === 'active' ? 'Actif — HTTPS activé' : 'En attente (sera provisonné après validation DNS)'}
+                </span>
+              </div>
+
               <div className="flex gap-2">
                 <button
                   onClick={checkDns}
@@ -568,9 +579,9 @@ const BoutiqueDomains = () => {
                   className="flex-1 px-4 py-2.5 bg-[#0F6B4F] hover:bg-[#0A5740] text-white text-sm font-bold rounded-xl transition disabled:opacity-60 flex items-center justify-center gap-2"
                 >
                   {checking ? (
-                    <><svg className="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>Vérification DNS...</>
+                    <><svg className="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>Vérification…</>
                   ) : (
-                    <><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>Vérifier le DNS</>
+                    <><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>Relancer la vérification</>
                   )}
                 </button>
                 <button
@@ -590,25 +601,27 @@ const BoutiqueDomains = () => {
         </div>
       </div>
 
-      {/* SSL status */}
-      <div className="bg-white rounded-2xl border border-gray-200 p-5">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center">
-            <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-            </svg>
+      {/* SSL card — visible uniquement si pas encore à l'étape de vérification */}
+      {activeStep < 2 && (
+        <div className="bg-white rounded-2xl border border-gray-200 p-5">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center">
+              <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
+            </div>
+            <div>
+              <h2 className="text-sm font-bold text-gray-900">Certificat SSL</h2>
+              <p className="text-xs text-gray-500">HTTPS automatique et gratuit sur tous les domaines</p>
+            </div>
+            <span className={`ml-auto px-3 py-1 text-[10px] font-bold rounded-full uppercase ${
+              sslStatus === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
+            }`}>
+              {sslStatus === 'active' ? 'Actif' : 'En attente'}
+            </span>
           </div>
-          <div>
-            <h2 className="text-sm font-bold text-gray-900">Certificat SSL</h2>
-            <p className="text-xs text-gray-500">HTTPS automatique et gratuit sur tous les domaines</p>
-          </div>
-          <span className={`ml-auto px-3 py-1 text-[10px] font-bold rounded-full uppercase ${
-            sslStatus === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
-          }`}>
-            {sslStatus === 'active' ? 'Actif' : 'En attente'}
-          </span>
         </div>
-      </div>
+      )}
 
     </div>
   );

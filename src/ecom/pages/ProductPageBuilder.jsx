@@ -286,11 +286,18 @@ const SectionContentEditor = ({ section, onChange, product }) => {
   const defaults = getDefaultContent(section.id, product);
   const savedContent = section.content || {};
   const hasSavedListData = (key) => Array.isArray(savedContent[key]) && savedContent[key].length > 0;
+  const hasSavedScalarData = (keys = []) => keys.some((key) => savedContent[key] !== undefined);
   const content = (() => {
     // List-based sections: prefer saved items if present, else show editable defaults
     if (['testimonials', 'benefitsBullets', 'conversionBlocks'].includes(section.id)) {
       const key = section.id === 'testimonials' || section.id === 'benefitsBullets' ? 'items' : 'items';
-      return hasSavedListData(key) ? { ...defaults, ...savedContent } : { ...defaults };
+      if (hasSavedListData(key)) {
+        return { ...defaults, ...savedContent };
+      }
+      if (section.id === 'testimonials' && hasSavedScalarData(['showEyebrowLine', 'showSocialProofImage', 'socialProofImageUrl', 'title'])) {
+        return { ...defaults, ...savedContent };
+      }
+      return { ...defaults };
     }
     if (section.id === 'faq') {
       return hasSavedListData('faqItems') ? { ...defaults, ...savedContent } : { ...defaults };
@@ -370,6 +377,36 @@ const SectionContentEditor = ({ section, onChange, product }) => {
     const dupT = (i) => update('items', [...items.slice(0, i + 1), { ...items[i] }, ...items.slice(i + 1)]);
     return (
       <div className="space-y-2">
+        <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 space-y-2">
+          <div className="text-[11px] font-semibold text-gray-700">Affichage section</div>
+          <label className="flex items-center gap-2 text-[12px] text-gray-600 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={content.showEyebrowLine !== false}
+              onChange={e => update('showEyebrowLine', e.target.checked)}
+              className="w-3.5 h-3.5 accent-emerald-500"
+            />
+            Afficher la ligne avant "Avis clients"
+          </label>
+          <label className="flex items-center gap-2 text-[12px] text-gray-600 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={content.showSocialProofImage !== false}
+              onChange={e => update('showSocialProofImage', e.target.checked)}
+              className="w-3.5 h-3.5 accent-emerald-500"
+            />
+            Afficher l'image témoignages
+          </label>
+          <div>
+            <div className="text-[11px] font-semibold text-gray-500 mb-1">Image témoignages (URL)</div>
+            <input
+              className={inputCls}
+              value={content.socialProofImageUrl || ''}
+              onChange={e => update('socialProofImageUrl', e.target.value)}
+              placeholder="https://... (laisser vide pour garder l'image auto)"
+            />
+          </div>
+        </div>
         <div className="flex items-center justify-between mb-2">
           <span className="text-[11px] font-semibold text-gray-700">{items.length} avis client{items.length !== 1 ? 's' : ''}</span>
           <button onClick={addT} className="flex items-center gap-1 text-[11px] text-emerald-600 font-semibold hover:text-emerald-700 bg-emerald-50 px-2 py-1 rounded-lg">

@@ -796,6 +796,63 @@ router.get('/generation-status/:token', requireEcomAuth, async (req, res) => {
   }
 });
 
+// ─── POST /sync-pending-generations ──────────────────────────────────────────
+// Vérifie auprès de MoneyFusion tous les paiements génération "pending" du
+// workspace et les crédite si confirmés. Utile quand webhook + poll ont raté.
+router.post('/sync-pending-generations', requireEcomAuth, async (req, res) => {
+  const workspaceId = req.workspaceId || req.body?.workspaceId;
+  if (!workspaceId) {
+    return res.status(400).json({ success: false, message: 'workspaceId requis' });
+  }
+
+  try {
+    const pending = await GenerationPayment.find({ workspaceId, status: 'pending' }).lean();
+
+    if (!pending.length) {
+      const workspace = await EcomWorkspace.findById(workspaceId)
+        .select('paidGenerationsRemaining freeGenerationsRemaining simpleGenerationsRemaining')
+        .lean();
+      const remaining = (workspace?.paidGenerationsRemaining || 0)
+        + (workspace?.freeGenerationsRemaining || 0)
+        + (workspace?.simpleGenerationsRemaining || 0);
+      return res.json({ success: true, credited: 0, remaining });
+    }
+
+    let credited = 0;
+
+    for (const p of pending) {
+      try {
+        const mfResp = await axios.get(MF_STATUS_URL(p.mfToken), { timeout: 10000 });
+        const mfStatus = mfResp.data?.data?.statut;
+        if (mfStatus === 'paid') {
+          // Re-fetch so applyGenerationPayment has a live mongoose doc
+          const doc = await GenerationPayment.findById(p._id);
+          if (doc && doc.status !== 'paid') {
+            await applyGenerationPayment(doc);
+            credited += p.quantity;
+          }
+        } else if (mfStatus === 'failure' || mfStatus === 'no paid') {
+          await GenerationPayment.findByIdAndUpdate(p._id, { $set: { status: mfStatus } });
+        }
+      } catch {
+        // Ignore individual failures — best effort
+      }
+    }
+
+    const workspace = await EcomWorkspace.findById(workspaceId)
+      .select('paidGenerationsRemaining freeGenerationsRemaining simpleGenerationsRemaining')
+      .lean();
+    const remaining = (workspace?.paidGenerationsRemaining || 0)
+      + (workspace?.freeGenerationsRemaining || 0)
+      + (workspace?.simpleGenerationsRemaining || 0);
+
+    res.json({ success: true, credited, remaining });
+  } catch (err) {
+    console.error('[billing] POST /sync-pending-generations error:', err.message);
+    res.status(500).json({ success: false, message: 'Erreur lors de la synchronisation' });
+  }
+});
+
 // ─── GET /generations-info ────────────────────────────────────────────────────
 router.get('/generations-info', requireEcomAuth, async (req, res) => {
   try {

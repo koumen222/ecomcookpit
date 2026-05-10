@@ -74,6 +74,8 @@ export default function GenerationsPage() {
   const [deleting, setDeleting] = useState(null);
   const [retrying, setRetrying] = useState(null);
   const [creditsInfo, setCreditsInfo] = useState(null);
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState(null);
   const pageMeta = useMemo(() => getPageMeta(location.pathname), [location.pathname]);
   const [activeFilter, setActiveFilter] = useState(pageMeta.defaultFilter);
 
@@ -188,6 +190,29 @@ export default function GenerationsPage() {
     }
   };
 
+  const syncCredits = useCallback(async () => {
+    setSyncing(true);
+    setSyncResult(null);
+    try {
+      const response = await fetch(`${API_ORIGIN}/api/ecom/billing/sync-pending-generations`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...getHeaders() },
+      });
+      const data = await response.json();
+      if (data.success) {
+        setSyncResult(data.credited > 0 ? `✓ ${data.credited} crédit(s) récupéré(s) !` : 'Aucun paiement en attente trouvé.');
+        await fetchCredits();
+      } else {
+        setSyncResult('Erreur lors de la synchronisation.');
+      }
+    } catch {
+      setSyncResult('Erreur réseau.');
+    } finally {
+      setSyncing(false);
+      setTimeout(() => setSyncResult(null), 5000);
+    }
+  }, [getHeaders, fetchCredits]);
+
   const handleRetry = async (taskId) => {
     setRetrying(taskId);
     try {
@@ -258,13 +283,29 @@ export default function GenerationsPage() {
         <StudioCard label="En cours" value={counts.active} hint="Generations actives" tone="blue" icon={<Loader2 className="w-4 h-4 animate-spin" />} />
         <StudioCard label="Terminees" value={counts.done} hint="Pages pretes a utiliser" tone="emerald" icon={<CheckCircle className="w-4 h-4" />} />
         <StudioCard label="Echecs" value={counts.error} hint="Taches a verifier" tone="red" icon={<XCircle className="w-4 h-4" />} />
-        <StudioCard
-          label="Credits"
-          value={creditsInfo?.remaining ?? 0}
-          hint={creditsInfo ? `${creditsInfo.totalUsed || 0} generation(s) utilisee(s)` : 'Credits generes'}
-          tone="amber"
-          icon={<Sparkles className="w-4 h-4" />}
-        />
+        <div className="relative">
+          <StudioCard
+            label="Credits"
+            value={creditsInfo?.remaining ?? 0}
+            hint={creditsInfo ? `${creditsInfo.totalUsed || 0} generation(s) utilisee(s)` : 'Credits generes'}
+            tone="amber"
+            icon={<Sparkles className="w-4 h-4" />}
+          />
+          <button
+            onClick={syncCredits}
+            disabled={syncing}
+            title="J'ai payé mais mes crédits n'ont pas été ajoutés"
+            className="absolute bottom-2 right-2 flex items-center gap-1 px-2 py-1 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-700 text-[10px] font-bold transition disabled:opacity-60"
+          >
+            <RotateCw className={`w-3 h-3 ${syncing ? 'animate-spin' : ''}`} />
+            {syncing ? 'Sync…' : 'Sync crédits'}
+          </button>
+          {syncResult && (
+            <div className={`absolute -bottom-8 left-0 right-0 text-center text-[11px] font-semibold px-2 py-1 rounded-lg ${syncResult.startsWith('✓') ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'}`}>
+              {syncResult}
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="bg-white border border-gray-200 rounded-2xl p-4 sm:p-5 space-y-4">
