@@ -58,6 +58,7 @@ const BoutiqueDomains = () => {
   const [subdomainStatus, setSubdomainStatus] = useState(null); // null | 'checking' | 'available' | 'taken' | 'invalid'
   const subdomainGeneratedRef = useRef(false);
   const subdomainCheckRef = useRef(null);
+  const pollRef = useRef(null);
   const preferredStoreName = activeStore?.storeSettings?.storeName || activeStore?.name || workspace?.storeSettings?.storeName || workspace?.name || '';
 
   useEffect(() => {
@@ -250,6 +251,29 @@ const BoutiqueDomains = () => {
       setSaving(false);
     }
   };
+
+  // Auto-poll toutes les 30s en étape 2 tant que le domaine n'est pas actif
+  useEffect(() => {
+    if (activeStep !== 2 || !customDomain || dnsVerified) return;
+
+    const silentCheck = async () => {
+      try {
+        const res = await api.post('/store/domains/check-dns', { domain: customDomain });
+        const data = res.data?.data || { ok: false };
+        setDnsResult(data);
+        if (data.ok) {
+          setDnsVerified(true);
+          setSslStatus('active');
+          clearInterval(pollRef.current);
+        } else if (data.sslStatus) {
+          setSslStatus(data.sslStatus === 'active' ? 'active' : 'pending');
+        }
+      } catch { /* silent */ }
+    };
+
+    pollRef.current = setInterval(silentCheck, 30000);
+    return () => clearInterval(pollRef.current);
+  }, [activeStep, customDomain, dnsVerified]);
 
   const subdomainUrl = subdomain ? `${subdomain}.scalor.net` : '';
   const isConnected = dnsVerified && customDomain;
@@ -520,29 +544,51 @@ const BoutiqueDomains = () => {
                   <div className="flex items-center gap-2">
                     {dnsResult.ok ? (
                       <><svg className="w-4 h-4 text-green-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                      <span className="text-sm text-green-700 font-semibold">DNS configuré correctement — <a href={`https://${customDomain}`} target="_blank" rel="noopener noreferrer" className="hover:underline">https://{customDomain}</a></span></>
+                      <span className="text-sm text-green-700 font-semibold">Domaine actif — <a href={`https://${customDomain}`} target="_blank" rel="noopener noreferrer" className="hover:underline">https://{customDomain}</a></span></>
                     ) : (
                       <><svg className="w-4 h-4 text-red-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                      <span className="text-sm text-red-700 font-semibold">DNS pas encore propagés</span></>
+                      <span className="text-sm text-red-700 font-semibold">En attente de validation</span></>
                     )}
                   </div>
-                  {dnsResult.aRecords?.length > 0 && (
+
+                  {/* Cloudflare status */}
+                  {dnsResult.source === 'cloudflare' && (
+                    <div className="space-y-1">
+                      <div className="text-xs text-gray-600 flex items-center gap-1.5">
+                        <span className="font-semibold">SSL :</span>
+                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                          dnsResult.sslStatus === 'active' ? 'bg-green-100 text-green-700' :
+                          dnsResult.sslStatus === 'pending_validation' || dnsResult.sslStatus === 'initializing' ? 'bg-amber-100 text-amber-700' :
+                          'bg-gray-100 text-gray-500'
+                        }`}>{dnsResult.sslStatus || 'pending'}</span>
+                      </div>
+                      <div className="text-xs text-gray-600 flex items-center gap-1.5">
+                        <span className="font-semibold">Propriété :</span>
+                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                          dnsResult.ownershipStatus === 'active' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
+                        }`}>{dnsResult.ownershipStatus || 'pending'}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Legacy DNS details */}
+                  {dnsResult.source !== 'cloudflare' && dnsResult.aRecords?.length > 0 && (
                     <div className="text-xs text-gray-600">
                       <span className="font-semibold">A records :</span> {dnsResult.aRecords.join(', ')}
                       {dnsResult.aOk ? <span className="text-green-600 ml-1">✓</span> : <span className="text-red-600 ml-1">✗</span>}
                     </div>
                   )}
-                  {dnsResult.cnameRecords?.length > 0 && (
+                  {dnsResult.source !== 'cloudflare' && dnsResult.cnameRecords?.length > 0 && (
                     <div className="text-xs text-gray-600">
                       <span className="font-semibold">CNAME :</span> {dnsResult.cnameRecords.join(', ')}
                       {dnsResult.cnameOk ? <span className="text-green-600 ml-1">✓</span> : <span className="text-red-600 ml-1">✗</span>}
                     </div>
                   )}
-                  {!dnsResult.ok && !dnsResult.aRecords?.length && !dnsResult.cnameRecords?.length && (
-                    <p className="text-xs text-red-600">Aucun enregistrement détecté. Vérifiez votre configuration DNS et réessayez dans quelques minutes.</p>
-                  )}
+
                   {!dnsResult.ok && (
-                    <p className="text-xs text-gray-500 mt-1">Cible attendue : <span className="font-mono">{dnsResult.expected?.cnameTarget || CNAME_TARGET}</span></p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Ajoutez un CNAME pointant vers <span className="font-mono font-semibold">{CNAME_TARGET}</span> et relancez la vérification.
+                    </p>
                   )}
                 </div>
               )}
@@ -594,7 +640,7 @@ const BoutiqueDomains = () => {
               </div>
 
               <p className="text-[11px] text-gray-400 text-center">
-                La propagation DNS peut prendre jusqu'à 48h. Relancez la vérification si nécessaire.
+                Le SSL se génère automatiquement dès que le CNAME est détecté. La propagation peut prendre jusqu'à 48h.
               </p>
             </div>
           )}
