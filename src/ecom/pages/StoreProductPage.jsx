@@ -831,16 +831,22 @@ const optimizeDescriptionHtml = (html = '') => {
 
     const guaranteeBlocks = Array.from(root.querySelectorAll('section, article, div'))
       .filter((element) => {
-        const text = normalizeSectionText(element.textContent || '');
-        return text.includes(guaranteeTitle) && guaranteeMarkers.some(marker => text.includes(marker));
+        const heading = element.querySelector('h1,h2,h3,h4,h5,h6');
+        if (!heading) return false;
+        const headingText = normalizeSectionText(heading.textContent || '');
+        return headingText.includes(guaranteeTitle) && guaranteeMarkers.some(marker => normalizeSectionText(element.textContent || '').includes(marker));
       })
       .filter((element, index, all) => !all.some((other, otherIndex) => otherIndex !== index && other.contains(element)));
 
     guaranteeBlocks.forEach((element) => element.remove());
 
     // Remove "Pourquoi choisir" blocks — rendered separately as RaisonsAcheter component
+    // Only remove elements whose own heading matches, not any element that mentions the keyword anywhere
     Array.from(root.querySelectorAll('section, article, div, ul, ol'))
-      .filter(el => /pourquoi choisir|raisons? (d['']acheter|de choisir)|avantages/i.test(el.textContent || ''))
+      .filter(el => {
+        const heading = el.querySelector('h1,h2,h3,h4,h5,h6');
+        return heading && /pourquoi choisir|raisons? (d['']acheter|de choisir)|avantages/i.test(heading.textContent || '');
+      })
       .filter((el, i, all) => !all.some((other, j) => j !== i && other.contains(el)))
       .forEach(el => el.remove());
 
