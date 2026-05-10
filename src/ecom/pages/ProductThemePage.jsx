@@ -3,7 +3,8 @@ import { useSearchParams } from 'react-router-dom';
 import {
   Save, Loader2, Check, Paintbrush, Eye, Palette, Type, Square, ChevronDown, ChevronUp,
   Droplets, Layout, Zap, MousePointer2, Rows3, Image, ShoppingBag, Star, Truck, Shield,
-  MessageCircle, Heart, Share2, Minus, Plus, ChevronRight, Clock, Award, Flame, Rocket, Sparkles
+  MessageCircle, Heart, Share2, Minus, Plus, ChevronRight, Clock, Award, Flame, Rocket, Sparkles,
+  Layers
 } from 'lucide-react';
 import { storeManageApi } from '../services/storeApi';
 import { useStore } from '../contexts/StoreContext.jsx';
@@ -297,11 +298,22 @@ const DEFAULT_SECTION_COLORS = {
   faq: '#7C3AED',
 };
 
+const DEFAULT_INFOGRAPHICS_FORM = {
+  headline: 'Remplissez le formulaire, on vous appelle pour valider votre commande',
+  reassurance: 'Livraison gratuite. Paiement à la livraison.',
+  ctaLabel: 'CLIQUE POUR CONFIRMER TA COMMANDE',
+  stickyLabel: 'COMMANDEZ',
+  brandColor: '',
+  buttonColor: '',
+  buttonSize: 'medium',
+};
+
 const ProductThemePage = () => {
   const [currentTheme, setCurrentTheme] = useState('classic');
   const [design, setDesign] = useState({ ...DEFAULT_DESIGN });
   const [sectionColors, setSectionColors] = useState({ ...DEFAULT_SECTION_COLORS });
-  const [originalData, setOriginalData] = useState({ theme: 'classic', design: { ...DEFAULT_DESIGN }, sectionColors: { ...DEFAULT_SECTION_COLORS } });
+  const [infographicsForm, setInfographicsForm] = useState({ ...DEFAULT_INFOGRAPHICS_FORM });
+  const [originalData, setOriginalData] = useState({ theme: 'classic', design: { ...DEFAULT_DESIGN }, sectionColors: { ...DEFAULT_SECTION_COLORS }, infographicsForm: { ...DEFAULT_INFOGRAPHICS_FORM } });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -313,7 +325,7 @@ const ProductThemePage = () => {
   // Sync tab with URL query param
   useEffect(() => {
     const tab = searchParams.get('tab');
-    if (tab && ['layout','colors','typo','buttons','elements','preview'].includes(tab)) {
+    if (tab && ['layout','colors','typo','buttons','elements','infographics','preview'].includes(tab)) {
       setActiveSection(tab);
     }
   }, [searchParams]);
@@ -326,6 +338,7 @@ const ProductThemePage = () => {
     { id: 'typo', label: 'Typographie', icon: Type },
     { id: 'buttons', label: 'Boutons & Styles', icon: MousePointer2 },
     { id: 'elements', label: 'Éléments', icon: Rows3 },
+    { id: 'infographics', label: 'Infographies', icon: Layers },
     { id: 'preview', label: 'Aperçu', icon: Eye },
   ];
 
@@ -350,10 +363,12 @@ const ProductThemePage = () => {
           showStockIndicator: false,
         };
         const savedSectionColors = { ...DEFAULT_SECTION_COLORS, ...(themeData.sectionColors || {}) };
+        const savedInfographicsForm = { ...DEFAULT_INFOGRAPHICS_FORM, ...(config.infographicsForm || {}) };
         setCurrentTheme(savedTheme);
         setDesign(savedDesign);
         setSectionColors(savedSectionColors);
-        setOriginalData({ theme: savedTheme, design: { ...savedDesign }, sectionColors: { ...savedSectionColors } });
+        setInfographicsForm(savedInfographicsForm);
+        setOriginalData({ theme: savedTheme, design: { ...savedDesign }, sectionColors: { ...savedSectionColors }, infographicsForm: { ...savedInfographicsForm } });
       } catch (e) {
         console.error('Failed to load theme:', e);
       } finally {
@@ -390,10 +405,10 @@ const ProductThemePage = () => {
       await Promise.all([
         storeManageApi.updateTheme({ ...existingTheme, template: currentTheme, sectionColors }),
         storeManageApi.updateStoreConfig({
-          productPageConfig: { ...existingConfig, design: { ...existingConfig.design, ...design } },
+          productPageConfig: { ...existingConfig, design: { ...existingConfig.design, ...design }, infographicsForm: { ...existingConfig.infographicsForm, ...infographicsForm } },
         }),
       ]);
-      setOriginalData({ theme: currentTheme, design: { ...design }, sectionColors: { ...sectionColors } });
+      setOriginalData({ theme: currentTheme, design: { ...design }, sectionColors: { ...sectionColors }, infographicsForm: { ...infographicsForm } });
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch (e) {
@@ -403,7 +418,7 @@ const ProductThemePage = () => {
     }
   };
 
-  const hasChanges = currentTheme !== originalData.theme || JSON.stringify(design) !== JSON.stringify(originalData.design) || JSON.stringify(sectionColors) !== JSON.stringify(originalData.sectionColors);
+  const hasChanges = currentTheme !== originalData.theme || JSON.stringify(design) !== JSON.stringify(originalData.design) || JSON.stringify(sectionColors) !== JSON.stringify(originalData.sectionColors) || JSON.stringify(infographicsForm) !== JSON.stringify(originalData.infographicsForm);
 
   if (loading) {
     return (
@@ -454,7 +469,7 @@ const ProductThemePage = () => {
               )}
               {hasChanges && (
                 <button
-                  onClick={() => { setCurrentTheme(originalData.theme); setDesign({ ...originalData.design }); setSaved(false); }}
+                  onClick={() => { setCurrentTheme(originalData.theme); setDesign({ ...originalData.design }); setInfographicsForm({ ...originalData.infographicsForm }); setSaved(false); }}
                   className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-600 transition hover:bg-gray-50"
                 >
                   Annuler
@@ -793,6 +808,73 @@ const ProductThemePage = () => {
                 <Toggle label="Photos du produit" desc="Affiche la galerie visuelle sous le bloc d'achat" value={design.showProductGallery} onChange={v => updateDesign('showProductGallery', v)} accentColor={design.buttonColor || '#7C3AED'} />
                 <Toggle label="Produits similaires" desc="Affiche des produits recommandés en bas" value={design.showRelatedProducts} onChange={v => updateDesign('showRelatedProducts', v)} accentColor={design.buttonColor || '#7C3AED'} />
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* ═══ INFOGRAPHICS ═══ */}
+        {activeSection === 'infographics' && (
+          <div className="space-y-6">
+            <div>
+              <h2 className="text-base font-extrabold text-gray-900 mb-1">Page Infographies</h2>
+              <p className="text-sm text-gray-500">Personnalisez l'apparence et les textes du template Infographies (thème "infographics")</p>
+            </div>
+
+            <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-5">
+              <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-2"><Layers size={14} /> Couleurs du bouton sticky</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <ColorInput
+                  label="Couleur de marque (bandeau + boutons)"
+                  value={infographicsForm.brandColor || design.ctaButtonColor || design.buttonColor || '#1E3A8A'}
+                  onChange={v => { setInfographicsForm(p => ({ ...p, brandColor: v })); setSaved(false); }}
+                />
+                <ColorInput
+                  label="Couleur du bouton sticky (remplace la couleur de marque)"
+                  value={infographicsForm.buttonColor || infographicsForm.brandColor || design.ctaButtonColor || design.buttonColor || '#1E3A8A'}
+                  onChange={v => { setInfographicsForm(p => ({ ...p, buttonColor: v })); setSaved(false); }}
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-semibold text-gray-500 mb-2 uppercase tracking-wider">Taille du bouton sticky</label>
+                <div className="flex gap-2">
+                  {[{ id: 'small', label: 'Petit' }, { id: 'medium', label: 'Moyen' }, { id: 'large', label: 'Grand' }].map(opt => (
+                    <button key={opt.id} type="button"
+                      onClick={() => { setInfographicsForm(p => ({ ...p, buttonSize: opt.id })); setSaved(false); }}
+                      className={`flex-1 py-2.5 rounded-xl border-2 text-xs font-bold transition ${infographicsForm.buttonSize === opt.id ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-gray-200 text-gray-600 hover:border-gray-300'}`}>
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-4">
+              <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-2"><MessageCircle size={14} /> Textes du formulaire</h3>
+              {[
+                { key: 'headline', label: 'Titre du formulaire', placeholder: 'Remplissez le formulaire, on vous appelle…' },
+                { key: 'ctaLabel', label: 'Texte du bouton de commande', placeholder: 'CLIQUE POUR CONFIRMER TA COMMANDE' },
+                { key: 'stickyLabel', label: 'Texte du bouton sticky', placeholder: 'COMMANDEZ' },
+                { key: 'reassurance', label: 'Texte de réassurance', placeholder: 'Livraison gratuite. Paiement à la livraison.' },
+              ].map(field => (
+                <div key={field.key}>
+                  <label className="block text-[10px] font-semibold text-gray-500 mb-1.5 uppercase tracking-wider">{field.label}</label>
+                  <input
+                    type="text"
+                    value={infographicsForm[field.key] || ''}
+                    placeholder={field.placeholder}
+                    onChange={e => { setInfographicsForm(p => ({ ...p, [field.key]: e.target.value })); setSaved(false); }}
+                    className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-200"
+                  />
+                </div>
+              ))}
+            </div>
+
+            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-start gap-3">
+              <Layers size={16} className="text-amber-600 mt-0.5 shrink-0" />
+              <p className="text-xs text-amber-700 leading-relaxed">
+                Ces réglages s'appliquent uniquement aux pages produits configurées avec le thème <strong>Infographies</strong>. Pour activer ce thème sur un produit, modifiez le champ "Thème" dans les paramètres du produit.
+              </p>
             </div>
           </div>
         )}

@@ -60,7 +60,7 @@ const StoreProductPageInfographics = ({ product, store, productPageConfig, subdo
   const brandColor = cfg.brandColor || cfg.accentColor || design.ctaButtonColor || design.buttonColor || '#1E3A8A';
   const accent = brandColor;
   const ctaColor = brandColor;
-  const stickyColor = brandColor;
+  const stickyColor = cfg.buttonColor || brandColor;
   const headerTextColor = cfg.headerTextColor || getReadableTextColor(brandColor);
 
   useEffect(() => {
@@ -78,6 +78,13 @@ const StoreProductPageInfographics = ({ product, store, productPageConfig, subdo
     if (!formRef.current) return;
     formRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
+
+  const buttonSizeStyles = {
+    small: { fontSize: 13, padding: '10px 24px' },
+    medium: { fontSize: 15, padding: '14px 40px' },
+    large: { fontSize: 18, padding: '18px 56px' },
+  };
+  const buttonSize = cfg.buttonSize || 'medium';
 
   return (
     <div style={{
@@ -278,11 +285,9 @@ const StoreProductPageInfographics = ({ product, store, productPageConfig, subdo
             transform: 'translateX(-50%)',
             background: stickyColor,
             color: '#fff',
-            fontSize: 15,
             fontWeight: 900,
             letterSpacing: 0.6,
             textTransform: 'uppercase',
-            padding: '14px 40px',
             border: 'none',
             borderRadius: 8,
             boxShadow: '0 10px 30px rgba(0,0,0,0.25)',
@@ -290,6 +295,7 @@ const StoreProductPageInfographics = ({ product, store, productPageConfig, subdo
             zIndex: 50,
             animation: 'infographicStickyPulse 1.8s ease-in-out infinite',
             willChange: 'transform',
+            ...buttonSizeStyles[buttonSize],
           }}
         >
           {formTexts.stickyLabel}
