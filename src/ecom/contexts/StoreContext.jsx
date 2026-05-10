@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { Outlet } from 'react-router-dom';
 import ecomApi from '../services/ecommApi.js';
+import { clearEcomGetCache } from '../services/ecommApi.js';
 import { useEcomAuth } from '../hooks/useEcomAuth.jsx';
 
 const StoreContext = createContext(null);
@@ -109,6 +110,7 @@ export const StoreProvider = ({ children }) => {
   }, [workspaceId, authLoading, loadStores]);
 
   const switchStore = useCallback((store) => {
+    clearEcomGetCache();
     setActiveStore(store);
     if (store) {
       lastKnownStoreRef.current = store;

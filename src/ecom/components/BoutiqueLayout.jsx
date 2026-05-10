@@ -420,7 +420,7 @@ const BoutiqueLayoutInner = () => {
         {/* Page content */}
         <main className={`flex-1 overflow-x-hidden pb-20 lg:pb-0 ${location.pathname.includes('/form-builder') ? 'pt-0' : 'pt-14 lg:pt-14'}`}
           style={{ WebkitOverflowScrolling: 'touch', minHeight: 0 }}>
-          <Outlet />
+          <Outlet key={activeStore?._id || 'no-active-store'} />
         </main>
       </div>
 
