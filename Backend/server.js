@@ -13,6 +13,10 @@ import { extractSubdomain } from './middleware/subdomain.js';
 const app = express();
 const PORT = process.env.PORT || 8080;
 
+// ─── Trust proxy (Railway / Render / Cloudflare) ──────────────────────────────
+// Nécessaire pour que req.ip soit l'IP réelle et que express-rate-limit fonctionne
+app.set('trust proxy', 1);
+
 // ─── CORS ────────────────────────────────────────────────────────────────────
 const configuredOrigins = (process.env.CORS_ORIGINS || '')
   .split(',')
@@ -315,11 +319,14 @@ const startServer = async () => {
       ['./routes/agentCommands.js',           '/api/ecom/agent/commands'],
       ['./routes/agents.js',                  '/api/ecom/agents'],
       ['./routes/ritaConfig.js',              '/api/ecom/rita'],
+      ['./routes/ritaFollowUp.js',            '/api/ecom/rita'],
+      ['./routes/whatsappOrders.js',          '/api/ecom/whatsapp-orders'],
       // ─── Store / Storefront routes ──────────────────────────────────
       ['./routes/storeProducts.js',           '/api/ecom/store-products'],
       ['./routes/storeOrders.js',             '/api/ecom/store-orders'],
       ['./routes/storeManagement.js',         '/api/ecom/store-manage'],
       ['./routes/storeAdmin.js',              '/api/ecom/store'],
+      ['./routes/storeAnalytics.js',          '/api/ecom/store-analytics'],
       ['./routes/publicStore.js',             '/api/public/store'],
       // ─── New unified Store API (called by SPA on *.scalor.net via api.scalor.net) ──
       ['./routes/storeApi.js',                '/api/store'],

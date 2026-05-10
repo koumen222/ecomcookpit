@@ -170,7 +170,10 @@ const StoreProductForm = () => {
         tags: productData.tags || prev.tags,
         seoTitle: productData.seoTitle || prev.seoTitle,
         seoDescription: productData.seoDescription || prev.seoDescription,
-        images: allImages.length > 0 ? allImages : prev.images
+        images: allImages.length > 0 ? allImages : prev.images,
+        testimonials: productData._pageData?.testimonials?.length > 0 ? productData._pageData.testimonials : prev.testimonials,
+        faq: productData._pageData?.faq?.length > 0 ? productData._pageData.faq : prev.faq,
+        _pageData: productData._pageData || prev._pageData
       };
     });
   };
@@ -187,7 +190,10 @@ const StoreProductForm = () => {
     seoTitle: navState?.seoTitle || '',
     seoDescription: navState?.seoDescription || '',
     images: navState?.images || [],
-    linkedProductId: null
+    linkedProductId: null,
+    testimonials: navState?._pageData?.testimonials || [],
+    faq: navState?._pageData?.faq || [],
+    _pageData: navState?._pageData || null
   });
 
   // Load product for edit mode
@@ -210,7 +216,10 @@ const StoreProductForm = () => {
             seoTitle: p.seoTitle || '',
             seoDescription: p.seoDescription || '',
             images: p.images || [],
-            linkedProductId: p.linkedProductId || null
+            linkedProductId: p.linkedProductId || null,
+            testimonials: p.testimonials || [],
+            faq: p.faq || [],
+            _pageData: p._pageData || null
           });
           if (p.linkedProductId) {
             setLinkedProduct({ _id: p.linkedProductId, name: p.name });
@@ -317,6 +326,26 @@ const StoreProductForm = () => {
       ...prev,
       images: prev.images.filter((_, i) => i !== index)
     }));
+  };
+
+  const handleMoveImage = (index, direction) => {
+    setForm(prev => {
+      const imgs = [...prev.images];
+      const target = index + direction;
+      if (target < 0 || target >= imgs.length) return prev;
+      [imgs[index], imgs[target]] = [imgs[target], imgs[index]];
+      return { ...prev, images: imgs.map((img, i) => ({ ...img, order: i })) };
+    });
+  };
+
+  const handleSetHero = (index) => {
+    if (index === 0) return;
+    setForm(prev => {
+      const imgs = [...prev.images];
+      const [moved] = imgs.splice(index, 1);
+      imgs.unshift(moved);
+      return { ...prev, images: imgs.map((img, i) => ({ ...img, order: i })) };
+    });
   };
 
   // Add image by URL (for users who host elsewhere)
@@ -487,7 +516,10 @@ const StoreProductForm = () => {
       seoTitle: form.seoTitle.trim(),
       seoDescription: form.seoDescription.trim(),
       images: form.images,
-      linkedProductId: form.linkedProductId || null
+      linkedProductId: form.linkedProductId || null,
+      ...(form.testimonials?.length > 0 && { testimonials: form.testimonials }),
+      ...(form.faq?.length > 0 && { faq: form.faq }),
+      ...(form._pageData && { _pageData: form._pageData })
     };
 
     try {
@@ -1031,26 +1063,54 @@ const StoreProductForm = () => {
             Images
           </h2>
 
-          {/* Current images */}
+          {/* Current images — reorderable */}
           {form.images.length > 0 && (
             <div className="flex flex-wrap gap-3">
               {form.images.map((img, i) => (
-                <div key={i} className="relative group">
+                <div key={img.url || i} className="relative group">
                   <img
                     src={img.url}
                     alt={img.alt || form.name}
-                    className={`w-20 h-20 sm:w-24 sm:h-24 rounded-lg object-cover border ${img.isMarketing ? 'border-emerald-400 ring-2 ring-emerald-200' : 'border-gray-200'}`}
+                    className={`w-20 h-20 sm:w-24 sm:h-24 rounded-lg object-cover border-2 ${i === 0 ? 'border-emerald-500 ring-2 ring-emerald-200' : img.isMarketing ? 'border-emerald-400 ring-2 ring-emerald-200' : 'border-gray-200'}`}
                     loading="lazy"
                   />
+                  {/* Delete button */}
                   <button
                     type="button"
                     onClick={() => handleRemoveImage(i)}
-                    className="absolute -top-2 -right-2 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition"
+                    className="absolute -top-2 -right-2 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition z-10"
                   >
                     <X className="w-3 h-3" />
                   </button>
+                  {/* Reorder arrows */}
+                  {form.images.length > 1 && (
+                    <div className="absolute -bottom-1 right-0 flex gap-0.5 opacity-0 group-hover:opacity-100 transition z-10">
+                      {i > 0 && (
+                        <button type="button" onClick={() => handleMoveImage(i, -1)} className="p-0.5 bg-white border border-gray-300 rounded text-gray-600 hover:bg-gray-100" title="Déplacer à gauche">
+                          <ChevronUp className="w-3 h-3 -rotate-90" />
+                        </button>
+                      )}
+                      {i < form.images.length - 1 && (
+                        <button type="button" onClick={() => handleMoveImage(i, 1)} className="p-0.5 bg-white border border-gray-300 rounded text-gray-600 hover:bg-gray-100" title="Déplacer à droite">
+                          <ChevronDown className="w-3 h-3 -rotate-90" />
+                        </button>
+                      )}
+                    </div>
+                  )}
+                  {/* Set as hero */}
+                  {i !== 0 && (
+                    <button
+                      type="button"
+                      onClick={() => handleSetHero(i)}
+                      className="absolute bottom-1 left-1 px-1.5 py-0.5 bg-white/90 border border-gray-300 text-gray-600 text-[9px] font-medium rounded opacity-0 group-hover:opacity-100 transition hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300"
+                      title="Définir comme image principale"
+                    >
+                      ★ Hero
+                    </button>
+                  )}
+                  {/* Badges */}
                   {i === 0 && (
-                    <span className="absolute bottom-1 left-1 px-1.5 py-0.5 bg-black/60 text-white text-[10px] rounded">
+                    <span className="absolute bottom-1 left-1 px-1.5 py-0.5 bg-emerald-600 text-white text-[10px] font-semibold rounded">
                       Principale
                     </span>
                   )}
@@ -1059,7 +1119,7 @@ const StoreProductForm = () => {
                       IA
                     </span>
                   )}
-                  {img.isHero && (
+                  {img.isHero && i !== 0 && (
                     <span className="absolute top-1 right-1 px-1.5 py-0.5 bg-blue-600 text-white text-[10px] rounded">
                       Hero
                     </span>
@@ -1109,7 +1169,7 @@ const StoreProductForm = () => {
             </button>
           </div>
 
-          <p className="text-xs text-gray-400">Max 5 MB par image. Formats: JPG, PNG, WebP. La première image sera l'image principale.</p>
+          <p className="text-xs text-gray-400">Max 5 MB par image. Formats: JPG, PNG, WebP. Survolez une image pour la réorganiser ou la définir comme image principale (hero).</p>
         </div>
 
         {/* SEO */}

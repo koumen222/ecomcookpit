@@ -6,7 +6,6 @@ import Product from '../models/Product.js';
 import { requireEcomAuth, requireWorkspace } from '../middleware/ecomAuth.js';
 import { requireStoreOwner } from '../middleware/storeAuth.js';
 import { uploadImage, isConfigured } from '../services/cloudflareImagesService.js';
-import imageOptimizer from '../services/imageOptimizer.js';
 import OpenAI from 'openai';
 
 let openai = null;
@@ -162,27 +161,17 @@ router.post(
       const uploadedImages = [];
 
       for (const file of files) {
-        // Optimize to WebP before upload — resize to max 1200px, compress
-        let uploadBuffer = file.buffer;
-        let uploadMime = file.mimetype;
-        let uploadName = file.originalname.replace(/\.[^.]+$/, '.webp');
-        try {
-          uploadBuffer = await imageOptimizer.optimizeImage(file.buffer, {
-            width: 1200, height: 1200, quality: 82
-          });
-          uploadMime = 'image/webp';
-        } catch {
-          // Fall back to original if Sharp fails
-        }
-
         const result = await uploadImage(
-          uploadBuffer,
-          uploadName,
+          file.buffer,
+          file.originalname,
           {
             workspaceId: req.workspaceId.toString(),
             uploadedBy: req.user.id,
-            filename: uploadName,
-            mimeType: uploadMime
+            filename: file.originalname,
+            mimeType: file.mimetype,
+            width: 1200,
+            height: 1200,
+            quality: 82
           }
         );
 
@@ -190,8 +179,8 @@ router.post(
           id: result.id,
           url: result.url,
           key: result.key,
-          filename: uploadName,
-          size: uploadBuffer.length
+          filename: result.filename,
+          size: result.size
         });
       }
 
@@ -386,7 +375,8 @@ router.post('/', requireEcomAuth, requireWorkspace, requireStoreOwner, async (re
     const {
       name, description, price, compareAtPrice, stock,
       images, category, tags, isPublished,
-      seoTitle, seoDescription, linkedProductId, currency
+      seoTitle, seoDescription, linkedProductId, currency,
+      testimonials, faq, _pageData
     } = req.body;
 
     if (!name || price === undefined) {
@@ -415,7 +405,10 @@ router.post('/', requireEcomAuth, requireWorkspace, requireStoreOwner, async (re
       seoTitle: seoTitle || '',
       seoDescription: seoDescription || '',
       linkedProductId: linkedProductId || null,
-      createdBy: req.user.id
+      createdBy: req.user.id,
+      ...(testimonials?.length > 0 && { testimonials }),
+      ...(faq?.length > 0 && { faq }),
+      ...(_pageData && { _pageData })
     });
 
     await product.save();
@@ -451,7 +444,8 @@ router.put('/:id', requireEcomAuth, requireWorkspace, requireStoreOwner, async (
     const {
       name, description, price, compareAtPrice, stock,
       images, category, tags, isPublished,
-      seoTitle, seoDescription, linkedProductId, currency
+      seoTitle, seoDescription, linkedProductId, currency,
+      testimonials, faq, _pageData
     } = req.body;
 
     // Build update object — only include provided fields
@@ -475,6 +469,9 @@ router.put('/:id', requireEcomAuth, requireWorkspace, requireStoreOwner, async (
     if (seoTitle !== undefined) update.seoTitle = seoTitle;
     if (seoDescription !== undefined) update.seoDescription = seoDescription;
     if (linkedProductId !== undefined) update.linkedProductId = linkedProductId || null;
+    if (testimonials !== undefined) update.testimonials = testimonials;
+    if (faq !== undefined) update.faq = faq;
+    if (_pageData !== undefined) update._pageData = _pageData;
 
     // Regenerate slug if name changed
     if (name) {

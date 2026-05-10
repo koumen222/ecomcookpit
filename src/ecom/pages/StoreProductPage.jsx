@@ -1,17 +1,20 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import {
   ChevronLeft, ChevronRight, ShoppingCart, MessageCircle,
   ShoppingBag, Shield, RotateCcw, Truck, Check,
   ChevronDown, ChevronUp, Star,
 } from 'lucide-react';
 import { useSubdomain } from '../hooks/useSubdomain';
-import { useStoreProduct, injectStoreCssVars } from '../hooks/useStoreData';
+import { useStoreProduct, injectStoreCssVars, prefetchStoreProduct } from '../hooks/useStoreData';
 import { useStoreCart } from '../hooks/useStoreCart';
 import QuickOrderModal from '../components/QuickOrderModal';
+import ProductBenefits from '../components/ProductBenefits';
+import ConversionBlocks, { UrgencyBadge } from '../components/ConversionBlocks';
 import { io } from 'socket.io-client';
 import { setDocumentMeta } from '../utils/pageMeta';
 import { injectPixelScripts, firePixelEvent } from '../utils/pixelTracking';
+import { preloadStoreCheckoutRoute, preloadStoreProductRoute } from '../utils/routePrefetch';
 
 const fmt = (n, cur = 'XAF') => `${new Intl.NumberFormat('fr-FR').format(n)} ${cur}`;
 
@@ -36,7 +39,7 @@ const StorefrontHeader = ({ store, cartCount, prefix }) => (
       maxWidth: 1200, margin: '0 auto', padding: '0 24px',
       height: 64, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
     }}>
-      <a href={`${prefix}/`} style={{ display: 'flex', alignItems: 'center', gap: 12, textDecoration: 'none' }}>
+      <Link to={`${prefix}/`} style={{ display: 'flex', alignItems: 'center', gap: 12, textDecoration: 'none' }}>
         {store?.logo ? (
           <img src={store.logo} alt={store?.name} style={{ height: 36, width: 'auto', maxWidth: 120, objectFit: 'contain' }} />
         ) : (
@@ -51,18 +54,18 @@ const StorefrontHeader = ({ store, cartCount, prefix }) => (
         <span style={{ fontWeight: 700, fontSize: 17, color: 'var(--s-text)', letterSpacing: '-0.01em' }}>
           {store?.name}
         </span>
-      </a>
-      <a href={`${prefix}/checkout`} style={{
+      </Link>
+      <Link to={`${prefix}/checkout`} style={{
         display: 'flex', alignItems: 'center', gap: 7,
         padding: '8px 18px', borderRadius: 40, border: '1.5px solid',
         borderColor: cartCount > 0 ? 'var(--s-primary)' : 'var(--s-border)',
         backgroundColor: cartCount > 0 ? 'var(--s-primary)' : 'transparent',
         color: cartCount > 0 ? '#fff' : 'var(--s-text)',
         textDecoration: 'none', fontWeight: 600, fontSize: 14, fontFamily: 'var(--s-font)',
-      }}>
+      }} onMouseEnter={preloadStoreCheckoutRoute} onFocus={preloadStoreCheckoutRoute} onTouchStart={preloadStoreCheckoutRoute}>
         <ShoppingCart size={17} />
         {cartCount > 0 && <span>{cartCount}</span>}
-      </a>
+      </Link>
     </div>
   </header>
 );
@@ -71,6 +74,7 @@ const StorefrontHeader = ({ store, cartCount, prefix }) => (
 const ImageGallery = ({ images = [] }) => {
   const [active, setActive] = useState(0);
   const [zoomed, setZoomed] = useState(false);
+  const [ratios, setRatios] = useState({});
 
   const go = (dir) => setActive(i => Math.max(0, Math.min(images.length - 1, i + dir)));
 
@@ -98,12 +102,18 @@ const ImageGallery = ({ images = [] }) => {
     </div>
   );
 
+  const activeSrc = images[active]?.url || images[active];
+  const activeRatio = ratios[activeSrc] || 1; // width / height
+  // Padding-bottom fallback pour gérer le ratio sans layout shift violent.
+  // Clamp pour éviter des héros trop plats ou trop hauts sur des images extrêmes.
+  const heroPaddingBottomPct = `${Math.max(45, Math.min(130, (1 / activeRatio) * 100))}%`;
+
   return (
     <div>
       {/* Main image */}
       <div
         style={{
-          position: 'relative', paddingBottom: '100%',
+          position: 'relative', paddingBottom: heroPaddingBottomPct,
           backgroundColor: '#f4f4f5', overflow: 'hidden', cursor: 'zoom-in',
         }}
         onClick={() => setZoomed(true)}
@@ -111,14 +121,25 @@ const ImageGallery = ({ images = [] }) => {
         onTouchEnd={onTouchEnd}
       >
         <img
-          src={images[active]?.url || images[active]}
+          src={activeSrc}
           alt={images[active]?.alt || ''}
           loading="eager"
           fetchpriority="high"
           decoding="async"
+          onLoad={(e) => {
+            const img = e.currentTarget;
+            const w = img.naturalWidth || 0;
+            const h = img.naturalHeight || 0;
+            if (!activeSrc || !w || !h) return;
+            const r = w / h;
+            if (!Number.isFinite(r) || r <= 0) return;
+            setRatios((prev) => (prev[activeSrc] ? prev : { ...prev, [activeSrc]: r }));
+          }}
           style={{
             position: 'absolute', inset: 0, width: '100%', height: '100%',
-            objectFit: 'cover', transition: 'opacity 0.2s',
+            // "Hero" doit afficher l'image complète (pas recadrée)
+            objectFit: 'contain', objectPosition: 'center',
+            transition: 'opacity 0.2s',
           }}
         />
         {/* Arrows */}
@@ -173,7 +194,7 @@ const ImageGallery = ({ images = [] }) => {
               backgroundColor: '#f4f4f5',
             }}>
               <img
-                src={img?.url || img} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                src={img?.url || img} alt="" loading="lazy" decoding="async" style={{ width: '100%', height: '100%', objectFit: 'cover' }}
               />
             </button>
           ))}
@@ -349,47 +370,59 @@ const ProductFeatures = ({ features }) => {
   );
 };
 
-// ── Description (handles both HTML and markdown) ─────────────────────────────
-const removeFaqFromDescriptionHtml = (html = '') => {
+// ── Description ──────────────────────────────────────────────────────────────
+const optimizeDescriptionHtml = (html = '') => {
   if (!html || typeof DOMParser === 'undefined') return html;
 
   try {
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(`<div id="sf-desc-root">${html}</div>`, 'text/html');
-    const root = doc.getElementById('sf-desc-root');
+    const doc = new DOMParser().parseFromString(`<div id="sf-desc-html">${html}</div>`, 'text/html');
+    const root = doc.getElementById('sf-desc-html');
     if (!root) return html;
 
-    const faqSections = Array.from(root.querySelectorAll('div')).filter((element) => {
-      const heading = element.querySelector('h1, h2, h3, h4, h5, h6');
-      return heading && /questions fréquentes|faq/i.test((heading.textContent || '').trim());
+    root.querySelectorAll('img').forEach((img) => {
+      img.setAttribute('loading', 'lazy');
+      img.setAttribute('decoding', 'async');
+      img.setAttribute('fetchpriority', 'low');
     });
 
-    faqSections.forEach((section) => section.remove());
     return root.innerHTML.trim();
   } catch {
     return html;
   }
 };
 
-const removeIntroBeforeAngles = (html = '') => {
-  const h3Index = html.search(/<h3[\s>]/i);
-  if (h3Index > 0) return html.slice(h3Index);
-  return html;
-};
-
 const ProductDescription = ({ content }) => {
-  const ref = useRef(null);
   const rawContent = content?.toString().trim() || '';
-  const isHTML = /<[^>]+>/.test(rawContent);
-  if (!isHTML) return null;
+  if (!rawContent) return null;
 
-  const cleanContent = removeIntroBeforeAngles(rawContent);
-  if (!cleanContent) return null;
+  const isHTML = /<[^>]+>/.test(rawContent);
+  if (!isHTML) {
+    return (
+      <div
+        className="ai-desc"
+        style={{
+          fontSize: 15,
+          lineHeight: 1.75,
+          color: 'var(--s-text2)',
+          fontFamily: 'var(--s-font)',
+          whiteSpace: 'pre-wrap',
+        }}
+      >
+        {rawContent}
+      </div>
+    );
+  }
+
+  const cleanContent = optimizeDescriptionHtml(rawContent);
+  const htmlToRender = (cleanContent && cleanContent.trim()) ? cleanContent : rawContent;
 
   return (
-    <div ref={ref}>
-      <div className="ai-desc" style={{ fontSize: 15, lineHeight: 1.75, color: 'var(--s-text2)', fontFamily: 'var(--s-font)' }}
-        dangerouslySetInnerHTML={{ __html: cleanContent }} />
+    <div>
+      <div
+        className="ai-desc"
+        style={{ fontSize: 15, lineHeight: 1.75, color: 'var(--s-text2)', fontFamily: 'var(--s-font)' }}
+        dangerouslySetInnerHTML={{ __html: htmlToRender }}
+      />
     </div>
   );
 };
@@ -518,6 +551,218 @@ const ProductFaqAccordion = ({ items = [] }) => {
   );
 };
 
+// ── Avis Clients (carrousel) ──────────────────────────────────────────────
+const VerifiedTestimonialsCarousel = ({ testimonials = [], autoPlay = true }) => {
+  const verifiedSlides = (testimonials || []).filter((t) => !!t?.verified);
+  const slides = verifiedSlides.length ? verifiedSlides : (testimonials || []);
+
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [isAutoPlaying, setIsAutoPlaying] = useState(autoPlay);
+
+  useEffect(() => {
+    if (!isAutoPlaying || slides.length <= 1) return;
+
+    const interval = setInterval(() => {
+      setCurrentIndex((prev) => (prev + 1) % slides.length);
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [isAutoPlaying, slides.length]);
+
+  if (!slides || slides.length === 0) return null;
+
+  const goToPrevious = () => {
+    setIsAutoPlaying(false);
+    setCurrentIndex((prev) => (prev - 1 + slides.length) % slides.length);
+  };
+
+  const goToNext = () => {
+    setIsAutoPlaying(false);
+    setCurrentIndex((prev) => (prev + 1) % slides.length);
+  };
+
+  const goToSlide = (index) => {
+    setIsAutoPlaying(false);
+    setCurrentIndex(index);
+  };
+
+  const current = slides[currentIndex];
+  const ratingNum = Number(current?.rating || 5);
+  const fullStars = Math.max(0, Math.min(5, Math.round(ratingNum)));
+
+  const safeText = current?.text || current?.comment || '';
+  const displayDate = (() => {
+    if (!current?.date) return null;
+    const d = new Date(current.date);
+    if (Number.isNaN(d.getTime())) return String(current.date);
+    return d.toLocaleDateString('fr-FR');
+  })();
+
+  return (
+    <div
+      style={{
+        width: '100%',
+        background: 'linear-gradient(135deg, #ecfdf5 0%, #cffafe 100%)',
+        borderRadius: 18,
+        padding: '22px 18px',
+        border: '1px solid rgba(13, 148, 136, 0.18)',
+      }}
+    >
+      <div style={{ textAlign: 'center', marginBottom: 14 }}>
+        <div style={{ fontSize: 20, fontWeight: 900, color: 'var(--s-text)', marginBottom: 2 }}>
+          ⭐ Ce que disent nos clients
+        </div>
+        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--s-text2)' }}>
+          Avis vérifiés de clients satisfaits
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <button
+          onClick={goToPrevious}
+          disabled={slides.length <= 1}
+          style={{
+            width: 44,
+            height: 44,
+            borderRadius: 999,
+            border: '1px solid var(--s-border)',
+            backgroundColor: '#fff',
+            cursor: slides.length > 1 ? 'pointer' : 'not-allowed',
+            opacity: slides.length > 1 ? 1 : 0.6,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+            boxShadow: '0 4px 16px rgba(0,0,0,0.06)',
+          }}
+          aria-label="Avis précédent"
+        >
+          <ChevronLeft size={20} color="var(--s-text)" />
+        </button>
+
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div
+            style={{
+              backgroundColor: '#fff',
+              border: '1px solid rgba(229, 231, 235, 0.9)',
+              borderRadius: 16,
+              padding: 18,
+              boxShadow: '0 10px 30px rgba(0,0,0,0.06)',
+            }}
+          >
+            {/* Étoiles */}
+            <div style={{ display: 'flex', gap: 4, justifyContent: 'center', marginBottom: 10 }}>
+              {[...Array(5)].map((_, i) => (
+                <Star
+                  // eslint-disable-next-line react/no-array-index-key
+                  key={i}
+                  size={18}
+                  fill={i < fullStars ? '#F59E0B' : 'transparent'}
+                  color={i < fullStars ? '#F59E0B' : '#D1D5DB'}
+                />
+              ))}
+            </div>
+
+            {/* Texte */}
+            <p
+              style={{
+                margin: '0 0 14px',
+                color: 'var(--s-text2)',
+                fontStyle: 'italic',
+                fontSize: 14.5,
+                lineHeight: 1.7,
+                textAlign: 'center',
+                fontFamily: 'var(--s-font)',
+              }}
+            >
+              "{safeText}"
+            </p>
+
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: 14, fontWeight: 900, color: 'var(--s-text)', marginBottom: 2 }}>
+                {current?.name || 'Client vérifié'}
+              </div>
+              {current?.location && (
+                <div style={{ fontSize: 12, color: 'var(--s-text2)', fontWeight: 700, marginBottom: 2 }}>
+                  📍 {current.location}
+                </div>
+              )}
+              {displayDate && (
+                <div style={{ fontSize: 11, color: '#9CA3AF', fontWeight: 700 }}>
+                  {displayDate}
+                </div>
+              )}
+              {current?.verified && (
+                <div
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    marginTop: 8,
+                    padding: '6px 12px',
+                    borderRadius: 999,
+                    backgroundColor: 'rgba(16, 185, 129, 0.08)',
+                    color: '#059669',
+                    fontSize: 12,
+                    fontWeight: 900,
+                    border: '1px solid rgba(16, 185, 129, 0.16)',
+                  }}
+                >
+                  ✓ Achat vérifié
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <button
+          onClick={goToNext}
+          disabled={slides.length <= 1}
+          style={{
+            width: 44,
+            height: 44,
+            borderRadius: 999,
+            border: '1px solid var(--s-border)',
+            backgroundColor: '#fff',
+            cursor: slides.length > 1 ? 'pointer' : 'not-allowed',
+            opacity: slides.length > 1 ? 1 : 0.6,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+            boxShadow: '0 4px 16px rgba(0,0,0,0.06)',
+          }}
+          aria-label="Avis suivant"
+        >
+          <ChevronRight size={20} color="var(--s-text)" />
+        </button>
+      </div>
+
+      {slides.length > 1 && (
+        <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginTop: 12 }}>
+          {slides.map((_, index) => (
+            <button
+              key={index}
+              onClick={() => goToSlide(index)}
+              style={{
+                width: index === currentIndex ? 30 : 8,
+                height: 8,
+                borderRadius: 999,
+                border: 'none',
+                cursor: 'pointer',
+                backgroundColor:
+                  index === currentIndex ? 'var(--s-primary)' : 'rgba(107, 114, 128, 0.35)',
+                transition: 'width 0.2s ease, background-color 0.2s ease',
+              }}
+              aria-label={`Aller au témoignage ${index + 1}`}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 // ── Trust Badges ─────────────────────────────────────────────────────────────
 const TrustBadges = ({ compact = false }) => (
   <div className="sf-no-scrollbar" style={{
@@ -551,11 +796,18 @@ const TrustBadges = ({ compact = false }) => (
 );
 
 // ── Related Products ─────────────────────────────────────────────────────────
-const RelatedCard = ({ product, prefix, store }) => {
+const RelatedCard = ({ product, prefix, store, subdomain }) => {
   const [hovered, setHovered] = useState(false);
+  const handlePrefetch = () => {
+    preloadStoreProductRoute();
+    if (subdomain && product?.slug) {
+      prefetchStoreProduct(subdomain, product.slug);
+    }
+  };
+
   return (
-    <a href={`${prefix}/product/${product.slug}`} style={{ textDecoration: 'none' }}
-      onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}>
+    <Link to={`${prefix}/product/${product.slug}`} style={{ textDecoration: 'none' }}
+      onMouseEnter={() => { setHovered(true); handlePrefetch(); }} onMouseLeave={() => setHovered(false)} onFocus={handlePrefetch} onTouchStart={handlePrefetch}>
       <div style={{
         borderRadius: 14, overflow: 'hidden', border: '1px solid var(--s-border)',
         boxShadow: hovered ? '0 8px 24px rgba(0,0,0,0.1)' : '0 1px 4px rgba(0,0,0,0.04)',
@@ -563,7 +815,7 @@ const RelatedCard = ({ product, prefix, store }) => {
       }}>
         <div style={{ paddingBottom: '100%', position: 'relative', backgroundColor: '#f4f4f5', overflow: 'hidden' }}>
           {product.image ? (
-            <img src={product.image} alt={product.name} loading="eager"
+            <img src={product.image} alt={product.name} loading="lazy" decoding="async" sizes="(max-width: 640px) 45vw, (max-width: 1024px) 25vw, 160px"
               style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover',
                 transform: hovered ? 'scale(1.04)' : 'scale(1)', transition: 'transform 0.3s' }} />
           ) : (
@@ -585,7 +837,7 @@ const RelatedCard = ({ product, prefix, store }) => {
           </span>
         </div>
       </div>
-    </a>
+    </Link>
   );
 };
 
@@ -733,7 +985,7 @@ const StoreProductPage = () => {
         <p style={{ fontSize: 48, margin: '0 0 16px' }}>😕</p>
         <h2 style={{ color: '#111', fontWeight: 700, margin: '0 0 8px' }}>Produit introuvable</h2>
         <p style={{ color: '#6B7280', fontSize: 15 }}>{error}</p>
-        <a href={`${prefix}/`} style={{ marginTop: 20, display: 'inline-block', color: 'var(--s-primary)', fontWeight: 600, fontSize: 14 }}>← Accueil</a>
+        <Link to={`${prefix}/`} style={{ marginTop: 20, display: 'inline-block', color: 'var(--s-primary)', fontWeight: 600, fontSize: 14 }}>← Accueil</Link>
       </div>
     </div>
   );
@@ -749,11 +1001,16 @@ const StoreProductPage = () => {
         .ai-desc h3 { font-size:20px; font-weight:800; color:var(--s-text); margin:0 0 12px; line-height:1.3; }
         .ai-desc h3 strong { font-weight:800; }
         .ai-desc p { font-size:15px; line-height:1.75; color:var(--s-text2); margin:0 0 14px; }
-        .ai-desc img { width:100% !important; max-width:none !important; aspect-ratio:1 / 1; object-fit:cover; display:block; margin:0 0 0; }
+        .ai-desc img { width:auto !important; max-width:100% !important; height:auto !important; aspect-ratio:auto !important; object-fit:contain !important; display:block; margin:0 0 0; }
         .ai-desc ul { margin:0; padding:0; list-style:none; }
         .ai-desc ul li { display:flex; align-items:flex-start; gap:10px; margin-bottom:10px; font-size:14px; }
-        .ai-desc-testimonials { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:16px; }
-        @media(max-width:640px){ .ai-desc-testimonials { grid-template-columns:1fr; } }
+        .ai-desc-testimonials { display:flex; overflow-x:auto; scroll-snap-type:x mandatory; gap:16px; padding-bottom:12px; scroll-behavior:smooth; -webkit-overflow-scrolling:touch; cursor:grab; }
+        .ai-desc-testimonials:active { cursor:grabbing; }
+        .ai-desc-testimonials::-webkit-scrollbar { height:4px; }
+        .ai-desc-testimonials::-webkit-scrollbar-track { background:#f3f4f6; border-radius:9px; }
+        .ai-desc-testimonials::-webkit-scrollbar-thumb { background:#d1d5db; border-radius:9px; }
+        .ai-desc-testimonials > * { flex:0 0 min(85%,300px); scroll-snap-align:center; }
+        @media(max-width:640px){ .ai-desc-testimonials > * { flex:0 0 85%; } }
       `}</style>
 
       {/* Barre d'annonce */}
@@ -774,7 +1031,7 @@ const StoreProductPage = () => {
       <StorefrontHeader store={store} cartCount={cartCount} prefix={prefix} />
 
       {/* Product Detail */}
-      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '8px 24px 0' }}>
+      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '8px 0 0' }}>
         <div className="product-grid" style={{
           display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 48, alignItems: 'start',
         }}>
@@ -784,7 +1041,7 @@ const StoreProductPage = () => {
           </div>
 
           {/* ── Right: Info ───────────────────────────────────────────────── */}
-          <div style={{ paddingBottom: 48 }}>
+          <div style={{ padding: '0 24px 48px 24px' }}>
             {product ? (
               <>
                 {/* Category */}
@@ -830,7 +1087,7 @@ const StoreProductPage = () => {
                 </div>
 
                 {/* Stock badge */}
-                <div style={{ marginBottom: 24 }}>
+                <div style={{ marginBottom: 16 }}>
                   {!inStock ? (
                     <span style={{ fontSize: 13, fontWeight: 600, color: '#EF4444', padding: '4px 12px', borderRadius: 20, backgroundColor: '#FEE2E2' }}>
                       Rupture de stock
@@ -845,6 +1102,20 @@ const StoreProductPage = () => {
                     </span>
                   )}
                 </div>
+
+                {/* Urgency elements */}
+                {product._pageData?.urgency_elements && (
+                  <UrgencyBadge
+                    stockLimited={product._pageData.urgency_elements.stock_limited}
+                    socialProofCount={product._pageData.urgency_elements.social_proof_count}
+                    quickResult={product._pageData.urgency_elements.quick_result}
+                  />
+                )}
+
+                {/* Benefits bullets with emojis */}
+                {product._pageData?.benefits_bullets && product._pageData.benefits_bullets.length > 0 && (
+                  <ProductBenefits benefits={product._pageData.benefits_bullets} title="💥 Les bénéfices" />
+                )}
 
                 {/* CTA Buttons */}
                 <div ref={ctaButtonsRef} style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
@@ -896,35 +1167,42 @@ const StoreProductPage = () => {
 
                 </div>
 
+                {/* Conversion blocks */}
+                {product._pageData?.conversion_blocks && product._pageData.conversion_blocks.length > 0 && (
+                  <ConversionBlocks blocks={product._pageData.conversion_blocks} />
+                )}
+
                 {/* Messages de confiance */}
                 {showTrustBadges && <TrustBadges compact />}
 
-                {/* Description IA + FAQ — sections réductibles */}
                 {(() => {
                   const raw = product.description?.toString().trim() || '';
                   const hasHtml = raw && /<[^>]+>/.test(raw);
 
-                  // FAQ : priorité product.faq, sinon extraction depuis HTML
                   const faqItems = product.faq?.length > 0
                     ? product.faq
                     : (showFaq && hasHtml ? extractFaqItemsFromHtml(raw) : []);
                   const hasFaq = showFaq && faqItems.length > 0;
 
-                  // Description nettoyée : retirer la section FAQ du HTML
-                  const descHtml = hasHtml ? removeFaqFromDescriptionHtml(raw) : '';
-                  const hasDesc = !!descHtml;
+                  const hasDesc = !!raw?.trim();
 
                   return (
                     <>
                       {hasDesc && (
-                        <CollapsibleSection title="Description du produit" defaultOpen={true}>
-                          <ProductDescription content={descHtml} />
-                        </CollapsibleSection>
+                        <div style={{ borderTop: '1px solid var(--s-border)', marginTop: 8, paddingTop: 16, paddingBottom: 8 }}>
+                          <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--s-text)', fontFamily: 'var(--s-font)', marginBottom: 12 }}>
+                            Description du produit
+                          </div>
+                          <ProductDescription content={raw} />
+                        </div>
                       )}
                       {hasFaq && (
-                        <CollapsibleSection title="❓ Questions fréquentes" defaultOpen={false}>
-                          <ProductFaqAccordion items={faqItems} />
-                        </CollapsibleSection>
+                        <ProductFaqAccordion items={faqItems} />
+                      )}
+                      {product.testimonials && product.testimonials.length > 0 && (
+                        <div style={{ marginTop: 32, marginBottom: 32 }}>
+                          <VerifiedTestimonialsCarousel testimonials={product.testimonials} autoPlay={true} />
+                        </div>
                       )}
                     </>
                   );
@@ -945,7 +1223,7 @@ const StoreProductPage = () => {
             Vous aimerez aussi
           </h2>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 16 }}>
-            {related.map(p => <RelatedCard key={p._id} product={p} prefix={prefix} store={store} />)}
+            {related.map(p => <RelatedCard key={p._id} product={p} prefix={prefix} store={store} subdomain={store?.subdomain} />)}
           </div>
         </section>
       )}

@@ -2,7 +2,7 @@
 import {
   Building2, Users, CheckCircle2, XCircle, Copy, Calendar,
   Mail, Power, PowerOff, AlertCircle, Loader2,
-  Shield, Zap, Building, Crown, ChevronDown
+  Shield, Zap, Building, Crown, ChevronDown, Search
 } from 'lucide-react';
 import ecomApi from '../services/ecommApi.js';
 import { getContextualError } from '../utils/errorMessages';
@@ -12,6 +12,8 @@ const SuperAdminWorkspaces = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [editingGenerations, setEditingGenerations] = useState({});
+  const [searchTerm, setSearchTerm] = useState('');
 
   const fetchWorkspaces = async () => {
     try {
@@ -37,6 +39,20 @@ const SuperAdminWorkspaces = () => {
     }
   };
 
+  const handleUpdateGenerations = async (wsId, freeGenerations, paidGenerations) => {
+    try {
+      const res = await ecomApi.patch(`/super-admin/workspaces/${wsId}/generations`, {
+        freeGenerations: parseInt(freeGenerations) || 0,
+        paidGenerations: parseInt(paidGenerations) || 0
+      });
+      setSuccess(res.data.message || 'Générations mises à jour');
+      setEditingGenerations({ ...editingGenerations, [wsId]: false });
+      fetchWorkspaces();
+    } catch (err) {
+      setError(getContextualError(err, 'update_settings'));
+    }
+  };
+
   const copyCode = (code) => { navigator.clipboard.writeText(code); setSuccess('Code copié !'); };
 
   useEffect(() => { if (success) { const t = setTimeout(() => setSuccess(''), 3000); return () => clearTimeout(t); } }, [success]);
@@ -51,10 +67,21 @@ const SuperAdminWorkspaces = () => {
     </div>
   );
 
-  const active = workspaces.filter(w => w.isActive).length;
-  const inactive = workspaces.length - active;
-  const totalMembers = workspaces.reduce((sum, w) => sum + (w.memberCount || 0), 0);
-  const avgMembers = workspaces.length > 0 ? (totalMembers / workspaces.length).toFixed(1) : 0;
+  // Filtrage des workspaces
+  const filteredWorkspaces = workspaces.filter(w => {
+    if (!searchTerm) return true;
+    const term = searchTerm.toLowerCase();
+    return (
+      w.name?.toLowerCase().includes(term) ||
+      w.slug?.toLowerCase().includes(term) ||
+      w.owner?.email?.toLowerCase().includes(term)
+    );
+  });
+
+  const active = filteredWorkspaces.filter(w => w.isActive).length;
+  const inactive = filteredWorkspaces.length - active;
+  const totalMembers = filteredWorkspaces.reduce((sum, w) => sum + (w.memberCount || 0), 0);
+  const avgMembers = filteredWorkspaces.length > 0 ? (totalMembers / filteredWorkspaces.length).toFixed(1) : 0;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50">
@@ -101,6 +128,26 @@ const SuperAdminWorkspaces = () => {
           </div>
         </div>
 
+        {/* Search Bar */}
+        <div className="relative">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Rechercher un espace (nom, slug, email propriétaire...)" 
+            className="w-full pl-12 pr-4 py-3.5 bg-white border-2 border-slate-200 rounded-xl text-sm font-medium text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
+          />
+          {searchTerm && (
+            <button
+              onClick={() => setSearchTerm('')}
+              className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition"
+            >
+              <XCircle className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+
         {/* Stats */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           {[
@@ -124,12 +171,41 @@ const SuperAdminWorkspaces = () => {
           })}
         </div>
 
+        {/* Search results info */}
+        {searchTerm && (
+          <div className="flex items-center gap-2 text-sm text-slate-600">
+            <Search className="w-4 h-4" />
+            <span>
+              <strong>{filteredWorkspaces.length}</strong> résultat{filteredWorkspaces.length !== 1 ? 's' : ''} pour <strong>"{searchTerm}"</strong>
+            </span>
+            {filteredWorkspaces.length < workspaces.length && (
+              <span className="text-slate-400">sur {workspaces.length} total</span>
+            )}
+          </div>
+        )}
+
         {/* Workspaces grid */}
-        {workspaces.length === 0 ? (
+        {filteredWorkspaces.length === 0 ? (
           <div className="bg-white rounded-2xl border-2 border-slate-200 p-20 text-center shadow-lg">
-            <Building className="w-16 h-16 text-slate-300 mx-auto mb-4" />
-            <p className="text-lg font-black text-slate-400">Aucun espace créé</p>
-            <p className="text-sm text-slate-400 mt-2">Les workspaces apparaîtront ici</p>
+            {searchTerm ? (
+              <>
+                <Search className="w-16 h-16 text-slate-300 mx-auto mb-4" />
+                <p className="text-lg font-black text-slate-400">Aucun résultat</p>
+                <p className="text-sm text-slate-400 mt-2">Aucun espace ne correspond à "{searchTerm}"</p>
+                <button
+                  onClick={() => setSearchTerm('')}
+                  className="mt-4 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition"
+                >
+                  Réinitialiser la recherche
+                </button>
+              </>
+            ) : (
+              <>
+                <Building className="w-16 h-16 text-slate-300 mx-auto mb-4" />
+                <p className="text-lg font-black text-slate-400">Aucun espace créé</p>
+                <p className="text-sm text-slate-400 mt-2">Les workspaces apparaîtront ici</p>
+              </>
+            )}
           </div>
         ) : (
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
@@ -208,6 +284,77 @@ const SuperAdminWorkspaces = () => {
                       Expire le {new Date(ws.planExpiresAt).toLocaleDateString('fr-FR')}
                     </p>
                   )}
+
+                  {/* Générations IA */}
+                  <div className="mb-4 p-3 bg-gradient-to-br from-violet-50 to-purple-50 border border-violet-200 rounded-xl">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Zap className="w-4 h-4 text-violet-600" />
+                      <span className="text-xs font-bold text-violet-900">Générations IA</span>
+                    </div>
+                    {editingGenerations[ws._id] ? (
+                      <div className="space-y-2">
+                        <div>
+                          <label className="text-[10px] text-violet-700 font-medium block mb-1">Gratuites</label>
+                          <input
+                            type="number"
+                            min="0"
+                            defaultValue={ws.freeGenerationsRemaining || 0}
+                            id={`free-${ws._id}`}
+                            className="w-full text-xs border border-violet-300 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-violet-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-violet-700 font-medium block mb-1">Payées</label>
+                          <input
+                            type="number"
+                            min="0"
+                            defaultValue={ws.paidGenerationsRemaining || 0}
+                            id={`paid-${ws._id}`}
+                            className="w-full text-xs border border-violet-300 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-violet-500"
+                          />
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => {
+                              const freeVal = document.getElementById(`free-${ws._id}`).value;
+                              const paidVal = document.getElementById(`paid-${ws._id}`).value;
+                              handleUpdateGenerations(ws._id, freeVal, paidVal);
+                            }}
+                            className="flex-1 py-1.5 bg-violet-600 text-white rounded-lg text-xs font-bold hover:bg-violet-700 transition"
+                          >
+                            Valider
+                          </button>
+                          <button
+                            onClick={() => setEditingGenerations({ ...editingGenerations, [ws._id]: false })}
+                            className="flex-1 py-1.5 bg-gray-200 text-gray-700 rounded-lg text-xs font-bold hover:bg-gray-300 transition"
+                          >
+                            Annuler
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div>
+                        <div className="flex justify-between items-center mb-1">
+                          <span className="text-[10px] text-violet-700">Gratuites:</span>
+                          <span className="text-xs font-bold text-emerald-600">{ws.freeGenerationsRemaining || 0}</span>
+                        </div>
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="text-[10px] text-violet-700">Payées:</span>
+                          <span className="text-xs font-bold text-violet-600">{ws.paidGenerationsRemaining || 0}</span>
+                        </div>
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="text-[10px] text-violet-700">Total utilisées:</span>
+                          <span className="text-xs font-bold text-gray-600">{ws.totalGenerations || 0}</span>
+                        </div>
+                        <button
+                          onClick={() => setEditingGenerations({ ...editingGenerations, [ws._id]: true })}
+                          className="w-full py-1.5 bg-violet-100 text-violet-700 rounded-lg text-xs font-bold hover:bg-violet-200 transition"
+                        >
+                          Modifier
+                        </button>
+                      </div>
+                    )}
+                  </div>
 
                   {/* Action button */}
                   <button

@@ -13,10 +13,11 @@
 
 import express from 'express';
 import multer from 'multer';
+import sharp from 'sharp';
 import { requireEcomAuth, validateEcomAccess } from '../middleware/ecomAuth.js';
 import { analyzeWithVision, generatePosterImage } from '../services/productPageGeneratorService.js';
 import { uploadImage } from '../services/cloudflareImagesService.js';
-import { scrapeAlibaba } from '../services/alibabaScraper.js';
+import { extractProductInfo } from '../services/geminiProductExtractor.js';
 import EcomWorkspace from '../models/Workspace.js';
 
 const router = express.Router();
@@ -55,9 +56,37 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
   lock.userId = userId;
   lock.startedAt = Date.now();
 
-  const { url, description: userDescription, skipScraping, marketingApproach } = req.body || {};
+  const { 
+    url, 
+    description: userDescription, 
+    skipScraping, 
+    marketingApproach,
+    // Nouveaux paramètres copywriting avancés
+    copywritingAngle,
+    targetAudience,
+    customerReviews,
+    socialProofLinks,
+    mainOffer,
+    objections,
+    keyBenefits,
+    tone,
+    language
+  } = req.body || {};
   const imageFiles = req.files || [];
   const approach = marketingApproach || 'AIDA'; // Default to AIDA if not specified
+  
+  // Préparer le contexte copywriting avancé
+  const copywritingContext = {
+    angle: copywritingAngle || 'PROBLEME_SOLUTION',
+    audience: targetAudience || '',
+    reviews: customerReviews || '',
+    socialProof: socialProofLinks || '',
+    offer: mainOffer || '',
+    objections: objections || '',
+    benefits: keyBenefits || '',
+    tone: tone || 'urgence',
+    language: language || 'français'
+  };
 
   // ── Validation selon le mode ──────────────────────────────────────────────
   const isDescriptionMode = skipScraping === 'true' || skipScraping === true;
@@ -73,15 +102,16 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       return res.status(400).json({ success: false, message: 'Au moins une photo requise en mode description' });
     }
   } else {
-    // Mode URL Alibaba
+    // Mode URL produit
     if (!url || typeof url !== 'string' || url.trim().length < 10) {
       releaseLock(userId);
-      return res.status(400).json({ success: false, message: 'URL Alibaba requise' });
+      return res.status(400).json({ success: false, message: 'URL du produit requise' });
     }
     const cleanUrl = url.trim();
-    if (!cleanUrl.includes('alibaba.com') && !cleanUrl.includes('aliexpress.com')) {
+    // Validation basique de l'URL
+    if (!cleanUrl.startsWith('http://') && !cleanUrl.startsWith('https://')) {
       releaseLock(userId);
-      return res.status(400).json({ success: false, message: 'URL Alibaba ou AliExpress requise' });
+      return res.status(400).json({ success: false, message: 'URL invalide - doit commencer par http:// ou https://' });
     }
   }
 
@@ -93,21 +123,62 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
   let storeContext = {};
 
   try {
+    let workspace;
     if (req.workspaceId) {
-      const workspace = await EcomWorkspace.findById(req.workspaceId)
-        .select('storeSettings.country storeSettings.city')
-        .lean();
+      workspace = await EcomWorkspace.findById(req.workspaceId)
+        .select('storeSettings.country storeSettings.city storeSettings.storeName name freeGenerationsRemaining paidGenerationsRemaining totalGenerations');
+      
+      if (!workspace) {
+        releaseLock(userId);
+        return res.status(404).json({ success: false, message: 'Workspace introuvable' });
+      }
+
       storeContext = {
         country: workspace?.storeSettings?.country || '',
         city: workspace?.storeSettings?.city || '',
+        shopName: workspace?.storeSettings?.storeName || workspace?.name || '',
       };
     }
 
     // ══════════════════════════════════════════════════════════════════════════
-    // ÉTAPE 1 : Scraping minimal OU utilisation de la description directe
+    // VÉRIFICATION DES LIMITES DE GÉNÉRATION
+    // ══════════════════════════════════════════════════════════════════════════
+    if (workspace) {
+      const freeRemaining = workspace.freeGenerationsRemaining || 0;
+      const paidRemaining = workspace.paidGenerationsRemaining || 0;
+      const totalRemaining = freeRemaining + paidRemaining;
+
+      if (totalRemaining <= 0) {
+        releaseLock(userId);
+        return res.status(403).json({ 
+          success: false, 
+          limitReached: true,
+          message: '🎯 Tu as utilisé tes 3 générations gratuites !\n\nPour continuer à générer des pages produit optimisées, débloque une nouvelle génération pour seulement 1500 FCFA.',
+          freeRemaining: 0,
+          paidRemaining: 0,
+          totalGenerations: workspace.totalGenerations || 0
+        });
+      }
+
+      // Décrémenter le compteur (priorité : gratuit d'abord, puis payant)
+      if (freeRemaining > 0) {
+        workspace.freeGenerationsRemaining = freeRemaining - 1;
+      } else if (paidRemaining > 0) {
+        workspace.paidGenerationsRemaining = paidRemaining - 1;
+      }
+      
+      workspace.totalGenerations = (workspace.totalGenerations || 0) + 1;
+      workspace.lastGenerationAt = new Date();
+      await workspace.save();
+
+      console.log(`✅ Génération autorisée. Reste: ${workspace.freeGenerationsRemaining} gratuite(s) + ${workspace.paidGenerationsRemaining} payante(s)`);
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // ÉTAPE 1 : Extraction des infos produit avec Gemini OU utilisation de la description directe
     // ══════════════════════════════════════════════════════════════════════════
     if (isDescriptionMode) {
-      console.log('📝 Étape 1: Mode description directe (skip scraping)');
+      console.log('📝 Étape 1: Mode description directe (skip extraction Gemini)');
       scraped = {
         title: 'Produit',
         description: userDescription.trim(),
@@ -115,9 +186,9 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       };
       console.log('✅ Description utilisée:', userDescription.slice(0, 100));
     } else {
-      console.log('📡 Étape 1: Scraping', cleanUrl);
-      scraped = await scrapeAlibaba(cleanUrl);
-      console.log('✅ Scraping OK:', { title: scraped.title?.slice(0, 50) });
+      console.log('🤖 Étape 1: Extraction Gemini depuis', cleanUrl);
+      scraped = await extractProductInfo(cleanUrl);
+      console.log('✅ Extraction Gemini OK:', { title: scraped.title?.slice(0, 50) });
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -127,7 +198,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
     
     const imageBuffers = (imageFiles || []).map(f => f.buffer);
     
-    gptResult = await analyzeWithVision(scraped, imageBuffers, approach, storeContext);
+    gptResult = await analyzeWithVision(scraped, imageBuffers, approach, storeContext, copywritingContext);
     
     console.log('✅ GPT OK:', {
       title: gptResult.title?.slice(0, 40),
@@ -176,10 +247,17 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
           imageBuffer = Buffer.from(resp.data);
         }
 
-        const uploaded = await uploadImage(imageBuffer, filename, {
+        // Resize to 1080x1100
+        imageBuffer = await sharp(imageBuffer)
+          .resize(1080, 1100, { fit: 'cover', position: 'centre' })
+          .jpeg({ quality: 92 })
+          .toBuffer();
+
+        const resizedFilename = filename.replace(/\.[^.]+$/, '.jpg');
+        const uploaded = await uploadImage(imageBuffer, resizedFilename, {
           workspaceId: req.workspaceId,
           uploadedBy: userId,
-          mimeType: 'image/png'
+          mimeType: 'image/jpeg'
         });
         return uploaded?.url || null;
       } catch (err) {
@@ -198,18 +276,24 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
         .then(url => ({ type: 'hero', url }))
     );
 
-    // Avant/Après
+    // Hero Poster (affiche graphique)
     imagePromises.push(
-      generateAndUpload(gptResult.prompt_avant_apres, null, `before-after-${Date.now()}.png`, 'before_after')
+      generateAndUpload(gptResult.prompt_hero_poster, baseImageBuffer, `hero-poster-${Date.now()}.png`, 'hero_poster')
+        .then(url => ({ type: 'heroPoster', url }))
+    );
+
+    // Avant/Après — baseImageBuffer pour garder le VRAI produit
+    imagePromises.push(
+      generateAndUpload(gptResult.prompt_avant_apres, baseImageBuffer, `before-after-${Date.now()}.png`, 'before_after')
         .then(url => ({ type: 'beforeAfter', url }))
     );
 
-    // 4 Affiches publicitaires
+    // 4 Affiches publicitaires — baseImageBuffer pour garder le VRAI produit
     for (let i = 0; i < 4; i++) {
       const angle = gptResult.angles?.[i];
       if (angle?.prompt_affiche) {
         imagePromises.push(
-          generateAndUpload(angle.prompt_affiche, null, `poster-${i + 1}-${Date.now()}.png`, 'scene')
+          generateAndUpload(angle.prompt_affiche, baseImageBuffer, `poster-${i + 1}-${Date.now()}.png`, 'scene')
             .then(url => ({ type: 'poster', index: i, url, angle }))
         );
       } else {
@@ -217,24 +301,35 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       }
     }
 
-    // Exécuter toutes les générations en parallèle
-    const imageResults = await Promise.all(imagePromises);
+    // Exécuter toutes les générations en parallèle avec timeout global de 90s
+    const IMAGE_TIMEOUT_MS = 90000;
+    const withTimeout = (promise, fallback) =>
+      Promise.race([
+        promise,
+        new Promise(resolve => setTimeout(() => resolve(fallback), IMAGE_TIMEOUT_MS))
+      ]);
 
-    // Extraire les résultats
-    let heroImageUrl = imageResults.find(r => r.type === 'hero')?.url || realPhotos[0] || null;
-    let beforeAfterImageUrl = imageResults.find(r => r.type === 'beforeAfter')?.url || null;
+    const imageResults = await Promise.allSettled(
+      imagePromises.map(p => withTimeout(p, null))
+    ).then(results => results.map(r => (r.status === 'fulfilled' ? r.value : null)));
+
+    // Extraire les résultats (nulls possibles si timeout)
+    let heroImageUrl = imageResults.find(r => r?.type === 'hero')?.url || realPhotos[0] || null;
+    let heroPosterImageUrl = imageResults.find(r => r?.type === 'heroPoster')?.url || null;
+    let beforeAfterImageUrl = imageResults.find(r => r?.type === 'beforeAfter')?.url || null;
 
     const posterImages = imageResults
-      .filter(r => r.type === 'poster')
-      .sort((a, b) => a.index - b.index)
+      .filter(r => r?.type === 'poster')
+      .sort((a, b) => (a?.index ?? 0) - (b?.index ?? 0))
       .map(r => ({
-        ...r.angle,
-        poster_url: r.url || realPhotos[r.index] || realPhotos[0] || null,
-        index: r.index + 1
+        ...r?.angle,
+        poster_url: r?.url || realPhotos[r?.index] || realPhotos[0] || null,
+        index: (r?.index ?? 0) + 1
       }));
 
     console.log('✅ Images générées:', {
       hero: !!heroImageUrl,
+      heroPoster: !!heroPosterImageUrl,
       beforeAfter: !!beforeAfterImageUrl,
       posters: posterImages.filter(p => p.poster_url).length
     });
@@ -268,10 +363,21 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       hero_headline: gptResult.hero_headline || null,
       hero_slogan: gptResult.hero_slogan || null,
       hero_baseline: gptResult.hero_baseline || null,
+      hero_cta: gptResult.hero_cta || null,
+      urgency_badge: gptResult.urgency_badge || null,
+      problem_section: gptResult.problem_section || null,
+      solution_section: gptResult.solution_section || null,
+      stats_bar: gptResult.stats_bar || [],
+      offer_block: gptResult.offer_block || null,
+      seo: gptResult.seo || null,
       heroImage: heroImageUrl || realPhotos[0] || null,
+      heroPosterImage: heroPosterImageUrl || null,
       beforeAfterImage: beforeAfterImageUrl || null,
       angles: posterImages,
       raisons_acheter: gptResult.raisons_acheter || [],
+      benefits_bullets: gptResult.benefits_bullets || [],
+      conversion_blocks: gptResult.conversion_blocks || [],
+      urgency_elements: gptResult.urgency_elements || null,
       faq: gptResult.faq || [],
       testimonials: gptResult.testimonials || [],
       reassurance: gptResult.reassurance || null,
@@ -280,6 +386,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       realPhotos,
       allImages: [
         ...(heroImageUrl ? [heroImageUrl] : []),
+        ...(heroPosterImageUrl ? [heroPosterImageUrl] : []),
         ...(beforeAfterImageUrl ? [beforeAfterImageUrl] : []),
         ...realPhotos,
         ...posterImages.map(p => p.poster_url).filter(Boolean)
@@ -291,7 +398,23 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
 
     releaseLock(userId);
     console.log('✅ Page produit générée avec succès');
-    return res.json({ success: true, product: productPage });
+    
+    // Récupérer le nombre de générations restantes pour l'inclure dans la réponse
+    const updatedWorkspace = workspace ? await EcomWorkspace.findById(workspace._id)
+      .select('freeGenerationsRemaining paidGenerationsRemaining totalGenerations')
+      .lean() : null;
+    
+    const generationsInfo = updatedWorkspace ? {
+      freeRemaining: updatedWorkspace.freeGenerationsRemaining || 0,
+      paidRemaining: updatedWorkspace.paidGenerationsRemaining || 0,
+      totalUsed: updatedWorkspace.totalGenerations || 0
+    } : null;
+
+    return res.json({ 
+      success: true, 
+      product: productPage,
+      generations: generationsInfo
+    });
 
   } catch (error) {
     console.error('❌ Erreur génération:', error.message);
