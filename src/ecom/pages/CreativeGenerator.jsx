@@ -123,40 +123,48 @@ const CreativeGenerator = () => {
   const activeTpl = TEMPLATES.find(t => t.id === visualTemplate) || TEMPLATES[0];
 
   return (
-    <div className="min-h-screen bg-[#f5f6fa]">
+    <div className="min-h-screen bg-gray-50">
 
       {/* ── Hero Banner ─────────────────────────────────────────── */}
-      <div className="bg-gradient-to-br from-[#0f172a] via-[#1e1b4b] to-[#0f172a] px-6 py-8">
-        <div className="max-w-6xl mx-auto flex items-center justify-between gap-6 flex-wrap">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center shadow-xl shadow-violet-500/30">
-              <Sparkles size={22} className="text-white" />
+      <div className="fixed top-0 left-0 lg:left-[220px] right-0 z-20 bg-scalor-black px-6 py-3">
+        <div className="max-w-6xl mx-auto flex items-center justify-between gap-4">
+          {/* Left: icon + title + chips */}
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-scalor-green flex items-center justify-center shrink-0">
+              <Sparkles size={14} className="text-white" />
             </div>
             <div>
-              <h1 className="text-white font-black text-2xl tracking-tight leading-none">Listing Image Generator</h1>
-              <p className="text-violet-300 text-sm mt-0.5 font-medium">Visuels produit premium • 100% IA • Format carré 1:1</p>
+              <h1 className="text-white font-black text-base tracking-tight leading-none">Creatives Image</h1>
+              <p className="text-white/40 text-[11px] mt-0.5">Visuels produit premium • 100% IA</p>
+            </div>
+            <div className="hidden lg:flex items-center gap-1.5 ml-2">
+              {[
+                { icon: Zap, label: '7 formats' },
+                { icon: Image, label: 'Image-to-image' },
+                { icon: Star, label: 'HD' },
+                { icon: Shield, label: '1:1' },
+              ].map(({ icon: Icon, label }) => (
+                <div key={label} className="flex items-center gap-1 bg-white/5 border border-white/10 rounded-full px-2 py-0.5">
+                  <Icon size={10} className="text-white/30" />
+                  <span className="text-white/50 text-[10px] font-medium">{label}</span>
+                </div>
+              ))}
             </div>
           </div>
-          <div className="flex items-center gap-3 flex-wrap">
-            {[
-              { icon: Zap, label: '7 formats' },
-              { icon: Shield, label: 'Image-to-image' },
-              { icon: Star, label: 'Qualité HD' },
-            ].map(({ icon: Icon, label }) => (
-              <div key={label} className="flex items-center gap-1.5 bg-white/10 backdrop-blur-sm border border-white/10 rounded-full px-3 py-1.5">
-                <Icon size={12} className="text-violet-300" />
-                <span className="text-white/80 text-xs font-semibold">{label}</span>
-              </div>
-            ))}
+          {/* Right: price badge */}
+          <div className="flex items-center gap-2 bg-scalor-green/10 border border-scalor-green/30 rounded-lg px-3 py-1.5 shrink-0">
+            <span className="text-scalor-green font-black text-sm">80 FCFA</span>
+            <span className="text-white/40 text-xs hidden sm:inline">/ image</span>
           </div>
         </div>
       </div>
+      <div className="h-px bg-gradient-to-r from-transparent via-scalor-green/40 to-transparent" />
 
-      <div className="max-w-6xl mx-auto px-4 py-6">
+      <div className="max-w-6xl mx-auto px-4 py-6 pt-[72px]">
         <div className="flex gap-6 items-start flex-col lg:flex-row">
 
           {/* ── LEFT: Config Panel ─────────────────────────────────── */}
-          <div className="w-full lg:w-[380px] shrink-0 space-y-4 lg:sticky lg:top-6">
+          <div className="w-full lg:w-[380px] shrink-0 space-y-4 lg:sticky lg:top-[68px]">
 
             {/* Upload produit */}
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
@@ -168,13 +176,13 @@ const CreativeGenerator = () => {
                 {!imagePreview ? (
                   <button
                     onClick={() => fileInputRef.current?.click()}
-                    className="w-full py-7 border-2 border-dashed border-gray-200 rounded-xl hover:border-violet-300 hover:bg-violet-50/40 transition-all flex flex-col items-center gap-2.5 group"
+                    className="w-full py-7 border-2 border-dashed border-gray-200 rounded-xl hover:border-scalor-green-light hover:bg-green-50/40 transition-all flex flex-col items-center gap-2.5 group"
                   >
-                    <div className="w-11 h-11 rounded-xl bg-gray-100 group-hover:bg-violet-100 flex items-center justify-center transition-colors">
-                      <Upload size={20} className="text-gray-400 group-hover:text-violet-500" />
+                    <div className="w-11 h-11 rounded-xl bg-gray-100 group-hover:bg-green-100 flex items-center justify-center transition-colors">
+                      <Upload size={20} className="text-gray-400 group-hover:text-scalor-green" />
                     </div>
                     <div className="text-center">
-                      <span className="block text-sm font-semibold text-gray-600 group-hover:text-violet-600">Glissez ou cliquez</span>
+                      <span className="block text-sm font-semibold text-gray-600 group-hover:text-scalor-green">Glissez ou cliquez</span>
                       <span className="text-xs text-gray-400">PNG, JPG, WebP — max 10 MB</span>
                     </div>
                   </button>
@@ -184,7 +192,7 @@ const CreativeGenerator = () => {
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-gray-800 truncate">{productImage?.name}</p>
                       <p className="text-xs text-gray-400">{productImage ? `${(productImage.size / 1024).toFixed(0)} KB` : ''}</p>
-                      <button onClick={() => fileInputRef.current?.click()} className="text-xs font-semibold text-violet-600 mt-1 hover:text-violet-700">Changer l'image</button>
+                      <button onClick={() => fileInputRef.current?.click()} className="text-xs font-semibold text-scalor-green mt-1 hover:text-scalor-green-dark">Changer l'image</button>
                     </div>
                     <button onClick={removeImage} className="w-7 h-7 rounded-full bg-red-50 border border-red-100 text-red-400 flex items-center justify-center hover:bg-red-100 transition-colors shrink-0">
                       <X size={13} />
@@ -206,7 +214,7 @@ const CreativeGenerator = () => {
                     value={url}
                     onChange={e => setUrl(e.target.value)}
                     placeholder="https://alibaba.com/product/..."
-                    className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100 transition-all bg-gray-50 placeholder:text-gray-400"
+                    className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-scalor-green-light focus:ring-2 focus:ring-green-100 transition-all bg-gray-50 placeholder:text-gray-400"
                   />
                 </div>
               </div>
@@ -217,7 +225,7 @@ const CreativeGenerator = () => {
                   onChange={e => setDescription(e.target.value)}
                   placeholder="Ex: Gélules nootropiques au collagène, 60 capsules, ingrédients naturels…"
                   rows={3}
-                  className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100 transition-all bg-gray-50 placeholder:text-gray-400 resize-none"
+                  className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-scalor-green-light focus:ring-2 focus:ring-green-100 transition-all bg-gray-50 placeholder:text-gray-400 resize-none"
                 />
               </div>
             </div>
@@ -232,18 +240,18 @@ const CreativeGenerator = () => {
                     onClick={() => setVisualTemplate(tpl.id)}
                     className={`relative flex flex-col items-center gap-1.5 py-2.5 px-1 rounded-xl border-2 transition-all ${
                       visualTemplate === tpl.id
-                        ? 'border-violet-500 bg-violet-50 shadow-sm'
+                        ? 'border-scalor-green bg-green-50 shadow-sm'
                         : 'border-gray-100 hover:border-gray-200 hover:bg-gray-50'
                     }`}
                   >
                     <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${tpl.color} flex items-center justify-center text-base shadow-sm`}>
                       {tpl.icon}
                     </div>
-                    <span className={`text-[10px] font-bold leading-none text-center ${visualTemplate === tpl.id ? 'text-violet-700' : 'text-gray-500'}`}>
+                    <span className={`text-[10px] font-bold leading-none text-center ${visualTemplate === tpl.id ? 'text-scalor-green-dark' : 'text-gray-500'}`}>
                       {tpl.title}
                     </span>
                     {visualTemplate === tpl.id && (
-                      <div className="absolute -top-1 -right-1 w-4 h-4 bg-violet-500 rounded-full flex items-center justify-center">
+                      <div className="absolute -top-1 -right-1 w-4 h-4 bg-scalor-green rounded-full flex items-center justify-center">
                         <CheckCircle size={10} className="text-white" />
                       </div>
                     )}
@@ -258,7 +266,7 @@ const CreativeGenerator = () => {
                 <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Slides à générer</p>
                 <button
                   onClick={() => setSelectedFormats(selectedFormats.length === FORMATS.length ? [] : FORMATS.map(f => f.id))}
-                  className="text-[11px] font-bold text-violet-500 hover:text-violet-700"
+                  className="text-[11px] font-bold text-scalor-green hover:text-scalor-green-dark"
                 >
                   {selectedFormats.length === FORMATS.length ? 'Tout effacer' : 'Tout sélectionner'}
                 </button>
@@ -272,17 +280,17 @@ const CreativeGenerator = () => {
                       onClick={() => toggleFormat(f.id)}
                       className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl border transition-all text-left ${
                         active
-                          ? 'border-violet-200 bg-violet-50/70 shadow-sm'
+                          ? 'border-green-200 bg-green-50/70 shadow-sm'
                           : 'border-gray-100 bg-gray-50/50 hover:bg-gray-100/60'
                       }`}
                     >
                       <span className="text-base leading-none shrink-0">{f.icon}</span>
                       <div className="flex-1 min-w-0">
-                        <span className={`text-xs font-bold block ${active ? 'text-violet-800' : 'text-gray-600'}`}>{f.label}</span>
+                        <span className={`text-xs font-bold block ${active ? 'text-green-800' : 'text-gray-600'}`}>{f.label}</span>
                         <span className="text-[10px] text-gray-400">{f.desc}</span>
                       </div>
                       <div className={`w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center transition-all ${
-                        active ? 'border-violet-500 bg-violet-500' : 'border-gray-300'
+                        active ? 'border-scalor-green bg-scalor-green' : 'border-gray-300'
                       }`}>
                         {active && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
                       </div>
@@ -292,14 +300,39 @@ const CreativeGenerator = () => {
               </div>
             </div>
 
+            {/* Pricing Preview */}
+            <div className="bg-scalor-green/5 rounded-2xl border border-scalor-green/15 p-4">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-xs font-bold text-scalor-green uppercase tracking-widest">Coût de génération</p>
+                <span className="text-[11px] text-gray-500 font-semibold bg-white border border-gray-100 px-2 py-0.5 rounded-full">80 FCFA / image</span>
+              </div>
+              {selectedFormats.length > 0 ? (
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-600 font-medium">{selectedFormats.length} image{selectedFormats.length > 1 ? 's' : ''} sélectionnée{selectedFormats.length > 1 ? 's' : ''}</span>
+                  <span className="text-xl font-black text-scalor-green">{selectedFormats.length * 80} <span className="text-sm font-bold">FCFA</span></span>
+                </div>
+              ) : (
+                <p className="text-xs text-gray-400">Sélectionnez des slides</p>
+              )}
+              <div className="mt-3 pt-3 border-t border-scalor-green/10 flex gap-1.5 flex-wrap">
+                {[{ count: 10, label: 'Pack 10' }, { count: 20, label: 'Pack 20' }, { count: 50, label: 'Pack 50' }].map(pack => (
+                  <div key={pack.count} className="text-[10px] bg-white border border-gray-100 text-gray-500 px-2 py-1 rounded-full font-semibold whitespace-nowrap">
+                    {pack.label} → {(pack.count * 80).toLocaleString('fr-FR')} FCFA
+                  </div>
+                ))}
+              </div>
+            </div>
+
             {/* CTA */}
             <button
               onClick={generate}
               disabled={loading || !canGenerate || selectedFormats.length === 0}
-              className="w-full py-4 rounded-2xl bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white font-black text-sm tracking-wide hover:from-violet-700 hover:to-fuchsia-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-xl shadow-violet-300/40 flex items-center justify-center gap-2.5"
+              className="w-full py-4 rounded-2xl bg-gradient-to-r from-scalor-green to-scalor-copper text-white font-black text-sm tracking-wide hover:from-scalor-green-dark hover:to-scalor-copper-dark disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-xl shadow-scalor-green/30 flex items-center justify-center gap-2.5"
             >
               {loading ? <Loader2 size={18} className="animate-spin" /> : <Sparkles size={18} />}
-              {loading ? 'Génération en cours…' : `Générer ${selectedFormats.length} image${selectedFormats.length > 1 ? 's' : ''}`}
+              {loading
+                ? 'Génération en cours…'
+                : `Générer ${selectedFormats.length} image${selectedFormats.length > 1 ? 's' : ''} — ${selectedFormats.length * 80} FCFA`}
             </button>
             {!canGenerate && (
               <p className="text-[11px] text-center text-gray-400 -mt-2">Ajoutez une image, un lien ou une description</p>
@@ -314,10 +347,10 @@ const CreativeGenerator = () => {
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-10">
                 <div className="flex flex-col items-center">
                   <div className="relative mb-8">
-                    <div className="w-20 h-20 rounded-full bg-gradient-to-br from-violet-100 to-fuchsia-100 flex items-center justify-center">
-                      <Loader2 size={32} className="text-violet-500 animate-spin" />
+                    <div className="w-20 h-20 rounded-full bg-gradient-to-br from-green-100 to-orange-50 flex items-center justify-center">
+                      <Loader2 size={32} className="text-scalor-green animate-spin" />
                     </div>
-                    <div className="absolute inset-0 rounded-full border-4 border-violet-200 border-t-violet-500 animate-spin opacity-30" />
+                    <div className="absolute inset-0 rounded-full border-4 border-green-200 border-t-scalor-green animate-spin opacity-30" />
                   </div>
                   <h3 className="text-xl font-black text-gray-900 mb-1">L'IA crée vos visuels…</h3>
                   <p className="text-sm text-gray-500 mb-8">Ça prend ~2 minutes pour {selectedFormats.length} image{selectedFormats.length > 1 ? 's' : ''}</p>
@@ -328,7 +361,7 @@ const CreativeGenerator = () => {
                       const isCurrent = i === currentStep;
                       return (
                         <div key={i} className={`flex items-center gap-3 px-4 py-3 rounded-xl border transition-all ${
-                          isCurrent ? 'bg-violet-50 border-violet-200 shadow-sm' :
+                          isCurrent ? 'bg-green-50 border-green-200 shadow-sm' :
                           isDone ? 'bg-emerald-50 border-emerald-100' :
                           'bg-gray-50 border-gray-100'
                         }`}>
@@ -337,7 +370,7 @@ const CreativeGenerator = () => {
                               <CheckCircle size={14} className="text-white" />
                             </div>
                           ) : isCurrent ? (
-                            <div className="w-7 h-7 rounded-full bg-violet-500 flex items-center justify-center shrink-0">
+                            <div className="w-7 h-7 rounded-full bg-scalor-green flex items-center justify-center shrink-0">
                               <Loader2 size={14} className="text-white animate-spin" />
                             </div>
                           ) : (
@@ -346,7 +379,7 @@ const CreativeGenerator = () => {
                             </div>
                           )}
                           <span className={`text-sm font-semibold ${
-                            isDone ? 'text-emerald-700' : isCurrent ? 'text-violet-800' : 'text-gray-400'
+                            isDone ? 'text-emerald-700' : isCurrent ? 'text-green-800' : 'text-gray-400'
                           }`}>{step.label}</span>
                         </div>
                       );
@@ -390,7 +423,7 @@ const CreativeGenerator = () => {
                   <button
                     onClick={generate}
                     disabled={loading}
-                    className="flex items-center gap-1.5 text-xs font-bold text-violet-600 hover:text-violet-700 bg-violet-50 hover:bg-violet-100 px-3 py-2 rounded-xl transition-colors border border-violet-100"
+                    className="flex items-center gap-1.5 text-xs font-bold text-scalor-green hover:text-scalor-green-dark bg-green-50 hover:bg-green-100 px-3 py-2 rounded-xl transition-colors border border-green-100"
                   >
                     <RefreshCw size={12} /> Regénérer
                   </button>
@@ -446,7 +479,7 @@ const CreativeGenerator = () => {
                             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Slogans</p>
                             <div className="space-y-1">
                               {result.analysis.slogans.map((s, i) => (
-                                <p key={i} className="text-sm text-gray-700 bg-violet-50/60 border border-violet-100 px-3 py-2 rounded-lg font-medium">💡 {s}</p>
+                                <p key={i} className="text-sm text-gray-700 bg-green-50/60 border border-green-100 px-3 py-2 rounded-lg font-medium">💡 {s}</p>
                               ))}
                             </div>
                           </div>
@@ -510,7 +543,7 @@ const CreativeGenerator = () => {
                         {creative.imageUrl && (
                           <button
                             onClick={() => downloadImage(creative.imageUrl, `${creative.id}-${Date.now()}.png`)}
-                            className="w-7 h-7 rounded-lg bg-violet-50 border border-violet-100 text-violet-600 flex items-center justify-center hover:bg-violet-100 transition-colors"
+                            className="w-7 h-7 rounded-lg bg-green-50 border border-green-100 text-scalor-green flex items-center justify-center hover:bg-green-100 transition-colors"
                           >
                             <Download size={13} />
                           </button>
@@ -525,8 +558,8 @@ const CreativeGenerator = () => {
             {/* Empty State */}
             {!loading && !result && !error && (
               <div className="bg-white rounded-2xl border border-dashed border-gray-200 flex flex-col items-center justify-center py-20 px-8 text-center">
-                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-violet-100 to-fuchsia-100 flex items-center justify-center mb-5">
-                  <LayoutGrid size={28} className="text-violet-400" />
+                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-green-100 to-orange-50 flex items-center justify-center mb-5">
+                  <LayoutGrid size={28} className="text-scalor-green-light" />
                 </div>
                 <h3 className="text-lg font-black text-gray-800 mb-2">Vos créas apparaîtront ici</h3>
                 <p className="text-sm text-gray-500 max-w-xs">
