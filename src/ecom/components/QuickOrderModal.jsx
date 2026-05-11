@@ -53,7 +53,7 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
   const conversionConfig = productPageConfig?.conversion || {};
 
   const offerDesign = conversionConfig.offerDesign || null;
-  const btnColor = design.formButtonColor || design.ctaButtonColor || design.buttonColor || '#0F6B4F';
+  const btnColor = design.formButtonColor || '#0F6B4F';
   const offerBorderStyle = offerDesign?.border_style || 'solid';
   const urgencyConfig = {
     ...(defaultConfig.urgency || {}),
@@ -62,10 +62,10 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
   };
   const callScheduleConfig = productPageConfig?.callSchedule || defaultConfig.callSchedule || {};
   const btnCfg = productPageConfig?.button || {};
-  const bgColor = design.formBgColor || design.backgroundColor || '#ffffff';
-  const textColor = design.formTextColor || design.textColor || '#111827';
-  const inputTextColor = '#111827'; // Always dark for inputs on white/light backgrounds
-  const borderRadius = design.formInputRadius || design.borderRadius || '12px';
+  const bgColor = design.formBgColor || '#ffffff';
+  const textColor = design.formTextColor || '#111827';
+  const inputTextColor = '#111827';
+  const borderRadius = design.formInputRadius || '12px';
   const boxShadow = design.formShadow !== false && design.shadow !== false ? '0 24px 64px rgba(0,0,0,0.18)' : 'none';
   const showQuantitySelector = design.showQuantitySelector !== false;
 
@@ -281,7 +281,7 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
 
     return (
       <div style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, backgroundColor: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)' }}>
-        <div style={{ backgroundColor: bgColor, borderRadius: design.borderRadius || 24, boxShadow, width: '100%', maxWidth: 420, overflow: 'hidden' }}>
+        <div style={{ backgroundColor: bgColor, borderRadius: design.formBorderRadius || 24, boxShadow, width: '100%', maxWidth: 420, overflow: 'hidden' }}>
           {/* Top gradient bar */}
           <div style={{ height: 4, background: `linear-gradient(90deg, ${btnColor}, #25D366)` }} />
 
@@ -344,10 +344,10 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
   // ── Formulaire ───────────────────────────────────────────────────────────────
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, backgroundColor: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)' }}>
-      <div style={{ backgroundColor: bgColor, borderRadius: design.borderRadius || 20, boxShadow, width: '100%', maxWidth: 440, maxHeight: '92vh', overflowY: 'auto' }}>
+      <div style={{ backgroundColor: bgColor, borderRadius: design.formBorderRadius || 20, boxShadow, width: '100%', maxWidth: 440, maxHeight: '92vh', overflowY: 'auto' }}>
 
         {/* Header */}
-        <div style={{ position: 'sticky', top: 0, backgroundColor: bgColor, borderBottom: '1px solid #F3F4F6', padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderRadius: `${design.borderRadius || '20px'} ${design.borderRadius || '20px'} 0 0` }}>
+        <div style={{ position: 'sticky', top: 0, backgroundColor: bgColor, borderBottom: '1px solid #F3F4F6', padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderRadius: `${design.formBorderRadius || '20px'} ${design.formBorderRadius || '20px'} 0 0` }}>
           <h2 style={{ fontSize: 16, fontWeight: 800, color: '#111827', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
             <ShoppingCart size={18} color={btnColor} /> {productPageConfig?.button?.text || 'Commander maintenant'}
           </h2>

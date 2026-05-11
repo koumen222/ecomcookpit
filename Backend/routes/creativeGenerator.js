@@ -42,49 +42,49 @@ const CREATIVE_FORMATS = [
   {
     id: 'hero-benefits',
     label: 'Bénéfices Clés',
-    aspectRatio: '4:5',
+    aspectRatio: '1:1',
     slideType: 'benefits',
     description: 'Produit centré + icônes bénéfices autour (style "Potent & Effective")',
   },
   {
     id: 'target-promise',
     label: 'Cible & Promesse',
-    aspectRatio: '4:5',
+    aspectRatio: '1:1',
     slideType: 'target',
     description: 'Public cible + produit + promesse de transformation',
   },
   {
     id: 'problem-solution',
     label: 'Problème / Solution',
-    aspectRatio: '4:5',
+    aspectRatio: '1:1',
     slideType: 'problem-solution',
     description: 'Le problème du client → le produit comme solution',
   },
   {
     id: 'how-to-use',
     label: 'Comment Utiliser',
-    aspectRatio: '4:5',
+    aspectRatio: '1:1',
     slideType: 'how-to-use',
     description: 'Mode d\'emploi étape par étape + lifestyle photo',
   },
   {
     id: 'ingredients-trust',
     label: 'Confiance & Qualité',
-    aspectRatio: '4:5',
+    aspectRatio: '1:1',
     slideType: 'trust',
     description: 'Badges certifications (GMO Free, Paraben Free, etc.)',
   },
   {
     id: 'comparison',
     label: 'Comparaison',
-    aspectRatio: '4:5',
+    aspectRatio: '1:1',
     slideType: 'comparison',
     description: 'Notre produit vs Autres — tableau ✓ / ✗',
   },
   {
     id: 'social-proof',
     label: 'Preuve Sociale',
-    aspectRatio: '4:5',
+    aspectRatio: '1:1',
     slideType: 'social-proof',
     description: 'Plusieurs clients satisfaits avec le produit',
   },
@@ -196,6 +196,24 @@ IMPORTANT:
  */
 function getCategoryStyle(category = '', brandColors = '') {
   const cat = (category || '').toLowerCase();
+
+  // Listing marketplace vert naturel (inspire des creatives supplement/wellness)
+  if (/listing-green|marketplace-green|wellness-listing|amazon-green/.test(cat)) {
+    return {
+      bgStyle: 'bright clean white background with soft pastel green radial gradients, subtle light wood base at bottom, premium natural wellness listing style',
+      decorativeElements: 'fresh green leaves in corners, realistic ingredient elements (roots, herbs, capsules or drops matching product), soft layered light circles in background, clean spacing',
+      badge: 'Round badge "NATURAL VITALITY" — rich emerald green (#0f7a46), white leaf icon, embossed premium seal',
+      accentColor: brandColors || 'emerald green (#0f7a46) and fresh lime (#7cb342)',
+      personStyle: 'African wellness lifestyle model, healthy confident expression, clean activewear or medical-lifestyle context, bright natural lighting',
+      mood: 'clean, natural, modern marketplace listing, trust-driven, fresh vitality',
+      benefitIcons: ['🌿 Ingrédients naturels', '⚡ Haute concentration', '🛡️ Testé en labo', '✅ Usage quotidien'],
+      layoutStyle: 'green-listing-premium',
+      problemColor: '#eef5ef',
+      solutionHighlight: 'soft emerald glow halo with subtle white rim light around product bottle',
+      trustBadges: ['LAB TESTED', 'NATURAL', 'NON GMO', 'PREMIUM FORMULA'],
+      comparisonCriteria: ['Concentration active', 'Ingrédients naturels', 'Test laboratoire', 'Sans OGM', 'Durée de cure', 'Rapport qualité/prix'],
+    };
+  }
 
   // Tech / électronique / accessoires
   if (/tech|electron|phone|mobile|laptop|gadget|accessoire|câble|cable|casque|earphone|smartwatch/.test(cat)) {
@@ -323,345 +341,112 @@ function getCategoryStyle(category = '', brandColors = '') {
 }
 
 function buildCreativePrompt(analysis, format, hasRefImage, visualTemplate = 'general') {
-  const { productName, keyBenefits, painPoints, usageSteps, targetAudience, brandColors, slogans, emotionalHook, category } = analysis;
-  const name = 'the product';
-  const benefits = (keyBenefits || []).slice(0, 4);
-  const b1 = benefits[0] || 'Efficace';
-  const b2 = benefits[1] || 'Naturel';
-  const b3 = benefits[2] || 'Premium';
-  const b4 = benefits[3] || 'Satisfaction garantie';
-  const problems = (painPoints || []).slice(0, 4);
-  const p1 = problems[0] || 'Fatigue';
-  const p2 = problems[1] || 'Stress';
-  const p3 = problems[2] || 'Inconfort';
-  const p4 = problems[3] || 'Routine difficile';
-  const steps = (usageSteps || []).slice(0, 3);
-  const s1 = steps[0] || 'Ouvrir';
-  const s2 = steps[1] || 'Appliquer';
-  const s3 = steps[2] || 'Profiter du résultat';
-  const accent = brandColors || 'vert menthe et blanc';
-  const audience = targetAudience || 'jeune femme africaine';
-  const slogan = (slogans || [])[0] || emotionalHook || `Découvrez ${name}`;
+  const { keyBenefits, painPoints, usageSteps, brandColors, slogans, emotionalHook, category } = analysis;
 
-  // Adapt visual style based on template choice (fallback to AI category)
+  const b1 = keyBenefits?.[0] || 'Efficace';
+  const b2 = keyBenefits?.[1] || 'Naturel';
+  const b3 = keyBenefits?.[2] || 'Premium';
+  const p1 = painPoints?.[0] || 'Fatigue';
+  const p2 = painPoints?.[1] || 'Stress';
+  const p3 = painPoints?.[2] || 'Inconfort';
+  const s1 = usageSteps?.[0] || 'Ouvrir';
+  const s2 = usageSteps?.[1] || 'Appliquer';
+  const s3 = usageSteps?.[2] || 'Profiter des résultats';
+  const slogan = slogans?.[0] || emotionalHook || 'Découvrez la différence';
+  const accent = brandColors || 'emerald green and white';
+
   const finalCategory = (visualTemplate && visualTemplate !== 'general') ? visualTemplate : category;
   const style = getCategoryStyle(finalCategory, brandColors);
 
-  const refImageInstruction = hasRefImage
-    ? 'CRITICAL — PRODUCT IMAGE: A reference product image is provided. You MUST reproduce the exact real product packaging faithfully: same colors, same logo, same label design, same shape. Never invent a generic product.'
-    : 'No reference image provided — create a realistic professional product render consistent with the product description.';
-
-  const COMMON_RULES = `
-═══════════════════════════════════════════════════════════════
-STYLE OBLIGATOIRE — Listing E-commerce Premium HD
-═══════════════════════════════════════════════════════════════
-
-${refImageInstruction}
-
-QUALITÉ & RÉSOLUTION:
-- Image CARRÉE 1:1, rendu ULTRA HD photoréaliste, qualité impression magazine
-- Netteté maximale sur tous les éléments: texte razor-sharp, produit hyper-détaillé
-- Zéro flou, zéro pixélisation, zéro artefact de génération
-- Eclairage studio professionnel 3 points: fill light doux + key light latéral + rim light pour le produit
-
-FOND (adapté à la catégorie "${category || 'général'}"):
-- ${style.bgStyle}
-- JAMAIS de texture aléatoire ou motif incohérent avec le produit
-- Le fond doit renforcer l'identité du produit, pas la diluer
-
-PRODUIT (élément le plus important):
-- TOUJOURS intégrer l'image réelle du produit fournie en référence. Reproduire fidèlement le packaging: couleurs, logo, étiquette, forme exacte
-- Rendu 3D hyper-réaliste: éclairage studio dramatique, ombres douces portées au sol, reflets subtils sur les surfaces
-- Le produit occupe 40-60% de l'espace visuel selon le type de slide
-- JAMAIS de produit générique ou inventé si une image de référence est fournie
-
-ÉLÉMENTS DÉCORATIFS (adaptés à la catégorie):
-- ${style.decorativeElements}
-
-BADGE CERTIF (présent sur CHAQUE slide):
-- ${style.badge}
-- Effet gaufré, ombre légère, look sceau officiel certifié
-
-AUTRES BADGES & SCEAUX:
-- Style tampon rond, fond plein vert foncé ou couleur accent ${accent}
-- Icône blanche au centre, texte court en arc autour
-- Disposition: colonnes verticales à gauche du produit OU arc autour du produit
-
-TYPOGRAPHIE:
-- Titres: Police sans-serif BOLD CONDENSÉE très épaisse (style Impact / Montserrat ExtraBold)
-- MAJUSCULES, couleur noir charbon ou bleu marine très foncé (#0d1b2e)
-- Titres GRANDS et dominants — doivent être lus en premier
-- Corps: police propre lisible, jamais inférieur à ce qui serait lisible sur mobile
-- Texte UNIQUEMENT en FRANÇAIS. AUCUN texte anglais sauf badges génériques (ALL NATURAL, GMO FREE etc.)
-- AUCUN Lorem ipsum, AUCUN placeholder, AUCUN texte inventé illisible
-
-PERSONNAGES (quand présents):
-- ${style.personStyle}
-- Personnes noires africaines, peau foncée à ébène, traits africains authentiques
-- Coiffures naturelles africaines: tresses, locks, afro, turban wax
-- Expressions vivantes, sourires naturels confiants, énergie positive
-- Qualité portrait magazine: éclairage studio chaud, mise au point nette, pas de flou artistique excessif
-
-AMBIANCE GLOBALE: ${style.mood}
-═══════════════════════════════════════════════════════════════`;
-
-  const styleAccent = style.accentColor;
-  const styleBadge = style.badge;
-  const styleDecorations = style.decorativeElements;
-  const benefitIcons = style.benefitIcons || [`✅ ${b1}`, `⚡ ${b2}`, `🌟 ${b3}`, `🛡️ ${b4}`];
-  const bi1 = benefitIcons[0];
-  const bi2 = benefitIcons[1];
-  const bi3 = benefitIcons[2];
-  const bi4 = benefitIcons[3];
-  const trustBadges = style.trustBadges || ['QUALITÉ PREMIUM', 'CERTIFIÉ', 'GARANTI', 'APPROUVÉ'];
-  const tb1 = trustBadges[0]; const tb2 = trustBadges[1]; const tb3 = trustBadges[2]; const tb4 = trustBadges[3];
-  const cmpCriteria = style.comparisonCriteria || ['Qualité', 'Efficacité', 'Durabilité', 'Rapport qualité/prix', 'Service', 'Garantie'];
-  const c1 = cmpCriteria[0]; const c2 = cmpCriteria[1]; const c3 = cmpCriteria[2];
-  const c4 = cmpCriteria[3]; const c5 = cmpCriteria[4]; const c6 = cmpCriteria[5];
-  const solutionHighlight = style.solutionHighlight || 'soft accent color glow around product';
-  const layoutStyle = style.layoutStyle || 'generic-premium';
+  // ── Concise style anchor (injected into every prompt) ──────────────────────
+  const ANCHOR = `
+Style: premium e-commerce listing, square 1:1, photorealistic HD, clean ${style.mood} aesthetic.
+Background: ${style.bgStyle}.
+Product: ${hasRefImage ? 'use the reference image — reproduce packaging faithfully, exact colors and logo' : 'create a realistic product render'}.
+Decorative elements: ${style.decorativeElements}.
+People (if any): dark-skinned African person, natural hair, warm confident expression, studio lighting.
+Typography: bold condensed sans-serif, French text only, razor-sharp, dominant headlines.`.trim();
 
   const slidePrompts = {
-    // ── 1. Problème / Solution ──────────────────────────────────────────────────
-    'problem-solution': `
-Generate a ULTRA HD vertical 4:5 (1080×1350) professional e-commerce listing image for "${name}" (category: ${category || 'général'}) — Before/After split screen. Ultra-sharp, photorealistic, print-quality.
 
-LAYOUT STYLE: ${layoutStyle} — SPLIT SCREEN vertical, 2 equal halves
-
-LEFT HALF "LE PROBLÈME" (before state):
-- Background: cold desaturated grey-white (#f0f0f0), slightly dark and bleak atmosphere
-- Top label: "LE PROBLÈME" in large bold condensed uppercase black letters
-- Scene: African person (dark ebony skin) with expression matching the problem context for ${name}. Cold flat lighting, desaturated, slightly blurred background
-- 3 floating rounded pill-badges in dark red (#8b1a1a), white icon + white text:
-  "😔 ${p1}" / "😓 ${p2}" / "😩 ${p3}"
-- Subtle cold color grading: slight blue-grey tint on entire left half
-
-RIGHT HALF "LA SOLUTION" (after state):
-- Background: ${style.bgStyle} — vibrant, warm, bright
-- Top label: "LA SOLUTION" in large bold condensed uppercase, color: ${styleAccent}
-- Product "${name}": exact faithful reproduction of reference image. Hero shot 3D: ${solutionHighlight}. LARGE and prominent — 50% of right half
-- ${style.personStyle}, transformed expression — relief, happiness, confidence
-- 3 certification badges in vertical column (left of product): ${styleAccent} fill, white icon + text:
-  "${bi1}" / "${bi2}" / "${bi3}"
-- ${styleDecorations}
-
-CENTER DIVIDER:
-- Bold curved arrow (${styleAccent} color) with text "LA DIFFÉRENCE ${name.toUpperCase()}" pointing right
-- Gradient transition stripe using ${styleAccent}
-
-TOP-LEFT corner: ${styleBadge}
-
-BOTTOM full width: pill badge "${slogan}" — ${styleAccent} background, white bold text
-
-Typography: bold condensed sans-serif, ultra-sharp, French only. Zero blur, zero artifacts.
-${COMMON_RULES}`,
-
-    // ── 2. Bénéfices ────────────────────────────────────────────────────────────
+    // ── 1. Bénéfices clés ───────────────────────────────────────────────────────
     'benefits': `
-Generate a ULTRA HD vertical 4:5 (1080×1350) professional e-commerce listing image for "${name}" (category: ${category || 'général'}) — key benefits lifestyle style. Ultra-sharp, photorealistic, print-quality.
+Premium product listing image — BENEFITS SHOWCASE.
+Hero product shot centered-right, large and vibrant, ${style.solutionHighlight}.
+Left side: African lifestyle model naturally using the product, warm magazine portrait lighting.
+4 benefit cards arranged around the product (white rounded cards, icon + short French text):
+"${b1}" · "${b2}" · "${b3}" · "Satisfaction garantie".
+Bold headline top: "${slogan}".
+Accent color: ${accent}. Bottom badge: ★★★★★ "Des milliers de clients satisfaits".
+${ANCHOR}`.trim(),
 
-LAYOUT STYLE: ${layoutStyle} — hero product + person + 4 benefit icons
-
-Background: ${style.bgStyle}
-TOP-LEFT corner: ${styleBadge}
-
-HEADLINE (top-center, VERY LARGE bold condensed uppercase dark navy #0d1b2e):
-"${slogan}"
-SUBTITLE below: "${b1} · ${b2} · ${b3}" in bold condensed ${styleAccent} color
-
-RIGHT SIDE (55% width): Product "${name}" — exact faithful reproduction of reference image. 3D hero shot with ${solutionHighlight}. VERY LARGE, fills right portion. Ultra-detailed packaging.
-
-LEFT SIDE: ${style.personStyle}, naturally holding or using "${name}" in context appropriate for ${category || 'le produit'}. Half-body, warm studio lighting, magazine portrait quality.
-
-4 BENEFIT ICON BLOCKS (arranged vertically on left, or 2×2 grid at bottom):
-Each block: rounded square card (white or semi-transparent), icon above, short text below — color ${styleAccent}
-  Card 1: ${bi1}
-  Card 2: ${bi2}
-  Card 3: ${bi3}
-  Card 4: ${bi4}
-
-${styleDecorations}
-
-BOTTOM: pill badge (${styleAccent} bg, white text): ★★★★★ "Approuvé par des milliers de clients"
-
-Typography: bold condensed sans-serif, ultra-sharp, French only. Every benefit text in French, clear and large.
-${COMMON_RULES}`,
-
-    // ── 3. Situations d'usage (grille 2×2) ─────────────────────────────────────
+    // ── 2. Cible & Promesse ─────────────────────────────────────────────────────
     'target': `
-Generate a ULTRA HD vertical 4:5 (1080×1350) professional e-commerce listing image for "${name}" (category: ${category || 'général'}) — 4 real-life usage situations grid. Ultra-sharp, photorealistic, print-quality.
+Premium product listing image — LIFESTYLE GRID (2×2 scenes).
+Top banner: brand color fill, large white headline "${slogan}".
+4 square scenes showing the product in real-life moments: at home, at work, outdoors, everyday routine.
+Each scene: African person using the product naturally, product clearly visible, warm vibrant lighting.
+Thin accent-color dividers between cells. Bottom-left corner: certification seal.
+Accent color: ${accent}.
+${ANCHOR}`.trim(),
 
-LAYOUT STYLE: ${layoutStyle} — 2×2 grid showing product in context
-
-TOP BANNER (full width, above grid):
-- Background: ${styleAccent} — rich, deep color fill
-- Text: "${name.toUpperCase()} — ${slogan}" bold condensed white, very large
-
-GRID — 4 equal square cells, thin ${styleAccent} separator lines between:
-Consistent warm lighting and brand color palette across all 4 cells.
-
-TOP-LEFT cell — "LA MAISON":
-- ${style.personStyle} using "${name}" in a home context relevant to this product
-- Product visible (faithfully reproduced packaging if reference provided)
-- Bottom label strip (${styleAccent} semi-transparent): white bold "🏠 À la maison"
-
-TOP-RIGHT cell — "AU TRAVAIL" ou "EN SOCIÉTÉ":
-- African person in professional or social setting using "${name}"
-- Modern bright African office or outdoor urban space
-- Bottom label strip: white bold "💼 Au travail"
-
-BOTTOM-LEFT cell — "EN DÉPLACEMENT":
-- Outdoor scene (market, street, car), African person on the move with "${name}"
-- Bright natural daylight, vibrant colors
-- Bottom label strip: white bold "🚶 En déplacement"
-
-BOTTOM-RIGHT cell — "CHAQUE JOUR":
-- Simple authentic everyday moment, product used naturally
-- Product "${name}" clearly visible and prominent
-- Bottom label strip: white bold "⭐ Chaque jour"
-
-TOP-LEFT corner of full image: ${styleBadge}
-
-Typography: bold condensed sans-serif, ultra-sharp, French only.
-${COMMON_RULES}`,
+    // ── 3. Problème / Solution ──────────────────────────────────────────────────
+    'problem-solution': `
+Premium product listing image — BEFORE / AFTER split screen.
+LEFT half "LE PROBLÈME": cold desaturated scene, frustrated African person, grey-blue tint.
+Three red pill badges: "${p1}" · "${p2}" · "${p3}".
+RIGHT half "LA SOLUTION": bright warm scene, same person relieved and confident, product hero shot prominent.
+Three benefit badges in accent color: "${b1}" · "${b2}" · "${b3}".
+Center divider: bold arrow pointing right, text "LA SOLUTION".
+Bottom strip: "${slogan}" in accent color pill.
+Accent color: ${accent}.
+${ANCHOR}`.trim(),
 
     // ── 4. Mode d'emploi ────────────────────────────────────────────────────────
     'how-to-use': `
-Generate a ULTRA HD vertical 4:5 (1080×1350) professional e-commerce listing image for "${name}" (category: ${category || 'général'}) — step-by-step how-to-use. Ultra-sharp, photorealistic, print-quality.
-
-LAYOUT STYLE: ${layoutStyle} — numbered steps with product + person
-
-Background: ${style.bgStyle}
-TOP-LEFT: ${styleBadge}
-
-TOP area:
-- LEFT: HEADLINE "MODE D'EMPLOI" in VERY LARGE bold condensed uppercase dark navy (#0d1b2e) — dominant
-- SUBTITLE: "Résultats GARANTIS en ${s3.length < 30 ? '3 étapes simples' : 'quelques étapes'}" italic grey, word GARANTIS in ${styleAccent}
-- RIGHT: ${style.personStyle}, holding or using "${name}" — half-bust portrait, warm magazine lighting
-
-CENTER — 3 NUMBERED STEPS horizontal flow:
-Step 1: Large numbered circle (${styleAccent} fill, white "1"), relevant icon above (🖐️ or 📦 or 🌿 depending on context), bold text: "${s1}"
-→ Arrow (${styleAccent} color, right-pointing)
-Step 2: Large numbered circle (${styleAccent} fill, white "2"), relevant icon above (💧 or ✋ or 🔧), bold text: "${s2}"
-→ Arrow (${styleAccent} color, right-pointing)
-Step 3: Large numbered circle (${styleAccent} fill, white "3"), relevant icon above (✨ or 💪 or ⚡), bold text: "${s3}"
-
-BOTTOM-CENTER: Product "${name}" — exact faithful reproduction of reference image. Flat lay or standing on surface with ${solutionHighlight}. Surrounded by ${styleDecorations}
-
-BOTTOM-RIGHT: pill badge "${tb1}" — ${styleAccent} background, white bold
-
-Typography: bold condensed sans-serif, ultra-sharp, French only. Steps large and easy to read.
-${COMMON_RULES}`,
+Premium product listing image — HOW TO USE (3 steps).
+Bold headline: "3 ÉTAPES SIMPLES".
+Three numbered steps with icons and short French labels: "1 — ${s1}" → "2 — ${s2}" → "3 — ${s3}".
+Steps connected by accent-color arrows. Product hero shot below steps, clean and prominent.
+African model top-right, holding the product, warm confident expression.
+Footer badge: "RÉSULTATS GARANTIS".
+Accent color: ${accent}.
+${ANCHOR}`.trim(),
 
     // ── 5. Confiance & Qualité ──────────────────────────────────────────────────
     'trust': `
-Generate a ULTRA HD vertical 4:5 (1080×1350) professional e-commerce listing image for "${name}" (category: ${category || 'général'}) — trust, quality, certification style. Ultra-sharp, photorealistic, print-quality.
-
-LAYOUT STYLE: ${layoutStyle} — centered product surrounded by certification badges
-
-Background: ${style.bgStyle}
-TOP-LEFT: ${styleBadge}
-
-HEADLINE (top, VERY LARGE bold condensed uppercase dark navy #0d1b2e):
-"${b1.toUpperCase()} & ${b2.toUpperCase()}"
-SUBTITLE: "${b3} · ${b4}" condensed bold, color ${styleAccent}
-
-CENTER: Product "${name}" — MASSIVE central hero shot. Exact faithful reproduction of reference image. 3D hyper-realistic: ${solutionHighlight}, soft drop shadow, subtle packaging reflections. Product IS the star — occupies 50-60% of frame.
-
-${styleDecorations} placed in corners and edges, not covering the product
-
-6 ROUND CERTIFICATION BADGES arranged symmetrically (3 left column + 3 right column) flanking the product:
-Each badge: ${styleAccent} fill, white icon center, text in arc, embossed wax stamp look, thin curved line connecting to product
-  LEFT: "${tb1}" (with relevant icon) / "${bi1}" / "${b1}"
-  RIGHT: "${tb2}" (with relevant icon) / "${bi2}" / "${b2}"
-
-BOTTOM: Horizontal strip of 4 quality trust seals (dark navy background):
-  "${tb1}" | "${tb2}" | "${tb3}" | "${tb4}"
-
-Typography: bold condensed sans-serif, ultra-sharp, French only.
-${COMMON_RULES}`,
+Premium product listing image — TRUST & QUALITY.
+Centered hero product shot, very large, dramatic studio lighting with soft glow halo.
+6 round certification seals arranged symmetrically around the product (3 left, 3 right):
+labels: "${b1}" · "${b2}" · "${b3}" · "Lab Tested" · "Natural" · "Certified".
+Bold headline top: "${b1.toUpperCase()} · ${b2.toUpperCase()}".
+Bottom bar (dark navy): 4 quality seals in a row, white icons.
+Accent color: ${accent}.
+${ANCHOR}`.trim(),
 
     // ── 6. Comparaison ──────────────────────────────────────────────────────────
     'comparison': `
-Generate a ULTRA HD vertical 4:5 (1080×1350) professional e-commerce listing image for "${name}" (category: ${category || 'général'}) — vs competition comparison table. Ultra-sharp, photorealistic, print-quality.
-
-LAYOUT STYLE: ${layoutStyle} — comparison split
-
-Background: ${style.bgStyle}
-TOP-LEFT: ${styleBadge}
-
-HEADLINE (VERY LARGE bold condensed uppercase dark navy):
-"POURQUOI CHOISIR ${name.toUpperCase()} ?"
-
-TWO PRODUCTS side by side (upper 40% of image):
-LEFT — "${name}" (OUR PRODUCT):
-  • Exact faithful reproduction of reference image, vivid colors, brilliant studio lighting with ${solutionHighlight}
-  • ${styleDecorations} surrounding it
-  • Label below: "✅ ${name}" bold ${styleAccent}
-
-RIGHT — "Autres Marques" (COMPETITION):
-  • Generic grey/blurred product silhouette, no logo, faded and desaturated, cold lighting
-  • Label below: "❌ Autres marques" grey italic
-
-COMPARISON TABLE (lower 50% of image), clear white background, 3 columns:
-  Header left: "Critères" (grey) | Header center: "${name}" (${styleAccent} bg, white bold) | Header right: "Autres" (grey bg, white)
-  Row 1: "${c1}" → ✅ Excellent | ❌ Insuffisant
-  Row 2: "${c2}" → ✅ Prouvé | ❌ Non garanti
-  Row 3: "${c3}" → ✅ Oui | ❌ Rare
-  Row 4: "${c4}" → ✅ Meilleur | ❌ Médiocre
-  Row 5: "${c5}" → ✅ Inclus | ❌ Absent
-  Row 6: "${c6}" → ✅ Garanti | ❌ Aucune
-
-BOTTOM: Wide pill badge "${name} — LE MEILLEUR CHOIX" ${styleAccent} background, white bold text, star icons
-
-Visual contrast EXTREME: our product luminous and vibrant vs others dull and grey.
-Typography: bold condensed sans-serif, ultra-sharp, French only.
-${COMMON_RULES}`,
+Premium product listing image — COMPARISON TABLE.
+Top: our product (vibrant, bright, reference image) vs generic competitor (grey, blurred, faded).
+Our product label: "✅ Le meilleur choix". Competitor label: "❌ Les autres".
+Comparison table below (3 columns: Critère / Nous / Autres), 5 rows:
+"${b1}" ✅ vs ❌ · "${b2}" ✅ vs ❌ · "${b3}" ✅ vs ❌ · "Qualité prouvée" ✅ vs ❌ · "Satisfaction garantie" ✅ vs ❌.
+Bold headline: "POURQUOI NOUS CHOISIR ?".
+Bottom pill badge: "LE MEILLEUR RAPPORT QUALITÉ / PRIX" in accent color.
+Accent color: ${accent}.
+${ANCHOR}`.trim(),
 
     // ── 7. Preuve sociale ───────────────────────────────────────────────────────
     'social-proof': `
-Generate a ULTRA HD vertical 4:5 (1080×1350) professional e-commerce listing image for "${name}" (category: ${category || 'général'}) — customer testimonials social proof. Ultra-sharp, photorealistic, print-quality.
+Premium product listing image — SOCIAL PROOF.
+Bold headline: "ILS L'ADORENT" with ★★★★★ golden stars row.
+4 testimonial cards (2×2 grid, white rounded cards, soft shadow):
+Each card: round profile photo of African person, ★★★★★, one short quote in French, first name + African city.
+Product hero shot centered between cards, glowing, clearly recognizable.
+Bottom badge: "★ +2000 clients satisfaits en Afrique" in accent color.
+Accent color: ${accent}.
+${ANCHOR}`.trim(),
 
-LAYOUT STYLE: ${layoutStyle} — testimonial grid
-
-Background: ${style.bgStyle}
-TOP-LEFT: ${styleBadge}
-
-HEADLINE (VERY LARGE bold condensed uppercase dark navy):
-"ILS ADORENT ${name.toUpperCase()}"
-★★★★★ row of 5 golden stars directly below headline (bright golden yellow)
-
-4 TESTIMONIAL CARDS — 2×2 grid (each card white rounded rectangle, 12px radius, soft drop shadow):
-Card 1:
-  • Round profile photo (${styleAccent} border): African woman, dark ebony skin, natural braids, genuine happy expression
-  • ★★★★★ golden stars
-  • Quote: "« Vraiment efficace, je recommande à 100% ! »"
-  • Name: "— Aminata K., Dakar"
-
-Card 2:
-  • Round profile photo: African man, beard, warm confident smile
-  • ★★★★★
-  • Quote: "« Je l'utilise tous les jours, c'est devenu indispensable »"
-  • Name: "— Ousmane D., Abidjan"
-
-Card 3:
-  • Round profile photo: African woman, wax turban, radiant expression
-  • ★★★★★
-  • Quote: "« Les résultats sont visibles très rapidement ! »"
-  • Name: "— Fatou M., Bamako"
-
-Card 4:
-  • Round profile photo: Young African woman, afro hair, natural smile
-  • ★★★★★
-  • Quote: "« Qualité exceptionnelle, livraison rapide »"
-  • Name: "— Grâce T., Lomé"
-
-CENTER (between/below cards): Product "${name}" — exact reference image, ${solutionHighlight}, small but clearly recognizable. ${styleDecorations} around it.
-
-BOTTOM: Wide pill badge: ★ "Plus de 2 000 clients satisfaits en Afrique" ${styleAccent} background, white bold text
-
-Typography: bold condensed sans-serif, ultra-sharp, French only.
-${COMMON_RULES}`,
   };
 
   return slidePrompts[format.slideType] || slidePrompts['benefits'];
@@ -963,7 +748,7 @@ router.post('/', requireEcomAuth, upload.single('productImage'), async (req, res
             label: format.label,
             aspectRatio: format.aspectRatio,
             imageUrl: finalUrl,
-            usedProductImage: useProductImage,
+            usedProductImage: hasImage,
           });
           console.log(`  ✅ ${format.id} generated`);
         } else {

@@ -13,7 +13,8 @@ import SupportConversation from '../models/SupportConversation.js';
 import StoreProduct from '../models/StoreProduct.js';
 import WhatsAppInstance from '../models/WhatsAppInstance.js';
 import ScalorUser from '../models/ScalorUser.js';
-import { requireEcomAuth, requireSuperAdmin } from '../middleware/ecomAuth.js';
+import { requireEcomAuth, requireSuperAdmin, requireServiceClient } from '../middleware/ecomAuth.js';
+import bcrypt from 'bcryptjs';
 import { invalidatePlanCache } from '../middleware/planLimits.js';
 import { logAudit, auditSensitiveAccess, AuditLog } from '../middleware/security.js';
 import { sendCustomNotificationEmail, sendNotificationEmail } from '../core/notifications/email.service.js';
@@ -93,6 +94,111 @@ function mergeRevenueByMonth(...groups) {
 
 const WORKSPACE_COLLECTION = Workspace.collection.name;
 const USER_COLLECTION = EcomUser.collection.name;
+
+// ─── Agents Service Client ────────────────────────────────────────────────────
+
+// GET /api/ecom/super-admin/service-agents — liste des agents service client
+router.get('/service-agents', requireEcomAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const agents = await EcomUser.find({ role: 'service_client' })
+      .select('name email isActive createdAt lastLogin')
+      .sort({ createdAt: -1 })
+      .lean();
+    res.json({ success: true, data: agents });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// POST /api/ecom/super-admin/service-agents — créer un agent service client
+router.post('/service-agents', requireEcomAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { name, email, password } = req.body;
+    if (!email || !password || !name) {
+      return res.status(400).json({ success: false, message: 'Nom, email et mot de passe requis' });
+    }
+    if (password.length < 8) {
+      return res.status(400).json({ success: false, message: 'Mot de passe minimum 8 caractères' });
+    }
+    const exists = await EcomUser.findOne({ email: email.toLowerCase().trim() });
+    if (exists) {
+      return res.status(409).json({ success: false, message: 'Un compte avec cet email existe déjà' });
+    }
+    const hashed = await bcrypt.hash(password, 10);
+    const agent = new EcomUser({
+      email: email.toLowerCase().trim(),
+      name: name.trim(),
+      password: hashed,
+      role: 'service_client',
+      isActive: true,
+    });
+    await agent.save();
+    await logAudit(req, 'CREATE_SERVICE_AGENT', `Agent service client créé: ${agent.email}`, 'user', agent._id);
+    res.json({ success: true, data: { _id: agent._id, name: agent.name, email: agent.email, isActive: agent.isActive, createdAt: agent.createdAt } });
+  } catch (err) {
+    console.error('[SuperAdmin] POST /service-agents error:', err.message);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// PATCH /api/ecom/super-admin/service-agents/:id — modifier (nom, email, mot de passe, statut)
+router.patch('/service-agents/:id', requireEcomAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { name, email, password, isActive } = req.body;
+    const agent = await EcomUser.findOne({ _id: req.params.id, role: 'service_client' });
+    if (!agent) return res.status(404).json({ success: false, message: 'Agent introuvable' });
+    if (name !== undefined) agent.name = name.trim();
+    if (email !== undefined) agent.email = email.toLowerCase().trim();
+    if (password !== undefined) {
+      if (password.length < 8) return res.status(400).json({ success: false, message: 'Mot de passe minimum 8 caractères' });
+      agent.password = await bcrypt.hash(password, 10);
+    }
+    if (isActive !== undefined) agent.isActive = Boolean(isActive);
+    await agent.save();
+    await logAudit(req, 'UPDATE_SERVICE_AGENT', `Agent service client modifié: ${agent.email}`, 'user', agent._id);
+    res.json({ success: true, data: { _id: agent._id, name: agent.name, email: agent.email, isActive: agent.isActive } });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// DELETE /api/ecom/super-admin/service-agents/:id — supprimer un agent
+router.delete('/service-agents/:id', requireEcomAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const agent = await EcomUser.findOneAndDelete({ _id: req.params.id, role: 'service_client' });
+    if (!agent) return res.status(404).json({ success: false, message: 'Agent introuvable' });
+    await logAudit(req, 'DELETE_SERVICE_AGENT', `Agent service client supprimé: ${agent.email}`, 'user', agent._id);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// ─── Service Client — accès restreint (service_client + super_admin) ──────────
+
+// GET /api/ecom/service-client/search — recherche users (pour les agents)
+router.get('/service-client/search', requireEcomAuth, requireServiceClient, async (req, res) => {
+  try {
+    const { q = '', limit = 10 } = req.query;
+    if (!q.trim()) return res.json({ success: true, data: [] });
+    const users = await EcomUser.find({
+      role: { $nin: ['super_admin', 'service_client'] },
+      $or: [
+        { email: { $regex: q.trim(), $options: 'i' } },
+        { name:  { $regex: q.trim(), $options: 'i' } },
+      ],
+    })
+      .select('name email isActive role workspaceId createdAt lastLogin')
+      .populate('workspaceId', 'name plan planExpiresAt')
+      .limit(Number(limit))
+      .lean();
+    res.json({ success: true, data: users });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 // GET /api/ecom/super-admin/users - Tous les utilisateurs de toutes les workspaces
 router.get('/users',

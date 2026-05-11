@@ -32,6 +32,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
 import EcomWorkspace from '../models/Workspace.js';
+import Store from '../models/Store.js';
 import StoreProduct from '../models/StoreProduct.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -205,6 +206,11 @@ function resolveStoreRouteContext(req) {
   // Both regular subdomains and custom domains are resolved by the subdomain middleware
   // req.subdomain is set for both *.scalor.net and custom domains
   if (req.isStoreDomain && req.subdomain) {
+    // /products/:slug — Shopify-style URL (primary)
+    if (parts[0] === 'products' && parts[1]) {
+      return { subdomain: req.subdomain, pageType: 'product', slug: decodeSegment(parts[1]) };
+    }
+    // /product/:slug — legacy URL (still supported)
     if (parts[0] === 'product' && parts[1]) {
       return { subdomain: req.subdomain, pageType: 'product', slug: decodeSegment(parts[1]) };
     }
@@ -218,6 +224,9 @@ function resolveStoreRouteContext(req) {
   }
 
   if (parts[0] === 'store' && parts[1]) {
+    if (parts[2] === 'products' && parts[3]) {
+      return { subdomain: parts[1].toLowerCase(), pageType: 'product', slug: decodeSegment(parts[3]) };
+    }
     if (parts[2] === 'product' && parts[3]) {
       return { subdomain: parts[1].toLowerCase(), pageType: 'product', slug: decodeSegment(parts[3]) };
     }
@@ -324,6 +333,152 @@ async function resolveRequestMeta(req) {
   }
 
   return meta;
+}
+
+// ─── In-memory store resolver (same logic as storeApi.js, lightweight copy) ──
+const _sfStoreCache = new Map();
+const _SF_CACHE_TTL = 5 * 60 * 1000;
+
+async function _resolveStoreFast(subdomain) {
+  if (!subdomain) return null;
+  const clean = subdomain.toLowerCase().trim();
+  const hit = _sfStoreCache.get(clean);
+  if (hit && Date.now() < hit.exp) return hit.data;
+
+  const store = await Store.findOne({ subdomain: clean, isActive: true, 'storeSettings.isStoreEnabled': true })
+    .select('_id workspaceId name subdomain storeSettings storeTheme storePixels storeFooter storeLegalPages storeDeliveryZones storePages')
+    .lean();
+
+  if (store) {
+    const result = { ...store, _storeId: store._id, _workspaceId: store.workspaceId };
+    _sfStoreCache.set(clean, { data: result, exp: Date.now() + _SF_CACHE_TTL });
+    return result;
+  }
+
+  const ws = await EcomWorkspace.findOne({ subdomain: clean, isActive: true, 'storeSettings.isStoreEnabled': true })
+    .select('_id name subdomain storeSettings storeTheme storePixels storeFooter storeLegalPages storeDeliveryZones storePages')
+    .lean();
+
+  if (ws) {
+    const result = { ...ws, _workspaceId: ws._id, _storeId: null };
+    _sfStoreCache.set(clean, { data: result, exp: Date.now() + _SF_CACHE_TTL });
+    return result;
+  }
+  return null;
+}
+
+function _buildStorePayload(workspace) {
+  const settings = workspace.storeSettings || {};
+  const theme = workspace.storeTheme || {};
+  const pixels = workspace.storePixels || {};
+  const sectionColors = {
+    socialProof: theme.sectionColors?.socialProof || '#7C3AED',
+    benefits: theme.sectionColors?.benefits || theme.primaryColor || '#0F6B4F',
+    trust: theme.sectionColors?.trust || '#2563EB',
+    problem: theme.sectionColors?.problem || '#DC2626',
+    solution: theme.sectionColors?.solution || '#059669',
+    faq: theme.sectionColors?.faq || '#7C3AED',
+  };
+  return {
+    _id: workspace._id,
+    name: settings.storeName || workspace.name,
+    description: settings.storeDescription || '',
+    logo: settings.storeLogo || settings.logo || '',
+    banner: settings.storeBanner || settings.banner || '',
+    phone: settings.storePhone || settings.phone || '',
+    whatsapp: settings.storeWhatsApp || settings.whatsapp || '',
+    themeColor: settings.storeThemeColor || settings.themeColor || '#0F6B4F',
+    currency: settings.storeCurrency || settings.currency || 'XAF',
+    country: settings.country || settings.storeCountry || '',
+    subdomain: workspace.subdomain,
+    template: theme.template || 'classic',
+    primaryColor: settings.primaryColor || settings.storeThemeColor || theme.primaryColor || '#0F6B4F',
+    accentColor: settings.accentColor || theme.accentColor || '#059669',
+    backgroundColor: settings.backgroundColor || theme.backgroundColor || '#FFFFFF',
+    textColor: settings.textColor || theme.textColor || '#111827',
+    font: settings.font || theme.font || 'inter',
+    sectionColors,
+    sectionToggles: theme.sections || {},
+    email: settings.email || '',
+    facebook: settings.facebook || '',
+    instagram: settings.instagram || '',
+    tiktok: settings.tiktok || '',
+    productPageConfig: settings.productPageConfig || null,
+    pixels: {
+      metaPixelId: pixels.metaPixelId || '',
+      tiktokPixelId: pixels.tiktokPixelId || '',
+      googleTagId: pixels.googleTagId || '',
+      googleAdsId: pixels.googleAdsId || '',
+      snapchatPixelId: pixels.snapchatPixelId || pixels.snapPixelId || '',
+    },
+  };
+}
+
+async function fetchInitialData(routeContext) {
+  if (!routeContext?.subdomain) return null;
+  try {
+    const workspace = await _resolveStoreFast(routeContext.subdomain);
+    if (!workspace) return null;
+
+    const storePayload = _buildStorePayload(workspace);
+    const productFilter = workspace._storeId
+      ? { workspaceId: workspace._workspaceId, storeId: workspace._storeId }
+      : { workspaceId: workspace._workspaceId };
+
+    if (routeContext.pageType === 'product' && routeContext.slug) {
+      const [product, products] = await Promise.all([
+        StoreProduct.findOne({ ...productFilter, slug: routeContext.slug, isPublished: true })
+          .select('name slug description price compareAtPrice currency country targetMarket city locale stock images category tags seoTitle seoDescription features faq testimonials _pageData productPageConfig')
+          .lean(),
+        StoreProduct.find({ ...productFilter, isPublished: true })
+          .select('name slug price compareAtPrice currency stock images category')
+          .sort('-createdAt').limit(8).lean(),
+      ]);
+      return {
+        pageType: 'product',
+        store: storePayload,
+        product: product || null,
+        products: products.map(p => ({ _id: p._id, name: p.name, slug: p.slug, price: p.price, compareAtPrice: p.compareAtPrice, currency: p.currency || storePayload.currency, stock: p.stock, image: p.images?.[0]?.url || '', category: p.category })),
+        footer: workspace.storeFooter || null,
+        legalPages: workspace.storeLegalPages || null,
+        sections: workspace.storePages?.sections ?? null,
+      };
+    }
+
+    // home / products listing
+    const products = await StoreProduct.find({ ...productFilter, isPublished: true })
+      .select('name slug price compareAtPrice currency country stock images category')
+      .sort('-createdAt').limit(20).lean();
+
+    return {
+      pageType: routeContext.pageType || 'home',
+      store: storePayload,
+      product: null,
+      products: products.map(p => ({ _id: p._id, name: p.name, slug: p.slug, price: p.price, compareAtPrice: p.compareAtPrice, currency: p.currency || storePayload.currency, stock: p.stock, image: p.images?.[0]?.url || '', category: p.category })),
+      footer: workspace.storeFooter || null,
+      legalPages: workspace.storeLegalPages || null,
+      sections: workspace.storePages?.sections ?? null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function injectInitialData(html, initialData) {
+  if (!initialData) return html;
+  const safeJson = JSON.stringify(initialData).replace(/<\/script>/gi, '<\\/script>');
+  const scriptTag = `<script>window.__SCALOR_INITIAL__=${safeJson};</script>`;
+
+  // Inject preload for product hero image so the browser starts downloading it immediately
+  let preloadTag = '';
+  const heroImg = initialData.product?.images?.[0]?.url;
+  if (heroImg && heroImg.startsWith('http')) {
+    preloadTag = `<link rel="preload" as="image" href="${escapeHtml(heroImg)}" fetchpriority="high" />`;
+  }
+
+  const inject = preloadTag + scriptTag;
+  // Insert just before </head>
+  return html.replace('</head>', `${inject}\n</head>`);
 }
 
 // ─── 1. Skip this router for API paths and API domain ─────────────────────────
@@ -437,7 +592,12 @@ router.get('*', async (req, res) => {
   res.setHeader('X-Frame-Options', 'SAMEORIGIN');
 
   try {
-    const html = injectHeadMeta(readIndexTemplate(), await resolveRequestMeta(req));
+    const routeContext = resolveStoreRouteContext(req);
+    const [meta, initialData] = await Promise.all([
+      resolveRequestMeta(req),
+      fetchInitialData(routeContext),
+    ]);
+    const html = injectInitialData(injectHeadMeta(readIndexTemplate(), meta), initialData);
     res.status(200).send(html);
   } catch (err) {
     console.error('❌ [storefront] Failed to render dynamic index.html:', err.message);

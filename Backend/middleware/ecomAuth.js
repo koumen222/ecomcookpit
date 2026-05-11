@@ -352,6 +352,17 @@ export const requireSuperAdmin = (req, res, next) => {
   next();
 };
 
+// Middleware pour les agents service client (service_client OU super_admin)
+export const requireServiceClient = (req, res, next) => {
+  if (!req.ecomUser || !['super_admin', 'service_client'].includes(req.ecomUser.role)) {
+    return res.status(403).json({
+      success: false,
+      message: 'Accès réservé au service client'
+    });
+  }
+  next();
+};
+
 // Middleware pour vérifier que l'utilisateur a un workspace
 export const requireWorkspace = (req, res, next) => {
   console.log('🏢 requireWorkspace - workspaceId:', req.workspaceId);

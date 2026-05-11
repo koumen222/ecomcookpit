@@ -52,7 +52,7 @@ const EmbeddedOrderForm = ({ product, subdomain, store, productPageConfig }) => 
   const btnCfg = productPageConfig?.button || {};
 
   const offerDesign = conversionConfig.offerDesign || null;
-  const btnColor = design.formButtonColor || design.ctaButtonColor || design.buttonColor || '#0F6B4F';
+  const btnColor = design.formButtonColor || '#0F6B4F';
   const offerBorderStyle = offerDesign?.border_style || 'solid';
   const urgencyConfig = {
     ...(defaultConfig.urgency || {}),
@@ -60,9 +60,9 @@ const EmbeddedOrderForm = ({ product, subdomain, store, productPageConfig }) => 
     ...(productPageConfig?.urgency || {}),
   };
   const callScheduleConfig = productPageConfig?.callSchedule || defaultConfig.callSchedule || {};
-  const textColor = design.formTextColor || design.textColor || '#111827';
-  const inputTextColor = '#111827'; // Always dark for inputs on white/light backgrounds
-  const borderRadius = design.formInputRadius || design.borderRadius || '12px';
+  const textColor = design.formTextColor || '#111827';
+  const inputTextColor = '#111827';
+  const borderRadius = design.formInputRadius || '12px';
   const showQuantitySelector = design.showQuantitySelector !== false;
 
   const configFields = formConfig.fields || [];
@@ -262,7 +262,7 @@ const EmbeddedOrderForm = ({ product, subdomain, store, productPageConfig }) => 
     const waLink = storeWhatsapp ? `https://wa.me/${storeWhatsapp.replace(/^\+/, '')}?text=${encodeURIComponent(waMsg)}` : null;
 
     return (
-      <div style={{ borderRadius: design.borderRadius || 20, overflow: 'hidden', border: `2px solid ${btnColor}20`, backgroundColor: design.formBgColor || design.backgroundColor || '#fff' }}>
+      <div style={{ borderRadius: design.formBorderRadius || 20, overflow: 'hidden', border: `2px solid ${btnColor}20`, backgroundColor: design.formBgColor || '#fff' }}>
         {/* Top gradient bar */}
         <div style={{ height: 4, background: `linear-gradient(90deg, ${btnColor}, #25D366)` }} />
 
@@ -315,7 +315,7 @@ const EmbeddedOrderForm = ({ product, subdomain, store, productPageConfig }) => 
     );
   }
 
-  const formBgColor = design.formBgColor || design.backgroundColor || '#ffffff';
+  const formBgColor = design.formBgColor || '#ffffff';
 
   // ── Inline form ──
   return (

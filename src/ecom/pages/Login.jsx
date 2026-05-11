@@ -201,7 +201,8 @@ const Login = () => {
         'ecom_admin': '/ecom/dashboard/admin',
         'ecom_closeuse': '/ecom/dashboard/closeuse',
         'ecom_compta': '/ecom/dashboard/compta',
-        'livreur': '/ecom/livreur'
+        'livreur': '/ecom/livreur',
+        'service_client': '/ecom/service-client'
       };
       const dashboardPath = roleDashboardMap[user.role] || '/ecom/dashboard';
       navigate(dashboardPath, { replace: true });
