@@ -113,6 +113,17 @@ export function injectStoreCssVars(store) {
   loadGoogleFont(fontId);
 }
 
+// ─── Server-injected initial data (SSR-style) ────────────────────────────────
+// The backend injects window.__SCALOR_INITIAL__ with store + product data so
+// React can render instantly without a network round-trip on the first load.
+function consumeInitialData() {
+  if (typeof window === 'undefined' || !window.__SCALOR_INITIAL__) return null;
+  const data = window.__SCALOR_INITIAL__;
+  // Consume once — subsequent navigations go through the normal fetch path
+  window.__SCALOR_INITIAL__ = null;
+  return data;
+}
+
 // ─── sessionStorage cache ─────────────────────────────────────────────────────
 const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
 
@@ -198,23 +209,38 @@ export async function prefetchStoreProduct(subdomain, slug) {
 export function useStoreData(subdomain) {
   const cacheKey = subdomain ? `sf_${subdomain}` : null;
   const cached = cacheKey ? readCache(cacheKey) : null;
-  const normalizedCachedSections = normalizeHomepageSections(cached?.sections ?? null);
 
-  // Initialise with cached data → instant render, no loading flash
-  const [store, setStore] = useState(cached?.store || null);
+  // Bootstrap from server-injected data on first load (SSR-style, zero API call)
+  const initial = !cached ? consumeInitialData() : null;
+  const bootstrap = cached || (initial ? {
+    store: initial.store,
+    sections: initial.sections ?? null,
+    products: initial.products || [],
+    pixels: initial.store?.pixels || null,
+    footer: initial.footer || null,
+    legalPages: initial.legalPages || null,
+  } : null);
+
+  // Write bootstrap into sessionStorage so navigating away and back is also instant
+  if (initial && cacheKey) writeCache(cacheKey, bootstrap);
+
+  const normalizedCachedSections = normalizeHomepageSections(bootstrap?.sections ?? null);
+
+  // Initialise with cached/bootstrap data → instant render, no loading flash
+  const [store, setStore] = useState(bootstrap?.store || null);
   const [sections, setSections] = useState(normalizedCachedSections ?? null);
-  const [products, setProducts] = useState(cached?.products || []);
-  const [pixels, setPixels] = useState(cached?.pixels || null);
-  const [footer, setFooter] = useState(cached?.footer || null);
-  const [legalPages, setLegalPages] = useState(cached?.legalPages || null);
-  const [loading, setLoading] = useState(!cached);
+  const [products, setProducts] = useState(bootstrap?.products || []);
+  const [pixels, setPixels] = useState(bootstrap?.pixels || null);
+  const [footer, setFooter] = useState(bootstrap?.footer || null);
+  const [legalPages, setLegalPages] = useState(bootstrap?.legalPages || null);
+  const [loading, setLoading] = useState(!bootstrap);
   const [error, setError] = useState(null);
 
   useEffect(() => {
     if (!subdomain) { setLoading(false); return; }
 
     // Inject CSS vars immediately from cache (no FOUC)
-    if (cached?.store) injectStoreCssVars(cached.store);
+    if (bootstrap?.store) injectStoreCssVars(bootstrap.store);
 
     let cancelled = false;
 
@@ -244,8 +270,8 @@ export function useStoreData(subdomain) {
         setLegalPages(legalPagesData);
       } catch (err) {
         if (cancelled) return;
-        // Only show error if there's nothing to show from cache
-        if (!cached) setError(err?.response?.data?.message || 'Boutique introuvable');
+        // Only show error if there's nothing to show from cache/bootstrap
+        if (!bootstrap) setError(err?.response?.data?.message || 'Boutique introuvable');
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -264,28 +290,51 @@ export function useStoreProduct(subdomain, slug) {
   const cachedStore = storeCacheKey ? readCache(storeCacheKey) : null;
   const productCacheKey = getProductCacheKey(subdomain, slug);
   const cachedProduct = productCacheKey ? readCache(productCacheKey) : null;
-  const previewProduct = cachedProduct || toProductPreview(cachedStore?.products?.find((item) => item.slug === slug), cachedStore?.store?.currency);
 
-  const [store, setStore] = useState(cachedStore?.store || null);
-  const [pixels, setPixels] = useState(cachedStore?.pixels || null);
-  const [storeFooter, setStoreFooter] = useState(cachedStore?.footer || null);
-  const [product, setProduct] = useState(previewProduct);
+  // Bootstrap from server-injected data on first load (SSR-style)
+  const initial = !cachedStore && !cachedProduct ? consumeInitialData() : null;
+  if (initial?.store && storeCacheKey && !cachedStore) {
+    writeCache(storeCacheKey, {
+      store: initial.store,
+      sections: initial.sections ?? null,
+      products: initial.products || [],
+      pixels: initial.store?.pixels || null,
+      footer: initial.footer || null,
+      legalPages: initial.legalPages || null,
+    });
+  }
+  if (initial?.product && productCacheKey && !cachedProduct) {
+    writeCache(productCacheKey, initial.product);
+  }
+
+  const bootstrapStore = cachedStore?.store || initial?.store || null;
+  const bootstrapProduct = cachedProduct
+    || (initial?.product?.slug === slug ? initial.product : null)
+    || toProductPreview(
+        (cachedStore?.products || initial?.products || []).find((item) => item.slug === slug),
+        (bootstrapStore?.currency)
+      );
+
+  const [store, setStore] = useState(bootstrapStore);
+  const [pixels, setPixels] = useState(cachedStore?.pixels || (initial?.store?.pixels ?? null));
+  const [storeFooter, setStoreFooter] = useState(cachedStore?.footer || initial?.footer || null);
+  const [product, setProduct] = useState(bootstrapProduct);
   const [related, setRelated] = useState([]);
-  const [loading, setLoading] = useState(!previewProduct);
+  const [loading, setLoading] = useState(!bootstrapProduct);
   const [error, setError] = useState(null);
 
   useEffect(() => {
     if (!subdomain || !slug) { setLoading(false); return; }
 
-    // CSS vars from cached store → no FOUC on product page
-    if (cachedStore?.store) injectStoreCssVars(cachedStore.store);
+    // CSS vars from cached/bootstrap store → no FOUC on product page
+    if (bootstrapStore) injectStoreCssVars(bootstrapStore);
 
     let cancelled = false;
 
-    setProduct(previewProduct);
+    setProduct(bootstrapProduct);
     setRelated([]);
     setError(null);
-    setLoading(!previewProduct);
+    setLoading(!bootstrapProduct);
 
     async function fetchWithRetry(fn, retries = 2, delayMs = 800) {
       for (let attempt = 0; attempt <= retries; attempt++) {
@@ -307,7 +356,7 @@ export function useStoreProduct(subdomain, slug) {
         const requests = [
           fetchWithRetry(() => publicStoreApi.getProduct(subdomain, slug)),
         ];
-        if (!cachedStore) requests.push(fetchWithRetry(() => publicStoreApi.getStore(subdomain)));
+        if (!bootstrapStore) requests.push(fetchWithRetry(() => publicStoreApi.getStore(subdomain)));
 
         const [productRes, storeRes] = await Promise.all(requests);
 
@@ -318,8 +367,8 @@ export function useStoreProduct(subdomain, slug) {
           writeCache(productCacheKey, productData);
         }
 
-        let storeData = cachedStore?.store;
-        let pixelsData = cachedStore?.pixels || null;
+        let storeData = bootstrapStore;
+        let pixelsData = cachedStore?.pixels || (bootstrapStore?.pixels ?? null);
         let footerData = cachedStore?.footer || null;
         if (storeRes) {
           const data = storeRes.data?.data || {};

@@ -66,12 +66,14 @@
       <link rel="dns-prefetch" href="https://fonts.gstatic.com" />
       <link rel="dns-prefetch" href="https://api.fontshare.com" />
       <link rel="dns-prefetch" href="https://api.scalor.net" />
+      <link rel="dns-prefetch" href="https://plateforme-backend-production-2ec6.up.railway.app" />
 
       <!-- Preconnect to font origins + API -->
       <link rel="preconnect" href="https://fonts.googleapis.com" />
       <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
       <link rel="preconnect" href="https://api.fontshare.com" crossorigin />
       <link rel="preconnect" href="https://api.scalor.net" crossorigin />
+      <link rel="preconnect" href="https://plateforme-backend-production-2ec6.up.railway.app" crossorigin />
 
       <!-- Non-blocking font loading (media=print trick: loads async, swaps when ready) -->
       <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" media="print" onload="this.media='all'" />
@@ -95,39 +97,21 @@
           padding: 0;
           background-color: #f9fafb;
           min-height: 100vh;
-          min-height: 100dvh; /* dvh = dynamic viewport height, correct sur iOS Safari — fallback vh pour anciens navigateurs */
+          min-height: 100dvh;
         }
-        /* Instant splash screen while React hydrates */
-        #root:empty {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          position: fixed;
-          inset: 0;
-          background: #f9fafb;
-          z-index: 9999;
+        /* Skeleton shimmer animation */
+        @keyframes _skel-shine {
+          0%   { background-position: -400px 0; }
+          100% { background-position: 400px 0; }
         }
-        #root:empty::before {
-          content: '';
-          display: block;
-          width: 48px;
-          height: 48px;
-          border-radius: 50%;
-          border: 3px solid rgba(15,107,79,0.2);
-          border-top-color: #0F6B4F;
-          animation: _splash-spin 0.6s linear infinite;
+        .skel {
+          background: linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%);
+          background-size: 800px 100%;
+          animation: _skel-shine 1.4s ease-in-out infinite;
+          border-radius: 6px;
         }
-        @keyframes _splash-spin {
-          to { transform: rotate(360deg); }
-        }
-        /* Fade-in once React mounts — eliminates hard cut from splash to content */
-        #root:not(:empty) {
-          animation: _root-fadein 0.18s ease-out both;
-        }
-        @keyframes _root-fadein {
-          from { opacity: 0; }
-          to   { opacity: 1; }
-        }
+        /* Hide skeleton once React mounts */
+        #root:not(:empty) ._pre-skeleton { display: none; }
       </style>
     </head>
 
@@ -136,7 +120,41 @@
   <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-T3KSKZLP"
   height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
   <!-- End Google Tag Manager (noscript) -->
-  <div id="root"></div>
+  <div id="root"><div class="_pre-skeleton" style="font-family:system-ui,sans-serif;background:#f9fafb;min-height:100dvh;min-height:100vh;display:flex;flex-direction:column;">
+    <!-- Top nav bar skeleton -->
+    <div style="background:#fff;border-bottom:1px solid #e5e7eb;padding:0 16px;height:56px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:10;">
+      <div class="skel" style="width:90px;height:28px;"></div>
+      <div style="display:flex;gap:10px;align-items:center;">
+        <div class="skel" style="width:32px;height:32px;border-radius:50%;"></div>
+      </div>
+    </div>
+    <!-- Product image skeleton -->
+    <div style="padding:0 0 16px;background:#fff;">
+      <div class="skel" style="width:100%;height:340px;border-radius:0;"></div>
+    </div>
+    <!-- Product content skeleton -->
+    <div style="padding:16px;background:#fff;margin-bottom:8px;">
+      <div class="skel" style="width:55%;height:13px;margin-bottom:10px;"></div>
+      <div class="skel" style="width:80%;height:22px;margin-bottom:8px;"></div>
+      <div class="skel" style="width:60%;height:22px;margin-bottom:16px;"></div>
+      <div class="skel" style="width:44%;height:28px;margin-bottom:20px;"></div>
+      <!-- Variant dots -->
+      <div style="display:flex;gap:8px;margin-bottom:20px;">
+        <div class="skel" style="width:36px;height:36px;border-radius:50%;"></div>
+        <div class="skel" style="width:36px;height:36px;border-radius:50%;"></div>
+        <div class="skel" style="width:36px;height:36px;border-radius:50%;"></div>
+      </div>
+      <!-- CTA button -->
+      <div class="skel" style="width:100%;height:50px;border-radius:12px;"></div>
+    </div>
+    <!-- Description block skeleton -->
+    <div style="padding:16px;background:#fff;margin-bottom:8px;">
+      <div class="skel" style="width:35%;height:15px;margin-bottom:12px;"></div>
+      <div class="skel" style="width:100%;height:11px;margin-bottom:8px;"></div>
+      <div class="skel" style="width:92%;height:11px;margin-bottom:8px;"></div>
+      <div class="skel" style="width:78%;height:11px;"></div>
+    </div>
+  </div></div>
   <script>
     // Global error handler: catch chunk load failures & uncaught errors that leave the page blank
     window.addEventListener('error', function(e) {

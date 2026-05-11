@@ -3,6 +3,7 @@ import { useEcomAuth } from '../hooks/useEcomAuth';
 import { useStore } from '../contexts/StoreContext.jsx';
 import api from '../../lib/api';
 
+const VPS_IP = import.meta.env.VITE_CUSTOM_DOMAIN_IP || '45.76.27.120';
 const CNAME_TARGET = 'origin.scalor.net';
 
 function CopyButton({ value }) {
@@ -473,19 +474,34 @@ const BoutiqueDomains = () => {
                 <button onClick={() => setActiveStep(0)} className="text-xs text-gray-400 hover:text-gray-600 underline">Changer</button>
               </div>
 
-              {/* Instruction unique : CNAME vers origin.scalor.net */}
+              {/* Option 1 : A record */}
               <div className="space-y-2">
                 <p className="text-[11px] font-semibold text-gray-600 flex items-center gap-1.5">
-                  <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded text-[10px] font-bold">REQUIS</span>
-                  Ajoutez ces enregistrements CNAME chez votre registrar
+                  <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded text-[10px] font-bold">RECOMMANDÉ</span>
+                  Enregistrement A — fonctionne partout, SSL automatique
+                </p>
+                <div className="space-y-1.5">
+                  <DnsRow type="A" name="@" value={VPS_IP} />
+                  <DnsRow type="CNAME" name="www" value={customDomain || 'votredomaine.com'} />
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <div className="flex-1 h-px bg-gray-200" />
+                <span className="text-[11px] font-semibold text-gray-400">OU</span>
+                <div className="flex-1 h-px bg-gray-200" />
+              </div>
+
+              {/* Option 2 : CNAME */}
+              <div className="space-y-2">
+                <p className="text-[11px] font-semibold text-gray-600 flex items-center gap-1.5">
+                  <span className="px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded text-[10px] font-bold">ALTERNATIVE</span>
+                  CNAME — Cloudflare ou registrar avec CNAME flattening
                 </p>
                 <div className="space-y-1.5">
                   <DnsRow type="CNAME" name="@" value={CNAME_TARGET} />
                   <DnsRow type="CNAME" name="www" value={CNAME_TARGET} />
                 </div>
-                <p className="text-[11px] text-gray-500 mt-1">
-                  Si votre registrar ne supporte pas CNAME sur <span className="font-mono">@</span>, utilisez uniquement l'entrée <span className="font-mono">www</span> et redirigez le domaine racine vers <span className="font-mono">www</span>.
-                </p>
               </div>
 
               <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-[11px] text-amber-700 space-y-1">
@@ -494,9 +510,9 @@ const BoutiqueDomains = () => {
                   <li><span className="font-semibold">Namecheap :</span> Domain List → Manage → Advanced DNS</li>
                   <li><span className="font-semibold">GoDaddy :</span> My Products → DNS → Add record</li>
                   <li><span className="font-semibold">OVH :</span> Domaines → Zone DNS → Ajouter une entrée</li>
-                  <li><span className="font-semibold">Cloudflare :</span> DNS → Records → Add record (proxy <strong>OFF</strong> — nuage gris)</li>
+                  <li><span className="font-semibold">Cloudflare :</span> DNS → Records → Add record (proxy OFF)</li>
                 </ul>
-                <p className="text-amber-500 mt-1">La propagation DNS peut prendre jusqu'à 48h. Le SSL se génère automatiquement dès que le CNAME est détecté.</p>
+                <p className="text-amber-500 mt-1">La propagation DNS peut prendre jusqu'à 48h. SSL généré automatiquement.</p>
               </div>
 
               <div className="flex gap-2 pt-1">
@@ -551,44 +567,23 @@ const BoutiqueDomains = () => {
                     )}
                   </div>
 
-                  {/* Cloudflare status */}
-                  {dnsResult.source === 'cloudflare' && (
-                    <div className="space-y-1">
-                      <div className="text-xs text-gray-600 flex items-center gap-1.5">
-                        <span className="font-semibold">SSL :</span>
-                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                          dnsResult.sslStatus === 'active' ? 'bg-green-100 text-green-700' :
-                          dnsResult.sslStatus === 'pending_validation' || dnsResult.sslStatus === 'initializing' ? 'bg-amber-100 text-amber-700' :
-                          'bg-gray-100 text-gray-500'
-                        }`}>{dnsResult.sslStatus || 'pending'}</span>
-                      </div>
-                      <div className="text-xs text-gray-600 flex items-center gap-1.5">
-                        <span className="font-semibold">Propriété :</span>
-                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                          dnsResult.ownershipStatus === 'active' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
-                        }`}>{dnsResult.ownershipStatus || 'pending'}</span>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Legacy DNS details */}
-                  {dnsResult.source !== 'cloudflare' && dnsResult.aRecords?.length > 0 && (
+                  {dnsResult.aRecords?.length > 0 && (
                     <div className="text-xs text-gray-600">
                       <span className="font-semibold">A records :</span> {dnsResult.aRecords.join(', ')}
                       {dnsResult.aOk ? <span className="text-green-600 ml-1">✓</span> : <span className="text-red-600 ml-1">✗</span>}
                     </div>
                   )}
-                  {dnsResult.source !== 'cloudflare' && dnsResult.cnameRecords?.length > 0 && (
+                  {dnsResult.cnameRecords?.length > 0 && (
                     <div className="text-xs text-gray-600">
                       <span className="font-semibold">CNAME :</span> {dnsResult.cnameRecords.join(', ')}
                       {dnsResult.cnameOk ? <span className="text-green-600 ml-1">✓</span> : <span className="text-red-600 ml-1">✗</span>}
                     </div>
                   )}
-
+                  {!dnsResult.ok && !dnsResult.aRecords?.length && !dnsResult.cnameRecords?.length && (
+                    <p className="text-xs text-red-600">Aucun enregistrement détecté. Vérifiez votre configuration DNS.</p>
+                  )}
                   {!dnsResult.ok && (
-                    <p className="text-xs text-gray-500 mt-1">
-                      Ajoutez un CNAME pointant vers <span className="font-mono font-semibold">{CNAME_TARGET}</span> et relancez la vérification.
-                    </p>
+                    <p className="text-xs text-gray-500 mt-1">Cible attendue : <span className="font-mono">{dnsResult.expected?.cnameTarget || CNAME_TARGET}</span></p>
                   )}
                 </div>
               )}

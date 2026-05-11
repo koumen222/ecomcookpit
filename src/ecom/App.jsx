@@ -69,6 +69,7 @@ const WhatsAppEnSavoirPlus = lazy(() => import('./pages/WhatsAppEnSavoirPlus.jsx
 const AssignmentsManager = lazy(() => import('./pages/AssignmentsManager.jsx'));
 const CloseuseProduits = lazy(() => import('./pages/CloseuseProduits.jsx'));
 const SuperAdminDashboard = lazy(() => import('./pages/SuperAdminDashboard.jsx'));
+const ServiceClient = lazy(() => import('./pages/ServiceClient.jsx'));
 const SuperAdminUsers = lazy(() => import('./pages/SuperAdminUsers.jsx'));
 const SuperAdminUserDetail = lazy(() => import('./pages/SuperAdminUserDetail.jsx'));
 const SuperAdminWorkspaces = lazy(() => import('./pages/SuperAdminWorkspaces.jsx'));
@@ -363,6 +364,7 @@ const ProtectedRoute = ({ children, requiredRole, requireRitaAgentAccess = false
         'ecom_admin': '/ecom/dashboard/admin',
         'ecom_closeuse': '/ecom/dashboard/closeuse',
         'ecom_compta': '/ecom/dashboard/compta',
+        'service_client': '/ecom/service-client',
         'livreur': '/ecom/livreur',
         'ecom_livreur': '/ecom/livreur'
       };
@@ -594,6 +596,9 @@ const StoreApp = () => {
           <Routes>
             <Route path="/" element={<PublicStorefront />} />
             <Route path="/products" element={<StoreAllProducts />} />
+            {/* /products/:slug — Shopify-style URL (primary) */}
+            <Route path="/products/:slug" element={<Suspense fallback={null}><StoreProductPage /></Suspense>} />
+            {/* /product/:slug — legacy URL, kept for backward compat */}
             <Route path="/product/:slug" element={<Suspense fallback={null}><StoreProductPage /></Suspense>} />
             <Route path="/legal/:pageType" element={<StoreLegalPage />} />
             <Route path="/checkout" element={<StoreCheckout />} />
@@ -743,11 +748,17 @@ const EcomApp = () => {
               {/* Routes chat */}
               <Route path="/ecom/chat" element={<LayoutRoute><TeamChat /></LayoutRoute>} />
 
+              {/* Route Créatives Images */}
+              <Route path="/ecom/creatives" element={<LayoutRoute requiredRole="ecom_admin"><CreativeGenerator /></LayoutRoute>} />
+
               {/* Route marketing */}
               <Route path="/ecom/marketing" element={<LayoutRoute requiredRole="super_admin"><Marketing /></LayoutRoute>} />
               <Route path="/ecom/marketing/analytics" element={<LayoutRoute requiredRole="super_admin"><EmailAnalytics /></LayoutRoute>} />
               <Route path="/ecom/marketing/campaigns/:id/results" element={<LayoutRoute requiredRole="super_admin"><EmailCampaignResults /></LayoutRoute>} />
               <Route path="/ecom/affiliates" element={<LayoutRoute requiredRole="super_admin"><AffiliatesAdmin /></LayoutRoute>} />
+
+              {/* Service Client */}
+              <Route path="/ecom/service-client" element={<LayoutRoute requiredRole={['super_admin', 'service_client']}><ServiceClient /></LayoutRoute>} />
 
               {/* Routes Super Admin */}
               <Route path="/ecom/super-admin" element={<LayoutRoute requiredRole="super_admin"><SuperAdminDashboard /></LayoutRoute>} />
@@ -836,6 +847,7 @@ const EcomApp = () => {
               {/* Public Store Routes (no auth, for iframe previews & dev) */}
               <Route path="/store/:subdomain" element={<Suspense fallback={<PageLoader storeMode />}><PublicStorefront /></Suspense>} />
               <Route path="/store/:subdomain/products" element={<Suspense fallback={<PageLoader storeMode />}><StoreAllProducts /></Suspense>} />
+              <Route path="/store/:subdomain/products/:slug" element={<Suspense fallback={null}><StoreProductPage /></Suspense>} />
               <Route path="/store/:subdomain/product/:slug" element={<Suspense fallback={null}><StoreProductPage /></Suspense>} />
               <Route path="/store/:subdomain/legal/:pageType" element={<Suspense fallback={<PageLoader storeMode />}><StoreLegalPage /></Suspense>} />
               <Route path="/store/:subdomain/checkout" element={<Suspense fallback={<PageLoader storeMode />}><StoreCheckout /></Suspense>} />

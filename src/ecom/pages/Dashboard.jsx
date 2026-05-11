@@ -87,6 +87,7 @@ const Dashboard = () => {
     ecom_closeuse: '/ecom/dashboard/closeuse',
     ecom_compta: '/ecom/dashboard/compta',
     livreur: '/ecom/livreur',
+    service_client: '/ecom/service-client',
   };
   const dest = roleDashboardMap[user?.role] || '/ecom/workspace-setup';
   return <Navigate to={dest} replace />;

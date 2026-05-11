@@ -50,7 +50,7 @@ const ecomUserSchema = new mongoose.Schema({
   },
   role: {
     type: String,
-    enum: ['super_admin', 'ecom_admin', 'ecom_closeuse', 'ecom_compta', 'ecom_livreur', null],
+    enum: ['super_admin', 'ecom_admin', 'ecom_closeuse', 'ecom_compta', 'ecom_livreur', 'service_client', null],
     default: null
   },
   workspaceId: {
