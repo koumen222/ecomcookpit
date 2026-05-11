@@ -746,6 +746,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
   const [fashionSizes, setFashionSizes] = useState([]); // ['S','M','L','XL']
   const [fashionColors, setFashionColors] = useState([]); // [{name, hex}]
   const [fashionMinimalist, setFashionMinimalist] = useState(true);
+  const [customPrimaryColor, setCustomPrimaryColor] = useState(null); // null = suit le template, hex = couleur custom
   const [templateTheme, setTemplateTheme] = useState(() => buildTemplateTheme('beauty'));
   const [heroVisualDirection, setHeroVisualDirection] = useState(() => buildTemplateTheme('beauty').heroVisual || '');
   const [decorationDirection, setDecorationDirection] = useState(() => buildTemplateTheme('beauty').decorationVisual || '');
@@ -849,10 +850,27 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
 
   useEffect(() => {
     const nextTheme = buildTemplateTheme(visualTemplate);
-    setTemplateTheme(nextTheme);
+    setTemplateTheme(prev => ({
+      ...nextTheme,
+      primary: customPrimaryColor || nextTheme.primary,
+      accent: customPrimaryColor ? customPrimaryColor + '66' : nextTheme.accent,
+    }));
     setHeroVisualDirection(nextTheme.heroVisual || '');
     setDecorationDirection(nextTheme.decorationVisual || '');
-  }, [visualTemplate]);
+  }, [visualTemplate]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (customPrimaryColor) {
+      setTemplateTheme(prev => ({
+        ...prev,
+        primary: customPrimaryColor,
+        accent: customPrimaryColor + '66',
+      }));
+    } else {
+      const base = buildTemplateTheme(visualTemplate);
+      setTemplateTheme(prev => ({ ...prev, primary: base.primary, accent: base.accent }));
+    }
+  }, [customPrimaryColor]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Poll for background image generation
   useEffect(() => {
@@ -1349,6 +1367,8 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
     formData.append('imageAspectRatio', imageGenerationMode === 'ad_4_5' ? '4:5' : '1:1');
     formData.append('marketingApproach', marketingApproach);
     formData.append('visualTemplate', visualTemplate);
+    formData.append('themeColor', templateTheme.primary);
+    if (customPrimaryColor) formData.append('customThemeColor', customPrimaryColor);
     if (visualTemplate === 'fashion') {
       formData.append('fashionAvatar', fashionAvatar);
       formData.append('fashionMinimalist', fashionMinimalist ? 'true' : 'false');
@@ -2178,6 +2198,67 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
                     <p className="mt-3 text-[11px] text-gray-400">
                       Le template sert uniquement de point de départ visuel. La page et les visuels restent générés dynamiquement.
                     </p>
+
+                    {/* Couleur de thème personnalisée */}
+                    <div className="mt-4 rounded-2xl border border-gray-200 bg-white p-4">
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center gap-2">
+                          <div className="w-5 h-5 rounded-full border border-gray-200 flex-shrink-0" style={{ background: templateTheme.primary }} />
+                          <span className="text-xs font-semibold text-gray-800">Couleur de votre thème</span>
+                        </div>
+                        {customPrimaryColor && (
+                          <button
+                            type="button"
+                            onClick={() => setCustomPrimaryColor(null)}
+                            className="text-[10px] text-gray-400 hover:text-red-500 transition underline"
+                          >
+                            Réinitialiser
+                          </button>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-gray-400 mb-3">
+                        Les images générées adopteront automatiquement cette couleur — fonds, accents et ambiance visuelle.
+                      </p>
+                      <div className="flex items-center gap-3">
+                        <div className="relative flex-shrink-0">
+                          <input
+                            type="color"
+                            value={customPrimaryColor || templateTheme.primary}
+                            onChange={e => setCustomPrimaryColor(e.target.value)}
+                            className="w-10 h-10 rounded-xl border-2 border-gray-200 cursor-pointer p-0.5"
+                            style={{ backgroundColor: customPrimaryColor || templateTheme.primary }}
+                          />
+                        </div>
+                        <input
+                          type="text"
+                          value={customPrimaryColor || templateTheme.primary}
+                          onChange={e => {
+                            const v = e.target.value;
+                            if (/^#[0-9A-Fa-f]{0,6}$/.test(v)) setCustomPrimaryColor(v.length === 7 ? v : null);
+                          }}
+                          placeholder="#000000"
+                          className="flex-1 rounded-xl border border-gray-200 px-3 py-2 text-xs font-mono text-gray-700 focus:outline-none focus:border-gray-400"
+                        />
+                        {/* Palettes rapides */}
+                        <div className="flex gap-1.5 flex-shrink-0">
+                          {['#0F6B4F','#2563EB','#7C3AED','#DC2626','#D97706','#BE185D','#0891B2','#000000'].map(hex => (
+                            <button
+                              key={hex}
+                              type="button"
+                              title={hex}
+                              onClick={() => setCustomPrimaryColor(hex)}
+                              className="w-6 h-6 rounded-full border-2 transition flex-shrink-0"
+                              style={{
+                                background: hex,
+                                borderColor: customPrimaryColor === hex ? '#374151' : 'transparent',
+                                outline: customPrimaryColor === hex ? '2px solid #374151' : 'none',
+                                outlineOffset: '1px',
+                              }}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    </div>
 
                     {visualTemplate === 'fashion' && (
                       <div className="mt-5 rounded-[24px] border-2 border-purple-100 bg-gradient-to-br from-purple-50/60 to-pink-50/40 p-5">
