@@ -139,7 +139,7 @@ export const extractSubdomain = (req, res, next) => {
     // ── Custom domain (maboutique.com) ──
     // Normalize custom hostname (strip www.)
     const normalizedHostname = hostname.startsWith('www.') ? hostname.slice(4) : hostname;
-    console.log(`🔍 [subdomain] HOST: ${host} | Normalized: ${normalizedHostname}`);
+    console.log(`🔍 [subdomain] HOST: ${rawHost} | Normalized: ${normalizedHostname}`);
 
     // Not a platform host → try to resolve as custom domain
     // Check cache first (sync)
