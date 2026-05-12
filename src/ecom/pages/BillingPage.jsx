@@ -442,6 +442,14 @@ function PlanCard({ tier, isAnnual, onCheckout, currentPlan, isActive, globalPro
     const matchesPlan = !applicablePlans?.length || applicablePlans.includes(tier.id);
     const matchesDuration = !applicableDurations?.length || applicableDurations.includes(duration.months);
     const matchesAmount = duration.price >= (minAmount || 0);
+
+    console.log(`[PlanCard] Promo check for ${tier.id} (${duration.months}m) — Plan:${matchesPlan}, Duration:${matchesDuration}, Amount:${matchesAmount}`, {
+      applicablePlans,
+      applicableDurations,
+      minAmount,
+      price: duration.price
+    });
+
     if (matchesPlan && matchesDuration && matchesAmount) {
       isPromoApplied = true;
       if (!originalPrice) originalPrice = duration.price;
@@ -450,6 +458,9 @@ function PlanCard({ tier, isAnnual, onCheckout, currentPlan, isActive, globalPro
         : Math.min(duration.price, discountValue);
       displayPrice = Math.max(0, duration.price - discountAmount);
       displayPerMonth = Math.round(displayPrice / duration.months);
+      console.log(`[PlanCard] ✅ Promo applied to ${tier.id}: ${duration.price} → ${displayPrice} FCFA`);
+    } else {
+      console.log(`[PlanCard] ❌ Promo NOT applied to ${tier.id}: conditions not met`);
     }
   }
 
@@ -1046,6 +1057,7 @@ export default function BillingPage() {
                   isAnnual={isAnnual}
                   currentPlan={currentPlan}
                   isActive={isActivePaid}
+                  globalPromoData={globalPromoData}
                   onCheckout={duration => handleDirectCheckout({ ...duration, tier: tier.id })}
                 />
               ))}
