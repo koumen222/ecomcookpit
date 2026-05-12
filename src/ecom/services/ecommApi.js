@@ -114,7 +114,7 @@ function isRetryableRequestError(error) {
 
 const ecomApi = axios.create({
   baseURL: ECOM_API_BASE_URL,
-  timeout: 30000,
+  timeout: 30000, // per-request override recommended for long ops (e.g. timeout:0)
   withCredentials: false,
   headers: {
     'Content-Type': 'application/json'

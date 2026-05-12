@@ -15,6 +15,7 @@ import { generateGptImage2ImageToImage, getImageGenerationStats } from '../servi
 import { uploadImage } from '../services/cloudflareImagesService.js';
 import { extractProductInfo } from '../services/geminiProductExtractor.js';
 import FeatureUsageLog from '../models/FeatureUsageLog.js';
+import CreativeAsset from '../models/CreativeAsset.js';
 
 // All slides now use image-to-image mode (product reference mandatory)
 
@@ -340,7 +341,7 @@ function getCategoryStyle(category = '', brandColors = '') {
   };
 }
 
-function buildCreativePrompt(analysis, format, hasRefImage, visualTemplate = 'general') {
+function buildCreativePrompt(analysis, format, hasRefImage, visualTemplate = 'general', hasLogo = false) {
   const { keyBenefits, painPoints, usageSteps, brandColors, slogans, emotionalHook, category } = analysis;
 
   const b1 = keyBenefits?.[0] || 'Efficace';
@@ -358,11 +359,16 @@ function buildCreativePrompt(analysis, format, hasRefImage, visualTemplate = 'ge
   const finalCategory = (visualTemplate && visualTemplate !== 'general') ? visualTemplate : category;
   const style = getCategoryStyle(finalCategory, brandColors);
 
+  const logoInstruction = hasLogo
+    ? 'BRAND LOGO: A brand logo image is provided as reference. Place it prominently but elegantly — top-left or top-right corner, respecting proportions, on a clean background zone. Do not distort or recolor the logo.'
+    : '';
+
   // ── Concise style anchor (injected into every prompt) ──────────────────────
   const ANCHOR = `
 Style: premium e-commerce listing, square 1:1, photorealistic HD, clean ${style.mood} aesthetic.
 Background: ${style.bgStyle}.
 Product: ${hasRefImage ? 'use the reference image — reproduce packaging faithfully, exact colors and logo' : 'create a realistic product render'}.
+${logoInstruction}
 Decorative elements: ${style.decorativeElements}.
 People (if any): dark-skinned African person, natural hair, warm confident expression, studio lighting.
 Typography: bold condensed sans-serif, French text only, razor-sharp, dominant headlines.`.trim();
@@ -659,11 +665,15 @@ async function scrapeProductImage(url) {
 }
 
 // ── POST /api/ecom/ai/creative-generator ──────────────────────────────────────
-router.post('/', requireEcomAuth, upload.single('productImage'), async (req, res) => {
+router.post('/', requireEcomAuth, upload.fields([
+  { name: 'productImage', maxCount: 1 },
+  { name: 'logoImage', maxCount: 1 },
+]), async (req, res) => {
   try {
     const { url, description, formats: formatsRaw, visualTemplate } = req.body;
     const formats = typeof formatsRaw === 'string' ? JSON.parse(formatsRaw) : formatsRaw;
-    const productImageBuffer = req.file?.buffer || null;
+    const productImageBuffer = req.files?.productImage?.[0]?.buffer || null;
+    const logoBuffer = req.files?.logoImage?.[0]?.buffer || null;
 
     // Require at least image OR (url OR description)
     if (!productImageBuffer && !url && !description) {
@@ -719,28 +729,38 @@ router.post('/', requireEcomAuth, upload.single('productImage'), async (req, res
 
     for (const format of selectedFormats) {
       try {
-        const imagePrompt = buildCreativePrompt(analysis, format, true, visualTemplate);
+        const imagePrompt = buildCreativePrompt(analysis, format, true, visualTemplate, !!logoBuffer);
         console.log(`  🎨 Generating ${format.id} (image-to-image)...`);
         
         let imageDataUrl;
-        imageDataUrl = await generateGptImage2ImageToImage(imagePrompt, resolvedImageBuffer, format.aspectRatio);
+        imageDataUrl = await generateGptImage2ImageToImage(imagePrompt, resolvedImageBuffer, format.aspectRatio, logoBuffer || null);
         
         if (imageDataUrl) {
           let finalUrl = imageDataUrl;
           try {
-            // Convert data URL to buffer for R2 upload
+            let imgBuffer;
             const base64Match = imageDataUrl.match(/^data:image\/\w+;base64,(.+)$/);
             if (base64Match) {
-              const imgBuffer = Buffer.from(base64Match[1], 'base64');
+              // data URL → buffer
+              imgBuffer = Buffer.from(base64Match[1], 'base64');
+            } else if (/^https?:\/\//i.test(imageDataUrl)) {
+              // remote URL (Kie.ai) → download → buffer
+              const dlRes = await axios.get(imageDataUrl, { responseType: 'arraybuffer', timeout: 60000 });
+              imgBuffer = Buffer.from(dlRes.data);
+            }
+            if (imgBuffer) {
               const uploaded = await uploadImage(imgBuffer, `creative-${format.id}.png`, {
                 workspaceId: req.workspaceId || 'creative',
                 uploadedBy: req.userId || 'creative-generator',
                 optimize: false,
               });
-              if (uploaded?.url) finalUrl = uploaded.url;
+              if (uploaded?.url) {
+                finalUrl = uploaded.url;
+                console.log(`  💾 ${format.id} stored → ${finalUrl.slice(0, 80)}`);
+              }
             }
           } catch (uploadErr) {
-            console.warn('⚠️ Upload R2 failed, returning base64:', uploadErr.message);
+            console.warn('⚠️ Upload R2 failed, keeping original URL:', uploadErr.message);
           }
 
           creatives.push({
@@ -750,6 +770,22 @@ router.post('/', requireEcomAuth, upload.single('productImage'), async (req, res
             imageUrl: finalUrl,
             usedProductImage: hasImage,
           });
+
+          // Persist to DB
+          if (req.workspaceId && req.userId) {
+            CreativeAsset.create({
+              workspaceId: req.workspaceId,
+              userId: req.userId,
+              productName: analysis.productName || '',
+              formatId: format.id,
+              label: format.label,
+              imageUrl: finalUrl,
+              aspectRatio: format.aspectRatio,
+              category: analysis.category || '',
+              template: visualTemplate || '',
+            }).catch(e => console.warn('⚠️ CreativeAsset save failed:', e.message));
+          }
+
           console.log(`  ✅ ${format.id} generated`);
         } else {
           creatives.push({
@@ -806,6 +842,45 @@ router.post('/', requireEcomAuth, upload.single('productImage'), async (req, res
 // ── GET /api/ai/creative-generator/formats ────────────────────────────────────
 router.get('/formats', requireEcomAuth, async (_req, res) => {
   res.json({ formats: CREATIVE_FORMATS });
+});
+
+// ── GET /api/ecom/ai/creative-generator/gallery ───────────────────────────────
+// List all stored creatives for the authenticated workspace, newest first
+router.get('/gallery', requireEcomAuth, async (req, res) => {
+  try {
+    if (!req.workspaceId) return res.status(400).json({ error: 'workspaceId manquant' });
+    const page  = Math.max(1, parseInt(req.query.page)  || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20));
+    const skip  = (page - 1) * limit;
+
+    const [assets, total] = await Promise.all([
+      CreativeAsset.find({ workspaceId: req.workspaceId })
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      CreativeAsset.countDocuments({ workspaceId: req.workspaceId }),
+    ]);
+
+    res.json({ success: true, assets, total, page, pages: Math.ceil(total / limit) });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── DELETE /api/ecom/ai/creative-generator/gallery/:id ────────────────────────
+router.delete('/gallery/:id', requireEcomAuth, async (req, res) => {
+  try {
+    if (!req.workspaceId) return res.status(400).json({ error: 'workspaceId manquant' });
+    const asset = await CreativeAsset.findOneAndDelete({
+      _id: req.params.id,
+      workspaceId: req.workspaceId, // scope to workspace — no cross-workspace deletion
+    });
+    if (!asset) return res.status(404).json({ error: 'Visuel introuvable' });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 export default router;

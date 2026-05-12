@@ -25,6 +25,13 @@ const CATEGORIES = [
 
 const SupportChatWidget = () => {
   const [open, setOpen]               = useState(false);
+
+  // Ouverture externe via window event (utilisé par ErrorBanner)
+  useEffect(() => {
+    const handler = () => setOpen(true);
+    window.addEventListener('scalor:open-support', handler);
+    return () => window.removeEventListener('scalor:open-support', handler);
+  }, []);
   const [view, setView]               = useState('list'); // 'list' | 'new' | 'chat'
   const [tickets, setTickets]         = useState([]);
   const [activeTicket, setActiveTicket] = useState(null);

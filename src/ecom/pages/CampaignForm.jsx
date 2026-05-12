@@ -2,6 +2,7 @@
 import { useNavigate, useParams, Link } from "react-router-dom";
 import ecomApi from "../services/ecommApi.js";
 import { useMoney } from '../hooks/useMoney.js';
+import ErrorBanner from '../components/ErrorBanner.jsx';
 
 const TEMPLATES = [
   { id: "relance_pending", label: "En attente", name: "Relance commandes en attente", orderStatus: ["pending"], message: "Bonjour {firstName},\n\nNous avons bien reçu votre commande et elle est actuellement en attente de confirmation.\n\nPour finaliser votre livraison, notre équipe a besoin de valider quelques informations.\n\nPouvez-vous confirmer que vous êtes toujours intéressé(e) ?\n\nRépondez OUI et nous nous occupons du reste.\n\nCordialement,\nL'équipe Scalor" },
@@ -231,14 +232,16 @@ const CampaignForm = () => {
 
     const isImage = file.type.startsWith('image/');
     const isAudio = file.type.startsWith('audio/');
-    
-    if (!isImage && !isAudio) {
-      setError("Fichier non supporté. Utilisez une image (JPG, PNG, GIF, WebP) ou un audio (MP3, OGG, WAV, M4A)");
+    const isVideo = file.type.startsWith('video/');
+
+    if (!isImage && !isAudio && !isVideo) {
+      setError("Fichier non supporté. Images (JPG, PNG, WebP), Audio (MP3, OGG, WAV), Vidéo (MP4, MOV, WebM)");
       return;
     }
 
-    if (file.size > 10 * 1024 * 1024) {
-      setError("Fichier trop volumineux (max 10 MB)");
+    const maxSize = isVideo ? 50 * 1024 * 1024 : 10 * 1024 * 1024;
+    if (file.size > maxSize) {
+      setError(isVideo ? "Vidéo trop volumineuse (max 50 MB)" : "Fichier trop volumineux (max 10 MB)");
       return;
     }
 
@@ -256,7 +259,7 @@ const CampaignForm = () => {
       setFormData(prev => ({
         ...prev,
         media: {
-          type: isImage ? 'image' : 'audio',
+          type: isImage ? 'image' : isVideo ? 'video' : 'audio',
           url: res.data.data.url,
           fileName: res.data.data.fileName,
           caption: '' // Image et texte sont envoyés séparément
@@ -333,12 +336,7 @@ const CampaignForm = () => {
       </div>
 
       <form onSubmit={handleSubmit} className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-5">
-        {error && (
-          <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">
-            <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd"/></svg>
-            {error}
-          </div>
-        )}
+        <ErrorBanner message={error} onDismiss={() => setError('')} />
 
         {/*  STEP 1 : TEMPLATE  */}
         {(!isEdit && step===1) && (
@@ -631,13 +629,13 @@ const CampaignForm = () => {
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
               <div className="px-5 pt-4 pb-3 border-b border-gray-100">
                 <h2 className="text-sm font-semibold text-gray-900">Médias (optionnel)</h2>
-                <p className="text-xs text-gray-400 mt-0.5">Ajoutez une image ou un message vocal à votre campagne</p>
+                <p className="text-xs text-gray-400 mt-0.5">Ajoutez une image, une vidéo ou un message vocal à votre campagne</p>
               </div>
               <div className="p-5">
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept="image/jpeg,image/jpg,image/png,image/gif,image/webp,audio/mpeg,audio/mp3,audio/ogg,audio/wav,audio/mp4,audio/m4a"
+                  accept="image/jpeg,image/jpg,image/png,image/gif,image/webp,audio/mpeg,audio/mp3,audio/ogg,audio/wav,audio/mp4,audio/m4a,video/mp4,video/quicktime,video/x-msvideo,video/webm,video/3gpp"
                   onChange={handleMediaUpload}
                   className="hidden"
                 />
@@ -651,16 +649,30 @@ const CampaignForm = () => {
                       className="flex-1 flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg hover:border-emerald-500 hover:bg-emerald-50 transition text-sm font-medium text-gray-600 hover:text-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {mediaUploading ? (
-                        <>
-                          <IconSpinner />
-                          <span>Upload en cours...</span>
-                        </>
+                        <><IconSpinner /><span>Upload en cours...</span></>
                       ) : (
                         <>
                           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                           </svg>
-                          <span>Ajouter une image</span>
+                          <span>Image</span>
+                        </>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={mediaUploading}
+                      className="flex-1 flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition text-sm font-medium text-gray-600 hover:text-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {mediaUploading ? (
+                        <><IconSpinner /><span>Upload en cours...</span></>
+                      ) : (
+                        <>
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.069A1 1 0 0121 8.87v6.259a1 1 0 01-1.447.894L15 14M3 8a2 2 0 012-2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z" />
+                          </svg>
+                          <span>Vidéo</span>
                         </>
                       )}
                     </button>
@@ -671,22 +683,23 @@ const CampaignForm = () => {
                       className="flex-1 flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg hover:border-purple-500 hover:bg-purple-50 transition text-sm font-medium text-gray-600 hover:text-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {mediaUploading ? (
-                        <>
-                          <IconSpinner />
-                          <span>Upload en cours...</span>
-                        </>
+                        <><IconSpinner /><span>Upload en cours...</span></>
                       ) : (
                         <>
                           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
                           </svg>
-                          <span>Ajouter un vocal</span>
+                          <span>Vocal</span>
                         </>
                       )}
                     </button>
                   </div>
                 ) : (
-                  <div className={`p-4 rounded-lg border-2 ${formData.media.type === 'image' ? 'border-emerald-200 bg-emerald-50' : 'border-purple-200 bg-purple-50'}`}>
+                  <div className={`p-4 rounded-lg border-2 ${
+                    formData.media.type === 'image' ? 'border-emerald-200 bg-emerald-50' :
+                    formData.media.type === 'video' ? 'border-blue-200 bg-blue-50' :
+                    'border-purple-200 bg-purple-50'
+                  }`}>
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-start gap-3 flex-1 min-w-0">
                         {formData.media.type === 'image' ? (
@@ -697,7 +710,18 @@ const CampaignForm = () => {
                             <div className="flex-1 min-w-0">
                               <p className="text-sm font-semibold text-emerald-800">Image ajoutée</p>
                               <p className="text-xs text-emerald-600 truncate">{formData.media.fileName}</p>
-                              <p className="text-[10px] text-emerald-500 mt-1">L'image sera envoyée en premier, puis le texte séparément</p>
+                              <p className="text-[10px] text-emerald-500 mt-1">Le texte sera envoyé en premier, puis l'image</p>
+                            </div>
+                          </>
+                        ) : formData.media.type === 'video' ? (
+                          <>
+                            <div className="w-12 h-12 rounded-lg overflow-hidden bg-white border border-blue-200 flex-shrink-0">
+                              <video src={formData.media.url} className="w-full h-full object-cover" muted />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-semibold text-blue-800">Vidéo ajoutée</p>
+                              <p className="text-xs text-blue-600 truncate">{formData.media.fileName}</p>
+                              <p className="text-[10px] text-blue-500 mt-1">Le texte sera envoyé en premier, puis la vidéo</p>
                             </div>
                           </>
                         ) : (
@@ -728,7 +752,7 @@ const CampaignForm = () => {
                     </div>
                   </div>
                 )}
-                <p className="text-[10px] text-gray-400 mt-2">Formats acceptés : Images (JPG, PNG, GIF, WebP) • Audio (MP3, OGG, WAV, M4A) • Taille max : 10 MB</p>
+                <p className="text-[10px] text-gray-400 mt-2">Images (JPG, PNG, WebP) • Vidéo (MP4, MOV, WebM, max 50 MB) • Audio (MP3, OGG, WAV, max 10 MB)</p>
               </div>
             </div>
 

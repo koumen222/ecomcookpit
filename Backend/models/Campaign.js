@@ -146,7 +146,7 @@ const campaignSchema = new mongoose.Schema({
   media: {
     type: {
       type: String,
-      enum: ['none', 'image', 'audio'],
+      enum: ['none', 'image', 'audio', 'video'],
       default: 'none'
     },
     url: String,

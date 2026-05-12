@@ -6,6 +6,7 @@ import ecomApi from '../services/ecommApi.js';
 // ❌ CACHE DÉSACTIVÉ
 // import { getCache, setCache } from '../utils/cacheUtils.js';
 import WhatsAppInstanceSelector from '../components/WhatsAppInstanceSelector.jsx';
+import ErrorBanner from '../components/ErrorBanner.jsx';
 // WhatsAppConfigModal supprimé
 
 const IconFillLoader = ({ backgroundClassName = 'bg-gray-50' }) => {
@@ -613,7 +614,7 @@ const CampaignsList = () => {
   return (
     <div className="p-3 sm:p-4 lg:p-6 max-w-7xl mx-auto">
       {success && <div className="mb-3 p-2.5 bg-green-50 text-green-800 rounded-lg text-sm border border-green-200 flex items-center gap-2"><svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/></svg>{success}</div>}
-      {error && <div className="mb-3 p-2.5 bg-red-50 text-red-800 rounded-lg text-sm border border-red-200">{error}</div>}
+      <ErrorBanner message={error} onDismiss={() => setError('')} className="mb-3" />
 
       {!(showProgress && sendProgress && !isProgressMinimized) && (<>
       <div className="relative mb-5 overflow-hidden rounded-[30px] border border-emerald-100 bg-white p-4 shadow-sm shadow-emerald-100/60 sm:p-6">
