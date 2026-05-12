@@ -183,8 +183,10 @@ const OrdersList = () => {
 
   const [showOrderModal, setShowOrderModal] = useState(false);
   const [editingOrder, setEditingOrder] = useState(null);
-  const [orderForm, setOrderForm] = useState({ clientName: '', clientPhone: '', city: '', address: '', product: '', quantity: 1, price: 0, status: 'pending', notes: '' });
+  const [orderForm, setOrderForm] = useState({ clientName: '', clientPhone: '', city: '', address: '', product: '', productId: '', quantity: 1, price: 0, status: 'pending', notes: '' });
   const [savingOrder, setSavingOrder] = useState(false);
+  const [availableProducts, setAvailableProducts] = useState([]);
+  const [loadingProducts, setLoadingProducts] = useState(false);
   const [deletingOrderId, setDeletingOrderId] = useState(null);
   const [deletingAll, setDeletingAll] = useState(false);
   const [selectionMode, setSelectionMode] = useState(false);
@@ -389,6 +391,20 @@ const OrdersList = () => {
       setError(getContextualError(err, 'load_orders'));
     } finally {
       setRefreshing(false);
+    }
+  };
+
+  const fetchProducts = async () => {
+    setLoadingProducts(true);
+    try {
+      // Utiliser /stock/products pour avoir le stock calculé depuis StockLocation
+      const res = await ecomApi.get('/stock/products', { params: { isActive: true } });
+      setAvailableProducts(res.data?.data || []);
+    } catch (err) {
+      console.error('Erreur chargement produits:', err);
+      setAvailableProducts([]);
+    } finally {
+      setLoadingProducts(false);
     }
   };
 
@@ -823,6 +839,7 @@ const OrdersList = () => {
         // Config en parallèle avec le quick load
         fetchConfig();
         fetchWhatsAppConfig();
+        fetchProducts(); // Charger les produits pour le formulaire
       } else if (isCloseuse) {
         await fetchCloseuseSources();
         fetchCommissions('month');
@@ -1311,7 +1328,7 @@ const OrdersList = () => {
 
   const openCreateOrder = () => {
     setEditingOrder(null);
-    setOrderForm({ clientName: '', clientPhone: '', city: '', address: '', product: '', quantity: 1, price: 0, status: 'pending', notes: '', currency: userCurrency || 'XAF' });
+    setOrderForm({ clientName: '', clientPhone: '', city: '', address: '', product: '', productId: '', quantity: 1, price: 0, status: 'pending', notes: '', currency: userCurrency || 'XAF' });
     setShowOrderModal(true);
   };
 
@@ -3128,9 +3145,41 @@ const OrdersList = () => {
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Produit</label>
-                <input type="text" value={orderForm.product} onChange={e => setOrderForm({...orderForm, product: e.target.value})}
-                  placeholder="Nom du produit" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-600 focus:border-emerald-600" />
+                <label className="block text-xs font-medium text-gray-600 mb-1">Produit *</label>
+                {loadingProducts ? (
+                  <div className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-400">
+                    Chargement des produits...
+                  </div>
+                ) : availableProducts.length > 0 ? (
+                  <select
+                    value={orderForm.productId}
+                    onChange={e => {
+                      const selectedProduct = availableProducts.find(p => p._id === e.target.value);
+                      setOrderForm({
+                        ...orderForm,
+                        productId: e.target.value,
+                        product: selectedProduct?.name || '',
+                        price: selectedProduct?.sellingPrice || orderForm.price
+                      });
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-600 focus:border-emerald-600"
+                  >
+                    <option value="">Sélectionner un produit</option>
+                    {availableProducts.map(product => (
+                      <option key={product._id} value={product._id}>
+                        {product.name} - Stock: {product.stock} - {product.sellingPrice || 0} FCFA
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    type="text"
+                    value={orderForm.product}
+                    onChange={e => setOrderForm({...orderForm, product: e.target.value})}
+                    placeholder="Nom du produit (aucun produit en stock)"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-600 focus:border-emerald-600"
+                  />
+                )}
               </div>
               <div className="grid grid-cols-3 gap-4">
                 <div>

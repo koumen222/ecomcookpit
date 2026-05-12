@@ -58,6 +58,12 @@ const orderSchema = new mongoose.Schema({
     trim: true,
     default: ''
   },
+  productId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'EcomProduct',
+    default: null,
+    index: true
+  },
   quantity: {
     type: Number,
     default: 1

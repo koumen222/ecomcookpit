@@ -405,7 +405,7 @@ const detectCountry = (phone, city) => {
 // ─── Route: Créer une commande (POST /) ───────────────────────────────────────
 router.post('/', requireEcomAuth, validateEcomAccess('orders', 'write'), checkPlanLimit('orders'), async (req, res) => {
   try {
-    const { clientName, clientPhone, city, address, product, quantity, price, status, notes, tags, currency } = req.body;
+    const { clientName, clientPhone, city, address, product, productId, quantity, price, status, notes, tags, currency } = req.body;
     if (!clientName && !clientPhone) {
       return res.status(400).json({ success: false, message: 'Nom client ou téléphone requis' });
     }
@@ -425,6 +425,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('orders', 'write'), checkPl
       city: city || '',
       address: address || '',
       product: product || '',
+      productId: productId || null, // Ajouter le productId pour la gestion de stock
       quantity: quantity || 1,
       price: price || 0,
       currency: currency || 'XAF',
@@ -3490,7 +3491,7 @@ router.put('/:id', requireEcomAuth, async (req, res) => {
       });
     }
 
-    const allowedFields = ['status', 'notes', 'clientName', 'clientPhone', 'city', 'address', 'product', 'quantity', 'price', 'currency', 'deliveryLocation', 'deliveryTime', 'tags', 'assignedLivreur'];
+    const allowedFields = ['status', 'notes', 'clientName', 'clientPhone', 'city', 'address', 'product', 'productId', 'quantity', 'price', 'currency', 'deliveryLocation', 'deliveryTime', 'tags', 'assignedLivreur'];
     const updateData = {};
     allowedFields.forEach(field => {
       if (req.body[field] !== undefined) updateData[field] = req.body[field];
@@ -3527,10 +3528,53 @@ router.put('/:id', requireEcomAuth, async (req, res) => {
     // Notification interne sur changement de statut
     if (statusChanged) {
       notifyOrderStatus(req.workspaceId, updatedOrder, req.body.status).catch(() => {});
-      
+
       // Notification d'équipe (exclure l'acteur)
       notifyTeamOrderStatusChanged(req.workspaceId, req.ecomUser._id, updatedOrder, req.body.status, req.ecomUser.email).catch(() => {});
       console.log(`📱 [Orders] Push statut envoyé via notifyOrderStatus: ${updatedOrder._id} -> ${req.body.status}`);
+
+      // ══════════════════════════════════════════════════════════════════════════
+      // DÉCRÉMENTATION DU STOCK LORS DE LA LIVRAISON (via StockLocation)
+      // ══════════════════════════════════════════════════════════════════════════
+      if (req.body.status === 'delivered' && updatedOrder.productId) {
+        try {
+          const { decrementStockForDelivery } = await import('../services/stockService.js');
+          const result = await decrementStockForDelivery({
+            workspaceId: req.workspaceId,
+            productId: updatedOrder.productId,
+            quantity: updatedOrder.quantity || 1,
+            orderId: updatedOrder.orderId
+          });
+
+          if (result.success) {
+            // Vérifier si le stock total est bas
+            const StockLocation = mongoose.model('StockLocation');
+            const locations = await StockLocation.find({
+              productId: updatedOrder.productId,
+              workspaceId: req.workspaceId
+            });
+            const totalStock = locations.reduce((sum, loc) => sum + loc.quantity, 0);
+
+            // Récupérer le produit pour le seuil
+            const Product = mongoose.model('EcomProduct');
+            const product = await Product.findById(updatedOrder.productId).select('name reorderThreshold');
+
+            if (product && totalStock <= (product.reorderThreshold || 5)) {
+              createNotification({
+                workspaceId: req.workspaceId,
+                type: 'low_stock',
+                title: '⚠️ Stock faible',
+                message: `${product.name}: ${totalStock} unités restantes (seuil: ${product.reorderThreshold || 5})`,
+                icon: 'warning',
+                link: `/ecom/stock`
+              }).catch(() => {});
+            }
+          }
+        } catch (stockErr) {
+          console.error(`❌ [Stock] Erreur décrémentation stock pour commande ${updatedOrder.orderId}:`, stockErr.message);
+          // Ne pas bloquer la mise à jour de la commande si la décrémentation échoue
+        }
+      }
     }
 
     // Notification + push au livreur spécifique quand il est assigné
@@ -3653,6 +3697,49 @@ router.patch('/:id/status', requireEcomAuth, async (req, res) => {
       notifyOrderStatus(req.workspaceId, order, status).catch(() => {});
       notifyTeamOrderStatusChanged(req.workspaceId, req.ecomUser._id, order, status, req.ecomUser.email).catch(() => {});
       console.log(`📱 [Orders] Push statut envoyé via notifyOrderStatus: ${order._id} -> ${status}`);
+
+      // ══════════════════════════════════════════════════════════════════════════
+      // DÉCRÉMENTATION DU STOCK LORS DE LA LIVRAISON (via StockLocation)
+      // ══════════════════════════════════════════════════════════════════════════
+      if (status === 'delivered' && order.productId) {
+        try {
+          const { decrementStockForDelivery } = await import('../services/stockService.js');
+          const result = await decrementStockForDelivery({
+            workspaceId: req.workspaceId,
+            productId: order.productId,
+            quantity: order.quantity || 1,
+            orderId: order.orderId
+          });
+
+          if (result.success) {
+            // Vérifier si le stock total est bas
+            const StockLocation = mongoose.model('StockLocation');
+            const locations = await StockLocation.find({
+              productId: order.productId,
+              workspaceId: req.workspaceId
+            });
+            const totalStock = locations.reduce((sum, loc) => sum + loc.quantity, 0);
+
+            // Récupérer le produit pour le seuil
+            const Product = mongoose.model('EcomProduct');
+            const product = await Product.findById(order.productId).select('name reorderThreshold');
+
+            if (product && totalStock <= (product.reorderThreshold || 5)) {
+              createNotification({
+                workspaceId: req.workspaceId,
+                type: 'low_stock',
+                title: '⚠️ Stock faible',
+                message: `${product.name}: ${totalStock} unités restantes (seuil: ${product.reorderThreshold || 5})`,
+                icon: 'warning',
+                link: `/ecom/stock`
+              }).catch(() => {});
+            }
+          }
+        } catch (stockErr) {
+          console.error(`❌ [Stock] Erreur décrémentation stock pour commande ${order.orderId}:`, stockErr.message);
+          // Ne pas bloquer la mise à jour de la commande si la décrémentation échoue
+        }
+      }
 
       // Sync status vers StoreOrder liée
       if (order.storeOrderId) {

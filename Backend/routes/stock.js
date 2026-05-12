@@ -13,10 +13,15 @@ import Workspace from '../models/Workspace.js';
 const router = express.Router();
 
 // Helper: Calculate actual stock from StockLocation — falls back to Product.stock when no locations exist
+// Stock actuel = quantity - sales (stock restant disponible)
 const calculateActualStock = async (productId, workspaceId, fallbackStock = null) => {
   const locations = await StockLocation.find({ productId, workspaceId });
   if (locations.length === 0 && fallbackStock !== null) return fallbackStock;
-  return locations.reduce((total, loc) => total + (loc.quantity || 0), 0);
+  // Stock actuel = somme de (quantity - sales) pour chaque location
+  return locations.reduce((total, loc) => {
+    const stockRestant = Math.max(0, (loc.quantity || 0) - (loc.sales || 0));
+    return total + stockRestant;
+  }, 0);
 };
 
 // GET /api/ecom/stock/orders - Liste des commandes de stock
@@ -363,9 +368,59 @@ router.delete('/orders/:id',
   }
 );
 
+// GET /api/ecom/stock/products - Liste des produits avec stock calculé depuis StockLocation
+router.get('/products',
+  requireEcomAuth,
+  validateEcomAccess('products', 'read'),
+  async (req, res) => {
+    try {
+      const { isActive } = req.query;
+      const filter = { workspaceId: req.workspaceId };
+
+      if (isActive !== undefined) {
+        filter.isActive = isActive === 'true' || isActive === true;
+      }
+
+      // Récupérer les produits
+      const products = await Product.find(filter)
+        .select('name stock reorderThreshold sellingPrice isActive')
+        .lean();
+
+      // Calculer le stock réel depuis StockLocation pour chaque produit
+      const productsWithActualStock = await Promise.all(
+        products.map(async (product) => {
+          const actualStock = await calculateActualStock(product._id, req.workspaceId, product.stock ?? 0);
+
+          return {
+            _id: product._id,
+            name: product.name,
+            stock: actualStock, // Stock calculé depuis StockLocation
+            originalStock: product.stock, // Stock du modèle Product (pour référence)
+            reorderThreshold: product.reorderThreshold,
+            sellingPrice: product.sellingPrice,
+            isActive: product.isActive,
+            isLowStock: actualStock <= (product.reorderThreshold || 5)
+          };
+        })
+      );
+
+      res.json({
+        success: true,
+        data: productsWithActualStock
+      });
+    } catch (error) {
+      console.error('Erreur get stock products:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Erreur serveur'
+      });
+    }
+  }
+);
+
 // GET /api/ecom/stock/alerts - Alertes de stock bas
-router.get('/alerts', 
-  requireEcomAuth, 
+router.get('/alerts',
+  requireEcomAuth,
   validateEcomAccess('products', 'read'),
   async (req, res) => {
     try {
