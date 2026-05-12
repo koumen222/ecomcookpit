@@ -1,6 +1,6 @@
 {
 	on_demand_tls {
-		ask {$CADDY_ASK_URL:https://api.scalor.net/api/caddy/check-domain}
+		ask {$CADDY_ASK_URL:https://ecomcookpit-production-0ec4.up.railway.app/api/caddy/check-domain}
 	}
 	email {$ACME_EMAIL:admin@scalor.net}
 }
