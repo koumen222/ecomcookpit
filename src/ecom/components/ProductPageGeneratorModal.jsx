@@ -8,6 +8,7 @@ import {
 import TestimonialsCarousel from './TestimonialsCarousel';
 import PaymentModalFrame from './PaymentModalFrame.jsx';
 import InfographicsGeneratorPanel from './InfographicsGeneratorPanel.jsx';
+import ErrorBanner from './ErrorBanner.jsx';
 
 // Product-generator is mounted at /api/ai/product-generator (outside /api/ecom).
 // We must always use API origin only, never a base path like /api/ecom.
@@ -2735,9 +2736,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
                       </button>
                     </div>
                   ) : (
-                    <div className="flex items-center gap-2 text-red-700 text-sm">
-                      <AlertCircle className="w-4 h-4 shrink-0" /> {error}
-                    </div>
+                    <ErrorBanner message={error} onDismiss={() => setError('')} />
                   )}
                 </div>
               )}

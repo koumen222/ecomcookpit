@@ -370,7 +370,42 @@ export async function generateNanoBananaImageToImage(prompt, imageInput, aspectR
  * Uses input_urls as required by the GPT Image 2 API schema.
  * imageInput: Buffer | base64 data URL | public https URL
  */
-export async function generateGptImage2ImageToImage(prompt, imageInput, aspectRatio = 'auto') {
+/**
+ * Upload a raw Buffer to R2 and return its public URL.
+ * Falls back to Kie.ai direct upload on R2 failure.
+ */
+async function bufferToPublicUrl(buffer, label = 'ref') {
+  let base64Image;
+  let imageMimeType = 'image/jpeg';
+  if (Buffer.isBuffer(buffer)) {
+    const resized = await resizeForApi(buffer);
+    base64Image = resized.buffer.toString('base64');
+    imageMimeType = resized.mimeType;
+  } else if (typeof buffer === 'string' && buffer.startsWith('data:')) {
+    const match = buffer.match(/^data:(image\/[a-z+]+);base64,/);
+    if (match) imageMimeType = match[1];
+    base64Image = buffer.split(',')[1];
+  } else if (typeof buffer === 'string') {
+    base64Image = buffer;
+  }
+  if (!base64Image) throw new Error(`GPT Image 2 I2I: invalid ${label} input`);
+
+  try {
+    const imgBuffer = Buffer.from(base64Image, 'base64');
+    const tempName = `gptimg2-${label}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.jpg`;
+    const r2Result = await uploadToR2(imgBuffer, tempName, imageMimeType);
+    if (r2Result?.success && r2Result?.url) {
+      console.log(`📎 GPT Image 2 ${label} uploaded R2: ${r2Result.url.slice(0, 80)}...`);
+      return r2Result.url;
+    }
+    throw new Error(r2Result?.error || 'R2 upload returned no URL');
+  } catch (r2Err) {
+    console.warn(`⚠️ GPT Image 2 R2 upload failed for ${label}: ${r2Err.message} — trying Kie.ai upload...`);
+    return uploadToKieAi(base64Image, imageMimeType);
+  }
+}
+
+export async function generateGptImage2ImageToImage(prompt, imageInput, aspectRatio = 'auto', logoInput = null) {
   if (!KIE_API_KEY) throw new Error('Kie.ai API key not configured (NANOBANANA_PRO_API_KEY)');
 
   let imageUrls = [];
@@ -378,43 +413,25 @@ export async function generateGptImage2ImageToImage(prompt, imageInput, aspectRa
   if (typeof imageInput === 'string' && /^https?:\/\//i.test(imageInput)) {
     imageUrls = [imageInput];
   } else {
-    let base64Image;
-    let imageMimeType = 'image/jpeg';
+    imageUrls = [await bufferToPublicUrl(imageInput, 'product')];
+  }
 
-    if (Buffer.isBuffer(imageInput)) {
-      const resized = await resizeForApi(imageInput);
-      base64Image = resized.buffer.toString('base64');
-      imageMimeType = resized.mimeType;
-    } else if (typeof imageInput === 'string' && imageInput.startsWith('data:')) {
-      const match = imageInput.match(/^data:(image\/[a-z+]+);base64,/);
-      if (match) imageMimeType = match[1];
-      base64Image = imageInput.split(',')[1];
-    } else if (typeof imageInput === 'string') {
-      base64Image = imageInput;
-    }
-
-    if (!base64Image) throw new Error('GPT Image 2 I2I: invalid imageInput');
-
+  // Append logo as second reference image if provided
+  if (logoInput) {
     try {
-      const imgBuffer = Buffer.from(base64Image, 'base64');
-      const tempName = `gptimg2-ref-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.jpg`;
-      const r2Result = await uploadToR2(imgBuffer, tempName, imageMimeType);
-      if (r2Result?.success && r2Result?.url) {
-        imageUrls = [r2Result.url];
-        console.log(`📎 GPT Image 2 ref uploaded R2: ${r2Result.url.slice(0, 80)}...`);
-      } else {
-        throw new Error(r2Result?.error || 'R2 upload returned no URL');
-      }
-    } catch (r2Err) {
-      console.warn(`⚠️ GPT Image 2 R2 upload failed: ${r2Err.message} — trying Kie.ai upload...`);
-      const kieUrl = await uploadToKieAi(base64Image, imageMimeType);
-      imageUrls = [kieUrl];
+      const logoUrl = typeof logoInput === 'string' && /^https?:\/\//i.test(logoInput)
+        ? logoInput
+        : await bufferToPublicUrl(logoInput, 'logo');
+      imageUrls.push(logoUrl);
+      console.log(`🏷️ GPT Image 2 logo reference added (${imageUrls.length} images total)`);
+    } catch (logoErr) {
+      console.warn(`⚠️ Logo upload failed, generating without logo: ${logoErr.message}`);
     }
   }
 
   if (!imageUrls.length) throw new Error('GPT Image 2 I2I: no reference image URL available');
 
-  console.log(`🤖 GPT Image 2 image-to-image [${GPT_IMAGE_2_IMG2IMG_MODEL}] (${aspectRatio})...`);
+  console.log(`🤖 GPT Image 2 image-to-image [${GPT_IMAGE_2_IMG2IMG_MODEL}] (${aspectRatio}, ${imageUrls.length} ref images)...`);
   const taskId = await submitGptImage2ImageToImageTask(prompt, imageUrls, aspectRatio);
   console.log(`📋 GPT Image 2 task submitted: ${taskId}`);
 

@@ -601,15 +601,34 @@ router.post('/campaigns/:id/send', requireMarketingAccess, async (req, res) => {
           emit('substep', { name: clientName, phone: cleanNumber, step: 'image', status: imageResult.success ? 'done' : 'failed', error: imageResult.error });
           // Succès global = le texte au moins est parti
           result = textResult.success ? textResult : imageResult;
+        } else if (campaign.media?.type === 'video' && campaign.media?.url) {
+          // Étape 1 : envoyer le texte d'abord
+          emit('substep', { name: clientName, phone: cleanNumber, step: 'text', status: 'sending' });
+          const textResult = await evolutionApiService.sendMessage(instance.instanceName, instance.instanceToken, cleanNumber, message);
+          emit('substep', { name: clientName, phone: cleanNumber, step: 'text', status: textResult.success ? 'done' : 'failed', error: textResult.error });
+
+          // Étape 2 : envoyer la vidéo ensuite
+          await new Promise(r => setTimeout(r, 1500));
+          emit('substep', { name: clientName, phone: cleanNumber, step: 'video', status: 'sending' });
+          const videoResult = await evolutionApiService.sendVideo(
+            instance.instanceName,
+            instance.instanceToken,
+            cleanNumber,
+            campaign.media.url,
+            '',
+            campaign.media.fileName || 'video.mp4'
+          );
+          emit('substep', { name: clientName, phone: cleanNumber, step: 'video', status: videoResult.success ? 'done' : 'failed', error: videoResult.error });
+          result = textResult.success ? textResult : videoResult;
         } else if (campaign.media?.type === 'audio' && campaign.media?.url) {
           // Envoyer le vocal d'abord, puis le message texte
           const audioResult = await evolutionApiService.sendAudio(
-            instance.instanceName, 
-            instance.instanceToken, 
-            cleanNumber, 
+            instance.instanceName,
+            instance.instanceToken,
+            cleanNumber,
             campaign.media.url
           );
-          
+
           // Si le vocal est envoyé avec succès et qu'il y a un message texte, l'envoyer aussi
           if (audioResult.success && message.trim()) {
             await new Promise(r => setTimeout(r, 2000)); // Petit délai entre vocal et texte

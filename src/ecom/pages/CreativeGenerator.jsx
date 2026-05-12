@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import { Link2, Sparkles, Download, RefreshCw, Image, Globe, Loader2, CheckCircle, AlertCircle, ChevronDown, Copy, ExternalLink, Upload, X, FileText, Zap, Shield, Star, LayoutGrid, Package } from 'lucide-react';
 import ecomApi from '../services/ecommApi.js';
 
@@ -34,6 +35,8 @@ const CreativeGenerator = () => {
   const [visualTemplate, setVisualTemplate] = useState('listing-green');
   const [productImage, setProductImage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
+  const [logoImage, setLogoImage] = useState(null);
+  const [logoPreview, setLogoPreview] = useState(null);
   const [selectedFormats, setSelectedFormats] = useState(FORMATS.map(f => f.id));
   const [loading, setLoading] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
@@ -42,6 +45,7 @@ const CreativeGenerator = () => {
   const [showAnalysis, setShowAnalysis] = useState(false);
   const [copiedId, setCopiedId] = useState(null);
   const fileInputRef = useRef(null);
+  const logoInputRef = useRef(null);
 
   const toggleFormat = (id) => {
     setSelectedFormats(prev =>
@@ -66,6 +70,23 @@ const CreativeGenerator = () => {
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
+  const handleLogoSelect = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { setError('Sélectionnez une image pour le logo'); return; }
+    if (file.size > 5 * 1024 * 1024) { setError('Logo trop lourd (max 5 MB)'); return; }
+    setLogoImage(file);
+    setLogoPreview(URL.createObjectURL(file));
+    setError('');
+  };
+
+  const removeLogo = () => {
+    setLogoImage(null);
+    if (logoPreview) URL.revokeObjectURL(logoPreview);
+    setLogoPreview(null);
+    if (logoInputRef.current) logoInputRef.current.value = '';
+  };
+
   const canGenerate = productImage || url.trim() || description.trim();
 
   const generate = useCallback(async () => {
@@ -79,13 +100,14 @@ const CreativeGenerator = () => {
     try {
       const formData = new FormData();
       if (productImage) formData.append('productImage', productImage);
+      if (logoImage) formData.append('logoImage', logoImage);
       if (url.trim()) formData.append('url', url.trim());
       if (description.trim()) formData.append('description', description.trim());
       formData.append('visualTemplate', visualTemplate);
       formData.append('formats', JSON.stringify(selectedFormats.length > 0 ? selectedFormats : undefined));
       const res = await ecomApi.post('/ai/creative-generator', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
-        timeout: 300000,
+        timeout: 0,
       });
       setResult(res.data);
     } catch (err) {
@@ -151,10 +173,19 @@ const CreativeGenerator = () => {
               ))}
             </div>
           </div>
-          {/* Right: price badge */}
-          <div className="flex items-center gap-2 bg-scalor-green/10 border border-scalor-green/30 rounded-lg px-3 py-1.5 shrink-0">
-            <span className="text-scalor-green font-black text-sm">80 FCFA</span>
-            <span className="text-white/40 text-xs hidden sm:inline">/ image</span>
+          {/* Right: gallery link + price badge */}
+          <div className="flex items-center gap-2 shrink-0">
+            <Link
+              to="/ecom/creatives/gallery"
+              className="flex items-center gap-1.5 text-[11px] font-semibold text-white/60 border border-white/10 bg-white/5 hover:bg-white/10 px-3 py-1.5 rounded-lg transition-colors"
+            >
+              <LayoutGrid size={11} />
+              <span className="hidden sm:inline">Mes visuels</span>
+            </Link>
+            <div className="flex items-center gap-2 bg-scalor-green/10 border border-scalor-green/30 rounded-lg px-3 py-1.5">
+              <span className="text-scalor-green font-black text-sm">80 FCFA</span>
+              <span className="text-white/40 text-xs hidden sm:inline">/ image</span>
+            </div>
           </div>
         </div>
       </div>
@@ -200,6 +231,41 @@ const CreativeGenerator = () => {
                   </div>
                 )}
               </div>
+            </div>
+
+            {/* Logo (optionnel) */}
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Logo de marque</p>
+                <span className="text-[10px] font-semibold text-scalor-green bg-green-50 border border-green-100 px-2 py-0.5 rounded-full">Optionnel</span>
+              </div>
+              <input type="file" ref={logoInputRef} onChange={handleLogoSelect} accept="image/*" className="hidden" />
+              {!logoPreview ? (
+                <button
+                  onClick={() => logoInputRef.current?.click()}
+                  className="w-full py-4 border-2 border-dashed border-gray-100 rounded-xl hover:border-scalor-green/40 hover:bg-green-50/30 transition-all flex items-center gap-3 px-4 group"
+                >
+                  <div className="w-9 h-9 rounded-lg bg-gray-50 group-hover:bg-green-100 flex items-center justify-center transition-colors shrink-0">
+                    <Package size={16} className="text-gray-400 group-hover:text-scalor-green" />
+                  </div>
+                  <div className="text-left">
+                    <span className="block text-xs font-semibold text-gray-500 group-hover:text-scalor-green">Ajouter votre logo</span>
+                    <span className="text-[10px] text-gray-400">PNG transparent recommandé</span>
+                  </div>
+                </button>
+              ) : (
+                <div className="flex items-center gap-3 p-2.5 bg-gray-50 rounded-xl border border-gray-100">
+                  <img src={logoPreview} alt="Logo" className="w-12 h-12 object-contain rounded-lg bg-white border border-gray-200 p-1 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold text-gray-700 truncate">{logoImage?.name}</p>
+                    <p className="text-[10px] text-gray-400">{logoImage ? `${(logoImage.size / 1024).toFixed(0)} KB` : ''}</p>
+                    <p className="text-[10px] text-scalor-green font-medium mt-0.5">✓ Sera intégré dans les visuels</p>
+                  </div>
+                  <button onClick={removeLogo} className="w-6 h-6 rounded-full bg-red-50 border border-red-100 text-red-400 flex items-center justify-center hover:bg-red-100 transition-colors shrink-0">
+                    <X size={11} />
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* URL + Description */}

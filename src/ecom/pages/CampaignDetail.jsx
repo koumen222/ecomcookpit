@@ -2,6 +2,7 @@
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import ecomApi from '../services/ecommApi.js';
 import CampaignCountryModal from '../components/CampaignCountryModal.jsx';
+import ErrorBanner from '../components/ErrorBanner.jsx';
 
 const CampaignDetail = () => {
   const { id } = useParams();
@@ -74,7 +75,7 @@ const CampaignDetail = () => {
   if (error) {
     return (
       <div className="p-6 max-w-7xl mx-auto">
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">{error}</div>
+        <ErrorBanner message={error} />
         <Link to="/ecom/campaigns" className="mt-4 inline-block text-emerald-600 hover:text-emerald-700">
           ← Retour aux campagnes
         </Link>

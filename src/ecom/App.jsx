@@ -137,6 +137,7 @@ const ProviderService = lazy(() => import('./pages/ProviderService.jsx'));
 const ProductSettingsPage = lazy(() => import('./pages/ProductSettingsPage.jsx'));
 const ProductThemePage = lazy(() => import('./pages/ProductThemePage.jsx'));
 const CreativeGenerator = lazy(() => import('./pages/CreativeGenerator.jsx'));
+const CreativeGallery = lazy(() => import('./pages/CreativeGallery.jsx'));
 
 // Store pages
 const StoreSetup = lazy(() => import('./pages/StoreSetup.jsx'));
@@ -750,6 +751,7 @@ const EcomApp = () => {
 
               {/* Route Créatives Images */}
               <Route path="/ecom/creatives" element={<LayoutRoute requiredRole="ecom_admin"><CreativeGenerator /></LayoutRoute>} />
+              <Route path="/ecom/creatives/gallery" element={<LayoutRoute requiredRole="ecom_admin"><CreativeGallery /></LayoutRoute>} />
 
               {/* Route marketing */}
               <Route path="/ecom/marketing" element={<LayoutRoute requiredRole="super_admin"><Marketing /></LayoutRoute>} />
