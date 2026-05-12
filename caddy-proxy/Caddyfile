@@ -1,6 +1,6 @@
 {
 	on_demand_tls {
-		ask {$CADDY_ASK_URL:https://api.scalor.net/api/caddy/check-domain}?token={$CADDY_AUTH_TOKEN:}
+		ask {$CADDY_ASK_URL:https://api.scalor.net/api/caddy/check-domain}
 	}
 	email {$ACME_EMAIL:admin@scalor.net}
 }
