@@ -514,8 +514,19 @@ router.post('/campaigns/:id/send', requireMarketingAccess, async (req, res) => {
         } catch (_) { clientConnected = false; }
       };
 
-      // Ne jamais interrompre la boucle à cause d'une déconnexion client
-      // La campagne continue en arrière-plan même si le client se déconnecte
+      // Heartbeat toutes les 25s pour éviter le timeout Railway/Cloudflare (60s)
+      // Sans ça, après ~60s de pause anti-spam le stream est coupé côté serveur
+      const heartbeatInterval = setInterval(() => {
+        try {
+          if (clientConnected) {
+            res.write(': heartbeat\n\n');
+            if (res.flush) res.flush();
+          }
+        } catch (_) { clientConnected = false; }
+      }, 25000);
+
+      // Toujours cleaner le heartbeat quand la boucle se termine
+      const cleanup = () => clearInterval(heartbeatInterval);
 
       campaign.status = 'sending';
       campaign.pauseRequested = false;
@@ -524,7 +535,7 @@ router.post('/campaigns/:id/send', requireMarketingAccess, async (req, res) => {
       console.log(`📤 Envoi SSE "${campaign.name}" → ${recipients.length} destinataires via ${instance.instanceName}`);
 
       const BATCH_SIZE = 10;
-      const BATCH_PAUSE_MS = 20 * 60 * 1000; // 20 minutes
+      const BATCH_PAUSE_MS = 5 * 60 * 1000; // 5 minutes
       const MSG_DELAY_MS = 30000; // 30 secondes entre chaque message
 
       // Si reprise (paused/interrupted/failed), skip les déjà traités
@@ -541,6 +552,7 @@ router.post('/campaigns/:id/send', requireMarketingAccess, async (req, res) => {
 
       emit('start', { total: totalRecipients, campaignName: campaign.name, instance: instance.customName || instance.instanceName, resumeFrom: alreadyProcessed, sent, failed, skipped });
 
+      try { // ─ Wrap boucle d'envoi pour intercepter les erreurs inattendues ─
       for (const { phone, client, orderData } of recipients) {
         // Vérifier demande de pause (seulement via DB, pas via déconnexion client)
         const fresh = await Campaign.findById(campaign._id).select('pauseRequested').lean().catch(() => null);
@@ -550,6 +562,7 @@ router.post('/campaigns/:id/send', requireMarketingAccess, async (req, res) => {
           campaign.sendProgress = { sent, failed, skipped, targeted: recipients.length };
           await campaign.save();
           emit('paused', { sent, failed, skipped, total: recipients.length });
+          cleanup();
           res.end();
           return;
         }
@@ -588,15 +601,34 @@ router.post('/campaigns/:id/send', requireMarketingAccess, async (req, res) => {
           emit('substep', { name: clientName, phone: cleanNumber, step: 'image', status: imageResult.success ? 'done' : 'failed', error: imageResult.error });
           // Succès global = le texte au moins est parti
           result = textResult.success ? textResult : imageResult;
+        } else if (campaign.media?.type === 'video' && campaign.media?.url) {
+          // Étape 1 : envoyer le texte d'abord
+          emit('substep', { name: clientName, phone: cleanNumber, step: 'text', status: 'sending' });
+          const textResult = await evolutionApiService.sendMessage(instance.instanceName, instance.instanceToken, cleanNumber, message);
+          emit('substep', { name: clientName, phone: cleanNumber, step: 'text', status: textResult.success ? 'done' : 'failed', error: textResult.error });
+
+          // Étape 2 : envoyer la vidéo ensuite
+          await new Promise(r => setTimeout(r, 1500));
+          emit('substep', { name: clientName, phone: cleanNumber, step: 'video', status: 'sending' });
+          const videoResult = await evolutionApiService.sendVideo(
+            instance.instanceName,
+            instance.instanceToken,
+            cleanNumber,
+            campaign.media.url,
+            '',
+            campaign.media.fileName || 'video.mp4'
+          );
+          emit('substep', { name: clientName, phone: cleanNumber, step: 'video', status: videoResult.success ? 'done' : 'failed', error: videoResult.error });
+          result = textResult.success ? textResult : videoResult;
         } else if (campaign.media?.type === 'audio' && campaign.media?.url) {
           // Envoyer le vocal d'abord, puis le message texte
           const audioResult = await evolutionApiService.sendAudio(
-            instance.instanceName, 
-            instance.instanceToken, 
-            cleanNumber, 
+            instance.instanceName,
+            instance.instanceToken,
+            cleanNumber,
             campaign.media.url
           );
-          
+
           // Si le vocal est envoyé avec succès et qu'il y a un message texte, l'envoyer aussi
           if (audioResult.success && message.trim()) {
             await new Promise(r => setTimeout(r, 2000)); // Petit délai entre vocal et texte
@@ -634,11 +666,24 @@ router.post('/campaigns/:id/send', requireMarketingAccess, async (req, res) => {
         if (result.success && sent % BATCH_SIZE === 0 && (alreadyProcessed + sent + failed + skipped) < totalRecipients) {
           const BATCH_TOTAL_MIN = Math.round(BATCH_PAUSE_MS / 60000);
           console.log(`⏸️ [CAMPAIGN] Pause anti-spam ${BATCH_TOTAL_MIN}min après ${sent} messages envoyés...`);
-          let remainingMin = BATCH_TOTAL_MIN;
-          emit('batch_pause', { status: 'start', remainingMin, totalMin: BATCH_TOTAL_MIN, sent });
-          while (remainingMin > 0) {
-            await new Promise(r => setTimeout(r, 60000));
-            remainingMin--;
+
+          // Sauvegarder statut 'pausing' pour que la reprise manuelle fonctionne si le SSE est coupé
+          campaign.status = 'sending';
+          campaign.sendProgress = { sent, failed, skipped, targeted: totalRecipients };
+          await campaign.save().catch(() => {});
+
+          // Boucle de pause — tick toutes les 30s pour rester réactif aux demandes de pause
+          const TICK_MS = 30000;
+          const totalTicks = Math.round(BATCH_PAUSE_MS / TICK_MS);
+          let remainingMs = BATCH_PAUSE_MS;
+          const remainingMin = () => Math.ceil(remainingMs / 60000);
+
+          emit('batch_pause', { status: 'start', remainingMin: remainingMin(), totalMin: BATCH_TOTAL_MIN, sent });
+
+          for (let tick = 0; tick < totalTicks; tick++) {
+            await new Promise(r => setTimeout(r, TICK_MS));
+            remainingMs -= TICK_MS;
+
             // Vérifier demande de pause pendant la pause anti-spam
             const freshPause = await Campaign.findById(campaign._id).select('pauseRequested').lean().catch(() => null);
             if (freshPause?.pauseRequested) {
@@ -647,14 +692,20 @@ router.post('/campaigns/:id/send', requireMarketingAccess, async (req, res) => {
               campaign.sendProgress = { sent, failed, skipped, targeted: totalRecipients };
               await campaign.save().catch(() => {});
               emit('paused', { sent, failed, skipped, total: totalRecipients });
+              cleanup();
               res.end();
               return;
             }
-            if (remainingMin > 0) {
-              emit('batch_pause', { status: 'countdown', remainingMin, totalMin: BATCH_TOTAL_MIN, sent });
+
+            const rm = remainingMin();
+            if (rm > 0) {
+              emit('batch_pause', { status: 'countdown', remainingMin: rm, totalMin: BATCH_TOTAL_MIN, sent });
             }
           }
+
+          // Reprise — signal explicite avant de continuer l'envoi
           emit('batch_pause', { status: 'done', sent });
+          emit('resume', { sent, failed, skipped, total: totalRecipients });
         } else {
           await new Promise(r => setTimeout(r, MSG_DELAY_MS));
         }
@@ -669,7 +720,19 @@ router.post('/campaigns/:id/send', requireMarketingAccess, async (req, res) => {
 
       emit('done', { sent, failed, skipped, total: totalRecipients, campaignName: campaign.name });
       console.log(`✅ Campagne SSE terminée : ${sent} envoyés, ${failed} échecs, ${skipped} ignorés`);
-      res.end();
+      } catch (loopErr) {
+        // Erreur inattendue dans la boucle → marquer interrupted pour permettre la reprise
+        console.error(`❌ [CAMPAIGN] Erreur inattendue dans la boucle d'envoi:`, loopErr.message);
+        try {
+          campaign.status = 'interrupted';
+          campaign.sendProgress = { sent, failed, skipped, targeted: totalRecipients };
+          await campaign.save();
+        } catch (_) {}
+        emit('error', { message: 'Erreur inattendue, campagne interrompue. Cliquez Reprendre.', sent, failed, skipped });
+      } finally {
+        cleanup();
+        res.end();
+      }
       return;
     }
 
@@ -1291,6 +1354,22 @@ router.post('/audience-preview', requireMarketingAccess, async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// POST /api/ecom/marketing/campaigns/:id/force-reset
+// Force une campagne bloquée en "sending" (stream mort) vers "interrupted"
+// ─────────────────────────────────────────────────────────────────────────────
+router.post('/campaigns/:id/force-reset', requireMarketingAccess, async (req, res) => {
+  try {
+    const campaign = await Campaign.findOne({ _id: req.params.id, workspaceId: req.workspaceId });
+    if (!campaign) return res.status(404).json({ success: false, message: 'Campagne introuvable' });
+    campaign.status = 'interrupted';
+    campaign.pauseRequested = false;
+    await campaign.save();
+    res.json({ success: true, message: 'Campagne réinitialisée. Vous pouvez la reprendre.' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
 // POST /api/ecom/marketing/campaigns/:id/pause
 // ─────────────────────────────────────────────────────────────────────────────
 router.post('/campaigns/:id/pause', requireMarketingAccess, async (req, res) => {
@@ -1329,14 +1408,15 @@ router.post('/campaigns/:id/resume', requireMarketingAccess, async (req, res) =>
     }
     
     // Vérifier que la campagne peut être reprise
-    const resumableStatuses = ['paused', 'interrupted', 'failed'];
+    // 'sending' est inclus pour les campagnes bloquées (stream mort sans mise à jour du statut)
+    const resumableStatuses = ['paused', 'interrupted', 'failed', 'sending'];
     if (!resumableStatuses.includes(campaign.status)) {
-      return res.status(400).json({ 
-        success: false, 
-        message: `Impossible de reprendre une campagne avec le statut "${campaign.status}". Seules les campagnes en pause, interrompues ou échouées peuvent être reprises.` 
+      return res.status(400).json({
+        success: false,
+        message: `Impossible de reprendre une campagne avec le statut "${campaign.status}".`
       });
     }
-    
+
     campaign.status = 'draft';
     campaign.pauseRequested = false;
     await campaign.save();

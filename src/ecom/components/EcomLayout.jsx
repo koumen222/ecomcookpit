@@ -37,9 +37,8 @@ const EcomLayoutComponent = ({ children }) => {
   useEffect(() => {
     if (!user?.id) return;
     if (user?.role === 'ecom_livreur') return;
-    const todayKey = new Date().toISOString().slice(0, 10); // "YYYY-MM-DD"
     const storageKey = `ecom_tutorial_shown_${user.id}`;
-    if (localStorage.getItem(storageKey) === todayKey) return;
+    if (localStorage.getItem(storageKey)) return;
     const timer = setTimeout(() => {
       setShowTutorial(true);
     }, 1500);
@@ -48,9 +47,8 @@ const EcomLayoutComponent = ({ children }) => {
 
   const closeTutorial = () => {
     setShowTutorial(false);
-    const todayKey = new Date().toISOString().slice(0, 10);
     const storageKey = `ecom_tutorial_shown_${user?.id}`;
-    localStorage.setItem(storageKey, todayKey);
+    localStorage.setItem(storageKey, '1');
   };
 
   // ── Toast notification in-app ──
@@ -281,6 +279,11 @@ const EcomLayoutComponent = ({ children }) => {
       name: 'Créatives Images', shortName: 'Créatives', href: '/ecom/creatives', primary: false,
       roles: ['ecom_admin'],
       icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+    },
+    {
+      name: 'Mes Visuels', shortName: 'Visuels', href: '/ecom/creatives/gallery', primary: false,
+      roles: ['ecom_admin'],
+      icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>
     },
     {
       name: 'Service WhatsApp', shortName: 'WhatsApp', href: '/ecom/whatsapp/service', primary: false,

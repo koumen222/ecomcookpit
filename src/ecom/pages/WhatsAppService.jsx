@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import ecomApi from '../services/ecommApi.js';
+import ErrorBanner from '../components/ErrorBanner.jsx';
 
 const ACCENT = '#0F6B4F';
 const ACCENT_LIGHT = 'rgba(15,107,79,0.08)';
@@ -190,13 +191,7 @@ const RelancesTab = ({ instances, userId }) => {
           </p>
         </div>
 
-        {/* Error */}
-        {error && (
-          <div className="flex items-center gap-2 rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-[13px] text-red-700">
-            <AlertCircle className="w-4 h-4 flex-shrink-0" />
-            {error}
-          </div>
-        )}
+        <ErrorBanner message={error} onDismiss={() => setError('')} />
 
         {/* Success result */}
         {result && (
@@ -263,7 +258,9 @@ const WhatsAppService = () => {
   const [qrCode, setQrCode] = useState(null);
   const [pairingCode, setPairingCode] = useState(null);
   const [qrPolling, setQrPolling] = useState(false);
+  const [qrTimeout, setQrTimeout] = useState(false);
   const qrIntervalRef = useRef(null);
+  const qrTimeoutRef = useRef(null);
 
   // ─── Stats ───
   const [messageStats, setMessageStats] = useState({});
@@ -275,7 +272,10 @@ const WhatsAppService = () => {
 
   useEffect(() => { loadInstances(); loadDashboardStats(); }, []);
   useEffect(() => { instances.forEach(inst => loadMessageStats(inst._id)); }, [instances.length]);
-  useEffect(() => { return () => { if (qrIntervalRef.current) clearInterval(qrIntervalRef.current); }; }, []);
+  useEffect(() => { return () => {
+    if (qrIntervalRef.current) clearInterval(qrIntervalRef.current);
+    if (qrTimeoutRef.current) clearTimeout(qrTimeoutRef.current);
+  }; }, []);
   useEffect(() => {
     // Legacy links with ?tab=rita now point to the dedicated IA page.
     if (activeTab === 'rita') navigate('/ecom/whatsapp/agent-config', { replace: true });
@@ -340,12 +340,27 @@ const WhatsAppService = () => {
     setCreatedInstance(null);
     setQrCode(null);
     setPairingCode(null);
+    setQrTimeout(false);
+    if (qrTimeoutRef.current) { clearTimeout(qrTimeoutRef.current); qrTimeoutRef.current = null; }
     setError('');
   };
   const closeCreateModal = () => {
     setShowCreateModal(false);
     if (qrIntervalRef.current) { clearInterval(qrIntervalRef.current); qrIntervalRef.current = null; }
+    if (qrTimeoutRef.current) { clearTimeout(qrTimeoutRef.current); qrTimeoutRef.current = null; }
     setQrPolling(false);
+    setQrTimeout(false);
+  };
+
+  const startQrLoadTimeout = () => {
+    if (qrTimeoutRef.current) clearTimeout(qrTimeoutRef.current);
+    setQrTimeout(false);
+    qrTimeoutRef.current = setTimeout(() => setQrTimeout(true), 15000);
+  };
+
+  const cancelQrLoadTimeout = () => {
+    if (qrTimeoutRef.current) { clearTimeout(qrTimeoutRef.current); qrTimeoutRef.current = null; }
+    setQrTimeout(false);
   };
 
   const handleCreateInstance = async (e) => {
@@ -361,9 +376,11 @@ const WhatsAppService = () => {
           setQrCode(data.qrcode);
           setPairingCode(data.pairingCode || null);
           setCreateStep('scanning');
+          cancelQrLoadTimeout();
           startQrPolling(data.data.id);
         } else {
           setCreateStep('scanning');
+          startQrLoadTimeout();
           fetchQrCode(data.data.id);
         }
         loadInstances();
@@ -378,15 +395,21 @@ const WhatsAppService = () => {
       const suffix = forceRefresh ? '?refresh=1' : '';
       const { data } = await ecomApi.get(`/v1/external/whatsapp/instances/${instanceId}/qrcode${suffix}`);
       if (data.success && data.connected) {
+        cancelQrLoadTimeout();
         onInstanceConnected();
       } else if (data.success && data.qrcode) {
+        cancelQrLoadTimeout();
         setQrCode(data.qrcode);
         setPairingCode(data.pairingCode || null);
         startQrPolling(instanceId);
       } else {
+        cancelQrLoadTimeout();
         setError(data.error || 'Impossible de récupérer le QR code');
       }
-    } catch (err) { setError(err.response?.data?.error || 'Erreur QR code'); }
+    } catch (err) {
+      cancelQrLoadTimeout();
+      setError(err.response?.data?.error || 'Impossible de récupérer le QR code');
+    }
   };
 
   const startQrPolling = (instanceId) => {
@@ -422,7 +445,9 @@ const WhatsAppService = () => {
     setShowCreateModal(true);
     setCreateStep('scanning');
     setQrCode(null);
+    setQrTimeout(false);
     setError('');
+    startQrLoadTimeout();
     fetchQrCode(instance._id);
   };
 
@@ -532,7 +557,7 @@ const WhatsAppService = () => {
       </div>
 
       {/* Alerts */}
-      {error && <Alert type="error" message={error} onClose={() => setError('')} />}
+      <ErrorBanner message={error} onDismiss={() => setError('')} />
       {successMsg && <Alert type="success" message={successMsg} onClose={() => setSuccessMsg('')} />}
 
       {/* ═══ Modal Création d'Instance ═══ */}
@@ -613,12 +638,7 @@ const WhatsAppService = () => {
                   </div>
                 </div>
 
-                {error && (
-                  <div className="flex items-center gap-2 px-3 py-2 bg-red-50 border border-red-100 rounded-lg">
-                    <AlertCircle className="w-3.5 h-3.5 text-red-500 flex-shrink-0" />
-                    <p className="text-xs text-red-700">{error}</p>
-                  </div>
-                )}
+                <ErrorBanner message={error} onDismiss={() => setError('')} />
 
                 {/* Actions */}
                 <div className="flex justify-end gap-2 pt-2 border-t border-gray-100">
@@ -691,6 +711,21 @@ const WhatsAppService = () => {
                         Rafraîchir le QR code
                       </button>
                     </>
+                  ) : qrTimeout ? (
+                    <div className="flex flex-col gap-3 px-4 py-4 bg-orange-50 border border-orange-200 rounded-xl w-full">
+                      <div className="flex items-start gap-2">
+                        <AlertCircle className="w-4 h-4 text-orange-500 flex-shrink-0 mt-0.5" />
+                        <div>
+                          <p className="text-sm font-semibold text-orange-800">Instance invalide</p>
+                          <p className="text-xs text-orange-700 mt-1">Le QR code n'a pas pu être généré. L'instance doit être recréée.</p>
+                        </div>
+                      </div>
+                      <ol className="text-xs text-orange-700 space-y-1.5 pl-2">
+                        <li className="flex items-start gap-2"><span className="font-bold text-orange-500 shrink-0">1.</span> Fermez cette fenêtre</li>
+                        <li className="flex items-start gap-2"><span className="font-bold text-orange-500 shrink-0">2.</span> Supprimez l'instance actuelle (icône corbeille)</li>
+                        <li className="flex items-start gap-2"><span className="font-bold text-orange-500 shrink-0">3.</span> Créez une nouvelle instance et scannez le nouveau QR code</li>
+                      </ol>
+                    </div>
                   ) : (
                     <div className="flex flex-col items-center py-10 gap-3">
                       <Loader2 className="w-10 h-10 animate-spin text-gray-300" />
@@ -700,9 +735,20 @@ const WhatsAppService = () => {
                 </div>
 
                 {error && (
-                  <div className="flex items-center gap-2 px-3 py-2 bg-red-50 border border-red-100 rounded-lg">
-                    <AlertCircle className="w-3.5 h-3.5 text-red-500 flex-shrink-0" />
-                    <p className="text-xs text-red-700">{error}</p>
+                  <div className="flex flex-col gap-3 px-4 py-4 bg-orange-50 border border-orange-200 rounded-xl">
+                    <div className="flex items-start gap-2">
+                      <AlertCircle className="w-4 h-4 text-orange-500 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-sm font-semibold text-orange-800">Problème de connexion</p>
+                        <p className="text-xs text-orange-700 mt-1">Cette instance n'est plus valide. Voici comment résoudre :</p>
+                      </div>
+                    </div>
+                    <ol className="text-xs text-orange-700 space-y-1.5 pl-2">
+                      <li className="flex items-start gap-2"><span className="font-bold text-orange-500 shrink-0">1.</span> Fermez cette fenêtre</li>
+                      <li className="flex items-start gap-2"><span className="font-bold text-orange-500 shrink-0">2.</span> Supprimez l'instance actuelle (icône corbeille)</li>
+                      <li className="flex items-start gap-2"><span className="font-bold text-orange-500 shrink-0">3.</span> Créez une nouvelle instance et scannez le nouveau QR code</li>
+                    </ol>
+                    <p className="text-[11px] text-orange-500 italic">Détail : {error}</p>
                   </div>
                 )}
               </div>
