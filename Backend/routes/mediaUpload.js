@@ -11,19 +11,18 @@ const storage = multer.memoryStorage();
 const upload = multer({
   storage,
   limits: {
-    fileSize: 10 * 1024 * 1024, // 10 MB max
+    fileSize: 50 * 1024 * 1024, // 50 MB max (pour les vidéos)
   },
   fileFilter: (req, file, cb) => {
-    // Accepter images et audio
     const allowedMimes = [
       'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp',
-      'audio/mpeg', 'audio/mp3', 'audio/ogg', 'audio/wav', 'audio/mp4', 'audio/m4a'
+      'audio/mpeg', 'audio/mp3', 'audio/ogg', 'audio/wav', 'audio/mp4', 'audio/m4a',
+      'video/mp4', 'video/quicktime', 'video/x-msvideo', 'video/webm', 'video/3gpp'
     ];
-    
     if (allowedMimes.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error('Type de fichier non supporté. Utilisez des images (JPG, PNG, GIF, WebP) ou des fichiers audio (MP3, OGG, WAV, M4A)'));
+      cb(new Error('Type de fichier non supporté. Images (JPG, PNG, WebP), Audio (MP3, OGG, WAV), Vidéo (MP4, MOV, AVI, WebM)'));
     }
   }
 });
@@ -39,7 +38,7 @@ router.post('/upload', requireEcomAuth, upload.single('file'), async (req, res) 
     }
 
     const { buffer, originalname, mimetype } = req.file;
-    const mediaType = mimetype.startsWith('image/') ? 'image' : 'audio';
+    const mediaType = mimetype.startsWith('image/') ? 'image' : mimetype.startsWith('video/') ? 'video' : 'audio';
 
     // Générer un nom de fichier unique
     const timestamp = Date.now();
@@ -72,6 +71,11 @@ router.post('/upload', requireEcomAuth, upload.single('file'), async (req, res) 
       } catch (error) {
         console.warn('⚠️  Image optimization failed, uploading original:', error.message);
       }
+    } else if (mediaType === 'video') {
+      const videoExt = ['mp4', 'mov', 'avi', 'webm', '3gp'].includes(ext) ? ext : 'mp4';
+      finalFileName = `campaign-video-${timestamp}-${randomStr}.${videoExt}`;
+      finalMimetype = mimetype;
+      console.log(`🎬 Video upload: ${originalname} (${mimetype}, ${(originalSize / 1024 / 1024).toFixed(1)}MB)`);
     } else {
       // Audio: keep original format and mimetype
       const audioExt = ['mp3', 'ogg', 'wav', 'm4a', 'mp4'].includes(ext) ? ext : 'mp3';

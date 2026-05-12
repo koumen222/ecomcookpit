@@ -680,7 +680,17 @@ function getNicheAccentColor(template) {
 }
 
 function buildVisualPromptDirectives(visualPrefs = {}) {
-  return '';
+  const themeColor = visualPrefs?.themeColor;
+  if (!themeColor) return '';
+  return `
+
+═══ BRAND COLOR — MANDATORY ═══
+• The user's exact brand/theme color is ${themeColor}. This is NOT optional.
+• Use ${themeColor} as the dominant accent color throughout the ENTIRE image: backgrounds, panels, overlays, gradients, CTA buttons, badges, icons, separators, borders, highlight chips, and any non-white fill area.
+• Do NOT substitute ${themeColor} with a different color. Do NOT use a generic blue, green, or template color.
+• If the layout has a colored background panel, side strip, or bottom zone, fill it with ${themeColor} or a dark/light variant of ${themeColor}.
+• Typography accent color: ${themeColor}. Icon fill color: ${themeColor}. Badge background: ${themeColor}.
+• The overall image color mood must be dominated by ${themeColor} — a viewer must immediately associate the image with this specific color.`;
 }
 
 function getNicheDescriptionGraphicProfile(template = 'general') {
@@ -955,7 +965,7 @@ function resolveHeroAvatar(gptResult = {}, template = 'general') {
 
 function resolveBrandColor(visualPrefs = {}, template = 'general') {
   const niche = getNicheAccentColor(template);
-  return visualPrefs.preferredColor || visualPrefs.titleColor || visualPrefs.contentColor || niche.color;
+  return visualPrefs.themeColor || visualPrefs.preferredColor || visualPrefs.titleColor || visualPrefs.contentColor || niche.color;
 }
 
 function getMainBenefit(gptResult = {}) {
@@ -965,7 +975,11 @@ function getMainBenefit(gptResult = {}) {
     || 'Résultats visibles rapidement';
 }
 
-function getHeroContextHints(gptResult = {}, template = 'general') {
+function getHeroContextHints(gptResult = {}, template = 'general', targetGender = 'auto') {
+  const genderSubject = targetGender === 'female' ? 'Black African woman'
+    : targetGender === 'male' ? 'Black African man'
+    : targetGender === 'mixed' ? 'Black African man or woman'
+    : null;
   const textCorpus = [
     gptResult.title,
     gptResult.hero_headline,
@@ -985,17 +999,17 @@ function getHeroContextHints(gptResult = {}, template = 'general') {
   if (isToiletCleaning) {
     return {
       scene: 'modern upscale bathroom or WC, the exact product attached to or used around a clean toilet bowl, visible freshness and odor-relief result, believable household context',
-      subject: 'an authentic Black African parent or household adult naturally using or presenting the product in the bathroom',
+      subject: `an authentic ${genderSubject || 'Black African adult'} naturally using or presenting the product in the bathroom`,
       placement: 'the product must be large, real-size, and clearly visible near the toilet rim or in the hand during usage, never floating and never oversized',
       mood: 'fresh, relieved, hygienic, practical, reassuring, premium household realism',
-      composition: 'show the real problem being solved through the environment: clean WC, freshness, comfort, confidence, no generic beauty pose',
+      composition: 'show the real problem being solved through the environment: clean WC, freshness, comfort, confidence',
     };
   }
 
   if (template === 'home' || isHouseholdCleaning) {
     return {
       scene: 'real modern home usage context matching the exact room or surface the product is made for',
-      subject: 'an authentic Black African adult naturally using or showing the product in a believable domestic scene',
+      subject: `an authentic ${genderSubject || 'Black African adult'} naturally using or showing the product in a believable domestic scene`,
       placement: 'the product must stay clearly visible in the hands or in active use on the exact household area it improves',
       mood: 'practical, clean, trustworthy, warm, premium domestic realism',
       composition: 'the image must explain the concrete household benefit, not a generic portrait',
@@ -1004,7 +1018,7 @@ function getHeroContextHints(gptResult = {}, template = 'general') {
 
   return {
     scene: 'believable usage context matching the real product category and benefit',
-    subject: `a ${resolveHeroAvatar(gptResult, template)} naturally interacting with the product`,
+    subject: `a ${genderSubject || resolveHeroAvatar(gptResult, template)} naturally interacting with the product`,
     placement: 'the exact product must be clearly visible at realistic size, naturally held or used in context',
     mood: 'premium, trustworthy, realistic, ecommerce-ready',
     composition: 'avoid static generic posing and make the product benefit readable in the scene',
@@ -1295,7 +1309,7 @@ ${buildHumanPhotoRealismRules()}${buildGenderConstraintRules(visualPrefs?.target
 function buildHeroPrompt(gptResult, hasProductRef, template = 'general', visualPrefs = {}) {
   const mainBenefit = getMainBenefit(gptResult);
   const brandColor = resolveBrandColor(visualPrefs, template);
-  const heroContext = getHeroContextHints(gptResult, template);
+  const heroContext = getHeroContextHints(gptResult, template, visualPrefs?.targetGender);
   const productName = gptResult.title || 'the product';
   const socialProof = gptResult.urgency_elements?.social_proof_count || '1000+';
   const benefits = (gptResult.benefits_bullets || gptResult.raisons_acheter || []).filter(Boolean).slice(0, 3);
@@ -1624,6 +1638,7 @@ router.post('/tasks/:id/retry', requireEcomAuth, validateEcomAccess('products', 
       imageGenerationMode: task.input?.imageGenerationMode || task.product?.imageGenerationMode || 'ad_4_5',
       imageAspectRatio: task.input?.imageAspectRatio || task.product?.imageAspectRatio || '4:5',
       preferredColor: task.input?.preferredColor || task.product?.preferredColor || '',
+      themeColor: task.input?.themeColor || task.product?.themeColor || '',
       heroVisualDirection: task.input?.heroVisualDirection || task.product?.heroVisualDirection || '',
       decorationDirection: task.input?.decorationDirection || task.product?.decorationDirection || '',
       titleColor: task.input?.titleColor || task.product?.titleColor || '',
@@ -1715,7 +1730,9 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
     fashionAvatar: rawFashionAvatar,
     fashionMinimalist: rawFashionMinimalist,
     fashionSizes: rawFashionSizes,
-    fashionColors: rawFashionColors
+    fashionColors: rawFashionColors,
+    themeColor: rawThemeColor,
+    customThemeColor: rawCustomThemeColor,
   } = req.body || {};
   const imageFiles = req.files || [];
   const approach = marketingApproach || 'PAS';
@@ -1744,6 +1761,10 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
     language: language || 'français'
   };
 
+  const themeColor = typeof rawCustomThemeColor === 'string' && /^#[0-9A-Fa-f]{6}$/.test(rawCustomThemeColor.trim())
+    ? rawCustomThemeColor.trim()
+    : (typeof rawThemeColor === 'string' && /^#[0-9A-Fa-f]{6}$/.test(rawThemeColor.trim()) ? rawThemeColor.trim() : '');
+
   let fashionConfig = null;
   if (visualTemplate === 'fashion') {
     const parseJson = (v) => { try { return typeof v === 'string' ? JSON.parse(v) : v; } catch { return null; } };
@@ -1762,6 +1783,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
     imageGenerationMode,
     imageAspectRatio,
     preferredColor,
+    themeColor,
     heroVisualDirection,
     decorationDirection,
     titleColor,
@@ -1884,6 +1906,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
           imageGenerationMode,
           imageAspectRatio,
           preferredColor,
+          themeColor,
           heroVisualDirection,
           decorationDirection,
           titleColor,
@@ -2063,6 +2086,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       imageAspectRatio,
       visualTemplate,
       preferredColor,
+      themeColor,
       heroVisualDirection,
       decorationDirection,
       titleColor,
