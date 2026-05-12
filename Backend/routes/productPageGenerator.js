@@ -1800,10 +1800,10 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
   const cleanUrl = url?.trim() || '';
   let storeContext = {};
   let generationLogId = null;
+  let workspace;
+  let consumedCreditSource = 'unknown';
 
   try {
-    let workspace;
-    let consumedCreditSource = 'unknown';
     if (req.workspaceId) {
       workspace = await EcomWorkspace.findById(req.workspaceId)
         .select('storeSettings.country storeSettings.city storeSettings.storeName storeSettings.storeCurrency storeSettings.currency name plan freeGenerationsRemaining paidGenerationsRemaining totalGenerations simpleGenerationsRemaining');
@@ -2155,6 +2155,34 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
   } catch (error) {
     console.error('❌ Erreur génération:', error.message);
     console.error('❌ Stack:', error.stack);
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // REMBOURSEMENT DU CRÉDIT EN CAS D'ERREUR
+    // ══════════════════════════════════════════════════════════════════════════
+    if (workspace && consumedCreditSource && consumedCreditSource !== 'unknown') {
+      try {
+        const workspaceToRefund = await EcomWorkspace.findById(workspace._id);
+        if (workspaceToRefund) {
+          // Recréditer le workspace selon la source de crédit consommée
+          if (consumedCreditSource === 'simple') {
+            workspaceToRefund.simpleGenerationsRemaining = (workspaceToRefund.simpleGenerationsRemaining || 0) + 1;
+          } else if (consumedCreditSource === 'free') {
+            workspaceToRefund.freeGenerationsRemaining = (workspaceToRefund.freeGenerationsRemaining || 0) + 1;
+          } else if (consumedCreditSource === 'paid') {
+            workspaceToRefund.paidGenerationsRemaining = (workspaceToRefund.paidGenerationsRemaining || 0) + 1;
+          }
+
+          // Décrémenter le compteur total également
+          workspaceToRefund.totalGenerations = Math.max(0, (workspaceToRefund.totalGenerations || 0) - 1);
+
+          await workspaceToRefund.save();
+          console.log(`✅ Crédit remboursé: source=${consumedCreditSource}, nouveau total=${(workspaceToRefund.simpleGenerationsRemaining || 0) + (workspaceToRefund.freeGenerationsRemaining || 0) + (workspaceToRefund.paidGenerationsRemaining || 0)}`);
+        }
+      } catch (refundError) {
+        console.error('❌ Erreur lors du remboursement du crédit:', refundError.message);
+        // Ne pas bloquer la réponse d'erreur principale si le remboursement échoue
+      }
+    }
 
     // Update the early-created task with error status
     if (taskId) {
