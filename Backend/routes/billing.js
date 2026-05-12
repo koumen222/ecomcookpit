@@ -457,7 +457,6 @@ router.post('/checkout', requireEcomAuth, async (req, res) => {
     let amount = baseAmount;
     let appliedPromo = null;
     if (promoCode) {
-      console.log(`[billing] 🎟️ Code promo fourni: "${promoCode}" — Plan: ${planName}, Durée: ${durationMonths} mois, Montant base: ${baseAmount} FCFA`);
       const promoResult = await validatePromoCode({
         code: promoCode,
         planKey: planName,
@@ -466,7 +465,6 @@ router.post('/checkout', requireEcomAuth, async (req, res) => {
         workspaceId
       });
       if (!promoResult.ok) {
-        console.log(`[billing] ❌ Code promo refusé: ${promoResult.reason}`);
         return res.status(400).json({ success: false, message: `Code promo : ${promoResult.reason}` });
       }
       amount = promoResult.finalAmount;
@@ -476,9 +474,6 @@ router.post('/checkout', requireEcomAuth, async (req, res) => {
         discountAmount: promoResult.discountAmount,
         originalAmount: promoResult.originalAmount
       };
-      console.log(`[billing] ✅ Code promo appliqué: ${appliedPromo.code} — Réduction: ${appliedPromo.discountAmount} FCFA — Montant final: ${amount} FCFA (avant: ${baseAmount} FCFA)`);
-    } else {
-      console.log(`[billing] ℹ️ Aucun code promo fourni — Montant: ${baseAmount} FCFA`);
     }
 
     const frontendUrl = process.env.FRONTEND_URL || 'https://scalor.net';
@@ -508,8 +503,6 @@ router.post('/checkout', requireEcomAuth, async (req, res) => {
     };
 
     // Appel HTTP principal vers MoneyFusion: création de la session de paiement.
-    console.log(`[billing] 📤 Envoi à MoneyFusion — Montant: ${amount} FCFA, Plan: ${normalizedPlan}, Client: ${String(clientName).trim()}, Workspace: ${workspaceId}`);
-    console.log(`[billing] 📦 Payload MoneyFusion:`, JSON.stringify(paymentData, null, 2));
     const mfResponse = await axios.post(MF_API_URL, paymentData, {
       headers: { 'Content-Type': 'application/json' },
       timeout: 60000
