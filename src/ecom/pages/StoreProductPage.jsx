@@ -2012,7 +2012,12 @@ const StoreProductPage = () => {
       return;
     }
 
-    const initialSeconds = Math.max(60, (Number.parseInt(ppConversion.countdownMinutes, 10) || 15) * 60);
+    const initialSeconds = Math.max(60,
+      (Number.parseInt(ppConversion.countdownDays, 10) || 0) * 86400 +
+      (Number.parseInt(ppConversion.countdownHours, 10) || 0) * 3600 +
+      (Number.parseInt(ppConversion.countdownMinutes, 10) || 15) * 60 +
+      (Number.parseInt(ppConversion.countdownSeconds, 10) || 0)
+    );
     setCountdownSeconds(initialSeconds);
     const timer = window.setInterval(() => {
       setCountdownSeconds((currentValue) => (currentValue > 0 ? currentValue - 1 : 0));
@@ -2525,20 +2530,45 @@ const StoreProductPage = () => {
                     case 'countdownBar':
                       if (countdownSeconds === null || !inStock) return null;
                       {
-                        const countdownCardStyle = resolveThemeInfoCardStyle('danger');
-                        return (
-                          <div key={sectionId} style={{ marginBottom: 14 }}>
-                            <div style={countdownCardStyle.container}>
-                              <div style={countdownCardStyle.content}>
-                                <div style={countdownCardStyle.iconWrap}>
-                                  <span style={{ fontSize: 16, lineHeight: 1 }}>!</span>
-                                </div>
-                                <div style={{ minWidth: 0 }}>
-                                  <div style={countdownCardStyle.title}>Offre limitée</div>
-                                  <div style={countdownCardStyle.subtitle}>Cette offre spéciale expire bientôt.</div>
+                        const timerBg = ppConversion.countdownBgColor || '#dc2626';
+                        const timerColor = ppConversion.countdownTextColor || '#ffffff';
+                        const timerStyle = ppConversion.countdownStyle || 'bar';
+                        const rem = Math.max(0, countdownSeconds);
+                        const td = Math.floor(rem / 86400);
+                        const th = Math.floor((rem % 86400) / 3600);
+                        const tm = Math.floor((rem % 3600) / 60);
+                        const ts = rem % 60;
+                        const pad = n => String(n).padStart(2, '0');
+                        const units = [...(td > 0 ? [{ v: td, l: 'jours' }] : []), { v: th, l: 'h' }, { v: tm, l: 'min' }, { v: ts, l: 'sec' }];
+
+                        if (timerStyle === 'banner') {
+                          return (
+                            <div key={sectionId} style={{ marginBottom: 14 }}>
+                              <div style={{ background: timerBg, borderRadius: 12, padding: '16px', textAlign: 'center' }}>
+                                <div style={{ color: timerColor, fontWeight: 700, fontSize: 12, marginBottom: 10, opacity: 0.9 }}>⏰ Cette offre expire dans</div>
+                                <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'center', gap: 8 }}>
+                                  {units.map(({ v, l }, i) => (
+                                    <React.Fragment key={l}>
+                                      {i > 0 && <span style={{ color: timerColor, fontSize: 24, fontWeight: 900, opacity: 0.5, marginBottom: 14 }}>:</span>}
+                                      <div style={{ textAlign: 'center' }}>
+                                        <div style={{ color: timerColor, background: 'rgba(0,0,0,0.15)', borderRadius: 8, padding: '4px 12px', fontSize: 28, fontWeight: 900, fontFamily: 'monospace', lineHeight: 1, minWidth: 48 }}>{pad(v)}</div>
+                                        <div style={{ color: timerColor, fontSize: 9, fontWeight: 700, textTransform: 'uppercase', opacity: 0.7, marginTop: 4 }}>{l}</div>
+                                      </div>
+                                    </React.Fragment>
+                                  ))}
                                 </div>
                               </div>
-                              <span style={countdownCardStyle.value}>{formatCountdown(countdownSeconds)}</span>
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <div key={sectionId} style={{ marginBottom: 14 }}>
+                            <div style={{ background: timerBg, borderRadius: 12, padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                              <span style={{ color: timerColor, fontWeight: 700, fontSize: 13 }}>⏰ Offre limitée</span>
+                              <span style={{ color: timerColor, fontWeight: 900, fontSize: 18, fontVariantNumeric: 'tabular-nums', fontFamily: 'monospace' }}>
+                                {units.map(({ v }, i) => <React.Fragment key={i}>{i > 0 && <span style={{ opacity: 0.6 }}>:</span>}{pad(v)}</React.Fragment>)}
+                              </span>
                             </div>
                           </div>
                         );

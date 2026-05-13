@@ -558,19 +558,30 @@ const FieldCard = ({ field, index, total, onMove, onToggle, onChange, onRemove, 
               </div>
 
               {/* Countdown */}
-              <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-2">
                 <label className="flex items-center gap-1.5 cursor-pointer select-none">
                   <input type="checkbox" className="rounded accent-emerald-600 w-3.5 h-3.5"
                     checked={field.showCountdown !== false}
                     onChange={e => onChange(index, 'showCountdown', e.target.checked)} />
                   <span className="text-[11px] text-gray-600 font-medium">Compte à rebours</span>
                 </label>
-                <div>
-                  <input type="number" min="1" max="120" className={inputCls + ' text-center text-[11px]'}
-                    value={field.countdownMinutes || 15}
-                    onChange={e => onChange(index, 'countdownMinutes', parseInt(e.target.value))} />
-                  <span className="text-[10px] text-gray-400 ml-1">minutes</span>
-                </div>
+                {field.showCountdown !== false && (
+                  <div className="grid grid-cols-4 gap-1.5">
+                    {[
+                      { label: 'Jours', key: 'countdownDays', max: 99, def: 0 },
+                      { label: 'Heures', key: 'countdownHours', max: 23, def: 0 },
+                      { label: 'Min', key: 'countdownMinutes', max: 59, def: 15 },
+                      { label: 'Sec', key: 'countdownSeconds', max: 59, def: 0 },
+                    ].map(({ label, key, max, def }) => (
+                      <div key={key}>
+                        <label className="block text-[9px] font-medium text-gray-400 mb-0.5 text-center">{label}</label>
+                        <input type="number" min="0" max={max} className={inputCls + ' text-center text-[11px] font-mono'}
+                          value={field[key] ?? def}
+                          onChange={e => onChange(index, key, parseInt(e.target.value) || 0)} />
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Countdown label text */}
@@ -944,7 +955,15 @@ const FormPreview = ({ config, offersPreview = null, shopColor = '#0F6B4F' }) =>
               <div className="mt-1.5 flex items-center gap-2">
                 {uf.countdownText && <span className="text-xs opacity-90">{uf.countdownText}</span>}
                 <span className="inline-block font-mono font-bold text-sm bg-white/20 px-2.5 py-1 rounded">
-                  {String(uf.countdownMinutes || urgency.countdownMinutes || 15).padStart(2, '0')}:47
+                  {(() => {
+                    const d = uf.countdownDays ?? 0;
+                    const h = uf.countdownHours ?? 0;
+                    const m = uf.countdownMinutes ?? urgency.countdownMinutes ?? 15;
+                    const s = uf.countdownSeconds ?? 0;
+                    return d > 0
+                      ? `${String(d).padStart(2,'0')}j ${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`
+                      : `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+                  })()}
                 </span>
               </div>
             )}
