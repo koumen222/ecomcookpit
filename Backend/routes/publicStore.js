@@ -72,6 +72,9 @@ router.get('/:subdomain', readLimiter, resolveStoreBySubdomain, async (req, res)
         cost: z.cost || 0
       }));
 
+    // Charger le thème depuis storeTheme (prioritaire) puis fallback sur storeSettings
+    const theme = store.storeTheme || {};
+
     setCacheHeaders(res, 300);
     res.json({
       success: true,
@@ -83,14 +86,21 @@ router.get('/:subdomain', readLimiter, resolveStoreBySubdomain, async (req, res)
         banner: store.storeSettings?.storeBanner || '',
         phone: store.storeSettings?.storePhone || '',
         whatsapp: store.storeSettings?.storeWhatsApp || '',
-        themeColor: store.storeSettings?.storeThemeColor || '#0F6B4F',
+        themeColor: theme.primaryColor || store.storeSettings?.storeThemeColor || '#0F6B4F',
         currency: store.storeSettings?.storeCurrency || store.storeSettings?.currency || 'XAF',
         subdomain: store.subdomain,
-        primaryColor: store.storeSettings?.primaryColor || store.storeSettings?.storeThemeColor || '#0F6B4F',
-        accentColor: store.storeSettings?.accentColor || '#059669',
-        backgroundColor: store.storeSettings?.backgroundColor || '#FFFFFF',
-        textColor: store.storeSettings?.textColor || '#111827',
-        font: store.storeSettings?.font || 'inter',
+        // Utiliser storeTheme en priorité, puis fallback sur storeSettings
+        primaryColor: theme.primaryColor || store.storeSettings?.primaryColor || store.storeSettings?.storeThemeColor || '#0F6B4F',
+        ctaColor: theme.ctaColor || theme.primaryColor || '#059669',
+        accentColor: theme.accentColor || store.storeSettings?.accentColor || '#059669',
+        backgroundColor: theme.backgroundColor || store.storeSettings?.backgroundColor || '#FFFFFF',
+        textColor: theme.textColor || store.storeSettings?.textColor || '#111827',
+        secondaryColor: theme.secondaryColor || '#6B7280',
+        font: theme.font || store.storeSettings?.font || 'inter',
+        borderRadius: theme.borderRadius || 'lg',
+        template: theme.template || 'classic',
+        sections: theme.sections || {},
+        sectionColors: theme.sectionColors || {},
         productPageConfig: store.storeSettings?.productPageConfig || null,
         deliveryCountries: deliveryConfig.countries || [],
         deliveryZones: publicZones
