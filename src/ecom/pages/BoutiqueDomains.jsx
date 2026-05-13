@@ -3,7 +3,7 @@ import { useEcomAuth } from '../hooks/useEcomAuth';
 import { useStore } from '../contexts/StoreContext.jsx';
 import api from '../../lib/api';
 
-const VPS_IP = import.meta.env.VITE_CUSTOM_DOMAIN_IP || '45.76.27.120';
+const VPS_IP = import.meta.env.VITE_CUSTOM_DOMAIN_IP || '89.117.58.183';
 const CNAME_TARGET = 'origin.scalor.net';
 
 function CopyButton({ value }) {
@@ -486,24 +486,6 @@ const BoutiqueDomains = () => {
                 </div>
               </div>
 
-              <div className="flex items-center gap-3">
-                <div className="flex-1 h-px bg-gray-200" />
-                <span className="text-[11px] font-semibold text-gray-400">OU</span>
-                <div className="flex-1 h-px bg-gray-200" />
-              </div>
-
-              {/* Option 2 : CNAME */}
-              <div className="space-y-2">
-                <p className="text-[11px] font-semibold text-gray-600 flex items-center gap-1.5">
-                  <span className="px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded text-[10px] font-bold">ALTERNATIVE</span>
-                  CNAME — Cloudflare ou registrar avec CNAME flattening
-                </p>
-                <div className="space-y-1.5">
-                  <DnsRow type="CNAME" name="@" value={CNAME_TARGET} />
-                  <DnsRow type="CNAME" name="www" value={CNAME_TARGET} />
-                </div>
-              </div>
-
               <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-[11px] text-amber-700 space-y-1">
                 <p className="font-semibold">Comment configurer chez mon registrar ?</p>
                 <ul className="list-disc list-inside space-y-0.5 text-amber-600">
@@ -517,7 +499,7 @@ const BoutiqueDomains = () => {
 
               <div className="flex gap-2 pt-1">
                 <button
-                  onClick={async () => { await saveDomainAndNext(); setActiveStep(2); checkDns(); }}
+                  onClick={async () => { await saveDomainAndNext(); setSslStatus('pending'); setActiveStep(2); checkDns(); }}
                   disabled={saving}
                   className="flex-1 px-4 py-2.5 bg-[#0F6B4F] hover:bg-[#0A5740] text-white text-sm font-bold rounded-xl transition disabled:opacity-60"
                 >

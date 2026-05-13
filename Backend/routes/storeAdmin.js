@@ -692,7 +692,7 @@ router.post('/domains/check-dns', requireEcomAuth, requireWorkspace, async (req,
 
     const cleanDomain = domain.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
 
-    const VPS_IP = process.env.CUSTOM_DOMAIN_VPS_IP || '45.76.27.120';
+    const VPS_IP = process.env.CUSTOM_DOMAIN_VPS_IP || '89.117.58.183';
     const CNAME_TARGET = process.env.CNAME_TARGET || 'origin.scalor.net';
     const ACCEPTED_IPS = (process.env.ACCEPTED_DNS_IPS || VPS_IP).split(',').map(s => s.trim()).filter(Boolean);
 
