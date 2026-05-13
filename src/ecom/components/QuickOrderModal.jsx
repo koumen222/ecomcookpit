@@ -752,6 +752,11 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
               case 'cta_button': {
                 const ctaLabel = (field.label || 'ACHETER MAINTENANT - {total}').replace('{total}', fmt(total, currency));
                 const CtaIcon = ICON_MAP[field.icon] || ShoppingCart;
+                const ctaBgColor = design.ctaButtonColor || btnColor;
+                const ctaTextColor = design.buttonTextColor || '#fff';
+                const ctaFontSize = parseInt(design.buttonFontSize) || 15;
+                const ctaFontWeight = design.buttonBold !== false ? 700 : 400;
+                const ctaFontStyle = design.buttonItalic ? 'italic' : 'normal';
                 return (
                   <React.Fragment key={field.name}>
                     <button type="submit" disabled={submitting} style={{
@@ -760,11 +765,12 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
                       border: design.formBorderWidth && parseInt(design.formBorderWidth) > 0
                         ? `${design.formBorderWidth} solid ${design.formBorderColor || 'transparent'}`
                         : 'none',
-                      backgroundColor: submitting ? '#9CA3AF' : btnColor,
+                      backgroundColor: submitting ? '#9CA3AF' : ctaBgColor,
                       boxShadow: design.formShadow && parseInt(design.formShadow) > 0
-                        ? `0 ${design.formShadow}px ${parseInt(design.formShadow)*2}px ${btnColor}40`
+                        ? `0 ${design.formShadow}px ${parseInt(design.formShadow)*2}px ${ctaBgColor}40`
                         : 'none',
-                      color: '#fff', fontWeight: 700, fontSize: 15, cursor: submitting ? 'not-allowed' : 'pointer',
+                      color: ctaTextColor, fontWeight: ctaFontWeight, fontSize: ctaFontSize,
+                      fontStyle: ctaFontStyle, cursor: submitting ? 'not-allowed' : 'pointer',
                       display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                       transition: 'opacity 0.15s', fontFamily: 'inherit',
                     }}>
@@ -775,7 +781,7 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
                       @keyframes pulse{0%,100%{opacity:1}50%{opacity:.7}}
                       @keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
                       @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-3px)}75%{transform:translateX(3px)}}
-                      @keyframes glow{from{box-shadow:0 0 5px ${btnColor}60}to{box-shadow:0 0 20px ${btnColor}90}}
+                      @keyframes glow{from{box-shadow:0 0 5px ${ctaBgColor}60}to{box-shadow:0 0 20px ${ctaBgColor}90}}
                     `}</style>
                   </React.Fragment>
                 );
