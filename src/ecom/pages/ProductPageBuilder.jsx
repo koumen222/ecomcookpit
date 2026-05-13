@@ -1619,14 +1619,6 @@ const ProductPageBuilder = () => {
     });
   }, [autoSaveConfig]);
 
-  const handleConfigContentChange = useCallback((updatedSection) => {
-    setConfigSections(prev => {
-      const next = prev.map(s => s.id === updatedSection.id ? updatedSection : s);
-      autoSaveConfig(next);
-      return next;
-    });
-  }, [autoSaveConfig]);
-
   const handleDeliveryChange = useCallback((field, value) => {
     setDeliveryConfig(prev => ({ ...prev, [field]: value }));
   }, []);
