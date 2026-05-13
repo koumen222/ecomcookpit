@@ -12,7 +12,7 @@ import Notification from '../models/Notification.js';
 import { requireEcomAuth, validateEcomAccess } from '../middleware/ecomAuth.js';
 import { checkPlanLimit } from '../middleware/planLimits.js';
 import { convertCurrency } from '../utils/currencyConvert.js';
-import { createNotification, notifyNewOrder, notifyOrderStatus, notifyTeamOrderCreated, notifyTeamOrderStatusChanged, notifyAdminsLivreurAction } from '../services/notificationHelper.js';
+import { createNotification, notifyNewOrder, notifyOrderStatus, notifyTeamOrderCreated, notifyTeamOrderStatusChanged, notifyAdminsLivreurAction, formatOrderMessage } from '../services/notificationHelper.js';
 import { getIO } from '../services/socketService.js';
 import { sendWhatsAppMessage, sendOrderNotification } from '../services/whatsappService.js';
 import { sendOrderConfirmationToClient } from '../services/shopifyWhatsappService.js';
@@ -1725,29 +1725,8 @@ async function sendOrderToCustomNumber(order, workspaceId) {
       return;
     }
 
-    // Formater le message complet pour le destinataire personnalisé
-    const whatsappMessage = `📦 *NOUVELLE COMMANDE REÇUE*\n\n` +
-      `🔢 *Référence:* #${order.orderId}\n` +
-      `📅 *Date:* ${new Date(order.date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}\n` +
-      `⏰ *Heure:* ${new Date(order.date).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}\n\n` +
-      `👤 *INFORMATIONS CLIENT*\n` +
-      `👤 *Nom:* ${order.clientName}\n` +
-      `📞 *Téléphone:* ${order.clientPhone}\n` +
-      `📍 *Ville:* ${order.city}\n` +
-      `${order.deliveryLocation ? `🏠 *Adresse:* ${order.deliveryLocation}\n` : ''}` +
-      `${order.deliveryTime ? `⏰ *Heure livraison:* ${order.deliveryTime}\n` : ''}\n\n` +
-      `📦 *DÉTAILS COMMANDE*\n` +
-      `📦 *Produit:* ${order.product}\n` +
-      `🔢 *Quantité:* ${order.quantity}\n` +
-      `💰 *Prix unitaire:* ${order.price} FCFA\n` +
-      `💰 *Total:* ${order.price * order.quantity} FCFA\n\n` +
-      `📋 *STATUT:* ${order.status === 'pending' ? '⏳ En attente' : 
-                      order.status === 'confirmed' ? '✅ Confirmé' : 
-                      order.status === 'shipped' ? '🚚 Expédié' : 
-                      order.status === 'delivered' ? '✅ Livré' : 
-                      order.status === 'cancelled' ? '❌ Annulé' : order.status}\n\n` +
-      `${order.notes ? `📝 *Notes:* ${order.notes}\n\n` : ''}` +
-      `🔗 *Traitez cette commande rapidement*`;
+    const ws1 = await EcomWorkspace.findById(workspaceId).select('name').lean();
+    const whatsappMessage = formatOrderMessage(ws1?.name || 'Scalor', order, order.product);
 
     // Envoyer le message WhatsApp
     try {
@@ -4452,29 +4431,8 @@ router.post('/:id/send-whatsapp', requireEcomAuth, validateEcomAccess('products'
       return res.status(404).json({ success: false, message: 'Commande non trouvée.' });
     }
 
-    // Formater le message WhatsApp avec tous les détails
-    const whatsappMessage = `📦 *DÉTAILS COMMANDE*\n\n` +
-      `🔢 *Référence:* #${order.orderId}\n` +
-      `📅 *Date:* ${new Date(order.date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}\n` +
-      `⏰ *Heure:* ${new Date(order.date).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}\n\n` +
-      `👤 *INFORMATIONS CLIENT*\n` +
-      `👤 *Nom:* ${order.clientName}\n` +
-      `📞 *Téléphone:* ${order.clientPhone}\n` +
-      `📍 *Ville:* ${order.city}\n` +
-      `${order.deliveryLocation ? `🏠 *Adresse:* ${order.deliveryLocation}\n` : ''}` +
-      `${order.deliveryTime ? `⏰ *Heure livraison:* ${order.deliveryTime}\n` : ''}\n\n` +
-      `📦 *DÉTAILS COMMANDE*\n` +
-      `📦 *Produit:* ${order.product}\n` +
-      `🔢 *Quantité:* ${order.quantity}\n` +
-      `💰 *Prix unitaire:* ${order.price} FCFA\n` +
-      `💰 *Total:* ${order.price * order.quantity} FCFA\n\n` +
-      `📋 *STATUT:* ${order.status === 'pending' ? '⏳ En attente' : 
-                      order.status === 'confirmed' ? '✅ Confirmé' : 
-                      order.status === 'shipped' ? '🚚 Expédié' : 
-                      order.status === 'delivered' ? '✅ Livré' : 
-                      order.status === 'cancelled' ? '❌ Annulé' : order.status}\n\n` +
-      `${order.notes ? `📝 *Notes:* ${order.notes}\n\n` : ''}` +
-      `🔗 *Envoyé depuis le système de gestion*`;
+    const ws2 = await EcomWorkspace.findById(req.workspaceId).select('name').lean();
+    const whatsappMessage = formatOrderMessage(ws2?.name || 'Scalor', order, order.product);
 
     // Envoyer le message WhatsApp
     try {
