@@ -33,6 +33,11 @@ router.get('/check-domain', async (req, res) => {
 
   const cleanDomain = domain.trim().toLowerCase().replace(/^www\./, '');
 
+  // Sous-domaines scalor.net → toujours autorisés
+  if (cleanDomain.endsWith('.scalor.net') || cleanDomain === 'scalor.net') {
+    return res.status(200).json({ ok: true, domain: cleanDomain });
+  }
+
   try {
     // Check if this domain is registered as a custom domain by any workspace
     const workspace = await Workspace.findOne({

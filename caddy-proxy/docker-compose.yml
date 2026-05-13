@@ -5,13 +5,14 @@ services:
     ports:
       - "80:80"
       - "443:443"
-      - "443:443/udp" # HTTP/3 / QUIC
+      - "443:443/udp"   # HTTP/3 / QUIC
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data      # TLS certificates
-      - caddy_config:/config  # Caddy config
+      - caddy_data:/data      # certificats TLS (Let's Encrypt)
+      - caddy_config:/config  # config Caddy
     environment:
       - CADDY_ASK_URL=${CADDY_ASK_URL:-https://api.scalor.net/api/caddy/check-domain}
+      - CADDY_AUTH_TOKEN=${CADDY_AUTH_TOKEN:-}
       - RAILWAY_BACKEND=${RAILWAY_BACKEND:-https://ecomcookpit-production-0ec4.up.railway.app}
       - ACME_EMAIL=${ACME_EMAIL:-admin@scalor.net}
 
