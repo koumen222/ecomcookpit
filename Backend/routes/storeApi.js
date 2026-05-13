@@ -369,6 +369,9 @@ router.get('/:subdomain', readLimiter, async (req, res) => {
           announcementEnabled: settings.announcementEnabled || false,
           deliveryCountries: deliveryConfig.countries || [],
           deliveryZones: publicDeliveryZones,
+          flatShippingEnabled: deliveryConfig.flatShippingEnabled === true,
+          flatShippingFee: Math.max(0, Number(deliveryConfig.flatShippingFee) || 0),
+          freeShippingThreshold: Math.max(0, Number(deliveryConfig.freeShippingThreshold) || 0),
           // Product page builder config
           productPageConfig: settings.productPageConfig || null,
         },

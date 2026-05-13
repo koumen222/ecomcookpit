@@ -56,7 +56,13 @@ const EmbeddedOrderForm = ({ product, subdomain, store, productPageConfig }) => 
   const offerBorderStyle = offerDesign?.border_style || 'solid';
   const urgencyConfig = {
     ...(defaultConfig.urgency || {}),
-    ...(design.showCountdown ? { countdown: true } : {}),
+    ...(design.showCountdown ? {
+      countdown: true,
+      countdownDays: design.countdownDays ?? 0,
+      countdownHours: design.countdownHours ?? 0,
+      countdownMinutes: design.countdownMinutes ?? 15,
+      countdownSeconds: design.countdownSeconds ?? 0,
+    } : {}),
     ...(productPageConfig?.urgency || {}),
   };
   const callScheduleConfig = productPageConfig?.callSchedule || defaultConfig.callSchedule || {};
@@ -91,11 +97,15 @@ const EmbeddedOrderForm = ({ product, subdomain, store, productPageConfig }) => 
   // Countdown timer for urgency field
   useEffect(() => {
     if (!urgencyConfig.countdown) return;
-    const mins = urgencyConfig.countdownMinutes || 15;
-    setCountdownSecs(mins * 60);
+    const total =
+      (urgencyConfig.countdownDays || 0) * 86400 +
+      (urgencyConfig.countdownHours || 0) * 3600 +
+      (urgencyConfig.countdownMinutes || 15) * 60 +
+      (urgencyConfig.countdownSeconds || 0);
+    setCountdownSecs(total);
     const iv = setInterval(() => setCountdownSecs(s => s > 0 ? s - 1 : 0), 1000);
     return () => clearInterval(iv);
-  }, [urgencyConfig.countdown, urgencyConfig.countdownMinutes]);
+  }, [urgencyConfig.countdown, urgencyConfig.countdownDays, urgencyConfig.countdownHours, urgencyConfig.countdownMinutes, urgencyConfig.countdownSeconds]);
 
   // Fetch delivery zone cities, fallback to popularCities
   useEffect(() => {
@@ -147,13 +157,28 @@ const EmbeddedOrderForm = ({ product, subdomain, store, productPageConfig }) => 
   const defaultOfferIdx = offers.findIndex(o => o.selected);
   const [selectedOfferIdx, setSelectedOfferIdx] = useState(Math.max(0, defaultOfferIdx));
 
+  // Shipping fee calculation: per-zone cost > flat fee
+  const flatShippingEnabled = store?.flatShippingEnabled === true;
+  const flatShippingFee = Math.max(0, Number(store?.flatShippingFee) || 0);
+  const freeShippingThreshold = Math.max(0, Number(store?.freeShippingThreshold) || 0);
+
   const getTotal = () => {
     if (offersEnabled && offers[selectedOfferIdx]?.price > 0) {
       return offers[selectedOfferIdx].price;
     }
     return (product?.price || 0) * form.quantity;
   };
-  const total = getTotal();
+  const subtotal = getTotal();
+  const flatCostEffective = flatShippingEnabled && flatShippingFee > 0
+    ? (freeShippingThreshold > 0 && subtotal >= freeShippingThreshold ? 0 : flatShippingFee)
+    : 0;
+  // Zone cost from selected city (takes priority over flat fee)
+  const selectedCityZone = deliveryZoneOptions.find(z =>
+    z.city === form.city && (!selectedCountry || findMatchingCountryOption(selectedCountry, [z.country]))
+  );
+  const zoneCost = selectedCityZone?.cost > 0 ? Number(selectedCityZone.cost) : 0;
+  const deliveryCost = zoneCost > 0 ? zoneCost : flatCostEffective;
+  const total = subtotal + deliveryCost;
 
   const set = (field, value) => { setForm(prev => ({ ...prev, [field]: value })); setError(''); };
 
@@ -201,6 +226,9 @@ const EmbeddedOrderForm = ({ product, subdomain, store, productPageConfig }) => 
         city: finalCity,
         country: selectedCountry,
         notes: finalNotes,
+        deliveryCost: deliveryCost,
+        deliveryType: deliveryCost > 0 ? 'livraison' : '',
+        deliveryZone: selectedCityZone ? selectedCityZone.city : '',
         products: [{ productId: product._id, quantity: form.quantity, ...offerPriceOverride }],
         channel: 'store',
         metaEventId: purchaseEventId,
@@ -471,23 +499,47 @@ const EmbeddedOrderForm = ({ product, subdomain, store, productPageConfig }) => 
             }
 
             case 'shipping':
-              return (
+              return deliveryCost > 0 ? (
+                <div key={field.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, fontSize: 13, color: '#059669', padding: '10px 14px', backgroundColor: '#F0FDF4', borderRadius: 10, border: '1px solid #BBF7D0' }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Truck size={14} /> <strong>Frais de livraison</strong></span>
+                  <strong>{fmt(deliveryCost, currency)}</strong>
+                </div>
+              ) : flatShippingEnabled && freeShippingThreshold > 0 && subtotal >= freeShippingThreshold ? (
+                <div key={field.name} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#059669', padding: '10px 14px', backgroundColor: '#F0FDF4', borderRadius: 10, border: '1px solid #BBF7D0' }}>
+                  <Truck size={14} /> <strong>Livraison gratuite 🎉</strong>
+                </div>
+              ) : (
                 <div key={field.name} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#16A34A', padding: '4px 0' }}>
                   <Truck size={13} /> <strong>{field.label || 'Paiement à la livraison'}</strong> — vous payez à la réception
                 </div>
               );
 
-            case 'urgency':
+            case 'urgency': {
+              const fieldTotal = field.showCountdown !== false
+                ? (field.countdownDays ?? 0) * 86400 + (field.countdownHours ?? 0) * 3600 + (field.countdownMinutes ?? 0) * 60 + (field.countdownSeconds ?? 0)
+                : 0;
+              const displaySecs = fieldTotal > 0 ? fieldTotal : countdownSecs;
+              const showCd = (urgencyConfig.countdown || (field.showCountdown !== false && fieldTotal > 0)) && displaySecs != null;
               return urgencyConfig.enabled !== false ? (
                 <div key={field.name} style={{ borderRadius: 12, padding: '12px 14px', backgroundColor: btnColor, color: '#fff', fontSize: 13, lineHeight: 1.5 }}>
                   <p style={{ margin: 0 }}>{urgencyConfig.text || 'Stock presque épuisé. La promotion se termine bientôt.'}</p>
-                  {urgencyConfig.countdown && countdownSecs != null && (
-                    <span style={{ display: 'inline-block', marginTop: 6, fontFamily: 'monospace', fontWeight: 700, fontSize: 15, backgroundColor: 'rgba(255,255,255,0.2)', padding: '3px 10px', borderRadius: 6 }}>
-                      {String(Math.floor(countdownSecs / 60)).padStart(2, '0')}:{String(countdownSecs % 60).padStart(2, '0')}
-                    </span>
-                  )}
+                  {showCd && (() => {
+                    const d = Math.floor(displaySecs / 86400);
+                    const h = Math.floor((displaySecs % 86400) / 3600);
+                    const m = Math.floor((displaySecs % 3600) / 60);
+                    const s = displaySecs % 60;
+                    const parts = d > 0
+                      ? `${String(d).padStart(2,'0')}j ${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`
+                      : `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+                    return (
+                      <span style={{ display: 'inline-block', marginTop: 6, fontFamily: 'monospace', fontWeight: 700, fontSize: 15, backgroundColor: 'rgba(255,255,255,0.2)', padding: '3px 10px', borderRadius: 6 }}>
+                        {parts}
+                      </span>
+                    );
+                  })()}
                 </div>
               ) : null;
+            }
 
             case 'call_schedule':
               return callScheduleConfig.enabled !== false ? (
@@ -654,6 +706,17 @@ const EmbeddedOrderForm = ({ product, subdomain, store, productPageConfig }) => 
               return (
                 <div key={field.name} style={{ fontSize: 13, color: textColor, padding: '8px 12px', backgroundColor: '#F9FAFB', borderRadius: 10, border: '1px solid #E5E7EB' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}><span>{product?.name}</span><span>x{form.quantity}</span></div>
+                  {deliveryCost > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#6B7280', marginBottom: 4 }}>
+                      <span>Frais de livraison{selectedCityZone ? ` — ${selectedCityZone.city}` : ''}</span>
+                      <span style={{ color: '#059669', fontWeight: 600 }}>{fmt(deliveryCost, currency)}</span>
+                    </div>
+                  )}
+                  {flatShippingEnabled && freeShippingThreshold > 0 && subtotal < freeShippingThreshold && deliveryCost === 0 && flatShippingFee > 0 && (
+                    <div style={{ fontSize: 11, color: '#D97706', marginBottom: 4 }}>
+                      + {fmt(freeShippingThreshold - subtotal, currency)} pour la livraison gratuite
+                    </div>
+                  )}
                   <div style={{ fontWeight: 700, textAlign: 'right' }}>{fmt(total, currency)}</div>
                 </div>
               );

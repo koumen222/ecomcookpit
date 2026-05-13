@@ -103,7 +103,10 @@ router.get('/:subdomain', readLimiter, resolveStoreBySubdomain, async (req, res)
         sectionColors: theme.sectionColors || {},
         productPageConfig: store.storeSettings?.productPageConfig || null,
         deliveryCountries: deliveryConfig.countries || [],
-        deliveryZones: publicZones
+        deliveryZones: publicZones,
+        flatShippingEnabled: deliveryConfig.flatShippingEnabled === true,
+        flatShippingFee: Math.max(0, Number(deliveryConfig.flatShippingFee) || 0),
+        freeShippingThreshold: Math.max(0, Number(deliveryConfig.freeShippingThreshold) || 0),
       }
     });
   } catch (error) {
