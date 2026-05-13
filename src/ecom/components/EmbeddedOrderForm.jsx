@@ -521,8 +521,8 @@ const EmbeddedOrderForm = ({ product, subdomain, store, productPageConfig }) => 
               const displaySecs = fieldTotal > 0 ? fieldTotal : countdownSecs;
               const showCd = (urgencyConfig.countdown || (field.showCountdown !== false && fieldTotal > 0)) && displaySecs != null;
               return urgencyConfig.enabled !== false ? (
-                <div key={field.name} style={{ borderRadius: 12, padding: '12px 14px', backgroundColor: btnColor, color: '#fff', fontSize: 13, lineHeight: 1.5 }}>
-                  <p style={{ margin: 0 }}>{urgencyConfig.text || 'Stock presque épuisé. La promotion se termine bientôt.'}</p>
+                <div key={field.name} style={{ borderRadius: 12, padding: '12px 14px', backgroundColor: field.urgencyBgColor || btnColor, color: field.urgencyTextColor || '#fff', fontSize: 13, lineHeight: 1.5 }}>
+                  <p style={{ margin: 0 }}>{field.urgencyText || urgencyConfig.text || 'Stock presque épuisé. La promotion se termine bientôt.'}</p>
                   {showCd && (() => {
                     const d = Math.floor(displaySecs / 86400);
                     const h = Math.floor((displaySecs % 86400) / 3600);
