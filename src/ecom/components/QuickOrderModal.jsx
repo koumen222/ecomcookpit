@@ -420,9 +420,13 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
                   ? (isMeaningfulPlaceholder(field.placeholder, [/adresse/i, /quartier/i, /rue/i]) ? field.placeholder : countryPlaceholders.address)
                   : (field.placeholder || field.label || '');
             const ph = basePlaceholder + (field.required !== false && !['product_info', 'shipping', 'cta_button'].includes(field.type) ? ' *' : '');
-            const iconStyle = { position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF', display: 'flex', pointerEvents: 'none' };
+            const fIconColor = field.iconColor || '#9CA3AF';
+            const iconStyle = { position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: fIconColor, display: 'flex', pointerEvents: 'none' };
             const inputPadLeft = IconComp ? '36px' : '14px';
-            const inputStyle = { width: '100%', padding: `12px 14px 12px ${inputPadLeft}`, borderRadius, border: '1.5px solid #E5E7EB', fontSize: 14, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', color: inputTextColor, backgroundColor: '#fff', transition: 'border-color 0.15s' };
+            const fieldBorderColor = field.borderColor || '#E5E7EB';
+            const fieldBgColor = field.bgColor || '#fff';
+            const fieldTxtColor = field.textColor || inputTextColor;
+            const inputStyle = { width: '100%', padding: `12px 14px 12px ${inputPadLeft}`, borderRadius, border: `1.5px solid ${fieldBorderColor}`, fontSize: 14, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', color: fieldTxtColor, backgroundColor: fieldBgColor, transition: 'border-color 0.15s' };
 
             switch (field.type) {
               case 'product_info':
@@ -524,9 +528,9 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
                 return (
                   <textarea key={field.name} value={form[formKey] || ''} onChange={e => set(formKey, e.target.value)}
                     placeholder={ph} rows={2}
-                    style={{ width: '100%', padding: '12px 14px', borderRadius, border: '1.5px solid #E5E7EB', fontSize: 14, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', color: inputTextColor, backgroundColor: '#fff', resize: 'none', transition: 'border-color 0.15s' }}
+                    style={{ width: '100%', padding: '12px 14px', borderRadius, border: `1.5px solid ${fieldBorderColor}`, fontSize: 14, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', color: fieldTxtColor, backgroundColor: fieldBgColor, resize: 'none', transition: 'border-color 0.15s' }}
                     onFocus={e => e.currentTarget.style.borderColor = btnColor}
-                    onBlur={e => e.currentTarget.style.borderColor = '#E5E7EB'} />
+                    onBlur={e => e.currentTarget.style.borderColor = fieldBorderColor} />
                 );
 
               case 'select': {
@@ -548,8 +552,10 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
 
               case 'shipping':
                 return (
-                  <div key={field.name} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', backgroundColor: '#F0FDF4', borderRadius: 10, fontSize: 13, color: '#166534' }}>
-                    <Truck size={14} /> <strong>{field.label || 'Paiement à la livraison'}</strong> — vous payez à la réception
+                  <div key={field.name} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', backgroundColor: field.bgColor || '#F0FDF4', borderRadius: 10, fontSize: 13, color: field.textColor || '#166534' }}>
+                    <Truck size={14} style={{ color: field.iconColor || field.textColor || '#166534' }} />
+                    <strong>{field.label || 'Paiement à la livraison'}</strong>
+                    <span style={{ color: field.subtextColor || '#6b7280' }}>— {field.shippingNote || 'vous payez à la réception'}</span>
                   </div>
                 );
 
@@ -559,24 +565,61 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
                   : 0;
                 const displaySecs = fieldTotal > 0 ? fieldTotal : countdownSecs;
                 const showCd = (urgencyConfig.countdown || (field.showCountdown !== false && fieldTotal > 0)) && displaySecs != null;
+                const urgBg = field.urgencyBgColor || btnColor;
+                const urgColor = field.urgencyTextColor || '#fff';
+                const urgRadius = field.urgencyRadius || '12px';
+                const urgStyle = field.urgencyStyle || 'banner';
+                const urgAnim = field.urgencyAnimation || 'none';
+                const urgIconMap = { fire: '🔥', warning: '⚠️', clock: '⏰', bolt: '⚡', none: '' };
+                const urgIconEmoji = urgIconMap[field.urgencyIcon || 'fire'] || '';
+                const urgAnimStyle = urgAnim === 'pulse'
+                  ? { animation: 'urgPulse 1.5s ease-in-out infinite' }
+                  : urgAnim === 'shake'
+                    ? { animation: 'urgShake 0.5s ease-in-out infinite' }
+                    : urgAnim === 'glow'
+                      ? { animation: `urgGlow 1.5s ease-in-out infinite alternate` }
+                      : {};
                 return urgencyConfig.enabled !== false ? (
-                  <div key={field.name} style={{ borderRadius: 12, padding: '12px 14px', backgroundColor: field.urgencyBgColor || btnColor, color: field.urgencyTextColor || '#fff', fontSize: 13, lineHeight: 1.5 }}>
-                    <p style={{ margin: 0 }}>{field.urgencyText || urgencyConfig.text || 'Stock presque épuisé. La promotion se termine bientôt.'}</p>
-                    {showCd && (() => {
-                      const d = Math.floor(displaySecs / 86400);
-                      const h = Math.floor((displaySecs % 86400) / 3600);
-                      const m = Math.floor((displaySecs % 3600) / 60);
-                      const s = displaySecs % 60;
-                      const parts = d > 0
-                        ? `${String(d).padStart(2,'0')}j ${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`
-                        : `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
-                      return (
-                        <span style={{ display: 'inline-block', marginTop: 6, fontFamily: 'monospace', fontWeight: 700, fontSize: 15, backgroundColor: 'rgba(255,255,255,0.2)', padding: '3px 10px', borderRadius: 6 }}>
-                          {parts}
-                        </span>
-                      );
-                    })()}
-                  </div>
+                  <>
+                    <style>{`
+                      @keyframes urgPulse{0%,100%{opacity:1}50%{opacity:.6}}
+                      @keyframes urgShake{0%,100%{transform:translateX(0)}25%{transform:translateX(-3px)}75%{transform:translateX(3px)}}
+                      @keyframes urgGlow{from{box-shadow:0 0 4px ${urgBg}80}to{box-shadow:0 0 16px ${urgBg}}}
+                    `}</style>
+                    <div key={field.name} style={{
+                      borderRadius: urgRadius, padding: '12px 14px',
+                      backgroundColor: urgBg, color: urgColor, fontSize: 13, lineHeight: 1.5,
+                      boxShadow: urgStyle === 'floating' ? '0 4px 16px rgba(0,0,0,0.18)' : 'none',
+                      ...urgAnimStyle,
+                    }}>
+                      <p style={{ margin: 0 }}>
+                        {urgIconEmoji && <span style={{ marginRight: 5 }}>{urgIconEmoji}</span>}
+                        {field.urgencyText || urgencyConfig.text || 'Stock presque épuisé. La promotion se termine bientôt.'}
+                      </p>
+                      {showCd && (() => {
+                        const d = Math.floor(displaySecs / 86400);
+                        const h = Math.floor((displaySecs % 86400) / 3600);
+                        const m = Math.floor((displaySecs % 3600) / 60);
+                        const s = displaySecs % 60;
+                        const parts = d > 0
+                          ? `${String(d).padStart(2,'0')}j ${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`
+                          : `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+                        return (
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, marginTop: 10 }}>
+                            {field.countdownText && <span style={{ fontSize: 12, opacity: 0.9 }}>{field.countdownText}</span>}
+                            <span style={{ fontFamily: 'monospace', fontWeight: 800, fontSize: 28, backgroundColor: 'rgba(255,255,255,0.2)', padding: '6px 16px', borderRadius: 8, letterSpacing: 2 }}>
+                              {parts}
+                            </span>
+                          </div>
+                        );
+                      })()}
+                      {field.showProgressBar && (
+                        <div style={{ marginTop: 8, width: '100%', height: 6, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 99, overflow: 'hidden' }}>
+                          <div style={{ height: '100%', width: '65%', backgroundColor: 'rgba(255,255,255,0.7)', borderRadius: 99 }} />
+                        </div>
+                      )}
+                    </div>
+                  </>
                 ) : null;
               }
 
@@ -623,17 +666,17 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
 
               case 'trust_badge':
                 return (
-                  <div key={field.name} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 10, backgroundColor: '#F0FDF4', border: '1px solid #BBF7D0' }}>
-                    <Shield size={16} style={{ color: '#16A34A', flexShrink: 0 }} />
-                    <span style={{ fontSize: 12, fontWeight: 600, color: '#15803D' }}>{field.label || 'Paiement sécurisé'}</span>
+                  <div key={field.name} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 10, backgroundColor: field.bgColor || '#F0FDF4', border: `1px solid ${field.borderColor || '#BBF7D0'}` }}>
+                    <Shield size={16} style={{ color: field.iconColor || '#16A34A', flexShrink: 0 }} />
+                    <span style={{ fontSize: 12, fontWeight: 600, color: field.textColor || '#15803D' }}>{field.label || 'Paiement sécurisé'}</span>
                   </div>
                 );
 
               case 'guarantee':
                 return (
-                  <div key={field.name} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 10, backgroundColor: '#EFF6FF', border: '1px solid #BFDBFE' }}>
-                    <CheckCircle size={16} style={{ color: '#2563EB', flexShrink: 0 }} />
-                    <span style={{ fontSize: 12, fontWeight: 600, color: '#1D4ED8' }}>{field.label || 'Satisfait ou remboursé'}</span>
+                  <div key={field.name} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 10, backgroundColor: field.bgColor || '#EFF6FF', border: `1px solid ${field.borderColor || '#BFDBFE'}` }}>
+                    <CheckCircle size={16} style={{ color: field.iconColor || '#2563EB', flexShrink: 0 }} />
+                    <span style={{ fontSize: 12, fontWeight: 600, color: field.textColor || '#1D4ED8' }}>{field.label || 'Satisfait ou remboursé'}</span>
                   </div>
                 );
 
@@ -743,7 +786,7 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
 
               case 'summary':
                 return (
-                  <div key={field.name} style={{ fontSize: 13, color: textColor, padding: '8px 12px', backgroundColor: '#F9FAFB', borderRadius: 10, border: '1px solid #E5E7EB' }}>
+                  <div key={field.name} style={{ fontSize: 13, color: field.textColor || textColor, padding: '8px 12px', backgroundColor: field.bgColor || '#F9FAFB', borderRadius: 10, border: `1px solid ${field.borderColor || '#E5E7EB'}` }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}><span>{product?.name}</span><span>x{form.quantity}</span></div>
                     <div style={{ fontWeight: 700, textAlign: 'right' }}>{fmt(total, currency)}</div>
                   </div>
