@@ -504,17 +504,19 @@ const EmbeddedOrderForm = ({ product, subdomain, store, productPageConfig }) => 
 
             case 'shipping':
               return deliveryCost > 0 ? (
-                <div key={field.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, fontSize: 13, color: '#059669', padding: '10px 14px', backgroundColor: '#F0FDF4', borderRadius: 10, border: '1px solid #BBF7D0' }}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Truck size={14} /> <strong>Frais de livraison</strong></span>
+                <div key={field.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, fontSize: 13, color: field.textColor || '#059669', padding: '10px 14px', backgroundColor: field.bgColor || '#F0FDF4', borderRadius: 10, border: `1px solid ${field.borderColor || '#BBF7D0'}` }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Truck size={14} style={{ color: field.iconColor || field.textColor || '#059669' }} /> <strong>Frais de livraison</strong></span>
                   <strong>{fmt(deliveryCost, currency)}</strong>
                 </div>
               ) : flatShippingEnabled && freeShippingThreshold > 0 && subtotal >= freeShippingThreshold ? (
-                <div key={field.name} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#059669', padding: '10px 14px', backgroundColor: '#F0FDF4', borderRadius: 10, border: '1px solid #BBF7D0' }}>
-                  <Truck size={14} /> <strong>Livraison gratuite 🎉</strong>
+                <div key={field.name} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: field.textColor || '#059669', padding: '10px 14px', backgroundColor: field.bgColor || '#F0FDF4', borderRadius: 10, border: `1px solid ${field.borderColor || '#BBF7D0'}` }}>
+                  <Truck size={14} style={{ color: field.iconColor || field.textColor || '#059669' }} /> <strong>Livraison gratuite 🎉</strong>
                 </div>
               ) : (
-                <div key={field.name} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#16A34A', padding: '4px 0' }}>
-                  <Truck size={13} /> <strong>{field.label || 'Paiement à la livraison'}</strong> — vous payez à la réception
+                <div key={field.name} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: field.textColor || '#16A34A', padding: '4px 0' }}>
+                  <Truck size={13} style={{ color: field.iconColor || field.textColor || '#16A34A' }} />
+                  <strong>{field.label || 'Paiement à la livraison'}</strong>
+                  <span style={{ color: field.subtextColor || '#6b7280' }}>— {field.shippingNote || 'vous payez à la réception'}</span>
                 </div>
               );
 
@@ -564,9 +566,9 @@ const EmbeddedOrderForm = ({ product, subdomain, store, productPageConfig }) => 
                         ? `${String(d).padStart(2,'0')}j ${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`
                         : `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
                       return (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, marginTop: 10 }}>
                           {field.countdownText && <span style={{ fontSize: 12, opacity: 0.9 }}>{field.countdownText}</span>}
-                          <span style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: 15, backgroundColor: 'rgba(255,255,255,0.2)', padding: '3px 10px', borderRadius: 6 }}>
+                          <span style={{ fontFamily: 'monospace', fontWeight: 800, fontSize: 28, backgroundColor: 'rgba(255,255,255,0.2)', padding: '6px 16px', borderRadius: 8, letterSpacing: 2 }}>
                             {parts}
                           </span>
                         </div>
