@@ -229,6 +229,7 @@ const EmbeddedOrderForm = ({ product, subdomain, store, productPageConfig }) => 
         deliveryCost: deliveryCost,
         deliveryType: deliveryCost > 0 ? 'livraison' : '',
         deliveryZone: selectedCityZone ? selectedCityZone.city : '',
+        callSchedule: form.call_schedule || '',
         products: [{ productId: product._id, quantity: form.quantity, ...offerPriceOverride }],
         channel: 'store',
         metaEventId: purchaseEventId,

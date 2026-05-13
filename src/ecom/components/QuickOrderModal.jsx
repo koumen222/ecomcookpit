@@ -233,6 +233,7 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
         notes: combinedNotes,
         deliveryCost: flatCostEffective,
         deliveryType: flatCostEffective > 0 ? 'livraison' : '',
+        callSchedule: form.call_schedule || '',
         variants: variantEntries.length ? variantEntries.map(([k, v]) => ({ name: k, value: v })) : undefined,
         products: [{ productId: product._id, quantity: form.quantity, ...offerPriceOverride }],
         channel: 'store',
