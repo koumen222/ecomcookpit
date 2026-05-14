@@ -3,6 +3,7 @@ import EcomUser from '../models/EcomUser.js';
 import CloseuseAssignment from '../models/CloseuseAssignment.js';
 import OrderSource from '../models/OrderSource.js';
 import WorkspaceSettings from '../models/WorkspaceSettings.js';
+import Workspace from '../models/Workspace.js';
 import { getIO } from './socketService.js';
 import { sendPushNotification, sendPushNotificationToUser } from './pushService.js';
 import { sendWhatsAppMessage } from './whatsappService.js';
@@ -87,6 +88,47 @@ const resolveProductName = (order) => {
     return order.product.trim();
   }
   return 'Produit';
+};
+
+/**
+ * Format a standard order notification message (used for groups and closeuses)
+ */
+export const formatOrderMessage = (wsName, order, productName) => {
+  const qty = order.quantity || 1;
+  const qtyStr = String(qty).padStart(2, '0');
+  const priceStr = order.price ? `${new Intl.NumberFormat('fr-FR').format(order.price)} ${order.currency || 'XAF'}` : '';
+  const lieu = order.deliveryLocation || order.address || '-';
+  const ville = order.city || '-';
+  const orderDate = order.date || order.createdAt || new Date();
+  const jours = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
+  const dateObj = new Date(orderDate);
+  const jourNom = jours[dateObj.getDay()];
+  const isToday = new Date().toDateString() === dateObj.toDateString();
+  const jour = isToday ? `aujourd'hui ${jourNom}` : jourNom;
+  const heure = order.deliveryTime || 'Disponible maintenant';
+  const notesLine = order.notes || `${order.orderId || ''} — ${order.clientName || ''}`;
+
+  return `*${wsName}*
+
+Nom du client : ${order.clientName || '-'}
+
+Ville : ${ville}
+
+Lieu de la livraison : ${lieu}
+
+Jour de la livraison : ${jour}
+
+Numéro : ${order.clientPhone || '-'}
+
+Heure de livraison : ${heure}
+
+Article : ${productName || order.product || '-'}
+
+Quantité : ${qtyStr}
+
+Montant : ${priceStr}
+
+Notes : ${notesLine}`;
 };
 
 /**
@@ -180,8 +222,9 @@ export const notifyNewOrder = async (workspaceId, order) => {
     console.log(`📲 [WhatsApp Notif] Destinataires actifs: ${allTargets.length} (closeuses: ${closeuseNumbers.length}, groupes: ${deliveryGroupNumbers.length})`);
 
     if (allTargets.length > 0) {
-      const priceStr = order.price ? `${new Intl.NumberFormat('fr-FR').format(order.price)} ${order.currency || 'FCFA'}` : '';
-      const msg = `🛒 *Nouvelle commande*\n👤 ${order.clientName || 'Client'}\n📞 ${order.clientPhone || '-'}\n📦 ${productName}\n${priceStr ? `💰 ${priceStr}\n` : ''}📍 ${order.city || order.address || '-'}`;
+      const workspace = await Workspace.findById(wsId).select('name').lean();
+      const wsName = workspace?.name || 'Scalor';
+      const msg = formatOrderMessage(wsName, order, productName);
 
       for (const target of allTargets) {
         console.log(`📲 [WhatsApp Notif] Envoi vers ${target.phoneNumber} (${target.label || 'sans label'})`);

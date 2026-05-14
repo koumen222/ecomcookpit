@@ -121,6 +121,11 @@ const storeOrderSchema = new mongoose.Schema({
     trim: true,
     default: ''
   },
+  callSchedule: {
+    type: String,
+    trim: true,
+    default: ''
+  },
   affiliateCode: {
     type: String,
     trim: true,
