@@ -719,7 +719,7 @@ export default function BillingPage() {
       setDirectCheckoutError(err?.response?.data?.message || 'Erreur de paiement.');
       setDirectCheckoutLoading(false);
     }
-  }, [user, workspaceId]);
+  }, [user, workspaceId, globalPromo, planTiers]);
 
   const fallbackTrialActive = !!workspace?.trialEndsAt && new Date(workspace.trialEndsAt) > new Date();
   const fallbackPaidPlan = ['starter', 'pro', 'ultra'].includes(workspace?.plan) ? workspace.plan : 'free';
