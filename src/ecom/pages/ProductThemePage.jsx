@@ -345,13 +345,28 @@ const ProductThemePage = () => {
   useEffect(() => {
     (async () => {
       try {
-        const [configRes, themeRes] = await Promise.all([
+        const [configResult, themeResult] = await Promise.allSettled([
           storeManageApi.getStoreConfig(),
           storeManageApi.getTheme(),
         ]);
-        const raw = configRes.data?.data || configRes.data || {};
-        const config = raw.storeSettings?.productPageConfig || raw.productPageConfig || {};
-        const themeData = themeRes.data?.data || {};
+
+        // Extract config from storeSettings (primary source)
+        let config = {};
+        if (configResult.status === 'fulfilled') {
+          const raw = configResult.value?.data?.data || configResult.value?.data || {};
+          config = raw.storeSettings?.productPageConfig || raw.productPageConfig || {};
+        }
+
+        // Extract theme data
+        const themeData = themeResult.status === 'fulfilled'
+          ? (themeResult.value?.data?.data || {})
+          : {};
+
+        // Fallback: if config is empty, try reading productPageConfig from storeTheme
+        if (!config.design && themeData.productPageConfig) {
+          config = themeData.productPageConfig;
+        }
+
         const savedTheme = themeData.template || 'classic';
         const savedDesign = {
           ...DEFAULT_DESIGN,
@@ -395,22 +410,52 @@ const ProductThemePage = () => {
   const handleSave = async () => {
     setSaving(true);
     try {
-      const [configRes, themeRes] = await Promise.all([
+      // Use allSettled to handle 404 errors gracefully
+      const [configResult, themeResult] = await Promise.allSettled([
         storeManageApi.getStoreConfig(),
         storeManageApi.getTheme(),
       ]);
-      const raw = configRes.data?.data || configRes.data || {};
-      const existingConfig = raw.storeSettings?.productPageConfig || raw.productPageConfig || {};
-      const existingTheme = themeRes.data?.data || {};
-      await Promise.all([
-        storeManageApi.updateTheme({ ...existingTheme, template: currentTheme, sectionColors }),
-        storeManageApi.updateStoreConfig({
-          productPageConfig: { ...existingConfig, design: { ...existingConfig.design, ...design }, infographicsForm: { ...existingConfig.infographicsForm, ...infographicsForm } },
-        }),
+
+      // Extract config if available, fallback to empty object on error
+      let existingConfig = {};
+      if (configResult.status === 'fulfilled') {
+        const raw = configResult.value?.data?.data || configResult.value?.data || {};
+        existingConfig = raw.storeSettings?.productPageConfig || raw.productPageConfig || {};
+      } else {
+        console.warn('Store config not available:', configResult.reason?.message);
+      }
+
+      // Extract theme if available, fallback to empty object on error
+      let existingTheme = {};
+      if (themeResult.status === 'fulfilled') {
+        existingTheme = themeResult.value?.data?.data || {};
+      } else {
+        console.warn('Theme not available:', themeResult.reason?.message);
+      }
+
+      // Build the productPageConfig payload
+      const updatedProductPageConfig = {
+        ...existingConfig,
+        design: { ...existingConfig.design, ...design },
+        infographicsForm: { ...existingConfig.infographicsForm, ...infographicsForm },
+      };
+
+      // Save updates — allSettled so partial success still persists what it can
+      // Include productPageConfig in theme payload as fallback (always persisted)
+      const [themeUpdate, configUpdate] = await Promise.allSettled([
+        storeManageApi.updateTheme({ ...existingTheme, template: currentTheme, sectionColors, productPageConfig: updatedProductPageConfig }),
+        storeManageApi.updateStoreConfig({ productPageConfig: updatedProductPageConfig }),
       ]);
-      setOriginalData({ theme: currentTheme, design: { ...design }, sectionColors: { ...sectionColors }, infographicsForm: { ...infographicsForm } });
-      setSaved(true);
-      setTimeout(() => setSaved(false), 3000);
+
+      if (themeUpdate.status === 'rejected') console.error('Theme update failed:', themeUpdate.reason?.message);
+      if (configUpdate.status === 'rejected') console.error('Config update failed:', configUpdate.reason?.message);
+
+      // Consider save successful if at least the theme was saved
+      if (themeUpdate.status === 'fulfilled') {
+        setOriginalData({ theme: currentTheme, design: { ...design }, sectionColors: { ...sectionColors }, infographicsForm: { ...infographicsForm } });
+        setSaved(true);
+        setTimeout(() => setSaved(false), 3000);
+      }
     } catch (e) {
       console.error('Failed to save theme:', e);
     } finally {

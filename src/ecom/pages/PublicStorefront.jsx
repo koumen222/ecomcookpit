@@ -2859,6 +2859,15 @@ export const StoreAllProducts = () => {
     }
   }, [store?.name, pixels, subdomain, trackPageView]);
 
+  // Apply template to body for CSS customization
+  useEffect(() => {
+    const template = store?.template || 'classic';
+    document.body.setAttribute('data-store-template', template);
+    return () => {
+      document.body.removeAttribute('data-store-template');
+    };
+  }, [store?.template]);
+
   if (error) return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Inter, sans-serif' }}>
       <div style={{ textAlign: 'center', padding: 40 }}>
@@ -2895,6 +2904,70 @@ export const StoreAllProducts = () => {
         @media(min-width:1180px){.store-products-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
         @media(min-width:560px){.s-badges{grid-template-columns:repeat(2,1fr)}.s-badge-item{border-right:1px solid #F3F4F6;border-bottom:1px solid #F3F4F6}.s-badge-item:nth-child(2n){border-right:none}}
         @media(min-width:900px){.s-badges{grid-template-columns:repeat(4,1fr)}.s-badge-item{border-bottom:none;border-right:1px solid #F3F4F6}.s-badge-item:last-child{border-right:none}}
+
+        /* ── Store Template Variations ─────────────────────────────────────── */
+        /* PREMIUM: Grande images, plus d'espacement, design luxe */
+        body[data-store-template="premium"] .store-products-shell {
+          padding: clamp(80px, 10vw, 120px) 24px !important;
+        }
+        body[data-store-template="premium"] h1 {
+          font-size: clamp(38px, 6vw, 64px) !important;
+        }
+        body[data-store-template="premium"] .store-products-grid {
+          gap: 32px !important;
+        }
+        body[data-store-template="premium"] .s-prod-card,
+        body[data-store-template="premium"] .hp-prod-card {
+          box-shadow: 0 20px 50px rgba(0,0,0,0.08) !important;
+          border-radius: 20px !important;
+        }
+
+        /* MINIMAL: Design épuré, moins d'espacement, focus produits */
+        body[data-store-template="minimal"] .store-products-shell {
+          padding: clamp(32px, 5vw, 48px) 16px 64px !important;
+        }
+        body[data-store-template="minimal"] h1 {
+          font-size: clamp(28px, 4vw, 42px) !important;
+          font-weight: 700 !important;
+        }
+        body[data-store-template="minimal"] .s-prod-card,
+        body[data-store-template="minimal"] .hp-prod-card {
+          border-radius: 8px !important;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.04) !important;
+        }
+        body[data-store-template="minimal"] .store-filter-panel {
+          border-radius: 8px !important;
+        }
+        body[data-store-template="minimal"] button {
+          border-radius: 6px !important;
+        }
+
+        /* BOLD: Couleurs vives, typographie impactante */
+        body[data-store-template="bold"] .store-products-shell {
+          padding: clamp(40px, 6vw, 72px) 16px 64px !important;
+        }
+        body[data-store-template="bold"] h1 {
+          font-size: clamp(36px, 6vw, 64px) !important;
+          font-weight: 900 !important;
+          letter-spacing: -0.04em !important;
+        }
+        body[data-store-template="bold"] .s-prod-card,
+        body[data-store-template="bold"] .hp-prod-card {
+          border-radius: 16px !important;
+          box-shadow: 0 8px 32px rgba(0,0,0,0.12) !important;
+          transition: transform 0.2s, box-shadow 0.2s !important;
+        }
+        body[data-store-template="bold"] .s-prod-card:hover,
+        body[data-store-template="bold"] .hp-prod-card:hover {
+          transform: translateY(-4px) !important;
+          box-shadow: 0 16px 48px rgba(0,0,0,0.18) !important;
+        }
+        body[data-store-template="bold"] button {
+          border-radius: 12px !important;
+          font-weight: 800 !important;
+          text-transform: uppercase !important;
+          letter-spacing: 0.04em !important;
+        }
       `}</style>
       <AnnouncementBar store={store} />
       <StorefrontHeader store={store} cartCount={cartCount} prefix={prefix} />
@@ -3159,6 +3232,15 @@ const PublicStorefrontInner = () => {
     }
   }, [store, innerPixels, subdomain]);
 
+  // Apply template to body for CSS customization
+  useEffect(() => {
+    const template = store?.template || 'classic';
+    document.body.setAttribute('data-store-template', template);
+    return () => {
+      document.body.removeAttribute('data-store-template');
+    };
+  }, [store?.template]);
+
   if (error) return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Inter, sans-serif' }}>
       <div style={{ textAlign: 'center', padding: 40 }}>
@@ -3189,6 +3271,83 @@ const PublicStorefrontInner = () => {
           .s-badge-item{border-bottom:none;border-right:1px solid #F3F4F6}
           .s-badge-item:last-child{border-right:none}
         }
+
+        /* ── Template Variations ──────────────────────────────────────────── */
+        /* PREMIUM: Grande images, plus d'espacement, design luxe */
+        body[data-store-template="premium"] section {
+          padding-top: clamp(80px, 12vw, 140px) !important;
+          padding-bottom: clamp(80px, 12vw, 140px) !important;
+        }
+        body[data-store-template="premium"] h1,
+        body[data-store-template="premium"] h2 {
+          font-size: clamp(38px, 6vw, 72px) !important;
+          letter-spacing: -0.04em;
+        }
+        body[data-store-template="premium"] .hp-prod-card img,
+        body[data-store-template="premium"] .s-prod-card img {
+          aspect-ratio: 3/4 !important;
+        }
+        body[data-store-template="premium"] .hp-prod-card,
+        body[data-store-template="premium"] .s-prod-card {
+          box-shadow: 0 20px 50px rgba(0,0,0,0.08) !important;
+        }
+
+        /* MINIMAL: Design épuré, moins d'espacement, focus produits */
+        body[data-store-template="minimal"] section {
+          padding-top: clamp(32px, 5vw, 56px) !important;
+          padding-bottom: clamp(32px, 5vw, 56px) !important;
+        }
+        body[data-store-template="minimal"] h1,
+        body[data-store-template="minimal"] h2 {
+          font-size: clamp(26px, 4vw, 42px) !important;
+          font-weight: 700 !important;
+          letter-spacing: -0.02em;
+        }
+        body[data-store-template="minimal"] .hp-prod-card,
+        body[data-store-template="minimal"] .s-prod-card {
+          border-radius: 8px !important;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.04) !important;
+        }
+        body[data-store-template="minimal"] button,
+        body[data-store-template="minimal"] a[style*="border-radius"] {
+          border-radius: 6px !important;
+        }
+        body[data-store-template="minimal"] .s-badges,
+        body[data-store-template="minimal"] .s-badge-item {
+          display: none !important;
+        }
+
+        /* BOLD: Couleurs vives, typographie impactante */
+        body[data-store-template="bold"] section {
+          padding-top: clamp(48px, 8vw, 100px) !important;
+          padding-bottom: clamp(48px, 8vw, 100px) !important;
+        }
+        body[data-store-template="bold"] h1,
+        body[data-store-template="bold"] h2 {
+          font-size: clamp(32px, 6vw, 64px) !important;
+          font-weight: 900 !important;
+          letter-spacing: -0.04em;
+        }
+        body[data-store-template="bold"] .hp-prod-card,
+        body[data-store-template="bold"] .s-prod-card {
+          border-radius: 16px !important;
+          box-shadow: 0 8px 32px rgba(0,0,0,0.12) !important;
+          transition: transform 0.2s, box-shadow 0.2s !important;
+        }
+        body[data-store-template="bold"] .hp-prod-card:hover,
+        body[data-store-template="bold"] .s-prod-card:hover {
+          transform: translateY(-4px) !important;
+          box-shadow: 0 16px 48px rgba(0,0,0,0.18) !important;
+        }
+        body[data-store-template="bold"] button,
+        body[data-store-template="bold"] a[style*="border-radius"] {
+          border-radius: 12px !important;
+          font-weight: 800 !important;
+          text-transform: uppercase !important;
+          letter-spacing: 0.04em;
+        }
+
+        /* CLASSIC: Style par défaut (aucun changement nécessaire) */
       `}</style>
 
       <AnnouncementBar store={store} />

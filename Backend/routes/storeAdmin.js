@@ -296,6 +296,11 @@ router.put('/theme', requireEcomAuth, requireWorkspace, async (req, res) => {
       );
     }
 
+    // Invalidate public store cache so changes appear immediately
+    if (updated?.subdomain) {
+      invalidateStoreCache(updated.subdomain);
+    }
+
     // Broadcast to all live visitors of this store
     if (updated?.subdomain) {
       emitThemeUpdate(updated.subdomain, req.body);

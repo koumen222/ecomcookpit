@@ -140,9 +140,12 @@ export function ThemeProvider({ children, subdomain = null }) {
 
     if (persist) {
       try {
-        await api.put('/store/theme', newTheme);
+        console.log('🎨 Saving theme to backend:', newTheme);
+        const response = await api.put('/store/theme', newTheme);
+        console.log('✅ Theme saved successfully:', response.data);
       } catch (error) {
-        console.error('Failed to save theme:', error);
+        console.error('❌ Failed to save theme:', error);
+        throw error; // Re-throw pour que BoutiqueTheme puisse afficher l'erreur
       }
     }
   }, [theme]);
