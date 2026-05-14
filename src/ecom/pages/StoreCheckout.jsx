@@ -277,7 +277,8 @@ const StoreCheckout = () => {
   }, [store, orderResult]);
 
   const handleChange = (field, value) => {
-    setForm(prev => ({ ...prev, [field]: value }));
+    const sanitized = field === 'phone' ? value.replace(/[^0-9\s\-+()]/g, '') : value;
+    setForm(prev => ({ ...prev, [field]: sanitized }));
     setError('');
   };
 
@@ -358,6 +359,15 @@ const StoreCheckout = () => {
 
     if (!form.customerName.trim() || !form.phone.trim()) {
       setError('Nom et numéro de téléphone requis');
+      return;
+    }
+    const phoneDigits = form.phone.replace(/[^0-9]/g, '');
+    if (phoneDigits.length < 7 || phoneDigits.length > 15) {
+      setError('Numéro de téléphone invalide (7-15 chiffres)');
+      return;
+    }
+    if (form.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(form.email.trim())) {
+      setError('Adresse e-mail invalide');
       return;
     }
 

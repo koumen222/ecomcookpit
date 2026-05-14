@@ -3,7 +3,7 @@ import { X, ShoppingCart, User, Phone, MapPin, Loader2, CheckCircle, AlertCircle
 import { publicStoreApi } from '../services/storeApi.js';
 import { createMetaEventId, firePixelEvent } from '../utils/pixelTracking';
 import defaultConfig from './productSettings/defaultConfig.js';
-import { getDefaultPhoneCodeFromConfig, getPhoneCodeByCountryName, buildFullPhone } from '../utils/phoneCodes.js';
+import { PHONE_CODES, getDefaultPhoneCodeFromConfig, getPhoneCodeByCountryName, buildFullPhone } from '../utils/phoneCodes.js';
 import {
   buildStorefrontOrderWhatsappMessage,
   getPopularCitiesForCountries,
@@ -186,8 +186,16 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
     // Dynamic validation based on enabled required fields
     for (const f of effectiveFields.filter(f => f.enabled !== false && f.required !== false)) {
       const key = FIELD_KEY_MAP[f.name] || f.name;
-      if (['text', 'phone', 'email', 'number', 'city_select', 'textarea', 'select'].includes(f.type) && !(form[key] || '').trim()) {
+      const val = (form[key] || '').trim();
+      if (['text', 'phone', 'email', 'number', 'city_select', 'textarea', 'select'].includes(f.type) && !val) {
         setError(`${f.label || f.name} est requis`); return;
+      }
+      if (f.type === 'phone' && val) {
+        const digits = val.replace(/[^0-9]/g, '');
+        if (digits.length < 7 || digits.length > 15) { setError('Numéro de téléphone invalide (7-15 chiffres)'); return; }
+      }
+      if (f.type === 'email' && val) {
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(val)) { setError('Adresse e-mail invalide'); return; }
       }
     }
 
@@ -484,17 +492,35 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
                   </div>
                 );
 
+              case 'phone': {
+                const phoneEntry = PHONE_CODES.find(p => p.code === phoneCode) || PHONE_CODES[0];
+                return (
+                  <div key={field.name} style={{ display: 'flex', gap: 6 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '0 10px', borderRadius, border: `1.5px solid ${fieldBorderColor}`, backgroundColor: '#F9FAFB', fontSize: 13, fontWeight: 700, color: '#374151', flexShrink: 0, whiteSpace: 'nowrap' }}>
+                      <span>{phoneEntry.label.split(' ')[0]}</span>
+                      <span>{phoneCode}</span>
+                    </div>
+                    <input type="tel" inputMode="tel" value={form[formKey] || ''}
+                      onChange={e => set(formKey, e.target.value.replace(/[^0-9\s\-+()]/g, ''))}
+                      placeholder={ph} required={field.required !== false}
+                      style={{ ...inputStyle, paddingLeft: '14px' }}
+                      onFocus={e => e.currentTarget.style.borderColor = btnColor}
+                      onBlur={e => e.currentTarget.style.borderColor = '#E5E7EB'} />
+                  </div>
+                );
+              }
+
               case 'text':
-              case 'phone':
               case 'email':
               case 'number':
               case 'date': {
-                const inputType = { phone: 'tel', email: 'email', number: 'number', date: 'date' }[field.type] || 'text';
+                const inputType = { email: 'email', number: 'number', date: 'date' }[field.type] || 'text';
+                const inputMode = field.type === 'email' ? 'email' : undefined;
                 return (
                   <div key={field.name} style={{ position: 'relative' }}>
                     {IconComp && <span style={iconStyle}><IconComp size={15} /></span>}
                     <input type={inputType} value={form[formKey] || ''} onChange={e => set(formKey, e.target.value)}
-                      placeholder={ph} required={field.required !== false}
+                      inputMode={inputMode} placeholder={ph} required={field.required !== false}
                       style={inputStyle}
                       onFocus={e => e.currentTarget.style.borderColor = btnColor}
                       onBlur={e => e.currentTarget.style.borderColor = '#E5E7EB'} />
