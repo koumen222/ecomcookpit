@@ -871,7 +871,7 @@ const EcomApp = () => {
             </Routes>
           </Suspense>
 
-          <PrivacyBanner />
+          {/* <PrivacyBanner /> */}
         </div>
         </PlanGateProvider>
       </ThemeProvider>
