@@ -1,5 +1,4 @@
 import express from 'express';
-import { GoogleGenerativeAI } from '@google/generative-ai';
 import SupportConversation from '../models/SupportConversation.js';
 import EcomUser from '../models/EcomUser.js';
 import Order from '../models/Order.js';
@@ -17,19 +16,77 @@ const router = express.Router();
 const VALID_CATEGORIES = ['general', 'bug', 'billing', 'feature', 'account', 'other'];
 const VALID_PRIORITIES = ['low', 'normal', 'high', 'urgent'];
 const SUPPORT_AI_THRESHOLD = Number(process.env.SUPPORT_AI_CONFIDENCE_THRESHOLD || 78);
-const SUPPORT_AI_API_KEY = process.env.NANOBANANA_API_KEY || process.env.GEMINI_API_KEY || '';
-const SUPPORT_AI_MODEL = process.env.SUPPORT_AI_MODEL || process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+const KIE_API_KEY = process.env.KIE_API_KEY || '';
+const KIE_BASE_URL = process.env.KIE_BASE_URL || 'https://api.kie.ai';
+const GROQ_API_KEY = process.env.GROQ_API_KEY || '';
+const GROQ_MODEL = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
 const FRONTEND_BASE_URL = (process.env.FRONTEND_URL || 'https://scalor.net').replace(/\/$/, '');
 const ADMIN_NOTIFICATION_COOLDOWN_MS = 10 * 60 * 1000;
 
-let supportAiClient = null;
-
-function getSupportAiModel() {
-  if (!SUPPORT_AI_API_KEY) return null;
-  if (!supportAiClient) {
-    supportAiClient = new GoogleGenerativeAI(SUPPORT_AI_API_KEY);
+async function callKieAI(prompt) {
+  if (!KIE_API_KEY) {
+    console.warn('[Support AI KIE] KIE_API_KEY not set, skipping AI reply');
+    return null;
   }
-  return supportAiClient.getGenerativeModel({ model: SUPPORT_AI_MODEL });
+  try {
+    console.log('[Support AI KIE] Calling API...');
+    const res = await fetch(`${KIE_BASE_URL}/codex/v1/responses`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${KIE_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-5-5',
+        stream: false,
+        input: [{ role: 'user', content: [{ type: 'input_text', text: prompt }] }],
+        reasoning: { effort: 'low' },
+      }),
+    });
+    if (!res.ok) {
+      const errBody = await res.text().catch(() => '');
+      console.error('[Support AI KIE] HTTP error:', res.status, errBody.slice(0, 200));
+      return null;
+    }
+    const data = await res.json();
+    const message = data?.output?.find(o => o.type === 'message');
+    const text = message?.content?.find(c => c.type === 'output_text')?.text || '';
+    console.log('[Support AI KIE] Reply:', text.slice(0, 80));
+    return text.trim() || null;
+  } catch (err) {
+    console.error('[Support AI KIE] Error:', err.message);
+    return null;
+  }
+}
+
+async function callGroqAI(prompt) {
+  if (!GROQ_API_KEY) return null;
+  try {
+    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: GROQ_MODEL,
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: 200,
+        temperature: 0.7,
+      }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const text = data?.choices?.[0]?.message?.content || '';
+    return text.trim() || null;
+  } catch (err) {
+    console.error('[Support AI GROQ] Error:', err.message);
+    return null;
+  }
+}
+
+async function callSupportAI(prompt) {
+  const kieReply = await callKieAI(prompt);
+  if (kieReply) return kieReply;
+  console.log('[Support AI] KIE failed, trying GROQ fallback...');
+  return callGroqAI(prompt);
 }
 
 function normalizeText(value, maxLength = 2000) {
@@ -156,8 +213,7 @@ function buildSupportKnowledgeBase() {
 }
 
 async function getSupportAiDecision({ conversation, latestMessage, workspaceContext }) {
-  const model = getSupportAiModel();
-  if (!model) {
+  if (!KIE_API_KEY) {
     return {
       confidence: 0,
       shouldReply: false,
@@ -182,8 +238,8 @@ async function getSupportAiDecision({ conversation, latestMessage, workspaceCont
   const prompt = `Tu es l'assistant support interne de Scalor.\n\n${buildSupportKnowledgeBase()}\n\nContexte workspace:\n${JSON.stringify(workspaceContext, null, 2)}\n\nConversation recente:\n${JSON.stringify(history, null, 2)}\n\nDerniere question utilisateur:\n${latestMessage?.text || ''}\n\nReponds UNIQUEMENT en JSON valide avec ce schema:\n{\n  "confidence": 0-100,\n  "shouldReply": true|false,\n  "needsAdmin": true|false,\n  "answer": "reponse concise en francais",\n  "summary": "resume en une phrase",\n  "priority": "low|normal|high|urgent",\n  "category": "general|bug|billing|feature|account|other",\n  "escalationReason": "raison humaine si besoin"\n}\n\nRegles:\n- shouldReply=true seulement si la reponse est fiable et actionnable.\n- needsAdmin=true si la confiance est insuffisante, si une action humaine est necessaire, ou si le bug n'est pas clairement resolvable.\n- confidence doit etre severe et conservatrice.\n- Si tu reponds, answer doit etre claire, precise, sans promettre une action humaine immediate.\n- summary doit permettre d'envoyer une notification admin.\n- priority=urgent seulement si blocage critique, securite, paiement, indisponibilite majeure ou perte d'acces.\n`;
 
   try {
-    const result = await model.generateContent(prompt);
-    const rawText = result?.response?.text?.() || '';
+    const rawText = await callSupportAI(prompt);
+    if (!rawText) throw new Error('Réponse vide');
     const parsed = extractJsonPayload(rawText);
 
     return {
@@ -464,6 +520,21 @@ router.post('/message', async (req, res) => {
     );
 
     emitSupportConversationUpdate(conversation, { eventType: 'visitor_message', initiator: 'visitor' });
+
+    // ── IA reply for anonymous visitors (fire-and-forget) ──
+    void (async () => {
+      try {
+        const history = (conversation.messages || []).slice(-6).map(m => `${m.from === 'visitor' ? 'Visiteur' : 'Rita'}: ${m.text}`).join('\n');
+        const prompt = `Tu es Rita, l'assistante support de Scalor (plateforme e-commerce COD en Afrique). Tu es chaleureuse, directe et professionnelle.\n\nContexte: tu parles avec un visiteur anonyme sur la landing page de Scalor. Réponds brièvement (max 2 phrases) à sa question.\n\nHistorique récent:\n${history}\n\nDernière question: ${safeText}\n\nRéponds en français de façon naturelle et utile. Ne promets pas d'action humaine immédiate si ce n'est pas nécessaire. Si la question est complexe (bug, facturation, accès), dis que l'équipe reviendra sous 2h.`;
+        const aiReply = await callSupportAI(prompt);
+        if (!aiReply) return;
+        await SupportConversation.findByIdAndUpdate(conversation._id, {
+          $push: { messages: { from: 'agent', senderType: 'ai', text: aiReply, agentName: 'Rita IA', createdAt: new Date() } },
+          $inc: { unreadUser: 1 },
+          $set: { workflowStatus: 'ai', handledBy: 'ai', lastMessageAt: new Date() },
+        });
+      } catch (e) { /* silent */ }
+    })();
 
     res.json({ success: true, data: { conversationId: conversation._id } });
   } catch (err) {
