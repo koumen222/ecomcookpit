@@ -56,7 +56,13 @@ const EmbeddedOrderForm = ({ product, subdomain, store, productPageConfig }) => 
   const offerBorderStyle = offerDesign?.border_style || 'solid';
   const urgencyConfig = {
     ...(defaultConfig.urgency || {}),
-    ...(design.showCountdown ? { countdown: true } : {}),
+    ...(design.showCountdown ? {
+      countdown: true,
+      countdownDays: design.countdownDays ?? 0,
+      countdownHours: design.countdownHours ?? 0,
+      countdownMinutes: design.countdownMinutes ?? 15,
+      countdownSeconds: design.countdownSeconds ?? 0,
+    } : {}),
     ...(productPageConfig?.urgency || {}),
   };
   const callScheduleConfig = productPageConfig?.callSchedule || defaultConfig.callSchedule || {};
@@ -91,11 +97,15 @@ const EmbeddedOrderForm = ({ product, subdomain, store, productPageConfig }) => 
   // Countdown timer for urgency field
   useEffect(() => {
     if (!urgencyConfig.countdown) return;
-    const mins = urgencyConfig.countdownMinutes || 15;
-    setCountdownSecs(mins * 60);
+    const total =
+      (urgencyConfig.countdownDays || 0) * 86400 +
+      (urgencyConfig.countdownHours || 0) * 3600 +
+      (urgencyConfig.countdownMinutes || 15) * 60 +
+      (urgencyConfig.countdownSeconds || 0);
+    setCountdownSecs(total);
     const iv = setInterval(() => setCountdownSecs(s => s > 0 ? s - 1 : 0), 1000);
     return () => clearInterval(iv);
-  }, [urgencyConfig.countdown, urgencyConfig.countdownMinutes]);
+  }, [urgencyConfig.countdown, urgencyConfig.countdownDays, urgencyConfig.countdownHours, urgencyConfig.countdownMinutes, urgencyConfig.countdownSeconds]);
 
   // Fetch delivery zone cities, fallback to popularCities
   useEffect(() => {
@@ -147,13 +157,28 @@ const EmbeddedOrderForm = ({ product, subdomain, store, productPageConfig }) => 
   const defaultOfferIdx = offers.findIndex(o => o.selected);
   const [selectedOfferIdx, setSelectedOfferIdx] = useState(Math.max(0, defaultOfferIdx));
 
+  // Shipping fee calculation: per-zone cost > flat fee
+  const flatShippingEnabled = store?.flatShippingEnabled === true;
+  const flatShippingFee = Math.max(0, Number(store?.flatShippingFee) || 0);
+  const freeShippingThreshold = Math.max(0, Number(store?.freeShippingThreshold) || 0);
+
   const getTotal = () => {
     if (offersEnabled && offers[selectedOfferIdx]?.price > 0) {
       return offers[selectedOfferIdx].price;
     }
     return (product?.price || 0) * form.quantity;
   };
-  const total = getTotal();
+  const subtotal = getTotal();
+  const flatCostEffective = flatShippingEnabled && flatShippingFee > 0
+    ? (freeShippingThreshold > 0 && subtotal >= freeShippingThreshold ? 0 : flatShippingFee)
+    : 0;
+  // Zone cost from selected city (takes priority over flat fee)
+  const selectedCityZone = deliveryZoneOptions.find(z =>
+    z.city === form.city && (!selectedCountry || findMatchingCountryOption(selectedCountry, [z.country]))
+  );
+  const zoneCost = selectedCityZone?.cost > 0 ? Number(selectedCityZone.cost) : 0;
+  const deliveryCost = zoneCost > 0 ? zoneCost : flatCostEffective;
+  const total = subtotal + deliveryCost;
 
   const set = (field, value) => { setForm(prev => ({ ...prev, [field]: value })); setError(''); };
 
@@ -201,6 +226,10 @@ const EmbeddedOrderForm = ({ product, subdomain, store, productPageConfig }) => 
         city: finalCity,
         country: selectedCountry,
         notes: finalNotes,
+        deliveryCost: deliveryCost,
+        deliveryType: deliveryCost > 0 ? 'livraison' : '',
+        deliveryZone: selectedCityZone ? selectedCityZone.city : '',
+        callSchedule: form.call_schedule || '',
         products: [{ productId: product._id, quantity: form.quantity, ...offerPriceOverride }],
         channel: 'store',
         metaEventId: purchaseEventId,
@@ -344,9 +373,13 @@ const EmbeddedOrderForm = ({ product, subdomain, store, productPageConfig }) => 
                 ? (isMeaningfulPlaceholder(field.placeholder, [/adresse/i, /quartier/i, /rue/i]) ? field.placeholder : countryPlaceholders.address)
                 : (field.placeholder || field.label || '');
           const ph = basePlaceholder + (field.required !== false && !['product_info', 'shipping', 'cta_button'].includes(field.type) ? ' *' : '');
-          const iconStyle = { position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF', display: 'flex', pointerEvents: 'none' };
+          const fIconColor = field.iconColor || '#9CA3AF';
+          const iconStyle = { position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: fIconColor, display: 'flex', pointerEvents: 'none' };
           const inputPadLeft = IconComp ? '34px' : '14px';
-          const inputStyle = { width: '100%', padding: `11px 14px 11px ${inputPadLeft}`, borderRadius, border: '1.5px solid #E5E7EB', fontSize: 14, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', color: inputTextColor, backgroundColor: '#fff', transition: 'border-color 0.15s' };
+          const fieldBorderColor = field.borderColor || '#E5E7EB';
+          const fieldBgColor = field.bgColor || '#fff';
+          const fieldTxtColor = field.textColor || inputTextColor;
+          const inputStyle = { width: '100%', padding: `11px 14px 11px ${inputPadLeft}`, borderRadius, border: `1.5px solid ${fieldBorderColor}`, fontSize: 14, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', color: fieldTxtColor, backgroundColor: fieldBgColor, transition: 'border-color 0.15s' };
 
           switch (field.type) {
             case 'product_info':
@@ -448,9 +481,9 @@ const EmbeddedOrderForm = ({ product, subdomain, store, productPageConfig }) => 
               return (
                 <textarea key={field.name} value={form[formKey] || ''} onChange={e => set(formKey, e.target.value)}
                   placeholder={ph} rows={2}
-                  style={{ width: '100%', padding: '11px 14px', borderRadius, border: '1.5px solid #E5E7EB', fontSize: 14, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', color: inputTextColor, backgroundColor: '#fff', resize: 'none', transition: 'border-color 0.15s' }}
+                  style={{ width: '100%', padding: '11px 14px', borderRadius, border: `1.5px solid ${fieldBorderColor}`, fontSize: 14, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', color: fieldTxtColor, backgroundColor: fieldBgColor, resize: 'none', transition: 'border-color 0.15s' }}
                   onFocus={e => e.currentTarget.style.borderColor = btnColor}
-                  onBlur={e => e.currentTarget.style.borderColor = '#E5E7EB'} />
+                  onBlur={e => e.currentTarget.style.borderColor = fieldBorderColor} />
               );
 
             case 'select': {
@@ -471,23 +504,86 @@ const EmbeddedOrderForm = ({ product, subdomain, store, productPageConfig }) => 
             }
 
             case 'shipping':
-              return (
-                <div key={field.name} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#16A34A', padding: '4px 0' }}>
-                  <Truck size={13} /> <strong>{field.label || 'Paiement à la livraison'}</strong> — vous payez à la réception
+              return deliveryCost > 0 ? (
+                <div key={field.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, fontSize: 13, color: field.textColor || '#059669', padding: '10px 14px', backgroundColor: field.bgColor || '#F0FDF4', borderRadius: 10, border: `1px solid ${field.borderColor || '#BBF7D0'}` }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Truck size={14} style={{ color: field.iconColor || field.textColor || '#059669' }} /> <strong>Frais de livraison</strong></span>
+                  <strong>{fmt(deliveryCost, currency)}</strong>
+                </div>
+              ) : flatShippingEnabled && freeShippingThreshold > 0 && subtotal >= freeShippingThreshold ? (
+                <div key={field.name} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: field.textColor || '#059669', padding: '10px 14px', backgroundColor: field.bgColor || '#F0FDF4', borderRadius: 10, border: `1px solid ${field.borderColor || '#BBF7D0'}` }}>
+                  <Truck size={14} style={{ color: field.iconColor || field.textColor || '#059669' }} /> <strong>Livraison gratuite 🎉</strong>
+                </div>
+              ) : (
+                <div key={field.name} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: field.textColor || '#16A34A', padding: '4px 0' }}>
+                  <Truck size={13} style={{ color: field.iconColor || field.textColor || '#16A34A' }} />
+                  <strong>{field.label || 'Paiement à la livraison'}</strong>
+                  <span style={{ color: field.subtextColor || '#6b7280' }}>— {field.shippingNote || 'vous payez à la réception'}</span>
                 </div>
               );
 
-            case 'urgency':
+            case 'urgency': {
+              const fieldTotal = field.showCountdown !== false
+                ? (field.countdownDays ?? 0) * 86400 + (field.countdownHours ?? 0) * 3600 + (field.countdownMinutes ?? 0) * 60 + (field.countdownSeconds ?? 0)
+                : 0;
+              const displaySecs = fieldTotal > 0 ? fieldTotal : countdownSecs;
+              const showCd = (urgencyConfig.countdown || (field.showCountdown !== false && fieldTotal > 0)) && displaySecs != null;
+              const urgBg = field.urgencyBgColor || btnColor;
+              const urgColor = field.urgencyTextColor || '#fff';
+              const urgRadius = field.urgencyRadius || '12px';
+              const urgStyle = field.urgencyStyle || 'banner';
+              const urgAnim = field.urgencyAnimation || 'none';
+              const urgIconMap = { fire: '🔥', warning: '⚠️', clock: '⏰', bolt: '⚡', none: '' };
+              const urgIconEmoji = urgIconMap[field.urgencyIcon || 'fire'] || '';
+              const urgAnimStyle = urgAnim === 'pulse'
+                ? { animation: 'urgPulse 1.5s ease-in-out infinite' }
+                : urgAnim === 'shake'
+                  ? { animation: 'urgShake 0.5s ease-in-out infinite' }
+                  : urgAnim === 'glow'
+                    ? { animation: `urgGlow 1.5s ease-in-out infinite alternate` }
+                    : {};
               return urgencyConfig.enabled !== false ? (
-                <div key={field.name} style={{ borderRadius: 12, padding: '12px 14px', backgroundColor: btnColor, color: '#fff', fontSize: 13, lineHeight: 1.5 }}>
-                  <p style={{ margin: 0 }}>{urgencyConfig.text || 'Stock presque épuisé. La promotion se termine bientôt.'}</p>
-                  {urgencyConfig.countdown && countdownSecs != null && (
-                    <span style={{ display: 'inline-block', marginTop: 6, fontFamily: 'monospace', fontWeight: 700, fontSize: 15, backgroundColor: 'rgba(255,255,255,0.2)', padding: '3px 10px', borderRadius: 6 }}>
-                      {String(Math.floor(countdownSecs / 60)).padStart(2, '0')}:{String(countdownSecs % 60).padStart(2, '0')}
-                    </span>
-                  )}
-                </div>
+                <>
+                  <style>{`
+                    @keyframes urgPulse{0%,100%{opacity:1}50%{opacity:.6}}
+                    @keyframes urgShake{0%,100%{transform:translateX(0)}25%{transform:translateX(-3px)}75%{transform:translateX(3px)}}
+                    @keyframes urgGlow{from{box-shadow:0 0 4px ${urgBg}80}to{box-shadow:0 0 16px ${urgBg}}}
+                  `}</style>
+                  <div key={field.name} style={{
+                    borderRadius: urgRadius, padding: '12px 14px',
+                    backgroundColor: urgBg, color: urgColor, fontSize: 13, lineHeight: 1.5,
+                    boxShadow: urgStyle === 'floating' ? '0 4px 16px rgba(0,0,0,0.18)' : 'none',
+                    ...urgAnimStyle,
+                  }}>
+                    <p style={{ margin: 0 }}>
+                      {urgIconEmoji && <span style={{ marginRight: 5 }}>{urgIconEmoji}</span>}
+                      {field.urgencyText || urgencyConfig.text || 'Stock presque épuisé. La promotion se termine bientôt.'}
+                    </p>
+                    {showCd && (() => {
+                      const d = Math.floor(displaySecs / 86400);
+                      const h = Math.floor((displaySecs % 86400) / 3600);
+                      const m = Math.floor((displaySecs % 3600) / 60);
+                      const s = displaySecs % 60;
+                      const parts = d > 0
+                        ? `${String(d).padStart(2,'0')}j ${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`
+                        : `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+                      return (
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, marginTop: 10 }}>
+                          {field.countdownText && <span style={{ fontSize: 12, opacity: 0.9 }}>{field.countdownText}</span>}
+                          <span style={{ fontFamily: 'monospace', fontWeight: 800, fontSize: 28, backgroundColor: 'rgba(255,255,255,0.2)', padding: '6px 16px', borderRadius: 8, letterSpacing: 2 }}>
+                            {parts}
+                          </span>
+                        </div>
+                      );
+                    })()}
+                    {field.showProgressBar && (
+                      <div style={{ marginTop: 8, width: '100%', height: 6, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 99, overflow: 'hidden' }}>
+                        <div style={{ height: '100%', width: '65%', backgroundColor: 'rgba(255,255,255,0.7)', borderRadius: 99 }} />
+                      </div>
+                    )}
+                  </div>
+                </>
               ) : null;
+            }
 
             case 'call_schedule':
               return callScheduleConfig.enabled !== false ? (
@@ -532,17 +628,17 @@ const EmbeddedOrderForm = ({ product, subdomain, store, productPageConfig }) => 
 
             case 'trust_badge':
               return (
-                <div key={field.name} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 10, backgroundColor: '#F0FDF4', border: '1px solid #BBF7D0' }}>
-                  <Shield size={16} style={{ color: '#16A34A', flexShrink: 0 }} />
-                  <span style={{ fontSize: 12, fontWeight: 600, color: '#15803D' }}>{field.label || 'Paiement sécurisé'}</span>
+                <div key={field.name} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 10, backgroundColor: field.bgColor || '#F0FDF4', border: `1px solid ${field.borderColor || '#BBF7D0'}` }}>
+                  <Shield size={16} style={{ color: field.iconColor || '#16A34A', flexShrink: 0 }} />
+                  <span style={{ fontSize: 12, fontWeight: 600, color: field.textColor || '#15803D' }}>{field.label || 'Paiement sécurisé'}</span>
                 </div>
               );
 
             case 'guarantee':
               return (
-                <div key={field.name} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 10, backgroundColor: '#EFF6FF', border: '1px solid #BFDBFE' }}>
-                  <CheckCircle size={16} style={{ color: '#2563EB', flexShrink: 0 }} />
-                  <span style={{ fontSize: 12, fontWeight: 600, color: '#1D4ED8' }}>{field.label || 'Satisfait ou remboursé'}</span>
+                <div key={field.name} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 10, backgroundColor: field.bgColor || '#EFF6FF', border: `1px solid ${field.borderColor || '#BFDBFE'}` }}>
+                  <CheckCircle size={16} style={{ color: field.iconColor || '#2563EB', flexShrink: 0 }} />
+                  <span style={{ fontSize: 12, fontWeight: 600, color: field.textColor || '#1D4ED8' }}>{field.label || 'Satisfait ou remboursé'}</span>
                 </div>
               );
 
@@ -652,8 +748,19 @@ const EmbeddedOrderForm = ({ product, subdomain, store, productPageConfig }) => 
 
             case 'summary':
               return (
-                <div key={field.name} style={{ fontSize: 13, color: textColor, padding: '8px 12px', backgroundColor: '#F9FAFB', borderRadius: 10, border: '1px solid #E5E7EB' }}>
+                <div key={field.name} style={{ fontSize: 13, color: field.textColor || textColor, padding: '8px 12px', backgroundColor: field.bgColor || '#F9FAFB', borderRadius: 10, border: `1px solid ${field.borderColor || '#E5E7EB'}` }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}><span>{product?.name}</span><span>x{form.quantity}</span></div>
+                  {deliveryCost > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#6B7280', marginBottom: 4 }}>
+                      <span>Frais de livraison{selectedCityZone ? ` — ${selectedCityZone.city}` : ''}</span>
+                      <span style={{ color: '#059669', fontWeight: 600 }}>{fmt(deliveryCost, currency)}</span>
+                    </div>
+                  )}
+                  {flatShippingEnabled && freeShippingThreshold > 0 && subtotal < freeShippingThreshold && deliveryCost === 0 && flatShippingFee > 0 && (
+                    <div style={{ fontSize: 11, color: '#D97706', marginBottom: 4 }}>
+                      + {fmt(freeShippingThreshold - subtotal, currency)} pour la livraison gratuite
+                    </div>
+                  )}
                   <div style={{ fontWeight: 700, textAlign: 'right' }}>{fmt(total, currency)}</div>
                 </div>
               );
@@ -661,6 +768,11 @@ const EmbeddedOrderForm = ({ product, subdomain, store, productPageConfig }) => 
             case 'cta_button': {
               const ctaLabel = (field.label || 'ACHETER MAINTENANT - {total}').replace('{total}', fmt(total, currency));
               const CtaIcon = ICON_MAP[field.icon] || ShoppingCart;
+              const ctaBgColor = design.ctaButtonColor || btnColor;
+              const ctaTextColor = design.buttonTextColor || '#fff';
+              const ctaFontSize = parseInt(design.buttonFontSize) || 15;
+              const ctaFontWeight = design.buttonBold !== false ? 700 : 400;
+              const ctaFontStyle = design.buttonItalic ? 'italic' : 'normal';
               return (
                 <React.Fragment key={field.name}>
                   <button type="submit" disabled={submitting} style={{
@@ -669,11 +781,12 @@ const EmbeddedOrderForm = ({ product, subdomain, store, productPageConfig }) => 
                     border: design.formBorderWidth && parseInt(design.formBorderWidth) > 0
                       ? `${design.formBorderWidth} solid ${design.formBorderColor || 'transparent'}`
                       : 'none',
-                    backgroundColor: submitting ? '#9CA3AF' : btnColor,
+                    backgroundColor: submitting ? '#9CA3AF' : ctaBgColor,
                     boxShadow: design.formShadow && parseInt(design.formShadow) > 0
-                      ? `0 ${design.formShadow}px ${parseInt(design.formShadow)*2}px ${btnColor}40`
+                      ? `0 ${design.formShadow}px ${parseInt(design.formShadow)*2}px ${ctaBgColor}40`
                       : 'none',
-                    color: '#fff', fontWeight: 700, fontSize: 15, cursor: submitting ? 'not-allowed' : 'pointer',
+                    color: ctaTextColor, fontWeight: ctaFontWeight, fontSize: ctaFontSize,
+                    fontStyle: ctaFontStyle, cursor: submitting ? 'not-allowed' : 'pointer',
                     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                     transition: 'opacity 0.15s', fontFamily: 'inherit',
                     animation: submitting ? 'none' : 'pulse 1.9s ease-in-out infinite, glow 1.9s ease-in-out infinite alternate',
@@ -688,7 +801,7 @@ const EmbeddedOrderForm = ({ product, subdomain, store, productPageConfig }) => 
                     @keyframes pulse{0%,100%{opacity:1}50%{opacity:.7}}
                     @keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
                     @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-3px)}75%{transform:translateX(3px)}}
-                    @keyframes glow{from{box-shadow:0 0 5px ${btnColor}60}to{box-shadow:0 0 20px ${btnColor}90}}
+                    @keyframes glow{from{box-shadow:0 0 5px ${ctaBgColor}60}to{box-shadow:0 0 20px ${ctaBgColor}90}}
                   `}</style>
                 </React.Fragment>
               );

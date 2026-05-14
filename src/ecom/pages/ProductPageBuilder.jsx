@@ -9,7 +9,7 @@ import {
   Clock, Shield, Gift, FileText, Frown, Lightbulb, Link2,
   Pin, Rocket, MousePointerClick, Upload
 } from 'lucide-react';
-import { storeProductsApi, storeManageApi } from '../services/storeApi.js';
+import { storeProductsApi, storeManageApi, storeDeliveryZonesApi } from '../services/storeApi.js';
 import { useStore } from '../contexts/StoreContext.jsx';
 import defaultConfig from '../components/productSettings/defaultConfig.js';
 import { formatMoney } from '../utils/currency.js';
@@ -564,7 +564,7 @@ const SECTION_TYPES = {
       textColor: '#111827',
       showPrice: true,
       showCta: true,
-      ctaText: 'Commander maintenant',
+      ctaText: '',
       ctaColor: '#0F6B4F',
     }
   },
@@ -631,9 +631,9 @@ const SECTION_TYPES = {
     icon: Zap,
     color: 'bg-red-100 text-red-700 border-red-200',
     defaultConfig: {
-      title: 'Commandez maintenant !',
-      subtitle: 'Livraison rapide · Paiement à la livraison',
-      buttonText: 'Commander maintenant',
+      title: '',
+      subtitle: '',
+      buttonText: '',
       buttonColor: '#0F6B4F',
       urgencyText: '',
       showCountdown: false,
@@ -983,6 +983,18 @@ const FaqEditor = ({ config, onChange }) => {
   );
 };
 
+const ColorPicker = ({ label, value, fallback, onChange }) => (
+  <div>
+    <label className="block text-xs font-medium text-gray-600 mb-1">{label}</label>
+    <div className="flex gap-2">
+      <input type="color" value={value || fallback} onChange={e => onChange(e.target.value)}
+        className="w-10 h-9 border border-gray-200 rounded-lg cursor-pointer" />
+      <input value={value || fallback} onChange={e => onChange(e.target.value)}
+        className="flex-1 border border-gray-200 rounded-lg px-2 py-2 text-xs font-mono" />
+    </div>
+  </div>
+);
+
 const CtaEditor = ({ config, onChange }) => (
   <div className="space-y-3">
     <div>
@@ -1000,19 +1012,87 @@ const CtaEditor = ({ config, onChange }) => (
       <input value={config.buttonText || ''} onChange={e => onChange({ ...config, buttonText: e.target.value })}
         className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
     </div>
-    <div>
-      <label className="block text-xs font-medium text-gray-600 mb-1">Couleur du bouton</label>
-      <div className="flex gap-2">
-        <input type="color" value={config.buttonColor || '#0F6B4F'} onChange={e => onChange({ ...config, buttonColor: e.target.value })}
-          className="w-10 h-9 border border-gray-200 rounded-lg cursor-pointer" />
-        <input value={config.buttonColor || '#0F6B4F'} onChange={e => onChange({ ...config, buttonColor: e.target.value })}
-          className="flex-1 border border-gray-200 rounded-lg px-2 py-2 text-xs font-mono" />
-      </div>
-    </div>
+    <ColorPicker label="Couleur du bouton" value={config.buttonColor} fallback="#0F6B4F"
+      onChange={v => onChange({ ...config, buttonColor: v })} />
     <div>
       <label className="block text-xs font-medium text-gray-600 mb-1">Texte d'urgence (optionnel)</label>
       <input value={config.urgencyText || ''} onChange={e => onChange({ ...config, urgencyText: e.target.value })}
         className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" placeholder="🔥 Offre limitée - Stock épuisé rapidement" />
+    </div>
+
+    {/* Countdown */}
+    <div className="border border-gray-200 rounded-xl p-3 space-y-3">
+      <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 cursor-pointer">
+        <input type="checkbox" checked={!!config.showCountdown} onChange={e => onChange({ ...config, showCountdown: e.target.checked })} className="rounded" />
+        Compte à rebours
+      </label>
+      {config.showCountdown && (
+        <>
+          {/* Style selector */}
+          <div>
+            <label className="block text-[10px] font-medium text-gray-500 mb-1.5">Style d'affichage</label>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { value: 'bar', label: 'Barre', preview: (bg, color) => (
+                  <div style={{ background: bg, borderRadius: 6, padding: '5px 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
+                    <span style={{ color, fontSize: 9, fontWeight: 700 }}>⏰ Offre limitée</span>
+                    <span style={{ color, fontSize: 11, fontWeight: 900, fontFamily: 'monospace' }}>02:30:00</span>
+                  </div>
+                )},
+                { value: 'banner', label: 'Bannière', preview: (bg, color) => (
+                  <div style={{ background: bg, borderRadius: 6, padding: '6px 8px', textAlign: 'center' }}>
+                    <div style={{ color, fontSize: 8, fontWeight: 700, marginBottom: 3 }}>⏰ Offre expire dans</div>
+                    <div style={{ display: 'flex', justifyContent: 'center', gap: 4 }}>
+                      {['02', '30', '00'].map((v, i) => (
+                        <React.Fragment key={i}>
+                          {i > 0 && <span style={{ color, fontSize: 10, fontWeight: 900, opacity: 0.6 }}>:</span>}
+                          <div style={{ textAlign: 'center' }}>
+                            <div style={{ color, fontSize: 12, fontWeight: 900, fontFamily: 'monospace', lineHeight: 1 }}>{v}</div>
+                            <div style={{ color, fontSize: 7, opacity: 0.7, marginTop: 1 }}>{['h', 'min', 's'][i]}</div>
+                          </div>
+                        </React.Fragment>
+                      ))}
+                    </div>
+                  </div>
+                )},
+              ].map(({ value, label, preview }) => {
+                const bg = config.countdownBgColor || '#dc2626';
+                const color = config.countdownTextColor || '#ffffff';
+                const active = (config.countdownStyle || 'bar') === value;
+                return (
+                  <button key={value} onClick={() => onChange({ ...config, countdownStyle: value })}
+                    className={`rounded-xl border-2 p-2 transition text-left ${active ? 'border-[#0F6B4F]' : 'border-gray-200 hover:border-gray-300'}`}>
+                    <div className="mb-1.5">{preview(bg, color)}</div>
+                    <div className={`text-[10px] font-bold text-center ${active ? 'text-[#0F6B4F]' : 'text-gray-400'}`}>{label}</div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Duration */}
+          <div className="grid grid-cols-4 gap-2">
+            {[
+              { label: 'Jours', key: 'countdownDays', max: 99, def: 0 },
+              { label: 'Heures', key: 'countdownHours', max: 23, def: 2 },
+              { label: 'Min', key: 'countdownMinutes', max: 59, def: 30 },
+              { label: 'Sec', key: 'countdownSeconds', max: 59, def: 0 },
+            ].map(({ label, key, max, def }) => (
+              <div key={key}>
+                <label className="block text-[10px] font-medium text-gray-500 mb-1">{label}</label>
+                <input type="number" min="0" max={max} value={config[key] ?? def}
+                  onChange={e => onChange({ ...config, [key]: Number(e.target.value) })}
+                  className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm text-center font-mono" />
+              </div>
+            ))}
+          </div>
+
+          <ColorPicker label="Couleur du texte" value={config.countdownTextColor} fallback="#ffffff"
+            onChange={v => onChange({ ...config, countdownTextColor: v })} />
+          <ColorPicker label="Couleur du fond" value={config.countdownBgColor} fallback="#dc2626"
+            onChange={v => onChange({ ...config, countdownBgColor: v })} />
+        </>
+      )}
     </div>
   </div>
 );
@@ -1088,7 +1168,7 @@ const GalleryEditor = ({ config, onChange }) => (
 const HeroPreview = ({ config, product, design = {}, button = {} }) => {
   const btnColor = config.ctaColor || design.buttonColor || '#0F6B4F';
   const btnRadius = design.borderRadius || '12px';
-  const btnText = config.ctaText || button.text || 'Commander maintenant';
+  const btnText = config.ctaText || button.text;
   return (
     <div style={{ background: config.bgColor || design.backgroundColor || '#ffffff', color: config.textColor || design.textColor || '#111827' }}
       className="px-6 py-10 text-center">
@@ -1101,7 +1181,7 @@ const HeroPreview = ({ config, product, design = {}, button = {} }) => {
           <span className="text-xl font-extrabold">{formatMoney(product.price, product.currency || 'XAF')}</span>
         </div>
       )}
-      {config.showCta !== false && (
+      {config.showCta !== false && btnText && (
         <button style={{ background: btnColor, borderRadius: btnRadius, fontWeight: design.fontWeight || '600' }}
           className="px-6 py-2.5 text-white font-bold text-sm shadow-sm">
           {btnText}
@@ -1191,20 +1271,83 @@ const FaqPreview = ({ config }) => {
   );
 };
 
+const CountdownPreview = ({ config }) => {
+  const totalSeconds =
+    (config.countdownDays ?? 0) * 86400 +
+    (config.countdownHours ?? 2) * 3600 +
+    (config.countdownMinutes ?? 30) * 60 +
+    (config.countdownSeconds ?? 0);
+  const [remaining, setRemaining] = React.useState(totalSeconds);
+  React.useEffect(() => { setRemaining(totalSeconds); }, [totalSeconds]);
+  React.useEffect(() => {
+    if (remaining <= 0) return;
+    const t = setTimeout(() => setRemaining(r => r - 1), 1000);
+    return () => clearTimeout(t);
+  }, [remaining]);
+  const d = Math.floor(remaining / 86400);
+  const h = Math.floor((remaining % 86400) / 3600);
+  const m = Math.floor((remaining % 3600) / 60);
+  const s = remaining % 60;
+  const pad = n => String(n).padStart(2, '0');
+  const bg = config.countdownBgColor || '#dc2626';
+  const color = config.countdownTextColor || '#ffffff';
+  const style = config.countdownStyle || 'bar';
+  const units = [
+    ...(d > 0 ? [{ v: d, l: 'jours' }] : []),
+    { v: h, l: 'h' },
+    { v: m, l: 'min' },
+    { v: s, l: 'sec' },
+  ];
+
+  if (style === 'bar') {
+    return (
+      <div style={{ background: bg, borderRadius: 12 }} className="px-4 py-2.5 my-3 flex items-center justify-between gap-3">
+        <span style={{ color }} className="text-sm font-bold">⏰ Offre limitée</span>
+        <span style={{ color, fontVariantNumeric: 'tabular-nums' }} className="text-lg font-extrabold font-mono">
+          {units.map(({ v }, i) => <React.Fragment key={i}>{i > 0 && <span className="opacity-60">:</span>}{pad(v)}</React.Fragment>)}
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ background: bg, borderRadius: 12 }} className="px-4 py-4 my-3 text-center">
+      <div style={{ color }} className="text-xs font-bold mb-2 opacity-90">⏰ Cette offre expire dans</div>
+      <div className="flex items-end justify-center gap-2">
+        {units.map(({ v, l }, i) => (
+          <React.Fragment key={l}>
+            {i > 0 && <span style={{ color }} className="text-2xl font-extrabold opacity-50 mb-2">:</span>}
+            <div className="text-center">
+              <div style={{ color, background: 'rgba(0,0,0,0.15)', borderRadius: 8, padding: '4px 10px', minWidth: 44 }}
+                className="text-3xl font-extrabold font-mono leading-none">
+                {pad(v)}
+              </div>
+              <div style={{ color }} className="text-[9px] font-semibold uppercase opacity-70 mt-1">{l}</div>
+            </div>
+          </React.Fragment>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 const CtaPreview = ({ config, design = {}, button = {} }) => {
   const btnColor = config.buttonColor || design.buttonColor || '#0F6B4F';
   const btnRadius = design.borderRadius || '12px';
-  const btnText = config.buttonText || button.text || 'Commander maintenant';
+  const btnText = config.buttonText || button.text;
   return (
     <div className="px-6 py-8 text-center bg-gray-50">
       {config.title && <h2 className="text-xl font-extrabold text-gray-900 mb-2">{config.title}</h2>}
       {config.subtitle && <p className="text-sm text-gray-500 mb-4">{config.subtitle}</p>}
       {config.urgencyText && <p className="text-sm font-semibold text-red-600 mb-3">{config.urgencyText}</p>}
-      <button style={{ background: btnColor, borderRadius: btnRadius, fontWeight: design.fontWeight || '600' }}
-        className="px-6 py-2.5 text-white font-bold text-sm shadow-sm">
-        {btnText}
-        {button.subtext && <span className="block text-[10px] font-normal opacity-80 mt-0.5">{button.subtext}</span>}
-      </button>
+      {config.showCountdown && <CountdownPreview config={config} />}
+      {btnText && (
+        <button style={{ background: btnColor, borderRadius: btnRadius, fontWeight: design.fontWeight || '600' }}
+          className="px-6 py-2.5 text-white font-bold text-sm shadow-sm">
+          {btnText}
+          {button.subtext && <span className="block text-[10px] font-normal opacity-80 mt-0.5">{button.subtext}</span>}
+        </button>
+      )}
     </div>
   );
 };
@@ -1312,6 +1455,16 @@ const ProductPageBuilder = () => {
   const [storeConfig, setStoreConfig] = useState(null); // productPageConfig from store settings
   const [configSections, setConfigSections] = useState([]); // the 20 sections from productPageConfig
   const [activeConfigSection, setActiveConfigSection] = useState(null);
+  const [sidebarTab, setSidebarTab] = useState('sections'); // 'sections' | 'livraison'
+  const [deliveryConfig, setDeliveryConfig] = useState({
+    flatShippingEnabled: false,
+    flatShippingFee: '',
+    freeShippingThreshold: '',
+    countries: [],
+    zones: [],
+  });
+  const [deliverySaving, setDeliverySaving] = useState(false);
+  const [deliverySaveStatus, setDeliverySaveStatus] = useState(null); // 'saved' | 'error' | null
   const [error, setError] = useState('');
   const [iframeKey, setIframeKey] = useState(0);
   const [storeSubdomain, setStoreSubdomain] = useState(''); // fallback subdomain from config API
@@ -1340,9 +1493,10 @@ const ProductPageBuilder = () => {
     if (!id) return;
     const load = async () => {
       try {
-        const [productRes, configRes] = await Promise.all([
+        const [productRes, configRes, deliveryRes] = await Promise.all([
           storeProductsApi.getProduct(id),
           storeManageApi.getStoreConfig().catch(() => null),
+          storeDeliveryZonesApi.getZones().catch(() => null),
         ]);
         const p = productRes.data?.data || productRes.data;
         setProduct(p);
@@ -1362,6 +1516,17 @@ const ProductPageBuilder = () => {
           if (raw.subdomain) setStoreSubdomain(raw.subdomain);
         } else {
           setConfigSections(mergeWithDefaults(null).general.sections);
+        }
+        // Load delivery zones config
+        if (deliveryRes) {
+          const dz = deliveryRes.data?.data || deliveryRes.data || {};
+          setDeliveryConfig({
+            flatShippingEnabled: dz.flatShippingEnabled === true,
+            flatShippingFee: dz.flatShippingFee != null ? String(dz.flatShippingFee) : '',
+            freeShippingThreshold: dz.freeShippingThreshold != null ? String(dz.freeShippingThreshold) : '',
+            countries: Array.isArray(dz.countries) ? dz.countries : [],
+            zones: Array.isArray(dz.zones) ? dz.zones : [],
+          });
         }
       } catch (err) {
         setError('Impossible de charger le produit');
@@ -1453,6 +1618,41 @@ const ProductPageBuilder = () => {
       return next;
     });
   }, [autoSaveConfig]);
+
+  const handleDeliveryChange = useCallback((field, value) => {
+    setDeliveryConfig(prev => ({ ...prev, [field]: value }));
+  }, []);
+
+  const handleDeliverySave = useCallback(async () => {
+    setDeliverySaving(true);
+    try {
+      await storeDeliveryZonesApi.saveZones({
+        countries: deliveryConfig.countries,
+        zones: deliveryConfig.zones,
+        flatShippingEnabled: deliveryConfig.flatShippingEnabled,
+        flatShippingFee: deliveryConfig.flatShippingFee !== '' ? Number(deliveryConfig.flatShippingFee) : 0,
+        freeShippingThreshold: deliveryConfig.freeShippingThreshold !== '' ? Number(deliveryConfig.freeShippingThreshold) : 0,
+      });
+      setDeliverySaveStatus('saved');
+      setTimeout(() => setDeliverySaveStatus(null), 2500);
+    } catch {
+      setDeliverySaveStatus('error');
+      setTimeout(() => setDeliverySaveStatus(null), 3000);
+    } finally {
+      setDeliverySaving(false);
+    }
+  }, [deliveryConfig]);
+
+  const handleZoneCostChange = useCallback((countryCode, zoneIdx, value) => {
+    setDeliveryConfig(prev => {
+      const zones = prev.zones.map(z => {
+        if (z.country !== countryCode) return z;
+        const newAreas = (z.areas || []).map((a, i) => i === zoneIdx ? { ...a, cost: value } : a);
+        return { ...z, areas: newAreas };
+      });
+      return { ...prev, zones };
+    });
+  }, []);
 
   const updateSections = useCallback((newSections) => {
     setSections(newSections);
@@ -1717,62 +1917,202 @@ const ProductPageBuilder = () => {
           })() : (
             /* ── SECTIONS LIST ── */
             <>
-              <div className="px-4 py-3 border-b border-gray-100 flex-shrink-0">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-sm font-bold text-gray-900">Sections</h2>
-                  <span className="text-[11px] text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
-                    {configSections.filter(s => s.enabled !== false).length}/{configSections.length}
-                  </span>
-                </div>
+              {/* Tab bar: Sections | Livraison */}
+              <div className="flex border-b border-gray-200 flex-shrink-0">
+                <button
+                  onClick={() => setSidebarTab('sections')}
+                  className={`flex-1 text-[12px] font-semibold py-2.5 transition-colors ${sidebarTab === 'sections' ? 'text-[#0F6B4F] border-b-2 border-[#0F6B4F]' : 'text-gray-500 hover:text-gray-700'}`}
+                >
+                  Sections
+                </button>
+                <button
+                  onClick={() => setSidebarTab('livraison')}
+                  className={`flex-1 flex items-center justify-center gap-1.5 text-[12px] font-semibold py-2.5 transition-colors ${sidebarTab === 'livraison' ? 'text-[#0F6B4F] border-b-2 border-[#0F6B4F]' : 'text-gray-500 hover:text-gray-700'}`}
+                >
+                  🚚 Livraison
+                </button>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-2 space-y-1">
-                {configSections.map((section, idx) => {
-                  const meta = SECTION_META[section.id] || { label: section.id, desc: '', icon: Layers, color: 'bg-gray-100 text-gray-700' };
-                  const SectionIcon = meta.icon;
-                  const isEnabled = section.enabled !== false;
-                  return (
-                    <div key={section.id}
-                      draggable
-                      onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', idx.toString()); e.currentTarget.classList.add('opacity-50'); }}
-                      onDragEnd={e => { e.currentTarget.classList.remove('opacity-50'); }}
-                      onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; e.currentTarget.classList.add('ring-2', 'ring-[#0F6B4F]'); }}
-                      onDragLeave={e => { e.currentTarget.classList.remove('ring-2', 'ring-[#0F6B4F]'); }}
-                      onDrop={e => { e.preventDefault(); e.currentTarget.classList.remove('ring-2', 'ring-[#0F6B4F]'); const fromIdx = parseInt(e.dataTransfer.getData('text/plain'), 10); if (!isNaN(fromIdx) && fromIdx !== idx) handleConfigDragDrop(fromIdx, idx); }}
-                      className={`group flex items-center gap-2.5 px-3 py-2.5 rounded-xl cursor-grab active:cursor-grabbing transition-all border ${
-                        isEnabled
-                          ? 'border-transparent hover:bg-gray-50 hover:border-gray-200'
-                          : 'border-transparent opacity-50 hover:opacity-70 hover:bg-gray-50'
-                      }`}
-                      onClick={() => setActiveConfigSection(section.id)}
-                    >
-                      <GripVertical className="w-3.5 h-3.5 text-gray-300 flex-shrink-0" />
-                      <div className={`w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 ${meta.color.split(' ').slice(0, 2).join(' ')}`}>
-                        <SectionIcon className="w-3 h-3" />
+              {sidebarTab === 'sections' ? (
+                /* Sections list */
+                <div className="flex-1 overflow-y-auto p-2 space-y-1">
+                  {configSections.map((section, idx) => {
+                    const meta = SECTION_META[section.id] || { label: section.id, desc: '', icon: Layers, color: 'bg-gray-100 text-gray-700' };
+                    const SectionIcon = meta.icon;
+                    const isEnabled = section.enabled !== false;
+                    return (
+                      <div key={section.id}
+                        draggable
+                        onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', idx.toString()); e.currentTarget.classList.add('opacity-50'); }}
+                        onDragEnd={e => { e.currentTarget.classList.remove('opacity-50'); }}
+                        onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; e.currentTarget.classList.add('ring-2', 'ring-[#0F6B4F]'); }}
+                        onDragLeave={e => { e.currentTarget.classList.remove('ring-2', 'ring-[#0F6B4F]'); }}
+                        onDrop={e => { e.preventDefault(); e.currentTarget.classList.remove('ring-2', 'ring-[#0F6B4F]'); const fromIdx = parseInt(e.dataTransfer.getData('text/plain'), 10); if (!isNaN(fromIdx) && fromIdx !== idx) handleConfigDragDrop(fromIdx, idx); }}
+                        className={`group flex items-center gap-2.5 px-3 py-2.5 rounded-xl cursor-grab active:cursor-grabbing transition-all border ${
+                          isEnabled
+                            ? 'border-transparent hover:bg-gray-50 hover:border-gray-200'
+                            : 'border-transparent opacity-50 hover:opacity-70 hover:bg-gray-50'
+                        }`}
+                        onClick={() => setActiveConfigSection(section.id)}
+                      >
+                        <GripVertical className="w-3.5 h-3.5 text-gray-300 flex-shrink-0" />
+                        <div className={`w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 ${meta.color.split(' ').slice(0, 2).join(' ')}`}>
+                          <SectionIcon className="w-3 h-3" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[12.5px] font-semibold text-gray-800 truncate">{meta.label}</p>
+                          {!isEnabled && <p className="text-[10px] text-gray-400">Masquée</p>}
+                        </div>
+                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button onClick={e => { e.stopPropagation(); handleConfigMove(idx, -1); }} disabled={idx === 0}
+                            className="p-1 rounded hover:bg-gray-200 disabled:opacity-20">
+                            <ChevronUp className="w-3 h-3 text-gray-500" />
+                          </button>
+                          <button onClick={e => { e.stopPropagation(); handleConfigMove(idx, 1); }} disabled={idx === configSections.length - 1}
+                            className="p-1 rounded hover:bg-gray-200 disabled:opacity-20">
+                            <ChevronDown className="w-3 h-3 text-gray-500" />
+                          </button>
+                          <button onClick={e => { e.stopPropagation(); handleConfigToggle(section.id); }}
+                            className="p-1 rounded hover:bg-gray-200">
+                            {isEnabled ? <Eye className="w-3 h-3 text-gray-500" /> : <EyeOff className="w-3 h-3 text-gray-400" />}
+                          </button>
+                        </div>
+                        <ChevronRight className="w-3.5 h-3.5 text-gray-300 flex-shrink-0" />
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[12.5px] font-semibold text-gray-800 truncate">{meta.label}</p>
-                        {!isEnabled && <p className="text-[10px] text-gray-400">Masquée</p>}
+                    );
+                  })}
+                </div>
+              ) : (
+                /* ── LIVRAISON PANEL ── */
+                <div className="flex-1 overflow-y-auto">
+                  <div className="p-4 space-y-5">
+
+                    {/* Flat shipping toggle */}
+                    <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+                      <div className="flex items-center justify-between mb-1">
+                        <div>
+                          <p className="text-[13px] font-semibold text-gray-800">Frais de livraison forfaitaires</p>
+                          <p className="text-[11px] text-gray-500 mt-0.5">Appliquer un montant fixe à toutes les commandes</p>
+                        </div>
+                        <button
+                          onClick={() => handleDeliveryChange('flatShippingEnabled', !deliveryConfig.flatShippingEnabled)}
+                          className={`relative w-10 h-5 rounded-full transition-colors flex-shrink-0 ${deliveryConfig.flatShippingEnabled ? 'bg-[#0F6B4F]' : 'bg-gray-300'}`}
+                        >
+                          <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${deliveryConfig.flatShippingEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
+                        </button>
                       </div>
-                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onClick={e => { e.stopPropagation(); handleConfigMove(idx, -1); }} disabled={idx === 0}
-                          className="p-1 rounded hover:bg-gray-200 disabled:opacity-20">
-                          <ChevronUp className="w-3 h-3 text-gray-500" />
-                        </button>
-                        <button onClick={e => { e.stopPropagation(); handleConfigMove(idx, 1); }} disabled={idx === configSections.length - 1}
-                          className="p-1 rounded hover:bg-gray-200 disabled:opacity-20">
-                          <ChevronDown className="w-3 h-3 text-gray-500" />
-                        </button>
-                        <button onClick={e => { e.stopPropagation(); handleConfigToggle(section.id); }}
-                          className="p-1 rounded hover:bg-gray-200">
-                          {isEnabled ? <Eye className="w-3 h-3 text-gray-500" /> : <EyeOff className="w-3 h-3 text-gray-400" />}
-                        </button>
-                      </div>
-                      <ChevronRight className="w-3.5 h-3.5 text-gray-300 flex-shrink-0" />
                     </div>
-                  );
-                })}
-              </div>
+
+                    {/* Flat fee amount */}
+                    {deliveryConfig.flatShippingEnabled && (
+                      <div className="space-y-3">
+                        <div>
+                          <label className="block text-[12px] font-semibold text-gray-700 mb-1">Frais de livraison (FCFA)</label>
+                          <input
+                            type="number"
+                            min="0"
+                            value={deliveryConfig.flatShippingFee}
+                            onChange={e => handleDeliveryChange('flatShippingFee', e.target.value)}
+                            placeholder="ex: 2000"
+                            className="w-full px-3 py-2 text-[13px] border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0F6B4F] focus:border-transparent outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[12px] font-semibold text-gray-700 mb-1">Livraison gratuite à partir de (FCFA)</label>
+                          <input
+                            type="number"
+                            min="0"
+                            value={deliveryConfig.freeShippingThreshold}
+                            onChange={e => handleDeliveryChange('freeShippingThreshold', e.target.value)}
+                            placeholder="ex: 50000 (laisser vide pour désactiver)"
+                            className="w-full px-3 py-2 text-[13px] border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0F6B4F] focus:border-transparent outline-none"
+                          />
+                          <p className="text-[10px] text-gray-400 mt-1">Laisser vide pour ne pas proposer la livraison gratuite</p>
+                        </div>
+
+                        {/* Preview banner */}
+                        {deliveryConfig.flatShippingFee && Number(deliveryConfig.flatShippingFee) > 0 && (
+                          <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-[11px] text-emerald-800">
+                            <p className="font-semibold">Aperçu :</p>
+                            <p className="mt-0.5">
+                              Livraison : <strong>{Number(deliveryConfig.flatShippingFee).toLocaleString('fr-FR')} FCFA</strong>
+                              {deliveryConfig.freeShippingThreshold && Number(deliveryConfig.freeShippingThreshold) > 0 && (
+                                <> · Gratuite dès <strong>{Number(deliveryConfig.freeShippingThreshold).toLocaleString('fr-FR')} FCFA</strong></>
+                              )}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Zones par pays */}
+                    {deliveryConfig.countries && deliveryConfig.countries.length > 0 && (
+                      <div>
+                        <p className="text-[12px] font-semibold text-gray-700 mb-2">Zones & tarifs par région</p>
+                        <div className="space-y-3">
+                          {deliveryConfig.countries.map(country => {
+                            const countryZone = deliveryConfig.zones.find(z => z.country === country.code);
+                            const areas = countryZone?.areas || [];
+                            return (
+                              <div key={country.code} className="border border-gray-200 rounded-xl overflow-hidden">
+                                <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 border-b border-gray-200">
+                                  <span className="text-base">{country.flag || '🌍'}</span>
+                                  <span className="text-[12px] font-semibold text-gray-800">{country.name}</span>
+                                </div>
+                                {areas.length > 0 ? (
+                                  <div className="divide-y divide-gray-100">
+                                    {areas.map((area, areaIdx) => (
+                                      <div key={areaIdx} className="flex items-center gap-2 px-3 py-2">
+                                        <span className="text-[11px] text-gray-600 flex-1 truncate">{area.name}</span>
+                                        <input
+                                          type="number"
+                                          min="0"
+                                          value={area.cost != null ? area.cost : ''}
+                                          onChange={e => handleZoneCostChange(country.code, areaIdx, e.target.value)}
+                                          placeholder="FCFA"
+                                          className="w-24 px-2 py-1 text-[11px] border border-gray-200 rounded-md focus:ring-1 focus:ring-[#0F6B4F] outline-none text-right"
+                                        />
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <p className="text-[11px] text-gray-400 px-3 py-2">Aucune zone configurée</p>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Link to full config page */}
+                    <a
+                      href="/ecom/boutique/delivery-zones"
+                      className="flex items-center gap-2 text-[12px] text-[#0F6B4F] font-semibold hover:underline"
+                    >
+                      <Link2 className="w-3.5 h-3.5" />
+                      Configurer les pays et zones avancées →
+                    </a>
+
+                    {/* Save button */}
+                    <button
+                      onClick={handleDeliverySave}
+                      disabled={deliverySaving}
+                      className="w-full flex items-center justify-center gap-2 bg-[#0F6B4F] hover:bg-[#0a5a42] text-white text-[13px] font-semibold py-2.5 rounded-xl transition disabled:opacity-60"
+                    >
+                      {deliverySaving ? (
+                        <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Enregistrement…</>
+                      ) : deliverySaveStatus === 'saved' ? (
+                        <><CheckCircle className="w-3.5 h-3.5" /> Enregistré !</>
+                      ) : deliverySaveStatus === 'error' ? (
+                        <><AlertCircle className="w-3.5 h-3.5" /> Erreur — réessayer</>
+                      ) : (
+                        <><Save className="w-3.5 h-3.5" /> Enregistrer la livraison</>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
             </>
           )}
 

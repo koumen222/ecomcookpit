@@ -103,7 +103,10 @@ router.get('/:subdomain', readLimiter, resolveStoreBySubdomain, async (req, res)
         sectionColors: theme.sectionColors || {},
         productPageConfig: store.storeSettings?.productPageConfig || null,
         deliveryCountries: deliveryConfig.countries || [],
-        deliveryZones: publicZones
+        deliveryZones: publicZones,
+        flatShippingEnabled: deliveryConfig.flatShippingEnabled === true,
+        flatShippingFee: Math.max(0, Number(deliveryConfig.flatShippingFee) || 0),
+        freeShippingThreshold: Math.max(0, Number(deliveryConfig.freeShippingThreshold) || 0),
       }
     });
   } catch (error) {
@@ -306,7 +309,7 @@ router.get('/:subdomain/delivery-zones', readLimiter, resolveStoreBySubdomain, a
  */
 router.post('/:subdomain/orders', orderLimiter, resolveStoreBySubdomain, async (req, res) => {
   try {
-    const { customerName, phone, phoneCode, email, address, city, country, products, notes, channel, deliveryType, deliveryCost } = req.body;
+    const { customerName, phone, phoneCode, email, address, city, country, products, notes, channel, deliveryType, deliveryCost, callSchedule } = req.body;
 
     // Validate required fields
     if (!customerName || !phone || !products?.length) {
@@ -386,7 +389,8 @@ router.post('/:subdomain/orders', orderLimiter, resolveStoreBySubdomain, async (
       total: total + Math.max(0, Number(deliveryCost) || 0),
       currency: req.store.storeSettings?.storeCurrency || req.store.storeSettings?.currency || 'XAF',
       channel: channel || 'store',
-      notes: notes?.trim() || ''
+      notes: notes?.trim() || '',
+      callSchedule: callSchedule?.trim() || ''
     });
 
     await order.save();
@@ -482,6 +486,7 @@ router.post('/:subdomain/orders', orderLimiter, resolveStoreBySubdomain, async (
           status: 'pending',
           source: 'skelor',
           storeOrderId: order._id,
+          deliveryTime: order.callSchedule || '',
           notes: [order.orderNumber, order.notes].filter(Boolean).join(' — ')
         });
 

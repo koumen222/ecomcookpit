@@ -56,6 +56,11 @@ const BoutiqueDeliveryZones = () => {
   const [newCountry, setNewCountry] = useState('');
   const [showCountrySuggestions, setShowCountrySuggestions] = useState(false);
 
+  // Flat shipping fee state
+  const [flatShippingEnabled, setFlatShippingEnabled] = useState(false);
+  const [flatShippingFee, setFlatShippingFee] = useState(0);
+  const [freeShippingThreshold, setFreeShippingThreshold] = useState(0);
+
   // Load data
   useEffect(() => {
     (async () => {
@@ -64,6 +69,9 @@ const BoutiqueDeliveryZones = () => {
         const data = res.data?.data || {};
         setCountries(data.countries || []);
         setZones(data.zones || []);
+        setFlatShippingEnabled(data.flatShippingEnabled === true);
+        setFlatShippingFee(data.flatShippingFee || 0);
+        setFreeShippingThreshold(data.freeShippingThreshold || 0);
       } catch (err) {
         console.error('Failed to load delivery zones:', err);
       } finally {
@@ -79,7 +87,13 @@ const BoutiqueDeliveryZones = () => {
     setSaved(false);
 
     try {
-      await storeDeliveryZonesApi.saveZones({ countries, zones });
+      await storeDeliveryZonesApi.saveZones({
+        countries,
+        zones,
+        flatShippingEnabled,
+        flatShippingFee: Number(flatShippingFee) || 0,
+        freeShippingThreshold: Number(freeShippingThreshold) || 0,
+      });
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch (err) {
@@ -174,6 +188,79 @@ const BoutiqueDeliveryZones = () => {
           {error}
         </div>
       )}
+
+      {/* ── Flat shipping fee ──────────────────────────────────── */}
+      <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-4">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
+            <IcoTruck />
+            <div>
+              <h2 className="text-sm font-bold text-gray-900">Frais de livraison forfaitaires</h2>
+              <p className="text-xs text-gray-500">Un montant fixe ajouté automatiquement à chaque commande sur le formulaire de paiement.</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setFlatShippingEnabled(v => !v)}
+            className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${flatShippingEnabled ? 'bg-[#0F6B4F]' : 'bg-gray-300'}`}
+          >
+            <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${flatShippingEnabled ? 'translate-x-5' : ''}`} />
+          </button>
+        </div>
+
+        {flatShippingEnabled && (
+          <div className="space-y-4 pt-1">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs font-semibold text-gray-600 mb-1 block">
+                  Montant des frais de livraison
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    value={flatShippingFee}
+                    onChange={(e) => setFlatShippingFee(Math.max(0, Number(e.target.value) || 0))}
+                    min="0"
+                    placeholder="0"
+                    className="flex-1 px-3 py-2.5 border border-gray-300 rounded-xl text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-[#0F6B4F] focus:border-transparent"
+                  />
+                  <span className="text-sm font-semibold text-gray-500">{symbol}</span>
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-gray-600 mb-1 block">
+                  Livraison gratuite à partir de (optionnel)
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    value={freeShippingThreshold}
+                    onChange={(e) => setFreeShippingThreshold(Math.max(0, Number(e.target.value) || 0))}
+                    min="0"
+                    placeholder="0 = désactivé"
+                    className="flex-1 px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#0F6B4F] focus:border-transparent"
+                  />
+                  <span className="text-sm font-semibold text-gray-500">{symbol}</span>
+                </div>
+                <p className="text-[10px] text-gray-400 mt-1">Laisser à 0 pour ne pas activer la livraison gratuite.</p>
+              </div>
+            </div>
+
+            <div className={`flex items-start gap-2.5 p-3 rounded-xl text-xs ${flatShippingFee > 0 ? 'bg-emerald-50 border border-emerald-200 text-emerald-700' : 'bg-amber-50 border border-amber-200 text-amber-700'}`}>
+              <svg className="w-4 h-4 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <div>
+                {flatShippingFee > 0
+                  ? <>Frais de <strong>{new Intl.NumberFormat('fr-FR').format(flatShippingFee)} {symbol}</strong> appliqués à chaque commande.
+                    {freeShippingThreshold > 0 && <> Gratuit dès <strong>{new Intl.NumberFormat('fr-FR').format(freeShippingThreshold)} {symbol}</strong> d'achat.</>}
+                    {' '}Les zones spécifiques ci-dessous remplacent ce tarif pour les villes configurées.</>
+                  : 'Définissez un montant supérieur à 0 pour activer les frais forfaitaires.'}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Countries section */}
       <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-4">

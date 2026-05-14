@@ -910,7 +910,7 @@ router.get('/delivery-zones', requireEcomAuth, requireWorkspace, async (req, res
  */
 router.put('/delivery-zones', requireEcomAuth, requireWorkspace, async (req, res) => {
   try {
-    const { countries, zones } = req.body;
+    const { countries, zones, flatShippingEnabled, flatShippingFee, freeShippingThreshold } = req.body;
 
     // Validate structure
     if (!Array.isArray(countries) || !Array.isArray(zones)) {
@@ -932,7 +932,17 @@ router.put('/delivery-zones', requireEcomAuth, requireWorkspace, async (req, res
 
     await Workspace.findByIdAndUpdate(
       req.workspaceId,
-      { $set: { storeDeliveryZones: { countries: sanitizedCountries, zones: sanitizedZones } } },
+      {
+        $set: {
+          storeDeliveryZones: {
+            countries: sanitizedCountries,
+            zones: sanitizedZones,
+            flatShippingEnabled: flatShippingEnabled === true,
+            flatShippingFee: Math.max(0, Number(flatShippingFee) || 0),
+            freeShippingThreshold: Math.max(0, Number(freeShippingThreshold) || 0),
+          }
+        }
+      },
       { new: true }
     );
 

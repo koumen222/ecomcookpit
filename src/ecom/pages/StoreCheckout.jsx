@@ -94,10 +94,15 @@ const StoreCheckout = () => {
   const deliveryZones = store?.deliveryZones || [];
   const hasDeliveryConfig = deliveryCountries.length > 0;
 
+  // Flat shipping fee from store config
+  const flatShippingEnabled = store?.flatShippingEnabled === true;
+  const flatShippingFee = Math.max(0, Number(store?.flatShippingFee) || 0);
+  const freeShippingThreshold = Math.max(0, Number(store?.freeShippingThreshold) || 0);
+
   // Determine delivery status based on country + city
   const deliveryStatus = useMemo(() => {
     if (!hasDeliveryConfig) {
-      // No config → no restrictions
+      // No per-zone config → no restrictions
       return { type: 'none', message: '', allowed: true, cost: 0 };
     }
 
@@ -339,7 +344,13 @@ const StoreCheckout = () => {
   });
 
   const subtotal = cartProducts.reduce((sum, p) => sum + (p.price * p.quantity), 0);
-  const deliveryCost = deliveryStatus.cost || 0;
+  // Zone cost takes priority; flat fee is the fallback when no per-zone cost applies
+  const zoneCost = deliveryStatus.cost || 0;
+  const flatCostApplies = flatShippingEnabled && flatShippingFee > 0 && zoneCost === 0;
+  const flatCostEffective = flatCostApplies
+    ? (freeShippingThreshold > 0 && subtotal >= freeShippingThreshold ? 0 : flatShippingFee)
+    : 0;
+  const deliveryCost = zoneCost > 0 ? zoneCost : flatCostEffective;
   const total = subtotal + deliveryCost;
 
   const handleSubmit = async (e) => {
@@ -664,11 +675,29 @@ const StoreCheckout = () => {
               </div>
               {deliveryCost > 0 && (
                 <div className="flex justify-between text-xs text-gray-500">
-                  <span>Livraison</span>
+                  <span className="flex items-center gap-1">
+                    <Truck className="w-3 h-3" />
+                    Frais de livraison
+                  </span>
                   <span className="font-medium text-emerald-600">{formatPrice(deliveryCost, currency)}</span>
                 </div>
               )}
-              {deliveryStatus.type === 'expedition' && (
+              {/* Free shipping indicator */}
+              {flatShippingEnabled && flatShippingFee > 0 && freeShippingThreshold > 0 && subtotal < freeShippingThreshold && (
+                <div className="text-[10px] text-amber-600 bg-amber-50 px-2.5 py-1.5 rounded-lg">
+                  Plus que <strong>{formatPrice(freeShippingThreshold - subtotal, currency)}</strong> pour la livraison gratuite !
+                </div>
+              )}
+              {flatShippingEnabled && flatShippingFee > 0 && freeShippingThreshold > 0 && subtotal >= freeShippingThreshold && deliveryCost === 0 && (
+                <div className="flex justify-between text-xs text-green-600 bg-green-50 px-2.5 py-1.5 rounded-lg">
+                  <span className="flex items-center gap-1">
+                    <Truck className="w-3 h-3" />
+                    Livraison gratuite
+                  </span>
+                  <span className="font-bold">0 {currency}</span>
+                </div>
+              )}
+              {deliveryStatus.type === 'expedition' && deliveryCost === 0 && (
                 <div className="flex justify-between text-xs text-gray-500">
                   <span>Expédition</span>
                   <span className="font-medium text-amber-600">À calculer</span>
