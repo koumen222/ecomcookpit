@@ -369,8 +369,8 @@ router.get('/:subdomain', readLimiter, async (req, res) => {
           announcementEnabled: settings.announcementEnabled || false,
           deliveryCountries: deliveryConfig.countries || [],
           deliveryZones: publicDeliveryZones,
-          // Product page builder config
-          productPageConfig: settings.productPageConfig || null,
+          // Product page builder config (storeSettings takes priority, fallback to storeTheme)
+          productPageConfig: settings.productPageConfig || theme.productPageConfig || null,
         },
         // Page sections: null = never configured (use defaults), [] = builder empty page
         sections: pages ? (pages.sections ?? null) : null,
@@ -506,12 +506,14 @@ router.get('/:subdomain/products/:slug', readLimiter, async (req, res) => {
       return res.status(404).json({ success: false, message: 'Product not found' });
     }
 
-    // Fetch active quantity offers in parallel with response preparation
-    const quantityOffer = await QuantityOffer.findOne({
+    // Fetch quantity offers in parallel with response preparation
+    const quantityOfferPromise = QuantityOffer.findOne({
       workspaceId: workspace._workspaceId || workspace._id,
       productId: product._id,
       isActive: true
     }).select('offers design').sort({ createdAt: -1 }).lean();
+
+    const quantityOffer = await quantityOfferPromise;
 
     // 2 minutes CDN cache — short enough to see edits quickly, long enough for Cloudflare edge benefit
     setCacheHeaders(res, 120);
