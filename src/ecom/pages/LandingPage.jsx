@@ -541,7 +541,7 @@ const LandingPage = () => {
                   <span className="text-[11px] text-gray-400">app.scalor.pro/dashboard</span>
                 </div>
               </div>
-              <video src="/img/pp.mov" autoPlay loop muted playsInline className="w-full block" />
+              <video src="https://pub-82e66386f67141d6b9e8d7ce71fc30cc.r2.dev/pp.mov" autoPlay loop muted playsInline className="w-full block" />
             </div>
             <div className="h-28 -mt-28 relative z-10" style={{ background: 'linear-gradient(to bottom, transparent, #fff)' }} />
           </Reveal>
@@ -815,7 +815,7 @@ const LandingPage = () => {
                 <div className="relative rounded-2xl overflow-hidden w-full"
                   style={{ boxShadow: '0 24px 80px rgba(0,0,0,0.12)', border: '1px solid #e5e7eb' }}>
                   <video
-                    src="/img/motion.mov"
+                    src="https://pub-82e66386f67141d6b9e8d7ce71fc30cc.r2.dev/motion.mov"
                     autoPlay
                     loop
                     muted
