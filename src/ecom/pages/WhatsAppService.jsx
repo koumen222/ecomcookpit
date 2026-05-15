@@ -237,9 +237,11 @@ const WhatsAppService = () => {
     setSearchParams(nextParams);
   };
 
-  const [instances, setInstances] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [instances, setInstances]         = useState([]);
+  const [agents, setAgents]               = useState([]);
+  const [connectingRita, setConnectingRita] = useState({}); // { [instId]: bool }
+  const [loading, setLoading]             = useState(true);
+  const [error, setError]                 = useState('');
   const [copiedId, setCopiedId] = useState(null);
   const [testResults, setTestResults] = useState({});
   const [submitting, setSubmitting] = useState(false);
@@ -270,7 +272,7 @@ const WhatsAppService = () => {
   const userId = user._id || user.id;
   const canAccessRitaAgent = user?.role === 'super_admin' || (user?.role === 'ecom_admin' && user?.canAccessRitaAgent !== false);
 
-  useEffect(() => { loadInstances(); loadDashboardStats(); }, []);
+  useEffect(() => { loadInstances(); loadDashboardStats(); loadAgents(); }, []);
   useEffect(() => { instances.forEach(inst => loadMessageStats(inst._id)); }, [instances.length]);
   useEffect(() => { return () => {
     if (qrIntervalRef.current) clearInterval(qrIntervalRef.current);
@@ -286,6 +288,65 @@ const WhatsAppService = () => {
     try { setLoading(true); setError(''); const { data } = await ecomApi.get(`/v1/external/whatsapp/instances?userId=${userId}`); setInstances(data.success ? data.instances || [] : []); }
     catch (err) { setInstances([]); setError(err.response?.data?.error || 'Impossible de charger les instances'); } finally { setLoading(false); }
   };
+
+  const loadAgents = async () => {
+    try { const { data } = await ecomApi.get('/agents'); if (data.success) setAgents(data.agents || []); }
+    catch { /* silent */ }
+  };
+
+  // Connecte une instance à un agent RITA en un clic
+  const connectInstanceToRita = async (inst, agent) => {
+    const instId = inst._id;
+    setConnectingRita(p => ({ ...p, [instId]: true }));
+    try {
+      // 1. Sauvegarder l'instanceId dans la config Rita de l'agent
+      const configRes = await ecomApi.get(`/v1/external/whatsapp/rita-config/${agent._id}`);
+      const existingConfig = configRes.data?.config || {};
+      await ecomApi.post('/v1/external/whatsapp/rita-config', {
+        agentId: agent._id,
+        config: { ...existingConfig, instanceId: instId, enabled: true },
+      });
+      // 2. Activer le webhook Evolution sur l'instance
+      await ecomApi.post('/v1/external/whatsapp/activate', {
+        agentId: agent._id,
+        enabled: true,
+        instanceId: instId,
+      });
+      setSuccessMsg(`🤖 Rita IA connectée à "${inst.customName || inst.instanceName}" !`);
+      await loadAgents();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Erreur lors de la connexion à Rita IA');
+    } finally {
+      setConnectingRita(p => ({ ...p, [instId]: false }));
+    }
+  };
+
+  // Auto-connecte l'instance qui vient de se connecter au premier agent disponible
+  const autoConnectToRita = async (instId) => {
+    try {
+      const { data } = await ecomApi.get('/agents');
+      const agentList = data.agents || [];
+      if (!agentList.length) return; // Aucun agent créé
+      // Cherche un agent sans instance assignée en priorité, sinon prend le premier
+      const unlinked = agentList.find(a => !a.instanceId);
+      const target = unlinked || agentList[0];
+      const instObj = { _id: instId };
+      const configRes = await ecomApi.get(`/v1/external/whatsapp/rita-config/${target._id}`);
+      const existingConfig = configRes.data?.config || {};
+      await ecomApi.post('/v1/external/whatsapp/rita-config', {
+        agentId: target._id,
+        config: { ...existingConfig, instanceId: instId, enabled: true },
+      });
+      await ecomApi.post('/v1/external/whatsapp/activate', {
+        agentId: target._id,
+        enabled: true,
+        instanceId: instId,
+      });
+      await loadAgents();
+      return target.name || 'Rita IA';
+    } catch { return null; }
+  };
+
   const loadDashboardStats = async () => {
     try { const { data } = await ecomApi.get('/v1/external/whatsapp/dashboard-stats'); if (data.success) setDashboardStats(data.stats); } catch {}
   };
@@ -424,13 +485,22 @@ const WhatsAppService = () => {
     setTimeout(() => { if (qrIntervalRef.current) { clearInterval(qrIntervalRef.current); qrIntervalRef.current = null; setQrPolling(false); } }, 120000);
   };
 
-  const onInstanceConnected = () => {
+  const onInstanceConnected = async () => {
     if (qrIntervalRef.current) { clearInterval(qrIntervalRef.current); qrIntervalRef.current = null; }
     setQrPolling(false);
     setCreateStep('success');
-    setSuccessMsg('WhatsApp connecté avec succès ! 🎉');
-    loadInstances();
+    await loadInstances();
     loadDashboardStats();
+    // Auto-connexion à l'agent RITA existant
+    if (createdInstance?.id) {
+      const agentName = await autoConnectToRita(createdInstance.id);
+      setSuccessMsg(agentName
+        ? `WhatsApp connecté et lié à ${agentName} 🤖`
+        : 'WhatsApp connecté avec succès ! 🎉'
+      );
+    } else {
+      setSuccessMsg('WhatsApp connecté avec succès ! 🎉');
+    }
   };
 
   const refreshQr = async () => {
@@ -763,9 +833,45 @@ const WhatsAppService = () => {
                 <div>
                   <h4 className="text-lg font-bold text-gray-900">Connexion réussie ! 🎉</h4>
                   <p className="text-sm text-gray-500 mt-1">
-                    Votre instance <strong>{createdInstance?.customName || createdInstance?.instanceName}</strong> est maintenant connectée à WhatsApp.
+                    Votre instance <strong>{createdInstance?.customName || createdInstance?.instanceName}</strong> est connectée.
                   </p>
                 </div>
+                {/* Rita IA status in success modal */}
+                {(() => {
+                  const linked = agents.find(a => a.instanceId === createdInstance?.id);
+                  if (linked) {
+                    return (
+                      <div className="w-full flex items-center gap-3 px-4 py-3 bg-violet-50 border border-violet-100 rounded-xl">
+                        <Bot className="w-5 h-5 text-violet-600 flex-shrink-0" />
+                        <div className="text-left min-w-0">
+                          <p className="text-[13px] font-bold text-violet-800">Rita IA liée automatiquement ✓</p>
+                          <p className="text-[11px] text-violet-500 truncate">{linked.name}</p>
+                        </div>
+                      </div>
+                    );
+                  }
+                  if (agents.length > 0) {
+                    return (
+                      <button
+                        onClick={() => createdInstance?.id && connectInstanceToRita({ _id: createdInstance.id, customName: createdInstance.customName, instanceName: createdInstance.instanceName }, agents[0])}
+                        disabled={connectingRita[createdInstance?.id]}
+                        className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-[13px] font-semibold text-violet-700 bg-violet-50 border border-violet-200 hover:bg-violet-100 transition-colors disabled:opacity-60"
+                      >
+                        {connectingRita[createdInstance?.id]
+                          ? <><Loader2 className="w-4 h-4 animate-spin" /> Connexion Rita IA...</>
+                          : <><Bot className="w-4 h-4" /> Connecter Rita IA maintenant</>
+                        }
+                      </button>
+                    );
+                  }
+                  return (
+                    <button onClick={() => { closeCreateModal(); navigate('/ecom/agent-onboarding'); }}
+                      className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-[13px] font-semibold text-violet-700 bg-violet-50 border border-violet-200 hover:bg-violet-100 transition-colors">
+                      <Bot className="w-4 h-4" />
+                      Créer un agent IA →
+                    </button>
+                  );
+                })()}
                 <button onClick={closeCreateModal}
                   className="inline-flex items-center gap-2 px-6 py-2.5 text-[13px] font-semibold text-white rounded-lg transition-all"
                   style={{ background: ACCENT }}>
@@ -969,6 +1075,62 @@ const WhatsAppService = () => {
                           Scanner le QR code pour connecter
                         </button>
                       )}
+
+                      {/* ── RITA IA Connection Status ─────────────────────── */}
+                      {(() => {
+                        const linkedAgent = agents.find(a => a.instanceId === inst._id);
+                        const isBusy = connectingRita[inst._id];
+                        if (linkedAgent) {
+                          return (
+                            <div className="flex items-center justify-between px-3.5 py-2.5 bg-violet-50 border border-violet-100 rounded-xl">
+                              <div className="flex items-center gap-2.5">
+                                <div className="w-7 h-7 bg-violet-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                                  <Bot className="w-4 h-4 text-violet-600" />
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="text-[12px] font-bold text-violet-800 leading-tight truncate">{linkedAgent.name}</p>
+                                  <p className="text-[10px] text-violet-500">
+                                    {linkedAgent.ritaEnabled ? '🟢 IA active' : '⬜ IA en veille'}
+                                  </p>
+                                </div>
+                              </div>
+                              <button
+                                onClick={() => navigate('/ecom/whatsapp/agent-config', { state: { agent: linkedAgent } })}
+                                className="text-[11px] font-semibold text-violet-600 hover:text-violet-800 px-2.5 py-1 bg-white rounded-lg border border-violet-200 hover:bg-violet-50 transition-colors whitespace-nowrap"
+                              >
+                                Configurer →
+                              </button>
+                            </div>
+                          );
+                        }
+                        // Pas encore lié à un agent
+                        const availableAgents = agents.filter(a => !a.instanceId || a.instanceId === inst._id);
+                        if (!isConnected) return null; // N'afficher que si l'instance est connectée
+                        return (
+                          <div className="space-y-2">
+                            {agents.length === 0 ? (
+                              <button
+                                onClick={() => navigate('/ecom/agent-onboarding')}
+                                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-[13px] font-semibold text-violet-700 bg-violet-50 border border-violet-200 hover:bg-violet-100 transition-colors"
+                              >
+                                <Bot className="w-4 h-4" />
+                                Créer un agent IA →
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => connectInstanceToRita(inst, availableAgents[0] || agents[0])}
+                                disabled={isBusy}
+                                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-[13px] font-semibold text-violet-700 bg-violet-50 border border-violet-200 hover:bg-violet-100 transition-colors disabled:opacity-60"
+                              >
+                                {isBusy
+                                  ? <><Loader2 className="w-4 h-4 animate-spin" /> Connexion en cours...</>
+                                  : <><Bot className="w-4 h-4" /> Connecter Rita IA</>
+                                }
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })()}
 
                       {/* Token */}
                       <div className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
