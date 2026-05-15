@@ -11,6 +11,7 @@
 
 import { Router } from 'express';
 import Workspace from '../models/Workspace.js';
+import Store from '../models/Store.js';
 
 const router = Router();
 
@@ -39,34 +40,42 @@ router.get('/check-domain', async (req, res) => {
   }
 
   try {
-    // Check if this domain is registered as a custom domain by any workspace
-    const workspace = await Workspace.findOne({
-      'storeDomains.customDomain': cleanDomain,
-      isActive: { $ne: false }
-    }).select('_id subdomain').lean();
+    // Helper : cherche un domaine dans Store (multi-boutique) puis Workspace (legacy)
+    async function isDomainRegistered(domainToCheck) {
+      const [store, workspace] = await Promise.all([
+        Store.findOne({
+          'storeDomains.customDomain': domainToCheck,
+          isActive: { $ne: false }
+        }).select('_id subdomain').lean(),
+        Workspace.findOne({
+          'storeDomains.customDomain': domainToCheck,
+          isActive: { $ne: false }
+        }).select('_id subdomain').lean()
+      ]);
+      if (store) return { found: true, source: 'store', id: store._id, subdomain: store.subdomain };
+      if (workspace) return { found: true, source: 'workspace', id: workspace._id, subdomain: workspace.subdomain };
+      return { found: false };
+    }
 
-    if (workspace) {
-      console.log(`✅ [caddy] Domain ${cleanDomain} → workspace ${workspace._id} (${workspace.subdomain})`);
+    // Vérifier le domaine exact
+    const result = await isDomainRegistered(cleanDomain);
+    if (result.found) {
+      console.log(`✅ [caddy] Domain ${cleanDomain} → ${result.source} ${result.id} (${result.subdomain})`);
       return res.status(200).json({ ok: true, domain: cleanDomain });
     }
 
-    // Also check www variant
-    const wwwWorkspace = await Workspace.findOne({
-      'storeDomains.customDomain': `www.${cleanDomain}`,
-      isActive: { $ne: false }
-    }).select('_id').lean();
-
-    if (wwwWorkspace) {
-      console.log(`✅ [caddy] Domain www.${cleanDomain} → workspace ${wwwWorkspace._id}`);
+    // Vérifier la variante www
+    const wwwResult = await isDomainRegistered(`www.${cleanDomain}`);
+    if (wwwResult.found) {
+      console.log(`✅ [caddy] Domain www.${cleanDomain} → ${wwwResult.source} ${wwwResult.id}`);
       return res.status(200).json({ ok: true, domain: cleanDomain });
     }
 
-    console.log(`❌ [caddy] Domain ${cleanDomain} not found in any workspace`);
+    console.log(`❌ [caddy] Domain ${cleanDomain} not found in Store or Workspace`);
     return res.status(404).json({ error: 'domain not registered' });
 
   } catch (error) {
     console.error(`❌ [caddy] Error checking domain ${cleanDomain}:`, error.message);
-    // Return 404 on error to prevent cert issuance for unknown domains
     return res.status(404).json({ error: 'internal error' });
   }
 });

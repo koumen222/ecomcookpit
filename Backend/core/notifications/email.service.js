@@ -561,6 +561,35 @@ export const TEMPLATES = {
     `, `Expire dans ${daysLeft}j`)
   }),
 
+  order_limit_reached: ({ name, workspaceName, used, limit }) => ({
+    subject: `🚫 Limite de commandes atteinte — ${workspaceName}`,
+    preview: `Vous avez atteint ${limit} commandes ce mois. Votre boutique ne reçoit plus de commandes.`,
+    html: baseLayout(`
+      <h2>Limite de commandes atteinte 🚫</h2>
+      <p>Bonjour ${name || ''},</p>
+      <p>Votre boutique <strong>${workspaceName}</strong> a atteint la limite de <strong>${limit} commandes / mois</strong> du plan Gratuit.</p>
+      <div class="alert-box alert-red">
+        🚨 <strong>Votre boutique ne peut plus recevoir de nouvelles commandes ce mois-ci.</strong><br/>
+        Les clients qui tentent de commander verront un message d'erreur.
+      </div>
+      <div class="kpi-row">
+        <div class="kpi">
+          <p class="kpi-value">${used}</p>
+          <p class="kpi-label">Commandes ce mois</p>
+        </div>
+        <div class="kpi">
+          <p class="kpi-value">${limit}</p>
+          <p class="kpi-label">Limite plan Gratuit</p>
+        </div>
+      </div>
+      <p>Passez au plan <strong>Scalor</strong> pour recevoir des commandes <strong>illimitées</strong> et débloquer votre boutique immédiatement.</p>
+      <div style="text-align:center;margin:24px 0">
+        <a href="${FRONTEND_URL}/ecom/billing" class="btn btn-danger">Débloquer ma boutique →</a>
+      </div>
+      <p style="font-size:13px;color:#888">Le compteur se réinitialise au 1er du mois prochain si vous restez sur le plan Gratuit.</p>
+    `, `Limite de commandes atteinte — boutique bloquée`)
+  }),
+
   plan_expired: ({ name, workspaceName, planName }) => ({
     subject: `🚫 Plan ${planName} expiré — Agents IA désactivés`,
     preview: `Votre plan ${planName} a expiré, renouvelez pour garder vos agents actifs`,

@@ -9,6 +9,7 @@ import compression from 'compression';
 import helmet from 'helmet';
 import { connectDB } from './config/database.js';
 import { extractSubdomain } from './middleware/subdomain.js';
+import { securityHeaders, authRateLimiter, forgotPasswordRateLimiter, apiRateLimiter } from './middleware/security.js';
 
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -117,6 +118,14 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
+
+// ─── Security Headers ─────────────────────────────────────────────────────────
+app.use(securityHeaders);
+
+// ─── Rate Limiters ────────────────────────────────────────────────────────────
+app.use('/api/ecom/auth/login', authRateLimiter);
+app.use('/api/ecom/auth/forgot-password', forgotPasswordRateLimiter);
+app.use('/api/', apiRateLimiter);
 
 // ─── Request Logger (DEVELOPMENT/DEBUG ONLY) ──────────────────────────────────
 // WARNING: This logs all headers including sensitive data. Disable in production.

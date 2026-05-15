@@ -6,6 +6,7 @@ import { notifyNewOrder } from './notificationHelper.js';
 import { normalizeCity } from '../utils/cityNormalizer.js';
 import { sendClientOrderConfirmation } from './shopifyWhatsappService.js';
 import { getPlanRuntimeSnapshot } from '../middleware/planLimits.js';
+import { notifyOrderLimitReached } from './orderLimitNotificationService.js';
 
 /**
  * Sauvegarde une commande Shopify reçue par webhook.
@@ -155,6 +156,7 @@ export async function saveShopifyOrder(shopifyOrder, shopDomain, workspaceId, wo
     const monthCount = await Order.countDocuments({ workspaceId, createdAt: { $gte: startOfMonth } });
     if (monthCount >= planLimits.maxOrders) {
       console.warn(`⚠️ [Shopify WH] Commande #${shopifyOrderId} rejetée — limite plan (${monthCount}/${planLimits.maxOrders}) atteinte pour workspace ${workspaceId}`);
+      notifyOrderLimitReached(workspaceId, { used: monthCount, limit: planLimits.maxOrders }).catch(() => {});
       return null;
     }
   }

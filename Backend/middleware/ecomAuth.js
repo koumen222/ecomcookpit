@@ -300,10 +300,24 @@ export const validateEcomAccess = (resource, action) => {
       return next();
     }
 
-    // Règles d'accès spécifiques
+    // Règles d'accès spécifiques — principe du moindre privilège
     const accessRules = {
-      'super_admin': ['admin:read', 'admin:write', '*'], // Super admin a accès à tout
-      'ecom_admin': ['*'],
+      'super_admin': ['*'],
+      'ecom_admin': [
+        'orders:read', 'orders:write',
+        'products:read', 'products:write',
+        'reports:read', 'reports:write',
+        'finance:read', 'finance:write',
+        'campaigns:read', 'campaigns:write',
+        'clients:read', 'clients:write',
+        'users:read', 'users:write',
+        'settings:read', 'settings:write',
+        'analytics:read',
+        'stock:read', 'stock:write',
+        'store:read', 'store:write',
+        'agent:read', 'agent:write',
+        'admin:read'
+      ],
       'ecom_closeuse': ['orders:read', 'orders:write', 'reports:read', 'reports:write', 'products:read', 'campaigns:read', 'campaigns:write'],
       'ecom_compta': ['finance:read', 'finance:write', 'reports:read', 'reports:write', 'products:read'],
       'ecom_livreur': ['orders:read']

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { safeHtml } from '../utils/sanitize';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import {
   ArrowLeft, Save, Eye, EyeOff, Plus, Trash2, GripVertical,
@@ -1209,7 +1210,7 @@ const GalleryPreview = ({ config, product }) => {
 const DescriptionPreview = ({ config }) => (
   <div className="px-6 py-6">
     {config.showTitle !== false && config.title && <h2 className="text-lg font-bold text-gray-900 mb-3">{config.title}</h2>}
-    {config.content ? <div className="text-sm text-gray-600 leading-relaxed prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: config.content }} /> : <p className="text-sm text-gray-400 italic">Contenu vide</p>}
+    {config.content ? <div className="text-sm text-gray-600 leading-relaxed prose prose-sm max-w-none" dangerouslySetInnerHTML={safeHtml(config.content)} /> : <p className="text-sm text-gray-400 italic">Contenu vide</p>}
   </div>
 );
 
@@ -1355,7 +1356,7 @@ const CtaPreview = ({ config, design = {}, button = {} }) => {
 const CustomPreview = ({ config }) => (
   <div className="px-6 py-6">
     {config.css && <style>{config.css}</style>}
-    <div dangerouslySetInnerHTML={{ __html: config.html || '<p style="color:#999">Section personnalisée vide</p>' }} />
+    <div dangerouslySetInnerHTML={safeHtml(config.html || '<p style="color:#999">Section personnalisée vide</p>')} />
   </div>
 );
 

@@ -22,6 +22,7 @@
  */
 
 import Workspace from '../models/Workspace.js';
+import Store from '../models/Store.js';
 import mongoose from 'mongoose';
 
 // System subdomains that are NOT tenant stores
@@ -167,20 +168,38 @@ export const extractSubdomain = (req, res, next) => {
       return next();
     }
     
-    Workspace.findOne({
-      'storeDomains.customDomain': normalizedHostname,
-      isActive: true,
-      'storeSettings.isStoreEnabled': true
-    }).select('subdomain').lean()
-      .then(workspace => {
-        console.log(`🔍 [subdomain] DOMAIN FOUND:`, workspace || null);
-        
-        if (workspace?.subdomain) {
-          setCachedCustomDomain(normalizedHostname, workspace.subdomain);
-          req.subdomain = workspace.subdomain;
+    // Cherche d'abord dans Store (multi-boutique), puis dans Workspace (legacy)
+    Promise.resolve()
+      .then(async () => {
+        // 1. Store (setup multi-boutique)
+        const store = await Store.findOne({
+          'storeDomains.customDomain': normalizedHostname,
+          isActive: true,
+          'storeSettings.isStoreEnabled': true
+        }).select('subdomain').lean();
+
+        if (store?.subdomain) {
+          console.log(`🔍 [subdomain] DOMAIN FOUND in Store:`, store._id);
+          return store.subdomain;
+        }
+
+        // 2. Workspace (setup legacy)
+        const workspace = await Workspace.findOne({
+          'storeDomains.customDomain': normalizedHostname,
+          isActive: true,
+          'storeSettings.isStoreEnabled': true
+        }).select('subdomain').lean();
+
+        console.log(`🔍 [subdomain] DOMAIN FOUND in Workspace:`, workspace || null);
+        return workspace?.subdomain || null;
+      })
+      .then(subdomain => {
+        if (subdomain) {
+          setCachedCustomDomain(normalizedHostname, subdomain);
+          req.subdomain = subdomain;
           req.isStoreDomain = true;
           req.isCustomDomain = true;
-          console.log(`🌐 [custom-domain] ${normalizedHostname} → Store: ${workspace.subdomain} (DB)`);
+          console.log(`🌐 [custom-domain] ${normalizedHostname} → Store: ${subdomain} (DB)`);
           next();
         } else {
           setCachedCustomDomain(normalizedHostname, null);

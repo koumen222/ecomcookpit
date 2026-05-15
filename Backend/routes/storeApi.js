@@ -39,6 +39,7 @@ import { normalizeCity } from '../utils/cityNormalizer.js';
 import { buildMetaEventPayload, buildMetaUserData, isSupportedMetaEvent, sendMetaCapiEvent } from '../services/metaCapi.js';
 import { createAffiliateConversionFromOrder, normalizeCode } from '../services/affiliateService.js';
 import { getPlanRuntimeSnapshot } from '../middleware/planLimits.js';
+import { notifyOrderLimitReached } from '../services/orderLimitNotificationService.js';
 
 const router = express.Router();
 
@@ -688,6 +689,7 @@ router.post('/:subdomain/orders', orderLimiter, async (req, res) => {
       startOfMonth.setHours(0, 0, 0, 0);
       const monthCount = await Order.countDocuments({ workspaceId, createdAt: { $gte: startOfMonth } });
       if (monthCount >= planLimits.maxOrders) {
+        notifyOrderLimitReached(workspaceId, { used: monthCount, limit: planLimits.maxOrders }).catch(() => {});
         return res.status(403).json({
           success: false,
           error: 'STORE_ORDER_LIMIT_REACHED',

@@ -1,5 +1,21 @@
 import crypto from 'crypto';
 import mongoose from 'mongoose';
+import rateLimit from 'express-rate-limit';
+
+// ═══════════════════════════════════════════════════════════════
+// VÉRIFICATION DES VARIABLES CRITIQUES AU DÉMARRAGE
+// ═══════════════════════════════════════════════════════════════
+const REQUIRED_SECRETS = ['DATA_ENCRYPTION_KEY', 'ECOM_JWT_SECRET', 'SESSION_SECRET'];
+for (const key of REQUIRED_SECRETS) {
+  const val = process.env[key];
+  if (!val || val.startsWith('CHANGE_ME') || val === 'default-change-me') {
+    console.error(`🚨 SÉCURITÉ CRITIQUE: La variable d'environnement ${key} est absente ou non configurée.`);
+    if (process.env.NODE_ENV === 'production') {
+      console.error('Arrêt du serveur — impossible de démarrer sans secrets valides en production.');
+      process.exit(1);
+    }
+  }
+}
 
 // ═══════════════════════════════════════════════════════════════
 // 1. CHIFFREMENT AES-256 DES DONNÉES SENSIBLES
@@ -10,8 +26,14 @@ const IV_LENGTH = 16;
 const TAG_LENGTH = 16;
 
 function getEncryptionKey() {
-  const secret = process.env.DATA_ENCRYPTION_KEY || process.env.JWT_SECRET || 'default-change-me';
-  return crypto.scryptSync(secret, 'ecom-cockpit-salt', 32);
+  const secret = process.env.DATA_ENCRYPTION_KEY;
+  if (!secret || secret.startsWith('CHANGE_ME')) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('DATA_ENCRYPTION_KEY manquant — impossible de chiffrer en production');
+    }
+    console.warn('⚠️ DATA_ENCRYPTION_KEY non défini — utilisation d\'une clé de développement temporaire');
+  }
+  return crypto.scryptSync(secret || 'dev-only-key-not-for-production', 'ecom-cockpit-salt', 32);
 }
 
 export function encryptField(text) {
@@ -170,25 +192,37 @@ export async function logAudit(req, action, details = '', resourceType = '', res
 // ═══════════════════════════════════════════════════════════════
 
 export function securityHeaders(req, res, next) {
-  // Don't set security headers for CORS preflight requests
   if (req.method === 'OPTIONS') {
     return next();
   }
-  
+
   // Empêcher le sniffing MIME
   res.setHeader('X-Content-Type-Options', 'nosniff');
-  // Protection XSS
+  // Protection XSS legacy
   res.setHeader('X-XSS-Protection', '1; mode=block');
   // Empêcher le clickjacking (SAMEORIGIN permet l'iframe du builder)
   res.setHeader('X-Frame-Options', 'SAMEORIGIN');
-  // Strict Transport Security (only for HTTPS)
-  if (req.secure) {
-    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
-  }
+  // Strict Transport Security — toujours envoyé (Cloudflare/Railway gère HTTPS)
+  res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
   // Referrer Policy
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   // Permissions Policy
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  // Content Security Policy
+  res.setHeader(
+    'Content-Security-Policy',
+    [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline' https://js.stripe.com https://checkout.stripe.com",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+      "font-src 'self' https://fonts.gstatic.com",
+      "img-src 'self' data: blob: https://*.cloudinary.com https://*.r2.dev https://res.cloudinary.com",
+      "connect-src 'self' https://api.scalor.net https://*.railway.app https://us.i.posthog.com",
+      "frame-ancestors 'self'",
+      "form-action 'self'",
+      "base-uri 'self'"
+    ].join('; ')
+  );
   // Cache pour les API
   if (req.url.startsWith('/api/')) {
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
@@ -212,6 +246,34 @@ export function auditSensitiveAccess(action, resourceType = '') {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// 5. RATE LIMITER - DÉSACTIVÉ
+// 5. RATE LIMITERS
 // ═══════════════════════════════════════════════════════════════
-// Rate limiting désactivé pour permettre des connexions illimitées
+
+// Authentification : 10 tentatives par 15 minutes par IP
+export const authRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: 'Trop de tentatives de connexion. Réessayez dans 15 minutes.' },
+  skipSuccessfulRequests: false,
+});
+
+// Mot de passe oublié : 5 requêtes par heure par IP
+export const forgotPasswordRateLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: 'Trop de demandes de réinitialisation. Réessayez dans 1 heure.' },
+});
+
+// API générale : 300 requêtes par minute par IP
+export const apiRateLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 300,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: 'Trop de requêtes. Ralentissez.' },
+  skip: (req) => req.ecomUser?.role === 'super_admin',
+});

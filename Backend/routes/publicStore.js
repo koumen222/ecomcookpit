@@ -14,6 +14,7 @@ import { normalizeCity } from '../utils/cityNormalizer.js';
 import { normalizePhone } from '../utils/phoneUtils.js';
 import { resolveStoreBySubdomain } from '../middleware/storeAuth.js';
 import { getPlanRuntimeSnapshot } from '../middleware/planLimits.js';
+import { notifyOrderLimitReached } from '../services/orderLimitNotificationService.js';
 
 /**
  * Map store currency → default phone prefix (digits only, no +).
@@ -323,6 +324,7 @@ router.post('/:subdomain/orders', orderLimiter, resolveStoreBySubdomain, async (
       startOfMonth.setHours(0, 0, 0, 0);
       const monthCount = await Order.countDocuments({ workspaceId, createdAt: { $gte: startOfMonth } });
       if (monthCount >= planLimits.maxOrders) {
+        notifyOrderLimitReached(workspaceId, { used: monthCount, limit: planLimits.maxOrders }).catch(() => {});
         return res.status(403).json({
           success: false,
           error: 'STORE_ORDER_LIMIT_REACHED',

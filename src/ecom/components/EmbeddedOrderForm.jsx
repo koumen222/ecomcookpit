@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { safeHtml } from '../utils/sanitize';
 import { ShoppingCart, User, Phone, MapPin, Loader2, CheckCircle, Truck, Plus, Minus, AlertCircle, ChevronDown, Mail, FileText, Hash, Calendar, Clock, Shield, Globe, Star, ShoppingBag, ArrowRight, Check } from 'lucide-react';
 import { publicStoreApi } from '../services/storeApi.js';
 import defaultConfig from './productSettings/defaultConfig.js';
@@ -649,7 +650,7 @@ const EmbeddedOrderForm = ({ product, subdomain, store, productPageConfig }) => 
             case 'html':
               return (
                 <div key={field.name} style={{ fontSize: 13, color: textColor }}
-                  dangerouslySetInnerHTML={{ __html: field.htmlContent || '' }} />
+                  dangerouslySetInnerHTML={safeHtml(field.htmlContent || '')} />
               );
 
             case 'trust_badge':

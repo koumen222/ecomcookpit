@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { safeHtml } from '../utils/sanitize';
 import { Save, Loader2, Check, GripVertical, Eye, EyeOff, Plus, ChevronUp, ChevronDown, Settings2, ShoppingCart, Layers, Phone, User, MapPin, Trash2, Mail, FileText, Hash, Calendar, Type, Image, Minus, Shield, CheckCircle, Clock, PhoneCall, MessageSquare, ListOrdered, CheckSquare, Link2, Globe, Star, ChevronLeft, ChevronRight, Upload, X } from 'lucide-react';
 import { storeManageApi, storeProductsApi } from '../services/storeApi';
 import { useStore } from '../contexts/StoreContext.jsx';
@@ -1005,7 +1006,7 @@ const FormPreview = ({ config, offersPreview = null, shopColor = '#0F6B4F' }) =>
       case 'html':
         return (
           <div key={i} className="text-xs text-gray-600 prose prose-sm max-w-none"
-            dangerouslySetInnerHTML={{ __html: field.htmlContent || '<p>Contenu HTML</p>' }} />
+            dangerouslySetInnerHTML={safeHtml(field.htmlContent || '<p>Contenu HTML</p>')} />
         );
       case 'trust_badge':
         return (
