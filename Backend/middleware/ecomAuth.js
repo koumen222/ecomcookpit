@@ -15,7 +15,7 @@ if (process.env.NODE_ENV === 'production' && ECOM_JWT_SECRET === 'ecom-secret-ke
 
 // Cache utilisateurs en mémoire (évite 1 requête MongoDB par appel API)
 const userCache = new Map();
-const USER_CACHE_TTL = 60000; // 60 secondes
+const USER_CACHE_TTL = 15000; // 15 secondes
 
 function getCachedUser(userId) {
   const entry = userCache.get(userId);

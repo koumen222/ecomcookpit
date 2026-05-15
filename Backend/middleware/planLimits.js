@@ -99,7 +99,7 @@ const FEATURE_LABELS = {
 };
 
 const planCache = { data: null, ts: 0 };
-const CACHE_MS = 30_000;
+const CACHE_MS = 10_000;
 
 async function getPlanConfigs() {
   const now = Date.now();
