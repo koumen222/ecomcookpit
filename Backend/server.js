@@ -125,7 +125,22 @@ app.use(securityHeaders);
 // ─── Rate Limiters ────────────────────────────────────────────────────────────
 app.use('/api/ecom/auth/login', authRateLimiter);
 app.use('/api/ecom/auth/forgot-password', forgotPasswordRateLimiter);
-app.use('/api/', apiRateLimiter);
+
+// ⚠️  Webhook endpoints MUST be exempt from rate limiting.
+// Evolution API (WhatsApp), Shopify and other external services can send
+// dozens of requests per second and must never receive a 429.
+app.use('/api/', (req, res, next) => {
+  const p = req.path || '';
+  if (
+    p.startsWith('/ecom/v1/external/whatsapp/incoming') || // Evolution API WhatsApp messages
+    p.startsWith('/webhooks/shopify/')                    || // Shopify order webhooks
+    p.startsWith('/scalor/webhooks/')                     || // Scalor internal webhooks
+    p.includes('/incoming')                                  // generic incoming webhook catch-all
+  ) {
+    return next(); // bypass rate limit for external webhook callers
+  }
+  return apiRateLimiter(req, res, next);
+});
 
 // ─── Request Logger (DEVELOPMENT/DEBUG ONLY) ──────────────────────────────────
 // WARNING: This logs all headers including sensitive data. Disable in production.
