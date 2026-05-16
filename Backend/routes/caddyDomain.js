@@ -16,19 +16,27 @@ import Store from '../models/Store.js';
 const router = Router();
 
 router.get('/check-domain', async (req, res) => {
-  const { domain } = req.query;
+  const { domain, token: queryToken } = req.query;
 
   if (!domain || typeof domain !== 'string') {
     return res.status(400).json({ error: 'domain query parameter required' });
   }
 
-  // Optional: verify shared secret from Caddy
+  // Vérifier le token partagé Caddy ↔ backend
+  // Le token est soit dans X-Caddy-Token (header) soit dans ?token= (query)
   const authToken = process.env.CADDY_AUTH_TOKEN;
-  if (authToken) {
-    const provided = req.headers['x-caddy-token'] || req.query.token;
+  const isPlaceholder = !authToken || authToken.startsWith('CHANGE_ME');
+
+  if (!isPlaceholder) {
+    const provided = req.headers['x-caddy-token'] || queryToken;
     if (provided !== authToken) {
-      console.warn(`🔒 [caddy] Unauthorized check-domain request for ${domain}`);
+      console.warn(`🔒 [caddy] Token invalide pour ${domain} (fourni: "${provided?.substring(0,8)}...")`);
       return res.status(403).json({ error: 'unauthorized' });
+    }
+  } else {
+    // En dev ou si le token n'est pas configuré, on log un avertissement mais on continue
+    if (process.env.NODE_ENV === 'production') {
+      console.warn(`⚠️  [caddy] CADDY_AUTH_TOKEN non configuré — endpoint non sécurisé`);
     }
   }
 

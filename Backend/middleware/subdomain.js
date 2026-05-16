@@ -172,10 +172,11 @@ export const extractSubdomain = (req, res, next) => {
     Promise.resolve()
       .then(async () => {
         // 1. Store (setup multi-boutique)
+        // Note: on ne filtre PAS sur isStoreEnabled ici — le domaine custom est suffisant
+        // pour identifier la boutique. L'activation du store est vérifiée au moment du rendu.
         const store = await Store.findOne({
           'storeDomains.customDomain': normalizedHostname,
-          isActive: true,
-          'storeSettings.isStoreEnabled': true
+          isActive: { $ne: false }
         }).select('subdomain').lean();
 
         if (store?.subdomain) {
@@ -186,8 +187,7 @@ export const extractSubdomain = (req, res, next) => {
         // 2. Workspace (setup legacy)
         const workspace = await Workspace.findOne({
           'storeDomains.customDomain': normalizedHostname,
-          isActive: true,
-          'storeSettings.isStoreEnabled': true
+          isActive: { $ne: false }
         }).select('subdomain').lean();
 
         console.log(`🔍 [subdomain] DOMAIN FOUND in Workspace:`, workspace || null);
