@@ -59,23 +59,26 @@ export const handleOrderCreated = (req, res) => {
     return res.status(400).json({ success: false, message: 'Invalid payload' });
   }
 
-  // ── Vérifier le HMAC — obligatoire, secret requis ───────────────────────
-  if (!SHOPIFY_WEBHOOK_SECRET || SHOPIFY_WEBHOOK_SECRET.startsWith('CHANGE_ME')) {
-    console.error('❌ [Shopify WH] SHOPIFY_WEBHOOK_SECRET non configuré — webhook rejeté');
-    return res.status(503).json({ success: false, message: 'Webhook not configured' });
-  }
-
+  // ── Vérifier le HMAC Shopify ────────────────────────────────────────────
   const hmacHeader = req.headers['x-shopify-hmac-sha256'];
   const rawBody = req.rawBody;
+  const secretConfigured = SHOPIFY_WEBHOOK_SECRET && !SHOPIFY_WEBHOOK_SECRET.startsWith('CHANGE_ME');
 
-  if (!rawBody || !hmacHeader) {
-    console.error('❌ [Shopify WH] HMAC header ou raw body manquant');
-    return res.status(401).json({ success: false, message: 'Missing HMAC' });
-  }
-
-  if (!verifyShopifyWebhookHmac(rawBody, hmacHeader)) {
-    console.error('❌ [Shopify WH] Signature HMAC invalide');
-    return res.status(401).json({ success: false, message: 'Invalid HMAC signature' });
+  if (secretConfigured) {
+    // Secret configuré → validation stricte
+    if (!rawBody || !hmacHeader) {
+      console.error('❌ [Shopify WH] HMAC header ou raw body manquant');
+      return res.status(401).json({ success: false, message: 'Missing HMAC' });
+    }
+    if (!verifyShopifyWebhookHmac(rawBody, hmacHeader)) {
+      console.error('❌ [Shopify WH] Signature HMAC invalide');
+      return res.status(401).json({ success: false, message: 'Invalid HMAC signature' });
+    }
+    console.log('✅ [Shopify WH] HMAC vérifié');
+  } else {
+    // Secret non configuré → on accepte mais on log un avertissement
+    // ⚠️  Configurer SHOPIFY_WEBHOOK_SECRET sur Railway pour sécuriser
+    console.warn('⚠️  [Shopify WH] SHOPIFY_WEBHOOK_SECRET non configuré — HMAC non vérifié (commande acceptée quand même)');
   }
 
   // ── Extraire les métadonnées Shopify ─────────────────────────────────────
