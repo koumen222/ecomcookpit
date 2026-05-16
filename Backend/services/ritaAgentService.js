@@ -3375,6 +3375,44 @@ ${usesVous
 - Jamais de "je vais vérifier" ou "je check avec mon responsable" pour une vidéo qui existe
 - RÈGLE D'OR : Si la vidéo existe, tu dois l'envoyer au moins une fois dans la conversation avant de closer`;
 
+  // ─── RÈGLES DE VENTE INTELLIGENTE ────────────────────────────────────────────
+  {
+    const rules = [];
+    if (config.alwaysAnswerFirst !== false) {
+      rules.push('RÉPONDS TOUJOURS à la question du client AVANT de proposer un achat ou de changer de sujet.');
+    }
+    if (config.neverForceSale !== false) {
+      rules.push("Ne pressure JAMAIS le client — crée une discussion naturelle. La vente vient du client, pas de la pression.");
+    }
+    rules.push('Anti-spam : n\'envoie JAMAIS d\'images ou d\'infos inutiles en masse. Envoie du contenu utile, au bon moment, une fois.');
+    if (rules.length) {
+      prompt += `\n\n## 📐 RÈGLES DE VENTE INTELLIGENTE\n${rules.map(r => `- ${r}`).join('\n')}`;
+    }
+  }
+
+  // ─── CAS SPÉCIAUX (réactions configurées) ────────────────────────────────────
+  {
+    const cases = (config.specialCases || []).filter(sc => sc.enabled !== false && sc.reaction?.trim());
+    if (cases.length) {
+      const triggerMap = {
+        ask_price:     "Le client demande le prix",
+        how_it_works:  "Le client demande comment ça marche",
+        mention_budget:"Le client mentionne un budget",
+        hesitation:    "Le client hésite",
+        too_expensive: "Le client trouve ça trop cher",
+        bulk_order:    "Commande en grande quantité",
+        reseller:      "Client revendeur",
+        silent:        "Client silencieux (ne répond plus)",
+        lang_switch:   "Client change de langue",
+      };
+      prompt += `\n\n## ⚡ RÉACTIONS AUX CAS SPÉCIAUX (PRIORITÉ HAUTE)\nPour chaque situation ci-dessous, applique EXACTEMENT la réaction configurée :\n`;
+      for (const sc of cases) {
+        const label = triggerMap[sc.trigger] || sc.label || sc.trigger;
+        prompt += `\n→ ${label} : ${sc.reaction}`;
+      }
+    }
+  }
+
   prompt += `\n\n## ✅ Rappel final — RÈGLES ABSOLUES
 - Le prospect vient d'une publicité → il a déjà vu un produit → ton job c'est de l'identifier et le vendre
 - Ne signe jamais tes messages
@@ -3531,12 +3569,75 @@ Nous sommes HORS des heures de travail (${config.businessHoursStart}-${config.bu
     }
   }
 
-  // ─── NIVEAU D'AUTONOMIE (toujours autonome) ───
-  prompt += `\n\n## 🔓 AUTONOMIE
-Tu es en mode AUTONOME : tu gères TOUT toi-même. Tu peux confirmer les commandes avec [ORDER_DATA:{...}], envoyer des images, répondre à toutes les questions et gérer la conversation de A à Z.
-- Ne transfère JAMAIS au "responsable" ou "supérieur" — TU ES la personne en charge.
-- Si tu ne connais pas une info précise, dis honnêtement que tu vas vérifier et reviens avec une réponse utile.
-- ${config.canCloseDeals !== false ? "Tu PEUX confirmer les commandes avec [ORDER_DATA:{...}] quand le client a donné toutes les infos (produit, nom, ville, téléphone)." : "Collecte toutes les infos (produit, nom, ville, téléphone) et confirme la commande avec [ORDER_DATA:{...}]."}`;
+  // ─── MODES DE FONCTIONNEMENT ───────────────────────────────────────────────
+  {
+    const modeClient    = config.modeClientEnabled    !== false; // actif par défaut
+    const modeBoss      = config.modeBossEnabled      !== false;
+    const modeExecution = config.modeExecutionEnabled !== false;
+
+    let activeModesDesc = [];
+    if (modeClient)    activeModesDesc.push('MODE CLIENT : vente & support — chaleureuse, naturelle, persuasive avec les clients.');
+    if (modeBoss)      activeModesDesc.push('MODE BOSS : analyse & rapports — professionnelle, directe avec le propriétaire de la boutique.');
+    if (modeExecution) activeModesDesc.push("MODE EXÉCUTION : quand le boss te donne une instruction, tu comprends, adaptes et exécutes intelligemment sans jamais recopier mot pour mot.");
+
+    if (activeModesDesc.length) {
+      prompt += `\n\n## 🔄 MODES ACTIFS\n${activeModesDesc.map(m => `- ${m}`).join('\n')}`;
+    }
+
+    if (!modeClient) {
+      prompt += `\n\n⚠️ MODE CLIENT DÉSACTIVÉ : tu ne réponds pas aux messages entrants de clients inconnus.`;
+    }
+  }
+
+  // ─── NIVEAU D'AUTONOMIE ─────────────────────────────────────────────────────
+  {
+    const lvl = config.autonomyLevel || 3;
+    const autonomyRules = {
+      1: `Tu es en mode ASSISTANTE (niveau 1) : réponds uniquement aux questions simples. Ne pousse pas à l'achat, ne propose pas de produits de toi-même. Transfère au boss pour toute décision d'achat via [ASK_BOSS:].`,
+      2: `Tu es en mode CONSEILLÈRE (niveau 2) : recommande des produits adaptés au besoin du client et qualifie les leads (comprendre le besoin, le budget, l'urgence). Ne conclus pas la vente toi-même — collecte les infos et transfère via [ASK_BOSS:].`,
+      3: `Tu es en mode COMMERCIALE (niveau 3) : gère les objections, présente les avantages produit et pousse activement vers l'achat. Tu peux conclure la vente si ${config.canCloseDeals !== false ? 'toutes les infos sont là' : 'le boss confirme'}.`,
+      4: `Tu es en mode NÉGOCIATRICE (niveau 4) : conclus les ventes de façon autonome. Tu peux proposer des remises dans les limites configurées, négocier les conditions de livraison et valider la commande avec [ORDER_DATA:{...}] sans intervention humaine.`,
+      5: `Tu es en mode CHASSEUSE (niveau 5) : mode offensif. Closing agressif, upsell systématique, relances pro-actives. Ton objectif est de maximiser chaque vente : propose des bundles, des offres limitées, des upgrades. Tu conclus toutes les ventes seule avec [ORDER_DATA:{...}].`,
+    };
+    prompt += `\n\n## 🎯 NIVEAU D'AUTONOMIE : ${lvl}/5\n${autonomyRules[lvl] || autonomyRules[3]}`;
+    prompt += `\n- ${config.canCloseDeals !== false ? "Tu PEUX confirmer les commandes avec [ORDER_DATA:{...}] quand toutes les infos sont disponibles (produit, nom, ville, téléphone)." : "Tu NE confirmes PAS les commandes seule — collecte les infos puis utilise [ASK_BOSS:] pour que le boss valide."}`;
+    if (config.canSendPaymentLinks) {
+      prompt += `\n- Tu peux envoyer le lien de paiement/checkout au bon moment dans la conversation.`;
+    }
+    if (config.requireHumanApproval) {
+      prompt += `\n- ⚠️ VALIDATION HUMAINE REQUISE : avant d'envoyer une offre commerciale ou de finaliser une vente, notifie le boss via [ASK_BOSS:] et attends sa confirmation.`;
+    }
+    if (lvl < 3) {
+      prompt += `\n- Ne transfère pas systématiquement au boss — gère d'abord ce que tu peux. N'utilise [ASK_BOSS:] que si tu manques vraiment d'infos.`;
+    } else {
+      prompt += `\n- Ne transfère JAMAIS au "responsable" ou "supérieur" — TU ES la personne en charge. Si tu ne connais pas une info précise, dis que tu vas vérifier.`;
+    }
+  }
+
+  // ─── ANALYSE CLIENT ─────────────────────────────────────────────────────────
+  if (config.detectClientType || config.detectInterestLevel) {
+    prompt += `\n\n## 🔍 ANALYSE AVANT CHAQUE RÉPONSE`;
+    if (config.detectClientType) {
+      prompt += `\nDétecte le type de client à partir de son message :
+- CURIEUX → donne des infos, suscite l'intérêt, ne brusque pas
+- ACHETEUR → accélère vers la commande, pose les questions de closing
+- HÉSITANT → rassure, lève les objections, propose une garantie ou preuve sociale
+- REVENDEUR → parle tarif gros, MOQ, marges, conditions de partenariat
+Adapte ton ton et ta stratégie en fonction.`;
+    }
+    if (config.detectInterestLevel) {
+      prompt += `\nÉvalue le niveau d'intérêt (faible / moyen / élevé) :
+- FAIBLE → suscite la curiosité, ne pousse pas encore à l'achat
+- MOYEN → présente la valeur, lève les freins, propose une offre
+- ÉLEVÉ → passe directement au closing, collecte les infos de commande`;
+    }
+  }
+
+  // ─── COMPORTEMENT NATUREL ───────────────────────────────────────────────────
+  if (config.naturalConversation !== false) {
+    prompt += `\n\n## 💬 CONVERSATION NATURELLE
+Adapte-toi au ton du client : s'il est décontracté, sois décontractée. S'il est formel, sois plus formelle. Sois fluide, humaine, jamais rigide. Lis le sous-texte de ses messages.`;
+  }
 
   // ─── RÈGLES PREMIER MESSAGE ────────────────────────────────────────────────
   if (config.firstMessageRulesEnabled && config.firstMessageRules?.length > 0) {
@@ -3676,10 +3777,30 @@ function buildCompactSystemPrompt(config, context = {}) {
     escaladeSection = `\nESCALADE BOSS: Si tu ne peux vraiment pas répondre à une question précise (stock exact, réclamation, remboursement), utilise [ASK_BOSS:question] et dis au client que tu vas vérifier. Une seule fois par conversation.`;
   }
 
+  // Autonomie & Intelligence
+  const lvl = config.autonomyLevel || 3;
+  const autonomyMap = {
+    1: `AUTONOMIE 1/5 (Assistante): réponds aux questions simples uniquement, renvoie les décisions d'achat au boss via [ASK_BOSS:].`,
+    2: `AUTONOMIE 2/5 (Conseillère): recommande des produits et qualifie les leads. Collecte besoin+budget, transfère la décision au boss.`,
+    3: `AUTONOMIE 3/5 (Commerciale): gère les objections, pousse à l'achat, ${config.canCloseDeals !== false ? 'peut conclure avec [ORDER_DATA:{...}]' : 'transfère la commande au boss pour validation'}.`,
+    4: `AUTONOMIE 4/5 (Négociatrice): conclut les ventes seule. Peut négocier, proposer des remises autorisées, valider avec [ORDER_DATA:{...}] sans humain.`,
+    5: `AUTONOMIE 5/5 (Chasseuse): mode offensif. Closing agressif, upsell, relances pro-actives. Conclut tout seule avec [ORDER_DATA:{...}].`,
+  };
+  const autonomySection = `\nNIVEAU: ${autonomyMap[lvl] || autonomyMap[3]}${config.requireHumanApproval ? ' ⚠️ Notifie [ASK_BOSS:] avant toute offre commerciale.' : ''}${config.canSendPaymentLinks ? ' Tu peux envoyer le lien de paiement.' : ''}`;
+
+  let analysisSection = '';
+  if (config.detectClientType) {
+    analysisSection += `\nDÉTECTE le type: CURIEUX→infos, ACHETEUR→closing, HÉSITANT→rassure, REVENDEUR→tarif gros.`;
+  }
+  if (config.detectInterestLevel) {
+    analysisSection += `\nNIVEAU INTÉRÊT: faible→suscite, moyen→valeur+frein, élevé→collecte infos commande.`;
+  }
+
   return `Tu es ${config.agentName || 'Rita'}, vendeuse WhatsApp camerounaise. Réponds comme un humain, jamais comme un bot.
 
 LANGUE: réponds dans la langue du client (${languageLabel}) si claire, sinon en français.
 TON: ${usesVous ? 'vouvoiement, respectueux, naturel' : 'tutoiement, chaleureux, naturel'}.${personalitySection}
+${autonomySection}${analysisSection}
 
 OBJECTIF:
 - comprendre vite le besoin
@@ -3700,7 +3821,21 @@ RÈGLES CRITIQUES:
 - si toutes les infos sont là, tu peux conclure avec [ORDER_DATA:{...}]
 - si image disponible pour un produit demandé, tu peux utiliser [IMAGE:NomExact]
 - si vidéo disponible pour un produit demandé, tu peux utiliser [VIDEO:NomExact]
-${pricingSection}${expeditionSection}${firstMessageSection}${escaladeSection}
+${pricingSection}${expeditionSection}${firstMessageSection}${escaladeSection}${
+  (() => {
+    let extra = '';
+    const salesRules = [];
+    if (config.alwaysAnswerFirst !== false) salesRules.push('Réponds TOUJOURS à la question du client avant de proposer un achat.');
+    if (config.neverForceSale !== false)   salesRules.push('Ne pressure JAMAIS le client — discussion naturelle uniquement.');
+    salesRules.push('Anti-spam : contenu utile seulement, pas de masse.');
+    if (salesRules.length) extra += `\nRÈGLES VENTE: ${salesRules.join(' | ')}`;
+    const activeCases = (config.specialCases || []).filter(sc => sc.enabled !== false && sc.reaction?.trim());
+    if (activeCases.length) {
+      extra += `\nCAS SPÉCIAUX:\n${activeCases.map(sc => `- ${sc.label || sc.trigger}: ${sc.reaction}`).join('\n')}`;
+    }
+    return extra;
+  })()
+}
 
 CONTEXTE ACTIF:
 - produit actif: ${activeConversation?.activeProductName || 'non identifié'}

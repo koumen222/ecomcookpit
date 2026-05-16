@@ -10,6 +10,8 @@ const ritaConfigSchema = new mongoose.Schema({
 
   // ─── Identité ───
   agentName: { type: String, default: 'Rita' },
+  agentRole: { type: String, default: 'Vendeuse WhatsApp IA' },
+  language: { type: String, default: 'fr' },
   welcomeMessage: { type: String, default: "Bonjour 👋 J'espère que vous allez bien ! Je suis là pour vous aider — lequel de nos produits vous a intéressé ?" },
 
   // ─── Catalogue produits ───

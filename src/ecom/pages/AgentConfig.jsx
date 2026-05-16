@@ -206,6 +206,207 @@ const SelectDropdown = ({ value, onChange, options, placeholder = 'Sélectionner
   );
 };
 
+// ─── Accordion field — opens modal on click ───
+const AccordionField = ({ icon, label, badge, badgeColor = 'emerald', value, onChange, placeholder, rows = 6, hint }) => {
+  const [open, setOpen] = useState(false);
+  const preview = typeof value === 'string'
+    ? (value.trim() ? value.replace(/\n/g, ' · ').slice(0, 72) + (value.length > 72 ? '…' : '') : null)
+    : null;
+
+  return (
+    <>
+      <div className="rounded-xl border border-gray-200 overflow-hidden">
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="w-full flex items-center gap-3 px-4 py-3 text-left transition-colors bg-white hover:bg-gray-50"
+        >
+          {icon && <span className="text-[16px] flex-shrink-0">{icon}</span>}
+          <div className="flex-1 min-w-0">
+            <p className="text-[13px] font-semibold text-gray-800 flex items-center gap-2">
+              {label}
+              {hint && <span className="text-[10px] text-gray-400 font-normal">{hint}</span>}
+            </p>
+            <p className="text-[11px] truncate mt-0.5 text-gray-400 italic">
+              {preview || 'Non renseigné — cliquez pour éditer'}
+            </p>
+          </div>
+          {badge && (
+            <span className={`flex-shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full ${
+              badgeColor === 'emerald' ? 'bg-emerald-100 text-emerald-700'
+              : badgeColor === 'gray' ? 'bg-gray-100 text-gray-500'
+              : 'bg-amber-100 text-amber-700'
+            }`}>{badge}</span>
+          )}
+          <ChevronDown className="w-4 h-4 flex-shrink-0 text-gray-400" />
+        </button>
+      </div>
+      <TextEditModal
+        open={open}
+        title={label}
+        value={value}
+        placeholder={placeholder}
+        rows={rows}
+        multiline={true}
+        onClose={() => setOpen(false)}
+        onConfirm={val => onChange({ target: { value: val } })}
+      />
+    </>
+  );
+};
+
+// ─── Auto-growing textarea ───
+const AutoTextarea = ({ value, onChange, placeholder, rows = 3, expandedRows = 9, className }) => {
+  const [focused, setFocused] = useState(false);
+  return (
+    <textarea
+      value={value}
+      onChange={onChange}
+      placeholder={placeholder}
+      rows={focused ? expandedRows : rows}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
+      className={`${className} transition-all duration-300`}
+    />
+  );
+};
+
+// ─── Text Edit Modal ───
+const TextEditModal = ({ open, title, value, placeholder, rows = 6, onClose, onConfirm, multiline = true }) => {
+  const [draft, setDraft] = useState(value || '');
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    if (open) {
+      setDraft(value || '');
+      setTimeout(() => inputRef.current?.focus(), 50);
+    }
+  }, [open, value]);
+
+  if (!open) return null;
+
+  const handleConfirm = () => { onConfirm(draft); onClose(); };
+  const handleKeyDown = (e) => {
+    if (!multiline && e.key === 'Enter') { e.preventDefault(); handleConfirm(); }
+    if (e.key === 'Escape') onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+      <div
+        className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <p className="text-[14px] font-bold text-gray-900">{title || 'Modifier'}</p>
+          <button type="button" onClick={onClose} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <div className="p-5">
+          {multiline ? (
+            <textarea
+              ref={inputRef}
+              value={draft}
+              onChange={e => setDraft(e.target.value)}
+              placeholder={placeholder}
+              rows={rows}
+              onKeyDown={handleKeyDown}
+              className="w-full px-4 py-3 text-[13px] text-gray-800 bg-gray-50 border border-gray-200 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-emerald-300 focus:border-transparent leading-relaxed"
+            />
+          ) : (
+            <input
+              ref={inputRef}
+              value={draft}
+              onChange={e => setDraft(e.target.value)}
+              placeholder={placeholder}
+              onKeyDown={handleKeyDown}
+              className="w-full px-4 py-3 text-[13px] text-gray-800 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-300 focus:border-transparent"
+            />
+          )}
+        </div>
+        <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-gray-100 bg-gray-50/60">
+          <button type="button" onClick={onClose}
+            className="px-4 py-2 text-[13px] font-semibold text-gray-500 hover:text-gray-700 rounded-xl hover:bg-gray-100 transition-colors">
+            Annuler
+          </button>
+          <button type="button" onClick={handleConfirm}
+            className="px-5 py-2 text-[13px] font-bold text-white rounded-xl shadow-sm transition-all hover:opacity-90 active:scale-95"
+            style={{ background: '#0F6B4F' }}>
+            ✓ Valider
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ─── Modal-backed text input ───
+const ModalInput = ({ value, onChange, placeholder, label, className, type = 'text', disabled, style, ...rest }) => {
+  const [open, setOpen] = useState(false);
+  const displayVal = value ?? '';
+  const isEmpty = !displayVal.toString().trim();
+
+  if (type !== 'text' && type !== 'email' && type !== 'tel' && type !== 'url') {
+    return <input value={value ?? ''} onChange={onChange} placeholder={placeholder} type={type} className={className} disabled={disabled} style={style} {...rest} />;
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => setOpen(true)}
+        className={`${className || 'ac-input'} text-left truncate w-full ${isEmpty ? 'text-gray-400' : 'text-gray-800'}`}
+        style={style}
+      >
+        {isEmpty ? (placeholder || 'Cliquer pour saisir…') : displayVal}
+      </button>
+      <TextEditModal
+        open={open}
+        title={label || placeholder}
+        value={displayVal}
+        placeholder={placeholder}
+        multiline={false}
+        onClose={() => setOpen(false)}
+        onConfirm={val => onChange({ target: { value: val } })}
+      />
+    </>
+  );
+};
+
+// ─── Modal-backed textarea ───
+const ModalTextarea = ({ value, onChange, placeholder, label, rows = 6, className, style, ...rest }) => {
+  const [open, setOpen] = useState(false);
+  const displayVal = value ?? '';
+  const isEmpty = !displayVal.toString().trim();
+  const preview = displayVal.replace(/\n/g, ' · ').slice(0, 90) + (displayVal.length > 90 ? '…' : '');
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className={`${className || 'ac-textarea'} text-left w-full ${isEmpty ? 'text-gray-400 italic' : 'text-gray-700'}`}
+        style={{ minHeight: '2.5rem', ...style }}
+      >
+        {isEmpty ? (placeholder || 'Cliquer pour saisir…') : preview}
+      </button>
+      <TextEditModal
+        open={open}
+        title={label || placeholder}
+        value={displayVal}
+        placeholder={placeholder}
+        rows={rows}
+        multiline={true}
+        onClose={() => setOpen(false)}
+        onConfirm={val => onChange({ target: { value: val } })}
+      />
+    </>
+  );
+};
+
 // ─── Main Component ───
 export default function AgentConfig() {
   const navigate = useNavigate();
@@ -222,6 +423,15 @@ export default function AgentConfig() {
   const [instanceSwitching, setInstanceSwitching] = useState(false);
   const [instanceSwitchStatus, setInstanceSwitchStatus] = useState(null);
   const [showImport, setShowImport] = useState(false);
+
+  // Store import modal
+  const [showStoreImport, setShowStoreImport] = useState(false);
+  const [storeImportProducts, setStoreImportProducts] = useState([]);
+  const [storeImportLoading, setStoreImportLoading] = useState(false);
+  const [storeImportSearch, setStoreImportSearch] = useState('');
+  const [storeImportSelected, setStoreImportSelected] = useState(new Set());
+  const [storeImportPage, setStoreImportPage] = useState(1);
+  const [storeImportTotal, setStoreImportTotal] = useState(0);
 
   // Group animation
   const [groupConfig, setGroupConfig] = useState(null);
@@ -452,6 +662,7 @@ export default function AgentConfig() {
   // Product editing
   const [editingProduct, setEditingProduct] = useState(null);
   const [focusedDescIdx, setFocusedDescIdx] = useState(null);
+  const [productFormTab, setProductFormTab] = useState('info');
   const [selectedProducts, setSelectedProducts] = useState(new Set());
   const [mediaUploadingByProduct, setMediaUploadingByProduct] = useState({});
 
@@ -485,6 +696,7 @@ export default function AgentConfig() {
     agentName: 'Rita',
     agentRole: 'Vendeuse WhatsApp IA',
     language: 'fr',
+    personalityDescription: '',
     toneStyle: 'warm',
     useEmojis: true,
     signMessages: false,
@@ -741,6 +953,8 @@ export default function AgentConfig() {
 
   // ─── Save ───
   const handleSave = async () => {
+    setShowStoreImport(false);
+    setShowImport(false);
     if (config.enabled && !config.instanceId) {
       setSaveStatus('error');
       alert('❌ Sélectionnez une instance WhatsApp précise avant d\'activer Rita.');
@@ -975,6 +1189,72 @@ export default function AgentConfig() {
     }
   };
 
+  // ─── Store import helpers ───
+  const fetchStoreImportProducts = useCallback(async (search = '', page = 1) => {
+    setStoreImportLoading(true);
+    try {
+      const res = await ecomApi.get('/store-products', { params: { search, page, limit: 24 } });
+      const data = res.data?.data || res.data || {};
+      const products = Array.isArray(data) ? data : (data.products || data.items || []);
+      const total = data.total || data.totalCount || products.length;
+      setStoreImportProducts(products);
+      setStoreImportTotal(total);
+    } catch (e) {
+      setStoreImportProducts([]);
+      setStoreImportTotal(0);
+    } finally {
+      setStoreImportLoading(false);
+    }
+  }, []);
+
+  const openStoreImport = () => {
+    setShowStoreImport(true);
+    setStoreImportSearch('');
+    setStoreImportSelected(new Set());
+    setStoreImportPage(1);
+    fetchStoreImportProducts('', 1);
+  };
+
+  const stripHtml = (html) => {
+    if (!html) return '';
+    return html
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<\/p>/gi, '\n')
+      .replace(/<\/li>/gi, '\n')
+      .replace(/<[^>]+>/g, '')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+  };
+
+  const confirmStoreImport = () => {
+    const toAdd = storeImportProducts
+      .filter(p => storeImportSelected.has(p._id || p.id))
+      .map(p => ({
+        name: p.name || '',
+        price: p.price != null ? String(p.price) : '',
+        description: stripHtml(p.description),
+        category: p.category || '',
+        images: (p.images || []).map(img => (typeof img === 'string' ? img : (img.url || img.src || ''))).filter(Boolean),
+        videos: [],
+        features: Array.isArray(p.features) ? p.features.map(f => (typeof f === 'string' ? f : (f.text || f.value || ''))) : [],
+        faq: Array.isArray(p.faq) ? p.faq.map(f => ({ question: f.question || '', answer: f.answer || '' })) : [],
+        objections: [],
+        inStock: p.stock > 0 || p.inStock !== false,
+        quantityOffers: [],
+      }));
+    if (!toAdd.length) return;
+    setConfig(prev => ({ ...prev, productCatalog: [...(prev.productCatalog || []), ...toAdd] }));
+    setHasChanges(true);
+    setShowStoreImport(false);
+    setStoreImportSelected(new Set());
+  };
+
   // ─── Product helpers ───
   const addProduct = () => {
     const newP = { name: '', price: '', description: '', category: '', images: [], videos: [], features: [], faq: [], objections: [], inStock: true, quantityOffers: [] };
@@ -1104,6 +1384,54 @@ export default function AgentConfig() {
   const removeProductQuantityOffer = (productIndex, offerIndex) => {
     const offers = config.productCatalog?.[productIndex]?.quantityOffers || [];
     updateProduct(productIndex, 'quantityOffers', offers.filter((_, idx) => idx !== offerIndex));
+  };
+
+  // ─── Product multi-select ───
+  const toggleSelectProduct = (idx) => {
+    setSelectedProducts(prev => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx); else next.add(idx);
+      return next;
+    });
+  };
+  const toggleSelectAll = () => {
+    if (selectedProducts.size === config.productCatalog.length) setSelectedProducts(new Set());
+    else setSelectedProducts(new Set(config.productCatalog.map((_, i) => i)));
+  };
+  const deleteSelectedProducts = () => {
+    const remaining = config.productCatalog.filter((_, i) => !selectedProducts.has(i));
+    set('productCatalog', remaining);
+    setSelectedProducts(new Set());
+    setEditingProduct(null);
+  };
+
+  // ─── Product features/faq/objections helpers ───
+  const addProductFeature = (idx, val) => {
+    if (!val?.trim()) return;
+    updateProduct(idx, 'features', [...(config.productCatalog[idx]?.features || []), val.trim()]);
+  };
+  const removeProductFeature = (idx, fIdx) => {
+    updateProduct(idx, 'features', (config.productCatalog[idx]?.features || []).filter((_, i) => i !== fIdx));
+  };
+  const addProductFaq = (idx) => {
+    updateProduct(idx, 'faq', [...(config.productCatalog[idx]?.faq || []), { question: '', answer: '' }]);
+  };
+  const updateProductFaq = (idx, fIdx, field, val) => {
+    const updated = (config.productCatalog[idx]?.faq || []).map((f, i) => i === fIdx ? { ...f, [field]: val } : f);
+    updateProduct(idx, 'faq', updated);
+  };
+  const removeProductFaq = (idx, fIdx) => {
+    updateProduct(idx, 'faq', (config.productCatalog[idx]?.faq || []).filter((_, i) => i !== fIdx));
+  };
+  const addProductObjection = (idx) => {
+    updateProduct(idx, 'objections', [...(config.productCatalog[idx]?.objections || []), { objection: '', response: '' }]);
+  };
+  const updateProductObjection = (idx, oIdx, field, val) => {
+    const updated = (config.productCatalog[idx]?.objections || []).map((o, i) => i === oIdx ? { ...o, [field]: val } : o);
+    updateProduct(idx, 'objections', updated);
+  };
+  const removeProductObjection = (idx, oIdx) => {
+    updateProduct(idx, 'objections', (config.productCatalog[idx]?.objections || []).filter((_, i) => i !== oIdx));
   };
 
   // ─── Stock helpers ───
@@ -1501,472 +1829,380 @@ export default function AgentConfig() {
         {activeTab === 'identity' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Left column */}
-            <div className="lg:col-span-2 space-y-6">
-              {/* Identity card */}
-              <div className="bg-white rounded-2xl border border-gray-200 overflow-visible">
-                <div className="px-6 py-4 border-b border-gray-100">
-                  <h2 className="text-[15px] font-bold text-gray-900 flex items-center gap-2">
-                    <span className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center">
-                      <Bot className="w-4 h-4 text-emerald-600" />
-                    </span>
-                    Identité de l'Agent
-                  </h2>
-                </div>
-                <div className="p-6 space-y-4">
-                  <div className="rounded-xl border border-emerald-100 bg-emerald-50/60 p-4">
-                    <Toggle
-                      enabled={config.enabled}
-                      onChange={v => set('enabled', v)}
-                      label="Activer Rita sur cette instance"
-                      description="Active l'agent Rita et l'attache à l'instance WhatsApp choisie ci-dessous"
-                    />
+            <div className="lg:col-span-2 space-y-5">
+
+              {/* ── Hero Profile Card ── */}
+              <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+                {/* Header: avatar + name + toggle all in one clean row */}
+                <div className="px-5 py-4 flex items-center gap-4" style={{ background: 'linear-gradient(135deg, #0b3d2e 0%, #0f6b4f 60%, #1a9c70 100%)' }}>
+                  {/* Avatar */}
+                  <div
+                    className="w-12 h-12 rounded-xl flex-shrink-0 flex items-center justify-center text-[20px] font-black text-white select-none border-2 border-white/30"
+                    style={{ background: 'rgba(255,255,255,0.15)' }}
+                  >
+                    {(config.agentName || 'R').charAt(0).toUpperCase()}
                   </div>
+                  {/* Name + role subtitle */}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-white font-bold text-[15px] leading-tight truncate">
+                      {config.agentName || 'Nom de l\'agent'}
+                    </p>
+                    <p className="text-white/60 text-[12px] truncate">
+                      {config.agentRole || 'Rôle non défini'}
+                    </p>
+                  </div>
+                  {/* Activation toggle */}
+                  <button
+                    type="button"
+                    onClick={() => set('enabled', !config.enabled)}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-[12px] font-bold transition-all flex-shrink-0 ${
+                      config.enabled
+                        ? 'bg-white/20 text-white border border-white/30'
+                        : 'bg-black/20 text-white/60 border border-white/10'
+                    }`}
+                  >
+                    <span className={`w-1.5 h-1.5 rounded-full ${config.enabled ? 'bg-emerald-400' : 'bg-white/30'}`} />
+                    {config.enabled ? 'Actif' : 'Inactif'}
+                    <span className={`relative inline-flex h-4 w-7 items-center rounded-full transition-colors ${config.enabled ? 'bg-emerald-500' : 'bg-white/20'}`}>
+                      <span className={`inline-block h-3 w-3 transform rounded-full bg-white shadow transition-transform ${config.enabled ? 'translate-x-3.5' : 'translate-x-0.5'}`} />
+                    </span>
+                  </button>
+                </div>
+
+                {/* Fields */}
+                <div className="p-5 space-y-4">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <Field label="Nom de l'agent" required>
-                      <input value={config.agentName} onChange={e => set('agentName', e.target.value)}
-                        placeholder="Rita" className="ac-input" />
+                      <ModalInput
+                        value={config.agentName}
+                        onChange={e => set('agentName', e.target.value)}
+                        placeholder="Rita"
+                        label="Nom de l'agent"
+                        className="ac-input"
+                      />
                     </Field>
-                    <Field label="Rôle de l'agent">
-                      <input value={config.agentRole} onChange={e => set('agentRole', e.target.value)}
-                        placeholder="Vendeuse WhatsApp IA" className="ac-input" />
+                    <Field label="Rôle">
+                      <ModalInput
+                        value={config.agentRole}
+                        onChange={e => set('agentRole', e.target.value)}
+                        placeholder="Vendeuse WhatsApp IA"
+                        label="Rôle"
+                        className="ac-input"
+                      />
                     </Field>
                   </div>
                   <Field label="Langue principale">
                     <SelectDropdown value={config.language} onChange={v => set('language', v)} options={LANGUAGE_OPTIONS} />
                   </Field>
-                  <Field label="Instance WhatsApp Rita" hint="obligatoire pour l'activation">
-                    {instanceOptions.length === 0 ? (
-                      <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 py-3 text-[12px] text-gray-500 space-y-2">
-                        <p>{instanceError ? `Erreur: ${instanceError}` : 'Aucune instance WhatsApp disponible. Créez ou connectez une instance avant d\'activer Rita.'}</p>
-                        <button type="button" onClick={loadInstances} className="text-emerald-600 hover:text-emerald-700 font-semibold underline">
-                          Recharger les instances
-                        </button>
+                </div>
+              </div>
+
+              {/* ── WhatsApp Instance ── */}
+              <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+                <div className="px-5 py-3.5 border-b border-gray-100 flex items-center justify-between">
+                  <span className="text-[13px] font-bold text-gray-900 flex items-center gap-2.5">
+                    <span className="w-7 h-7 rounded-lg bg-emerald-50 flex items-center justify-center">
+                      <svg className="w-4 h-4 text-emerald-600" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/>
+                      </svg>
+                    </span>
+                    WhatsApp
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-[11px] font-semibold ${config.enabled ? 'text-emerald-600' : 'text-gray-400'}`}>
+                      {config.enabled ? 'Agent actif' : 'Agent inactif'}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="p-4">
+                  {instances.length === 0 ? (
+                    <div className="flex flex-col items-center py-6 gap-2">
+                      <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center mb-1">
+                        <svg className="w-6 h-6 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                        </svg>
                       </div>
-                    ) : config.instanceId && instanceOptions.length === 1 ? (
-                      /* Une seule instance — affichage direct, pas de dropdown */
-                      <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-[13px]">
-                        <span className="w-2 h-2 rounded-full bg-emerald-400 flex-shrink-0" />
-                        <span className="font-semibold text-emerald-800">
+                      <p className="text-[13px] font-semibold text-gray-600">{instanceError || 'Aucune instance connectée'}</p>
+                      <p className="text-[12px] text-gray-400 text-center max-w-[260px]">
+                        Connectez un numéro WhatsApp dans l'onglet <strong>Service WhatsApp</strong> pour activer l'agent.
+                      </p>
+                      <button type="button" onClick={loadInstances} className="mt-2 text-[12px] font-bold text-emerald-600 hover:text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-4 py-1.5 rounded-full transition-colors">
+                        ↻ Recharger
+                      </button>
+                    </div>
+                  ) : instances.length === 1 ? (
+                    <div className="flex items-center gap-3 px-1">
+                      <div className={`w-3 h-3 rounded-full flex-shrink-0 ring-4 ${selectedInstance?.status === 'open' ? 'bg-emerald-400 ring-emerald-100' : 'bg-gray-300 ring-gray-100'}`} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[14px] font-bold text-gray-800 truncate">
                           {selectedInstance?.customName || selectedInstance?.instanceName || 'Instance WhatsApp'}
-                        </span>
-                        <span className="ml-auto text-[11px] text-emerald-600">Connectée ✓</span>
+                        </p>
+                        <p className="text-[11px] text-gray-400">{selectedInstance?.status === 'open' ? '● Connectée et prête' : '○ Hors ligne'}</p>
                       </div>
-                    ) : (
-                      /* Plusieurs instances — dropdown pour choisir */
-                      <SelectDropdown
-                        value={config.instanceId}
-                        onChange={handleInstanceChange}
-                        options={instanceOptions}
-                        placeholder="Choisir l'instance utilisée par Rita"
-                      />
-                    )}
-                  </Field>
-                  {config.enabled && instanceSwitching && (
-                    <div className="text-[12px] text-blue-600">Changement d'instance Rita en cours...</div>
-                  )}
-                  {config.enabled && instanceSwitchStatus === 'success' && (
-                    <div className="text-[12px] text-emerald-600">Instance Rita changée avec succès.</div>
-                  )}
-                  {config.enabled && instanceSwitchStatus === 'error' && (
-                    <div className="text-[12px] text-red-600">Impossible de changer l'instance Rita maintenant.</div>
-                  )}
-                </div>
-              </div>
-
-              {/* Gestion des langues */}
-              <div className="relative z-20 bg-white rounded-2xl border border-gray-200 overflow-visible">
-                <div className="px-6 py-4 border-b border-gray-100">
-                  <h2 className="text-[15px] font-bold text-gray-900 flex items-center gap-2">
-                    <span className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center">
-                      <Globe2 className="w-4 h-4 text-blue-600" />
-                    </span>
-                    Gestion des Langues
-                  </h2>
-                  <p className="text-[12px] text-gray-400 mt-1">Rita détecte automatiquement la langue du client et s'adapte</p>
-                </div>
-                <div className="p-6 space-y-3">
-                  <Toggle enabled={config.autoLanguageDetection} onChange={v => set('autoLanguageDetection', v)}
-                    label="Détection automatique de langue"
-                    description="Rita répond dans la langue du client (jamais de mélange)" />
-                  <div className="bg-gray-50 rounded-xl p-4 space-y-2">
-                    <p className="text-[11px] font-bold text-gray-600 uppercase tracking-wider">Règles linguistiques</p>
-                    {[
-                      { emoji: '🇫🇷', rule: 'Client parle français → Réponse 100% français' },
-                      { emoji: '🇬🇧', rule: 'Client parle anglais → Réponse 100% anglais' },
-                      { emoji: '🚫', rule: 'Ne jamais mélanger les langues dans une réponse' },
-                      { emoji: '🔀', rule: 'Si le client mélange → Choisir la langue dominante' },
-                    ].map((r, i) => (
-                      <div key={i} className="flex items-center gap-2 text-[12px] text-gray-500">
-                        <span>{r.emoji}</span>
-                        <span>{r.rule}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* Automated messages card */}
-              <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-                <div className="px-6 py-4 border-b border-gray-100">
-                  <h2 className="text-[15px] font-bold text-gray-900 flex items-center gap-2">
-                    <span className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center">
-                      <Sparkles className="w-4 h-4 text-emerald-600" />
-                    </span>
-                    Messages Automatisés
-                  </h2>
-                </div>
-                <div className="p-6 space-y-5">
-                  <div>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Message de bienvenue</label>
-                      <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full uppercase tracking-wider">Actif</span>
+                      <span className={`flex-shrink-0 text-[11px] font-bold px-2.5 py-1 rounded-full ${selectedInstance?.status === 'open' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>
+                        {selectedInstance?.status === 'open' ? '✓ Prête' : 'Déconnectée'}
+                      </span>
                     </div>
-                    <textarea value={config.welcomeMessage} onChange={e => set('welcomeMessage', e.target.value)} rows={3}
-                      placeholder="Bonjour ! Je suis Sarah, votre assistante virtuelle..."
-                      className="ac-textarea" />
-                  </div>
-                  <div>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Message de transfert humain</label>
-                      <span className="text-[10px] font-medium text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full uppercase tracking-wider">Optionnel</span>
-                    </div>
-                    <textarea value={config.fallbackMessage} onChange={e => set('fallbackMessage', e.target.value)} rows={2}
-                      placeholder="Je transmets votre demande à l'un de nos conseillers..."
-                      className="ac-textarea" />
-                  </div>
-                </div>
-              </div>
-
-              {/* Personnalité */}
-              <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-                <div className="px-6 py-4 border-b border-gray-100">
-                  <h2 className="text-[15px] font-bold text-gray-900 flex items-center gap-2">
-                    <span className="w-8 h-8 rounded-lg bg-purple-50 flex items-center justify-center">
-                      <MessageCircle className="w-4 h-4 text-purple-600" />
-                    </span>
-                    Personnalité de Rita
-                  </h2>
-                  <p className="text-[12px] text-gray-400 mt-1">Définissez sa présence, sa façon de parler et ce qu'elle doit éviter.</p>
-                </div>
-                <div className="p-6 space-y-4">
-                  <Field label="Description de personnalité">
-                    <textarea
-                      value={config.personality?.description || ''}
-                      onChange={e => set('personality', { ...(config.personality || {}), description: e.target.value })}
-                      rows={3}
-                      placeholder="Ex: vendeuse professionnelle, chaleureuse, rapide, très humaine, basée au Cameroun"
-                      className="ac-textarea"
-                    />
-                  </Field>
-                  <Field label="Lignes de ton">
-                    <textarea
-                      value={config.personality?.tonalGuidelines || ''}
-                      onChange={e => set('personality', { ...(config.personality || {}), tonalGuidelines: e.target.value })}
-                      rows={3}
-                      placeholder="Ex: phrases courtes, ton rassurant, orientée résultat, jamais robotique"
-                      className="ac-textarea"
-                    />
-                  </Field>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <Field label="Expressions à utiliser" hint="une par ligne">
-                      <textarea
-                        value={(config.personality?.mannerisms || []).join('\n')}
-                        onChange={e => set('personality', {
-                          ...(config.personality || {}),
-                          mannerisms: e.target.value.split('\n').map(v => v.trim()).filter(Boolean),
-                        })}
-                        rows={4}
-                        placeholder="Ex: D'accord\nJe vous explique\nOn peut faire comme ceci"
-                        className="ac-textarea"
-                      />
-                    </Field>
-                    <Field label="Phrases interdites" hint="une par ligne">
-                      <textarea
-                        value={(config.personality?.forbiddenPhrases || []).join('\n')}
-                        onChange={e => set('personality', {
-                          ...(config.personality || {}),
-                          forbiddenPhrases: e.target.value.split('\n').map(v => v.trim()).filter(Boolean),
-                        })}
-                        rows={4}
-                        placeholder="Ex: Veuillez patienter\nQuel produit ?\nJe suis une IA"
-                        className="ac-textarea"
-                      />
-                    </Field>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Right column */}
-            <div className="space-y-6">
-              {/* Parameters card */}
-              <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-                <div className="px-5 py-4 border-b border-gray-100">
-                  <h2 className="text-[15px] font-bold text-gray-900 flex items-center gap-2">
-                    <span className="text-base">⚙️</span>
-                    Paramètres
-                  </h2>
-                </div>
-                <div className="p-5 space-y-5">
-                  {/* Tone selector */}
-                  <div>
-                    <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider block mb-2">Ton de la voix</label>
-                    <div className="space-y-1.5">
-                      {TONE_OPTIONS.map(t => (
-                        <button key={t.value} onClick={() => set('toneStyle', t.value)} type="button"
-                          className={`w-full text-left px-3 py-2.5 text-[12px] rounded-lg border transition-all ${
-                            config.toneStyle === t.value
-                              ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
-                              : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300'
-                          }`}>
-                          <span className="font-semibold">{t.label}</span>
-                          <span className="text-[10px] text-gray-400 ml-1.5">{t.desc}</span>
+                  ) : (
+                    <div className="space-y-2">
+                      <p className="text-[11px] text-gray-400 mb-2 font-semibold uppercase tracking-wider">Choisir l'instance active</p>
+                      {instances.map(inst => (
+                        <button
+                          key={inst._id}
+                          type="button"
+                          onClick={() => handleInstanceChange(inst._id)}
+                          className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition-all ${
+                            config.instanceId === inst._id
+                              ? 'border-emerald-400 bg-emerald-50 shadow-sm'
+                              : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                          }`}
+                        >
+                          <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${inst.status === 'open' ? 'bg-emerald-400' : 'bg-gray-300'}`} />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[13px] font-semibold text-gray-800 truncate">
+                              {inst.customName || inst.instanceName || 'Instance WhatsApp'}
+                            </p>
+                            <p className="text-[11px] text-gray-400">{inst.status === 'open' ? 'Connectée' : 'Déconnectée'}</p>
+                          </div>
+                          {config.instanceId === inst._id && (
+                            <span className="text-[11px] font-bold text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full flex-shrink-0">✓ Sélectionnée</span>
+                          )}
                         </button>
                       ))}
                     </div>
-                  </div>
-
-                  {/* Response delay slider */}
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Délai de réponse (sec)</label>
-                      <span className="text-[13px] font-bold text-gray-700">{config.responseDelay}s</span>
-                    </div>
-                    <input type="range" min="0" max="15" value={config.responseDelay}
-                      onChange={e => set('responseDelay', parseInt(e.target.value))}
-                      className="w-full h-2 bg-gray-200 rounded-full appearance-none cursor-pointer accent-emerald-600"
-                      style={{ accentColor: ACCENT }} />
-                  </div>
-
-                  {/* Toggle: Emojis */}
-                  <Toggle enabled={config.useEmojis} onChange={v => set('useEmojis', v)}
-                    label="Utiliser des Emojis"
-                    description="Ajoute des caractères aux réponses" />
-
-                  {/* Toggle: AI Signature */}
-                  <Toggle enabled={config.signMessages} onChange={v => set('signMessages', v)}
-                    label="Signature IA"
-                    description="Mentionner qu'il s'agit d'une IA" />
+                  )}
+                  {instanceSwitching && <p className="mt-3 text-[12px] text-blue-600 text-center">Changement en cours…</p>}
+                  {instanceSwitchStatus === 'success' && <p className="mt-3 text-[12px] text-emerald-600 text-center">Instance changée ✓</p>}
+                  {instanceSwitchStatus === 'error' && <p className="mt-3 text-[12px] text-red-500 text-center">Impossible de changer l'instance.</p>}
                 </div>
               </div>
 
-              {/* Voix */}
+              {/* ── Personnalité + Messages — 2 champs essentiels ── */}
               <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-                <div className="px-5 py-4 border-b border-gray-100">
-                  <h2 className="text-[15px] font-bold text-gray-900 flex items-center gap-2">
-                    <span className="text-base">🎙️</span>
-                    Voix
-                  </h2>
-                </div>
-                <div className="p-5 space-y-4">
+                <div className="px-5 py-3.5 border-b border-gray-100 flex items-center gap-2">
+                  <span className="w-7 h-7 rounded-lg bg-purple-50 flex items-center justify-center flex-shrink-0">
+                    <MessageCircle className="w-4 h-4 text-purple-600" />
+                  </span>
                   <div>
-                    <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-2">Mode de réponse</p>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                      {[
-                        { value: 'text',  icon: '💬',    label: 'Texte',  desc: 'Messages écrits uniquement' },
-                        { value: 'voice', icon: '🎙️',   label: 'Vocal',  desc: 'Notes audio uniquement' },
-                        { value: 'both',  icon: '💬🎙️', label: 'Mixte',  desc: 'Vocal pour les longues réponses' },
-                      ].map(m => {
-                        const isActive = (config.responseMode || 'text') === m.value;
+                    <h2 className="text-[14px] font-bold text-gray-900">Personnalité &amp; Messages</h2>
+                    <p className="text-[11px] text-gray-400">Cliquez sur un champ pour l'éditer.</p>
+                  </div>
+                </div>
+                <div className="p-4 space-y-2">
+                  <AccordionField
+                    icon="📝"
+                    label="Description de l'agent"
+                    value={config.personalityDescription || ''}
+                    onChange={e => set('personalityDescription', e.target.value)}
+                    placeholder={"Vendeuse professionnelle, chaleureuse, très humaine.\nElle ne se présente jamais comme une IA.\nElle parle avec naturel, comme une vraie personne de confiance.\nElle utilise le prénom du client quand elle le connaît."}
+                    rows={8}
+                  />
+                  <AccordionField
+                    icon="👋"
+                    label="Message de bienvenue"
+                    badge="Premier message"
+                    badgeColor="emerald"
+                    value={config.welcomeMessage}
+                    onChange={e => set('welcomeMessage', e.target.value)}
+                    placeholder={"Bonjour ! Je suis Rita, votre assistante.\nComment puis-je vous aider aujourd'hui ? 😊"}
+                    rows={5}
+                  />
+                </div>
+              </div>
+
+            </div>
+
+            {/* ── Right column ── */}
+            <div className="space-y-4">
+
+              {/* ── Comportement ── */}
+              <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+                <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-2">
+                  <span className="w-6 h-6 rounded-md bg-gray-100 flex items-center justify-center text-[13px]">⚙️</span>
+                  <h2 className="text-[13px] font-bold text-gray-900">Comportement</h2>
+                </div>
+                <div className="p-4 space-y-4">
+
+                  {/* Ton — grille compacte 2+3 */}
+                  <div>
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Ton</p>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {TONE_OPTIONS.map(t => {
+                        const active = config.toneStyle === t.value;
                         return (
-                          <button
-                            key={m.value}
-                            type="button"
-                            onClick={() => set('responseMode', m.value)}
-                            className={`flex flex-col items-center gap-1 rounded-xl border px-2 py-3 text-center transition-all ${
-                              isActive
-                                ? 'border-emerald-400 bg-emerald-50 ring-1 ring-emerald-300'
-                                : 'border-gray-200 bg-gray-50 hover:border-emerald-200 hover:bg-emerald-50/40'
-                            }`}
-                          >
-                            <span className="text-xl">{m.icon}</span>
-                            <span className={`text-[12px] font-bold ${isActive ? 'text-emerald-700' : 'text-gray-700'}`}>{m.label}</span>
-                            <span className="text-[10px] text-gray-400 leading-tight">{m.desc}</span>
+                          <button key={t.value} type="button" onClick={() => set('toneStyle', t.value)}
+                            className={`text-left px-2.5 py-2 rounded-lg border text-[11px] transition-all leading-tight ${
+                              active
+                                ? 'border-emerald-400 bg-emerald-50 text-emerald-800 font-semibold'
+                                : 'border-gray-200 text-gray-500 hover:border-gray-300 hover:bg-gray-50'
+                            }`}>
+                            {t.label}
                           </button>
                         );
                       })}
                     </div>
                   </div>
 
-                  {config.responseMode !== 'text' && (
-                    <>
-                      <Field label="Fournisseur voix">
-                        <SelectDropdown
-                          value={config.ttsProvider || 'elevenlabs'}
-                          onChange={v => set('ttsProvider', v)}
-                          options={TTS_PROVIDER_OPTIONS}
-                        />
-                      </Field>
+                  {/* Délai de réponse */}
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Délai de réponse</p>
+                      <span className="text-[13px] font-bold text-emerald-700 tabular-nums">{config.responseDelay}s</span>
+                    </div>
+                    <div className="relative">
+                      <input type="range" min="0" max="15" value={config.responseDelay}
+                        onChange={e => set('responseDelay', parseInt(e.target.value))}
+                        className="w-full h-1.5 rounded-full appearance-none cursor-pointer"
+                        style={{ accentColor: ACCENT }} />
+                      <div className="flex justify-between mt-1">
+                        <span className="text-[9px] text-gray-300">0s</span>
+                        <span className="text-[9px] text-gray-300">15s</span>
+                      </div>
+                    </div>
+                  </div>
 
+                  {/* Toggles compacts */}
+                  <div className="space-y-0 divide-y divide-gray-100 border border-gray-100 rounded-xl overflow-hidden">
+                    {[
+                      { key: 'useEmojis', emoji: '😊', label: 'Emojis dans les réponses' },
+                      { key: 'signMessages', emoji: '🤖', label: 'Mentionner que c\'est une IA' },
+                    ].map(({ key, emoji, label }) => (
+                      <div key={key} className="flex items-center justify-between px-3 py-2.5 bg-white">
+                        <span className="text-[12px] text-gray-600 flex items-center gap-2">
+                          <span>{emoji}</span>{label}
+                        </span>
+                        <button type="button" onClick={() => set(key, !config[key])}
+                          className={`relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors ${config[key] ? 'bg-emerald-500' : 'bg-gray-200'}`}>
+                          <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${config[key] ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* ── Voix ── */}
+              <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+                <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-2">
+                  <span className="w-6 h-6 rounded-md bg-purple-50 flex items-center justify-center text-[13px]">🎙️</span>
+                  <h2 className="text-[13px] font-bold text-gray-900">Voix</h2>
+                </div>
+                <div className="p-4 space-y-4">
+                  {/* Mode selector — 3 pills */}
+                  <div className="grid grid-cols-3 gap-1.5 bg-gray-100 p-1 rounded-xl">
+                    {[
+                      { value: 'text', icon: '💬', label: 'Texte' },
+                      { value: 'voice', icon: '🎙️', label: 'Vocal' },
+                      { value: 'both', icon: '⚡', label: 'Mixte' },
+                    ].map(m => {
+                      const isActive = (config.responseMode || 'text') === m.value;
+                      return (
+                        <button key={m.value} type="button" onClick={() => set('responseMode', m.value)}
+                          className={`flex flex-col items-center gap-0.5 py-2 rounded-lg text-[11px] font-semibold transition-all ${
+                            isActive ? 'bg-white shadow-sm text-emerald-700' : 'text-gray-400 hover:text-gray-600'
+                          }`}>
+                          <span className="text-base leading-none">{m.icon}</span>
+                          {m.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {config.responseMode !== 'text' && (
+                    <div className="space-y-3">
+                      {/* Provider pills */}
+                      <div className="flex gap-2">
+                        {TTS_PROVIDER_OPTIONS.map(p => (
+                          <button key={p.value} type="button" onClick={() => set('ttsProvider', p.value)}
+                            className={`flex-1 py-1.5 rounded-lg text-[11px] font-bold border transition-all ${
+                              (config.ttsProvider || 'elevenlabs') === p.value
+                                ? 'border-emerald-400 bg-emerald-50 text-emerald-700'
+                                : 'border-gray-200 text-gray-500 hover:border-gray-300'
+                            }`}>
+                            {p.label}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Voix disponibles */}
+                      <div className="space-y-1.5">
+                        {(config.ttsProvider === 'fishaudio' ? FISH_AUDIO_VOICES : ELEVENLABS_VOICES).map(voice => {
+                          const isEL = config.ttsProvider !== 'fishaudio';
+                          const isSelected = isEL ? config.elevenlabsVoiceId === voice.id : config.fishAudioReferenceId === voice.id;
+                          const isPlaying = playingVoiceId === voice.id;
+                          return (
+                            <div key={voice.id}
+                              onClick={() => set(isEL ? 'elevenlabsVoiceId' : 'fishAudioReferenceId', voice.id)}
+                              className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl border cursor-pointer transition-all ${
+                                isSelected
+                                  ? 'border-emerald-400 bg-emerald-50'
+                                  : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                              }`}>
+                              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[13px] flex-shrink-0 ${isSelected ? 'bg-emerald-100' : 'bg-gray-100'}`}>
+                                {voice.gender}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-[12px] font-bold text-gray-800">{voice.name}</p>
+                                <p className="text-[10px] text-gray-400 truncate">{voice.desc}</p>
+                              </div>
+                              <button type="button"
+                                onClick={e => { e.stopPropagation(); isEL ? previewElevenLabsVoice(voice.id) : previewVoice(voice.id); }}
+                                className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 transition-all ${
+                                  isPlaying ? 'bg-emerald-500 text-white' : 'bg-gray-100 text-gray-500 hover:bg-emerald-100 hover:text-emerald-600'
+                                }`}>
+                                {isPlaying
+                                  ? <span className="text-[8px] font-bold">■</span>
+                                  : <span className="text-[8px] font-bold ml-0.5">▶</span>}
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Mixte slider */}
                       {config.responseMode === 'both' && (
                         <div>
-                          <div className="flex items-center justify-between mb-2">
-                            <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Chance de réponse vocale</label>
-                            <span className="text-[13px] font-bold text-gray-700">{config.mixedVoiceReplyChance || 0}%</span>
+                          <div className="flex justify-between mb-1">
+                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Fréquence vocale</p>
+                            <span className="text-[11px] font-bold text-emerald-700">{config.mixedVoiceReplyChance || 0}%</span>
                           </div>
-                          <input
-                            type="range"
-                            min="0"
-                            max="100"
-                            value={config.mixedVoiceReplyChance || 0}
+                          <input type="range" min="0" max="100" value={config.mixedVoiceReplyChance || 0}
                             onChange={e => set('mixedVoiceReplyChance', parseInt(e.target.value) || 0)}
-                            className="w-full h-2 bg-gray-200 rounded-full appearance-none cursor-pointer accent-emerald-600"
-                            style={{ accentColor: ACCENT }}
-                          />
+                            className="w-full h-1.5 rounded-full appearance-none cursor-pointer"
+                            style={{ accentColor: ACCENT }} />
                         </div>
                       )}
-
-                      {config.ttsProvider === 'elevenlabs' ? (
-                        <>
-                          <Field label="Voix réaliste">
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2">
-                              {ELEVENLABS_VOICES.map(voice => {
-                                const isSelected = config.elevenlabsVoiceId === voice.id;
-                                const isPlaying = playingVoiceId === voice.id;
-                                const isLoadingPreview = isPlaying && !currentAudioRef.current;
-                                return (
-                                  <div
-                                    key={voice.id}
-                                    onClick={() => set('elevenlabsVoiceId', voice.id)}
-                                    className={`relative flex items-start gap-2 rounded-xl border px-3 py-2 cursor-pointer transition-all ${
-                                      isSelected
-                                        ? 'border-emerald-400 bg-emerald-50 ring-1 ring-emerald-300'
-                                        : 'border-gray-200 bg-gray-50 hover:border-emerald-200 hover:bg-emerald-50/40'
-                                    }`}
-                                  >
-                                    <span className="text-base mt-0.5">🎙️</span>
-                                    <div className="min-w-0 flex-1">
-                                      <p className="text-[12px] font-semibold text-gray-800 leading-tight">{voice.name} <span className="font-normal text-gray-400">{voice.gender}</span></p>
-                                      <p className="text-[10px] text-gray-500 truncate">{voice.desc}</p>
-                                      <p className="text-[10px] font-mono text-gray-400">{voice.lang}</p>
-                                    </div>
-                                    <button
-                                      type="button"
-                                      onClick={e => { e.stopPropagation(); previewElevenLabsVoice(voice.id); }}
-                                      title={isPlaying ? 'Arrêter' : 'Écouter un extrait'}
-                                      className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center transition-all ${
-                                        isPlaying
-                                          ? 'bg-emerald-500 text-white animate-pulse'
-                                          : 'bg-gray-200 text-gray-500 hover:bg-emerald-100 hover:text-emerald-600'
-                                      }`}
-                                    >
-                                      {isLoadingPreview ? (
-                                        <span className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin" />
-                                      ) : isPlaying ? (
-                                        <span className="text-[8px] font-bold">■</span>
-                                      ) : (
-                                        <span className="text-[8px] font-bold ml-0.5">▶</span>
-                                      )}
-                                    </button>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                            <div className="mt-1">
-                              <p className="text-[10px] text-gray-400 mb-1">Ou saisissez un Voice ID custom :</p>
-                              <input
-                                value={config.elevenlabsVoiceId || ''}
-                                onChange={e => set('elevenlabsVoiceId', e.target.value)}
-                                placeholder="cgSgspJ2msm6clMCkdW9"
-                                className="ac-input font-mono text-[11px]"
-                              />
-                            </div>
-                          </Field>
-                          <Field label="Modèle ElevenLabs">
-                            <input
-                              value={config.elevenlabsModel || ''}
-                              onChange={e => set('elevenlabsModel', e.target.value)}
-                              placeholder="eleven_v3"
-                              className="ac-input"
-                            />
-                          </Field>
-                        </>
-                      ) : (
-                        <>
-                          <Field label="Voix ultra réaliste">
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2">
-                              {FISH_AUDIO_VOICES.map(voice => {
-                                const isSelected = config.fishAudioReferenceId === voice.id;
-                                const isPlaying = playingVoiceId === voice.id;
-                                const isLoadingPreview = isPlaying && !currentAudioRef.current;
-                                return (
-                                  <div
-                                    key={voice.id}
-                                    onClick={() => set('fishAudioReferenceId', voice.id)}
-                                    className={`relative flex items-start gap-2 rounded-xl border px-3 py-2 cursor-pointer transition-all ${
-                                      isSelected
-                                        ? 'border-emerald-400 bg-emerald-50 ring-1 ring-emerald-300'
-                                        : 'border-gray-200 bg-gray-50 hover:border-emerald-200 hover:bg-emerald-50/40'
-                                    }`}
-                                  >
-                                    <span className="text-base mt-0.5">🎙️</span>
-                                    <div className="min-w-0 flex-1">
-                                      <p className="text-[12px] font-semibold text-gray-800 leading-tight">{voice.name} <span className="font-normal text-gray-400">{voice.gender}</span></p>
-                                      <p className="text-[10px] text-gray-500 truncate">{voice.desc}</p>
-                                      <p className="text-[10px] font-mono text-gray-400">{voice.lang}</p>
-                                    </div>
-                                    <button
-                                      type="button"
-                                      onClick={e => { e.stopPropagation(); previewVoice(voice.id); }}
-                                      title={isPlaying ? 'Arrêter' : 'Écouter un extrait'}
-                                      className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center transition-all ${
-                                        isPlaying
-                                          ? 'bg-emerald-500 text-white animate-pulse'
-                                          : 'bg-gray-200 text-gray-500 hover:bg-emerald-100 hover:text-emerald-600'
-                                      }`}
-                                    >
-                                      {isLoadingPreview ? (
-                                        <span className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin" />
-                                      ) : isPlaying ? (
-                                        <span className="text-[8px] font-bold">■</span>
-                                      ) : (
-                                        <span className="text-[8px] font-bold ml-0.5">▶</span>
-                                      )}
-                                    </button>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                            <div className="mt-1">
-                              <p className="text-[10px] text-gray-400 mb-1">Ou saisissez un ID custom :</p>
-                              <input
-                                value={config.fishAudioReferenceId || ''}
-                                onChange={e => set('fishAudioReferenceId', e.target.value)}
-                                placeholder="Reference voice id"
-                                className="ac-input font-mono text-[11px]"
-                              />
-                            </div>
-                          </Field>
-                          <Field label="Modèle Fish Audio">
-                            <input
-                              value={config.fishAudioModel || ''}
-                              onChange={e => set('fishAudioModel', e.target.value)}
-                              placeholder="s2-pro"
-                              className="ac-input"
-                            />
-                          </Field>
-                        </>
-                      )}
-                    </>
+                    </div>
                   )}
                 </div>
               </div>
 
-              {/* Chat preview card */}
-              <div className="rounded-2xl overflow-hidden" style={{ background: 'linear-gradient(135deg, #0f4f3a, #1a7a5a)' }}>
-                <div className="px-5 py-3.5">
-                  <h3 className="text-[13px] font-bold text-white/90 flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                    APERÇU DU CHAT
-                  </h3>
+              {/* ── Chat preview ── */}
+              <div className="rounded-2xl overflow-hidden border border-emerald-900/20" style={{ background: 'linear-gradient(160deg, #0a3528 0%, #0f5c42 50%, #147a58 100%)' }}>
+                {/* Header */}
+                <div className="px-4 py-3 flex items-center gap-2.5 border-b border-white/10">
+                  <div className="w-8 h-8 rounded-full bg-emerald-400/20 flex items-center justify-center text-[13px] font-black text-white">
+                    {(config.agentName || 'R').charAt(0)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[12px] font-bold text-white leading-none">{config.agentName || 'Rita'}</p>
+                    <div className="flex items-center gap-1 mt-0.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                      <span className="text-[10px] text-white/50">En ligne</span>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-bold text-white/40 uppercase tracking-wider">Aperçu</span>
                 </div>
-                <div className="px-4 pb-2 max-h-[280px] overflow-y-auto space-y-2.5" style={{ scrollbarWidth: 'none' }}>
+
+                {/* Messages */}
+                <div className="px-3 py-3 max-h-[240px] overflow-y-auto space-y-2" style={{ scrollbarWidth: 'none' }}>
                   {simMessages.map((msg, i) => (
                     <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                      <div className={`max-w-[85%] px-3.5 py-2.5 rounded-2xl text-[12.5px] leading-relaxed ${
+                      <div className={`max-w-[84%] px-3 py-2 rounded-2xl text-[12px] leading-relaxed ${
                         msg.role === 'user'
-                          ? 'bg-emerald-500 text-white rounded-br-md'
-                          : 'bg-white/15 text-white/90 rounded-bl-md'
+                          ? 'bg-emerald-500 text-white rounded-br-sm'
+                          : 'bg-white/12 text-white/90 rounded-bl-sm'
                       }`}>
                         {msg.text}
                       </div>
@@ -1974,31 +2210,37 @@ export default function AgentConfig() {
                   ))}
                   {simTyping && (
                     <div className="flex justify-start">
-                      <div className="bg-white/15 text-white/60 px-4 py-2.5 rounded-2xl rounded-bl-md text-[12px]">
-                        <span className="animate-pulse">● ● ●</span>
+                      <div className="bg-white/12 px-3.5 py-2.5 rounded-2xl rounded-bl-sm flex gap-1 items-center">
+                        {[0, 1, 2].map(d => (
+                          <span key={d} className="w-1.5 h-1.5 rounded-full bg-white/50"
+                            style={{ animation: `pulse 1.2s ease-in-out ${d * 0.2}s infinite` }} />
+                        ))}
                       </div>
                     </div>
                   )}
                   <div ref={simEndRef} />
                 </div>
-                {/* Chat input */}
-                <div className="px-4 pb-4 pt-2">
-                  <div className="flex gap-2">
+
+                {/* Input */}
+                <div className="px-3 pb-3 pt-1">
+                  <div className="flex gap-2 bg-white/10 rounded-xl px-3 py-1.5">
                     <input value={simInput} onChange={e => setSimInput(e.target.value)}
                       onKeyDown={e => e.key === 'Enter' && handleSimSend()}
-                      placeholder="Tester une question..."
-                      className="flex-1 px-3 py-2 text-[12px] bg-white/10 text-white placeholder-white/40 border border-white/15 rounded-xl outline-none focus:border-white/30" />
+                      placeholder="Testez une question…"
+                      className="flex-1 bg-transparent text-[12px] text-white placeholder-white/30 outline-none" />
                     <button onClick={handleSimSend} disabled={simTyping}
-                      className="w-9 h-9 flex items-center justify-center bg-white/15 hover:bg-white/25 rounded-xl transition-colors disabled:opacity-40">
-                      <Send className="w-3.5 h-3.5 text-white" />
+                      className="w-7 h-7 flex items-center justify-center bg-emerald-500 hover:bg-emerald-400 rounded-lg transition-colors disabled:opacity-40 flex-shrink-0">
+                      <Send className="w-3 h-3 text-white" />
                     </button>
                   </div>
                 </div>
+
                 <button onClick={() => navigate('/ecom/whatsapp/service?tab=rita')}
-                  className="w-full py-3 text-[11px] font-bold text-white/70 hover:text-white uppercase tracking-wider border-t border-white/10 transition-colors">
-                  Tester l'Agent →
+                  className="w-full py-2.5 text-[11px] font-bold text-white/50 hover:text-white/80 tracking-wider border-t border-white/10 transition-colors">
+                  Ouvrir le vrai chat →
                 </button>
               </div>
+
             </div>
           </div>
         )}
@@ -2010,123 +2252,214 @@ export default function AgentConfig() {
 
               {/* 3 Modes de fonctionnement */}
               <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-                <div className="px-6 py-4 border-b border-gray-100">
-                  <h2 className="text-[15px] font-bold text-gray-900 flex items-center gap-2">
-                    <span className="w-8 h-8 rounded-lg bg-purple-50 flex items-center justify-center">
-                      <Zap className="w-4 h-4 text-purple-600" />
+                <div className="px-6 pt-5 pb-4">
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <span className="w-7 h-7 rounded-lg bg-violet-50 flex items-center justify-center">
+                      <Zap className="w-3.5 h-3.5 text-violet-500" />
                     </span>
-                    3 Modes de Fonctionnement
-                  </h2>
-                  <p className="text-[12px] text-gray-400 mt-1">Rita fonctionne avec 3 modes distincts selon l'interlocuteur</p>
+                    <h2 className="text-[14px] font-bold text-gray-900">3 Modes de Fonctionnement</h2>
+                  </div>
+                  <p className="text-[11.5px] text-gray-400 ml-9">Rita adapte sa personnalité selon l'interlocuteur</p>
                 </div>
-                <div className="p-6 space-y-3">
-                  {MODES_CONFIG.map(mode => (
-                    <div key={mode.id}
-                      className={`flex flex-col sm:flex-row items-start gap-4 px-4 py-4 rounded-xl border-2 transition-all ${mode.color}`}>
-                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${mode.iconBg}`}>
-                        <span className="text-lg">{mode.label.split(' ')[0]}</span>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <p className="font-bold text-gray-900 text-[13px]">{mode.label}</p>
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/60 text-gray-500">{mode.subtitle}</span>
+                <div className="px-4 pb-5 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {[
+                    { id: 'client',    Icon: Users,    label: 'Mode Client',    subtitle: 'Vente & Support',    desc: 'Chaleureuse, naturelle, persuasive. Logique Comprendre → Valeur → Question.', accent: '#05976D', bg: '#f0fdf8', pill: 'bg-emerald-100 text-emerald-700' },
+                    { id: 'boss',      Icon: BarChart3, label: 'Mode Boss',      subtitle: 'Analyse & Rapports', desc: 'Professionnelle, analytique, directe. Analyse les conversations et propose des améliorations.', accent: '#2563eb', bg: '#eff6ff', pill: 'bg-blue-100 text-blue-700' },
+                    { id: 'execution', Icon: Settings,  label: 'Mode Exécution', subtitle: 'Actions Boss',        desc: 'Comprend, adapte et exécute les instructions intelligemment sans copier.', accent: '#d97706', bg: '#fffbeb', pill: 'bg-amber-100 text-amber-700' },
+                  ].map(mode => {
+                    const key = `mode${mode.id.charAt(0).toUpperCase() + mode.id.slice(1)}Enabled`;
+                    const active = !!config[key];
+                    return (
+                      <button key={mode.id} type="button" onClick={() => set(key, !active)}
+                        className="relative text-left rounded-xl border-2 transition-all duration-200 overflow-hidden group"
+                        style={{ borderColor: active ? mode.accent : '#e5e7eb', background: active ? mode.bg : '#fafafa' }}>
+                        {/* top accent bar */}
+                        <div className="h-1 w-full transition-all duration-200" style={{ background: active ? mode.accent : '#e5e7eb' }} />
+                        <div className="px-4 pt-3 pb-4 flex flex-col gap-2">
+                          <div className="flex items-start justify-between gap-2">
+                            <span className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                              style={{ background: active ? `${mode.accent}18` : '#f3f4f6' }}>
+                              <mode.Icon className="w-4 h-4" style={{ color: active ? mode.accent : '#9ca3af' }} />
+                            </span>
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${active ? mode.pill : 'bg-gray-100 text-gray-400'}`}>
+                              {active ? 'Actif' : 'Inactif'}
+                            </span>
+                          </div>
+                          <div>
+                            <p className="font-bold text-[13px]" style={{ color: active ? mode.accent : '#374151' }}>{mode.label}</p>
+                            <p className="text-[10.5px] font-medium text-gray-400 mt-0.5">{mode.subtitle}</p>
+                          </div>
+                          <p className="text-[11px] text-gray-500 leading-relaxed">{mode.desc}</p>
+                          {/* toggle dot */}
+                          <div className="mt-1 flex items-center gap-1.5">
+                            <div className="w-7 h-4 rounded-full flex items-center px-0.5 transition-all duration-200"
+                              style={{ background: active ? mode.accent : '#d1d5db' }}>
+                              <div className={`w-3 h-3 rounded-full bg-white shadow transition-transform duration-200 ${active ? 'translate-x-3' : 'translate-x-0'}`} />
+                            </div>
+                            <span className="text-[10.5px] text-gray-400">{active ? 'Activé' : 'Désactivé'}</span>
+                          </div>
                         </div>
-                        <p className="text-[11.5px] text-gray-500 mt-1 leading-relaxed">{mode.desc}</p>
-                      </div>
-                      <Toggle
-                        enabled={config[`mode${mode.id.charAt(0).toUpperCase() + mode.id.slice(1)}Enabled`]}
-                        onChange={v => set(`mode${mode.id.charAt(0).toUpperCase() + mode.id.slice(1)}Enabled`, v)}
-                        label="" />
-                    </div>
-                  ))}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
               {/* Autonomy Level */}
               <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-                <div className="px-6 py-4 border-b border-gray-100">
-                  <h2 className="text-[15px] font-bold text-gray-900">Niveau d'autonomie</h2>
-                  <p className="text-[12px] text-gray-400 mt-0.5">Contrôlez jusqu'où Rita peut aller sans intervention humaine</p>
+                <div className="px-6 pt-5 pb-4">
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <span className="w-7 h-7 rounded-lg bg-orange-50 flex items-center justify-center">
+                      <Target className="w-3.5 h-3.5 text-orange-500" />
+                    </span>
+                    <h2 className="text-[14px] font-bold text-gray-900">Niveau d'autonomie</h2>
+                  </div>
+                  <p className="text-[11.5px] text-gray-400 ml-6">Contrôlez jusqu'où Rita peut aller sans intervention humaine</p>
                 </div>
-                <div className="p-6 space-y-2.5">
-                  {AUTONOMY_LEVELS.map(lvl => (
-                    <button key={lvl.level} onClick={() => set('autonomyLevel', lvl.level)} type="button"
-                      className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-xl border-2 text-left transition-all ${
-                        config.autonomyLevel === lvl.level
-                          ? 'border-emerald-400 bg-emerald-50/60 shadow-sm'
-                          : 'border-gray-100 bg-gray-50/40 hover:border-gray-200'
-                      }`}>
-                      <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-sm font-bold flex-shrink-0 ${lvl.color}`}>{lvl.level}</div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-gray-900 text-[13px]">{lvl.label}</p>
-                        <p className="text-[11.5px] text-gray-400 mt-0.5">{lvl.desc}</p>
+                <div className="px-6 pb-6">
+                  {/* Slider visuel 5 niveaux */}
+                  <div className="flex items-end gap-1.5 mb-4">
+                    {AUTONOMY_LEVELS.map((lvl, i) => {
+                      const active = config.autonomyLevel === lvl.level;
+                      const filled = lvl.level <= config.autonomyLevel;
+                      const gradients = ['#3b82f6','#06b6d4','#10b981','#f59e0b','#ef4444'];
+                      const barH = [28, 36, 44, 52, 60];
+                      return (
+                        <button key={lvl.level} type="button" onClick={() => set('autonomyLevel', lvl.level)}
+                          className="flex-1 flex flex-col items-center gap-1.5 group">
+                          <div className="w-full rounded-md transition-all duration-200"
+                            style={{ height: barH[i], background: filled ? gradients[i] : '#e5e7eb', opacity: filled ? 1 : 0.5,
+                              boxShadow: active ? `0 0 0 2px white, 0 0 0 4px ${gradients[i]}` : 'none' }} />
+                          <span className="text-[9.5px] font-semibold transition-colors" style={{ color: filled ? gradients[i] : '#9ca3af' }}>
+                            {lvl.level}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {/* Label du niveau actif */}
+                  {(() => {
+                    const cur = AUTONOMY_LEVELS.find(l => l.level === config.autonomyLevel);
+                    const colors = ['#3b82f6','#06b6d4','#10b981','#f59e0b','#ef4444'];
+                    const bgs = ['#eff6ff','#ecfeff','#f0fdf4','#fffbeb','#fef2f2'];
+                    const i = (cur?.level || 1) - 1;
+                    return (
+                      <div className="rounded-xl px-4 py-3 flex items-center gap-3" style={{ background: bgs[i], border: `1px solid ${colors[i]}30` }}>
+                        <div className="w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold text-white flex-shrink-0"
+                          style={{ background: colors[i] }}>{cur?.level}</div>
+                        <div>
+                          <p className="font-bold text-[13px]" style={{ color: colors[i] }}>{cur?.label}</p>
+                          <p className="text-[11.5px] text-gray-500 mt-0.5">{cur?.desc}</p>
+                        </div>
                       </div>
-                      <div className={`w-5 h-5 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${
-                        config.autonomyLevel === lvl.level ? 'border-emerald-500 bg-emerald-500' : 'border-gray-300'
-                      }`}>
-                        {config.autonomyLevel === lvl.level && (
-                          <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                          </svg>
-                        )}
-                      </div>
-                    </button>
-                  ))}
+                    );
+                  })()}
                 </div>
               </div>
 
               {/* Détection & Analyse Client */}
               <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-                <div className="px-6 py-4 border-b border-gray-100">
-                  <h2 className="text-[15px] font-bold text-gray-900 flex items-center gap-2">
-                    <span className="w-8 h-8 rounded-lg bg-cyan-50 flex items-center justify-center">
-                      <Eye className="w-4 h-4 text-cyan-600" />
+                <div className="px-6 pt-5 pb-4">
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <span className="w-7 h-7 rounded-lg bg-cyan-50 flex items-center justify-center">
+                      <Eye className="w-3.5 h-3.5 text-cyan-500" />
                     </span>
-                    Analyse Avant Chaque Réponse
-                  </h2>
-                  <p className="text-[12px] text-gray-400 mt-1">Rita analyse chaque message pour adapter sa stratégie</p>
+                    <h2 className="text-[14px] font-bold text-gray-900">Analyse Avant Chaque Réponse</h2>
+                  </div>
+                  <p className="text-[11.5px] text-gray-400 ml-9">Rita analyse chaque message pour adapter sa stratégie</p>
                 </div>
-                <div className="p-6 space-y-3">
-                  <Toggle enabled={config.detectClientType} onChange={v => set('detectClientType', v)}
-                    label="Détecter le type de client"
-                    description="Identifier si le client est curieux, acheteur, hésitant ou revendeur" />
-                  <Toggle enabled={config.detectInterestLevel} onChange={v => set('detectInterestLevel', v)}
-                    label="Évaluer le niveau d'intérêt"
-                    description="Mesurer l'intérêt (faible / moyen / élevé) pour adapter la pression" />
+                <div className="px-4 pb-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {[
+                    { key: 'detectClientType',    Icon: Users,       label: 'Type de client',   desc: 'Curieux, acheteur, hésitant ou revendeur',         color: '#0891b2', bg: '#ecfeff' },
+                    { key: 'detectInterestLevel', Icon: TrendingUp,  label: "Niveau d'intérêt", desc: 'Faible / moyen / élevé → adapter la pression',     color: '#7c3aed', bg: '#f5f3ff' },
+                  ].map(item => {
+                    const active = !!config[item.key];
+                    return (
+                      <button key={item.key} type="button" onClick={() => set(item.key, !active)}
+                        className="relative text-left rounded-xl border-2 p-4 transition-all duration-200"
+                        style={{ borderColor: active ? item.color : '#e5e7eb', background: active ? item.bg : '#fafafa' }}>
+                        <div className="flex items-start justify-between gap-2 mb-2">
+                          <span className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                            style={{ background: active ? `${item.color}18` : '#f3f4f6' }}>
+                            <item.Icon className="w-4 h-4" style={{ color: active ? item.color : '#9ca3af' }} />
+                          </span>
+                          <div className="w-8 h-4.5 rounded-full flex items-center px-0.5 transition-all duration-200 mt-0.5"
+                            style={{ background: active ? item.color : '#d1d5db', height: 18 }}>
+                            <div className={`w-3.5 h-3.5 rounded-full bg-white shadow transition-transform duration-200 ${active ? 'translate-x-3' : 'translate-x-0'}`} />
+                          </div>
+                        </div>
+                        <p className="font-bold text-[12.5px]" style={{ color: active ? item.color : '#374151' }}>{item.label}</p>
+                        <p className="text-[11px] text-gray-400 mt-0.5 leading-snug">{item.desc}</p>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
               {/* Follow-up */}
               <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-                <div className="px-6 py-4 border-b border-gray-100">
-                  <h2 className="text-[15px] font-bold text-gray-900 flex items-center gap-2">
-                    <span className="w-8 h-8 rounded-lg bg-purple-50 flex items-center justify-center">
-                      <MessageSquare className="w-4 h-4 text-purple-600" />
+                {/* Header toggle */}
+                <button type="button" onClick={() => set('followUpEnabled', !config.followUpEnabled)}
+                  className="w-full flex items-center gap-4 px-6 py-4 border-b border-gray-100 hover:bg-gray-50/50 transition-colors text-left">
+                  <span className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+                    style={{ background: config.followUpEnabled ? '#fdf4ff' : '#f3f4f6' }}>
+                    <MessageSquare className="w-4 h-4" style={{ color: config.followUpEnabled ? '#a855f7' : '#9ca3af' }} />
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-bold text-[13.5px] text-gray-900">Relances & Suivi Clients</p>
+                    <p className="text-[11.5px] text-gray-400 mt-0.5">Rita relance automatiquement les prospects silencieux</p>
+                  </div>
+                  {/* big pill toggle */}
+                  <div className="flex-shrink-0 flex items-center gap-2">
+                    <span className={`text-[11px] font-bold ${config.followUpEnabled ? 'text-purple-600' : 'text-gray-400'}`}>
+                      {config.followUpEnabled ? 'Activé' : 'Désactivé'}
                     </span>
-                    Relances & Suivi Clients
-                  </h2>
-                  <p className="text-[12px] text-gray-400 mt-1">Relances automatiques + Tableau de bord des conversations actives</p>
-                </div>
-                <div className="p-6 space-y-4">
-                  <Toggle enabled={config.followUpEnabled} onChange={v => set('followUpEnabled', v)}
-                    label="Activer les relances automatiques" description="Rita relance naturellement les prospects silencieux" />
-                  {config.followUpEnabled && (
-                    <div className="space-y-3 pt-2">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <Field label="Relancer après" hint="heures">
-                          <input type="number" value={config.followUpDelay} onChange={e => set('followUpDelay', parseInt(e.target.value) || 24)} min="1" className="ac-input" />
-                        </Field>
-                        <Field label="Max relances">
-                          <input type="number" value={config.followUpMaxRelances} onChange={e => set('followUpMaxRelances', parseInt(e.target.value) || 3)} min="1" max="10" className="ac-input" />
-                        </Field>
-                      </div>
-                      <Field label="Message de relance">
-                        <textarea value={config.followUpMessage} onChange={e => set('followUpMessage', e.target.value)} rows={2} className="ac-textarea" />
-                      </Field>
+                    <div className="w-10 h-6 rounded-full flex items-center px-0.5 transition-all duration-200"
+                      style={{ background: config.followUpEnabled ? '#a855f7' : '#d1d5db' }}>
+                      <div className={`w-5 h-5 rounded-full bg-white shadow transition-transform duration-200 ${config.followUpEnabled ? 'translate-x-4' : 'translate-x-0'}`} />
                     </div>
-                  )}
+                  </div>
+                </button>
 
-                </div>
+                {config.followUpEnabled && (
+                  <div className="p-5 space-y-4">
+                    <div className="grid grid-cols-2 gap-3">
+                      {/* Délai */}
+                      <div className="rounded-xl border border-gray-100 bg-gray-50/60 p-3">
+                        <p className="text-[10.5px] font-semibold text-gray-400 uppercase tracking-wide mb-2">Relancer après</p>
+                        <div className="flex items-baseline gap-1.5">
+                          <input type="number" value={config.followUpDelay}
+                            onChange={e => set('followUpDelay', parseInt(e.target.value) || 24)}
+                            min="1" className="w-16 text-[20px] font-bold text-gray-900 bg-transparent border-none outline-none p-0" />
+                          <span className="text-[12px] text-gray-400 font-medium">heures</span>
+                        </div>
+                      </div>
+                      {/* Max relances */}
+                      <div className="rounded-xl border border-gray-100 bg-gray-50/60 p-3">
+                        <p className="text-[10.5px] font-semibold text-gray-400 uppercase tracking-wide mb-2">Max relances</p>
+                        <div className="flex items-center gap-2 mt-1">
+                          {[1,2,3,4,5].map(n => (
+                            <button key={n} type="button" onClick={() => set('followUpMaxRelances', n)}
+                              className="w-7 h-7 rounded-lg text-[12px] font-bold transition-all"
+                              style={{
+                                background: config.followUpMaxRelances === n ? '#a855f7' : '#e5e7eb',
+                                color: config.followUpMaxRelances === n ? '#fff' : '#6b7280'
+                              }}>{n}</button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                    {/* Message */}
+                    <div>
+                      <p className="text-[10.5px] font-semibold text-gray-400 uppercase tracking-wide mb-2">Message de relance</p>
+                      <ModalTextarea value={config.followUpMessage}
+                        onChange={e => set('followUpMessage', e.target.value)}
+                        rows={5}
+                        label="Message de relance"
+                        className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-[12.5px] text-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-transparent" />
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -2240,10 +2573,11 @@ export default function AgentConfig() {
 
                   {config.whatsappGroupLink !== null && (
                     <Field label="Lien du groupe" hint="Lien d'invitation WhatsApp (https://...)">
-                      <input
+                      <ModalInput
                         value={config.whatsappGroupLink || ''}
                         onChange={e => set('whatsappGroupLink', e.target.value)}
                         placeholder="https://..."
+                        label="Lien du groupe WhatsApp"
                         className="ac-input"
                       />
                     </Field>
@@ -2268,11 +2602,12 @@ export default function AgentConfig() {
                 {config.commercialOffersEnabled && (
                   <div className="p-6 space-y-4">
                     <Field label="Offre de relance globale">
-                      <textarea
+                      <ModalTextarea
                         value={config.followUpOffer || ''}
                         onChange={e => set('followUpOffer', e.target.value)}
-                        rows={2}
+                        rows={4}
                         placeholder="Ex: pour aujourd'hui seulement, livraison offerte ou bonus inclus"
+                        label="Offre de relance globale"
                         className="ac-textarea"
                       />
                     </Field>
@@ -2307,7 +2642,7 @@ export default function AgentConfig() {
                             </div>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                               <Field label="Titre">
-                                <input value={offer.title || ''} onChange={e => updateCommercialOffer(idx, 'title', e.target.value)} className="ac-input" />
+                                <ModalInput value={offer.title || ''} onChange={e => updateCommercialOffer(idx, 'title', e.target.value)} label="Titre de l'offre" className="ac-input" />
                               </Field>
                               <Field label="Déclencheur">
                                 <SelectDropdown
@@ -2318,16 +2653,16 @@ export default function AgentConfig() {
                               </Field>
                             </div>
                             <Field label="S'applique à">
-                              <input value={offer.appliesTo || ''} onChange={e => updateCommercialOffer(idx, 'appliesTo', e.target.value)} placeholder="Tous les produits / produit spécifique / clients revendeurs" className="ac-input" />
+                              <ModalInput value={offer.appliesTo || ''} onChange={e => updateCommercialOffer(idx, 'appliesTo', e.target.value)} placeholder="Tous les produits / produit spécifique / clients revendeurs" label="S'applique à" className="ac-input" />
                             </Field>
                             <Field label="Bénéfice client">
-                              <input value={offer.benefit || ''} onChange={e => updateCommercialOffer(idx, 'benefit', e.target.value)} placeholder="Réduction, bonus, livraison, cadeau" className="ac-input" />
+                              <ModalInput value={offer.benefit || ''} onChange={e => updateCommercialOffer(idx, 'benefit', e.target.value)} placeholder="Réduction, bonus, livraison, cadeau" label="Bénéfice client" className="ac-input" />
                             </Field>
                             <Field label="Message à utiliser">
-                              <textarea value={offer.message || ''} onChange={e => updateCommercialOffer(idx, 'message', e.target.value)} rows={2} className="ac-textarea" />
+                              <ModalTextarea value={offer.message || ''} onChange={e => updateCommercialOffer(idx, 'message', e.target.value)} rows={4} label="Message à utiliser" className="ac-textarea" />
                             </Field>
                             <Field label="Conditions">
-                              <textarea value={offer.conditions || ''} onChange={e => updateCommercialOffer(idx, 'conditions', e.target.value)} rows={2} className="ac-textarea" />
+                              <ModalTextarea value={offer.conditions || ''} onChange={e => updateCommercialOffer(idx, 'conditions', e.target.value)} rows={3} label="Conditions" className="ac-textarea" />
                             </Field>
                           </div>
                         ))}
@@ -2372,34 +2707,252 @@ export default function AgentConfig() {
 
             {/* Sidebar */}
             <div className="space-y-6">
+              {/* Prix & Négociation */}
               <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-                <div className="px-5 py-4 border-b border-gray-100">
-                  <h2 className="text-[15px] font-bold text-gray-900">Prix & Négociation</h2>
+                <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+                  <div>
+                    <h2 className="text-[15px] font-bold text-gray-900">💰 Prix & Négociation</h2>
+                    <p className="text-[11px] text-gray-400 mt-0.5">Configure comment Rita gère les demandes de réduction</p>
+                  </div>
+                  <button type="button"
+                    onClick={() => set('pricingNegotiation', { ...(config.pricingNegotiation || {}), enabled: !config.pricingNegotiation?.enabled })}
+                    className={`relative w-[44px] h-[26px] rounded-full transition-all duration-200 flex-shrink-0 ${config.pricingNegotiation?.enabled ? 'bg-emerald-500' : 'bg-gray-200 hover:bg-gray-300'}`}>
+                    <span className={`absolute top-[3px] w-5 h-5 bg-white rounded-full shadow-md transition-all duration-200 ${config.pricingNegotiation?.enabled ? 'left-[21px]' : 'left-[3px]'}`} />
+                  </button>
                 </div>
-                <div className="p-5 space-y-3">
-                  <Toggle enabled={config.pricingNegotiation?.enabled} onChange={v => set('pricingNegotiation', { ...(config.pricingNegotiation || {}), enabled: v })}
-                    label="Activer la négociation"
-                    description="Permet à Rita de gérer les discussions prix selon vos règles" />
-                  {config.pricingNegotiation?.enabled && (
-                    <>
-                      <Toggle enabled={config.pricingNegotiation?.allowDiscount} onChange={v => set('pricingNegotiation', { ...(config.pricingNegotiation || {}), allowDiscount: v })}
-                        label="Autoriser des remises"
-                        description="Rita peut proposer une remise dans la limite fixée" />
-                      <Field label="Remise maximum" hint="%">
-                        <input
-                          type="number"
-                          min="0"
-                          max="100"
-                          value={config.pricingNegotiation?.maxDiscountPercent || 0}
-                          onChange={e => set('pricingNegotiation', { ...(config.pricingNegotiation || {}), maxDiscountPercent: parseInt(e.target.value) || 0 })}
-                          className="ac-input"
-                        />
-                      </Field>
-                      <Toggle enabled={config.pricingNegotiation?.priceIsFinal} onChange={v => set('pricingNegotiation', { ...(config.pricingNegotiation || {}), priceIsFinal: v })}
-                        label="Prix final"
-                        description="Rita rappelle que le prix reste ferme hors cas prévus" />
-                    </>
-                  )}
+
+                {config.pricingNegotiation?.enabled && (
+                  <div className="p-5 space-y-4">
+
+                    {/* Politique de prix */}
+                    <div>
+                      <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-2">Politique de prix</p>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button type="button"
+                          onClick={() => set('pricingNegotiation', { ...(config.pricingNegotiation || {}), priceIsFinal: true, allowDiscount: false })}
+                          className={`text-left px-3 py-3 rounded-xl border-2 transition-all duration-200 ${
+                            config.pricingNegotiation?.priceIsFinal ? 'border-amber-400 bg-amber-50 shadow-sm' : 'border-gray-100 bg-gray-50 hover:border-gray-200'
+                          }`}>
+                          <p className="font-semibold text-[12px] text-gray-800">🔒 Prix fixe</p>
+                          <p className="text-[10px] text-gray-400 mt-0.5">Rita ne négocie pas. Le prix affiché est le dernier prix.</p>
+                        </button>
+                        <button type="button"
+                          onClick={() => set('pricingNegotiation', { ...(config.pricingNegotiation || {}), priceIsFinal: false, allowDiscount: true })}
+                          className={`text-left px-3 py-3 rounded-xl border-2 transition-all duration-200 ${
+                            !config.pricingNegotiation?.priceIsFinal ? 'border-amber-400 bg-amber-50 shadow-sm' : 'border-gray-100 bg-gray-50 hover:border-gray-200'
+                          }`}>
+                          <p className="font-semibold text-[12px] text-gray-800">🤝 Prix négociable</p>
+                          <p className="text-[10px] text-gray-400 mt-0.5">Rita peut accorder des réductions selon tes règles.</p>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Si prix négociable */}
+                    {config.pricingNegotiation?.allowDiscount && (
+                      <div className="space-y-4 pt-3 border-t border-gray-100">
+
+                        {/* Style de négociation */}
+                        <div>
+                          <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-2">Style de négociation</p>
+                          <div className="grid grid-cols-3 gap-2">
+                            {[
+                              { id: 'firm', label: '💪 Ferme', desc: 'Réduction rare, seulement si insistance' },
+                              { id: 'flexible', label: '🤝 Flexible', desc: 'Ouvert à la discussion, à mi-chemin' },
+                              { id: 'generous', label: '🎁 Généreux', desc: 'Accorde facilement la réduction max' },
+                            ].map(s => (
+                              <button key={s.id} type="button"
+                                onClick={() => set('pricingNegotiation', { ...(config.pricingNegotiation || {}), negotiationStyle: s.id })}
+                                className={`text-left px-2.5 py-2.5 rounded-xl border-2 transition-all duration-200 ${
+                                  config.pricingNegotiation?.negotiationStyle === s.id ? 'border-amber-400 bg-amber-50 shadow-sm' : 'border-gray-100 bg-gray-50 hover:border-gray-200'
+                                }`}>
+                                <p className="font-semibold text-[11px] text-gray-800">{s.label}</p>
+                                <p className="text-[10px] text-gray-400 mt-0.5 leading-tight">{s.desc}</p>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Remise max */}
+                        <Field label="Remise maximum" hint="%">
+                          <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            value={config.pricingNegotiation?.maxDiscountPercent || 0}
+                            onChange={e => set('pricingNegotiation', { ...(config.pricingNegotiation || {}), maxDiscountPercent: parseInt(e.target.value) || 0 })}
+                            className="ac-input w-28"
+                          />
+                        </Field>
+
+                        {/* Conditions de réduction */}
+                        <Field label="Conditions de réduction" hint="quand autoriser une réduction">
+                          <ModalTextarea
+                            value={config.pricingNegotiation?.discountConditions || ''}
+                            onChange={e => set('pricingNegotiation', { ...(config.pricingNegotiation || {}), discountConditions: e.target.value })}
+                            placeholder="ex: Si le client achète 2 produits ou plus. Si le client est un ancien client."
+                            rows={4}
+                            label="Conditions de réduction"
+                            className="ac-textarea"
+                          />
+                        </Field>
+                      </div>
+                    )}
+
+                    {/* Message de refus */}
+                    <Field label="Message de refus" hint="quand le client demande une réduction impossible">
+                      <ModalInput
+                        value={config.pricingNegotiation?.refusalMessage || ''}
+                        onChange={e => set('pricingNegotiation', { ...(config.pricingNegotiation || {}), refusalMessage: e.target.value })}
+                        placeholder="ex: C'est déjà notre meilleur prix 🙏"
+                        label="Message de refus"
+                        className="ac-input"
+                      />
+                    </Field>
+
+                    {/* Note globale */}
+                    <Field label="Note globale sur les prix" hint="instructions spéciales pour Rita">
+                      <ModalTextarea
+                        value={config.pricingNegotiation?.globalNote || ''}
+                        onChange={e => set('pricingNegotiation', { ...(config.pricingNegotiation || {}), globalNote: e.target.value })}
+                        placeholder="ex: Ne jamais descendre en dessous du dernier prix. Proposer la livraison gratuite à la place d'une réduction."
+                        rows={4}
+                        label="Note globale sur les prix"
+                        className="ac-textarea"
+                      />
+                    </Field>
+
+                    <div className="flex items-start gap-2 px-3 py-2.5 bg-amber-50 border border-amber-200 rounded-xl">
+                      <span className="text-amber-500 text-sm mt-0.5">💡</span>
+                      <p className="text-[11px] text-amber-700 leading-snug">Tu peux aussi configurer le <strong>dernier prix</strong> et la <strong>réduction max</strong> par produit dans l'onglet <strong>Produits</strong>.</p>
+                    </div>
+
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ─── Store Import Modal ─── */}
+        {showStoreImport && (
+          <div className="fixed inset-0 z-[60] flex items-start justify-center pt-[6vh] pb-4 px-4 bg-black/40 backdrop-blur-sm">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col" style={{ maxHeight: 'min(90vh, 700px)' }}>
+              {/* Header */}
+              <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-100">
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `${ACCENT}15` }}>
+                  <Package className="w-5 h-5" style={{ color: ACCENT }} />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-[15px] font-bold text-gray-900">Importer depuis le store</h3>
+                  <p className="text-[12px] text-gray-400">Sélectionnez des produits à ajouter au catalogue Rita</p>
+                </div>
+                <button onClick={() => setShowStoreImport(false)} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Search */}
+              <div className="px-5 py-3 border-b border-gray-100">
+                <input
+                  type="text"
+                  placeholder="Rechercher un produit..."
+                  value={storeImportSearch}
+                  onChange={e => {
+                    setStoreImportSearch(e.target.value);
+                    setStoreImportPage(1);
+                    fetchStoreImportProducts(e.target.value, 1);
+                  }}
+                  className="w-full px-3 py-2 text-[13px] border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:border-transparent"
+                  style={{ '--tw-ring-color': `${ACCENT}40` }}
+                />
+              </div>
+
+              {/* Product grid */}
+              <div className="flex-1 overflow-y-auto p-4">
+                {storeImportLoading ? (
+                  <div className="flex items-center justify-center py-16">
+                    <Loader2 className="w-7 h-7 animate-spin text-gray-300" />
+                  </div>
+                ) : storeImportProducts.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-16 text-center">
+                    <Package className="w-10 h-10 text-gray-200 mb-3" />
+                    <p className="text-[13px] font-semibold text-gray-400">Aucun produit trouvé</p>
+                    <p className="text-[11px] text-gray-300 mt-1">Essayez une autre recherche ou ajoutez des produits dans votre store</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    {storeImportProducts.map(p => {
+                      const pid = p._id || p.id;
+                      const selected = storeImportSelected.has(pid);
+                      const thumb = (p.images?.[0]?.url || p.images?.[0]?.src || p.images?.[0] || '');
+                      return (
+                        <button
+                          key={pid}
+                          onClick={() => {
+                            setStoreImportSelected(prev => {
+                              const next = new Set(prev);
+                              if (next.has(pid)) next.delete(pid); else next.add(pid);
+                              return next;
+                            });
+                          }}
+                          className={`relative text-left rounded-xl border-2 overflow-hidden transition-all ${selected ? 'shadow-md' : 'border-gray-200 hover:border-gray-300'}`}
+                          style={selected ? { borderColor: ACCENT, background: `${ACCENT}05` } : {}}
+                        >
+                          {/* Thumbnail */}
+                          <div className="aspect-square bg-gray-50 overflow-hidden">
+                            {thumb ? (
+                              <img src={thumb} alt={p.name} className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center">
+                                <Package className="w-8 h-8 text-gray-200" />
+                              </div>
+                            )}
+                          </div>
+                          {/* Info */}
+                          <div className="p-2.5">
+                            <p className="text-[12px] font-semibold text-gray-900 leading-tight line-clamp-2">{p.name || 'Sans nom'}</p>
+                            {p.price != null && (
+                              <p className="text-[11px] font-bold mt-1" style={{ color: ACCENT }}>{Number(p.price).toLocaleString('fr-FR')} FCFA</p>
+                            )}
+                            {p.category && (
+                              <p className="text-[10px] text-gray-400 mt-0.5 truncate">{p.category}</p>
+                            )}
+                          </div>
+                          {/* Check badge */}
+                          {selected && (
+                            <div className="absolute top-2 right-2 w-5 h-5 rounded-full flex items-center justify-center text-white" style={{ background: ACCENT }}>
+                              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                              </svg>
+                            </div>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="flex items-center justify-between px-5 py-4 border-t border-gray-100 flex-shrink-0 bg-white">
+                <span className="text-[12px] text-gray-400">
+                  {storeImportSelected.size > 0
+                    ? <span className="font-semibold" style={{ color: ACCENT }}>{storeImportSelected.size} produit{storeImportSelected.size > 1 ? 's' : ''} sélectionné{storeImportSelected.size > 1 ? 's' : ''}</span>
+                    : 'Sélectionnez des produits'}
+                </span>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => setShowStoreImport(false)}
+                    className="px-4 py-2 text-[12px] font-semibold text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-colors">
+                    Annuler
+                  </button>
+                  <button
+                    onClick={confirmStoreImport}
+                    disabled={storeImportSelected.size === 0}
+                    className="flex items-center gap-1.5 px-4 py-2 text-[12px] font-bold text-white rounded-xl transition-all hover:opacity-90 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
+                    style={{ background: ACCENT }}>
+                    <Plus className="w-3.5 h-3.5" />
+                    Importer {storeImportSelected.size > 0 ? `(${storeImportSelected.size})` : ''}
+                  </button>
                 </div>
               </div>
             </div>
@@ -2412,114 +2965,78 @@ export default function AgentConfig() {
             <div className="lg:col-span-2 space-y-6">
               
               {/* Livraison */}
-              <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-                <div className="px-6 py-4 border-b border-gray-100">
-                  <h2 className="text-[15px] font-bold text-gray-900 flex items-center gap-2">
-                    <span className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center">
-                      <MapPin className="w-4 h-4 text-blue-600" />
+              <div className="rounded-2xl border border-gray-200 overflow-hidden" style={{ background: 'linear-gradient(135deg, #ffffff 0%, #f0f7ff 100%)' }}>
+                <div className="px-6 py-5" style={{ background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 50%, #60a5fa 100%)' }}>
+                  <div className="flex items-center gap-3">
+                    <span className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.2)', backdropFilter: 'blur(8px)' }}>
+                      <MapPin className="w-5 h-5 text-white" />
                     </span>
-                    Configuration Livraison
-                  </h2>
-                  <p className="text-[12px] text-gray-400 mt-1">Tarifs, zones et délais de livraison que Rita mentionnera aux clients</p>
+                    <div>
+                      <h2 className="text-[16px] font-bold text-white tracking-tight">Configuration Livraison</h2>
+                      <p className="text-[12px] text-blue-100 mt-0.5">Tarifs, zones et délais que Rita mentionnera aux clients</p>
+                    </div>
+                  </div>
                 </div>
-                <div className="p-6 space-y-4">
-                  <Field label="Frais de livraison" hint="ex: 500 FCFA, gratuit">
-                    <input
-                      value={config.deliveryFee || ''}
-                      onChange={e => set('deliveryFee', e.target.value)}
-                      placeholder="ex: 500 FCFA"
-                      className="ac-input"
-                    />
-                  </Field>
-
-                  <Field label="Délai estimé" hint="ex: 24h, 2-3 jours">
-                    <input
-                      value={config.deliveryDelay || ''}
-                      onChange={e => set('deliveryDelay', e.target.value)}
-                      placeholder="ex: 24 heures"
-                      className="ac-input"
-                    />
-                  </Field>
+                <div className="p-6 space-y-5">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <Field label="Frais de livraison" hint="ex: 500 FCFA, gratuit">
+                      <ModalInput value={config.deliveryFee || ''} onChange={e => set('deliveryFee', e.target.value)} placeholder="ex: 500 FCFA" label="Frais de livraison" className="ac-input" />
+                    </Field>
+                    <Field label="Délai estimé" hint="ex: 24h, 2-3 jours">
+                      <ModalInput value={config.deliveryDelay || ''} onChange={e => set('deliveryDelay', e.target.value)} placeholder="ex: 24 heures" label="Délai estimé" className="ac-input" />
+                    </Field>
+                  </div>
 
                   <Field label="Informations complémentaires" hint="optionnel">
-                    <textarea
-                      value={config.deliveryInfo || ''}
-                      onChange={e => set('deliveryInfo', e.target.value)}
-                      placeholder="ex: Paiement à la livraison, vérification avant paiement"
-                      rows={2}
-                      className="ac-textarea"
-                    />
+                    <ModalTextarea value={config.deliveryInfo || ''} onChange={e => set('deliveryInfo', e.target.value)} placeholder="ex: Paiement à la livraison, vérification avant paiement" rows={4} label="Informations complémentaires" className="ac-textarea" />
                   </Field>
 
-                  <div className="flex justify-end gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const updatedZones = [...(config.deliveryZones || [])];
-                        updatedZones.push({ city: '', fee: '', delay: '' });
-                        set('deliveryZones', updatedZones);
-                      }}
-                      className="text-[12px] font-semibold px-3 py-1.5 rounded-lg transition-colors"
-                      style={{ color: '#0F6B4F', background: 'rgba(15,107,79,0.08)' }}
-                    >
+                  {/* Zones header + add button */}
+                  <div className="flex items-center justify-between pt-2">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                      <span className="text-[13px] font-bold text-gray-800">Zones de livraison</span>
+                      {(config.deliveryZones || []).length > 0 && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full text-white" style={{ background: 'linear-gradient(135deg, #3b82f6, #1d4ed8)' }}>
+                          {(config.deliveryZones || []).length}
+                        </span>
+                      )}
+                    </div>
+                    <button type="button" onClick={() => { const z = [...(config.deliveryZones || [])]; z.push({ city: '', fee: '', delay: '' }); set('deliveryZones', z); }}
+                      className="text-[12px] font-semibold px-4 py-2 rounded-xl transition-all duration-200 hover:shadow-md"
+                      style={{ color: '#fff', background: 'linear-gradient(135deg, #0F6B4F, #10b981)' }}>
                       + Ajouter une zone
                     </button>
                   </div>
 
-                  {(config.deliveryZones || []).length > 0 && (
-                    <div className="space-y-2 rounded-xl bg-blue-50/40 p-4">
-                      <p className="text-[12px] font-bold text-blue-900">Zones de livraison</p>
+                  {(config.deliveryZones || []).length === 0 ? (
+                    <div className="rounded-xl border-2 border-dashed border-blue-200 p-8 text-center" style={{ background: 'rgba(59,130,246,0.03)' }}>
+                      <MapPin className="w-8 h-8 text-blue-300 mx-auto mb-2" />
+                      <p className="text-[13px] font-medium text-gray-400">Aucune zone configurée</p>
+                      <p className="text-[11px] text-gray-300 mt-1">Ajoutez vos premières zones de livraison</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
                       {(config.deliveryZones || []).map((zone, idx) => (
-                        <div key={idx} className="grid grid-cols-1 sm:grid-cols-3 gap-2 rounded-lg border border-blue-100 bg-white p-3">
-                          <Field label="Ville/Zone">
-                            <input
-                              value={zone.city || ''}
-                              onChange={e => {
-                                const updatedZones = [...(config.deliveryZones || [])];
-                                updatedZones[idx].city = e.target.value;
-                                set('deliveryZones', updatedZones);
-                              }}
-                              placeholder="ex: Douala"
-                              className="ac-input"
-                            />
-                          </Field>
-                          <Field label="Tarif">
-                            <input
-                              value={zone.fee || ''}
-                              onChange={e => {
-                                const updatedZones = [...(config.deliveryZones || [])];
-                                updatedZones[idx].fee = e.target.value;
-                                set('deliveryZones', updatedZones);
-                              }}
-                              placeholder="ex: 500 FCFA"
-                              className="ac-input"
-                            />
-                          </Field>
-                          <div className="flex items-end gap-2">
-                            <div className="flex-1">
-                              <Field label="Délai">
-                                <input
-                                  value={zone.delay || ''}
-                                  onChange={e => {
-                                    const updatedZones = [...(config.deliveryZones || [])];
-                                    updatedZones[idx].delay = e.target.value;
-                                    set('deliveryZones', updatedZones);
-                                  }}
-                                  placeholder="ex: 24h"
-                                  className="ac-input"
-                                />
-                              </Field>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const updatedZones = (config.deliveryZones || []).filter((_, i) => i !== idx);
-                                  set('deliveryZones', updatedZones);
-                                }}
-                                className="px-2 py-2 text-red-500 hover:text-red-700 text-[12px] font-semibold mb-5"
-                              >
-                                ✕
-                              </button>
+                        <div key={idx} className="rounded-xl border border-blue-100 p-4 transition-all duration-200 hover:shadow-md hover:border-blue-200" style={{ background: 'linear-gradient(135deg, #fff 0%, #eff6ff 100%)' }}>
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-2">
+                              <span className="w-6 h-6 rounded-lg flex items-center justify-center text-[11px] font-bold text-white" style={{ background: 'linear-gradient(135deg, #3b82f6, #1d4ed8)' }}>{idx + 1}</span>
+                              <span className="text-[12px] font-bold text-gray-700">{zone.city || 'Nouvelle zone'}</span>
                             </div>
+                            <button type="button" onClick={() => set('deliveryZones', (config.deliveryZones || []).filter((_, i) => i !== idx))}
+                              className="w-7 h-7 rounded-lg flex items-center justify-center text-red-400 hover:text-white hover:bg-red-500 transition-all duration-200 text-[14px]">✕</button>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            <Field label="Ville/Zone">
+                              <ModalInput value={zone.city || ''} onChange={e => { const z = [...(config.deliveryZones || [])]; z[idx].city = e.target.value; set('deliveryZones', z); }} placeholder="ex: Douala" label="Ville/Zone" className="ac-input" />
+                            </Field>
+                            <Field label="Tarif">
+                              <ModalInput value={zone.fee || ''} onChange={e => { const z = [...(config.deliveryZones || [])]; z[idx].fee = e.target.value; set('deliveryZones', z); }} placeholder="ex: 500 FCFA" label="Tarif" className="ac-input" />
+                            </Field>
+                            <Field label="Délai">
+                              <ModalInput value={zone.delay || ''} onChange={e => { const z = [...(config.deliveryZones || [])]; z[idx].delay = e.target.value; set('deliveryZones', z); }} placeholder="ex: 24h" label="Délai" className="ac-input" />
+                            </Field>
                           </div>
                         </div>
                       ))}
@@ -2529,57 +3046,53 @@ export default function AgentConfig() {
               </div>
 
               {/* Expéditions */}
-              <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-                <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between gap-3">
-                  <div>
-                    <h2 className="text-[15px] font-bold text-gray-900 flex items-center gap-2">
-                      <span className="w-8 h-8 rounded-lg bg-orange-50 flex items-center justify-center">
-                        <Package className="w-4 h-4 text-orange-600" />
-                      </span>
-                      Expéditions (Villes Hors Zone)
-                    </h2>
-                    <p className="text-[12px] text-gray-400 mt-1">Pour les clients dans des villes où vous ne livrez pas directement</p>
+              <div className="rounded-2xl border border-gray-200 overflow-hidden" style={{ background: 'linear-gradient(135deg, #ffffff 0%, #fff7ed 100%)' }}>
+                <div className="px-6 py-5 flex items-center justify-between gap-3" style={{ background: 'linear-gradient(135deg, #c2410c 0%, #ea580c 50%, #f97316 100%)' }}>
+                  <div className="flex items-center gap-3">
+                    <span className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.2)', backdropFilter: 'blur(8px)' }}>
+                      <Package className="w-5 h-5 text-white" />
+                    </span>
+                    <div>
+                      <h2 className="text-[16px] font-bold text-white tracking-tight">Expéditions</h2>
+                      <p className="text-[12px] text-orange-100 mt-0.5">Villes hors zone — livraison via agence</p>
+                    </div>
                   </div>
                   <Toggle enabled={config.expeditionEnabled} onChange={v => set('expeditionEnabled', v)} label="" />
                 </div>
                 {config.expeditionEnabled && (
-                  <div className="p-6 space-y-4">
-                    {/* Villes éligibles - sous forme de checkboxes */}
+                  <div className="p-6 space-y-5">
+                    {/* Villes éligibles */}
                     <div className="space-y-3">
-                      <label className="text-[12px] font-bold text-gray-700">Villes éligibles pour expédition</label>
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-orange-500"></span>
+                        <span className="text-[13px] font-bold text-gray-800">Villes éligibles</span>
+                        {(config.expeditionCities || []).length > 0 && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full text-white" style={{ background: 'linear-gradient(135deg, #f97316, #c2410c)' }}>
+                            {(config.expeditionCities || []).length}
+                          </span>
+                        )}
+                      </div>
                       <p className="text-[11px] text-gray-400">Cochez les villes où vous pouvez expédier vos produits</p>
                       
                       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
                         {(CITIES_BY_COUNTRY[config.businessCountry || 'CM'] || CITIES_BY_COUNTRY.CM).map((city) => {
                           const isChecked = (config.expeditionCities || []).includes(city);
                           return (
-                            <label
-                              key={city}
-                              className={`flex items-center gap-2 p-2.5 rounded-lg border cursor-pointer transition-all ${
-                                isChecked 
-                                  ? 'border-orange-400 bg-orange-50' 
-                                  : 'border-gray-200 bg-white hover:border-orange-200 hover:bg-orange-50/30'
-                              }`}
+                            <label key={city}
+                              className="flex items-center gap-2.5 p-2.5 rounded-xl border cursor-pointer transition-all duration-200"
+                              style={isChecked ? { borderColor: '#f97316', background: 'linear-gradient(135deg, #fff7ed, #ffedd5)' } : { borderColor: '#e5e7eb', background: '#fff' }}
                             >
-                              <input
-                                type="checkbox"
-                                checked={isChecked}
-                                onChange={(e) => {
-                                  const updated = e.target.checked
-                                    ? [...(config.expeditionCities || []), city]
-                                    : (config.expeditionCities || []).filter(c => c !== city);
-                                  set('expeditionCities', updated);
-                                }}
-                                className="w-4 h-4 text-orange-600 border-gray-300 rounded focus:ring-orange-500"
-                              />
-                              <span className="text-[12px] font-medium text-gray-700">{city}</span>
+                              <input type="checkbox" checked={isChecked}
+                                onChange={(e) => { const u = e.target.checked ? [...(config.expeditionCities || []), city] : (config.expeditionCities || []).filter(c => c !== city); set('expeditionCities', u); }}
+                                className="w-4 h-4 text-orange-600 border-gray-300 rounded focus:ring-orange-500" />
+                              <span className={`text-[12px] font-medium ${isChecked ? 'text-orange-800' : 'text-gray-600'}`}>{city}</span>
                             </label>
                           );
                         })}
                       </div>
 
                       {(config.expeditionCities || []).length > 0 && (
-                        <div className="rounded-lg border border-orange-100 bg-orange-50/40 p-3">
+                        <div className="rounded-xl p-3" style={{ background: 'linear-gradient(135deg, #fff7ed, #ffedd5)', border: '1px solid #fed7aa' }}>
                           <p className="text-[11px] text-orange-700">
                             <span className="font-bold">{(config.expeditionCities || []).length} ville(s) sélectionnée(s) :</span> {(config.expeditionCities || []).join(', ')}
                           </p>
@@ -2587,87 +3100,52 @@ export default function AgentConfig() {
                       )}
                     </div>
 
-                    {/* Coordonnées de paiement Mobile Money */}
-                    <div className="space-y-2">
+                    {/* Mobile Money */}
+                    <div className="space-y-3">
                       <div className="flex items-center justify-between">
-                        <label className="text-[12px] font-bold text-gray-700">Coordonnées Mobile Money pour expéditions</label>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const updated = {
-                              ...config.paymentCoordinates,
-                              mobileMoney: [...(config.paymentCoordinates?.mobileMoney || []), { provider: 'Orange Money', number: '', accountName: '' }]
-                            };
-                            set('paymentCoordinates', updated);
-                          }}
-                          className="text-[12px] font-semibold px-3 py-1.5 rounded-lg transition-colors"
-                          style={{ color: '#0F6B4F', background: 'rgba(15,107,79,0.08)' }}
-                        >
+                        <div className="flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+                          <span className="text-[13px] font-bold text-gray-800">Comptes Mobile Money</span>
+                        </div>
+                        <button type="button" onClick={() => { const u = { ...config.paymentCoordinates, mobileMoney: [...(config.paymentCoordinates?.mobileMoney || []), { provider: 'Orange Money', number: '', accountName: '' }] }; set('paymentCoordinates', u); }}
+                          className="text-[12px] font-semibold px-4 py-2 rounded-xl transition-all duration-200 hover:shadow-md"
+                          style={{ color: '#fff', background: 'linear-gradient(135deg, #0F6B4F, #10b981)' }}>
                           + Ajouter compte
                         </button>
                       </div>
 
                       {(config.paymentCoordinates?.mobileMoney || []).length === 0 ? (
-                        <div className="rounded-xl border border-dashed border-gray-200 p-4 text-center text-[12px] text-gray-400">
-                          Aucun compte configuré. Ajoutez Orange Money, MTN Mobile Money, etc.
+                        <div className="rounded-xl border-2 border-dashed border-orange-200 p-8 text-center" style={{ background: 'rgba(249,115,22,0.03)' }}>
+                          <Phone className="w-8 h-8 text-orange-300 mx-auto mb-2" />
+                          <p className="text-[13px] font-medium text-gray-400">Aucun compte configuré</p>
+                          <p className="text-[11px] text-gray-300 mt-1">Ajoutez Orange Money, MTN MoMo, etc.</p>
                         </div>
                       ) : (
-                        <div className="space-y-2">
+                        <div className="space-y-3">
                           {(config.paymentCoordinates?.mobileMoney || []).map((mm, idx) => (
-                            <div key={idx} className="grid grid-cols-1 sm:grid-cols-3 gap-2 rounded-lg border border-yellow-100 bg-yellow-50/30 p-3">
-                              <Field label="Opérateur">
-                                <select
-                                  value={mm.provider || 'Orange Money'}
-                                  onChange={e => {
-                                    const updated = { ...config.paymentCoordinates };
-                                    updated.mobileMoney[idx].provider = e.target.value;
-                                    set('paymentCoordinates', updated);
-                                  }}
-                                  className="ac-input"
-                                >
-                                  <option value="Orange Money">Orange Money</option>
-                                  <option value="MTN Mobile Money">MTN Mobile Money</option>
-                                  <option value="Express Union">Express Union</option>
-                                </select>
-                              </Field>
-                              <Field label="Numéro">
-                                <input
-                                  value={mm.number || ''}
-                                  onChange={e => {
-                                    const updated = { ...config.paymentCoordinates };
-                                    updated.mobileMoney[idx].number = e.target.value;
-                                    set('paymentCoordinates', updated);
-                                  }}
-                                  placeholder="ex: 690123456"
-                                  className="ac-input"
-                                />
-                              </Field>
-                              <div className="flex items-end gap-2">
-                                <div className="flex-1">
-                                  <Field label="Nom du compte">
-                                    <input
-                                      value={mm.accountName || ''}
-                                      onChange={e => {
-                                        const updated = { ...config.paymentCoordinates };
-                                        updated.mobileMoney[idx].accountName = e.target.value;
-                                        set('paymentCoordinates', updated);
-                                      }}
-                                      placeholder="ex: Jean KOUMEN"
-                                      className="ac-input"
-                                    />
-                                  </Field>
+                            <div key={idx} className="rounded-xl border border-amber-100 p-4 transition-all duration-200 hover:shadow-md" style={{ background: 'linear-gradient(135deg, #fff 0%, #fffbeb 100%)' }}>
+                              <div className="flex items-center justify-between mb-3">
+                                <div className="flex items-center gap-2">
+                                  <span className="w-6 h-6 rounded-lg flex items-center justify-center text-[11px] font-bold text-white" style={{ background: 'linear-gradient(135deg, #f59e0b, #d97706)' }}>{idx + 1}</span>
+                                  <span className="text-[12px] font-bold text-gray-700">{mm.provider || 'Compte'}</span>
                                 </div>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    const updated = { ...config.paymentCoordinates };
-                                    updated.mobileMoney = updated.mobileMoney.filter((_, i) => i !== idx);
-                                    set('paymentCoordinates', updated);
-                                  }}
-                                  className="px-2 py-2 text-red-500 hover:text-red-700 text-[12px] font-semibold mb-1"
-                                >
-                                  ✕
-                                </button>
+                                <button type="button" onClick={() => { const u = { ...config.paymentCoordinates }; u.mobileMoney = u.mobileMoney.filter((_, i) => i !== idx); set('paymentCoordinates', u); }}
+                                  className="w-7 h-7 rounded-lg flex items-center justify-center text-red-400 hover:text-white hover:bg-red-500 transition-all duration-200 text-[14px]">✕</button>
+                              </div>
+                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                <Field label="Opérateur">
+                                  <select value={mm.provider || 'Orange Money'} onChange={e => { const u = { ...config.paymentCoordinates }; u.mobileMoney[idx].provider = e.target.value; set('paymentCoordinates', u); }} className="ac-input">
+                                    <option value="Orange Money">Orange Money</option>
+                                    <option value="MTN Mobile Money">MTN Mobile Money</option>
+                                    <option value="Express Union">Express Union</option>
+                                  </select>
+                                </Field>
+                                <Field label="Numéro">
+                                  <ModalInput value={mm.number || ''} onChange={e => { const u = { ...config.paymentCoordinates }; u.mobileMoney[idx].number = e.target.value; set('paymentCoordinates', u); }} placeholder="ex: 690123456" label="Numéro Mobile Money" className="ac-input" />
+                                </Field>
+                                <Field label="Nom du compte">
+                                  <ModalInput value={mm.accountName || ''} onChange={e => { const u = { ...config.paymentCoordinates }; u.mobileMoney[idx].accountName = e.target.value; set('paymentCoordinates', u); }} placeholder="ex: Jean KOUMEN" label="Nom du compte" className="ac-input" />
+                                </Field>
                               </div>
                             </div>
                           ))}
@@ -2675,27 +3153,28 @@ export default function AgentConfig() {
                       )}
                     </div>
 
-                    {/* Instructions personnalisées */}
-                    <Field label="Instructions spéciales (optionnel)" hint="Instructions additionnelles pour Rita concernant les expéditions">
-                      <textarea
-                        value={config.expeditionInstructions || ''}
-                        onChange={e => set('expeditionInstructions', e.target.value)}
-                        placeholder="ex: Toujours demander confirmation du point de retrait avant d'envoyer les coordonnées"
-                        rows={2}
-                        className="ac-textarea"
-                      />
+                    {/* Instructions */}
+                    <Field label="Instructions spéciales (optionnel)" hint="Instructions pour Rita concernant les expéditions">
+                      <ModalTextarea value={config.expeditionInstructions || ''} onChange={e => set('expeditionInstructions', e.target.value)} placeholder="ex: Toujours demander confirmation du point de retrait avant d'envoyer les coordonnées" rows={4} label="Instructions spéciales expédition" className="ac-textarea" />
                     </Field>
 
-                    {/* Info box */}
-                    <div className="rounded-xl border border-orange-100 bg-orange-50/40 p-4 space-y-2">
-                      <p className="text-[12px] font-bold text-orange-800">📦 Comment ça fonctionne :</p>
-                      <ul className="text-[11px] text-orange-700 space-y-1 ml-4">
-                        <li>1️⃣ Rita détecte si le client est dans une ville hors zone de livraison</li>
-                        <li>2️⃣ Elle propose l'expédition avec les coordonnées de paiement</li>
-                        <li>3️⃣ Le client confirme sa ville et le point de retrait</li>
-                        <li>4️⃣ Rita envoie automatiquement les coordonnées Mobile Money avec le montant total</li>
-                        <li>5️⃣ Après paiement confirmé, vous expédiez le colis via votre agence habituelle</li>
-                      </ul>
+                    {/* Flow info */}
+                    <div className="rounded-xl p-5 space-y-3" style={{ background: 'linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%)', border: '1px solid #fed7aa' }}>
+                      <p className="text-[13px] font-bold text-orange-800 flex items-center gap-2">📦 Comment ça fonctionne</p>
+                      <div className="space-y-2">
+                        {[
+                          { n: '1', t: 'Rita détecte si le client est dans une ville hors zone' },
+                          { n: '2', t: "Elle propose l'expédition avec les coordonnées de paiement" },
+                          { n: '3', t: 'Le client confirme sa ville et le point de retrait' },
+                          { n: '4', t: 'Rita envoie les coordonnées Mobile Money + montant total' },
+                          { n: '5', t: 'Après paiement, vous expédiez via votre agence' },
+                        ].map((s) => (
+                          <div key={s.n} className="flex items-start gap-3">
+                            <span className="w-6 h-6 rounded-full flex-shrink-0 flex items-center justify-center text-[10px] font-bold text-white" style={{ background: 'linear-gradient(135deg, #f97316, #c2410c)' }}>{s.n}</span>
+                            <span className="text-[12px] text-orange-700 leading-relaxed pt-0.5">{s.t}</span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 )}
@@ -2705,54 +3184,75 @@ export default function AgentConfig() {
             {/* Sidebar */}
             <div className="space-y-6">
               {/* Récapitulatif */}
-              <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-                <div className="px-5 py-4 border-b border-gray-100">
-                  <h2 className="text-[15px] font-bold text-gray-900">Récapitulatif</h2>
+              <div className="rounded-2xl border border-gray-200 overflow-hidden" style={{ background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)' }}>
+                <div className="px-5 py-4" style={{ background: 'linear-gradient(135deg, #1e293b 0%, #334155 100%)' }}>
+                  <h2 className="text-[15px] font-bold text-white flex items-center gap-2">
+                    <BarChart3 className="w-4 h-4 text-slate-300" />
+                    Récapitulatif
+                  </h2>
                 </div>
                 <div className="p-5 space-y-3">
-                  <div className="flex items-start gap-3 p-3 rounded-lg bg-blue-50/50">
-                    <MapPin className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-                    <div className="flex-1">
-                      <p className="text-[12px] font-bold text-blue-900">Livraison locale</p>
-                      <p className="text-[11px] text-blue-700 mt-1">
-                        {config.deliveryFee ? `${config.deliveryFee}` : 'Non configuré'}
-                        {config.deliveryDelay && ` • ${config.deliveryDelay}`}
-                      </p>
-                      <p className="text-[10px] text-blue-600 mt-1">
-                        {(config.deliveryZones || []).length} zone{(config.deliveryZones || []).length > 1 ? 's' : ''} configurée{(config.deliveryZones || []).length > 1 ? 's' : ''}
-                      </p>
+                  <div className="rounded-xl p-4 transition-all duration-200 hover:shadow-md" style={{ background: 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)', border: '1px solid #bfdbfe' }}>
+                    <div className="flex items-center gap-3">
+                      <span className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #3b82f6, #1d4ed8)' }}>
+                        <MapPin className="w-4 h-4 text-white" />
+                      </span>
+                      <div className="flex-1">
+                        <p className="text-[12px] font-bold text-blue-900">Livraison locale</p>
+                        <p className="text-[11px] text-blue-700 mt-0.5">
+                          {config.deliveryFee ? `${config.deliveryFee}` : 'Non configuré'}
+                          {config.deliveryDelay && ` • ${config.deliveryDelay}`}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mt-3 pt-3" style={{ borderTop: '1px solid rgba(59,130,246,0.15)' }}>
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full" style={{ background: (config.deliveryZones || []).length > 0 ? '#22c55e' : '#d1d5db' }}></span>
+                        <span className="text-[10px] font-semibold text-blue-700">
+                          {(config.deliveryZones || []).length} zone{(config.deliveryZones || []).length > 1 ? 's' : ''} configurée{(config.deliveryZones || []).length > 1 ? 's' : ''}
+                        </span>
+                      </div>
                     </div>
                   </div>
 
-                  <div className="flex items-start gap-3 p-3 rounded-lg bg-orange-50/50">
-                    <Package className="w-5 h-5 text-orange-600 flex-shrink-0 mt-0.5" />
-                    <div className="flex-1">
-                      <p className="text-[12px] font-bold text-orange-900">Expéditions</p>
-                      <p className="text-[11px] text-orange-700 mt-1">
-                        {config.expeditionEnabled ? 'Activé' : 'Désactivé'}
-                      </p>
-                      {config.expeditionEnabled && (
-                        <>
-                          <p className="text-[10px] text-orange-600 mt-1">
-                            {(config.expeditionAgencies || []).length} agence{(config.expeditionAgencies || []).length > 1 ? 's' : ''}
-                          </p>
-                          <p className="text-[10px] text-orange-600">
-                            {(config.expeditionCities || []).length} ville{(config.expeditionCities || []).length > 1 ? 's' : ''} éligible{(config.expeditionCities || []).length > 1 ? 's' : ''}
-                          </p>
-                          <p className="text-[10px] text-orange-600">
-                            {(config.paymentCoordinates?.mobileMoney || []).length} compte{(config.paymentCoordinates?.mobileMoney || []).length > 1 ? 's' : ''} Mobile Money
-                          </p>
-                        </>
-                      )}
+                  <div className="rounded-xl p-4 transition-all duration-200 hover:shadow-md" style={{ background: 'linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%)', border: '1px solid #fed7aa' }}>
+                    <div className="flex items-center gap-3">
+                      <span className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #f97316, #c2410c)' }}>
+                        <Package className="w-4 h-4 text-white" />
+                      </span>
+                      <div className="flex-1">
+                        <p className="text-[12px] font-bold text-orange-900">Expéditions</p>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <span className="w-2 h-2 rounded-full" style={{ background: config.expeditionEnabled ? '#22c55e' : '#ef4444' }}></span>
+                          <span className="text-[11px] text-orange-700">{config.expeditionEnabled ? 'Activé' : 'Désactivé'}</span>
+                        </div>
+                      </div>
                     </div>
+                    {config.expeditionEnabled && (
+                      <div className="mt-3 pt-3 space-y-1.5" style={{ borderTop: '1px solid rgba(249,115,22,0.15)' }}>
+                        <div className="flex items-center gap-2">
+                          <Globe2 className="w-3 h-3 text-orange-500" />
+                          <span className="text-[10px] font-semibold text-orange-700">{(config.expeditionCities || []).length} ville{(config.expeditionCities || []).length > 1 ? 's' : ''} éligible{(config.expeditionCities || []).length > 1 ? 's' : ''}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Phone className="w-3 h-3 text-orange-500" />
+                          <span className="text-[10px] font-semibold text-orange-700">{(config.paymentCoordinates?.mobileMoney || []).length} compte{(config.paymentCoordinates?.mobileMoney || []).length > 1 ? 's' : ''} Mobile Money</span>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
 
-              {/* Aide */}
-              <div className="rounded-2xl border border-blue-200 bg-blue-50 p-5">
-                <p className="text-[12px] font-semibold text-blue-700 mb-2">💡 Conseil</p>
-                <p className="text-[11px] text-blue-600 leading-relaxed">
+              {/* Conseil */}
+              <div className="rounded-2xl p-5 space-y-3" style={{ background: 'linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%)', border: '1px solid #a7f3d0' }}>
+                <div className="flex items-center gap-2">
+                  <span className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #0F6B4F, #10b981)' }}>
+                    <Sparkles className="w-3.5 h-3.5 text-white" />
+                  </span>
+                  <p className="text-[13px] font-bold text-emerald-800">Conseil</p>
+                </div>
+                <p className="text-[11px] text-emerald-700 leading-relaxed">
                   Configurez les zones de livraison locale pour Douala/Yaoundé, et activez les expéditions pour les autres villes du Cameroun.
                 </p>
               </div>
@@ -2762,153 +3262,452 @@ export default function AgentConfig() {
 
         {/* ─── TAB: PRODUITS ─── */}
         {activeTab === 'products' && (
-          <div className="space-y-4">
-            {/* Header */}
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-[16px] font-bold text-gray-900">Catalogue Produits</h2>
-                <p className="text-[12px] text-gray-400 mt-0.5">{config.productCatalog.length} produit{config.productCatalog.length !== 1 ? 's' : ''}</p>
-              </div>
+          <div className="flex flex-col lg:flex-row gap-4 min-h-[600px]">
+
+            {/* ══ LEFT — Product list ══ */}
+            <div className="lg:w-[300px] flex-shrink-0 flex flex-col gap-3">
+
+              {/* List header */}
               <div className="flex items-center gap-2">
+                <div className="flex-1">
+                  <h2 className="text-[14px] font-bold text-gray-900">
+                    Catalogue
+                    <span className="ml-2 text-[11px] font-semibold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
+                      {config.productCatalog.length}
+                    </span>
+                  </h2>
+                </div>
                 <button onClick={() => setShowImport(!showImport)}
-                  className="inline-flex items-center gap-1.5 px-3 py-2 text-[12px] font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors">
+                  className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors" title="Importer CSV">
                   <Upload className="w-3.5 h-3.5" />
-                  CSV
+                </button>
+                <button onClick={openStoreImport}
+                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[12px] font-bold transition-all hover:opacity-90 active:scale-95 border"
+                  style={{ color: ACCENT, borderColor: ACCENT, background: `${ACCENT}10` }}
+                  title="Importer depuis le store Scalor">
+                  <Package className="w-3.5 h-3.5" />
+                  Store
                 </button>
                 <button onClick={addProduct}
-                  className="inline-flex items-center gap-1.5 px-3 py-2 text-[12px] font-semibold text-white rounded-xl transition-colors"
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-[12px] font-bold text-white shadow-sm transition-all hover:opacity-90 active:scale-95"
                   style={{ background: ACCENT }}>
-                  + Produit
+                  <Plus className="w-3.5 h-3.5" />
+                  Nouveau
                 </button>
               </div>
-            </div>
 
-            {showImport && (
-              <ProductImportLocal
-                onImportSuccess={(importedProducts) => {
-                  const newProducts = importedProducts.map(p => ({
-                    name: p.name,
-                    price: p.price,
-                    category: p.category || '',
-                    description: p.description || '',
-                    inStock: p.inStock !== false,
-                    images: [],
-                    quantityOffers: []
-                  }));
-                  setConfig(prev => ({
-                    ...prev,
-                    productCatalog: [...(prev.productCatalog || []), ...newProducts]
-                  }));
-                  setHasChanges(true);
-                  setShowImport(false);
-                }}
-                onClose={() => setShowImport(false)}
-              />
-            )}
+              {showImport && (
+                <ProductImportLocal
+                  onImportSuccess={(importedProducts) => {
+                    const newProducts = importedProducts.map(p => ({
+                      name: p.name, price: p.price, category: p.category || '',
+                      description: p.description || '', inStock: p.inStock !== false,
+                      images: [], videos: [], features: [], faq: [], objections: [], quantityOffers: []
+                    }));
+                    setConfig(prev => ({ ...prev, productCatalog: [...(prev.productCatalog || []), ...newProducts] }));
+                    setHasChanges(true);
+                    setShowImport(false);
+                  }}
+                  onClose={() => setShowImport(false)}
+                />
+              )}
 
-            {config.productCatalog.length === 0 ? (
-              <div className="bg-white rounded-2xl border-2 border-dashed border-gray-200 p-12 text-center">
-                <Package className="w-10 h-10 text-gray-200 mx-auto mb-3" />
-                <p className="text-[14px] font-semibold text-gray-500">Aucun produit</p>
-                <p className="text-[12px] text-gray-400 mt-1 mb-4">Ajoutez vos produits pour que l'agent puisse les recommander</p>
-                <button onClick={addProduct}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 text-[13px] font-semibold text-white rounded-xl"
-                  style={{ background: ACCENT }}>
-                  + Ajouter un produit
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {config.productCatalog.map((product, idx) => (
-                  <div key={idx} className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-                    {/* Card header */}
-                    <button onClick={() => setEditingProduct(editingProduct === idx ? null : idx)} type="button"
-                      className="w-full px-4 py-3.5 flex items-center gap-3 text-left hover:bg-gray-50 transition-colors">
-                      <div className="w-10 h-10 rounded-xl overflow-hidden flex-shrink-0 bg-gray-100 flex items-center justify-center">
+              {/* Multi-select bar */}
+              {selectedProducts.size > 0 && (
+                <div className="flex items-center justify-between px-3 py-2 bg-red-50 border border-red-200 rounded-xl">
+                  <span className="text-[11px] font-semibold text-red-700">{selectedProducts.size} sélectionné{selectedProducts.size > 1 ? 's' : ''}</span>
+                  <button onClick={deleteSelectedProducts}
+                    className="flex items-center gap-1 text-[11px] font-semibold text-red-600 hover:text-red-800 transition-colors">
+                    <Trash2 className="w-3 h-3" /> Supprimer
+                  </button>
+                </div>
+              )}
+
+              {/* Product list */}
+              {config.productCatalog.length === 0 ? (
+                <div className="flex-1 flex flex-col items-center justify-center py-16 text-center">
+                  <div className="w-16 h-16 rounded-2xl bg-gray-50 border-2 border-dashed border-gray-200 flex items-center justify-center mb-4">
+                    <Package className="w-7 h-7 text-gray-300" />
+                  </div>
+                  <p className="text-[13px] font-semibold text-gray-500">Catalogue vide</p>
+                  <p className="text-[11px] text-gray-400 mt-1 mb-4 max-w-[180px]">Ajoutez vos produits pour que Rita puisse les recommander</p>
+                  <button onClick={addProduct}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 text-[12px] font-bold text-white rounded-xl shadow-sm"
+                    style={{ background: ACCENT }}>
+                    <Plus className="w-3.5 h-3.5" /> Premier produit
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-1.5 lg:max-h-[calc(100vh-280px)] lg:overflow-y-auto lg:pr-0.5">
+                  {config.productCatalog.map((product, idx) => (
+                    <div key={idx}
+                      onClick={() => { setEditingProduct(editingProduct === idx ? null : idx); setProductFormTab('info'); }}
+                      className={`group relative flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all duration-150 ${
+                        editingProduct === idx
+                          ? 'bg-emerald-600 shadow-md'
+                          : 'bg-white border border-gray-100 hover:border-emerald-200 hover:bg-emerald-50/40 hover:shadow-sm'
+                      }`}>
+
+                      {/* Checkbox */}
+                      <input type="checkbox"
+                        checked={selectedProducts.has(idx)}
+                        onClick={e => e.stopPropagation()}
+                        onChange={() => toggleSelectProduct(idx)}
+                        className="w-3.5 h-3.5 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                        style={{ accentColor: ACCENT }}
+                      />
+
+                      {/* Thumbnail */}
+                      <div className={`w-9 h-9 rounded-lg overflow-hidden flex-shrink-0 flex items-center justify-center text-[12px] font-bold transition-all ${
+                        editingProduct === idx ? 'bg-white/20 text-white' : 'bg-emerald-50 text-emerald-700'
+                      }`}>
                         {product.images?.[0]
                           ? <img src={product.images[0]} alt="" className="w-full h-full object-cover" />
-                          : <Package className="w-4 h-4 text-gray-300" />}
+                          : idx + 1}
                       </div>
+
+                      {/* Info */}
                       <div className="min-w-0 flex-1">
-                        <p className="text-[13px] font-semibold text-gray-900 truncate">{product.name || 'Nouveau produit'}</p>
-                        <p className="text-[11px] text-gray-400 truncate">
-                          {product.price || 'Prix non défini'}{product.category ? ` · ${product.category}` : ''}
+                        <p className={`text-[12px] font-semibold truncate leading-tight ${editingProduct === idx ? 'text-white' : 'text-gray-800'}`}>
+                          {product.name || <span className="italic opacity-60">Sans nom</span>}
+                        </p>
+                        <p className={`text-[11px] truncate mt-0.5 ${editingProduct === idx ? 'text-emerald-100' : 'text-gray-400'}`}>
+                          {product.price || '—'}
+                          {product.inStock === false && <span className="ml-1">· 🔴</span>}
                         </p>
                       </div>
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 ${product.inStock !== false ? 'text-emerald-600 bg-emerald-50' : 'text-red-500 bg-red-50'}`}>
-                        {product.inStock !== false ? 'En stock' : 'Rupture'}
-                      </span>
-                      <ChevronDown className={`w-4 h-4 text-gray-300 flex-shrink-0 transition-transform ${editingProduct === idx ? 'rotate-180' : ''}`} />
-                    </button>
 
-                    {/* Expanded form */}
-                    {editingProduct === idx && (
-                      <div className="border-t border-gray-100 px-5 pb-5 pt-4 space-y-5">
-                        {/* Infos de base */}
+                      {/* Delete */}
+                      <button onClick={e => { e.stopPropagation(); removeProduct(idx); }}
+                        className={`flex-shrink-0 p-1 rounded-lg opacity-0 group-hover:opacity-100 transition-all ${
+                          editingProduct === idx ? 'text-white/60 hover:text-white hover:bg-white/10' : 'text-gray-300 hover:text-red-500 hover:bg-red-50'
+                        }`}>
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+
+                  {/* Bottom add */}
+                  <button onClick={addProduct}
+                    className="w-full flex items-center justify-center gap-1.5 py-2.5 mt-1 rounded-xl border-2 border-dashed border-gray-200 text-[12px] font-semibold text-gray-400 hover:border-emerald-300 hover:text-emerald-600 hover:bg-emerald-50 transition-all">
+                    <Plus className="w-3.5 h-3.5" /> Ajouter un produit
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* ══ RIGHT — Edit panel ══ */}
+            {editingProduct !== null && config.productCatalog[editingProduct] ? (() => {
+              const product = config.productCatalog[editingProduct];
+              const idx = editingProduct;
+              return (
+                <div className="flex-1 min-w-0 bg-white border border-gray-200 rounded-2xl overflow-hidden flex flex-col">
+
+                  {/* Panel header */}
+                  <div className="px-5 pt-4 pb-0 border-b border-gray-100">
+                    <div className="flex items-start justify-between gap-3 mb-3">
+                      <div className="min-w-0">
+                        <p className="text-[15px] font-bold text-gray-900 truncate">{product.name || 'Nouveau produit'}</p>
+                        <p className="text-[11px] text-gray-400 mt-0.5">
+                          {product.price && <span className="font-semibold text-emerald-600">{product.price}</span>}
+                          {product.category && <span> · {product.category}</span>}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <button type="button" onClick={() => updateProduct(idx, 'inStock', !(product.inStock !== false))}
+                          className={`text-[10px] font-bold px-2.5 py-1 rounded-full border transition-all ${
+                            product.inStock !== false
+                              ? 'text-emerald-700 bg-emerald-50 border-emerald-200 hover:bg-emerald-100'
+                              : 'text-red-600 bg-red-50 border-red-200 hover:bg-red-100'
+                          }`}>
+                          {product.inStock !== false ? '🟢 En stock' : '🔴 Rupture'}
+                        </button>
+                        <button onClick={() => setEditingProduct(null)}
+                          className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-300 hover:text-gray-600 hover:bg-gray-100 transition-colors">
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Section tabs */}
+                    <div className="flex gap-0.5 -mb-px">
+                      {[
+                        { id: 'info',    label: 'Infos',    emoji: '📝' },
+                        { id: 'medias',  label: 'Médias',   emoji: '📸' },
+                        { id: 'vente',   label: 'Vente',    emoji: '💰' },
+                        { id: 'contenu', label: 'Contenu',  emoji: '📖' },
+                      ].map(tab => (
+                        <button key={tab.id} type="button"
+                          onClick={() => setProductFormTab(tab.id)}
+                          className={`px-3.5 py-2 text-[12px] font-semibold rounded-t-lg border-b-2 transition-all ${
+                            productFormTab === tab.id
+                              ? 'text-emerald-700 border-emerald-500 bg-emerald-50/50'
+                              : 'text-gray-400 border-transparent hover:text-gray-600 hover:bg-gray-50'
+                          }`}>
+                          <span className="mr-1">{tab.emoji}</span>{tab.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Panel body */}
+                  <div className="flex-1 p-5 space-y-4 overflow-y-auto">
+
+                    {/* ── TAB: INFOS ── */}
+                    {productFormTab === 'info' && (
+                      <div className="space-y-4">
+                        <Field label="Nom du produit" required>
+                          <ModalInput value={product.name} onChange={e => updateProduct(idx, 'name', e.target.value)}
+                            placeholder="Sérum Éclat" label="Nom du produit" className="ac-input" />
+                        </Field>
                         <div className="grid grid-cols-2 gap-3">
-                          <div className="col-span-2 sm:col-span-1">
-                            <Field label="Nom du produit" required>
-                              <input value={product.name} onChange={e => updateProduct(idx, 'name', e.target.value)} className="ac-input" />
-                            </Field>
-                          </div>
-                          <Field label="Prix">
-                            <input type="number" min="0" value={product.price} onChange={e => updateProduct(idx, 'price', e.target.value)} placeholder="15000" className="ac-input" />
+                          <Field label="Prix" hint="avec devise">
+                            <ModalInput value={product.price} onChange={e => updateProduct(idx, 'price', e.target.value)}
+                              placeholder="15 000 FCFA" label="Prix" className="ac-input" />
                           </Field>
                           <Field label="Catégorie">
-                            <input value={product.category || ''} onChange={e => updateProduct(idx, 'category', e.target.value)} className="ac-input" />
-                          </Field>
-                          <Field label="En stock">
-                            <Toggle enabled={product.inStock !== false} onChange={v => updateProduct(idx, 'inStock', v)} label="" />
+                            <ModalInput value={product.category || ''} onChange={e => updateProduct(idx, 'category', e.target.value)}
+                              placeholder="Soins visage" label="Catégorie" className="ac-input" />
                           </Field>
                         </div>
-
                         <Field label="Description">
-                          <textarea value={product.description || ''} onChange={e => updateProduct(idx, 'description', e.target.value)}
-                            rows={focusedDescIdx === idx ? 20 : 4}
-                            className="ac-textarea transition-all duration-200"
-                            style={{ resize: 'none', overflowY: 'auto' }}
-                            onFocus={() => setFocusedDescIdx(idx)}
-                            onBlur={() => setFocusedDescIdx(null)}
+                          <ModalTextarea value={product.description || ''} onChange={e => updateProduct(idx, 'description', e.target.value)}
+                            rows={6}
+                            placeholder="Anti-taches, illuminateur de teint, résultats visibles en 2 semaines…"
+                            label="Description du produit"
+                            className="ac-textarea"
                           />
                         </Field>
+
+                        {/* Caractéristiques */}
+                        <div>
+                          <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-2">Caractéristiques clés</p>
+                          <div className="flex flex-wrap gap-1.5 mb-2 min-h-[28px]">
+                            {(product.features || []).map((f, fIdx) => (
+                              <span key={fIdx} className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 text-emerald-700 rounded-lg text-[11px] font-medium border border-emerald-100">
+                                {f}
+                                <button type="button" onClick={() => removeProductFeature(idx, fIdx)} className="text-emerald-400 hover:text-red-500 leading-none text-base">×</button>
+                              </span>
+                            ))}
+                          </div>
+                          <div className="flex gap-2">
+                            <input id={`feat-input-${idx}`} placeholder="ex: 100% naturel, Sans paraben…"
+                              className="ac-input flex-1 text-xs"
+                              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addProductFeature(idx, e.target.value); e.target.value = ''; } }} />
+                            <button type="button"
+                              onClick={() => { const el = document.getElementById(`feat-input-${idx}`); addProductFeature(idx, el.value); el.value = ''; }}
+                              className="px-3 py-1.5 text-sm font-bold text-white rounded-lg flex-shrink-0"
+                              style={{ background: ACCENT }}>+</button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* ── TAB: MÉDIAS ── */}
+                    {productFormTab === 'medias' && (
+                      <div className="space-y-5">
+                        {/* Images */}
+                        <div>
+                          <div className="flex items-center justify-between mb-3">
+                            <p className="text-[13px] font-bold text-gray-800">Photos du produit</p>
+                            <label className="flex items-center gap-1.5 text-[11px] font-semibold px-3 py-1.5 rounded-lg text-emerald-700 bg-emerald-50 hover:bg-emerald-100 cursor-pointer transition-colors border border-emerald-100">
+                              <input type="file" accept="image/*" multiple className="hidden"
+                                onChange={async (e) => { await handleProductMediaUpload(idx, 'images', e.target.files); e.target.value = ''; }} />
+                              {mediaUploadingByProduct[`${idx}:images`]
+                                ? <><Loader2 className="w-3 h-3 animate-spin" /> Upload…</>
+                                : <><Image className="w-3 h-3" /> Ajouter</>}
+                            </label>
+                          </div>
+                          {(product.images || []).length === 0 ? (
+                            <label className="flex flex-col items-center justify-center h-24 border-2 border-dashed border-gray-200 rounded-xl text-gray-400 hover:border-emerald-300 hover:text-emerald-500 hover:bg-emerald-50 transition-all cursor-pointer">
+                              <input type="file" accept="image/*" multiple className="hidden"
+                                onChange={async (e) => { await handleProductMediaUpload(idx, 'images', e.target.files); e.target.value = ''; }} />
+                              <Image className="w-5 h-5 mb-1" />
+                              <span className="text-[11px] font-medium">Cliquer pour uploader</span>
+                            </label>
+                          ) : (
+                            <div className="grid grid-cols-4 gap-2">
+                              {(product.images || []).map((url, imageIndex) => (
+                                <div key={imageIndex} className="relative group aspect-square rounded-xl overflow-hidden border border-gray-200 bg-gray-50">
+                                  <img src={url} alt="" className="w-full h-full object-cover" />
+                                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all" />
+                                  <button type="button" onClick={() => removeProductMedia(idx, 'images', imageIndex)}
+                                    className="absolute top-1 right-1 w-5 h-5 bg-red-500 rounded-full text-white text-[11px] leading-none flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-sm">
+                                    ×
+                                  </button>
+                                </div>
+                              ))}
+                              <label className="aspect-square rounded-xl border-2 border-dashed border-gray-200 flex items-center justify-center text-gray-300 hover:border-emerald-300 hover:text-emerald-500 hover:bg-emerald-50 transition-all cursor-pointer">
+                                <input type="file" accept="image/*" multiple className="hidden"
+                                  onChange={async (e) => { await handleProductMediaUpload(idx, 'images', e.target.files); e.target.value = ''; }} />
+                                <Plus className="w-5 h-5" />
+                              </label>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Vidéos */}
+                        <div>
+                          <div className="flex items-center justify-between mb-3">
+                            <div>
+                              <p className="text-[13px] font-bold text-gray-800">Vidéos du produit</p>
+                              <p className="text-[10px] text-gray-400 mt-0.5">Rita envoie la vidéo quand le client hésite ou veut voir le produit en action</p>
+                            </div>
+                            <label className="flex items-center gap-1.5 text-[11px] font-semibold px-3 py-1.5 rounded-lg text-blue-700 bg-blue-50 hover:bg-blue-100 cursor-pointer transition-colors border border-blue-100">
+                              <input type="file" accept="video/*" multiple className="hidden"
+                                onChange={async (e) => { await handleProductMediaUpload(idx, 'videos', e.target.files); e.target.value = ''; }} />
+                              {mediaUploadingByProduct[`${idx}:videos`]
+                                ? <><Loader2 className="w-3 h-3 animate-spin" /> Upload…</>
+                                : <><Video className="w-3 h-3" /> Ajouter</>}
+                            </label>
+                          </div>
+                          {(product.videos || []).length === 0 ? (
+                            <p className="text-[11px] text-gray-400 py-2">Aucune vidéo ajoutée</p>
+                          ) : (
+                            <div className="space-y-1.5">
+                              {(product.videos || []).map((url, videoIndex) => (
+                                <div key={videoIndex} className="flex items-center gap-2 px-3 py-2.5 bg-blue-50/50 border border-blue-100 rounded-xl">
+                                  <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
+                                    <PlayCircle className="w-4 h-4 text-blue-500" />
+                                  </div>
+                                  <span className="text-[11px] text-gray-600 flex-1 truncate font-medium">Vidéo {videoIndex + 1}</span>
+                                  <a href={url} target="_blank" rel="noreferrer" className="text-[10px] text-blue-500 hover:text-blue-700 font-semibold">Voir ▶</a>
+                                  <button type="button" onClick={() => removeProductMedia(idx, 'videos', videoIndex)}
+                                    className="text-gray-300 hover:text-red-500 transition-colors">
+                                    <X className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* ── TAB: VENTE ── */}
+                    {productFormTab === 'vente' && (
+                      <div className="space-y-5">
+
+                        {/* Négociation par produit */}
+                        {config.pricingNegotiation?.enabled ? (
+                          <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl space-y-3">
+                            <div className="flex items-center gap-2">
+                              <div className="w-7 h-7 rounded-lg bg-amber-100 flex items-center justify-center flex-shrink-0">
+                                <span className="text-sm">💰</span>
+                              </div>
+                              <p className="text-[13px] font-bold text-amber-800">Négociation prix</p>
+                            </div>
+                            <div className="grid grid-cols-3 gap-3">
+                              <Field label="Dernier prix" hint="plancher">
+                                <ModalInput value={product.minPrice || ''} onChange={e => updateProduct(idx, 'minPrice', e.target.value)}
+                                  placeholder="12 000 FCFA" label="Dernier prix plancher" className="ac-input text-xs" />
+                              </Field>
+                              <Field label="Remise max" hint="%">
+                                <input type="number" min="0" max="100" value={product.maxDiscountPercent || 0}
+                                  onChange={e => updateProduct(idx, 'maxDiscountPercent', parseInt(e.target.value) || 0)}
+                                  className="ac-input text-xs" />
+                              </Field>
+                              <Field label="Note prix">
+                                <ModalInput value={product.priceNote || ''} onChange={e => updateProduct(idx, 'priceNote', e.target.value)}
+                                  placeholder="ex: offrir livraison si ≥2" label="Note prix" className="ac-input text-xs" />
+                              </Field>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex items-start gap-2.5 px-3.5 py-3 bg-gray-50 border border-gray-200 rounded-xl">
+                            <span className="text-sm">💡</span>
+                            <p className="text-[11px] text-gray-500 leading-snug">Activez <strong>Prix & Négociation</strong> dans la sidebar pour configurer les règles de remise par produit.</p>
+                          </div>
+                        )}
 
                         {/* Offres de quantité */}
                         <div>
                           <div className="flex items-center justify-between mb-3">
-                            <p className="text-[13px] font-semibold text-gray-800">Offres de quantité</p>
+                            <div>
+                              <p className="text-[13px] font-bold text-gray-800">Paliers de quantité</p>
+                              <p className="text-[10px] text-gray-400 mt-0.5">Réductions automatiques selon la quantité commandée</p>
+                            </div>
                             <button type="button" onClick={() => addProductQuantityOffer(idx)}
-                              className="text-[11px] font-semibold px-2.5 py-1 rounded-lg text-amber-700 bg-amber-50 hover:bg-amber-100 transition-colors">
-                              + Ajouter palier
+                              className="flex items-center gap-1 text-[11px] font-bold px-2.5 py-1.5 rounded-lg text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-100 transition-colors">
+                              <Plus className="w-3 h-3" /> Palier
                             </button>
                           </div>
                           {(product.quantityOffers || []).length === 0 ? (
-                            <p className="text-[12px] text-gray-400">Aucun palier configuré</p>
+                            <div className="flex items-center gap-2.5 px-3.5 py-3 border-2 border-dashed border-gray-200 rounded-xl">
+                              <span className="text-gray-300 text-lg">📦</span>
+                              <p className="text-[11px] text-gray-400">Aucun palier — les clients paient le prix standard</p>
+                            </div>
                           ) : (
                             <div className="space-y-2">
                               {(product.quantityOffers || []).map((offer, offerIdx) => (
-                                <div key={offerIdx} className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-3 bg-gray-50 rounded-xl items-end">
-                                  <Field label="Qté min">
-                                    <input type="number" min="1" value={offer.minQuantity || 1}
-                                      onChange={e => updateProductQuantityOffer(idx, offerIdx, 'minQuantity', e.target.value)}
-                                      className="ac-input" />
-                                  </Field>
-                                  <Field label="Prix total">
-                                    <input value={offer.totalPrice || ''} onChange={e => updateProductQuantityOffer(idx, offerIdx, 'totalPrice', e.target.value)}
-                                      placeholder="15000 FCFA" className="ac-input" />
-                                  </Field>
-                                  <Field label="Prix unitaire">
-                                    <input value={offer.unitPrice || ''} onChange={e => updateProductQuantityOffer(idx, offerIdx, 'unitPrice', e.target.value)}
-                                      placeholder="7500" className="ac-input" />
-                                  </Field>
-                                  <Field label="Libellé">
-                                    <input value={offer.label || ''} onChange={e => updateProductQuantityOffer(idx, offerIdx, 'label', e.target.value)}
-                                      placeholder="Pack découverte" className="ac-input" />
-                                  </Field>
-                                  <div className="col-span-2 sm:col-span-4 flex justify-end">
+                                <div key={offerIdx} className="p-3.5 bg-amber-50/50 border border-amber-100 rounded-xl space-y-3">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-[11px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">Palier {offerIdx + 1}</span>
                                     <button type="button" onClick={() => removeProductQuantityOffer(idx, offerIdx)}
-                                      className="text-[11px] text-red-500 hover:text-red-700 font-medium transition-colors">
-                                      Supprimer ce palier
+                                      className="text-gray-300 hover:text-red-500 transition-colors">
+                                      <X className="w-3.5 h-3.5" />
                                     </button>
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-2">
+                                    <Field label="Qté minimum">
+                                      <input type="number" min="1" value={offer.minQuantity || 1}
+                                        onChange={e => updateProductQuantityOffer(idx, offerIdx, 'minQuantity', e.target.value)}
+                                        className="ac-input text-xs" />
+                                    </Field>
+                                    <Field label="Prix unitaire">
+                                      <ModalInput value={offer.unitPrice || ''} onChange={e => updateProductQuantityOffer(idx, offerIdx, 'unitPrice', e.target.value)}
+                                        placeholder="7 500 FCFA" label="Prix unitaire" className="ac-input text-xs" />
+                                    </Field>
+                                    <Field label="Prix total">
+                                      <ModalInput value={offer.totalPrice || ''} onChange={e => updateProductQuantityOffer(idx, offerIdx, 'totalPrice', e.target.value)}
+                                        placeholder="15 000 FCFA" label="Prix total" className="ac-input text-xs" />
+                                    </Field>
+                                    <Field label="Libellé">
+                                      <ModalInput value={offer.label || ''} onChange={e => updateProductQuantityOffer(idx, offerIdx, 'label', e.target.value)}
+                                        placeholder="Pack découverte" label="Libellé du palier" className="ac-input text-xs" />
+                                    </Field>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* ── TAB: CONTENU ── */}
+                    {productFormTab === 'contenu' && (
+                      <div className="space-y-5">
+
+                        {/* FAQ */}
+                        <div>
+                          <div className="flex items-center justify-between mb-3">
+                            <div>
+                              <p className="text-[13px] font-bold text-gray-800">FAQ</p>
+                              <p className="text-[10px] text-gray-400 mt-0.5">Questions fréquentes et réponses de Rita</p>
+                            </div>
+                            <button type="button" onClick={() => addProductFaq(idx)}
+                              className="flex items-center gap-1 text-[11px] font-bold px-2.5 py-1.5 rounded-lg text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-100 transition-colors">
+                              <Plus className="w-3 h-3" /> FAQ
+                            </button>
+                          </div>
+                          {(product.faq || []).length === 0 ? (
+                            <p className="text-[11px] text-gray-400 py-1">Aucune FAQ configurée</p>
+                          ) : (
+                            <div className="space-y-2">
+                              {(product.faq || []).map((f, fIdx) => (
+                                <div key={fIdx} className="bg-gray-50 border border-gray-100 rounded-xl overflow-hidden">
+                                  <div className="flex items-center gap-2 px-3 py-2 bg-purple-50/60 border-b border-gray-100">
+                                    <span className="w-5 h-5 rounded-md bg-purple-100 text-purple-700 text-[10px] font-bold flex items-center justify-center flex-shrink-0">Q</span>
+                                    <ModalInput value={f.question} onChange={e => updateProductFaq(idx, fIdx, 'question', e.target.value)}
+                                      placeholder="Question du client…" label="Question FAQ" className="ac-input flex-1 text-xs bg-transparent border-0 px-0 py-0 focus:ring-0" />
+                                    <button type="button" onClick={() => removeProductFaq(idx, fIdx)} className="text-gray-300 hover:text-red-500 flex-shrink-0"><X className="w-3.5 h-3.5" /></button>
+                                  </div>
+                                  <div className="flex items-start gap-2 px-3 py-2">
+                                    <span className="w-5 h-5 rounded-md bg-emerald-100 text-emerald-700 text-[10px] font-bold flex items-center justify-center flex-shrink-0 mt-0.5">R</span>
+                                    <ModalTextarea value={f.answer} onChange={e => updateProductFaq(idx, fIdx, 'answer', e.target.value)}
+                                      placeholder="Réponse de Rita…" rows={4} label="Réponse FAQ"
+                                      className="ac-textarea flex-1 text-xs" />
                                   </div>
                                 </div>
                               ))}
@@ -2916,78 +3715,59 @@ export default function AgentConfig() {
                           )}
                         </div>
 
-                        {/* Médias */}
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                          {/* Images */}
-                          <div className="space-y-3">
-                            <div className="flex items-center justify-between">
-                              <p className="text-[13px] font-semibold text-gray-800">Images</p>
-                              <label className="text-[11px] font-semibold px-2.5 py-1 rounded-lg text-emerald-700 bg-emerald-50 hover:bg-emerald-100 cursor-pointer transition-colors">
-                                <input type="file" accept="image/*" multiple className="hidden"
-                                  onChange={async (e) => { await handleProductMediaUpload(idx, 'images', e.target.files); e.target.value = ''; }} />
-                                Upload
-                              </label>
+                        {/* Objections */}
+                        <div>
+                          <div className="flex items-center justify-between mb-3">
+                            <div>
+                              <p className="text-[13px] font-bold text-gray-800">Objections</p>
+                              <p className="text-[10px] text-gray-400 mt-0.5">Comment Rita répond aux blocages clients</p>
                             </div>
-                            {mediaUploadingByProduct[`${idx}:images`] && (
-                              <p className="text-[11px] text-emerald-600">Upload en cours...</p>
-                            )}
-                            {(product.images || []).length > 0 && (
-                              <div className="grid grid-cols-3 gap-2">
-                                {(product.images || []).map((url, imageIndex) => (
-                                  <div key={imageIndex} className="relative group rounded-xl overflow-hidden border border-gray-200 aspect-square bg-gray-50">
-                                    <img src={url} alt="" className="w-full h-full object-cover" />
-                                    <button type="button" onClick={() => removeProductMedia(idx, 'images', imageIndex)}
-                                      className="absolute top-1 right-1 w-5 h-5 bg-black/50 rounded-full text-white text-[12px] leading-none flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                      ×
-                                    </button>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
+                            <button type="button" onClick={() => addProductObjection(idx)}
+                              className="flex items-center gap-1 text-[11px] font-bold px-2.5 py-1.5 rounded-lg text-orange-700 bg-orange-50 hover:bg-orange-100 border border-orange-100 transition-colors">
+                              <Plus className="w-3 h-3" /> Objection
+                            </button>
                           </div>
-
-                          {/* Vidéos */}
-                          <div className="space-y-3">
-                            <div className="flex items-center justify-between">
-                              <p className="text-[13px] font-semibold text-gray-800">Vidéos</p>
-                              <label className="text-[11px] font-semibold px-2.5 py-1 rounded-lg text-blue-700 bg-blue-50 hover:bg-blue-100 cursor-pointer transition-colors">
-                                <input type="file" accept="video/*" multiple className="hidden"
-                                  onChange={async (e) => { await handleProductMediaUpload(idx, 'videos', e.target.files); e.target.value = ''; }} />
-                                Upload
-                              </label>
+                          {(product.objections || []).length === 0 ? (
+                            <p className="text-[11px] text-gray-400 py-1">Aucune objection configurée</p>
+                          ) : (
+                            <div className="space-y-2">
+                              {(product.objections || []).map((o, oIdx) => (
+                                <div key={oIdx} className="bg-gray-50 border border-gray-100 rounded-xl overflow-hidden">
+                                  <div className="flex items-center gap-2 px-3 py-2 bg-orange-50/60 border-b border-gray-100">
+                                    <span className="w-5 h-5 rounded-md bg-orange-100 text-orange-700 text-[10px] font-bold flex items-center justify-center flex-shrink-0 shrink-0">!</span>
+                                    <ModalInput value={o.objection} onChange={e => updateProductObjection(idx, oIdx, 'objection', e.target.value)}
+                                      placeholder="ex: C'est trop cher…" label="Objection client" className="ac-input flex-1 text-xs bg-transparent border-0 px-0 py-0 focus:ring-0" />
+                                    <button type="button" onClick={() => removeProductObjection(idx, oIdx)} className="text-gray-300 hover:text-red-500 flex-shrink-0"><X className="w-3.5 h-3.5" /></button>
+                                  </div>
+                                  <div className="flex items-start gap-2 px-3 py-2">
+                                    <span className="w-5 h-5 rounded-md bg-emerald-100 text-emerald-700 text-[10px] font-bold flex items-center justify-center flex-shrink-0 mt-0.5">→</span>
+                                    <ModalTextarea value={o.response} onChange={e => updateProductObjection(idx, oIdx, 'response', e.target.value)}
+                                      placeholder="Réponse de Rita…" rows={4} label="Réponse à l'objection"
+                                      className="ac-textarea flex-1 text-xs" />
+                                  </div>
+                                </div>
+                              ))}
                             </div>
-                            {mediaUploadingByProduct[`${idx}:videos`] && (
-                              <p className="text-[11px] text-blue-600">Upload en cours...</p>
-                            )}
-                            {(product.videos || []).length > 0 && (
-                              <div className="space-y-1.5">
-                                {(product.videos || []).map((url, videoIndex) => (
-                                  <div key={videoIndex} className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-lg">
-                                    <span className="text-[11px] text-gray-500 flex-1 truncate">Vidéo {videoIndex + 1}</span>
-                                    <a href={url} target="_blank" rel="noreferrer" className="text-[10px] text-blue-500 hover:underline">Voir</a>
-                                    <button type="button" onClick={() => removeProductMedia(idx, 'videos', videoIndex)}
-                                      className="text-[10px] text-red-400 hover:text-red-600 transition-colors">
-                                      Retirer
-                                    </button>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Supprimer */}
-                        <div className="flex justify-end pt-1 border-t border-gray-100">
-                          <button onClick={() => removeProduct(idx)}
-                            className="text-[12px] font-medium text-red-500 hover:text-red-700 px-3 py-1.5 rounded-lg hover:bg-red-50 transition-colors">
-                            Supprimer ce produit
-                          </button>
+                          )}
                         </div>
                       </div>
                     )}
+
                   </div>
-                ))}
-              </div>
+                </div>
+              );
+            })() : (
+              config.productCatalog.length > 0 && (
+                <div className="flex-1 hidden lg:flex flex-col items-center justify-center text-center gap-3 bg-gray-50/50 border-2 border-dashed border-gray-200 rounded-2xl">
+                  <div className="w-12 h-12 rounded-2xl bg-white border border-gray-200 flex items-center justify-center shadow-sm">
+                    <Package className="w-5 h-5 text-gray-300" />
+                  </div>
+                  <div>
+                    <p className="text-[13px] font-semibold text-gray-500">Sélectionnez un produit</p>
+                    <p className="text-[11px] text-gray-400 mt-1">Cliquez sur un produit dans la liste pour l'éditer</p>
+                  </div>
+                </div>
+              )
             )}
           </div>
         )}
@@ -3017,8 +3797,8 @@ export default function AgentConfig() {
                     <div className="space-y-2">
                       {(config.stockEntries || []).map((entry, idx) => (
                         <div key={idx} className="flex flex-col sm:flex-row sm:items-center gap-3 p-3 bg-gray-50 rounded-xl">
-                          <input value={entry.productName || ''} onChange={e => updateStockEntry(idx, 'productName', e.target.value)}
-                            placeholder="Nom du produit" className="ac-input flex-1 !bg-white" />
+                          <ModalInput value={entry.productName || ''} onChange={e => updateStockEntry(idx, 'productName', e.target.value)}
+                            placeholder="Nom du produit" label="Nom du produit" className="ac-input flex-1 !bg-white" />
                           <input type="number" value={entry.quantity || 0} onChange={e => updateStockEntry(idx, 'quantity', parseInt(e.target.value) || 0)}
                             className="ac-input w-full sm:w-20 !bg-white text-center" min="0" />
                           <button onClick={() => removeStockEntry(idx)} className="self-end sm:self-auto text-gray-400 hover:text-red-500 transition-colors p-1">
@@ -3053,24 +3833,24 @@ export default function AgentConfig() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <Field label="Nom de l'admin" required>
                       <div className="relative">
-                        <UserCog className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                        <input value={config.adminName} onChange={e => set('adminName', e.target.value)}
-                          placeholder="ex: Mohamed Diallo" className="ac-input !pl-10" />
+                        <UserCog className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                        <ModalInput value={config.adminName} onChange={e => set('adminName', e.target.value)}
+                          placeholder="ex: Mohamed Diallo" label="Nom de l'admin" className="ac-input !pl-10" />
                       </div>
                     </Field>
                     <Field label="Téléphone admin (WhatsApp)" required>
                       <div className="relative">
-                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                        <input value={config.bossPhone} onChange={e => set('bossPhone', e.target.value)}
-                          placeholder="ex: +225 07 00 00 00" className="ac-input !pl-10" />
+                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                        <ModalInput value={config.bossPhone} onChange={e => set('bossPhone', e.target.value)}
+                          placeholder="ex: +225 07 00 00 00" label="Téléphone admin" className="ac-input !pl-10" />
                       </div>
                     </Field>
                   </div>
                   <Field label="Email de l'admin">
                     <div className="relative">
-                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                      <input type="email" value={config.adminEmail} onChange={e => set('adminEmail', e.target.value)}
-                        placeholder="ex: admin@monshop.com" className="ac-input !pl-10" />
+                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                      <ModalInput type="email" value={config.adminEmail} onChange={e => set('adminEmail', e.target.value)}
+                        placeholder="ex: admin@monshop.com" label="Email admin" className="ac-input !pl-10" />
                     </div>
                   </Field>
                 </div>
@@ -3091,9 +3871,9 @@ export default function AgentConfig() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <Field label="Nom du business / boutique" required>
                       <div className="relative">
-                        <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                        <input value={config.businessName} onChange={e => set('businessName', e.target.value)}
-                          placeholder="ex: Zendo Store" className="ac-input !pl-10" />
+                        <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                        <ModalInput value={config.businessName} onChange={e => set('businessName', e.target.value)}
+                          placeholder="ex: Zendo Store" label="Nom du business" className="ac-input !pl-10" />
                       </div>
                     </Field>
                     <Field label="Pays" required>
@@ -3116,15 +3896,16 @@ export default function AgentConfig() {
                   </div>
                   <Field label="Ville / Localisation">
                     <div className="relative">
-                      <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                      <input value={config.businessCity} onChange={e => set('businessCity', e.target.value)}
-                        placeholder="ex: Douala, Yaoundé, Abidjan..." className="ac-input !pl-10" />
+                      <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                      <ModalInput value={config.businessCity} onChange={e => set('businessCity', e.target.value)}
+                        placeholder="ex: Douala, Yaoundé, Abidjan..." label="Ville / Localisation" className="ac-input !pl-10" />
                     </div>
                   </Field>
                   <Field label="Description de l'activité" hint="courte présentation pour Rita">
-                    <textarea value={config.businessDescription} onChange={e => set('businessDescription', e.target.value)}
-                      rows={3} className="ac-textarea"
-                      placeholder="ex: Boutique en ligne de cosmétiques naturels. Nous livrons dans toute la Côte d'Ivoire..." />
+                    <ModalTextarea value={config.businessDescription} onChange={e => set('businessDescription', e.target.value)}
+                      rows={5} label="Description de l'activité"
+                      placeholder="ex: Boutique en ligne de cosmétiques naturels. Nous livrons dans toute la Côte d'Ivoire..."
+                      className="ac-textarea" />
                   </Field>
                 </div>
               </div>
@@ -3247,8 +4028,8 @@ export default function AgentConfig() {
                         {/* Client & Rating */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           <Field label="Nom du client">
-                            <input value={t.clientName || ''} onChange={e => updateTestimonial(idx, 'clientName', e.target.value)}
-                              placeholder="ex: Marie D." className="ac-input" />
+                            <ModalInput value={t.clientName || ''} onChange={e => updateTestimonial(idx, 'clientName', e.target.value)}
+                              placeholder="ex: Marie D." label="Nom du client" className="ac-input" />
                           </Field>
                           <Field label="Note (1-5 étoiles)">
                             <select value={t.rating || 5} onChange={e => updateTestimonial(idx, 'rating', parseInt(e.target.value))}
@@ -3268,9 +4049,9 @@ export default function AgentConfig() {
 
                         {/* Text */}
                         <Field label="Texte du témoignage (optionnel)">
-                          <textarea value={t.text || ''} onChange={e => updateTestimonial(idx, 'text', e.target.value)}
+                          <ModalTextarea value={t.text || ''} onChange={e => updateTestimonial(idx, 'text', e.target.value)}
                             placeholder="ex: J'ai essayé ce produit et en 2 semaines ma peau a vraiment changé ! Je recommande fortement..."
-                            rows={2} className="ac-input text-[13px]" />
+                            rows={5} label="Texte du témoignage" className="ac-textarea" />
                         </Field>
 
                         {/* Images */}
@@ -3699,8 +4480,9 @@ export default function AgentConfig() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <label className="text-[12px] font-semibold text-gray-600">Nom</label>
-                    <input type="text" value={statutForm.name} onChange={e => setStatutForm(p => ({ ...p, name: e.target.value }))}
+                    <ModalInput type="text" value={statutForm.name} onChange={e => setStatutForm(p => ({ ...p, name: e.target.value }))}
                       placeholder="Ex: Statut produit phare du lundi"
+                      label="Nom du statut"
                       className="w-full px-3 py-2 text-[13px] border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-200" />
                   </div>
                   <div className="space-y-1.5">
@@ -3775,8 +4557,9 @@ export default function AgentConfig() {
                 {statutForm.type === 'image' && (
                   <div className="space-y-1.5">
                     <label className="text-[12px] font-semibold text-gray-600">URL de l'image</label>
-                    <input type="text" value={statutForm.mediaUrl} onChange={e => setStatutForm(p => ({ ...p, mediaUrl: e.target.value }))}
+                    <ModalInput type="text" value={statutForm.mediaUrl} onChange={e => setStatutForm(p => ({ ...p, mediaUrl: e.target.value }))}
                       placeholder="https://..."
+                      label="URL de l'image"
                       className="w-full px-3 py-2 text-[13px] border border-gray-200 rounded-xl font-mono focus:outline-none focus:ring-2 focus:ring-emerald-200" />
                   </div>
                 )}
@@ -3784,18 +4567,20 @@ export default function AgentConfig() {
                 {statutForm.type !== 'product' && (
                   <div className="space-y-1.5">
                     <label className="text-[12px] font-semibold text-gray-600">Texte / Légende</label>
-                    <textarea rows={3} value={statutForm.caption} onChange={e => setStatutForm(p => ({ ...p, caption: e.target.value }))}
+                    <ModalTextarea rows={4} value={statutForm.caption} onChange={e => setStatutForm(p => ({ ...p, caption: e.target.value }))}
                       placeholder="Ex: 🔥 Notre produit phare en stock ! Contactez-nous pour commander."
-                      className="w-full px-3 py-2 text-[13px] border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-200 resize-none" />
+                      label="Texte / Légende"
+                      className="w-full px-3 py-2 text-[13px] border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-200" />
                   </div>
                 )}
 
                 {statutForm.type === 'product' && (
                   <div className="space-y-1.5">
                     <label className="text-[12px] font-semibold text-gray-600">Texte personnalisé (optionnel)</label>
-                    <textarea rows={2} value={statutForm.caption} onChange={e => setStatutForm(p => ({ ...p, caption: e.target.value }))}
+                    <ModalTextarea rows={3} value={statutForm.caption} onChange={e => setStatutForm(p => ({ ...p, caption: e.target.value }))}
                       placeholder="Laissez vide pour générer automatiquement depuis le produit"
-                      className="w-full px-3 py-2 text-[13px] border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-200 resize-none" />
+                      label="Texte personnalisé du statut"
+                      className="w-full px-3 py-2 text-[13px] border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-200" />
                   </div>
                 )}
 
@@ -4097,25 +4882,17 @@ export default function AgentConfig() {
                 {/* Zone de texte */}
                 <div className="space-y-2">
                   <label className="text-[13px] font-semibold text-gray-700">Vos instructions</label>
-                  <textarea
+                  <ModalTextarea
                     rows={14}
                     value={config.customInstructions}
                     onChange={e => set('customInstructions', e.target.value)}
-                    placeholder={`Exemples d'instructions que vous pouvez écrire :
-
-- Ne jamais proposer de remise sur le produit X
-- Toujours demander si le client veut la version rouge ou noire avant de closer
-- Si le client mentionne le concurrent Y, répondre : "Nous sommes meilleurs parce que..."
-- Proposer systématiquement le produit B après que le client commande le produit A
-- Si le client demande la livraison à Bafoussam, dire que le délai est 48h
-- Utiliser uniquement des emojis 👍 et 🙏 — pas d'autres emojis
-- Ne jamais mentionner le prix avant d'avoir compris le besoin du client`}
-                    className={`w-full px-4 py-3 rounded-xl border text-[13px] font-mono resize-y focus:outline-none focus:ring-2 transition-all ${
+                    placeholder={`Exemples d'instructions :\n\n- Ne jamais proposer de remise sur le produit X\n- Toujours demander si le client veut la version rouge ou noire avant de closer\n- Proposer systématiquement le produit B après que le client commande le produit A`}
+                    label="Instructions personnalisées"
+                    className={`w-full px-4 py-3 rounded-xl border text-[13px] font-mono focus:outline-none focus:ring-2 transition-all ${
                       config.customInstructionsEnabled
                         ? 'border-emerald-300 bg-white focus:ring-emerald-200'
                         : 'border-gray-200 bg-gray-50 text-gray-400 focus:ring-gray-200'
                     }`}
-                    disabled={!config.customInstructionsEnabled}
                   />
                   <p className="text-[11px] text-gray-400">
                     {config.customInstructions?.length || 0} caractères · Écrivez en langage naturel, l'agent comprend vos instructions directement
@@ -4178,12 +4955,12 @@ export default function AgentConfig() {
                       </div>
                       <div className="px-5 py-4 space-y-3">
                         <Field label="Nom de la campagne">
-                          <input value={campaignForm.name} onChange={e => setCampaignForm(f => ({ ...f, name: e.target.value }))}
-                            placeholder="Ex: Promo weekend, Relance clients..." className="ac-input" />
+                          <ModalInput value={campaignForm.name} onChange={e => setCampaignForm(f => ({ ...f, name: e.target.value }))}
+                            placeholder="Ex: Promo weekend, Relance clients..." label="Nom de la campagne" className="ac-input" />
                         </Field>
                         <Field label="Message">
-                          <textarea value={campaignForm.message} onChange={e => setCampaignForm(f => ({ ...f, message: e.target.value }))}
-                            rows={4} placeholder="Rédigez votre message..." className="ac-textarea" />
+                          <ModalTextarea value={campaignForm.message} onChange={e => setCampaignForm(f => ({ ...f, message: e.target.value }))}
+                            rows={6} placeholder="Rédigez votre message..." label="Message de la campagne" className="ac-textarea" />
                         </Field>
 
                         {/* Média : upload ou URL */}
@@ -4206,8 +4983,8 @@ export default function AgentConfig() {
                                 }} />
                               {campaignMediaUploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : '📎 Upload'}
                             </label>
-                            <input value={campaignForm.mediaUrl} onChange={e => setCampaignForm(f => ({ ...f, mediaUrl: e.target.value }))}
-                              placeholder="ou coller URL..." className="ac-input flex-1 text-[12px]" />
+                            <ModalInput value={campaignForm.mediaUrl} onChange={e => setCampaignForm(f => ({ ...f, mediaUrl: e.target.value }))}
+                              placeholder="ou coller URL..." label="URL du média" className="ac-input flex-1 text-[12px]" />
                             {campaignForm.mediaUrl && (
                               <button onClick={() => setCampaignForm(f => ({ ...f, mediaUrl: '', caption: '' }))}
                                 className="text-gray-300 hover:text-red-400 transition text-lg flex-shrink-0">×</button>
@@ -4218,8 +4995,8 @@ export default function AgentConfig() {
                               {/\.(jpg|jpeg|png|webp|gif)$/i.test(campaignForm.mediaUrl) && (
                                 <img src={campaignForm.mediaUrl} alt="" className="w-14 h-14 rounded-lg object-cover border border-gray-200 flex-shrink-0" />
                               )}
-                              <input value={campaignForm.caption} onChange={e => setCampaignForm(f => ({ ...f, caption: e.target.value }))}
-                                placeholder="Légende (optionnel)..." className="ac-input flex-1 text-[12px]" />
+                              <ModalInput value={campaignForm.caption} onChange={e => setCampaignForm(f => ({ ...f, caption: e.target.value }))}
+                                placeholder="Légende (optionnel)..." label="Légende du média" className="ac-input flex-1 text-[12px]" />
                             </div>
                           )}
                         </div>
@@ -4366,8 +5143,9 @@ export default function AgentConfig() {
 
                     {/* Composer */}
                     <div className="px-5 py-4 space-y-3">
-                      <textarea value={bcMessage} onChange={e => setBcMessage(e.target.value)}
-                        rows={4} placeholder="Rédigez votre message..."
+                      <ModalTextarea value={bcMessage} onChange={e => setBcMessage(e.target.value)}
+                        rows={6} placeholder="Rédigez votre message..."
+                        label="Message à envoyer"
                         className="ac-textarea w-full" />
 
                       {/* Upload ou URL média */}
@@ -4386,8 +5164,9 @@ export default function AgentConfig() {
                             }} />
                           📎 Fichier
                         </label>
-                        <input value={bcMediaUrl} onChange={e => setBcMediaUrl(e.target.value)}
+                        <ModalInput value={bcMediaUrl} onChange={e => setBcMediaUrl(e.target.value)}
                           placeholder="ou coller URL image/vidéo..."
+                          label="URL média"
                           className="ac-input flex-1 text-[12px]" />
                       </div>
 
@@ -4396,8 +5175,8 @@ export default function AgentConfig() {
                           {/\.(jpg|jpeg|png|webp|gif)$/i.test(bcMediaUrl) && (
                             <img src={bcMediaUrl} alt="" className="w-16 h-16 rounded-lg object-cover border border-gray-200 flex-shrink-0" />
                           )}
-                          <input value={bcCaption} onChange={e => setBcCaption(e.target.value)}
-                            placeholder="Légende (optionnel)..." className="ac-input flex-1 text-[12px]" />
+                          <ModalInput value={bcCaption} onChange={e => setBcCaption(e.target.value)}
+                            placeholder="Légende (optionnel)..." label="Légende du média" className="ac-input flex-1 text-[12px]" />
                           <button onClick={() => { setBcMediaUrl(''); setBcCaption(''); }}
                             className="text-gray-300 hover:text-red-400 transition flex-shrink-0">×</button>
                         </div>
