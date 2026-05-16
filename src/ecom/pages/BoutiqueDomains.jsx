@@ -247,7 +247,9 @@ const BoutiqueDomains = () => {
       const res = await api.put('/store/domains', { subdomain: subdomain.trim().toLowerCase(), customDomain: customDomain.trim() });
       const confirmed = res.data?.data?.subdomain;
       if (typeof confirmed === 'string') { setSubdomain(confirmed); setSubdomainInput(confirmed); }
-      await refreshStores();
+      // Ne pas appeler refreshStores() ici — ça déclenche un re-render global
+      // qui réinitialise le state et "recharge" la page visuellement.
+      // Le store sera rafraîchi lors de la prochaine navigation.
     } catch { /* handled */ } finally {
       setSaving(false);
     }
