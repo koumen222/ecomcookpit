@@ -3,7 +3,8 @@ import { useEcomAuth } from '../hooks/useEcomAuth';
 import { useStore } from '../contexts/StoreContext.jsx';
 import api from '../../lib/api';
 
-const VPS_IP = import.meta.env.VITE_CUSTOM_DOMAIN_IP || '173.249.1.86';
+// IP fixe du VPS Caddy — à mettre à jour ici si le serveur change
+const VPS_IP = '173.249.1.86';
 const CNAME_TARGET = 'origin.scalor.net';
 
 function CopyButton({ value }) {
