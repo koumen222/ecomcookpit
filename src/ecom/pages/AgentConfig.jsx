@@ -719,6 +719,16 @@ export default function AgentConfig() {
     }
   }, [agentId, userId, loadConfig]);
 
+  // Auto-sélectionner la première instance connectée si aucune n'est choisie
+  useEffect(() => {
+    if (instances.length === 0 || config.instanceId) return;
+    // Priorité : instance "open" (connectée), sinon la première disponible
+    const connected = instances.find(i => i.status === 'open') || instances[0];
+    if (connected?._id) {
+      set('instanceId', connected._id);
+    }
+  }, [instances]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Polling : re-fetch la config chaque 30s pour détecter les changements en DB
   // MAIS: ne pas surcharger si l'utilisateur a des changements non sauvegardés
   useEffect(() => {
@@ -1525,30 +1535,32 @@ export default function AgentConfig() {
                     <SelectDropdown value={config.language} onChange={v => set('language', v)} options={LANGUAGE_OPTIONS} />
                   </Field>
                   <Field label="Instance WhatsApp Rita" hint="obligatoire pour l'activation">
-                    {instanceOptions.length > 0 ? (
-                      <SelectDropdown
-                        value={config.instanceId}
-                        onChange={handleInstanceChange}
-                        options={instanceOptions}
-                        placeholder="Choisir l'instance utilisée par Rita"
-                      />
-                    ) : (
+                    {instanceOptions.length === 0 ? (
                       <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 py-3 text-[12px] text-gray-500 space-y-2">
                         <p>{instanceError ? `Erreur: ${instanceError}` : 'Aucune instance WhatsApp disponible. Créez ou connectez une instance avant d\'activer Rita.'}</p>
                         <button type="button" onClick={loadInstances} className="text-emerald-600 hover:text-emerald-700 font-semibold underline">
                           Recharger les instances
                         </button>
                       </div>
+                    ) : config.instanceId && instanceOptions.length === 1 ? (
+                      /* Une seule instance — affichage direct, pas de dropdown */
+                      <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-[13px]">
+                        <span className="w-2 h-2 rounded-full bg-emerald-400 flex-shrink-0" />
+                        <span className="font-semibold text-emerald-800">
+                          {selectedInstance?.customName || selectedInstance?.instanceName || 'Instance WhatsApp'}
+                        </span>
+                        <span className="ml-auto text-[11px] text-emerald-600">Connectée ✓</span>
+                      </div>
+                    ) : (
+                      /* Plusieurs instances — dropdown pour choisir */
+                      <SelectDropdown
+                        value={config.instanceId}
+                        onChange={handleInstanceChange}
+                        options={instanceOptions}
+                        placeholder="Choisir l'instance utilisée par Rita"
+                      />
                     )}
                   </Field>
-                  {config.instanceId && (
-                    <div className="flex items-center gap-2 text-[12px] text-gray-500">
-                      <span className="w-2 h-2 rounded-full bg-emerald-400" />
-                      <span>
-                        Instance sélectionnée pour Rita : {selectedInstance?.customName || selectedInstance?.instanceName || 'Instance WhatsApp'}
-                      </span>
-                    </div>
-                  )}
                   {config.enabled && instanceSwitching && (
                     <div className="text-[12px] text-blue-600">Changement d'instance Rita en cours...</div>
                   )}
