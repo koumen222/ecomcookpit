@@ -2552,7 +2552,7 @@ export default function AgentConfig() {
                 </div>
               </div>
 
-              {/* Groupe WhatsApp */}
+              {/* Groupe WhatsApmp */}
               <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
                 <div className="px-6 py-4 border-b border-gray-100">
                   <h2 className="text-[15px] font-bold text-gray-900 flex items-center gap-2">
