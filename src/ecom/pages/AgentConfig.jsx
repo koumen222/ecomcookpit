@@ -898,14 +898,19 @@ export default function AgentConfig() {
       }
       if (configRes.data.success && configRes.data.config) {
         let loadedConfig = configRes.data.config;
-        console.log("FRONT PRODUCTS:", (loadedConfig.productCatalog || []).map(p => ({ name: p.name, price: p.price })));
+
+        // Migration: personality.description → personalityDescription (champ plat)
+        if (!loadedConfig.personalityDescription && loadedConfig.personality) {
+          const p = loadedConfig.personality;
+          loadedConfig.personalityDescription = typeof p === 'string' ? p : (p?.description || '');
+        }
 
         // Migration: Converter 'product' -> 'productName' et ajouter 'rating' par défaut
         if (loadedConfig.testimonials?.length) {
           loadedConfig.testimonials = loadedConfig.testimonials.map(t => ({
             ...t,
-            productName: t.productName || t.product || '', // Migration
-            rating: t.rating || 5, // Ajouter rating par défaut
+            productName: t.productName || t.product || '',
+            rating: t.rating || 5,
           }));
         }
 

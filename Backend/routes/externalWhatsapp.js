@@ -3105,16 +3105,29 @@ router.post('/rita-config', requireEcomAuth, requireRitaAgentAccess, async (req,
     const existingConfig = await RitaConfig.findOne({ [queryKey]: queryValue }).lean();
     const configToPersist = preserveRitaSecretFields(existingConfig, cleanConfig);
 
+    // ── Convertir personalityDescription → personality.description ──────────
+    // Le frontend envoie personalityDescription (champ plat) qu'on stocke
+    // dans le bon endroit du sous-document personality.
+    if (configToPersist.personalityDescription !== undefined) {
+      const currentPersonality = (typeof configToPersist.personality === 'object' && configToPersist.personality !== null)
+        ? configToPersist.personality
+        : {};
+      configToPersist.personality = { ...currentPersonality, description: configToPersist.personalityDescription };
+      delete configToPersist.personalityDescription;
+    }
+
+    // ── Utiliser $set pour éviter un document replacement ───────────────────
+    // MongoDB 4.4+ rejette les updates sans opérateurs atomiques sur findOneAndUpdate.
     const updated = await RitaConfig.findOneAndUpdate(
       { [queryKey]: queryValue },
-      { [queryKey]: queryValue, ...configToPersist },
+      { $set: { [queryKey]: queryValue, ...configToPersist } },
       { upsert: true, new: true, runValidators: false }
     );
 
     res.status(200).json({ success: true, config: sanitizeRitaConfigForResponse(updated) });
   } catch (error) {
-    console.error('❌ Erreur sauvegarde rita-config:', error.message);
-    res.status(500).json({ success: false, error: error.message });
+    console.error('❌ Erreur sauvegarde rita-config:', error.message, error.stack?.split('\n')[1]);
+    res.status(500).json({ success: false, message: error.message });
   }
 });
 
