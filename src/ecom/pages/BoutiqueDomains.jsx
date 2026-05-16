@@ -4,7 +4,7 @@ import { useStore } from '../contexts/StoreContext.jsx';
 import api from '../../lib/api';
 
 // IP fixe du VPS Caddy — à mettre à jour ici si le serveur change
-const VPS_IP = '173.249.1.86';
+const VPS_IP = '89.117.58.183';
 const CNAME_TARGET = 'origin.scalor.net';
 
 function CopyButton({ value }) {

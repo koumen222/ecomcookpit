@@ -698,7 +698,7 @@ router.post('/domains/check-dns', requireEcomAuth, requireWorkspace, async (req,
     const cleanDomain = domain.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
 
     // IP fixe du VPS Caddy — à mettre à jour ici si le serveur change
-    const VPS_IP = '173.249.1.86';
+    const VPS_IP = '89.117.58.183';
     const CNAME_TARGET = 'origin.scalor.net';
     const ACCEPTED_IPS = [VPS_IP];
 
