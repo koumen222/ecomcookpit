@@ -1,4 +1,5 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
+import { safeHtml } from '../utils/sanitize';
 import { Link, useParams, useSearchParams, useLocation } from 'react-router-dom';
 import {
   ShoppingCart, MessageCircle, ArrowRight, ShoppingBag, Star,
@@ -3483,7 +3484,7 @@ export const StoreLegalPage = () => {
             </h1>
             <div
               style={{ fontSize: 15, lineHeight: 1.8, color: '#374151' }}
-              dangerouslySetInnerHTML={{ __html: page.content }}
+              dangerouslySetInnerHTML={safeHtml(page.content, 'storefront')}
             />
           </>
         ) : (

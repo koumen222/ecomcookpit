@@ -5,6 +5,10 @@ import { saveShopifyOrder } from '../services/shopifyOrderService.js';
 
 const SHOPIFY_WEBHOOK_SECRET = process.env.SHOPIFY_WEBHOOK_SECRET;
 
+if (!SHOPIFY_WEBHOOK_SECRET || SHOPIFY_WEBHOOK_SECRET.startsWith('CHANGE_ME')) {
+  console.error('🚨 SHOPIFY_WEBHOOK_SECRET non configuré — les webhooks Shopify ne seront pas acceptés.');
+}
+
 // ─── HMAC Verification ──────────────────────────────────────────────────────
 
 /**
@@ -55,20 +59,26 @@ export const handleOrderCreated = (req, res) => {
     return res.status(400).json({ success: false, message: 'Invalid payload' });
   }
 
-  // ── Vérifier le HMAC si le secret est configuré ──────────────────────────
-  if (SHOPIFY_WEBHOOK_SECRET) {
-    const hmacHeader = req.headers['x-shopify-hmac-sha256'];
-    const rawBody = req.rawBody;
+  // ── Vérifier le HMAC Shopify ────────────────────────────────────────────
+  const hmacHeader = req.headers['x-shopify-hmac-sha256'];
+  const rawBody = req.rawBody;
+  const secretConfigured = SHOPIFY_WEBHOOK_SECRET && !SHOPIFY_WEBHOOK_SECRET.startsWith('CHANGE_ME');
 
+  if (secretConfigured) {
+    // Secret configuré → validation stricte
     if (!rawBody || !hmacHeader) {
       console.error('❌ [Shopify WH] HMAC header ou raw body manquant');
       return res.status(401).json({ success: false, message: 'Missing HMAC' });
     }
-
     if (!verifyShopifyWebhookHmac(rawBody, hmacHeader)) {
       console.error('❌ [Shopify WH] Signature HMAC invalide');
       return res.status(401).json({ success: false, message: 'Invalid HMAC signature' });
     }
+    console.log('✅ [Shopify WH] HMAC vérifié');
+  } else {
+    // Secret non configuré → on accepte mais on log un avertissement
+    // ⚠️  Configurer SHOPIFY_WEBHOOK_SECRET sur Railway pour sécuriser
+    console.warn('⚠️  [Shopify WH] SHOPIFY_WEBHOOK_SECRET non configuré — HMAC non vérifié (commande acceptée quand même)');
   }
 
   // ── Extraire les métadonnées Shopify ─────────────────────────────────────

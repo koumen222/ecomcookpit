@@ -3102,19 +3102,47 @@ router.post('/rita-config', requireEcomAuth, requireRitaAgentAccess, async (req,
       });
     }
 
-    const existingConfig = await RitaConfig.findOne({ [queryKey]: queryValue }).lean();
+    // ── Convertir personalityDescription → personality.description ──────────
+    if (cleanConfig.personalityDescription !== undefined) {
+      const cur = (typeof cleanConfig.personality === 'object' && cleanConfig.personality !== null)
+        ? cleanConfig.personality : {};
+      cleanConfig.personality = { ...cur, description: cleanConfig.personalityDescription };
+      delete cleanConfig.personalityDescription;
+    }
+
+    // ── Trouver le document existant (par agentId OU userId) ─────────────────
+    // On cherche sur les deux clés pour éviter le E11000 duplicate key lors
+    // de l'upsert : si un doc userId existe déjà mais pas encore d'agentId,
+    // on le réutilise plutôt que d'en créer un nouveau.
+    const lookupFilter = agentId && resolvedUserId
+      ? { $or: [{ agentId }, { userId: resolvedUserId }] }
+      : { [queryKey]: queryValue };
+
+    let existingConfig = await RitaConfig.findOne(lookupFilter).lean();
+
     const configToPersist = preserveRitaSecretFields(existingConfig, cleanConfig);
 
-    const updated = await RitaConfig.findOneAndUpdate(
-      { [queryKey]: queryValue },
-      { [queryKey]: queryValue, ...configToPersist },
-      { upsert: true, new: true, runValidators: false }
-    );
+    // Toujours stocker userId (nécessaire pour rapports boss, activité, contacts)
+    if (resolvedUserId) configToPersist.userId = resolvedUserId;
+    if (agentId)        configToPersist.agentId = agentId;
+
+    let updated;
+    if (existingConfig) {
+      // ── Document trouvé → update par _id (0 risque de duplicate key) ──────
+      updated = await RitaConfig.findByIdAndUpdate(
+        existingConfig._id,
+        { $set: configToPersist },
+        { new: true, runValidators: false }
+      );
+    } else {
+      // ── Aucun document → création propre ────────────────────────────────
+      updated = await RitaConfig.create(configToPersist);
+    }
 
     res.status(200).json({ success: true, config: sanitizeRitaConfigForResponse(updated) });
   } catch (error) {
-    console.error('❌ Erreur sauvegarde rita-config:', error.message);
-    res.status(500).json({ success: false, error: error.message });
+    console.error('❌ Erreur sauvegarde rita-config:', error.message, error.stack?.split('\n')[1]);
+    res.status(500).json({ success: false, message: error.message });
   }
 });
 

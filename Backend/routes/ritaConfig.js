@@ -52,10 +52,15 @@ router.get('/config', requireEcomAuth, requireRitaAgentAccess, async (req, res) 
     res.json({
       success: true,
       config: {
+        // Identité
         enabled: config.enabled || false,
         instanceId: config.instanceId || '',
         agentName: config.agentName || 'Rita',
+        agentRole: config.agentRole || 'Vendeuse WhatsApp IA',
+        language: config.language || 'fr',
+        personalityDescription: config.personality?.description || (typeof config.personality === 'string' ? config.personality : ''),
         welcomeMessage: config.welcomeMessage || `Bonjour 👋 J'espère que vous allez bien ! Je suis là pour vous aider — lequel de nos produits vous a intéressé ?`,
+        // Autres champs (autres onglets)
         productCatalog: config.productCatalog || [],
         bossPhone: config.bossPhone || '',
         bossNotifications: config.bossNotifications || false,
@@ -101,21 +106,27 @@ router.post('/config', requireEcomAuth, requireRitaAgentAccess, async (req, res)
     console.log(`💾 [RITA] POST /config pour ${queryKey}=${queryValue}`);
     console.log(`   - Produits: ${config.productCatalog?.length || 0}`);
 
-    // Nettoyer les champs MongoDB (ex: _id, __v)
-    const cleanConfig = {
-      enabled: config.enabled || false,
-      instanceId: config.instanceId || '',
-      agentName: config.agentName || 'Rita',
-      welcomeMessage: config.welcomeMessage || `Bonjour 👋 J'espère que vous allez bien ! Je suis là pour vous aider — lequel de nos produits vous a intéressé ?`,
-      productCatalog: config.productCatalog || [],
-      bossPhone: config.bossPhone || '',
-      bossNotifications: config.bossNotifications || false,
-      notifyOnOrder: config.notifyOnOrder !== false,
-    };
+    // Champs identité acceptés (liste blanche — on n'écrase jamais les autres onglets)
+    const identityFields = {};
+    if (config.enabled         !== undefined) identityFields.enabled         = Boolean(config.enabled);
+    if (config.instanceId      !== undefined) identityFields.instanceId      = config.instanceId || '';
+    if (config.agentName       !== undefined) identityFields.agentName       = config.agentName || 'Rita';
+    if (config.agentRole       !== undefined) identityFields.agentRole       = config.agentRole || '';
+    if (config.language        !== undefined) identityFields.language        = config.language || 'fr';
+    if (config.welcomeMessage  !== undefined) identityFields.welcomeMessage  = config.welcomeMessage || '';
+    if (config.bossPhone       !== undefined) identityFields.bossPhone       = config.bossPhone || '';
+    if (config.bossNotifications !== undefined) identityFields.bossNotifications = Boolean(config.bossNotifications);
+    if (config.notifyOnOrder   !== undefined) identityFields.notifyOnOrder   = config.notifyOnOrder !== false;
+    if (config.productCatalog  !== undefined) identityFields.productCatalog  = config.productCatalog || [];
+
+    // Sauvegarder description de personnalité dans le champ personality.description
+    if (config.personalityDescription !== undefined) {
+      identityFields['personality.description'] = config.personalityDescription || '';
+    }
 
     const updated = await RitaConfig.findOneAndUpdate(
       { [queryKey]: queryValue },
-      { [queryKey]: queryValue, ...cleanConfig },
+      { $set: { [queryKey]: queryValue, ...identityFields } },
       { upsert: true, new: true, runValidators: false }
     );
 
@@ -127,6 +138,9 @@ router.post('/config', requireEcomAuth, requireRitaAgentAccess, async (req, res)
         enabled: updated.enabled,
         instanceId: updated.instanceId,
         agentName: updated.agentName,
+        agentRole: updated.agentRole || '',
+        language: updated.language || 'fr',
+        personalityDescription: updated.personality?.description || '',
         welcomeMessage: updated.welcomeMessage,
         productCatalog: updated.productCatalog,
         bossPhone: updated.bossPhone,
@@ -208,6 +222,9 @@ router.get('/config/:agentId', requireEcomAuth, requireRitaAgentAccess, async (r
         enabled: config.enabled || false,
         instanceId: config.instanceId || '',
         agentName: config.agentName || 'Rita',
+        agentRole: config.agentRole || 'Vendeuse WhatsApp IA',
+        language: config.language || 'fr',
+        personalityDescription: config.personality?.description || (typeof config.personality === 'string' ? config.personality : ''),
         welcomeMessage: config.welcomeMessage || `Bonjour 👋 J'espère que vous allez bien ! Je suis là pour vous aider — lequel de nos produits vous a intéressé ?`,
         productCatalog: config.productCatalog || [],
         bossPhone: config.bossPhone || '',

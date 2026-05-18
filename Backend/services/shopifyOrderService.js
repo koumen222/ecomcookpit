@@ -1,9 +1,12 @@
 import Order from '../models/Order.js';
 import OrderSource from '../models/OrderSource.js';
 import EcomUser from '../models/EcomUser.js';
+import Workspace from '../models/Workspace.js';
 import { notifyNewOrder } from './notificationHelper.js';
 import { normalizeCity } from '../utils/cityNormalizer.js';
 import { sendClientOrderConfirmation } from './shopifyWhatsappService.js';
+import { getPlanRuntimeSnapshot } from '../middleware/planLimits.js';
+import { notifyOrderLimitReached } from './orderLimitNotificationService.js';
 
 /**
  * Sauvegarde une commande Shopify reçue par webhook.
@@ -139,6 +142,24 @@ export async function saveShopifyOrder(shopifyOrder, shopDomain, workspaceId, wo
 
   const price = parseFloat(shopifyOrder.total_price) || 0;
   const currency = shopifyOrder.currency || 'XAF';
+
+  // ── Vérifier la limite de commandes du plan ────────────────────────────
+  const ws = await Workspace.findById(workspaceId).select('plan planExpiresAt trialEndsAt').lean();
+  let effectivePlan = ws?.plan || 'free';
+  if (effectivePlan !== 'free' && ws?.planExpiresAt && new Date(ws.planExpiresAt).getTime() < Date.now()) effectivePlan = 'free';
+  if (effectivePlan === 'free' && ws?.trialEndsAt && new Date(ws.trialEndsAt).getTime() > Date.now()) effectivePlan = 'starter';
+  const { limits: planLimits } = await getPlanRuntimeSnapshot(effectivePlan);
+  if (planLimits.maxOrders !== null) {
+    const startOfMonth = new Date();
+    startOfMonth.setDate(1);
+    startOfMonth.setHours(0, 0, 0, 0);
+    const monthCount = await Order.countDocuments({ workspaceId, createdAt: { $gte: startOfMonth } });
+    if (monthCount >= planLimits.maxOrders) {
+      console.warn(`⚠️ [Shopify WH] Commande #${shopifyOrderId} rejetée — limite plan (${monthCount}/${planLimits.maxOrders}) atteinte pour workspace ${workspaceId}`);
+      notifyOrderLimitReached(workspaceId, { used: monthCount, limit: planLimits.maxOrders }).catch(() => {});
+      return null;
+    }
+  }
 
   // ── Créer la commande dans le système existant ─────────────────────────
   const newOrder = new Order({

@@ -99,7 +99,7 @@ const FEATURE_LABELS = {
 };
 
 const planCache = { data: null, ts: 0 };
-const CACHE_MS = 30_000;
+const CACHE_MS = 10_000;
 
 async function getPlanConfigs() {
   const now = Date.now();
@@ -254,12 +254,16 @@ async function countByResource(resource, workspaceId) {
     }
     case 'stores': return Store.countDocuments(filter).catch(() => 0);
     case 'whatsappInstances': return WhatsAppInstance.countDocuments(filter).catch(() => 0);
-    case 'users':
-      // Count all active members who have access to this workspace (excluding the owner)
-      return EcomUser.countDocuments({
-        'workspaces.workspaceId': workspaceId,
-        isActive: true
-      }).catch(() => 0);
+    case 'users': {
+      // Count invited members only (exclude the workspace owner).
+      // The owner is stored as workspace.owner — fetch it to exclude them.
+      const ws = await (await import('../models/Workspace.js')).default
+        .findById(workspaceId).select('owner').lean().catch(() => null);
+      const ownerId = ws?.owner;
+      const query = { 'workspaces.workspaceId': workspaceId, isActive: true };
+      if (ownerId) query._id = { $ne: ownerId };
+      return EcomUser.countDocuments(query).catch(() => 0);
+    }
     default: return 0;
   }
 }

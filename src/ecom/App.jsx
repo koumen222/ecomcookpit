@@ -120,6 +120,7 @@ const SuperAdminFeatureAnalytics = lazy(() => import('./pages/SuperAdminFeatureA
 const SuperAdminProductPageHistory = lazy(() => import('./pages/SuperAdminProductPageHistory.jsx'));
 const WhyScalor = lazy(() => import('./pages/WhyScalor.jsx'));
 const Tarifs = lazy(() => import('./pages/Tarifs.jsx'));
+const Formation = lazy(() => import('./pages/Formation.jsx'));
 const SourcingStats = lazy(() => import('./pages/SourcingStats.jsx'));
 const WhatsAppService = lazy(() => import('./pages/WhatsAppService.jsx'));
 const DeveloperSection = lazy(() => import('./pages/DeveloperSection.jsx'));
@@ -746,6 +747,9 @@ const EcomApp = () => {
               <Route path="/ecom/product-finder/:id/edit" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse']}><ProductFinderEdit /></LayoutRoute>} />
               <Route path="/ecom/stats-rapports" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse', 'ecom_compta']}><StatsRapports /></LayoutRoute>} />
 
+              {/* Formation */}
+              <Route path="/ecom/formation" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse', 'ecom_compta']}><Formation /></LayoutRoute>} />
+
               {/* Routes chat */}
               <Route path="/ecom/chat" element={<LayoutRoute><TeamChat /></LayoutRoute>} />
 
@@ -867,7 +871,7 @@ const EcomApp = () => {
             </Routes>
           </Suspense>
 
-          <PrivacyBanner />
+          {/* <PrivacyBanner /> */}
         </div>
         </PlanGateProvider>
       </ThemeProvider>

@@ -3,7 +3,8 @@ import { useEcomAuth } from '../hooks/useEcomAuth';
 import { useStore } from '../contexts/StoreContext.jsx';
 import api from '../../lib/api';
 
-const VPS_IP = import.meta.env.VITE_CUSTOM_DOMAIN_IP || '89.117.58.183';
+// IP fixe du VPS Caddy — à mettre à jour ici si le serveur change
+const VPS_IP = '89.117.58.183';
 const CNAME_TARGET = 'origin.scalor.net';
 
 function CopyButton({ value }) {
@@ -247,7 +248,9 @@ const BoutiqueDomains = () => {
       const res = await api.put('/store/domains', { subdomain: subdomain.trim().toLowerCase(), customDomain: customDomain.trim() });
       const confirmed = res.data?.data?.subdomain;
       if (typeof confirmed === 'string') { setSubdomain(confirmed); setSubdomainInput(confirmed); }
-      await refreshStores();
+      // Ne pas appeler refreshStores() ici — ça déclenche un re-render global
+      // qui réinitialise le state et "recharge" la page visuellement.
+      // Le store sera rafraîchi lors de la prochaine navigation.
     } catch { /* handled */ } finally {
       setSaving(false);
     }

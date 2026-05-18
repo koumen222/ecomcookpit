@@ -1,4 +1,5 @@
 ﻿import React, { useState, useEffect } from 'react';
+import { safeHtml } from '../utils/sanitize';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 import { 
@@ -437,7 +438,7 @@ export default function MarketingCompose({ editingId, onSaved, onCancel, flash }
               <div className="bg-gray-50 px-3 py-2 text-xs text-gray-500 border-b">Aperçu — {form.subject || 'Sans sujet'}</div>
               <div className="p-4 max-h-96 overflow-y-auto">
                 {contentMode === 'html'
-                  ? (form.bodyHtml ? <div dangerouslySetInnerHTML={{ __html: form.bodyHtml }} /> : <p className="text-gray-400 text-sm whitespace-pre-wrap">Aucun contenu HTML</p>)
+                  ? (form.bodyHtml ? <div dangerouslySetInnerHTML={safeHtml(form.bodyHtml)} /> : <p className="text-gray-400 text-sm whitespace-pre-wrap">Aucun contenu HTML</p>)
                   : <p className="text-gray-700 text-sm whitespace-pre-wrap">{form.bodyText || 'Aucun contenu texte'}</p>}
               </div>
             </div>

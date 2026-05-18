@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { safeHtml } from '../utils/sanitize';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import {
   ChevronLeft, ChevronRight, ShoppingCart, MessageCircle,
@@ -927,7 +928,7 @@ const ProductDescription = ({ content, design = {} }) => {
 
   // HTML with embedded styles — render as-is, only constrain images
   return (
-    <div className="ai-desc" dangerouslySetInnerHTML={{ __html: htmlToRender }} />
+    <div className="ai-desc" dangerouslySetInnerHTML={safeHtml(htmlToRender, 'storefront')} />
   );
 };
 

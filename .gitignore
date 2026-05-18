@@ -86,6 +86,19 @@ jspm_packages/
 tmp/
 temp/
 
+# Videos
+*.mp4
+*.avi
+*.mov
+*.mkv
+*.wmv
+*.flv
+*.webm
+*.m4v
+*.3gp
+*.mpeg
+*.mpg
+
 # Frontend specific
 ecom-frontend/node_modules/
 ecom-frontend/dist/

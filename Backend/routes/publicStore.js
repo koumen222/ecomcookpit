@@ -13,6 +13,8 @@ import { sendClientOrderConfirmation } from '../services/shopifyWhatsappService.
 import { normalizeCity } from '../utils/cityNormalizer.js';
 import { normalizePhone } from '../utils/phoneUtils.js';
 import { resolveStoreBySubdomain } from '../middleware/storeAuth.js';
+import { getPlanRuntimeSnapshot } from '../middleware/planLimits.js';
+import { notifyOrderLimitReached } from '../services/orderLimitNotificationService.js';
 
 /**
  * Map store currency → default phone prefix (digits only, no +).
@@ -309,6 +311,28 @@ router.get('/:subdomain/delivery-zones', readLimiter, resolveStoreBySubdomain, a
  */
 router.post('/:subdomain/orders', orderLimiter, resolveStoreBySubdomain, async (req, res) => {
   try {
+    // Check plan order limit before accepting the order
+    const workspaceId = req.storeWorkspaceId;
+    const ws = await EcomWorkspace.findById(workspaceId).select('plan planExpiresAt trialEndsAt').lean();
+    let effectivePlan = ws?.plan || 'free';
+    if (effectivePlan !== 'free' && ws?.planExpiresAt && new Date(ws.planExpiresAt).getTime() < Date.now()) effectivePlan = 'free';
+    if (effectivePlan === 'free' && ws?.trialEndsAt && new Date(ws.trialEndsAt).getTime() > Date.now()) effectivePlan = 'starter';
+    const { limits: planLimits } = await getPlanRuntimeSnapshot(effectivePlan);
+    if (planLimits.maxOrders !== null) {
+      const startOfMonth = new Date();
+      startOfMonth.setDate(1);
+      startOfMonth.setHours(0, 0, 0, 0);
+      const monthCount = await Order.countDocuments({ workspaceId, createdAt: { $gte: startOfMonth } });
+      if (monthCount >= planLimits.maxOrders) {
+        notifyOrderLimitReached(workspaceId, { used: monthCount, limit: planLimits.maxOrders }).catch(() => {});
+        return res.status(403).json({
+          success: false,
+          error: 'STORE_ORDER_LIMIT_REACHED',
+          message: 'Cette boutique ne peut plus recevoir de commandes ce mois-ci. Veuillez réessayer le mois prochain ou contacter le vendeur.'
+        });
+      }
+    }
+
     const { customerName, phone, phoneCode, email, address, city, country, products, notes, channel, deliveryType, deliveryCost, callSchedule } = req.body;
 
     // Validate required fields

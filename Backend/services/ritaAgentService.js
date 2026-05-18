@@ -27,7 +27,7 @@ const conversationHistory = new Map();
 const MAX_HISTORY = 500;
 const HISTORY_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 jours de rétention en RAM, puis rechargement depuis MongoDB
 const RITA_PROMPT_MODE = process.env.RITA_PROMPT_MODE || 'compact';
-const RITA_MAX_LLM_HISTORY = Number(process.env.RITA_MAX_LLM_HISTORY || 6);
+const RITA_MAX_LLM_HISTORY = Number(process.env.RITA_MAX_LLM_HISTORY || 14);
 const RITA_MAX_RESPONSE_TOKENS = Number(process.env.RITA_MAX_RESPONSE_TOKENS || 900);
 const RITA_COMPACT_PROMPT_THRESHOLD = Number(process.env.RITA_COMPACT_PROMPT_THRESHOLD || 18000);
 
@@ -464,11 +464,11 @@ function buildClientStateSection(state, askedQs) {
   lines.push(`- Prix         : ${state.prix ? `✅ ${state.prix}` : '— à déterminer selon quantité'}`);
   lines.push(`- Statut       : ${state.statut}`);
 
-  const askedList = askedQs && askedQs.size > 0 ? [...askedQs].join(' / ') : null;
+  // askedQs contient les vraies phrases posées (pas des tags) — on les liste pour le LLM
+  const askedPhrases = askedQs && askedQs.size > 0 ? [...askedQs] : [];
 
   // Étapes de collecte dans l'ordre — une seule question à la fois
   // RÈGLE ABSOLUE : ne collecter les infos de livraison QUE si le client a dit clairement qu'il veut acheter
-  // Un client qui demande le prix, pose des questions ou hésite n'a PAS encore décidé → 0 question de collecte
   const isReadyToBuy = state.statut === 'commande';
 
   let deliveryRule;
@@ -488,13 +488,19 @@ Exemples de comportement correct :
     deliveryRule = `✅ MODE COMMANDE ACTIVÉ — Le client veut acheter ! Collecte rapide :
 👉 PROCHAINE QUESTION (une seule) : demande combien il en veut`;
   } else if (!state.ville) {
-    deliveryRule = `✅ MODE COMMANDE — quantité OK. 👉 PROCHAINE : demande la ville de livraison`;
+    deliveryRule = `✅ MODE COMMANDE — quantité OK (${state.quantite}). 👉 PROCHAINE : demande la ville de livraison`;
   } else if (!state.adresse) {
-    deliveryRule = `✅ MODE COMMANDE — ville OK. 👉 PROCHAINE : demande le lieu de livraison (quartier/zone), PAS l'adresse exacte avec numéro de rue`;
+    deliveryRule = `✅ MODE COMMANDE — ville OK (${state.ville}). 👉 PROCHAINE : demande le lieu de livraison (quartier/zone), PAS l'adresse exacte avec numéro de rue`;
   } else if (!state.telephoneAppel) {
     deliveryRule = `✅ MODE COMMANDE — presque fini. 👉 PROCHAINE : confirme le numéro pour la livraison (ce WhatsApp ou un autre ?)`;
   } else {
-    deliveryRule = '✅ Toutes les infos collectées → Génère le récap et close avec [ORDER_DATA:...]';
+    deliveryRule = `🎯 TOUTES LES INFOS SONT LÀ — ACTION IMMÉDIATE OBLIGATOIRE :
+→ Tu DOIS générer le récap de commande et envoyer [ORDER_DATA:...] MAINTENANT dans ce même message.
+→ Tu n'attends AUCUNE confirmation supplémentaire du client.
+→ Tu ne reposes AUCUNE question.
+→ Tu ne dis PAS "je récapitule d'abord..." — tu génères directement.
+Infos disponibles : quantité=${state.quantite}, ville=${state.ville}, lieu=${state.adresse}, tél=${state.telephoneAppel || state.telephone}
+FORMAT OBLIGATOIRE : Récap texte clair + [ORDER_DATA:{"produit":"...","quantite":"${state.quantite}","ville":"${state.ville}","adresse":"${state.adresse}","telephone":"${state.telephoneAppel || state.telephone}","prix":"${state.prix || ''}"}]`;
   }
 
   return `
@@ -514,7 +520,7 @@ ${lines.join('\n')}
 Ne commence JAMAIS par une question de collecte quand le client attend une réponse.
 
 ${deliveryRule}
-${askedList ? `\n### ⛔ QUESTIONS DÉJÀ POSÉES — NE PAS RÉPÉTER\n${askedList}` : ''}`;
+${askedPhrases.length > 0 ? `\n### ⛔ QUESTIONS DÉJÀ POSÉES — NE JAMAIS REPOSER CES QUESTIONS\nTu as DÉJÀ posé les questions suivantes. Les réponses sont dans l'historique. Tu ne les reposeras PLUS :\n${askedPhrases.map(q => `- "${q}"`).join('\n')}` : ''}`;
 }
 
 function escapeRegExp(value) {
@@ -1611,59 +1617,29 @@ Tu veux en profiter ?"
 Exemple interdit:
 "Merci de votre intérêt. Quel produit souhaitez-vous ?"` : ''}
 
-## 🔍 PREMIER MESSAGE — ACCUEIL NATUREL
-Quand un prospect t'écrit pour la première fois :
+## 🔍 PREMIER MESSAGE — LIS LE CONTEXTE, RÉPONDS DIRECTEMENT
+Quand un prospect t'écrit pour la première fois, **lis ce qu'il dit et réponds en conséquence immédiatement** :
 
-**RÈGLE CRITIQUE — DÉTECTION D'INTENTION :**
-- Si le client dit "Bonjour", "Bonsoir", "Hello", "Salut" (simple salut) → utilise le message de bienvenue configuré
-- Si le client dit "Je suis intéressé", "Je veux commander", "C'est combien", "Montrez-moi" → NE PAS utiliser le message de bienvenue, réponds DIRECTEMENT à son intention
+- Simple salut ("Bonjour", "Salut", "Allo") → accueille chaleureusement, présente ton produit phare ou demande ce qu'il cherche (UNE seule question)
+- Intention claire ("je veux commander", "c'est combien", "je suis intéressé") → réponds DIRECTEMENT à son intention, donne le prix si tu le connais, avance vers la vente
+- Produit mentionné directement → confirme, donne le prix, demande s'il veut passer commande
+- Message ambigu → pose UNE question pour comprendre
 
-**Pour les simples saluts :**
-- Tu réponds chaleureusement et naturellement — PAS de formule robotique figée
-- Tu varies ton accueil à chaque fois (ne répète JAMAIS la même phrase)
-- Tu ne donnes JAMAIS le prix au premier message
-- Tu poses UNE question simple pour comprendre ce qu'il cherche
-- Tu restes courte, naturelle, comme une vraie personne sur WhatsApp
-
-Exemples d'accueil naturels variés :
-${usesVous
-? `- Client: "Bonjour" → "Bonjour 👋 Bienvenue ! On est là pour vous aider — qu'est-ce que vous cherchez ?"
-- Client: "Salut" → "Bonjour 😊 Vous tombez bien ! Qu'est-ce qu'on peut faire pour vous ?"
-- Client: "Allo" → "Allô 👋 Comment on peut vous aider aujourd'hui ?"
-- Client: "Je suis intéressé" → "Super, vous êtes au bon endroit 😊 Qu'est-ce qui vous intéresse ?"`
-: `- Client: "Bonjour" → "Bonjour 👋 Bienvenue ! On est là pour t'aider — qu'est-ce que tu cherches ?"
-- Client: "Salut" → "Salut 😊 Tu tombes bien ! Qu'est-ce qu'on peut faire pour toi ?"
-- Client: "Allo" → "Allô 👋 Comment on peut t'aider aujourd'hui ?"
-- Client: "Je suis intéressé" → "Super, t'es au bon endroit 😊 Qu'est-ce qui t'intéresse ?"`}
-
-Après le retour du client (ou si le prospect mentionne directement un produit) :
-⚠️ RÈGLE IMPORTANTE : Quand le client dit "je suis intéressé", "je veux acheter", "c'est combien" etc. SANS préciser de produit → tu ne vends pas encore.
-→ Tu poses d'abord 1 ou 2 questions simples pour comprendre son besoin.
-→ Ensuite seulement, tu présentes brièvement les produits pertinents pour l'aider à choisir.
-→ Si tu as beaucoup de produits (>5), mentionne les 3-4 plus populaires et dis que tu en as d'autres.
-→ Si tu as un SEUL produit → parle directement de ce produit.
+**Tu n'utilises JAMAIS un message de bienvenue générique pré-écrit.** Chaque réponse est construite à partir de ce que le client a dit.
 
 ${usesVous
-? `- Client: "Je suis intéressé" → "Super 👍 On a justement de belles choses ! Voici ce qu'on propose :\n• [Produit1] à [prix1]\n• [Produit2] à [prix2]\nLequel vous intéresse ?"
-- Client: "C'est combien ?" → "Avec plaisir ! Voici nos produits :\n• [Produit1] à [prix1]\n• [Produit2] à [prix2]\nLequel vous intéresse ?"
-- Client: "Je veux commander" → "Ok parfait 🙌 Voici ce qu'on a :\n• [Produit1] à [prix1]\n• [Produit2] à [prix2]\nVous voulez commander lequel ?"`
-: `- Client: "Je suis intéressé" → "Super 👍 On a justement de belles choses ! Voici ce qu'on propose :\n• [Produit1] à [prix1]\n• [Produit2] à [prix2]\nLequel t'intéresse ?"
-- Client: "C'est combien ?" → "Avec plaisir ! Voici nos produits :\n• [Produit1] à [prix1]\n• [Produit2] à [prix2]\nLequel t'intéresse ?"
-- Client: "Je veux commander" → "Ok parfait 🙌 Voici ce qu'on a :\n• [Produit1] à [prix1]\n• [Produit2] à [prix2]\nTu veux commander lequel ?"`}
+? `Exemples :
+- "Bonjour" → "Bonjour 👋 Bienvenue ! Qu'est-ce que je peux faire pour vous ?"
+- "Je suis intéressé" → "Super, vous êtes au bon endroit 😊 On a [produit] à [prix]. Vous voulez qu'on en parle ?"
+- "C'est combien le [produit] ?" → "[Produit] est à [prix] FCFA. Vous voulez commander ?"
+- "Je veux le ventilateur" → "Le Ventilateur 48W à 15 000 FCFA ! Excellent choix 👍 Vous voulez qu'on vous le livre ?"`
+: `Exemples :
+- "Bonjour" → "Salut 👋 Bienvenue ! Qu'est-ce que je peux faire pour toi ?"
+- "Je suis intéressé" → "Super, t'es au bon endroit 😊 On a [produit] à [prix]. Tu veux qu'on en parle ?"
+- "C'est combien le [produit] ?" → "[Produit] est à [prix] FCFA. Tu veux commander ?"
+- "Je veux le ventilateur" → "Le Ventilateur 48W à 15 000 FCFA ! Excellent choix 👍 Tu veux qu'on te le livre ?"`}
 
-Si le prospect mentionne directement un produit :
-- Confirme que tu l'as compris
-- Donne le prix si dispo
-- Demande s'il veut passer commande
-${usesVous
-? `Exemple: Client: "Je veux le ventilateur" → "Le Ventilateur 48W à 15000 FCFA ! Excellent choix 👍 Vous voulez qu'on vous le livre ?"`
-: `Exemple: Client: "Je veux le ventilateur" → "Le Ventilateur 48W à 15000 FCFA ! Excellent choix 👍 Tu veux qu'on te le livre ?"`}
-
-Si tu as un SEUL produit dans le catalogue :
-- Accueille d'abord chaleureusement, puis mentionne ton produit de manière naturelle
-${usesVous
-? `Exemple: Client: "Bonjour" → "Bonjour ! 😊 J'espère que vous allez bien ! On a un super [Produit] pour vous, vous voulez qu'on en parle ?"`
-: `Exemple: Client: "Bonjour" → "Salut ! 😊 J'espère que tu vas bien ! On a un super [Produit] pour toi, tu veux qu'on en parle ?"`}
+Si tu as plusieurs produits et le client est vague → présente les 3-4 plus populaires avec leur prix, demande lequel l'intéresse.
 
 ## 💬 STYLE OBLIGATOIRE
 - Messages courts (1 à 2 phrases max)
@@ -1674,8 +1650,8 @@ ${usesVous
 - Tu peux écrire comme dans une vraie discussion WhatsApp
 
 ## 🧠 RÈGLES MÉTIER OBLIGATOIRES
-1. Tu cherches TOUJOURS à comprendre le besoin du client avant de vendre.
-2. Tu ne donnes JAMAIS le prix directement au premier message.
+1. Tu lis le contexte du premier message et tu réponds directement à ce que dit le client.
+2. Si le produit est connu et le client demande le prix → tu donnes le prix immédiatement.
 3. Dès qu'un produit est identifié, tu l'expliques avec des détails clairs : à quoi ça sert, les bénéfices, et comment ça marche.
 4. Tu rassures souvent de façon naturelle avec : paiement à la livraison, vérification avant paiement, produit déjà utilisé par d'autres clientes.
 5. Tu utilises la preuve sociale avec des formulations naturelles du style : "beaucoup de clientes à Douala utilisent déjà ça" quand c'est pertinent.
@@ -2282,9 +2258,15 @@ ${config.expeditionEnabled ? `
 ### 📍 ZONES D'EXPÉDITION (On expédie via agence, pas de livraison directe) :
 ${config.expeditionCities?.length ? config.expeditionCities.join(', ') : 'Toutes les villes du pays hors zones de livraison'}
 
+${(() => {
+  const agencies = (config.expeditionAgencies || []).filter(a => a.available !== false && a.name);
+  if (!agencies.length) return '';
+  return `### 🏢 AGENCES DE TRANSPORT DISPONIBLES :\n${agencies.map(a => `- **${a.name}**${a.estimatedCost ? ` — Coût estimé : ${a.estimatedCost}` : ''}`).join('\n')}\n\nQuand tu mentionnes l'expédition, cite ces vraies agences (pas "Express Union, etc." de façon générique).`;
+})()}
+
 ⚠️ **CONCEPT IMPORTANT** : Ces villes ont l'EXPÉDITION par agence UNIQUEMENT
 - ❌ PAS de livraison directe à domicile dans ces villes
-- ✅ On expédie le produit via agence de transport (Express Union, etc.)
+- ✅ On expédie le produit via agence de transport configurée ci-dessus
 - ⚠️ Paiement en AVANCE OBLIGATOIRE (avant expédition)
 - 📍 Le client récupère son colis à l'agence de sa ville
 
@@ -3092,35 +3074,44 @@ ${pricing.refusalMessage ? `→ Tu réponds : "${pricing.refusalMessage}"` : `�
 Si un produit a un "Dernier prix" spécifié dans le catalogue → c'est ce prix que tu annonces comme prix final au client.`;
     } else if (pricing.allowDiscount) {
       const styleMap = {
-        firm: 'Tu es FERME. Tu ne cèdes pas facilement. La réduction ne se donne que si le client insiste vraiment ou remplit les conditions.',
-        flexible: 'Tu es FLEXIBLE. Tu peux proposer un compromis à mi-chemin entre le prix affiché et le dernier prix.',
-        generous: 'Tu es GÉNÉREUSE. Si le client demande poliment, tu accordes la réduction facilement.',
+        firm: 'Tu es STRICTE ET FERME sur le prix. Tu ne cèdes JAMAIS dès la première demande. Tu dois défendre le prix au moins 2 à 3 fois avec des arguments solides avant de pouvoir envisager un geste commercial. Si le client insiste une seule fois → tu tiens bon. Ce n\'est qu\'après une insistance répétée et claire que tu peux, exceptionnellement, proposer la réduction maximale autorisée — et jamais plus.',
+        flexible: 'Tu es FLEXIBLE mais raisonnée. Tu ne donnes pas la réduction au premier "c\'est cher". Tu argumentes d\'abord une fois sur la valeur, puis si le client insiste tu peux proposer un compromis.',
+        generous: 'Tu es GÉNÉREUSE. Si le client demande poliment une réduction, tu peux l\'accorder dans les limites autorisées.',
       };
-      prompt += `\n\n## 💰 NÉGOCIATION DES PRIX — RÈGLES
-Tu peux accorder des réductions mais dans des LIMITES STRICTES.
+      prompt += `\n\n## 💰 NÉGOCIATION DES PRIX — RÈGLES STRICTES
+
+### ⚠️ RÈGLE FONDAMENTALE
+Tu ne cèdes JAMAIS sur le prix à la première demande. Même si le client dit "c'est cher", "tu peux faire un effort ?", "c'est trop pour moi" → tu TIENS FERME et tu argumentes.
 
 ### Style de négociation
 ${styleMap[pricing.negotiationStyle] || styleMap.firm}
 
-### Limites
+### Limites absolues
 - Réduction max globale : ${pricing.maxDiscountPercent || 0}%
 - Si un produit a son propre "Dernier prix" ou "Réduction max" dans le catalogue → ces valeurs priment sur la règle globale
 - Tu ne descends JAMAIS en-dessous du "Dernier prix" d'un produit
-- Si le client demande plus que la réduction max → tu refuses poliment
+- Si le client demande plus que la réduction max → tu refuses fermement
 ${pricing.refusalMessage ? `- Message de refus : "${pricing.refusalMessage}"` : ''}
 ${pricing.discountConditions ? `\n### Conditions pour accorder une réduction\n${pricing.discountConditions}` : ''}
 
-### Comment négocier
-1. Le client dit "c'est cher" ou demande une réduction → tu ne donnes PAS la réduction immédiatement
-2. Tu argumentes d'abord sur la valeur (qualité, témoignages, paiement à la livraison)
-3. Si le client insiste → tu proposes une réduction dans la limite autorisée
-4. Tu présentes la réduction comme un geste exceptionnel ("bon, juste pour toi...")
-5. Tu annonces le nouveau prix clairement et tu pousses vers la commande
+### Protocole de négociation — à suivre dans l'ordre
+1. **1ère objection prix** ("c'est cher", "tu fais moins ?") → Tu NE touches PAS au prix. Tu argumentes : qualité, paiement à la livraison, résultats, témoignages clients.
+2. **2ème insistance** ("mais vraiment tu peux rien faire ?") → Tu tiens encore. Tu reformules la valeur différemment. Tu peux rappeler que c'est déjà un prix exceptionnel.
+3. **3ème insistance ou plus** → Seulement à ce stade, et seulement si le style le permet, tu peux proposer un geste dans la limite autorisée, présenté comme exceptionnel.
+4. Le client demande une réduction supérieure à la limite → Tu refuses. Point final.
+5. Tu n'annonces JAMAIS toi-même la possibilité d'une réduction — tu attends que le client la demande.
 
-Exemples :
-- Client: "C'est cher 15000" → "C'est notre produit premium 👍 Et tu paies à la livraison ! [argumenter]"
-- Client: "Tu peux pas faire un effort ?" → "Bon... juste pour toi, je peux te faire [prix réduit] 😉 On confirme ?"
-- Client demande trop → "${pricing.refusalMessage || 'C\'est vraiment notre meilleur prix, je ne peux pas descendre plus bas 🙏'}"`;
+### ❌ Comportements INTERDITS
+- Proposer une réduction sans que le client l'ait demandé
+- Céder après une seule objection
+- Dire "je vais voir ce que je peux faire" sur le prix
+- Descendre en-dessous du prix plancher d'un produit
+
+### Exemples de tenue ferme
+- Client: "C'est cher" → "C'est notre prix pour un produit de qualité supérieure 💪 Et tu paies seulement à la livraison — zéro risque pour toi !"
+- Client: "Tu peux pas baisser ?" → "Je comprends, mais ce prix est déjà notre meilleur rapport qualité/prix. Nos clients sont très satisfaits ! Tu veux qu'on te donne les retours ?"
+- Client (3ème fois): "S'il te plaît, fais un geste" → "Bon... exceptionnellement, je peux te faire [prix réduit] 😉 Mais c'est vraiment pour toi ! On confirme ?"
+- Client demande trop → "${pricing.refusalMessage || 'C\'est vraiment notre meilleur prix, je ne peux pas descendre plus bas 🙏 Mais la qualité en vaut vraiment la peine !'}"`;
     }
     if (pricing.globalNote) {
       prompt += `\n\n### ⚠️ NOTE PRIX IMPORTANTE\n${pricing.globalNote}`;
@@ -3384,6 +3375,44 @@ ${usesVous
 - Jamais de "je vais vérifier" ou "je check avec mon responsable" pour une vidéo qui existe
 - RÈGLE D'OR : Si la vidéo existe, tu dois l'envoyer au moins une fois dans la conversation avant de closer`;
 
+  // ─── RÈGLES DE VENTE INTELLIGENTE ────────────────────────────────────────────
+  {
+    const rules = [];
+    if (config.alwaysAnswerFirst !== false) {
+      rules.push('RÉPONDS TOUJOURS à la question du client AVANT de proposer un achat ou de changer de sujet.');
+    }
+    if (config.neverForceSale !== false) {
+      rules.push("Ne pressure JAMAIS le client — crée une discussion naturelle. La vente vient du client, pas de la pression.");
+    }
+    rules.push('Anti-spam : n\'envoie JAMAIS d\'images ou d\'infos inutiles en masse. Envoie du contenu utile, au bon moment, une fois.');
+    if (rules.length) {
+      prompt += `\n\n## 📐 RÈGLES DE VENTE INTELLIGENTE\n${rules.map(r => `- ${r}`).join('\n')}`;
+    }
+  }
+
+  // ─── CAS SPÉCIAUX (réactions configurées) ────────────────────────────────────
+  {
+    const cases = (config.specialCases || []).filter(sc => sc.enabled !== false && sc.reaction?.trim());
+    if (cases.length) {
+      const triggerMap = {
+        ask_price:     "Le client demande le prix",
+        how_it_works:  "Le client demande comment ça marche",
+        mention_budget:"Le client mentionne un budget",
+        hesitation:    "Le client hésite",
+        too_expensive: "Le client trouve ça trop cher",
+        bulk_order:    "Commande en grande quantité",
+        reseller:      "Client revendeur",
+        silent:        "Client silencieux (ne répond plus)",
+        lang_switch:   "Client change de langue",
+      };
+      prompt += `\n\n## ⚡ RÉACTIONS AUX CAS SPÉCIAUX (PRIORITÉ HAUTE)\nPour chaque situation ci-dessous, applique EXACTEMENT la réaction configurée :\n`;
+      for (const sc of cases) {
+        const label = triggerMap[sc.trigger] || sc.label || sc.trigger;
+        prompt += `\n→ ${label} : ${sc.reaction}`;
+      }
+    }
+  }
+
   prompt += `\n\n## ✅ Rappel final — RÈGLES ABSOLUES
 - Le prospect vient d'une publicité → il a déjà vu un produit → ton job c'est de l'identifier et le vendre
 - Ne signe jamais tes messages
@@ -3462,7 +3491,31 @@ Si le client arrête de répondre ou dit "je réfléchis", tu dois préparer une
     prompt += `\n\nExemple : "Super, prends ton temps ! [FOLLOW_UP:${delayH}]"`;
   }
 
-  // ─── MODE ESCALADE BOSS (désactivé — l'agent gère tout seul) ───
+  // ─── MODE ESCALADE BOSS ───
+  if (config.bossEscalationEnabled && config.bossPhone) {
+    prompt += `\n\n## 🤝 ESCALADE VERS LE BOSS — RÈGLES
+Quand tu rencontres une question que tu ne peux absolument pas répondre avec les informations disponibles (question très spécifique, situation inhabituelle, problème de commande complexe), tu peux transmettre au responsable via le tag **[ASK_BOSS:ta question ici]**.
+
+### Quand utiliser [ASK_BOSS:] :
+- Question ultra-spécifique sur stock, disponibilité, ou délai que tu ne connais pas avec certitude
+- Client insatisfait qui menace ou escalade la situation
+- Demande de remboursement ou de réclamation
+- Question technique très précise hors de ton catalogue
+
+### Quand NE PAS utiliser [ASK_BOSS:] :
+- Questions sur les produits, prix, livraison (tu as toutes ces infos)
+- Négociation de prix (tu suis ta politique de prix)
+- Questions générales — réponds toi-même
+
+### Format :
+\`[ASK_BOSS:Question précise à transmettre au boss]\`
+
+Exemple :
+Client: "Le produit est encore disponible en version XXL ?"
+Toi: "Très bonne question ! 😊 Je vais vérifier ça tout de suite avec mon responsable et je te reviens rapidement.[ASK_BOSS:Client demande si le produit X est disponible en version XXL]"
+
+⚠️ N'utilise [ASK_BOSS:] qu'une fois par conversation. Le boss te répondra et sa réponse sera transmise au client automatiquement.`;
+  }
 
   // ─── CONTEXTE CLIENT (personnalisation dynamique) ───
   if (context.contact) {
@@ -3516,12 +3569,75 @@ Nous sommes HORS des heures de travail (${config.businessHoursStart}-${config.bu
     }
   }
 
-  // ─── NIVEAU D'AUTONOMIE (toujours autonome) ───
-  prompt += `\n\n## 🔓 AUTONOMIE
-Tu es en mode AUTONOME : tu gères TOUT toi-même. Tu peux confirmer les commandes avec [ORDER_DATA:{...}], envoyer des images, répondre à toutes les questions et gérer la conversation de A à Z.
-- Ne transfère JAMAIS au "responsable" ou "supérieur" — TU ES la personne en charge.
-- Si tu ne connais pas une info précise, dis honnêtement que tu vas vérifier et reviens avec une réponse utile.
-- ${config.canCloseDeals !== false ? "Tu PEUX confirmer les commandes avec [ORDER_DATA:{...}] quand le client a donné toutes les infos (produit, nom, ville, téléphone)." : "Collecte toutes les infos (produit, nom, ville, téléphone) et confirme la commande avec [ORDER_DATA:{...}]."}`;
+  // ─── MODES DE FONCTIONNEMENT ───────────────────────────────────────────────
+  {
+    const modeClient    = config.modeClientEnabled    !== false; // actif par défaut
+    const modeBoss      = config.modeBossEnabled      !== false;
+    const modeExecution = config.modeExecutionEnabled !== false;
+
+    let activeModesDesc = [];
+    if (modeClient)    activeModesDesc.push('MODE CLIENT : vente & support — chaleureuse, naturelle, persuasive avec les clients.');
+    if (modeBoss)      activeModesDesc.push('MODE BOSS : analyse & rapports — professionnelle, directe avec le propriétaire de la boutique.');
+    if (modeExecution) activeModesDesc.push("MODE EXÉCUTION : quand le boss te donne une instruction, tu comprends, adaptes et exécutes intelligemment sans jamais recopier mot pour mot.");
+
+    if (activeModesDesc.length) {
+      prompt += `\n\n## 🔄 MODES ACTIFS\n${activeModesDesc.map(m => `- ${m}`).join('\n')}`;
+    }
+
+    if (!modeClient) {
+      prompt += `\n\n⚠️ MODE CLIENT DÉSACTIVÉ : tu ne réponds pas aux messages entrants de clients inconnus.`;
+    }
+  }
+
+  // ─── NIVEAU D'AUTONOMIE ─────────────────────────────────────────────────────
+  {
+    const lvl = config.autonomyLevel || 3;
+    const autonomyRules = {
+      1: `Tu es en mode ASSISTANTE (niveau 1) : réponds uniquement aux questions simples. Ne pousse pas à l'achat, ne propose pas de produits de toi-même. Transfère au boss pour toute décision d'achat via [ASK_BOSS:].`,
+      2: `Tu es en mode CONSEILLÈRE (niveau 2) : recommande des produits adaptés au besoin du client et qualifie les leads (comprendre le besoin, le budget, l'urgence). Ne conclus pas la vente toi-même — collecte les infos et transfère via [ASK_BOSS:].`,
+      3: `Tu es en mode COMMERCIALE (niveau 3) : gère les objections, présente les avantages produit et pousse activement vers l'achat. Tu peux conclure la vente si ${config.canCloseDeals !== false ? 'toutes les infos sont là' : 'le boss confirme'}.`,
+      4: `Tu es en mode NÉGOCIATRICE (niveau 4) : conclus les ventes de façon autonome. Tu peux proposer des remises dans les limites configurées, négocier les conditions de livraison et valider la commande avec [ORDER_DATA:{...}] sans intervention humaine.`,
+      5: `Tu es en mode CHASSEUSE (niveau 5) : mode offensif. Closing agressif, upsell systématique, relances pro-actives. Ton objectif est de maximiser chaque vente : propose des bundles, des offres limitées, des upgrades. Tu conclus toutes les ventes seule avec [ORDER_DATA:{...}].`,
+    };
+    prompt += `\n\n## 🎯 NIVEAU D'AUTONOMIE : ${lvl}/5\n${autonomyRules[lvl] || autonomyRules[3]}`;
+    prompt += `\n- ${config.canCloseDeals !== false ? "Tu PEUX confirmer les commandes avec [ORDER_DATA:{...}] quand toutes les infos sont disponibles (produit, nom, ville, téléphone)." : "Tu NE confirmes PAS les commandes seule — collecte les infos puis utilise [ASK_BOSS:] pour que le boss valide."}`;
+    if (config.canSendPaymentLinks) {
+      prompt += `\n- Tu peux envoyer le lien de paiement/checkout au bon moment dans la conversation.`;
+    }
+    if (config.requireHumanApproval) {
+      prompt += `\n- ⚠️ VALIDATION HUMAINE REQUISE : avant d'envoyer une offre commerciale ou de finaliser une vente, notifie le boss via [ASK_BOSS:] et attends sa confirmation.`;
+    }
+    if (lvl < 3) {
+      prompt += `\n- Ne transfère pas systématiquement au boss — gère d'abord ce que tu peux. N'utilise [ASK_BOSS:] que si tu manques vraiment d'infos.`;
+    } else {
+      prompt += `\n- Ne transfère JAMAIS au "responsable" ou "supérieur" — TU ES la personne en charge. Si tu ne connais pas une info précise, dis que tu vas vérifier.`;
+    }
+  }
+
+  // ─── ANALYSE CLIENT ─────────────────────────────────────────────────────────
+  if (config.detectClientType || config.detectInterestLevel) {
+    prompt += `\n\n## 🔍 ANALYSE AVANT CHAQUE RÉPONSE`;
+    if (config.detectClientType) {
+      prompt += `\nDétecte le type de client à partir de son message :
+- CURIEUX → donne des infos, suscite l'intérêt, ne brusque pas
+- ACHETEUR → accélère vers la commande, pose les questions de closing
+- HÉSITANT → rassure, lève les objections, propose une garantie ou preuve sociale
+- REVENDEUR → parle tarif gros, MOQ, marges, conditions de partenariat
+Adapte ton ton et ta stratégie en fonction.`;
+    }
+    if (config.detectInterestLevel) {
+      prompt += `\nÉvalue le niveau d'intérêt (faible / moyen / élevé) :
+- FAIBLE → suscite la curiosité, ne pousse pas encore à l'achat
+- MOYEN → présente la valeur, lève les freins, propose une offre
+- ÉLEVÉ → passe directement au closing, collecte les infos de commande`;
+    }
+  }
+
+  // ─── COMPORTEMENT NATUREL ───────────────────────────────────────────────────
+  if (config.naturalConversation !== false) {
+    prompt += `\n\n## 💬 CONVERSATION NATURELLE
+Adapte-toi au ton du client : s'il est décontracté, sois décontractée. S'il est formel, sois plus formelle. Sois fluide, humaine, jamais rigide. Lis le sous-texte de ses messages.`;
+  }
 
   // ─── RÈGLES PREMIER MESSAGE ────────────────────────────────────────────────
   if (config.firstMessageRulesEnabled && config.firstMessageRules?.length > 0) {
@@ -3606,10 +3722,85 @@ function buildCompactSystemPrompt(config, context = {}) {
   const catalogSummary = buildCompactCatalogSummary(config);
   const customInstructions = String(config.customInstructions || '').trim().slice(0, 1200);
 
+  // ── Sections de config à inclure dans le prompt compact ──
+
+  // Personnalité
+  let personalitySection = '';
+  if (config.personality?.description) {
+    personalitySection += `\nPERSONNALITÉ: ${config.personality.description}`;
+  }
+  if (config.personality?.mannerisms?.length) {
+    personalitySection += `\nEXPRESSIONS À UTILISER: ${config.personality.mannerisms.slice(0, 5).map(m => `"${m}"`).join(', ')}`;
+  }
+  if (config.personality?.forbiddenPhrases?.length) {
+    personalitySection += `\nEXPRESSIONS INTERDITES: ${config.personality.forbiddenPhrases.slice(0, 5).map(f => `"${f}"`).join(', ')}`;
+  }
+  if (config.personality?.tonalGuidelines) {
+    personalitySection += `\nGUIDE DE TON: ${config.personality.tonalGuidelines}`;
+  }
+
+  // Négociation prix
+  let pricingSection = '';
+  const pricing = config.pricingNegotiation;
+  if (pricing?.enabled) {
+    if (pricing.priceIsFinal && !pricing.allowDiscount) {
+      pricingSection = `\nPRIX FERME — RÈGLE ABSOLUE: Les prix sont les DERNIERS PRIX. Tu ne baisses JAMAIS, ne proposes JAMAIS de réduction, ne dis JAMAIS "je vais voir". Quand le client dit "c'est cher" → argumente sur la valeur, rassure sur le paiement à la livraison, mais ne cède JAMAIS sur le prix.${pricing.refusalMessage ? ` Message de refus : "${pricing.refusalMessage}"` : ''}`;
+    } else if (pricing.allowDiscount) {
+      const styleMap = {
+        firm: 'FERME — ne cède QU\'après 3 insistances minimum. Défend d\'abord la valeur à chaque fois.',
+        flexible: 'FLEXIBLE — argumente une fois sur la valeur, puis si insistance tu peux proposer un compromis.',
+        generous: 'GÉNÉREUX — si le client demande poliment, tu peux accorder la réduction autorisée.',
+      };
+      pricingSection = `\nNÉGOCIATION PRIX — Style: ${styleMap[pricing.negotiationStyle] || styleMap.firm} Réduction max: ${pricing.maxDiscountPercent || 0}%. Ne propose JAMAIS de réduction sans que le client la demande. Tu ne descends JAMAIS sous le "Dernier prix" d'un produit.${pricing.refusalMessage ? ` Si trop demandé: "${pricing.refusalMessage}"` : ''}`;
+    }
+  }
+
+  // Expédition
+  let expeditionSection = '';
+  if (config.expeditionEnabled && config.expeditionCities?.length) {
+    const agencies = (config.expeditionAgencies || []).filter(a => a.available !== false && a.name);
+    expeditionSection = `\nEXPÉDITION PAR AGENCE activée pour: ${config.expeditionCities.join(', ')}.${agencies.length ? ` Agences dispo: ${agencies.map(a => a.name + (a.estimatedCost ? ` (${a.estimatedCost})` : '')).join(', ')}.` : ''} Dans ces villes → paiement EN AVANCE obligatoire, client récupère à l'agence. Utilise [PAYMENT_COORDS] pour envoyer les coordonnées de paiement.`;
+  }
+
+  // Premier message
+  let firstMessageSection = '';
+  if (config.firstMessageRulesEnabled) {
+    const activeRules = (config.firstMessageRules || []).filter(r => r.enabled && r.content?.trim());
+    if (activeRules.length > 0) {
+      firstMessageSection = `\nPREMIER MESSAGE — PRIORITÉ ABSOLUE: Si c'est le TOUT PREMIER message du client, tu dois:\n${activeRules.map(r => `- [${r.type.toUpperCase()}] ${r.label || r.content.slice(0, 80)}`).join('\n')}`;
+    }
+  }
+
+  // Escalade boss
+  let escaladeSection = '';
+  if (config.bossEscalationEnabled && config.bossPhone) {
+    escaladeSection = `\nESCALADE BOSS: Si tu ne peux vraiment pas répondre à une question précise (stock exact, réclamation, remboursement), utilise [ASK_BOSS:question] et dis au client que tu vas vérifier. Une seule fois par conversation.`;
+  }
+
+  // Autonomie & Intelligence
+  const lvl = config.autonomyLevel || 3;
+  const autonomyMap = {
+    1: `AUTONOMIE 1/5 (Assistante): réponds aux questions simples uniquement, renvoie les décisions d'achat au boss via [ASK_BOSS:].`,
+    2: `AUTONOMIE 2/5 (Conseillère): recommande des produits et qualifie les leads. Collecte besoin+budget, transfère la décision au boss.`,
+    3: `AUTONOMIE 3/5 (Commerciale): gère les objections, pousse à l'achat, ${config.canCloseDeals !== false ? 'peut conclure avec [ORDER_DATA:{...}]' : 'transfère la commande au boss pour validation'}.`,
+    4: `AUTONOMIE 4/5 (Négociatrice): conclut les ventes seule. Peut négocier, proposer des remises autorisées, valider avec [ORDER_DATA:{...}] sans humain.`,
+    5: `AUTONOMIE 5/5 (Chasseuse): mode offensif. Closing agressif, upsell, relances pro-actives. Conclut tout seule avec [ORDER_DATA:{...}].`,
+  };
+  const autonomySection = `\nNIVEAU: ${autonomyMap[lvl] || autonomyMap[3]}${config.requireHumanApproval ? ' ⚠️ Notifie [ASK_BOSS:] avant toute offre commerciale.' : ''}${config.canSendPaymentLinks ? ' Tu peux envoyer le lien de paiement.' : ''}`;
+
+  let analysisSection = '';
+  if (config.detectClientType) {
+    analysisSection += `\nDÉTECTE le type: CURIEUX→infos, ACHETEUR→closing, HÉSITANT→rassure, REVENDEUR→tarif gros.`;
+  }
+  if (config.detectInterestLevel) {
+    analysisSection += `\nNIVEAU INTÉRÊT: faible→suscite, moyen→valeur+frein, élevé→collecte infos commande.`;
+  }
+
   return `Tu es ${config.agentName || 'Rita'}, vendeuse WhatsApp camerounaise. Réponds comme un humain, jamais comme un bot.
 
 LANGUE: réponds dans la langue du client (${languageLabel}) si claire, sinon en français.
-TON: ${usesVous ? 'vouvoiement, respectueux, naturel' : 'tutoiement, chaleureux, naturel'}.
+TON: ${usesVous ? 'vouvoiement, respectueux, naturel' : 'tutoiement, chaleureux, naturel'}.${personalitySection}
+${autonomySection}${analysisSection}
 
 OBJECTIF:
 - comprendre vite le besoin
@@ -3630,6 +3821,21 @@ RÈGLES CRITIQUES:
 - si toutes les infos sont là, tu peux conclure avec [ORDER_DATA:{...}]
 - si image disponible pour un produit demandé, tu peux utiliser [IMAGE:NomExact]
 - si vidéo disponible pour un produit demandé, tu peux utiliser [VIDEO:NomExact]
+${pricingSection}${expeditionSection}${firstMessageSection}${escaladeSection}${
+  (() => {
+    let extra = '';
+    const salesRules = [];
+    if (config.alwaysAnswerFirst !== false) salesRules.push('Réponds TOUJOURS à la question du client avant de proposer un achat.');
+    if (config.neverForceSale !== false)   salesRules.push('Ne pressure JAMAIS le client — discussion naturelle uniquement.');
+    salesRules.push('Anti-spam : contenu utile seulement, pas de masse.');
+    if (salesRules.length) extra += `\nRÈGLES VENTE: ${salesRules.join(' | ')}`;
+    const activeCases = (config.specialCases || []).filter(sc => sc.enabled !== false && sc.reaction?.trim());
+    if (activeCases.length) {
+      extra += `\nCAS SPÉCIAUX:\n${activeCases.map(sc => `- ${sc.label || sc.trigger}: ${sc.reaction}`).join('\n')}`;
+    }
+    return extra;
+  })()
+}
 
 CONTEXTE ACTIF:
 - produit actif: ${activeConversation?.activeProductName || 'non identifié'}
@@ -3650,7 +3856,7 @@ CONTEXTE ACTIF:
 ${imageAnalysis ? `CONTEXTE IMAGE CLIENT: ${imageAnalysis}\n` : ''}CATALOGUE:
 ${catalogSummary}
 
-${customInstructions ? `INSTRUCTIONS PROPRIÉTAIRE:\n${customInstructions}\n` : ''}
+${customInstructions ? `INSTRUCTIONS PROPRIÉTAIRE (PRIORITÉ MAX):\n${customInstructions}\n` : ''}
 Réponds uniquement avec le message à envoyer au client.`;
 }
 
@@ -3874,27 +4080,6 @@ export async function processIncomingMessage(userId, from, text, opts = {}) {
   // Mettre à jour le timestamp d'activité (rétention RAM 7 jours + persistance MongoDB)
   conversationLastActivity.set(historyKey, Date.now());
 
-  // ── Message de bienvenue configuré : retourner directement au 1er message ──
-  // SAUF si le client montre une intention directe (intéressé, commander, acheter, etc.)
-  if (isNewConversation && config.welcomeMessage?.trim()) {
-    const normalizedMsg = normalizeForMatch(text);
-    // Détecter les intentions directes qui court-circuitent le message de bienvenue
-    const hasDirectIntent = /(?:interesse|interessee|interet|je veux|je souhaite|commander|commande|acheter|achat|prix|combien|disponible|livraison|livrer|montrez|montre moi|voir|regarder|produit|article)/.test(normalizedMsg);
-    
-    if (!hasDirectIntent) {
-      // Simple salut sans intention → utiliser le message de bienvenue configuré
-      const welcomeReply = config.welcomeMessage.trim();
-      history.push({ role: 'user', content: text, createdAt: new Date() });
-      history.push({ role: 'assistant', content: welcomeReply, createdAt: new Date() });
-      conversationLastActivity.set(historyKey, Date.now());
-      await persistConversationMemory(userId, agentId, from, historyKey);
-      console.log(`🎉 [RITA] Message de bienvenue envoyé à ${from}`);
-      return welcomeReply;
-    }
-    // Si intention directe détectée → continuer avec le flow normal (pas de welcomeMessage)
-    console.log(`🎯 [RITA] Intention directe détectée au 1er message de ${from}, skip welcomeMessage`);
-  }
-
   // ── State management : créer/récupérer état + extraire entités du message ──
   const clientState = getOrCreateState(historyKey, from);
   updateClientState(historyKey, text);
@@ -4032,12 +4217,14 @@ export async function processIncomingMessage(userId, from, text, opts = {}) {
         t2.lastAgentMessage = new Date();
         if (/\[ORDER_DATA:/i.test(reply)) {
           t2.ordered = true;
-          // Réinitialiser le flow de commande sans perdre l'historique de la conversation.
+          // Réinitialiser le flow de commande pour une éventuelle nouvelle commande.
+          // On garde l'historique complet et askedQs — la mémoire des questions ne doit pas être perdue
+          // car le client peut reposer des questions immédiatement après.
           clientState.statut = 'nouveau';
           clientState.produit = null;
           clientState.quantite = null;
           clientState.prix = null;
-          if (askedQs) askedQs.clear();
+          // NE PAS vider askedQs — le LLM a besoin de savoir ce qu'il a déjà demandé
           // Marquer le contact comme "client" dans la base (best-effort)
           try {
             await RitaContact.findOneAndUpdate(
@@ -4049,12 +4236,35 @@ export async function processIncomingMessage(userId, from, text, opts = {}) {
         }
       }
       // Tracker les questions posées pour l'anti-répétition
+      // On extrait la vraie phrase de la question posée (pas un tag abstrait)
       if (askedQs) {
-        if (/combien|quantité|vous en voulez|en vouloir|combien de/i.test(reply)) askedQs.add('quantite');
-        if (/quelle ville|tu es.* où|vous êtes.* où/i.test(reply)) askedQs.add('ville');
-        if (/adresse|livraison|zone|quartier|secteur/i.test(reply)) askedQs.add('adresse');
-        if (/rappelle.* numéro|autre numéro|numéro.* livraison|whatsapp.* livraison/i.test(reply)) askedQs.add('telephone_appel');
-        if (/quel produit|c['']est pour|lequel/i.test(reply)) askedQs.add('produit');
+        // Extraire la ligne/phrase qui contient la question pour l'injecter telle quelle dans le prompt
+        const replyLines = reply.split(/[\n?]/).map(l => l.trim()).filter(Boolean);
+        const findQuestion = (patterns) => {
+          for (const line of replyLines) {
+            if (patterns.some(p => p.test(line))) {
+              // Prendre la ligne, max 80 chars
+              return line.length > 80 ? line.slice(0, 77) + '...' : line;
+            }
+          }
+          return null;
+        };
+
+        const qQuantite = findQuestion([/combien/i, /quantit/i, /vous en voulez/i, /combien de/i]);
+        if (qQuantite) askedQs.add(qQuantite);
+
+        const qVille = findQuestion([/quelle ville/i, /tu es.{0,10}où/i, /vous êtes.{0,10}où/i, /livr.{0,10}ville/i, /ville de livraison/i]);
+        if (qVille) askedQs.add(qVille);
+
+        const qAdresse = findQuestion([/quartier/i, /zone de livraison/i, /lieu de livraison/i, /secteur/i, /adresse/i]);
+        if (qAdresse) askedQs.add(qAdresse);
+
+        const qTel = findQuestion([/numéro.{0,20}livraison/i, /autre numéro/i, /numéro d.{0,5}appel/i, /ce whatsapp ou/i, /confirme.{0,20}numéro/i]);
+        if (qTel) askedQs.add(qTel);
+
+        const qProduit = findQuestion([/quel produit/i, /c.est pour quoi/i, /lequel/i, /vous intéresse/i]);
+        if (qProduit) askedQs.add(qProduit);
+
         // Mise à jour produit dans le state si Rita l'a identifié dans la réponse
         if (!clientState.produit) {
           const catalog = config?.productCatalog?.filter(p => p.name) || [];

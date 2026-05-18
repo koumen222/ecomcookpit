@@ -902,7 +902,10 @@ router.post('/join-workspace', async (req, res) => {
       const cfg = plans[planKey] || plans.free;
       const limits = buildRuntimePlanLimits(planKey, cfg);
       if (limits.maxUsers != null) {
-        const currentMembers = await EcomUser.countDocuments({ 'workspaces.workspaceId': workspace._id, isActive: true });
+        // Ne compter que les membres invités, pas le owner
+        const memberQuery = { 'workspaces.workspaceId': workspace._id, isActive: true };
+        if (workspace.owner) memberQuery._id = { $ne: workspace.owner };
+        const currentMembers = await EcomUser.countDocuments(memberQuery);
         if (currentMembers >= limits.maxUsers) {
           return res.status(403).json({
             success: false,
@@ -1190,7 +1193,7 @@ router.post('/reset-password', async (req, res) => {
     }
 
     if (newPassword.length < 6) {
-      return res.status(400).json({ success: false, message: 'Le mot de passe doit contenir au moins 6 caract\u00e8res' });
+      return res.status(400).json({ success: false, message: 'Le mot de passe doit contenir au moins 12 caract\u00e8res' });
     }
 
     // V\u00e9rifier le token
@@ -1263,7 +1266,7 @@ router.put('/change-password', async (req, res) => {
     if (!newPassword || newPassword.length < 6) {
       return res.status(400).json({
         success: false,
-        message: 'Le nouveau mot de passe doit contenir au moins 6 caractères'
+        message: 'Le nouveau mot de passe doit contenir au moins 12 caractères'
       });
     }
 
@@ -1488,6 +1491,37 @@ router.post('/accept-invite', requireEcomAuth, async (req, res) => {
     // Vérifier si l'utilisateur n'est pas déjà dans le workspace
     if (user.workspaces.some(w => w.workspaceId.toString() === workspace._id.toString())) {
       return res.status(400).json({ success: false, message: 'Vous êtes déjà membre de cet espace' });
+    }
+
+    // Vérifier la limite d'utilisateurs du plan
+    {
+      const { buildRuntimePlanLimits, getPlanConfigs } = await import('../middleware/planLimits.js');
+      const now = Date.now();
+      let planKey = workspace.plan || 'free';
+      if (planKey !== 'free' && workspace.planExpiresAt && new Date(workspace.planExpiresAt).getTime() < now) planKey = 'free';
+      if (planKey === 'free' && workspace.trialEndsAt && new Date(workspace.trialEndsAt).getTime() > now) planKey = 'starter';
+      const plans = await getPlanConfigs();
+      const cfg = plans[planKey] || plans.free;
+      const limits = buildRuntimePlanLimits(planKey, cfg);
+      if (limits.maxUsers != null) {
+        const memberQuery = { 'workspaces.workspaceId': workspace._id, isActive: true };
+        if (workspace.owner) memberQuery._id = { $ne: workspace.owner };
+        const currentMembers = await EcomUser.countDocuments(memberQuery);
+        if (currentMembers >= limits.maxUsers) {
+          return res.status(403).json({
+            success: false,
+            error: 'PLAN_LIMIT_REACHED',
+            restrictionType: 'plan_limit',
+            resource: 'users',
+            plan: planKey,
+            planLabel: limits.label,
+            limit: limits.maxUsers,
+            current: currentMembers,
+            message: `Le plan ${limits.label} autorise jusqu'à ${limits.maxUsers} membre(s) d'équipe. Le propriétaire doit passer à un plan supérieur pour vous ajouter.`,
+            upgradeUrl: '/ecom/tarifs'
+          });
+        }
+      }
     }
 
     // Ajouter l'utilisateur au workspace

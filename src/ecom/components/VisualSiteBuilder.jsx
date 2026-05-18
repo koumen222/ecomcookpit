@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { safeHtml } from '../utils/sanitize';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { useSortable } from '@dnd-kit/sortable';
@@ -438,7 +439,7 @@ const SectionPreview = ({ section, theme }) => {
               <div 
                 className="prose prose-lg max-w-none"
                 style={{ color: theme?.text || '#111827', fontFamily: theme?.font || 'Inter' }}
-                dangerouslySetInnerHTML={{ __html: config.content.replace(/\n/g, '<br/>') }}
+                dangerouslySetInnerHTML={safeHtml(config.content.replace(/\n/g, '<br/>'))}
               />
             )}
           </div>

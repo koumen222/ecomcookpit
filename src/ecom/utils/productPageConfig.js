@@ -81,6 +81,10 @@ export function buildMergedProductPageConfig(storeConfig, productConfig) {
       ...(store.conversion || {}),
       ...(product.conversion || {}),
     },
+    // Form config: store-level (form builder) takes priority over product-level
+    form: store.form && store.form.fields?.length
+      ? store.form
+      : product.form || store.form || undefined,
   };
 }
 

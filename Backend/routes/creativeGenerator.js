@@ -731,51 +731,52 @@ router.post('/', requireEcomAuth, upload.fields([
       try {
         const imagePrompt = buildCreativePrompt(analysis, format, true, visualTemplate, !!logoBuffer);
         console.log(`  🎨 Generating ${format.id} (image-to-image)...`);
-        
-        let imageDataUrl;
-        imageDataUrl = await generateGptImage2ImageToImage(imagePrompt, resolvedImageBuffer, format.aspectRatio, logoBuffer || null);
-        
-        if (imageDataUrl) {
-          let finalUrl = imageDataUrl;
-          try {
-            let imgBuffer;
-            const base64Match = imageDataUrl.match(/^data:image\/\w+;base64,(.+)$/);
-            if (base64Match) {
-              // data URL → buffer
-              imgBuffer = Buffer.from(base64Match[1], 'base64');
-            } else if (/^https?:\/\//i.test(imageDataUrl)) {
-              // remote URL (Kie.ai) → download → buffer
-              const dlRes = await axios.get(imageDataUrl, { responseType: 'arraybuffer', timeout: 60000 });
-              imgBuffer = Buffer.from(dlRes.data);
-            }
-            if (imgBuffer) {
-              const uploaded = await uploadImage(imgBuffer, `creative-${format.id}.png`, {
-                workspaceId: req.workspaceId || 'creative',
-                uploadedBy: req.userId || 'creative-generator',
-                optimize: false,
-              });
-              if (uploaded?.url) {
-                finalUrl = uploaded.url;
-                console.log(`  💾 ${format.id} stored → ${finalUrl.slice(0, 80)}`);
-              }
-            }
-          } catch (uploadErr) {
-            console.warn('⚠️ Upload R2 failed, keeping original URL:', uploadErr.message);
+
+        const imageDataUrl = await generateGptImage2ImageToImage(imagePrompt, resolvedImageBuffer, format.aspectRatio, logoBuffer || null);
+
+        if (!imageDataUrl) {
+          creatives.push({ id: format.id, label: format.label, aspectRatio: format.aspectRatio, imageUrl: null, error: 'Génération échouée' });
+          console.warn(`  ❌ ${format.id} failed — no URL returned`);
+          continue;
+        }
+
+        // Download from Kie.ai and upload to R2 for a permanent URL
+        let finalUrl = imageDataUrl;
+        try {
+          let imgBuffer;
+          const base64Match = imageDataUrl.match(/^data:image\/\w+;base64,(.+)$/);
+          if (base64Match) {
+            imgBuffer = Buffer.from(base64Match[1], 'base64');
+          } else if (/^https?:\/\//i.test(imageDataUrl)) {
+            const dlRes = await axios.get(imageDataUrl, { responseType: 'arraybuffer', timeout: 90000 });
+            imgBuffer = Buffer.from(dlRes.data);
           }
+          if (imgBuffer) {
+            const uploaded = await uploadImage(imgBuffer, `creative-${format.id}-${Date.now()}.png`, {
+              workspaceId: req.workspaceId || 'creative',
+              uploadedBy: String(req.user?.id || req.ecomUser?._id || 'creative-generator'),
+              optimize: false,
+            });
+            if (uploaded?.url) {
+              finalUrl = uploaded.url;
+              console.log(`  💾 ${format.id} stored → ${finalUrl.slice(0, 80)}`);
+            } else {
+              console.warn(`  ⚠️ ${format.id} R2 upload returned no URL — keeping Kie.ai URL`);
+            }
+          }
+        } catch (uploadErr) {
+          console.error(`  ❌ ${format.id} R2 upload failed: ${uploadErr.message} — keeping Kie.ai URL`);
+        }
 
-          creatives.push({
-            id: format.id,
-            label: format.label,
-            aspectRatio: format.aspectRatio,
-            imageUrl: finalUrl,
-            usedProductImage: hasImage,
-          });
+        creatives.push({ id: format.id, label: format.label, aspectRatio: format.aspectRatio, imageUrl: finalUrl, usedProductImage: true });
 
-          // Persist to DB
-          if (req.workspaceId && req.userId) {
-            CreativeAsset.create({
+        // Save to DB — awaited so failures are visible in logs
+        const resolvedUserId = req.user?.id || req.ecomUser?._id;
+        if (req.workspaceId && resolvedUserId) {
+          try {
+            await CreativeAsset.create({
               workspaceId: req.workspaceId,
-              userId: req.userId,
+              userId: resolvedUserId,
               productName: analysis.productName || '',
               formatId: format.id,
               label: format.label,
@@ -783,23 +784,17 @@ router.post('/', requireEcomAuth, upload.fields([
               aspectRatio: format.aspectRatio,
               category: analysis.category || '',
               template: visualTemplate || '',
-            }).catch(e => console.warn('⚠️ CreativeAsset save failed:', e.message));
+            });
+            console.log(`  ✅ ${format.id} saved to gallery`);
+          } catch (dbErr) {
+            console.error(`  ❌ CreativeAsset save failed for ${format.id}:`, dbErr.message);
           }
-
-          console.log(`  ✅ ${format.id} generated`);
         } else {
-          creatives.push({
-            id: format.id, label: format.label, aspectRatio: format.aspectRatio,
-            imageUrl: null, error: 'Génération échouée',
-          });
-          console.warn(`  ❌ ${format.id} failed`);
+          console.warn(`  ⚠️ ${format.id} NOT saved — missing workspaceId (${req.workspaceId}) or userId (${resolvedUserId})`);
         }
       } catch (imgErr) {
         console.error(`  ❌ ${format.id} error:`, imgErr.message);
-        creatives.push({
-          id: format.id, label: format.label, aspectRatio: format.aspectRatio,
-          imageUrl: null, error: imgErr.message,
-        });
+        creatives.push({ id: format.id, label: format.label, aspectRatio: format.aspectRatio, imageUrl: null, error: imgErr.message });
       }
     }
 
@@ -813,10 +808,11 @@ router.post('/', requireEcomAuth, upload.fields([
     console.log(`💰 Batch total: ${batchCost.images} images → ~$${batchCost.costUsd} (~${batchCost.costFcfa} FCFA)`);
 
     // Track feature usage
-    if (req.workspaceId && req.userId) {
+    const resolvedUserId = req.user?.id || req.ecomUser?._id;
+    if (req.workspaceId && resolvedUserId) {
       FeatureUsageLog.create({
         workspaceId: req.workspaceId,
-        userId: req.userId,
+        userId: resolvedUserId,
         feature: 'creative_generator',
         meta: {
           slideCount: creatives.length,
@@ -835,7 +831,7 @@ router.post('/', requireEcomAuth, upload.fields([
     });
   } catch (err) {
     console.error('❌ Creative Generator error:', err);
-    res.status(500).json({ error: err.message || 'Erreur lors de la génération' });
+    res.status(500).json({ error: err.message || 'Erreur lors de la génération', message: err.message || 'Erreur lors de la génération' });
   }
 });
 

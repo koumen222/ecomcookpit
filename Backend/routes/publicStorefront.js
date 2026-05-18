@@ -78,6 +78,34 @@ const DEFAULT_PLATFORM_TITLE = 'Scalor — The Operating System for African Ecom
 const DEFAULT_PLATFORM_DESCRIPTION = 'Scalor — Growth. Structure. Intelligence. The Operating System for African Ecommerce.';
 const DEFAULT_PLATFORM_IMAGE = 'https://scalor.net/icon.png';
 
+const PLATFORM_ROUTE_META = [
+  { pattern: /^\/ecom\/landing\/?$/, title: 'Scalor — La plateforme e-commerce africaine', description: 'Gérez votre boutique, vos commandes, vos campagnes et votre équipe depuis une seule plateforme.' },
+  { pattern: /^\/ecom\/why-scalor\/?$/, title: 'Pourquoi Scalor ?', description: 'Découvrez pourquoi des centaines d\'entrepreneurs africains ont choisi Scalor pour faire croître leur business.' },
+  { pattern: /^\/ecom\/tarifs\/?$/, title: 'Tarifs Scalor', description: 'Des plans adaptés à chaque étape de votre croissance. Commencez gratuitement, montez en puissance quand vous êtes prêt.' },
+  { pattern: /^\/ecom\/privacy\/?$/, title: 'Politique de confidentialité — Scalor', description: 'Comment Scalor collecte, utilise et protège vos données personnelles.' },
+  { pattern: /^\/ecom\/terms\/?$/, title: 'Conditions d\'utilisation — Scalor', description: 'Les conditions générales d\'utilisation de la plateforme Scalor.' },
+  { pattern: /^\/ecom\/login\/?$/, title: 'Connexion — Scalor', description: 'Connectez-vous à votre espace Scalor.' },
+  { pattern: /^\/ecom\/register\/?$/, title: 'Créer un compte — Scalor', description: 'Rejoignez Scalor et lancez votre boutique en ligne dès aujourd\'hui.' },
+  { pattern: /^\/ecom\/forgot-password\/?$/, title: 'Mot de passe oublié — Scalor', description: 'Réinitialisez votre mot de passe Scalor.' },
+  { pattern: /^\/ecom\/billing\/?$/, title: 'Facturation — Scalor', description: 'Gérez votre abonnement et vos paiements Scalor.' },
+  { pattern: /^\/ecom\/billing\/success\/?$/, title: 'Paiement réussi — Scalor', description: 'Votre paiement a bien été pris en compte.' },
+  { pattern: /^\/ecom\/whatsapp\/service\/?$/, title: 'Service WhatsApp — Scalor', description: 'Automatisez votre service client avec Rita, l\'agent IA WhatsApp de Scalor.' },
+  { pattern: /^\/ecom\/whatsapp-postulation\/?$/, title: 'Rejoindre le réseau WhatsApp — Scalor', description: 'Postulez pour intégrer le réseau d\'agents WhatsApp Scalor.' },
+  { pattern: /^\/affiliate\/login\/?$/, title: 'Connexion affilié — Scalor', description: 'Accédez à votre espace affilié Scalor.' },
+  { pattern: /^\/affiliate\/register\/?$/, title: 'Devenir affilié — Scalor', description: 'Rejoignez le programme d\'affiliation Scalor et gagnez des commissions.' },
+  { pattern: /^\/affiliate\/dashboard\/?$/, title: 'Dashboard affilié — Scalor', description: 'Suivez vos performances et commissions en temps réel.' },
+];
+
+function getPlatformRouteMeta(pathname) {
+  const path = (pathname || '/').split('?')[0].replace(/\/$/, '') || '/';
+  for (const rule of PLATFORM_ROUTE_META) {
+    if (rule.pattern.test(path) || rule.pattern.test(path + '/')) {
+      return { title: rule.title, description: rule.description };
+    }
+  }
+  return null;
+}
+
 let indexHtmlTemplate = null;
 
 function readIndexTemplate() {
@@ -247,9 +275,10 @@ async function resolveRequestMeta(req) {
   const baseUrl = `${getRequestOrigin(req)}${String(req.originalUrl || req.url || '/').split('?')[0] || '/'}`;
 
   if (!routeContext?.subdomain) {
+    const routeMeta = getPlatformRouteMeta(req.path);
     return {
-      title: DEFAULT_PLATFORM_TITLE,
-      description: DEFAULT_PLATFORM_DESCRIPTION,
+      title: routeMeta?.title || DEFAULT_PLATFORM_TITLE,
+      description: routeMeta?.description || DEFAULT_PLATFORM_DESCRIPTION,
       image: DEFAULT_PLATFORM_IMAGE,
       icon: DEFAULT_PLATFORM_IMAGE,
       type: 'website',

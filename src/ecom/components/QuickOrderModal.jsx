@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { safeHtml } from '../utils/sanitize';
 import { X, ShoppingCart, User, Phone, MapPin, Loader2, CheckCircle, AlertCircle, Plus, Minus, Truck, ChevronDown, Mail, FileText, Hash, Calendar, Clock, Shield, Globe, Star, ShoppingBag, ArrowRight, Check } from 'lucide-react';
 import { publicStoreApi } from '../services/storeApi.js';
 import { createMetaEventId, firePixelEvent } from '../utils/pixelTracking';
@@ -688,7 +689,7 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
               case 'html':
                 return (
                   <div key={field.name} style={{ fontSize: 13, color: textColor }}
-                    dangerouslySetInnerHTML={{ __html: field.htmlContent || '' }} />
+                    dangerouslySetInnerHTML={safeHtml(field.htmlContent || '')} />
                 );
 
               case 'trust_badge':

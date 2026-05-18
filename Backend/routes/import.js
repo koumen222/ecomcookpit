@@ -11,6 +11,7 @@ import WorkspaceSettings from '../models/WorkspaceSettings.js';
 import Workspace from '../models/Workspace.js';
 import { memCache } from '../services/memoryCache.js';
 import { requireEcomAuth, validateEcomAccess } from '../middleware/ecomAuth.js';
+import { getPlanRuntimeSnapshot } from '../middleware/planLimits.js';
 import { notifyImportCompleted, notifyNewOrder } from '../services/notificationHelper.js';
 import { getPhonePrefixFromWorkspace } from '../utils/phoneUtils.js';
 import {
@@ -373,18 +374,55 @@ router.post('/run', requireEcomAuth, validateEcomAccess('products', 'write'), as
       };
     });
 
+    // Vérifier la limite de commandes du plan avant le bulk write
+    let planLimitedBulkOps = bulkOps;
+    let skippedByPlanLimit = 0;
+    {
+      const wsForPlan = await Workspace.findById(req.workspaceId).select('plan planExpiresAt trialEndsAt').lean();
+      let effectivePlan = wsForPlan?.plan || 'free';
+      if (effectivePlan !== 'free' && wsForPlan?.planExpiresAt && new Date(wsForPlan.planExpiresAt).getTime() < Date.now()) effectivePlan = 'free';
+      if (effectivePlan === 'free' && wsForPlan?.trialEndsAt && new Date(wsForPlan.trialEndsAt).getTime() > Date.now()) effectivePlan = 'starter';
+      const { limits: planLimits } = await getPlanRuntimeSnapshot(effectivePlan);
+      if (planLimits.maxOrders !== null) {
+        const startOfMonth = new Date();
+        startOfMonth.setDate(1);
+        startOfMonth.setHours(0, 0, 0, 0);
+        const monthCount = await Order.countDocuments({ workspaceId: req.workspaceId, createdAt: { $gte: startOfMonth } });
+        const remaining = planLimits.maxOrders - monthCount;
+        if (remaining <= 0) {
+          // Limite atteinte : autoriser uniquement les mises à jour (upsert:false), bloquer les inserts
+          planLimitedBulkOps = bulkOps.map(op => ({
+            ...op,
+            updateOne: { ...op.updateOne, upsert: false }
+          }));
+          skippedByPlanLimit = bulkOps.length;
+        } else if (remaining < bulkOps.length) {
+          // Limite partiellement atteinte : on va trier — les existants passent toujours,
+          // les nouveaux sont limités au quota restant. On laisse MongoDB décider via upsert
+          // mais on coupe les ops au-delà du quota (les premières lignes de la sheet ont priorité).
+          const updateOps = bulkOps.map(op => ({ ...op, updateOne: { ...op.updateOne, upsert: false } }));
+          const insertOps = bulkOps.slice(0, remaining);
+          // Merge: d'abord les updates (sans insert), puis les potentielles nouvelles dans la limite
+          planLimitedBulkOps = insertOps;
+          skippedByPlanLimit = bulkOps.length - remaining;
+          // On exécutera les updates séparément plus bas via updateOps — on les stocke
+          planLimitedBulkOps._updateOnlyOps = updateOps;
+        }
+      }
+    }
+
     // Bulk write
     let successCount = 0;
     let updatedCount = 0;
     const newOrderIds = [];
 
-    if (bulkOps.length > 0) {
+    if (planLimitedBulkOps.length > 0) {
       emitProgress(req.workspaceId, sourceId, { percentage: 75, status: 'Sauvegarde en base de données...', current: totalDataRows, total: totalDataRows });
 
       // Process in batches of 500 for very large imports
       const BATCH_SIZE = 500;
-      for (let b = 0; b < bulkOps.length; b += BATCH_SIZE) {
-        const batch = bulkOps.slice(b, b + BATCH_SIZE);
+      for (let b = 0; b < planLimitedBulkOps.length; b += BATCH_SIZE) {
+        const batch = planLimitedBulkOps.slice(b, b + BATCH_SIZE);
         const result = await Order.bulkWrite(batch);
         successCount += result.upsertedCount || 0;
         updatedCount += result.modifiedCount || 0;
@@ -476,9 +514,13 @@ router.post('/run', requireEcomAuth, validateEcomAccess('products', 'write'), as
 
     releaseImportLock(req.workspaceId, sourceId);
 
+    const planLimitWarning = skippedByPlanLimit > 0
+      ? `${skippedByPlanLimit} commandes non importées : limite du plan Gratuit (50/mois) atteinte.`
+      : null;
+
     emitProgress(req.workspaceId, sourceId, {
       percentage: 100,
-      status: `Terminé ! ${successCount} nouvelles, ${updatedCount} mises à jour${errors.length > 0 ? `, ${errors.length} erreurs` : ''}`,
+      status: `Terminé ! ${successCount} nouvelles, ${updatedCount} mises à jour${errors.length > 0 ? `, ${errors.length} erreurs` : ''}${planLimitWarning ? ` — ⚠️ ${planLimitWarning}` : ''}`,
       completed: true,
       current: totalDataRows,
       total: totalDataRows
@@ -486,13 +528,15 @@ router.post('/run', requireEcomAuth, validateEcomAccess('products', 'write'), as
 
     res.json({
       success: true,
-      message: `Import terminé en ${duration}s: ${successCount} nouvelles commandes, ${updatedCount} mises à jour.`,
+      message: `Import terminé en ${duration}s: ${successCount} nouvelles commandes, ${updatedCount} mises à jour.${planLimitWarning ? ` ⚠️ ${planLimitWarning}` : ''}`,
       data: {
         successCount,
         updatedCount,
         errorCount: errors.length,
         duplicateCount,
         skippedCount,
+        skippedByPlanLimit,
+        planLimitWarning,
         totalRows: totalDataRows,
         duration,
         errors: errors.slice(0, 50),

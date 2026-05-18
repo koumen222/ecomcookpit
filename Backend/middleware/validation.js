@@ -26,21 +26,31 @@ export const validateEmail = (req, res, next) => {
 // Validation mot de passe
 export const validatePassword = (req, res, next) => {
   const { password } = req.body;
-  
+
   if (!password) {
     return res.status(400).json({
       success: false,
       message: 'Mot de passe requis'
     });
   }
-  
-  if (password.length < 6) {
+
+  if (password.length < 12) {
     return res.status(400).json({
       success: false,
-      message: 'Le mot de passe doit contenir au moins 6 caractères'
+      message: 'Le mot de passe doit contenir au moins 12 caractères'
     });
   }
-  
+
+  const hasUppercase = /[A-Z]/.test(password);
+  const hasLowercase = /[a-z]/.test(password);
+  const hasDigit = /\d/.test(password);
+  if (!hasUppercase || !hasLowercase || !hasDigit) {
+    return res.status(400).json({
+      success: false,
+      message: 'Le mot de passe doit contenir au moins une majuscule, une minuscule et un chiffre'
+    });
+  }
+
   next();
 };
 

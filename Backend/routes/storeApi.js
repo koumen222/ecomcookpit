@@ -38,6 +38,8 @@ import { sendClientOrderConfirmation } from '../services/shopifyWhatsappService.
 import { normalizeCity } from '../utils/cityNormalizer.js';
 import { buildMetaEventPayload, buildMetaUserData, isSupportedMetaEvent, sendMetaCapiEvent } from '../services/metaCapi.js';
 import { createAffiliateConversionFromOrder, normalizeCode } from '../services/affiliateService.js';
+import { getPlanRuntimeSnapshot } from '../middleware/planLimits.js';
+import { notifyOrderLimitReached } from '../services/orderLimitNotificationService.js';
 
 const router = express.Router();
 
@@ -672,6 +674,28 @@ router.post('/:subdomain/orders', orderLimiter, async (req, res) => {
     const workspace = await resolveStore(req.params.subdomain);
     if (!workspace) {
       return res.status(404).json({ success: false, message: 'Store not found' });
+    }
+
+    // Check plan order limit before accepting the order
+    const workspaceId = workspace._workspaceId;
+    const ws = await Workspace.findById(workspaceId).select('plan planExpiresAt trialEndsAt').lean();
+    let effectivePlan = ws?.plan || 'free';
+    if (effectivePlan !== 'free' && ws?.planExpiresAt && new Date(ws.planExpiresAt).getTime() < Date.now()) effectivePlan = 'free';
+    if (effectivePlan === 'free' && ws?.trialEndsAt && new Date(ws.trialEndsAt).getTime() > Date.now()) effectivePlan = 'starter';
+    const { limits: planLimits } = await getPlanRuntimeSnapshot(effectivePlan);
+    if (planLimits.maxOrders !== null) {
+      const startOfMonth = new Date();
+      startOfMonth.setDate(1);
+      startOfMonth.setHours(0, 0, 0, 0);
+      const monthCount = await Order.countDocuments({ workspaceId, createdAt: { $gte: startOfMonth } });
+      if (monthCount >= planLimits.maxOrders) {
+        notifyOrderLimitReached(workspaceId, { used: monthCount, limit: planLimits.maxOrders }).catch(() => {});
+        return res.status(403).json({
+          success: false,
+          error: 'STORE_ORDER_LIMIT_REACHED',
+          message: 'Cette boutique ne peut plus recevoir de commandes ce mois-ci. Veuillez réessayer le mois prochain ou contacter le vendeur.'
+        });
+      }
     }
 
     const { customerName, phone, phoneCode, email, address, city, country, products, notes, channel, deliveryType, deliveryCost, metaEventId, metaSourceUrl, affiliateCode, affiliateLinkCode } = req.body;

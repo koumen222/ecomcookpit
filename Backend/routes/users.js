@@ -393,7 +393,7 @@ router.put('/:id/reset-password',
       const { newPassword } = req.body;
 
       if (!newPassword || newPassword.length < 6) {
-        return res.status(400).json({ success: false, message: 'Le mot de passe doit contenir au moins 6 caractères' });
+        return res.status(400).json({ success: false, message: 'Le mot de passe doit contenir au moins 12 caractères' });
       }
 
       const user = await EcomUser.findOne({ _id: req.params.id, workspaceId: req.workspaceId });

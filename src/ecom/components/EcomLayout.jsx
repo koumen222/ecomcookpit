@@ -312,6 +312,11 @@ const EcomLayoutComponent = ({ children }) => {
       roles: ['ecom_admin'],
       icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" /></svg>
     },
+    {
+      name: 'Formation', shortName: 'Formation', href: '/ecom/formation', primary: false,
+      roles: ['ecom_admin', 'ecom_closeuse', 'ecom_compta'],
+      icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l9-5-9-5-9 5 9 5z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z"/></svg>
+    },
   ], []);
 
   const bottomNav = useMemo(() => [
@@ -495,6 +500,38 @@ const EcomLayoutComponent = ({ children }) => {
       {workspace?.subscriptionWarning?.active && (
         <SubscriptionWarningBanner warning={workspace.subscriptionWarning} />
       )}
+      {/* Order limit banner — affiché quand le quota mensuel du plan gratuit est atteint */}
+      {(() => {
+        const maxOrders = planInfo?.limits?.maxOrders;
+        const used = planInfo?.ordersThisMonth;
+        if (!maxOrders || maxOrders === -1 || used == null || used < maxOrders) return null;
+        return (
+          <div style={{
+            position: 'fixed', top: 0, left: 0, right: 0, zIndex: 61,
+            background: '#dc2626', color: '#fff',
+            fontSize: 13, fontWeight: 500,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            gap: 8, padding: '9px 16px', textAlign: 'center', lineHeight: 1.4,
+          }}>
+            <span>🚫</span>
+            <span>
+              <strong>Boutique bloquée</strong> — Vous avez atteint la limite de {maxOrders} commandes / mois du plan Gratuit.
+              Votre boutique ne reçoit plus de commandes.
+            </span>
+            <a
+              href="/ecom/billing"
+              style={{
+                marginLeft: 8, background: '#fff', color: '#dc2626',
+                border: 'none', borderRadius: 6, padding: '3px 12px',
+                fontSize: 12, fontWeight: 700, textDecoration: 'none',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              Débloquer →
+            </a>
+          </div>
+        );
+      })()}
       {/* Desktop Sidebar — white, clean, Chariow-inspired */}
       <aside className="hidden lg:flex lg:flex-col lg:w-[220px] lg:fixed lg:inset-y-0 z-30 bg-white border-r border-gray-200">
         <div className="flex flex-col h-full">

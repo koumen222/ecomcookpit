@@ -1,27 +1,28 @@
 {
+	email admin@scalor.net
 	on_demand_tls {
-		ask {$CADDY_ASK_URL:https://ecomcookpit-production-0ec4.up.railway.app/api/caddy/check-domain}
+		ask https://ecomcookpit-production-c8a6.up.railway.app/api/caddy/check-domain
 	}
-	email {$ACME_EMAIL:admin@scalor.net}
 }
 
-:443 {
+# Boutique spécifique hardcodée (ex: natureafrique.site → Cloudflare Pages)
+# Ajouter d'autres blocs ici pour les boutiques avec config spéciale
+natureafrique.site, www.natureafrique.site {
+	reverse_proxy https://ecomcookpit.pages.dev {
+		header_up Host ecomcookpit.pages.dev
+		header_up X-Real-IP {remote_host}
+	}
+}
+
+# Catch-all : tous les domaines custom clients → Railway backend
+# Caddy émet le SSL automatiquement via on_demand_tls ci-dessus
+https:// {
 	tls {
 		on_demand
 	}
-	reverse_proxy {$RAILWAY_BACKEND:https://ecomcookpit-production-0ec4.up.railway.app} {
-		header_up Host {host}
+	reverse_proxy https://ecomcookpit-production-c8a6.up.railway.app {
+		header_up Host ecomcookpit-production-c8a6.up.railway.app
 		header_up X-Forwarded-Host {host}
-		header_up X-Forwarded-Proto {scheme}
 		header_up X-Real-IP {remote_host}
-		header_up X-Caddy-Proxy "true"
-		transport http {
-			dial_timeout 10s
-			response_header_timeout 30s
-		}
 	}
-}
-
-:80 {
-	redir https://{host}{uri} permanent
 }
