@@ -355,6 +355,7 @@ workspaceSchema.methods.createInviteLink = function (createdBy) {
 };
 
 workspaceSchema.index({ owner: 1 });
+workspaceSchema.index({ createdAt: -1 }); // tri super-admin
 // Subdomain lookup for public store routing
 workspaceSchema.index({ subdomain: 1 }, { unique: true, sparse: true });
 // Compound index for resolveWorkspace middleware query

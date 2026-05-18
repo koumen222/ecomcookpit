@@ -260,4 +260,10 @@ ecomUserSchema.methods.hasRitaAgentAccess = function() {
   return this.canAccessRitaAgent !== false;
 };
 
+// Index pour l'agrégation memberCount dans super-admin
+ecomUserSchema.index({ workspaceId: 1 });
+// Index pour lookups fréquents
+ecomUserSchema.index({ email: 1 });
+ecomUserSchema.index({ role: 1 });
+
 export default mongoose.model('EcomUser', ecomUserSchema);

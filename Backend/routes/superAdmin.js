@@ -305,48 +305,68 @@ router.get('/users/:id',
   }
 );
 
-// GET /api/ecom/super-admin/workspaces - Toutes les workspaces
+// GET /api/ecom/super-admin/workspaces - Toutes les workspaces (optimisé)
 router.get('/workspaces',
   requireEcomAuth,
   requireSuperAdmin,
   async (req, res) => {
     try {
-      console.log('🔍 [SuperAdmin] Récupération de tous les workspaces...');
+      // ── Les deux requêtes en parallèle ───────────────────────────────────
+      const [workspaces, memberCounts] = await Promise.all([
 
-      const workspaces = await Workspace.find()
-        .populate('owner', 'email role')
-        .select('+freeGenerationsRemaining +paidGenerationsRemaining +totalGenerations')
-        .sort({ createdAt: -1 });
+        // Workspace + owner en une seule aggregate ($lookup remplace populate N+1)
+        Workspace.aggregate([
+          { $sort: { createdAt: -1 } },
+          {
+            $lookup: {
+              from: 'ecom_users',
+              localField: 'owner',
+              foreignField: '_id',
+              as: '_ownerArr',
+              pipeline: [{ $project: { email: 1, role: 1 } }],
+            },
+          },
+          {
+            $addFields: {
+              owner: { $arrayElemAt: ['$_ownerArr', 0] },
+            },
+          },
+          // Projeter uniquement les champs utilisés par le frontend
+          {
+            $project: {
+              _ownerArr: 0,
+              __v: 0,
+              // champs lourds non affichés
+              storeSettings: 0,
+              shopifyWebhookToken: 0,
+              whatsappAutoProductMediaRules: 0,
+            },
+          },
+        ]),
 
-      console.log(`📊 [SuperAdmin] ${workspaces.length} workspaces trouvés dans la base`);
-
-      // Vérifier le nombre total sans filtre
-      const totalCount = await Workspace.countDocuments();
-      console.log(`📊 [SuperAdmin] Workspace.countDocuments() = ${totalCount}`);
-
-      // Compter les membres par workspace
-      const memberCounts = await EcomUser.aggregate([
-        { $match: { workspaceId: { $ne: null } } },
-        { $group: { _id: '$workspaceId', count: { $sum: 1 } } }
+        // Comptage membres par workspace
+        EcomUser.aggregate([
+          { $match: { workspaceId: { $ne: null } } },
+          { $group: { _id: '$workspaceId', count: { $sum: 1 } } },
+        ]),
       ]);
 
-      console.log(`📊 [SuperAdmin] ${memberCounts.length} workspaces avec membres`);
-
+      // Construire la map memberCount
       const memberMap = {};
-      memberCounts.forEach(m => { memberMap[m._id.toString()] = m.count; });
+      memberCounts.forEach(m => { memberMap[String(m._id)] = m.count; });
 
       const workspacesWithCounts = workspaces.map(ws => ({
-        ...ws.toObject(),
-        memberCount: memberMap[ws._id.toString()] || 0
+        ...ws,
+        memberCount: memberMap[String(ws._id)] || 0,
       }));
 
       res.json({
         success: true,
         data: {
           workspaces: workspacesWithCounts,
-          totalWorkspaces: workspaces.length,
-          totalActive: workspaces.filter(w => w.isActive).length
-        }
+          totalWorkspaces: workspacesWithCounts.length,
+          totalActive: workspacesWithCounts.filter(w => w.isActive).length,
+        },
       });
     } catch (error) {
       console.error('Erreur super-admin get workspaces:', error);
