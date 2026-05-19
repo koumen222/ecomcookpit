@@ -1,10 +1,11 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Building2, Users, CheckCircle2, XCircle, Copy, Calendar,
   Mail, Power, PowerOff, AlertCircle, Loader2,
   Shield, Zap, Building, Crown, ChevronDown, Search, Bell, BellOff
 } from 'lucide-react';
 import ecomApi from '../services/ecommApi.js';
+import { CenteredSpinner } from '../components/Skeleton.jsx';
 import { getContextualError } from '../utils/errorMessages';
 
 const FALLBACK_PLANS = [
@@ -176,14 +177,7 @@ const SuperAdminWorkspaces = () => {
   useEffect(() => { if (success) { const t = setTimeout(() => setSuccess(''), 3000); return () => clearTimeout(t); } }, [success]);
   useEffect(() => { if (error) { const t = setTimeout(() => setError(''), 4000); return () => clearTimeout(t); } }, [error]);
 
-  if (loading) return (
-    <div className="flex items-center justify-center h-96">
-      <div className="flex flex-col items-center gap-4">
-        <Loader2 className="w-12 h-12 text-emerald-700 animate-spin" />
-        <p className="text-sm text-slate-600 font-semibold">Chargement des espaces...</p>
-      </div>
-    </div>
-  );
+  if (loading) return <CenteredSpinner message="Chargement des espaces…" />;
 
   // Filtrage des workspaces
   const filteredWorkspaces = workspaces.filter(w => {

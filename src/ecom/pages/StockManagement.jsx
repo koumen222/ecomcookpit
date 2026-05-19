@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import ecomApi from '../services/ecommApi.js';
 import { getContextualError } from '../utils/errorMessages';
 // ❌ CACHE DÉSACTIVÉ
@@ -201,7 +201,7 @@ const StockManagement = () => {
 
   const calcActuel = (q, s) => Math.max(0, parseInt(q || 0) - parseInt(s || 0));
 
-  if (loading) return (
+  if (loading) return <CenteredSpinner message="Chargement…" />; return (
     <div className="flex items-center justify-center py-20">
       <svg className="w-8 h-8 animate-spin text-emerald-600" fill="none" viewBox="0 0 24 24">
         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />

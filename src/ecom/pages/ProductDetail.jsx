@@ -1,8 +1,9 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useEcomAuth } from '../hooks/useEcomAuth';
 import { useMoney } from '../hooks/useMoney.js';
 import ecomApi from '../services/ecommApi.js';
+import { CenteredSpinner } from '../components/Skeleton.jsx';
 
 const ProductDetail = () => {
   const { id } = useParams();
@@ -43,7 +44,9 @@ const ProductDetail = () => {
     return colors[status] || 'bg-gray-100 text-gray-800';
   };
 
-  if (loading) return (
+  if (loading) return <CenteredSpinner message="Chargement…" />;
+
+  return (
     <div className="p-4 sm:p-6">
       <div className="h-8 w-40 bg-gray-200 rounded-lg animate-pulse mb-6" />
       <div className="bg-white rounded-xl border border-gray-100 p-6 space-y-4">

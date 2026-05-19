@@ -2,6 +2,7 @@
 import { useNavigate } from 'react-router-dom';
 import { useEcomAuth } from '../hooks/useEcomAuth';
 import ecomApi from '../services/ecommApi.js';
+import { CenteredSpinner } from '../components/Skeleton.jsx';
 
 const SecurityDashboard = () => {
   const navigate = useNavigate();
@@ -90,19 +91,7 @@ const SecurityDashboard = () => {
     SETTINGS_CHANGE: '⚙️',
   };
 
-  if (loading) return (
-    <div className="p-4 sm:p-6">
-      <div className="h-8 w-52 bg-gray-200 rounded-lg animate-pulse mb-6" />
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {[...Array(4)].map((_, i) => (
-          <div key={i} className="bg-white rounded-xl border border-gray-100 p-6">
-            <div className="h-4 w-32 bg-gray-200 rounded animate-pulse mb-3" />
-            <div className="h-8 w-24 bg-gray-200 rounded animate-pulse" />
-          </div>
-        ))}
-      </div>
-    </div>
-  );
+  if (loading) return <CenteredSpinner message="Chargement de la sécurité…" />;
 
   return (
     <div className="p-3 sm:p-4 lg:p-6 max-w-7xl mx-auto">

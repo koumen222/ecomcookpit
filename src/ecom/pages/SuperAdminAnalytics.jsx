@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   BarChart3, TrendingUp, MousePointerClick, Globe, FileText, Users,
   Activity, Clock, Eye, Target, RotateCcw, TrendingDown, Smartphone,
@@ -7,6 +7,7 @@ import {
   Calculator, Truck, Zap, Calendar
 } from 'lucide-react';
 import { analyticsApi } from '../services/analytics.js';
+import { CenteredSpinner as Spinner } from '../components/Skeleton.jsx';
 
 const TABS = [
   { id: 'overview', label: 'Overview', icon: BarChart3 },
@@ -93,16 +94,7 @@ const FunnelStep = ({ step, count, rate, isLast, dropRate, lost }) => (
 );
 
 // ─── Spinner ───
-const Spinner = () => (
-  <div className="flex items-center justify-center py-20">
-    <div className="flex flex-col items-center gap-4">
-      <Loader2 className="w-12 h-12 text-emerald-700 animate-spin" />
-      <p className="text-sm text-slate-600 font-semibold">Chargement des analytics...</p>
-    </div>
-  </div>
-);
 
-// ─── Empty state ───
 const EmptyState = ({ message }) => (
   <div className="flex flex-col items-center justify-center py-20 text-slate-400">
     <BarChart3 className="w-16 h-16 mb-4 text-slate-300" />

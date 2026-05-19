@@ -1,7 +1,8 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useEcomAuth } from '../hooks/useEcomAuth';
 import ecomApi from '../services/ecommApi.js';
+import { CenteredSpinner } from '../components/Skeleton.jsx';
 
 const DecisionsList = () => {
   const { user } = useEcomAuth();
@@ -39,7 +40,9 @@ const DecisionsList = () => {
     }
   };
 
-  if (loading) return (
+  if (loading) return <CenteredSpinner message="Chargement…" />;
+
+  return (
     <div className="p-4 sm:p-6">
       <div className="h-8 w-48 bg-gray-200 rounded-lg animate-pulse mb-6" />
       <div className="space-y-2">

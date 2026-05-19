@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { analyticsApi } from '../services/analytics.js';
+import { CenteredSpinner } from '../components/Skeleton.jsx';
 
 const SuperAdminActivity = () => {
   const [data, setData]       = useState(null);
@@ -167,17 +168,7 @@ const SuperAdminActivity = () => {
     { key: 'createdAt', label: 'Création'       },
   ];
 
-  if (loading) return (
-    <div className="flex items-center justify-center h-96">
-      <div className="flex flex-col items-center gap-4">
-        <div className="relative w-12 h-12">
-          <div className="absolute inset-0 rounded-full border-2 border-gray-200" />
-          <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-emerald-700 animate-spin" />
-        </div>
-        <p className="text-sm text-gray-400 font-medium">Chargement de l'activité boutique…</p>
-      </div>
-    </div>
-  );
+  if (loading) return <CenteredSpinner message="Chargement de l'activité boutique…" />;
 
   return (
     <div className="p-4 sm:p-6 max-w-[1700px] mx-auto space-y-5">

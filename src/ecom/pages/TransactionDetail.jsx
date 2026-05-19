@@ -1,8 +1,9 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useMoney } from '../hooks/useMoney.js';
 import ecomApi from '../services/ecommApi.js';
 import { getContextualError } from '../utils/errorMessages';
+import { CenteredSpinner } from '../components/Skeleton.jsx';
 
 const categoryLabels = {
   publicite: 'Publicité', produit: 'Produit', livraison: 'Livraison',
@@ -39,7 +40,9 @@ const TransactionDetail = () => {
 
 
 
-  if (loading) return (
+  if (loading) return <CenteredSpinner message="Chargement…" />;
+
+  return (
     <div className="p-4 sm:p-6">
       <div className="h-8 w-40 bg-gray-200 rounded-lg animate-pulse mb-6" />
       <div className="grid grid-cols-2 gap-3 mb-6">

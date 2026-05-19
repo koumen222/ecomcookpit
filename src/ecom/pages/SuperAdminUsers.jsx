@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Users, Search, Filter, Crown, Briefcase, Package,
@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { useEcomAuth } from '../hooks/useEcomAuth';
 import ecomApi from '../services/ecommApi.js';
+import { CenteredSpinner } from '../components/Skeleton.jsx';
 import { getContextualError } from '../utils/errorMessages';
 
 const roleLabels = {
@@ -122,14 +123,7 @@ const SuperAdminUsers = () => {
   useEffect(() => { if (success) { const t = setTimeout(() => setSuccess(''), 3000); return () => clearTimeout(t); } }, [success]);
   useEffect(() => { if (error) { const t = setTimeout(() => setError(''), 4000); return () => clearTimeout(t); } }, [error]);
 
-  if (loading) return (
-    <div className="flex items-center justify-center h-96">
-      <div className="flex flex-col items-center gap-4">
-        <Loader2 className="w-12 h-12 text-emerald-700 animate-spin" />
-        <p className="text-sm text-slate-600 font-semibold">Chargement des utilisateurs...</p>
-      </div>
-    </div>
-  );
+  if (loading) return <CenteredSpinner message="Chargement des utilisateurs…" />;
 
   const blocked = users.filter(u => !u.isActive).length;
   const activeUsers = users.filter(u => u.isActive).length;

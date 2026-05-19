@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
 import { useEcomAuth } from '../hooks/useEcomAuth';
 import ecomApi from '../services/ecommApi.js';
 import { useMoney } from '../hooks/useMoney.js';
+import { CenteredSpinner } from '../components/Skeleton.jsx';
 
 const COST_PER_KM = 200;
 
@@ -273,7 +274,9 @@ const LivreurDeliveryDetail = () => {
 
   const fmtDate = (d) => d ? new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
 
-  if (loading) return (
+  if (loading) return <CenteredSpinner message="Chargement…" />;
+
+  return (
     <div className="flex flex-col items-center justify-center h-64 gap-3">
       <div className="w-8 h-8 rounded-full border-4 border-gray-200 border-t-amber-600 animate-spin" />
       <p className="text-sm text-gray-400">Chargement…</p>
