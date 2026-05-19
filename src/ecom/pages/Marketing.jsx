@@ -139,9 +139,18 @@ export default function Marketing() {
     }
   };
 
-  const send = (id) => {
-    setSendConf(id);
-    loadWaInstances();
+  const send = async (id) => {
+    setSendId(id);
+    try {
+      const r = await marketingApi.sendCampaign(id, {});
+      flash(`✅ ${r.data.message}`);
+      loadC(pg.page);
+      loadStats();
+    } catch (e) {
+      flash(e.response?.data?.message || "Erreur d'envoi", 'err');
+    } finally {
+      setSendId(null);
+    }
   };
 
   const sendWithInstance = async (instanceId) => {

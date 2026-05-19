@@ -74,6 +74,7 @@ const SuperAdminUsers = lazy(() => import('./pages/SuperAdminUsers.jsx'));
 const SuperAdminUserDetail = lazy(() => import('./pages/SuperAdminUserDetail.jsx'));
 const SuperAdminWorkspaces = lazy(() => import('./pages/SuperAdminWorkspaces.jsx'));
 const SuperAdminActivity = lazy(() => import('./pages/SuperAdminActivity.jsx'));
+const SuperAdminBoutiqueStats = lazy(() => import('./pages/SuperAdminBoutiqueStats.jsx'));
 const SuperAdminSettings = lazy(() => import('./pages/SuperAdminSettings.jsx'));
 const SetupSuperAdmin = lazy(() => import('./pages/SetupSuperAdmin.jsx'));
 const Goals = lazy(() => import('./pages/Goals.jsx'));
@@ -280,6 +281,7 @@ const PLATFORM_TITLE_RULES = [
   { path: '/ecom/super-admin/feature-analytics', title: 'Features super admin' },
   { path: '/ecom/super-admin/product-page-history', title: 'Historique pages produit' },
   { path: '/ecom/super-admin/activity', title: 'Activité super admin' },
+  { path: '/ecom/super-admin/boutique-stats', title: 'Stats boutique' },
   { path: '/ecom/super-admin/settings', title: 'Paramètres super admin' },
   { path: '/ecom/super-admin/whatsapp-postulations', title: 'Postulations WhatsApp' },
   { path: '/ecom/super-admin/whatsapp-logs', title: 'Logs WhatsApp' },
@@ -773,6 +775,7 @@ const EcomApp = () => {
               <Route path="/ecom/super-admin/workspaces" element={<LayoutRoute requiredRole="super_admin"><SuperAdminWorkspaces /></LayoutRoute>} />
               <Route path="/ecom/super-admin/analytics" element={<LayoutRoute requiredRole="super_admin"><SuperAdminAnalytics /></LayoutRoute>} />
               <Route path="/ecom/super-admin/activity" element={<LayoutRoute requiredRole="super_admin"><SuperAdminActivity /></LayoutRoute>} />
+              <Route path="/ecom/super-admin/boutique-stats" element={<LayoutRoute requiredRole="super_admin"><SuperAdminBoutiqueStats /></LayoutRoute>} />
               <Route path="/ecom/super-admin/settings" element={<LayoutRoute requiredRole="super_admin"><SuperAdminSettings /></LayoutRoute>} />
               <Route path="/ecom/super-admin/whatsapp-postulations" element={<LayoutRoute requiredRole="super_admin"><SuperAdminWhatsAppPostulations /></LayoutRoute>} />
               <Route path="/ecom/super-admin/whatsapp-logs" element={<LayoutRoute requiredRole="super_admin"><SuperAdminWhatsAppLogs /></LayoutRoute>} />

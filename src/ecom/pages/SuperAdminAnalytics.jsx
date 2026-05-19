@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { analyticsApi } from '../services/analytics.js';
 import { CenteredSpinner as Spinner } from '../components/Skeleton.jsx';
+import SuperAdminShell from '../components/SuperAdminShell.jsx';
 
 const TABS = [
   { id: 'overview', label: 'Overview', icon: BarChart3 },
@@ -784,87 +785,59 @@ const SuperAdminAnalytics = () => {
     }
   };
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50">
-      <div className="p-4 sm:p-6 lg:p-8 max-w-[1600px] mx-auto space-y-6">
-        {/* Header */}
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <div className="w-10 h-10 sm:w-14 sm:h-14 rounded-xl sm:rounded-2xl bg-gradient-to-br from-emerald-700 to-emerald-700 flex items-center justify-center shadow-lg shadow-emerald-600/20 flex-shrink-0">
-              <BarChart3 className="w-7 h-7 text-white" />
-            </div>
-            <div>
-              <h1 className="text-2xl sm:text-4xl font-black tracking-tight text-slate-900">Analytics</h1>
-              <p className="text-sm text-slate-600 font-medium mt-2">Vue globale et détaillée de la plateforme</p>
-            </div>
-          </div>
-
-          {/* Range selector + date picker */}
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex gap-1 p-1 bg-slate-100 rounded-xl border-2 border-slate-200">
-              {RANGES.map(r => (
-                <button
-                  key={r.value}
-                  onClick={() => setRange(r.value)}
-                  className={`px-3 py-2 text-xs font-bold rounded-lg transition-all duration-200 ${
-                    range === r.value
-                      ? 'bg-white text-slate-900 shadow-md ring-2 ring-emerald-600/20'
-                      : 'text-slate-500 hover:text-slate-700 hover:bg-white/60'
-                  }`}
-                >
-                  {r.label}
-                </button>
-              ))}
-            </div>
-
-            {/* Date picker custom */}
-            {range === 'custom' && (
-              <div className="flex items-center gap-1.5 sm:gap-2">
-                <input
-                  type="date"
-                  value={startDate}
-                  onChange={e => setStartDate(e.target.value)}
-                  className="text-[10px] sm:text-xs border-2 border-slate-200 rounded-lg px-1.5 sm:px-3 py-1 sm:py-2 bg-white focus:outline-none focus:border-emerald-500 font-medium text-slate-700 w-[110px] sm:w-auto"
-                />
-                <span className="text-[10px] sm:text-xs text-slate-400 font-medium">→</span>
-                <input
-                  type="date"
-                  value={endDate}
-                  min={startDate}
-                  onChange={e => setEndDate(e.target.value)}
-                  className="text-[10px] sm:text-xs border-2 border-slate-200 rounded-lg px-1.5 sm:px-3 py-1 sm:py-2 bg-white focus:outline-none focus:border-emerald-500 font-medium text-slate-700 w-[110px] sm:w-auto"
-                />
-                {startDate && (
-                  <button
-                    onClick={() => loadTab(tab, buildParams(activityPage))}
-                    className="px-3 py-2 text-xs font-bold bg-emerald-700 text-white rounded-lg hover:bg-emerald-800 transition-colors shadow-sm"
-                  >
-                    Appliquer
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
+  const rangeActions = (
+    <div className="flex flex-wrap items-center gap-2">
+      <div className="flex items-center gap-0.5 p-0.5 rounded-xl" style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.1)' }}>
+        {RANGES.map(r => (
+          <button key={r.value} onClick={() => setRange(r.value)}
+            className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-150"
+            style={range === r.value ? { background: '#10b981', color: '#fff' } : { color: 'rgba(148,163,184,0.9)' }}>
+            {r.label}
+          </button>
+        ))}
+      </div>
+      {range === 'custom' && (
+        <div className="flex items-center gap-1.5">
+          <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)}
+            className="text-xs border border-white/20 rounded-lg px-2 py-1.5 font-medium focus:outline-none focus:border-emerald-400"
+            style={{ background: 'rgba(255,255,255,0.08)', color: '#fff' }} />
+          <span className="text-xs" style={{ color: 'rgba(148,163,184,0.7)' }}>→</span>
+          <input type="date" value={endDate} min={startDate} onChange={e => setEndDate(e.target.value)}
+            className="text-xs border border-white/20 rounded-lg px-2 py-1.5 font-medium focus:outline-none focus:border-emerald-400"
+            style={{ background: 'rgba(255,255,255,0.08)', color: '#fff' }} />
+          {startDate && (
+            <button onClick={() => loadTab(tab, buildParams(activityPage))}
+              className="px-3 py-1.5 text-xs font-bold bg-emerald-500 text-white rounded-lg hover:bg-emerald-400 transition-colors">
+              Appliquer
+            </button>
+          )}
         </div>
+      )}
+    </div>
+  );
 
+  return (
+    <SuperAdminShell
+      title="Analytics"
+      subtitle="Vue globale et détaillée de la plateforme"
+      icon={BarChart3}
+      refreshing={loading}
+      onRefresh={() => loadTab(tab, buildParams(activityPage))}
+      actions={rangeActions}
+    >
+      <div className="space-y-5">
         {/* Tabs */}
-        <div className="flex gap-2 overflow-x-auto pb-2 border-b-2 border-slate-200">
+        <div className="flex gap-1 overflow-x-auto bg-white rounded-2xl border border-slate-200/80 p-1.5 shadow-sm" style={{ scrollbarWidth: 'none' }}>
           {TABS.map(t => {
             const TabIcon = t.icon;
             return (
-              <button
-                key={t.id}
+              <button key={t.id}
                 onClick={() => { setTab(t.id); if (t.id === 'activity') setActivityPage(1); }}
-                className={`relative flex items-center gap-2 px-5 py-3 text-sm font-bold whitespace-nowrap rounded-t-xl transition-all duration-300 ${tab === t.id
-                  ? 'text-slate-900 bg-white border-2 border-b-0 border-slate-200 -mb-0.5'
-                  : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
-                  }`}
+                className="relative flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold whitespace-nowrap rounded-xl transition-all duration-200"
+                style={tab === t.id ? { background: '#0f172a', color: '#fff' } : { color: '#64748b' }}
               >
-                <TabIcon className="w-4 h-4" />
+                <TabIcon className="w-3.5 h-3.5" />
                 {t.label}
-                {tab === t.id && (
-                  <span className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-700 to-emerald-700 rounded-t-full" />
-                )}
               </button>
             );
           })}
@@ -873,7 +846,7 @@ const SuperAdminAnalytics = () => {
         {/* Content */}
         {renderContent()}
       </div>
-    </div>
+    </SuperAdminShell>
   );
 };
 

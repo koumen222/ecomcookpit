@@ -328,7 +328,7 @@ router.get('/plan', requireEcomAuth, async (req, res) => {
 });
 
 // ─── GET /check-promo/:code ───────────────────────────────────────────────────
-router.get('/check-promo/:code', requireEcomAuth, async (req, res) => {
+router.get('/check-promo/:code', async (req, res) => {
   try {
     const code = req.params.code.trim().toUpperCase();
     if (!code) return res.status(400).json({ success: false, message: 'Code requis' });

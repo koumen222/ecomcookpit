@@ -9,6 +9,7 @@ import {
   Bell, Send
 } from 'lucide-react';
 import ecomApi from '../services/ecommApi.js';
+import SuperAdminShell from '../components/SuperAdminShell.jsx';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -438,37 +439,15 @@ const SuperAdminBilling = () => {
   const totalEssais = trialWorkspaces.length + freeWorkspaces.length + expiredTrials.length;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50">
-      <div className="p-4 sm:p-6 lg:p-8 max-w-[1600px] mx-auto space-y-6">
-
-        {/* Error toast */}
-        {error && (
-          <div className="flex items-center gap-3 p-4 bg-red-50 border-2 border-red-200 rounded-xl text-sm text-red-800 shadow-lg">
-            <AlertCircle className="w-5 h-5 flex-shrink-0 text-red-600" />
-            <span className="font-semibold">{error}</span>
-          </div>
-        )}
-
-        {/* ── HEADER ───────────────────────────────────────────────────────── */}
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-600 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/20">
-              <DollarSign className="w-7 h-7 text-white" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-black text-slate-900 tracking-tight">Suivi Facturation</h1>
-              <p className="text-sm text-slate-500">Paiements, abonnements et revenus en temps reel</p>
-            </div>
-          </div>
-          <button
-            onClick={() => fetchData(true)}
-            disabled={refreshing}
-            className="flex items-center gap-2 px-4 py-2 bg-white ring-2 ring-slate-200 text-slate-700 text-sm font-bold rounded-xl hover:ring-emerald-300 transition-all disabled:opacity-50"
-          >
-            <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
-            Actualiser
-          </button>
-        </div>
+    <SuperAdminShell
+      title="Suivi Facturation"
+      subtitle={`${fmtMoney(revenue.total)} F revenus · ${data.activeSubscriptions || 0} abonnés actifs`}
+      icon={DollarSign}
+      error={error}
+      refreshing={refreshing}
+      onRefresh={() => fetchData(true)}
+    >
+      <div className="space-y-6">
 
         {/* ── KPIs ─────────────────────────────────────────────────────────── */}
         <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-4">
@@ -1377,7 +1356,7 @@ const SuperAdminBilling = () => {
           </div>
         </div>
       )}
-    </div>
+    </SuperAdminShell>
   );
 };
 

@@ -628,18 +628,18 @@ export default function BillingPage() {
   }, [location.state, queuedSelectedPlan, workspaceId]);
 
   const load = useCallback(async () => {
-    if (!workspaceId) return;
     try {
-      const [planRes, histRes, publicPlansRes] = await Promise.all([
-        getCurrentPlan(workspaceId),
-        getPaymentHistory(workspaceId),
-        getPublicPlans().catch(() => ({ success: false })),
-      ]);
-      if (planRes.success) setPlanInfo(planRes);
-      if (histRes.success) setHistory(histRes.payments || []);
+      const publicPlansRes = await getPublicPlans().catch(() => ({ success: false }));
       if (publicPlansRes.success && Array.isArray(publicPlansRes.plans)) {
         setPlanTiers(applyPublicPrices(BASE_PLAN_TIERS, publicPlansRes.plans));
       }
+      if (!workspaceId) return;
+      const [planRes, histRes] = await Promise.all([
+        getCurrentPlan(workspaceId),
+        getPaymentHistory(workspaceId),
+      ]);
+      if (planRes.success) setPlanInfo(planRes);
+      if (histRes.success) setHistory(histRes.payments || []);
     } catch (e) { console.error('[billing] load error:', e); }
     finally { setLoading(false); }
   }, [workspaceId]);

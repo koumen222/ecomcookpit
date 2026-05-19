@@ -3,12 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import {
   Users, Search, Filter, Crown, Briefcase, Package,
   Calculator, Truck, CheckCircle2, XCircle, Trash2,
-  Clock, Building2, AlertCircle, Loader2, UserX, ChevronRight
+  Clock, Building2, Loader2, UserX, ChevronRight
 } from 'lucide-react';
 import { useEcomAuth } from '../hooks/useEcomAuth';
 import ecomApi from '../services/ecommApi.js';
 import { CenteredSpinner } from '../components/Skeleton.jsx';
 import { getContextualError } from '../utils/errorMessages';
+import SuperAdminShell from '../components/SuperAdminShell.jsx';
 
 const roleLabels = {
   super_admin: 'Super Admin',
@@ -129,52 +130,35 @@ const SuperAdminUsers = () => {
   const activeUsers = users.filter(u => u.isActive).length;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50">
-      <div className="p-4 sm:p-6 lg:p-8 max-w-[1600px] mx-auto space-y-6">
-        {/* Toasts */}
-        {success && (
-          <div className="flex items-center gap-3 p-4 bg-emerald-50 border-2 border-emerald-200 rounded-xl text-sm text-emerald-800 shadow-lg">
-            <CheckCircle2 className="w-5 h-5 flex-shrink-0 text-emerald-600" />
-            <span className="font-semibold">{success}</span>
-          </div>
-        )}
-        {error && (
-          <div className="flex items-center gap-3 p-4 bg-amber-50 border-2 border-amber-200 rounded-xl text-sm text-amber-800 shadow-lg">
-            <AlertCircle className="w-5 h-5 flex-shrink-0 text-amber-600" />
-            <span className="font-semibold">{error}</span>
-          </div>
-        )}
-
-        {/* Header */}
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-700 to-emerald-700 flex items-center justify-center shadow-lg shadow-emerald-600/20">
-              <Users className="w-7 h-7 text-white" />
-            </div>
-            <div>
-              <h1 className="text-2xl sm:text-4xl font-black tracking-tight text-slate-900">Gestion des utilisateurs</h1>
-              <div className="flex items-center gap-3 mt-2">
-                <span className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-600">
-                  <Users className="w-3.5 h-3.5" />
-                  {users.length} total
-                </span>
-                <span className="text-slate-300">·</span>
-                <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-600">
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                  {activeUsers} actifs
-                </span>
-                <span className="text-slate-300">·</span>
-                <span className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-600">
-                  <XCircle className="w-3.5 h-3.5" />
-                  {blocked} bloqués
-                </span>
+    <SuperAdminShell
+      title="Gestion des utilisateurs"
+      subtitle={`${users.length} utilisateurs · ${activeUsers} actifs · ${blocked} bloqués`}
+      icon={Users}
+      success={success}
+      error={error}
+      refreshing={loading}
+      onRefresh={() => fetchUsers()}
+    >
+      <div className="space-y-5">
+        {/* KPI row */}
+        <div className="grid grid-cols-3 gap-3 mb-5">
+          {[
+            { label: 'Total', value: users.length, icon: Users, accent: '#059669', accentLight: '#d1fae5' },
+            { label: 'Actifs', value: activeUsers, icon: CheckCircle2, accent: '#2563eb', accentLight: '#dbeafe' },
+            { label: 'Bloqués', value: blocked, icon: XCircle, accent: '#f59e0b', accentLight: '#fef3c7' },
+          ].map(k => (
+            <div key={k.label} className="bg-white rounded-2xl border border-slate-100 p-4 hover:shadow-lg transition-all">
+              <div className="w-8 h-8 rounded-xl flex items-center justify-center mb-2" style={{ backgroundColor: k.accentLight }}>
+                <k.icon className="w-4 h-4" style={{ color: k.accent }} />
               </div>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{k.label}</p>
+              <p className="text-2xl font-extrabold text-slate-900">{k.value}</p>
             </div>
-          </div>
+          ))}
         </div>
 
         {/* Filters */}
-        <div className="bg-white rounded-2xl border-2 border-slate-200 p-5 shadow-lg">
+        <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
           <div className="flex items-center gap-2 mb-4">
             <Filter className="w-4 h-4 text-slate-500" />
             <h3 className="text-sm font-black text-slate-700 uppercase tracking-wider">Filtres</h3>
@@ -213,7 +197,7 @@ const SuperAdminUsers = () => {
         {/* Users list */}
         <div className="space-y-3">
           {users.length === 0 ? (
-            <div className="bg-white rounded-2xl border-2 border-slate-200 p-20 text-center shadow-lg">
+            <div className="bg-white rounded-2xl border border-slate-200 p-20 text-center shadow-sm">
               <UserX className="w-16 h-16 text-slate-300 mx-auto mb-4" />
               <p className="text-lg font-black text-slate-400">Aucun utilisateur trouvé</p>
               <p className="text-sm text-slate-400 mt-2">Essayez de modifier vos filtres</p>
@@ -222,7 +206,7 @@ const SuperAdminUsers = () => {
             const config = roleConfig[u.role] || roleConfig.ecom_admin;
             const RoleIcon = config.icon;
             return (
-              <div key={u._id} className={`group bg-white rounded-2xl border-2 overflow-hidden transition-all duration-300 hover:shadow-xl hover:shadow-slate-900/5 hover:-translate-y-1 ${!u.isActive ? 'opacity-70 border-amber-200' : 'border-slate-200'}`}>
+              <div key={u._id} className={`group bg-white rounded-2xl border overflow-hidden transition-all duration-300 hover:shadow-md hover:-translate-y-1 ${!u.isActive ? 'opacity-70 border-amber-200' : 'border-slate-200'}`}>
                 {/* Accent bar */}
                 <div className={`h-1 bg-gradient-to-r ${u.isActive ? config.gradient : 'from-amber-500 to-red-500'}`} />
 
@@ -345,7 +329,7 @@ const SuperAdminUsers = () => {
           })}
         </div>
       </div>
-    </div>
+    </SuperAdminShell>
   );
 };
 

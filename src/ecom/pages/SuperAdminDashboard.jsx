@@ -10,7 +10,7 @@ import {
   MessageSquare, FileText, WifiOff
 } from 'lucide-react';
 import ecomApi from '../services/ecommApi.js';
-import { analyticsApi } from '../services/analytics.js';
+import SuperAdminShell from '../components/SuperAdminShell.jsx';
 import { DashboardSkeleton, Shimmer, SkeletonKpi, SkeletonChart, SkeletonCard, SectionError } from '../components/Skeleton.jsx';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -209,6 +209,7 @@ const SuperAdminDashboard = () => {
   const [users, setUsers] = useState([]);
   const [userStats, setUserStats] = useState({});
   const [workspaces, setWorkspaces] = useState([]);
+  const [workspaceSummary, setWorkspaceSummary] = useState({ totalWorkspaces: 0, totalActive: 0, totalMembers: 0 });
   const [overview, setOverview] = useState(null);
   const [funnel, setFunnel] = useState(null);
   const [traffic, setTraffic] = useState(null);
@@ -225,129 +226,81 @@ const SuperAdminDashboard = () => {
   // Section-level loading (for partial reload)
   const [sectionLoading, setSectionLoading] = useState({});
 
+  // ─── Stale-while-revalidate cache key ───────────────────────────────────
+  const CACHE_KEY = `dash_summary_${range}`;
+  const CACHE_TTL = 60_000; // 60 s
+
+  const applyData = useCallback((d) => {
+    if (!d) return;
+    if (d.users)      setUserStats(d.users.stats || {});
+    if (d.workspaces) {
+      setWorkspaces(d.workspaces.workspaces || []);
+      setWorkspaceSummary({ totalWorkspaces: d.workspaces.totalWorkspaces || 0, totalActive: d.workspaces.totalActive || 0, totalMembers: d.workspaces.totalMembers || 0 });
+    }
+    if (d.overview)   setOverview(d.overview);
+    if (d.funnel)     setFunnel(d.funnel);
+    if (d.traffic)    setTraffic(d.traffic);
+    if (d.countries)  setCountries(Array.isArray(d.countries) ? d.countries : []);
+    if (d.pages)      setPages(Array.isArray(d.pages) ? d.pages : []);
+    if (d.activity)   setUsersActivity(d.activity);
+    if (d.security)   setSecurity(d.security);
+    if (d.push)       setPushStats(d.push);
+  }, []);
+
   const fetchAll = useCallback(async (silent = false) => {
-    if (!silent) setInitialLoading(true);
-    else setRefreshing(true);
-    const newErrors = {};
+    if (!silent) {
+      // Check sessionStorage for stale data — show it immediately
+      try {
+        const raw = sessionStorage.getItem(CACHE_KEY);
+        if (raw) {
+          const { ts, data } = JSON.parse(raw);
+          if (Date.now() - ts < CACHE_TTL * 5) { // accept up to 5 min stale for instant render
+            applyData(data);
+            setInitialLoading(false);
+            setRefreshing(true); // signal background refresh
+          }
+        }
+      } catch (_) {}
+      if (initialLoading) setInitialLoading(true);
+    } else {
+      setRefreshing(true);
+    }
 
     try {
-      const params = { range };
-      const results = await Promise.allSettled([
-        ecomApi.get('/super-admin/users', { params: { limit: 1000 } }),   // 0
-        ecomApi.get('/super-admin/workspaces'),                             // 1
-        analyticsApi.getOverview(params),                                   // 2
-        analyticsApi.getFunnel(params),                                     // 3
-        analyticsApi.getTraffic(params),                                    // 4
-        analyticsApi.getCountries(params),                                  // 5
-        analyticsApi.getPages(params),                                      // 6
-        analyticsApi.getUsersActivity(params),                              // 7
-        ecomApi.get('/super-admin/security-info'),                          // 8
-        ecomApi.get('/super-admin/push/stats'),                             // 9
-      ]);
+      const res = await ecomApi.get('/super-admin/dashboard-summary', { params: { range }, timeout: 60000 });
+      const body = res.data;
+      if (!body?.success) throw new Error(body?.message || 'Réponse invalide');
 
-      const KEYS = ['users', 'workspaces', 'overview', 'funnel', 'traffic', 'countries', 'pages', 'activity', 'security', 'push'];
-      const getData = (r, key) => {
-        if (r.status === 'rejected') {
-          const msg = r.reason?.response?.data?.message || r.reason?.message || 'Erreur réseau';
-          const status = r.reason?.response?.status;
-          newErrors[key] = status === 403 ? 'Accès refusé (403)' : status === 401 ? 'Non authentifié (401)' : msg;
-          console.warn(`[Dashboard] ${key} failed:`, msg, r.reason);
-          return null;
-        }
-        const body = r.value?.data;
-        if (!body?.success) {
-          newErrors[key] = body?.message || 'Réponse invalide';
-          return null;
-        }
-        return body.data;
-      };
+      const d = body.data;
+      applyData(d);
+      setErrors({});
+      setGlobalError('');
 
-      const d0 = getData(results[0], 'users');
-      if (d0) { setUsers(d0.users || []); setUserStats(d0.stats || {}); }
-
-      const d1 = getData(results[1], 'workspaces');
-      if (d1) setWorkspaces(d1.workspaces || []);
-
-      const d2 = getData(results[2], 'overview');
-      if (d2) setOverview(d2);
-
-      const d3 = getData(results[3], 'funnel');
-      if (d3) setFunnel(d3);
-
-      const d4 = getData(results[4], 'traffic');
-      if (d4) setTraffic(d4);
-
-      const d5 = getData(results[5], 'countries');
-      if (d5) setCountries(d5.countries || d5 || []);
-
-      const d6 = getData(results[6], 'pages');
-      if (d6) setPages(d6.pages || d6 || []);
-
-      const d7 = getData(results[7], 'activity');
-      if (d7) setUsersActivity(d7);
-
-      const d8 = getData(results[8], 'security');
-      if (d8) setSecurity(d8);
-
-      const d9 = getData(results[9], 'push');
-      if (d9) setPushStats(d9);
-
-      // Show global error only if critical endpoints failed
-      const criticalFailed = newErrors.users || newErrors.workspaces;
-      if (criticalFailed) {
-        setGlobalError(`Certaines données n'ont pas pu être chargées. Vérifiez la connexion au backend.`);
-      } else {
-        setGlobalError('');
-      }
+      // Persist to sessionStorage for next mount
+      try {
+        sessionStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), data: d }));
+      } catch (_) {}
 
     } catch (err) {
-      setGlobalError(err.message || 'Erreur de chargement');
+      const status = err.response?.status;
+      const msg = err.response?.data?.message || err.message || 'Erreur réseau';
+      console.error('[Dashboard] dashboard-summary failed:', msg);
+
+      if (status === 401) setGlobalError('Non authentifié — veuillez vous reconnecter.');
+      else if (status === 403) setGlobalError('Accès refusé (403).');
+      else if (err.code === 'ECONNABORTED' || msg.includes('timeout')) {
+        setGlobalError('Le serveur met trop de temps à répondre. Vérifiez que le backend est démarré.');
+        setErrors({ users: 'timeout', workspaces: 'timeout', overview: 'timeout' });
+      } else {
+        setGlobalError(msg);
+      }
     } finally {
-      setErrors(newErrors);
       setInitialLoading(false);
       setRefreshing(false);
     }
-  }, [range]);
+  }, [range, applyData]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const retrySection = useCallback(async (sectionKey) => {
-    setSectionLoading(prev => ({ ...prev, [sectionKey]: true }));
-    try {
-      const params = { range };
-      let result, data;
-      switch (sectionKey) {
-        case 'users':
-          result = await ecomApi.get('/super-admin/users', { params: { limit: 1000 } });
-          data = result.data?.data;
-          if (data) { setUsers(data.users || []); setUserStats(data.stats || {}); }
-          break;
-        case 'workspaces':
-          result = await ecomApi.get('/super-admin/workspaces');
-          data = result.data?.data;
-          if (data) setWorkspaces(data.workspaces || []);
-          break;
-        case 'overview':
-          result = await analyticsApi.getOverview(params);
-          data = result.data?.data;
-          if (data) setOverview(data);
-          break;
-        case 'activity':
-          result = await analyticsApi.getUsersActivity(params);
-          data = result.data?.data;
-          if (data) setUsersActivity(data);
-          break;
-        case 'security':
-          result = await ecomApi.get('/super-admin/security-info');
-          data = result.data?.data;
-          if (data) setSecurity(data);
-          break;
-      }
-      setErrors(prev => { const n = { ...prev }; delete n[sectionKey]; return n; });
-    } catch (err) {
-      console.error(`Retry ${sectionKey} failed:`, err);
-    } finally {
-      setSectionLoading(prev => { const n = { ...prev }; delete n[sectionKey]; return n; });
-    }
-  }, [range]);
+  const retrySection = useCallback(() => fetchAll(true), [fetchAll]);
 
   useEffect(() => {
     fetchAll();
@@ -362,9 +315,11 @@ const SuperAdminDashboard = () => {
   const dailySessions   = trends.dailySessions || [];
   const dailySignups    = trends.dailySignups  || [];
 
-  const totalMembers  = useMemo(() => workspaces.reduce((s, w) => s + (w.memberCount || 0), 0), [workspaces]);
-  const activeWs      = useMemo(() => workspaces.filter(w => w.isActive).length, [workspaces]);
-  const neverLoggedIn = useMemo(() => users.filter(u => !u.lastLogin).length, [users]);
+  // Prefer backend-computed totals; fall back to client-side aggregation
+  const totalMembers  = workspaceSummary.totalMembers || workspaces.reduce((s, w) => s + (w.memberCount || 0), 0);
+  const activeWs      = workspaceSummary.totalActive  || workspaces.filter(w => w.isActive).length;
+  // neverLoggedIn now comes from backend stat — no full user list needed
+  const neverLoggedIn = userStats.neverLoggedIn ?? 0;
 
   const activationRate = userStats.totalUsers
     ? Math.round(((userStats.totalActive || 0) / userStats.totalUsers) * 100)
@@ -412,58 +367,36 @@ const SuperAdminDashboard = () => {
 
   // ─── Render ──────────────────────────────────────────────────────────────
 
+  const rangeActions = (
+    <div className="flex items-center gap-1.5 p-0.5 rounded-xl" style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.1)' }}>
+      {RANGE_TABS.map(t => (
+        <button key={t.value} onClick={() => setRange(t.value)}
+          className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-150"
+          style={range === t.value
+            ? { background: '#10b981', color: '#fff' }
+            : { color: 'rgba(148,163,184,0.9)' }
+          }>
+          {t.label}
+        </button>
+      ))}
+    </div>
+  );
+
   return (
-    <div className="min-h-screen" style={{ backgroundColor: '#f8fafc' }}>
-      <div className="max-w-[1500px] mx-auto px-4 sm:px-6 py-6 space-y-5">
-
-        {/* ── Header ── */}
-        <div className="rounded-2xl overflow-hidden shadow-sm border border-slate-200/60"
-          style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #0f4c39 100%)' }}>
-          <div className="px-6 py-5 flex flex-wrap items-center justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <div className="w-11 h-11 rounded-xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center">
-                <BarChart3 className="w-5 h-5 text-emerald-400" />
-              </div>
-              <div>
-                <h1 className="text-xl font-extrabold text-white tracking-tight">Super Admin</h1>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  {usersOk
-                    ? `${(userStats.totalUsers || 0).toLocaleString()} utilisateurs · ${workspaces.length} workspaces`
-                    : <span className="text-red-400 flex items-center gap-1"><WifiOff className="w-3 h-3 inline" /> Données partielles</span>
-                  }
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="hidden sm:inline-flex items-center gap-1.5 text-[11px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 rounded-lg">
-                <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" /> Live
-              </span>
-              <div className="flex items-center bg-white/10 rounded-xl p-0.5 gap-0.5">
-                {RANGE_TABS.map(t => (
-                  <button key={t.value} onClick={() => setRange(t.value)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-150 ${range === t.value ? 'bg-emerald-500 text-white shadow' : 'text-slate-300 hover:text-white'}`}>
-                    {t.label}
-                  </button>
-                ))}
-              </div>
-              <button onClick={() => fetchAll(true)} disabled={refreshing}
-                className="w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 border border-white/10 flex items-center justify-center text-slate-300 disabled:opacity-40 transition-all">
-                <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
-              </button>
-            </div>
-          </div>
-
-          {/* Error strip inside header */}
-          {globalError && (
-            <div className="px-6 py-2 bg-red-500/10 border-t border-red-500/20 flex items-center gap-2">
-              <WifiOff className="w-3.5 h-3.5 text-red-400 flex-shrink-0" />
-              <p className="text-xs text-red-300 font-medium">{globalError}</p>
-              <button onClick={() => fetchAll(true)} className="ml-auto text-xs font-bold text-red-300 hover:text-white underline">
-                Réessayer
-              </button>
-            </div>
-          )}
-        </div>
+    <SuperAdminShell
+      title="Super Admin"
+      subtitle={usersOk
+        ? `${(userStats.totalUsers || 0).toLocaleString()} utilisateurs · ${workspaces.length} workspaces`
+        : '⚠ Données partielles'
+      }
+      icon={BarChart3}
+      error={globalError}
+      refreshing={refreshing}
+      onRefresh={() => fetchAll(true)}
+      actions={rangeActions}
+      maxWidth="1500px"
+    >
+      <div className="space-y-5">
 
         {/* Error pills for failed endpoints */}
         {Object.keys(errors).length > 0 && (
@@ -476,21 +409,6 @@ const SuperAdminDashboard = () => {
             ))}
           </div>
         )}
-
-        {/* ── Navigation ── */}
-        <nav className="flex flex-wrap gap-1 bg-white rounded-2xl border border-slate-200/80 p-1.5 shadow-sm">
-          {NAV_ITEMS.map(({ to, label, icon: NavIcon }) => {
-            const isActive = location.pathname === to;
-            return (
-              <Link key={to} to={to}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
-                  isActive ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
-                }`}>
-                <NavIcon className="w-3.5 h-3.5" />{label}
-              </Link>
-            );
-          })}
-        </nav>
 
         {/* ── KPI — Croissance ── */}
         <section>
@@ -536,8 +454,8 @@ const SuperAdminDashboard = () => {
                 <KpiCard label="Pages vues" value={(kpis.totalPageViews ?? 0).toLocaleString()} icon={Layers} accent="#0ea5e9" accentLight="#e0f2fe" />
                 <KpiCard label="Durée moy." value={`${kpis.avgSessionDuration ?? 0}s`} icon={Clock} accent="#7c3aed" accentLight="#ede9fe" />
                 <KpiCard label="Taux rebond" value={`${kpis.bounceRate ?? 0}%`} icon={TrendingDown} accent="#f59e0b" accentLight="#fef3c7" />
-                <KpiCard label="Workspaces" value={workspaces.length.toLocaleString()} sub={`${activeWs} actifs`} icon={Building2} accent="#8b5cf6" accentLight="#ede9fe" />
-                <KpiCard label="Membres" value={totalMembers.toLocaleString()} sub={`${workspaces.length > 0 ? (totalMembers / workspaces.length).toFixed(1) : 0}/ws`} icon={Users} accent="#0d9488" accentLight="#ccfbf1" />
+                <KpiCard label="Workspaces" value={(workspaceSummary.totalWorkspaces || workspaces.length).toLocaleString()} sub={`${activeWs} actifs`} icon={Building2} accent="#8b5cf6" accentLight="#ede9fe" />
+                <KpiCard label="Membres" value={totalMembers.toLocaleString()} sub={`${(workspaceSummary.totalWorkspaces || workspaces.length) > 0 ? (totalMembers / (workspaceSummary.totalWorkspaces || workspaces.length)).toFixed(1) : 0}/ws`} icon={Users} accent="#0d9488" accentLight="#ccfbf1" />
               </>
             )}
           </div>
@@ -970,7 +888,7 @@ const SuperAdminDashboard = () => {
         </div>
 
       </div>
-    </div>
+    </SuperAdminShell>
   );
 };
 

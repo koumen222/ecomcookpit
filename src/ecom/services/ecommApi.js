@@ -114,7 +114,7 @@ function isRetryableRequestError(error) {
 
 const ecomApi = axios.create({
   baseURL: ECOM_API_BASE_URL,
-  timeout: 30000, // per-request override recommended for long ops (e.g. timeout:0)
+  timeout: 600000, // 10 minutes
   withCredentials: false,
   headers: {
     'Content-Type': 'application/json'
@@ -835,7 +835,11 @@ export const superAdminApi = {
   updateWhatsAppPostulation: (id, data) => ecomApi.put(`/super-admin/whatsapp-postulations/${id}`, data),
 
   // WhatsApp logs
-  getWhatsAppLogs: (params = {}) => ecomApi.get('/super-admin/whatsapp-logs', { params })
+  getWhatsAppLogs: (params = {}) => ecomApi.get('/super-admin/whatsapp-logs', { params }),
+
+  // Boutique stats
+  getBoutiqueSelector: () => ecomApi.get('/super-admin/boutique-stats'),
+  getBoutiqueStats: (params = {}) => ecomApi.get('/super-admin/boutique-stats', { params }),
 };
 
 export const productResearchApi = {

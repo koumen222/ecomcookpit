@@ -732,227 +732,55 @@ router.get('/users-activity',
   requireSuperAdmin,
   async (req, res) => {
     try {
-      const { range = '30d', startDate, endDate, page = 1, limit = 50 } = req.query;
-      const { since, until } = dateFilter(range, startDate, endDate);
+      const { page = 1, limit = 50 } = req.query;
       const skip = (parseInt(page) - 1) * parseInt(limit);
+      const yearAgo = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000);
 
-      // Recent logins from AnalyticsEvent
-      let recentLogins = await AnalyticsEvent.aggregate([
-        { $match: { createdAt: { $gte: since, $lte: until }, eventType: 'login' } },
-        { $sort: { createdAt: -1 } },
-        { $skip: skip },
-        { $limit: parseInt(limit) },
-        {
-          $lookup: {
-            from: 'ecom_users',
-            localField: 'userId',
-            foreignField: '_id',
-            as: 'user'
-          }
-        },
-        { $unwind: { path: '$user', preserveNullAndEmptyArrays: true } },
-        {
-          $project: {
-            date: '$createdAt',
-            email: '$user.email',
-            name: '$user.name',
-            role: '$user.role',
-            workspaceId: '$user.workspaceId',
-            country: 1,
-            city: 1,
-            device: 1,
-            browser: 1
-          }
-        }
-      ]);
-
-      let totalLogins = await AnalyticsEvent.countDocuments({
-        createdAt: { $gte: since, $lte: until },
-        eventType: 'login'
-      });
-
-      // ── Fallback: si aucun event login, utiliser EcomUser.lastLogin ──
-      if (recentLogins.length === 0) {
-        const fallbackUsers = await EcomUser.find(
-          { lastLogin: { $gte: since, $lte: until } },
-          { email: 1, name: 1, role: 1, workspaceId: 1, lastLogin: 1, createdAt: 1 }
-        ).sort({ lastLogin: -1 }).skip(skip).limit(parseInt(limit)).lean();
-
-        recentLogins = fallbackUsers.map(u => ({
-          _id: u._id,
-          date: u.lastLogin || u.createdAt,
-          email: u.email,
-          name: u.name,
-          role: u.role,
-          workspaceId: u.workspaceId,
-          country: null,
-          city: null,
-          device: null,
-          browser: null
-        }));
-        totalLogins = await EcomUser.countDocuments({ lastLogin: { $gte: since, $lte: until } });
-
-        // Second fallback: tous les users créés dans la période
-        if (recentLogins.length === 0) {
-          const newUsers = await EcomUser.find(
-            { createdAt: { $gte: since, $lte: until } },
-            { email: 1, name: 1, role: 1, workspaceId: 1, createdAt: 1 }
-          ).sort({ createdAt: -1 }).skip(skip).limit(parseInt(limit)).lean();
-
-          recentLogins = newUsers.map(u => ({
-            _id: u._id,
-            date: u.createdAt,
-            email: u.email,
-            name: u.name,
-            role: u.role,
-            workspaceId: u.workspaceId,
-            country: null,
-            city: null,
-            device: null,
-            browser: null
-          }));
-          totalLogins = await EcomUser.countDocuments({ createdAt: { $gte: since, $lte: until } });
-        }
-      }
-
-      // Active by role — fallback sur EcomUser si AnalyticsEvent vide
-      let activeByRole = await AnalyticsEvent.aggregate([
-        { $match: { createdAt: { $gte: since, $lte: until }, userId: { $ne: null } } },
-        {
-          $lookup: {
-            from: 'ecom_users',
-            localField: 'userId',
-            foreignField: '_id',
-            as: 'user'
-          }
-        },
-        { $unwind: '$user' },
-        {
-          $group: {
-            _id: '$user.role',
-            users: { $addToSet: '$userId' }
-          }
-        },
-        {
-          $project: {
-            role: '$_id',
-            count: { $size: '$users' }
-          }
-        },
-        { $sort: { count: -1 } }
-      ]);
-
-      if (activeByRole.length === 0) {
-        activeByRole = await EcomUser.aggregate([
+      // Single parallel batch — all 8 queries fire simultaneously
+      const [
+        recentLoginUsers,
+        totalLogins,
+        activeByRole,
+        noWorkspace,
+        totalWorkspaces,
+        users,
+        workspaces,
+        stores,
+        orderStats,
+        productStats,
+      ] = await Promise.all([
+        // Recent logins from EcomUser.lastLogin (fast indexed query, no AnalyticsEvent scan)
+        EcomUser.find(
+          { lastLogin: { $ne: null } },
+          { email: 1, name: 1, role: 1, workspaceId: 1, lastLogin: 1 }
+        ).sort({ lastLogin: -1 }).skip(skip).limit(parseInt(limit)).lean(),
+        // Login count
+        EcomUser.countDocuments({ lastLogin: { $ne: null } }),
+        // Active by role — fast aggregate on EcomUser (small collection)
+        EcomUser.aggregate([
           { $match: { role: { $ne: null } } },
           { $group: { _id: '$role', count: { $sum: 1 } } },
           { $project: { role: '$_id', count: 1 } },
-          { $sort: { count: -1 } }
-        ]);
-      }
-
-      // Users without workspace
-      const noWorkspace = await EcomUser.countDocuments({ workspaceId: null });
-
-      // Inactive workspaces
-      const activeWorkspaceIds = await AnalyticsEvent.distinct('workspaceId', {
-        createdAt: { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
-        workspaceId: { $ne: null }
-      });
-      const totalWorkspaces = await Workspace.countDocuments();
-      const inactiveWorkspaces = Math.max(0, totalWorkspaces - activeWorkspaceIds.length);
-
-      // ── Store activity by user (all-time business metrics) ──
-      const [users, workspaces, stores, orderStats, productStats, productSales] = await Promise.all([
-        EcomUser.find({}, {
-          email: 1,
-          name: 1,
-          role: 1,
-          workspaceId: 1,
-          workspaces: 1,
-          isActive: 1,
-          lastLogin: 1,
-          createdAt: 1,
-        }).lean(),
-        Workspace.find({}, {
-          name: 1,
-          slug: 1,
-          owner: 1,
-          subdomain: 1,
-          primaryStoreId: 1,
-          createdAt: 1,
-          storeSettings: 1,
-          isActive: 1,
-        }).lean(),
-        Store.find({}, {
-          workspaceId: 1,
-          name: 1,
-          subdomain: 1,
-          createdBy: 1,
-          createdAt: 1,
-          isActive: 1,
-          storeSettings: 1,
-        }).lean(),
+          { $sort: { count: -1 } },
+        ]),
+        EcomUser.countDocuments({ workspaceId: null }),
+        Workspace.countDocuments(),
+        // Store activity data
+        EcomUser.find({}, { email: 1, name: 1, role: 1, workspaceId: 1, workspaces: 1, isActive: 1, lastLogin: 1, createdAt: 1 }).limit(5000).lean(),
+        Workspace.find({}, { name: 1, slug: 1, owner: 1, subdomain: 1, primaryStoreId: 1, createdAt: 1, storeSettings: 1, isActive: 1 }).limit(5000).lean(),
+        Store.find({}, { workspaceId: 1, name: 1, subdomain: 1, createdBy: 1, createdAt: 1, isActive: 1, storeSettings: 1 }).limit(5000).lean(),
         StoreOrder.aggregate([
-          {
-            $group: {
-              _id: {
-                workspaceId: '$workspaceId',
-                storeId: '$storeId',
-              },
-              totalOrders: { $sum: 1 },
-              totalRevenue: { $sum: { $ifNull: ['$total', 0] } },
-              lastOrderAt: { $max: '$createdAt' },
-            }
-          }
+          { $match: { createdAt: { $gte: yearAgo } } },
+          { $group: { _id: { workspaceId: '$workspaceId', storeId: '$storeId' }, totalOrders: { $sum: 1 }, totalRevenue: { $sum: { $ifNull: ['$total', 0] } }, lastOrderAt: { $max: '$createdAt' } } }
         ]),
         StoreProduct.aggregate([
-          {
-            $group: {
-              _id: {
-                workspaceId: '$workspaceId',
-                storeId: '$storeId',
-              },
-              totalProducts: { $sum: 1 },
-              publishedProducts: {
-                $sum: { $cond: [{ $eq: ['$isPublished', true] }, 1, 0] }
-              },
-              lastProductAt: { $max: '$createdAt' },
-              productNames: { $push: '$name' },
-              productSlugs: { $push: '$slug' },
-            }
-          }
-        ]),
-        StoreOrder.aggregate([
-          { $unwind: '$products' },
-          {
-            $match: {
-              'products.productId': { $ne: null }
-            }
-          },
-          {
-            $group: {
-              _id: {
-                workspaceId: '$workspaceId',
-                storeId: '$storeId',
-                productId: '$products.productId',
-              },
-              ordersCount: { $sum: 1 },
-              unitsSold: { $sum: { $ifNull: ['$products.quantity', 1] } },
-              revenue: {
-                $sum: {
-                  $multiply: [
-                    { $ifNull: ['$products.price', 0] },
-                    { $ifNull: ['$products.quantity', 1] }
-                  ]
-                }
-              },
-              avgUnitPrice: { $avg: { $ifNull: ['$products.price', 0] } },
-              lastOrderAt: { $max: '$createdAt' },
-            }
-          }
+          { $group: { _id: { workspaceId: '$workspaceId', storeId: '$storeId' }, totalProducts: { $sum: 1 }, publishedProducts: { $sum: { $cond: [{ $eq: ['$isPublished', true] }, 1, 0] } }, lastProductAt: { $max: '$createdAt' }, productNames: { $push: '$name' }, productSlugs: { $push: '$slug' } } }
         ]),
       ]);
+
+      const recentLogins = recentLoginUsers.map(u => ({ _id: u._id, date: u.lastLogin, email: u.email, name: u.name, role: u.role, workspaceId: u.workspaceId, country: null, city: null, device: null, browser: null }));
+      const inactiveWorkspaces = 0;
+      const productSales = [];
 
       const storeKey = (workspaceId, storeId) => `${String(workspaceId || '')}:${String(storeId || 'legacy')}`;
 
@@ -1293,6 +1121,137 @@ router.get('/users-activity',
       });
     } catch (error) {
       console.error('Analytics users-activity error:', error);
+      res.status(500).json({ success: false, message: 'Erreur serveur' });
+    }
+  }
+);
+
+// ──────────────────────────────────────────────────────────
+// GET /api/ecom/analytics/product-leaderboard
+// Heavy product-level sales data, loaded lazily by the Activity page
+// ──────────────────────────────────────────────────────────
+router.get('/product-leaderboard',
+  requireEcomAuth,
+  requireSuperAdmin,
+  async (req, res) => {
+    try {
+      const cutoff = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000);
+
+      const productSales = await StoreOrder.aggregate([
+        { $match: { 'products.0': { $exists: true }, createdAt: { $gte: cutoff } } },
+        { $unwind: '$products' },
+        { $match: { 'products.productId': { $ne: null } } },
+        {
+          $group: {
+            _id: {
+              workspaceId: '$workspaceId',
+              storeId: '$storeId',
+              productId: '$products.productId',
+            },
+            ordersCount: { $sum: 1 },
+            unitsSold: { $sum: { $ifNull: ['$products.quantity', 1] } },
+            revenue: {
+              $sum: {
+                $multiply: [
+                  { $ifNull: ['$products.price', 0] },
+                  { $ifNull: ['$products.quantity', 1] }
+                ]
+              }
+            },
+            avgUnitPrice: { $avg: { $ifNull: ['$products.price', 0] } },
+            lastOrderAt: { $max: '$createdAt' },
+          }
+        },
+        { $sort: { unitsSold: -1 } },
+        { $limit: 200 },
+      ]);
+
+      const soldProductIds = [...new Set(productSales.map(e => String(e._id?.productId || '')).filter(Boolean))];
+      const soldStoreProducts = soldProductIds.length > 0
+        ? await StoreProduct.find({ _id: { $in: soldProductIds } }, {
+            _id: 1, workspaceId: 1, storeId: 1, name: 1, slug: 1,
+            price: 1, compareAtPrice: 1, currency: 1, linkedProductId: 1, isPublished: 1, images: 1,
+          }).lean()
+        : [];
+
+      const linkedProductIds = [...new Set(soldStoreProducts.map(p => String(p.linkedProductId || '')).filter(Boolean))];
+      const linkedProducts = linkedProductIds.length > 0
+        ? await Product.find({ _id: { $in: linkedProductIds } }, { _id: 1, sellingPrice: 1, productCost: 1, deliveryCost: 1, avgAdsCost: 1 }).lean()
+        : [];
+
+      // Gather store/workspace info needed for display
+      const [stores, workspaces] = await Promise.all([
+        Store.find({}, { workspaceId: 1, name: 1, subdomain: 1, storeSettings: 1 }).limit(5000).lean(),
+        Workspace.find({}, { name: 1, subdomain: 1, storeSettings: 1 }).limit(5000).lean(),
+      ]);
+
+      const storeKey = (wid, sid) => `${String(wid || '')}:${String(sid || 'legacy')}`;
+      const workspacesById = new Map(workspaces.map(w => [String(w._id), w]));
+      const storeInfoMap = new Map();
+      stores.forEach(s => {
+        const ws = workspacesById.get(String(s.workspaceId));
+        const sub = s.subdomain || ws?.subdomain || '';
+        storeInfoMap.set(storeKey(s.workspaceId, s._id), {
+          name: s.storeSettings?.storeName || s.name || ws?.name || '',
+          subdomain: sub,
+          url: sub ? `https://${sub}.scalor.net` : '',
+          currency: s.storeSettings?.storeCurrency || ws?.storeSettings?.storeCurrency || 'XAF',
+          workspaceName: ws?.name || '',
+        });
+      });
+
+      const soldStoreProductsById = new Map(soldStoreProducts.map(p => [String(p._id), p]));
+      const linkedProductsById = new Map(linkedProducts.map(p => [String(p._id), p]));
+
+      const leaderboard = productSales.map(entry => {
+        const workspaceId = String(entry._id?.workspaceId || '');
+        const storeId = entry._id?.storeId ? String(entry._id.storeId) : null;
+        const productId = String(entry._id?.productId || '');
+        const storeProduct = soldStoreProductsById.get(productId);
+        const linkedProduct = storeProduct?.linkedProductId ? linkedProductsById.get(String(storeProduct.linkedProductId)) : null;
+        const storeInfo = storeInfoMap.get(storeKey(workspaceId, storeId)) || {};
+        const averageSellingPrice = Number(entry.avgUnitPrice || storeProduct?.price || 0);
+        const estimatedUnitCost = linkedProduct
+          ? Number(linkedProduct.productCost || 0) + Number(linkedProduct.deliveryCost || 0)
+          : Math.max(0, Math.floor(averageSellingPrice * 0.4));
+        const estimatedUnitProfit = Math.max(0, averageSellingPrice - estimatedUnitCost);
+        const unitsSold = Number(entry.unitsSold || 0);
+        const revenue = Number(entry.revenue || 0);
+        const marginPercentEstimate = averageSellingPrice > 0
+          ? Math.round((estimatedUnitProfit / averageSellingPrice) * 1000) / 10 : 0;
+
+        return {
+          workspaceId, storeId,
+          storeKey: storeKey(workspaceId, storeId),
+          workspaceName: storeInfo.workspaceName || '',
+          storeName: storeInfo.name || 'Boutique inconnue',
+          storeUrl: storeInfo.url || '',
+          subdomain: storeInfo.subdomain || '',
+          currency: storeProduct?.currency || storeInfo.currency || 'XAF',
+          productId,
+          linkedProductId: storeProduct?.linkedProductId ? String(storeProduct.linkedProductId) : null,
+          name: storeProduct?.name || `Produit ${productId}`,
+          slug: storeProduct?.slug || '',
+          url: storeInfo.subdomain && storeProduct?.slug ? `https://${storeInfo.subdomain}.scalor.net/product/${storeProduct.slug}` : '',
+          image: Array.isArray(storeProduct?.images) && storeProduct.images[0]?.url ? storeProduct.images[0].url : '',
+          isPublished: storeProduct?.isPublished === true,
+          ordersCount: Number(entry.ordersCount || 0),
+          unitsSold,
+          revenue,
+          averageSellingPrice,
+          estimatedUnitProfit,
+          estimatedUnitCost,
+          profitEstimate: estimatedUnitProfit * unitsSold,
+          marginPercentEstimate,
+          profitSource: linkedProduct ? 'linked-product' : 'inferred-40pct-cost',
+          compareAtPrice: Number(storeProduct?.compareAtPrice || 0),
+          lastOrderAt: entry.lastOrderAt || null,
+        };
+      }).sort((a, b) => (b.unitsSold || 0) - (a.unitsSold || 0));
+
+      res.json({ success: true, data: { productLeaderboard: leaderboard } });
+    } catch (error) {
+      console.error('Analytics product-leaderboard error:', error);
       res.status(500).json({ success: false, message: 'Erreur serveur' });
     }
   }

@@ -1,547 +1,552 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import {
   Building2, Users, CheckCircle2, XCircle, Copy, Calendar,
-  Mail, Power, PowerOff, AlertCircle, Loader2,
-  Shield, Zap, Building, Crown, ChevronDown, Search, Bell, BellOff
+  Mail, Power, PowerOff, AlertCircle, Search, Bell, BellOff,
+  Crown, Zap, RefreshCw, TrendingUp, Shield, BarChart3,
+  ChevronDown, ChevronUp, Activity, Clock, FileText,
+  MessageSquare, Settings, Package, ArrowUpRight
 } from 'lucide-react';
+import SuperAdminShell from '../components/SuperAdminShell.jsx';
 import ecomApi from '../services/ecommApi.js';
 import { CenteredSpinner } from '../components/Skeleton.jsx';
 import { getContextualError } from '../utils/errorMessages';
 
+// ─── Constants ────────────────────────────────────────────────────────────────
+
 const FALLBACK_PLANS = [
-  { key: 'free', displayName: 'Gratuit', priceRegular: 0, currency: 'FCFA', order: 0 },
-  { key: 'starter', displayName: 'Scalor', priceRegular: 5000, currency: 'FCFA', order: 1 },
-  { key: 'pro', displayName: 'Pro', priceRegular: 10000, currency: 'FCFA', order: 2 },
-  { key: 'ultra', displayName: 'Ultra', priceRegular: 15000, currency: 'FCFA', order: 3 }
+  { key: 'free',    displayName: 'Gratuit', priceRegular: 0,     currency: 'FCFA', order: 0 },
+  { key: 'starter', displayName: 'Scalor',  priceRegular: 5000,  currency: 'FCFA', order: 1 },
+  { key: 'pro',     displayName: 'Pro',     priceRegular: 10000, currency: 'FCFA', order: 2 },
+  { key: 'ultra',   displayName: 'Ultra',   priceRegular: 15000, currency: 'FCFA', order: 3 },
 ];
 
-const formatMoney = (value) => Number(value || 0).toLocaleString('fr-FR');
-
-const formatPlanOptionLabel = (plan) => {
-  if (!plan || plan.key === 'free' || Number(plan.priceRegular || 0) === 0) {
-    return plan?.displayName || 'Gratuit';
-  }
-  return `${plan.displayName} — ${formatMoney(plan.priceRegular)} ${plan.currency || 'FCFA'}/mois`;
+const PLAN_META = {
+  free:    { color: '#64748b', bg: '#f1f5f9', border: '#cbd5e1', label: 'Gratuit'  },
+  starter: { color: '#059669', bg: '#d1fae5', border: '#6ee7b7', label: 'Scalor'   },
+  pro:     { color: '#2563eb', bg: '#dbeafe', border: '#93c5fd', label: 'Pro'      },
+  ultra:   { color: '#7c3aed', bg: '#ede9fe', border: '#c4b5fd', label: 'Ultra'    },
 };
 
-const getWorkspaceNoticeMeta = (warning) => {
-  if (!warning?.active) {
-    return {
-      buttonLabel: 'Activer alerte renouvellement (24h)',
-      buttonClass: 'bg-orange-50 text-orange-700 hover:bg-orange-100 ring-orange-600/20',
-      Icon: Bell,
-      helperClass: 'text-orange-500',
-      helperText: ''
-    };
-  }
+const NAV_ITEMS = [
+  { to: '/ecom/super-admin',                       label: 'Dashboard',    icon: BarChart3     },
+  { to: '/ecom/super-admin/users',                 label: 'Utilisateurs', icon: Users         },
+  { to: '/ecom/super-admin/workspaces',            label: 'Workspaces',   icon: Building2     },
+  { to: '/ecom/super-admin/analytics',             label: 'Analytics',    icon: Activity      },
+  { to: '/ecom/super-admin/product-page-history',  label: 'Pages IA',     icon: FileText      },
+  { to: '/ecom/super-admin/activity',              label: 'Activité',     icon: Clock         },
+  { to: '/ecom/super-admin/push',                  label: 'Push',         icon: Bell          },
+  { to: '/ecom/super-admin/whatsapp-postulations', label: 'WhatsApp',     icon: MessageSquare },
+  { to: '/ecom/super-admin/feature-analytics',     label: 'Features',     icon: Zap           },
+  { to: '/ecom/super-admin/settings',              label: 'Config',       icon: Settings      },
+];
 
-  if (warning.variant === 'downgraded') {
-    return {
-      buttonLabel: 'Désactiver annonce plan gratuit',
-      buttonClass: 'bg-amber-50 text-amber-700 hover:bg-amber-100 ring-amber-600/20',
-      Icon: BellOff,
-      helperClass: 'text-amber-600',
-      helperText: warning.message || 'Annonce plan gratuit active'
-    };
-  }
+const FILTER_TABS = [
+  { value: 'all',      label: 'Tous'    },
+  { value: 'active',   label: 'Actifs'  },
+  { value: 'inactive', label: 'Inactifs'},
+];
 
-  if (warning.variant === 'plan_updated') {
-    return {
-      buttonLabel: 'Désactiver annonce mise a jour plan',
-      buttonClass: 'bg-blue-50 text-blue-700 hover:bg-blue-100 ring-blue-600/20',
-      Icon: BellOff,
-      helperClass: 'text-blue-600',
-      helperText: warning.message || 'Annonce de mise a jour active'
-    };
-  }
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-  return {
-    buttonLabel: 'Désactiver alerte renouvellement',
-    buttonClass: 'bg-red-50 text-red-700 hover:bg-red-100 ring-red-600/20',
-    Icon: BellOff,
-    helperClass: 'text-red-500',
-    helperText: warning.deadline
-      ? `Alerte active — expire ${new Date(warning.deadline).toLocaleString('fr-FR')}`
-      : (warning.message || 'Alerte active')
-  };
+const fmt = (n) => Number(n || 0).toLocaleString('fr-FR');
+
+const planLabel = (plan) => {
+  // accepts either a key string or a full plan object
+  const p = typeof plan === 'string' ? FALLBACK_PLANS.find(x => x.key === plan) : plan;
+  if (!p || Number(p.priceRegular || 0) === 0) return p?.displayName ?? 'Gratuit';
+  return `${p.displayName} — ${fmt(p.priceRegular)} ${p.currency || 'FCFA'}/mois`;
 };
+
+const fmtDate = (d) => d
+  ? new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })
+  : '—';
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
+const PlanBadge = ({ plan }) => {
+  const m = PLAN_META[plan] || PLAN_META.free;
+  return (
+    <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full border"
+      style={{ color: m.color, background: m.bg, borderColor: m.border }}>
+      <Crown className="w-3 h-3" />
+      {m.label}
+    </span>
+  );
+};
+
+const StatusBadge = ({ active }) => (
+  <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full border ${
+    active ? 'text-emerald-700 bg-emerald-50 border-emerald-200' : 'text-amber-700 bg-amber-50 border-amber-200'
+  }`}>
+    {active ? <CheckCircle2 className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
+    {active ? 'Actif' : 'Inactif'}
+  </span>
+);
+
+const KpiCard = ({ label, value, sub, icon: Icon, accent = '#059669', accentLight = '#d1fae5' }) => (
+  <div className="bg-white rounded-2xl border border-slate-100 p-5 flex flex-col gap-2 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
+    <div className="flex items-center justify-between">
+      <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ backgroundColor: accentLight }}>
+        <Icon className="w-4 h-4" style={{ color: accent }} />
+      </div>
+    </div>
+    <div>
+      <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-0.5">{label}</p>
+      <p className="text-2xl font-extrabold text-slate-900 tracking-tight leading-none">{value}</p>
+      {sub && <p className="text-[11px] text-slate-400 mt-1 font-medium">{sub}</p>}
+    </div>
+  </div>
+);
+
+// ─── Workspace card ───────────────────────────────────────────────────────────
+
+const WorkspaceCard = ({
+  ws, availablePlans, planDraft, onUpdatePlanDraft,
+  onSetPlan, onToggle, onSubscriptionWarning, onCopy, onUpdateGenerations,
+  savingPlan,
+}) => {
+  const [expanded, setExpanded]     = useState(false);
+  const [editingGen, setEditingGen] = useState(false);
+  const [freeGen, setFreeGen]       = useState(String(ws.freeGenerationsRemaining || 0));
+  const [paidGen, setPaidGen]       = useState(String(ws.paidGenerationsRemaining || 0));
+
+  const selectedPlan     = planDraft?.plan || ws.plan || 'free';
+  const selectedDuration = Number(planDraft?.durationMonths || 1);
+  const planConfig       = availablePlans.find(p => p.key === selectedPlan) || FALLBACK_PLANS.find(p => p.key === selectedPlan);
+  const warn             = ws.subscriptionWarning;
+  const warnActive       = warn?.active;
+
+  const noticeLabel = warnActive
+    ? (warn.variant === 'downgraded'   ? 'Désactiver annonce plan gratuit'
+    :  warn.variant === 'plan_updated' ? 'Désactiver annonce mise à jour'
+    :                                   'Désactiver alerte renouvellement')
+    : 'Activer alerte renouvellement';
+
+  return (
+    <div className={`bg-white rounded-2xl border overflow-hidden hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200 ${ws.isActive ? 'border-slate-200' : 'border-amber-200'}`}>
+      {/* top stripe */}
+      <div className={`h-1 ${ws.isActive ? 'bg-gradient-to-r from-emerald-500 to-teal-400' : 'bg-gradient-to-r from-amber-400 to-red-400'}`} />
+
+      <div className="p-5">
+        {/* ── Row 1: identity ── */}
+        <div className="flex items-start justify-between gap-3 mb-4">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 mb-1">
+              <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0">
+                <Building2 className="w-4 h-4 text-slate-500" />
+              </div>
+              <h3 className="font-extrabold text-slate-900 text-base truncate leading-tight">{ws.name}</h3>
+            </div>
+            <p className="text-[11px] text-slate-400 font-mono bg-slate-50 px-2 py-0.5 rounded inline-block ml-10">{ws.slug}</p>
+          </div>
+          <StatusBadge active={ws.isActive} />
+        </div>
+
+        {/* ── Row 2: quick stats ── */}
+        <div className="grid grid-cols-3 gap-2 mb-4">
+          <div className="text-center bg-slate-50 rounded-xl py-2.5 px-1 border border-slate-100">
+            <p className="text-lg font-extrabold text-slate-900 leading-none">{ws.memberCount || 0}</p>
+            <p className="text-[10px] text-slate-400 font-semibold mt-0.5">Membres</p>
+          </div>
+          <div className="text-center bg-violet-50 rounded-xl py-2.5 px-1 border border-violet-100">
+            <p className="text-lg font-extrabold text-violet-700 leading-none">{ws.freeGenerationsRemaining || 0}</p>
+            <p className="text-[10px] text-violet-500 font-semibold mt-0.5">Gen. libres</p>
+          </div>
+          <div className="text-center bg-indigo-50 rounded-xl py-2.5 px-1 border border-indigo-100">
+            <p className="text-lg font-extrabold text-indigo-700 leading-none">{ws.paidGenerationsRemaining || 0}</p>
+            <p className="text-[10px] text-indigo-500 font-semibold mt-0.5">Gen. payées</p>
+          </div>
+        </div>
+
+        {/* ── Row 3: meta ── */}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mb-4 text-[11px] text-slate-500">
+          <span className="flex items-center gap-1">
+            <Mail className="w-3 h-3" />
+            <span className="font-medium truncate max-w-[160px]">{ws.owner?.email || 'N/A'}</span>
+          </span>
+          <span className="text-slate-200">·</span>
+          <span className="flex items-center gap-1">
+            <Calendar className="w-3 h-3" />
+            {fmtDate(ws.createdAt)}
+          </span>
+        </div>
+
+        {/* ── Row 4: plan + invite code ── */}
+        <div className="flex items-center justify-between mb-4">
+          <PlanBadge plan={ws.plan || 'free'} />
+          {ws.planExpiresAt && (
+            <span className="text-[10px] text-slate-400 font-medium">
+              expire {fmtDate(ws.planExpiresAt)}
+            </span>
+          )}
+          <button
+            onClick={() => onCopy(ws.inviteCode)}
+            className="flex items-center gap-1.5 text-[11px] font-bold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2.5 py-1 rounded-lg transition"
+          >
+            <Copy className="w-3 h-3" />
+            {ws.inviteCode}
+          </button>
+        </div>
+
+        {/* ── Actions strip ── */}
+        <div className="flex gap-2 mb-3">
+          <button
+            onClick={() => onToggle(ws._id)}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-bold rounded-xl border transition-all ${
+              ws.isActive
+                ? 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'
+                : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+            }`}
+          >
+            {ws.isActive ? <><PowerOff className="w-3.5 h-3.5" /> Désactiver</> : <><Power className="w-3.5 h-3.5" /> Réactiver</>}
+          </button>
+          <button
+            onClick={() => onSubscriptionWarning(ws._id, warnActive)}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-bold rounded-xl border transition-all ${
+              warnActive
+                ? 'bg-red-50 text-red-600 border-red-200 hover:bg-red-100'
+                : 'bg-orange-50 text-orange-600 border-orange-200 hover:bg-orange-100'
+            }`}
+          >
+            {warnActive ? <BellOff className="w-3.5 h-3.5" /> : <Bell className="w-3.5 h-3.5" />}
+            <span className="hidden sm:inline">{warnActive ? 'Alerte off' : 'Alerte on'}</span>
+            <span className="sm:hidden">{warnActive ? 'Off' : 'On'}</span>
+          </button>
+          <button
+            onClick={() => setExpanded(e => !e)}
+            className="flex items-center justify-center gap-1 px-3 py-2 text-xs font-bold text-slate-600 bg-slate-50 border border-slate-200 rounded-xl hover:bg-slate-100 transition"
+          >
+            {expanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+            <span>Gérer</span>
+          </button>
+        </div>
+
+        {/* ── Expandable panel ── */}
+        {expanded && (
+          <div className="border-t border-slate-100 pt-4 space-y-4">
+
+            {/* Plan selector */}
+            <div className="rounded-xl bg-slate-50 border border-slate-200 p-3">
+              <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                <Crown className="w-3 h-3" /> Définir le plan
+              </p>
+              <div className="flex gap-2 mb-2">
+                <select
+                  value={selectedPlan}
+                  onChange={(e) => onUpdatePlanDraft(ws._id, 'plan', e.target.value)}
+                  className="flex-1 text-xs font-bold border border-slate-200 rounded-lg px-2 py-2 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                >
+                  {availablePlans.map(p => (
+                    <option key={p.key} value={p.key}>{planLabel(p)}</option>
+                  ))}
+                </select>
+                <select
+                  value={String(selectedDuration)}
+                  onChange={(e) => onUpdatePlanDraft(ws._id, 'durationMonths', Number(e.target.value))}
+                  disabled={selectedPlan === 'free'}
+                  className="w-24 text-xs font-bold border border-slate-200 rounded-lg px-2 py-2 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-40"
+                >
+                  <option value="1">1 mois</option>
+                  <option value="3">3 mois</option>
+                  <option value="6">6 mois</option>
+                  <option value="12">12 mois</option>
+                </select>
+              </div>
+              <button
+                onClick={() => onSetPlan(ws._id)}
+                disabled={!!savingPlan}
+                className="w-full py-2 bg-slate-900 text-white rounded-lg text-xs font-bold hover:bg-slate-700 transition disabled:opacity-50"
+              >
+                {savingPlan
+                  ? 'Application…'
+                  : selectedPlan === 'free'
+                    ? 'Mettre au plan gratuit'
+                    : `Appliquer ${planConfig?.displayName ?? selectedPlan} · ${selectedDuration} mois`}
+              </button>
+            </div>
+
+            {/* Generations */}
+            <div className="rounded-xl bg-violet-50 border border-violet-200 p-3">
+              <p className="text-[11px] font-bold text-violet-600 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                <Zap className="w-3 h-3" /> Générations IA
+              </p>
+              {editingGen ? (
+                <div className="space-y-2">
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <p className="text-[10px] text-violet-600 font-semibold mb-1">Gratuites</p>
+                      <input type="number" min="0" value={freeGen} onChange={e => setFreeGen(e.target.value)}
+                        className="w-full text-xs border border-violet-300 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-violet-500 bg-white" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-[10px] text-violet-600 font-semibold mb-1">Payées</p>
+                      <input type="number" min="0" value={paidGen} onChange={e => setPaidGen(e.target.value)}
+                        className="w-full text-xs border border-violet-300 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-violet-500 bg-white" />
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={() => { onUpdateGenerations(ws._id, freeGen, paidGen); setEditingGen(false); }}
+                      className="flex-1 py-1.5 bg-violet-600 text-white rounded-lg text-xs font-bold hover:bg-violet-700 transition">Valider</button>
+                    <button onClick={() => { setEditingGen(false); setFreeGen(String(ws.freeGenerationsRemaining||0)); setPaidGen(String(ws.paidGenerationsRemaining||0)); }}
+                      className="flex-1 py-1.5 bg-white border border-violet-200 text-violet-600 rounded-lg text-xs font-bold hover:bg-violet-50 transition">Annuler</button>
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <div className="flex justify-between text-xs mb-1.5">
+                    <span className="text-violet-500 font-medium">Gratuites restantes</span>
+                    <span className="font-bold text-emerald-600">{ws.freeGenerationsRemaining || 0}</span>
+                  </div>
+                  <div className="flex justify-between text-xs mb-1.5">
+                    <span className="text-violet-500 font-medium">Payées restantes</span>
+                    <span className="font-bold text-violet-700">{ws.paidGenerationsRemaining || 0}</span>
+                  </div>
+                  <div className="flex justify-between text-xs mb-3">
+                    <span className="text-violet-500 font-medium">Total utilisées</span>
+                    <span className="font-bold text-slate-600">{ws.totalGenerations || 0}</span>
+                  </div>
+                  <button onClick={() => setEditingGen(true)}
+                    className="w-full py-1.5 bg-violet-100 text-violet-700 rounded-lg text-xs font-bold hover:bg-violet-200 transition">
+                    Modifier les crédits
+                  </button>
+                </div>
+              )}
+            </div>
+
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ─── Main page ────────────────────────────────────────────────────────────────
 
 const SuperAdminWorkspaces = () => {
-  const [workspaces, setWorkspaces] = useState([]);
-  const [availablePlans, setAvailablePlans] = useState(FALLBACK_PLANS);
-  const [planDrafts, setPlanDrafts] = useState({});
-  const [savingPlans, setSavingPlans] = useState({});
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
-  const [editingGenerations, setEditingGenerations] = useState({});
-  const [searchTerm, setSearchTerm] = useState('');
+  const location = useLocation();
+  const [workspaces,      setWorkspaces]      = useState([]);
+  const [availablePlans,  setAvailablePlans]  = useState(FALLBACK_PLANS);
+  const [planDrafts,      setPlanDrafts]      = useState({});
+  const [savingPlans,     setSavingPlans]     = useState({});
+  const [loading,         setLoading]         = useState(true);
+  const [refreshing,      setRefreshing]      = useState(false);
+  const [error,           setError]           = useState('');
+  const [success,         setSuccess]         = useState('');
+  const [searchTerm,      setSearchTerm]      = useState('');
+  const [filterTab,       setFilterTab]       = useState('all');
 
-  const fetchWorkspaces = async () => {
+  // ── Data fetching ────────────────────────────────────────────────────────
+
+  const fetchWorkspaces = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true); else setRefreshing(true);
     try {
-      const res = await ecomApi.get('/super-admin/workspaces');
+      const res   = await ecomApi.get('/super-admin/workspaces');
       const items = res.data.data.workspaces || [];
       setWorkspaces(items);
       setPlanDrafts(Object.fromEntries(
         items.map(ws => [ws._id, { plan: ws.plan || 'free', durationMonths: 1 }])
       ));
     } catch (err) { setError(getContextualError(err, 'load_dashboard')); }
-  };
-
-  const fetchPlans = async () => {
-    try {
-      const res = await ecomApi.get('/super-admin/plans');
-      const plans = (res.data.plans || [])
-        .filter(plan => ['free', 'starter', 'pro', 'ultra'].includes(plan.key))
-        .sort((left, right) => Number(left.order || 0) - Number(right.order || 0));
-
-      if (plans.length > 0) {
-        setAvailablePlans(plans);
-      }
-    } catch {
-      setAvailablePlans(FALLBACK_PLANS);
-    }
-  };
-
-  useEffect(() => {
-    Promise.all([fetchWorkspaces(), fetchPlans()]).finally(() => setLoading(false));
+    finally { setLoading(false); setRefreshing(false); }
   }, []);
 
+  const fetchPlans = useCallback(async () => {
+    try {
+      const res   = await ecomApi.get('/super-admin/plans');
+      const plans = (res.data.plans || [])
+        .filter(p => ['free','starter','pro','ultra'].includes(p.key))
+        .sort((a, b) => Number(a.order||0) - Number(b.order||0));
+      if (plans.length) setAvailablePlans(plans);
+    } catch { /* keep fallback */ }
+  }, []);
+
+  useEffect(() => {
+    Promise.all([fetchWorkspaces(), fetchPlans()]);
+  }, [fetchWorkspaces, fetchPlans]);
+
+  useEffect(() => { if (success) { const t = setTimeout(() => setSuccess(''), 3000); return () => clearTimeout(t); } }, [success]);
+  useEffect(() => { if (error)   { const t = setTimeout(() => setError(''),   4000); return () => clearTimeout(t); } }, [error]);
+
+  // ── Handlers ─────────────────────────────────────────────────────────────
+
   const handleToggle = async (wsId) => {
-    try { const res = await ecomApi.put(`/super-admin/workspaces/${wsId}/toggle`); setSuccess(res.data.message); fetchWorkspaces(); }
+    try { const r = await ecomApi.put(`/super-admin/workspaces/${wsId}/toggle`); setSuccess(r.data.message); fetchWorkspaces(true); }
     catch (err) { setError(getContextualError(err, 'update_settings')); }
   };
 
   const handleSubscriptionWarning = async (wsId, currentlyActive) => {
-    try {
-      const res = await ecomApi.put(`/super-admin/workspaces/${wsId}/subscription-warning`, { active: !currentlyActive });
-      setSuccess(res.data.message);
-      fetchWorkspaces();
-    } catch (err) { setError(getContextualError(err, 'update_settings')); }
+    try { const r = await ecomApi.put(`/super-admin/workspaces/${wsId}/subscription-warning`, { active: !currentlyActive }); setSuccess(r.data.message); fetchWorkspaces(true); }
+    catch (err) { setError(getContextualError(err, 'update_settings')); }
   };
 
   const updatePlanDraft = (wsId, field, value) => {
     setPlanDrafts(prev => {
-      const current = prev[wsId] || { plan: 'free', durationMonths: 1 };
-      if (field === 'plan' && value === 'free') {
-        return { ...prev, [wsId]: { plan: 'free', durationMonths: 1 } };
-      }
-      return {
-        ...prev,
-        [wsId]: {
-          ...current,
-          [field]: value
-        }
-      };
+      const cur = prev[wsId] || { plan: 'free', durationMonths: 1 };
+      if (field === 'plan' && value === 'free') return { ...prev, [wsId]: { plan: 'free', durationMonths: 1 } };
+      return { ...prev, [wsId]: { ...cur, [field]: value } };
     });
   };
 
   const handleSetPlan = async (wsId) => {
-    const draft = planDrafts[wsId] || { plan: 'free', durationMonths: 1 };
-    const plan = draft.plan || 'free';
-    const durationMonths = plan === 'free' ? 1 : Number(draft.durationMonths || 1);
-    const selectedPlanConfig = availablePlans.find(item => item.key === plan);
-    const selectedPlanLabel = selectedPlanConfig?.displayName || plan;
-
+    const draft    = planDrafts[wsId] || { plan: 'free', durationMonths: 1 };
+    const plan     = draft.plan || 'free';
+    const months   = plan === 'free' ? 1 : Number(draft.durationMonths || 1);
+    const cfg      = availablePlans.find(p => p.key === plan);
+    setSavingPlans(prev => ({ ...prev, [wsId]: true }));
     try {
-      setSavingPlans(prev => ({ ...prev, [wsId]: true }));
-      await ecomApi.patch(`/super-admin/workspaces/${wsId}/plan`, { plan, durationMonths });
-      setSuccess(plan === 'free'
-        ? 'Plan gratuit appliqué'
-        : `Plan ${selectedPlanLabel} appliqué pour ${durationMonths} mois`
-      );
-      await fetchWorkspaces();
-    } catch (err) {
-      setError(getContextualError(err, 'update_settings'));
-    } finally {
-      setSavingPlans(prev => ({ ...prev, [wsId]: false }));
-    }
+      await ecomApi.patch(`/super-admin/workspaces/${wsId}/plan`, { plan, durationMonths: months });
+      setSuccess(plan === 'free' ? 'Plan gratuit appliqué' : `Plan ${cfg?.displayName ?? plan} appliqué pour ${months} mois`);
+      await fetchWorkspaces(true);
+    } catch (err) { setError(getContextualError(err, 'update_settings')); }
+    finally { setSavingPlans(prev => ({ ...prev, [wsId]: false })); }
   };
 
-  const handleUpdateGenerations = async (wsId, freeGenerations, paidGenerations) => {
+  const handleUpdateGenerations = async (wsId, free, paid) => {
     try {
-      const res = await ecomApi.patch(`/super-admin/workspaces/${wsId}/generations`, {
-        freeGenerations: parseInt(freeGenerations) || 0,
-        paidGenerations: parseInt(paidGenerations) || 0
+      const r = await ecomApi.patch(`/super-admin/workspaces/${wsId}/generations`, {
+        freeGenerations: parseInt(free) || 0, paidGenerations: parseInt(paid) || 0,
       });
-      setSuccess(res.data.message || 'Générations mises à jour');
-      setEditingGenerations({ ...editingGenerations, [wsId]: false });
-      fetchWorkspaces();
-    } catch (err) {
-      setError(getContextualError(err, 'update_settings'));
-    }
+      setSuccess(r.data.message || 'Générations mises à jour');
+      fetchWorkspaces(true);
+    } catch (err) { setError(getContextualError(err, 'update_settings')); }
   };
 
-  const copyCode = (code) => { navigator.clipboard.writeText(code); setSuccess('Code copié !'); };
+  const copyCode = (code) => { navigator.clipboard?.writeText(code); setSuccess('Code copié !'); };
 
-  useEffect(() => { if (success) { const t = setTimeout(() => setSuccess(''), 3000); return () => clearTimeout(t); } }, [success]);
-  useEffect(() => { if (error) { const t = setTimeout(() => setError(''), 4000); return () => clearTimeout(t); } }, [error]);
+  // ── Derived stats ─────────────────────────────────────────────────────────
+
+  const totalActive   = useMemo(() => workspaces.filter(w => w.isActive).length,                      [workspaces]);
+  const totalInactive = useMemo(() => workspaces.filter(w => !w.isActive).length,                     [workspaces]);
+  const totalMembers  = useMemo(() => workspaces.reduce((s, w) => s + (w.memberCount || 0), 0),       [workspaces]);
+  const avgMembers    = useMemo(() => workspaces.length ? (totalMembers / workspaces.length).toFixed(1) : '0', [workspaces, totalMembers]);
+
+  const filtered = useMemo(() => {
+    let list = workspaces;
+    if (filterTab === 'active')   list = list.filter(w => w.isActive);
+    if (filterTab === 'inactive') list = list.filter(w => !w.isActive);
+    if (searchTerm) {
+      const t = searchTerm.toLowerCase();
+      list = list.filter(w =>
+        w.name?.toLowerCase().includes(t) ||
+        w.slug?.toLowerCase().includes(t) ||
+        w.owner?.email?.toLowerCase().includes(t)
+      );
+    }
+    return list;
+  }, [workspaces, filterTab, searchTerm]);
+
+  // ── Render ────────────────────────────────────────────────────────────────
 
   if (loading) return <CenteredSpinner message="Chargement des espaces…" />;
 
-  // Filtrage des workspaces
-  const filteredWorkspaces = workspaces.filter(w => {
-    if (!searchTerm) return true;
-    const term = searchTerm.toLowerCase();
-    return (
-      w.name?.toLowerCase().includes(term) ||
-      w.slug?.toLowerCase().includes(term) ||
-      w.owner?.email?.toLowerCase().includes(term)
-    );
-  });
-
-  const active = filteredWorkspaces.filter(w => w.isActive).length;
-  const inactive = filteredWorkspaces.length - active;
-  const totalMembers = filteredWorkspaces.reduce((sum, w) => sum + (w.memberCount || 0), 0);
-  const avgMembers = filteredWorkspaces.length > 0 ? (totalMembers / filteredWorkspaces.length).toFixed(1) : 0;
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50">
-      <div className="p-4 sm:p-6 lg:p-8 max-w-[1600px] mx-auto space-y-6">
-        {/* Toasts */}
-        {success && (
-          <div className="flex items-center gap-3 p-4 bg-emerald-50 border-2 border-emerald-200 rounded-xl text-sm text-emerald-800 shadow-lg">
-            <CheckCircle2 className="w-5 h-5 flex-shrink-0 text-emerald-600" />
-            <span className="font-semibold">{success}</span>
-          </div>
-        )}
-        {error && (
-          <div className="flex items-center gap-3 p-4 bg-amber-50 border-2 border-amber-200 rounded-xl text-sm text-amber-800 shadow-lg">
-            <AlertCircle className="w-5 h-5 flex-shrink-0 text-amber-600" />
-            <span className="font-semibold">{error}</span>
-          </div>
-        )}
+    <SuperAdminShell
+      title="Gestion des espaces"
+      subtitle={`${workspaces.length} espaces · ${totalMembers} membres · ${totalActive} actifs`}
+      icon={Building2}
+      success={success}
+      error={error}
+      refreshing={refreshing}
+      onRefresh={() => fetchWorkspaces(true)}
+    >
+      <div className="space-y-5">
 
-        {/* Header */}
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-teal-600 to-emerald-600 flex items-center justify-center shadow-lg shadow-teal-500/20">
-              <Building2 className="w-7 h-7 text-white" />
-            </div>
-            <div>
-              <h1 className="text-2xl sm:text-4xl font-black tracking-tight text-slate-900">Gestion des espaces</h1>
-              <div className="flex items-center gap-3 mt-2">
-                <span className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-600">
-                  <Building2 className="w-3.5 h-3.5" />
-                  {workspaces.length} total
+        {/* ── KPI Cards ── */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <KpiCard label="Total espaces"    value={workspaces.length.toLocaleString()} sub={`${totalActive} actifs · ${totalInactive} inactifs`} icon={Building2}   accent="#059669" accentLight="#d1fae5" />
+          <KpiCard label="Espaces actifs"   value={totalActive.toLocaleString()}       sub={`${Math.round((totalActive/Math.max(workspaces.length,1))*100)}% du total`}    icon={CheckCircle2} accent="#2563eb" accentLight="#dbeafe" />
+          <KpiCard label="Total membres"    value={totalMembers.toLocaleString()}       sub={`${avgMembers} moy. par espace`}  icon={Users}       accent="#7c3aed" accentLight="#ede9fe" />
+          <KpiCard label="Espaces inactifs" value={totalInactive.toLocaleString()}     sub="Désactivés manuellement"          icon={XCircle}     accent="#f59e0b" accentLight="#fef3c7" />
+        </div>
+
+        {/* ── Search + filter row ── */}
+        <div className="flex flex-col sm:flex-row gap-3">
+          {/* Search */}
+          <div className="relative flex-1">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Rechercher par nom, slug ou email propriétaire…"
+              className="w-full pl-10 pr-10 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent shadow-sm transition-all"
+            />
+            {searchTerm && (
+              <button onClick={() => setSearchTerm('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                <XCircle className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+
+          {/* Filter tabs */}
+          <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-xl p-1 shadow-sm">
+            {FILTER_TABS.map(tab => (
+              <button key={tab.value} onClick={() => setFilterTab(tab.value)}
+                className={`px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all ${
+                  filterTab === tab.value
+                    ? 'bg-slate-900 text-white shadow-sm'
+                    : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+                }`}>
+                {tab.label}
+                <span className={`ml-1.5 text-[10px] font-black ${filterTab === tab.value ? 'text-slate-300' : 'text-slate-400'}`}>
+                  {tab.value === 'all'      ? workspaces.length
+                  : tab.value === 'active'  ? totalActive
+                  :                           totalInactive}
                 </span>
-                <span className="text-slate-300">·</span>
-                <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-600">
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                  {active} actifs
-                </span>
-                <span className="text-slate-300">·</span>
-                <span className="inline-flex items-center gap-1.5 text-xs font-bold text-teal-600">
-                  <Users className="w-3.5 h-3.5" />
-                  {totalMembers} membres
-                </span>
-              </div>
-            </div>
+              </button>
+            ))}
           </div>
         </div>
 
-        {/* Search Bar */}
-        <div className="relative">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Rechercher un espace (nom, slug, email propriétaire...)" 
-            className="w-full pl-12 pr-4 py-3.5 bg-white border-2 border-slate-200 rounded-xl text-sm font-medium text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
-          />
-          {searchTerm && (
-            <button
-              onClick={() => setSearchTerm('')}
-              className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition"
-            >
-              <XCircle className="w-4 h-4" />
-            </button>
-          )}
-        </div>
-
-        {/* Stats */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          {[
-            { value: workspaces.length, label: 'Espaces créés', accent: 'text-slate-900', icon: Building2, gradient: 'from-slate-500 to-slate-700' },
-            { value: active, label: 'Actifs', accent: 'text-emerald-600', icon: CheckCircle2, gradient: 'from-emerald-500 to-teal-500' },
-            { value: inactive, label: 'Inactifs', accent: 'text-amber-600', icon: XCircle, gradient: 'from-amber-500 to-red-500' },
-            { value: avgMembers, label: 'Moy. membres/espace', accent: 'text-teal-600', icon: Users, gradient: 'from-teal-500 to-emerald-600' },
-          ].map((s) => {
-            const Icon = s.icon;
-            return (
-              <div key={s.label} className="group bg-white rounded-2xl border-2 border-slate-200 p-5 transition-all duration-300 hover:shadow-xl hover:shadow-slate-900/5 hover:-translate-y-1">
-                <div className="flex items-center justify-between mb-3">
-                  <p className={`text-3xl font-black tracking-tight ${s.accent}`}>{s.value}</p>
-                  <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${s.gradient} flex items-center justify-center shadow-md`}>
-                    <Icon className="w-5 h-5 text-white" />
-                  </div>
-                </div>
-                <p className="text-xs font-bold uppercase tracking-wider text-slate-500">{s.label}</p>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Search results info */}
-        {searchTerm && (
-          <div className="flex items-center gap-2 text-sm text-slate-600">
-            <Search className="w-4 h-4" />
-            <span>
-              <strong>{filteredWorkspaces.length}</strong> résultat{filteredWorkspaces.length !== 1 ? 's' : ''} pour <strong>"{searchTerm}"</strong>
-            </span>
-            {filteredWorkspaces.length < workspaces.length && (
-              <span className="text-slate-400">sur {workspaces.length} total</span>
+        {/* ── Results info ── */}
+        {(searchTerm || filterTab !== 'all') && (
+          <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
+            <TrendingUp className="w-3.5 h-3.5" />
+            <span><strong className="text-slate-700">{filtered.length}</strong> espace{filtered.length !== 1 ? 's' : ''} affiché{filtered.length !== 1 ? 's' : ''}</span>
+            {(searchTerm || filterTab !== 'all') && (
+              <button onClick={() => { setSearchTerm(''); setFilterTab('all'); }}
+                className="text-emerald-600 font-bold hover:underline ml-1">Réinitialiser</button>
             )}
           </div>
         )}
 
-        {/* Workspaces grid */}
-        {filteredWorkspaces.length === 0 ? (
-          <div className="bg-white rounded-2xl border-2 border-slate-200 p-20 text-center shadow-lg">
-            {searchTerm ? (
-              <>
-                <Search className="w-16 h-16 text-slate-300 mx-auto mb-4" />
-                <p className="text-lg font-black text-slate-400">Aucun résultat</p>
-                <p className="text-sm text-slate-400 mt-2">Aucun espace ne correspond à "{searchTerm}"</p>
-                <button
-                  onClick={() => setSearchTerm('')}
-                  className="mt-4 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition"
-                >
-                  Réinitialiser la recherche
-                </button>
-              </>
-            ) : (
-              <>
-                <Building className="w-16 h-16 text-slate-300 mx-auto mb-4" />
-                <p className="text-lg font-black text-slate-400">Aucun espace créé</p>
-                <p className="text-sm text-slate-400 mt-2">Les workspaces apparaîtront ici</p>
-              </>
+        {/* ── Grid ── */}
+        {filtered.length === 0 ? (
+          <div className="bg-white rounded-2xl border border-slate-200 p-20 text-center shadow-sm">
+            <Building2 className="w-12 h-12 text-slate-200 mx-auto mb-4" />
+            <p className="text-base font-extrabold text-slate-400">
+              {searchTerm ? `Aucun résultat pour "${searchTerm}"` : 'Aucun espace'}
+            </p>
+            {searchTerm && (
+              <button onClick={() => setSearchTerm('')}
+                className="mt-4 px-4 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold hover:bg-emerald-700 transition">
+                Réinitialiser
+              </button>
             )}
           </div>
         ) : (
-          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {filteredWorkspaces.map(ws => {
-              const planDraft = planDrafts[ws._id] || { plan: ws.plan || 'free', durationMonths: 1 };
-              const selectedPlan = planDraft.plan || 'free';
-              const selectedDuration = Number(planDraft.durationMonths || 1);
-              const selectedPlanConfig = availablePlans.find(plan => plan.key === selectedPlan) || FALLBACK_PLANS.find(plan => plan.key === selectedPlan);
-              const noticeMeta = getWorkspaceNoticeMeta(ws.subscriptionWarning);
-              const NoticeIcon = noticeMeta.Icon;
-
-              return (
-              <div key={ws._id} className={`group bg-white rounded-2xl border-2 overflow-hidden transition-all duration-300 hover:shadow-xl hover:shadow-slate-900/5 hover:-translate-y-1 ${ws.isActive ? 'border-slate-200' : 'border-amber-200 opacity-80'}`}>
-                {/* Accent bar */}
-                <div className={`h-1.5 bg-gradient-to-r ${ws.isActive ? 'from-emerald-500 to-teal-500' : 'from-amber-500 to-red-500'}`} />
-
-                <div className="p-6">
-                  {/* Header */}
-                  <div className="flex items-start justify-between mb-5">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <Building2 className="w-5 h-5 text-slate-400 flex-shrink-0" />
-                        <h3 className="font-black text-slate-900 text-lg truncate">{ws.name}</h3>
-                      </div>
-                      <p className="text-xs text-slate-400 font-mono bg-slate-50 px-2 py-1 rounded inline-block">{ws.slug}</p>
-                    </div>
-                    <span className={`inline-flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-full ring-2 ring-inset flex-shrink-0 ${ws.isActive ? 'bg-emerald-50 text-emerald-700 ring-emerald-600/20' : 'bg-amber-50 text-amber-700 ring-amber-600/20'}`}>
-                      {ws.isActive ? <CheckCircle2 className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
-                      {ws.isActive ? 'Actif' : 'Inactif'}
-                    </span>
-                  </div>
-
-                  {/* Stats */}
-                  <div className="grid grid-cols-2 gap-3 mb-5">
-                    <div className="bg-gradient-to-br from-slate-50 to-slate-100 rounded-xl p-4 text-center border border-slate-200">
-                      <div className="flex items-center justify-center gap-2 mb-1">
-                        <Users className="w-4 h-4 text-slate-500" />
-                        <p className="text-2xl font-black text-slate-900">{ws.memberCount || 0}</p>
-                      </div>
-                      <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Membres</p>
-                    </div>
-                    <button
-                      onClick={() => copyCode(ws.inviteCode)}
-                      className="bg-gradient-to-br from-emerald-50 to-emerald-50 rounded-xl p-4 text-center border border-emerald-200 hover:from-emerald-100 hover:to-emerald-100 transition-all duration-300 cursor-pointer group/code hover:shadow-md"
-                    >
-                      <div className="flex items-center justify-center gap-2 mb-1">
-                        <Copy className="w-3.5 h-3.5 text-emerald-600 group-hover/code:scale-110 transition-transform" />
-                        <p className="text-xs font-mono font-bold text-emerald-800 truncate">{ws.inviteCode}</p>
-                      </div>
-                      <p className="text-[10px] text-emerald-600 font-bold uppercase tracking-wider">Copier code</p>
-                    </button>
-                  </div>
-
-                  {/* Info */}
-                  <div className="space-y-2.5 text-xs mb-5">
-                    <div className="flex items-center gap-2 text-slate-600">
-                      <Mail className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
-                      <span className="text-slate-400 font-medium">Propriétaire:</span>
-                      <span className="font-bold text-slate-700 truncate">{ws.owner?.email || 'N/A'}</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-slate-600">
-                      <Calendar className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
-                      <span className="text-slate-400 font-medium">Créé le:</span>
-                      <span className="font-bold text-slate-700">{new Date(ws.createdAt).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
-                    </div>
-                  </div>
-
-                  {/* Plan selector */}
-                  <div className="mb-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Crown className="w-4 h-4 text-slate-400 flex-shrink-0" />
-                      <span className="text-xs text-slate-500 font-medium">Définir le plan</span>
-                    </div>
-                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_120px]">
-                      <select
-                        value={selectedPlan}
-                        onChange={(e) => updatePlanDraft(ws._id, 'plan', e.target.value)}
-                        className="text-xs font-bold border border-slate-200 rounded-lg px-2 py-2 bg-white text-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                      >
-                        {availablePlans.map(plan => (
-                          <option key={plan.key} value={plan.key}>{formatPlanOptionLabel(plan)}</option>
-                        ))}
-                      </select>
-                      <select
-                        value={String(selectedDuration)}
-                        onChange={(e) => updatePlanDraft(ws._id, 'durationMonths', Number(e.target.value))}
-                        disabled={selectedPlan === 'free'}
-                        className="text-xs font-bold border border-slate-200 rounded-lg px-2 py-2 bg-white text-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
-                      >
-                        <option value="1">1 mois</option>
-                        <option value="3">3 mois</option>
-                        <option value="6">6 mois</option>
-                        <option value="12">12 mois</option>
-                      </select>
-                    </div>
-                    <button
-                      onClick={() => handleSetPlan(ws._id)}
-                      disabled={!!savingPlans[ws._id]}
-                      className="mt-2 w-full py-2 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700 transition disabled:opacity-60 disabled:cursor-not-allowed"
-                    >
-                      {savingPlans[ws._id]
-                        ? 'Application...'
-                        : selectedPlan === 'free'
-                          ? 'Mettre au plan gratuit'
-                          : `Appliquer ${selectedPlanConfig?.displayName || selectedPlan} (${selectedDuration} mois)`}
-                    </button>
-                  </div>
-                  {ws.planExpiresAt && (
-                    <p className="text-[10px] text-slate-400 mb-3 text-center">
-                      Expire le {new Date(ws.planExpiresAt).toLocaleDateString('fr-FR')}
-                    </p>
-                  )}
-
-                  {/* Générations IA */}
-                  <div className="mb-4 p-3 bg-gradient-to-br from-violet-50 to-purple-50 border border-violet-200 rounded-xl">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Zap className="w-4 h-4 text-violet-600" />
-                      <span className="text-xs font-bold text-violet-900">Générations IA</span>
-                    </div>
-                    {editingGenerations[ws._id] ? (
-                      <div className="space-y-2">
-                        <div>
-                          <label className="text-[10px] text-violet-700 font-medium block mb-1">Gratuites</label>
-                          <input
-                            type="number"
-                            min="0"
-                            defaultValue={ws.freeGenerationsRemaining || 0}
-                            id={`free-${ws._id}`}
-                            className="w-full text-xs border border-violet-300 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-violet-500"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-[10px] text-violet-700 font-medium block mb-1">Payées</label>
-                          <input
-                            type="number"
-                            min="0"
-                            defaultValue={ws.paidGenerationsRemaining || 0}
-                            id={`paid-${ws._id}`}
-                            className="w-full text-xs border border-violet-300 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-violet-500"
-                          />
-                        </div>
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => {
-                              const freeVal = document.getElementById(`free-${ws._id}`).value;
-                              const paidVal = document.getElementById(`paid-${ws._id}`).value;
-                              handleUpdateGenerations(ws._id, freeVal, paidVal);
-                            }}
-                            className="flex-1 py-1.5 bg-violet-600 text-white rounded-lg text-xs font-bold hover:bg-violet-700 transition"
-                          >
-                            Valider
-                          </button>
-                          <button
-                            onClick={() => setEditingGenerations({ ...editingGenerations, [ws._id]: false })}
-                            className="flex-1 py-1.5 bg-gray-200 text-gray-700 rounded-lg text-xs font-bold hover:bg-gray-300 transition"
-                          >
-                            Annuler
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div>
-                        <div className="flex justify-between items-center mb-1">
-                          <span className="text-[10px] text-violet-700">Gratuites:</span>
-                          <span className="text-xs font-bold text-emerald-600">{ws.freeGenerationsRemaining || 0}</span>
-                        </div>
-                        <div className="flex justify-between items-center mb-2">
-                          <span className="text-[10px] text-violet-700">Payées:</span>
-                          <span className="text-xs font-bold text-violet-600">{ws.paidGenerationsRemaining || 0}</span>
-                        </div>
-                        <div className="flex justify-between items-center mb-2">
-                          <span className="text-[10px] text-violet-700">Total utilisées:</span>
-                          <span className="text-xs font-bold text-gray-600">{ws.totalGenerations || 0}</span>
-                        </div>
-                        <button
-                          onClick={() => setEditingGenerations({ ...editingGenerations, [ws._id]: true })}
-                          className="w-full py-1.5 bg-violet-100 text-violet-700 rounded-lg text-xs font-bold hover:bg-violet-200 transition"
-                        >
-                          Modifier
-                        </button>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Subscription Warning toggle */}
-                  <button
-                    onClick={() => handleSubscriptionWarning(ws._id, ws.subscriptionWarning?.active)}
-                    className={`w-full inline-flex items-center justify-center gap-2 py-2.5 text-xs font-bold rounded-xl transition-all duration-300 ring-2 ring-inset ${noticeMeta.buttonClass}`}
-                  >
-                    <><NoticeIcon className="w-3.5 h-3.5" /> {noticeMeta.buttonLabel}</>
-                  </button>
-                  {ws.subscriptionWarning?.active && noticeMeta.helperText && (
-                    <p className={`text-[10px] text-center -mt-1 ${noticeMeta.helperClass}`}>
-                      {noticeMeta.helperText}
-                    </p>
-                  )}
-
-                  {/* Action button */}
-                  <button
-                    onClick={() => handleToggle(ws._id)}
-                    className={`w-full inline-flex items-center justify-center gap-2 py-3 text-sm font-bold rounded-xl transition-all duration-300 ring-2 ring-inset ${ws.isActive
-                        ? 'bg-amber-50 text-amber-700 hover:bg-amber-100 hover:shadow-md ring-amber-600/20'
-                        : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 hover:shadow-md ring-emerald-600/20'
-                      }`}
-                  >
-                    {ws.isActive ? (
-                      <>
-                        <PowerOff className="w-4 h-4" />
-                        Désactiver cet espace
-                      </>
-                    ) : (
-                      <>
-                        <Power className="w-4 h-4" />
-                        Réactiver cet espace
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-            );})}
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {filtered.map(ws => (
+              <WorkspaceCard
+                key={ws._id}
+                ws={ws}
+                availablePlans={availablePlans}
+                planDraft={planDrafts[ws._id]}
+                onUpdatePlanDraft={updatePlanDraft}
+                onSetPlan={handleSetPlan}
+                onToggle={handleToggle}
+                onSubscriptionWarning={handleSubscriptionWarning}
+                onCopy={copyCode}
+                onUpdateGenerations={handleUpdateGenerations}
+                savingPlan={savingPlans[ws._id]}
+              />
+            ))}
           </div>
         )}
       </div>
-    </div>
+    </SuperAdminShell>
   );
 };
 

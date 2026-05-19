@@ -73,5 +73,6 @@ export const analyticsApi = {
   getCountries: (params = {}) => ecomApi.get('/analytics/countries', { params }),
   getPages: (params = {}) => ecomApi.get('/analytics/pages', { params }),
   getUsersActivity: (params = {}) => ecomApi.get('/analytics/users-activity', { params }),
+  getProductLeaderboard: () => ecomApi.get('/analytics/product-leaderboard'),
   getUserFlow: (params = {}) => ecomApi.get('/analytics/user-flow', { params })
 };

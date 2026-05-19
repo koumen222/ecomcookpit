@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CheckCircle2, Package } from 'lucide-react';
-import { createCheckout, getPublicPlans } from '../services/billingApi.js';
+import { CheckCircle2, Package, Gift } from 'lucide-react';
+import { createCheckout, getPublicPlans, checkGlobalPromoCode } from '../services/billingApi.js';
 import PaymentModalFrame from '../components/PaymentModalFrame.jsx';
 import { PAYMENT_COUNTRY_CODES } from '../constants/paymentCountryCodes.js';
 import { savePendingPlanSelection } from '../utils/pendingPlanFlow.js';
@@ -54,7 +54,8 @@ function PublicCheckoutModal({ plan, onClose }) {
         plan: plan?.checkoutKey,
         phone: fullPhone,
         clientName: clientName.trim(),
-        workspaceId
+        workspaceId,
+        ...(plan?.promoCode ? { promoCode: plan.promoCode } : {}),
       });
       if (!result.success) {
         setError(result.message || 'Erreur lors de l\'initialisation du paiement.');
@@ -165,6 +166,60 @@ const Tarifs = () => {
   const [plans, setPlans] = useState([]);
   const [plansLoading, setPlansLoading] = useState(true);
 
+  const [isAnnual, setIsAnnual] = useState(false);
+  const [promoInput, setPromoInput] = useState('');
+  const [promoData, setPromoData] = useState(null);
+  const [promoLoading, setPromoLoading] = useState(false);
+  const [promoError, setPromoError] = useState('');
+
+  async function handleApplyPromo(e) {
+    if (e) e.preventDefault();
+    setPromoError('');
+    if (!promoInput.trim()) { setPromoError('Entrez un code'); return; }
+    setPromoLoading(true);
+    try {
+      const res = await checkGlobalPromoCode(promoInput.trim());
+      if (res.success && res.promo) {
+        setPromoData(res.promo);
+      } else {
+        setPromoError('Code invalide');
+        setPromoData(null);
+      }
+    } catch (err) {
+      setPromoError(err?.response?.data?.message || 'Code invalide');
+      setPromoData(null);
+    } finally {
+      setPromoLoading(false);
+    }
+  }
+
+  function computePlanPrice(plan) {
+    if (plan.isFree) return { displayPerMonth: 0, originalPerMonth: null, displayTotal: 0, promoApplied: false };
+    const months = isAnnual ? 12 : 1;
+    const billingFactor = isAnnual ? 0.75 : 1;
+    const totalPrice = Math.round(plan.numericPrice * months * billingFactor / 500) * 500;
+    let displayTotal = totalPrice;
+    let originalTotal = null;
+    let promoApplied = false;
+    if (promoData) {
+      const { discountType, discountValue, applicablePlans, applicableDurations, minAmount } = promoData;
+      const matchesPlan = !applicablePlans?.length || applicablePlans.includes(plan.key);
+      const matchesDuration = !applicableDurations?.length || applicableDurations.includes(months);
+      const matchesAmount = totalPrice >= (minAmount || 0);
+      if (matchesPlan && matchesDuration && matchesAmount) {
+        promoApplied = true;
+        originalTotal = totalPrice;
+        const discountAmount = discountType === 'percentage'
+          ? Math.round((totalPrice * discountValue) / 100)
+          : Math.min(totalPrice, discountValue);
+        displayTotal = Math.max(0, totalPrice - discountAmount);
+      }
+    }
+    const displayPerMonth = isAnnual ? Math.round(displayTotal / 12) : displayTotal;
+    const originalPerMonth = originalTotal ? (isAnnual ? Math.round(originalTotal / 12) : originalTotal) : null;
+    return { displayPerMonth, originalPerMonth, displayTotal, promoApplied };
+  }
+
   useEffect(() => {
     getPublicPlans()
       .then(res => {
@@ -251,6 +306,51 @@ const Tarifs = () => {
             Commencez gratuitement et évoluez selon vos besoins. 
             Aucune carte bancaire requise pour démarrer.
           </p>
+
+          {/* Toggle mensuel / annuel */}
+          <div className="mt-8 flex flex-col items-center gap-5">
+            <div className="inline-flex items-center bg-gray-100 rounded-full p-1 gap-1">
+              <button
+                onClick={() => setIsAnnual(false)}
+                className={`px-5 py-2 rounded-full text-sm font-bold transition-all ${!isAnnual ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+                Mensuel
+              </button>
+              <button
+                onClick={() => setIsAnnual(true)}
+                className={`px-5 py-2 rounded-full text-sm font-bold transition-all flex items-center gap-2 ${isAnnual ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+                Annuel
+                <span className="text-[10px] font-black bg-emerald-500 text-white px-1.5 py-0.5 rounded-full">-25%</span>
+              </button>
+            </div>
+
+            {/* Promo code */}
+            <form onSubmit={handleApplyPromo} className="relative w-full max-w-xs">
+              <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
+                <Gift className="w-4 h-4 text-gray-400" />
+              </div>
+              <input
+                type="text"
+                value={promoInput}
+                onChange={e => setPromoInput(e.target.value.toUpperCase())}
+                disabled={promoData !== null}
+                placeholder="Code promo ?"
+                className="w-full pl-10 pr-24 py-2.5 bg-white border border-gray-200 rounded-full text-sm font-bold placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-300 transition uppercase text-gray-700 disabled:opacity-75 disabled:bg-gray-50"
+              />
+              {!promoData ? (
+                <button type="submit" disabled={promoLoading || !promoInput.trim()}
+                  className="absolute inset-y-1 right-1 px-4 bg-gray-900 hover:bg-gray-700 text-white rounded-full text-xs font-bold transition disabled:opacity-40">
+                  {promoLoading ? '…' : 'Appliquer'}
+                </button>
+              ) : (
+                <button type="button" onClick={() => { setPromoData(null); setPromoInput(''); setPromoError(''); }}
+                  className="absolute inset-y-1 right-1 px-4 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-full text-xs font-bold transition">
+                  Retirer
+                </button>
+              )}
+            </form>
+            {promoError && <p className="text-red-500 text-[11px] font-bold">{promoError}</p>}
+            {promoData && <p className="text-emerald-600 text-[11px] font-bold">✓ Code {promoData.code} appliqué</p>}
+          </div>
         </div>
       </section>
 
@@ -295,24 +395,39 @@ const Tarifs = () => {
                     <p className={`text-xs font-semibold mb-1 ${plan.highlighted ? 'text-gray-400' : 'text-gray-400'}`}>
                       À partir de
                     </p>
-                    <div className="flex items-end gap-2">
-                      <span className={`text-5xl font-black leading-none ${plan.highlighted ? 'text-white' : 'text-gray-900'}`}>
-                        {plan.price}
-                      </span>
-                      {!plan.isFree && (
-                        <span className={`text-sm font-semibold mb-1 ${plan.highlighted ? 'text-gray-400' : 'text-gray-400'}`}>
-                          FCFA/mois
-                        </span>
-                      )}
-                      {plan.isFree && (
-                        <span className={`text-sm font-semibold mb-1 ${plan.highlighted ? 'text-gray-400' : 'text-gray-400'}`}>
-                          FCFA
-                        </span>
-                      )}
-                    </div>
-                    <p className={`text-xs mt-1.5 ${plan.highlighted ? 'text-gray-500' : 'text-gray-400'}`}>
-                      {plan.isFree ? 'Sans carte bancaire' : 'Facturation mensuelle'}
-                    </p>
+                    {(() => {
+                      const { displayPerMonth, originalPerMonth, displayTotal, promoApplied } = computePlanPrice(plan);
+                      return (
+                        <>
+                          <div className="flex items-end gap-2">
+                            {originalPerMonth && (
+                              <span className={`text-xl font-bold line-through mb-0.5 ${plan.highlighted ? 'text-emerald-300' : 'text-gray-300'}`}>
+                                {fmtFCFA(originalPerMonth)}
+                              </span>
+                            )}
+                            <span className={`text-5xl font-black leading-none ${plan.highlighted ? 'text-white' : 'text-gray-900'}`}>
+                              {plan.isFree ? '0' : fmtFCFA(displayPerMonth)}
+                            </span>
+                            <span className={`text-sm font-semibold mb-1 ${plan.highlighted ? 'text-gray-400' : 'text-gray-400'}`}>
+                              {plan.isFree ? 'FCFA' : 'FCFA/mois'}
+                            </span>
+                          </div>
+                          {promoApplied && (
+                            <p className={`text-xs font-bold mt-1.5 ${plan.highlighted ? 'text-white' : 'text-emerald-600'}`}>
+                              ✨ Code {promoData.code} appliqué
+                            </p>
+                          )}
+                          {isAnnual && !plan.isFree && !promoApplied && (
+                            <p className={`text-xs font-semibold mt-1.5 ${plan.highlighted ? 'text-emerald-200' : 'text-emerald-600'}`}>
+                              {fmtFCFA(displayTotal)} FCFA facturé annuellement
+                            </p>
+                          )}
+                          <p className={`text-xs mt-1.5 ${plan.highlighted ? 'text-gray-500' : 'text-gray-400'}`}>
+                            {plan.isFree ? 'Sans carte bancaire' : isAnnual ? 'Facturation annuelle' : 'Facturation mensuelle'}
+                          </p>
+                        </>
+                      );
+                    })()}
                   </div>
 
                   {/* Divider */}
@@ -345,13 +460,22 @@ const Tarifs = () => {
                       const token = localStorage.getItem('ecomToken');
                       const workspace = JSON.parse(localStorage.getItem('ecomWorkspace') || 'null');
                       const workspaceId = workspace?._id || workspace?.id;
+                      const durationMonths = isAnnual ? 12 : 1;
+                      const checkoutKey = plan.isFree ? null : `${plan.key}_${durationMonths}`;
+                      const { displayTotal } = computePlanPrice(plan);
                       if (plan.isFree) {
                         navigate('/ecom/register');
                       } else if (!token || !workspaceId) {
-                        savePendingPlanSelection(plan.checkoutKey);
+                        savePendingPlanSelection(checkoutKey);
                         navigate('/ecom/register');
                       } else {
-                        setSelectedPlan(plan);
+                        setSelectedPlan({
+                          ...plan,
+                          checkoutKey,
+                          numericPrice: displayTotal,
+                          durationLabel: isAnnual ? '12 mois (annuel)' : '1 mois',
+                          promoCode: promoData?.code || null,
+                        });
                         setShowCheckout(true);
                       }
                     }}

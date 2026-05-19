@@ -1,11 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
 import {
-  BarChart3, Users, Building2, Activity, Clock, Bell, MessageSquare,
-  FileText, Settings, Search, Filter, CreditCard, CheckCircle2,
-  AlertTriangle, Sparkles, RefreshCw, Globe
+  Users, Building2, FileText, Search, Filter, CreditCard,
+  CheckCircle2, AlertTriangle, Sparkles, RefreshCw
 } from 'lucide-react';
 import ecomApi from '../services/ecommApi.js';
+import SuperAdminShell from '../components/SuperAdminShell';
 
 const RANGES = [
   { value: '7', label: '7 jours' },
@@ -44,36 +43,46 @@ function formatDateTime(value) {
   });
 }
 
-function badgeStyle(bg, color) {
-  return {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: 6,
-    padding: '4px 8px',
-    borderRadius: 999,
-    background: bg,
-    color,
-    fontSize: 11,
-    fontWeight: 600,
-  };
+function Badge({ bg, color, children }) {
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: 4,
+      padding: '3px 8px', borderRadius: 999,
+      background: bg, color, fontSize: 11, fontWeight: 600,
+    }}>
+      {children}
+    </span>
+  );
 }
 
-function StatCard({ label, value, icon: Icon, color }) {
+function KpiCard({ label, value, icon: Icon, color }) {
   return (
-    <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 16, padding: '20px 24px', display: 'flex', alignItems: 'center', gap: 16 }}>
-      <div style={{ width: 48, height: 48, borderRadius: 12, background: color + '20', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-        <Icon size={22} color={color} />
+    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 flex items-center gap-4">
+      <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
+        style={{ background: color + '18' }}>
+        <Icon size={22} style={{ color }} />
       </div>
       <div>
-        <div style={{ fontSize: 24, fontWeight: 700, color: '#0f172a' }}>{value}</div>
-        <div style={{ fontSize: 13, color: '#64748b', marginTop: 2 }}>{label}</div>
+        <div className="text-2xl font-bold text-slate-900">{value}</div>
+        <div className="text-xs text-slate-500 mt-0.5 font-medium">{label}</div>
       </div>
     </div>
   );
 }
 
+function StatusMiniCard({ label, value, icon: Icon, color }) {
+  return (
+    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">{label}</span>
+        <Icon size={15} style={{ color }} />
+      </div>
+      <div className="text-2xl font-bold text-slate-900">{value}</div>
+    </div>
+  );
+}
+
 const SuperAdminProductPageHistory = () => {
-  const location = useLocation();
   const [days, setDays] = useState('30');
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -131,226 +140,227 @@ const SuperAdminProductPageHistory = () => {
     { key: 'failed', label: 'Echouees', value: generationOverview.failedCount || 0, icon: AlertTriangle, color: '#dc2626' },
   ];
 
-  const navItems = [
-    { to: '/ecom/super-admin', label: 'Dashboard', icon: BarChart3 },
-    { to: '/ecom/super-admin/users', label: 'Utilisateurs', icon: Users },
-    { to: '/ecom/super-admin/workspaces', label: 'Workspaces', icon: Building2 },
-    { to: '/ecom/super-admin/analytics', label: 'Analytics', icon: Activity },
-    { to: '/ecom/super-admin/feature-analytics', label: 'Features', icon: Sparkles },
-    { to: '/ecom/super-admin/product-page-history', label: 'Pages IA', icon: FileText },
-    { to: '/ecom/super-admin/activity', label: 'Activite', icon: Clock },
-    { to: '/ecom/super-admin/push', label: 'Push', icon: Bell },
-    { to: '/ecom/super-admin/whatsapp-postulations', label: 'WhatsApp', icon: MessageSquare },
-    { to: '/ecom/super-admin/settings', label: 'Config', icon: Settings },
-  ];
+  const rangeActions = (
+    <div className="flex gap-1 bg-white/10 rounded-xl p-1">
+      {RANGES.map((range) => (
+        <button
+          key={range.value}
+          onClick={() => setDays(range.value)}
+          className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
+            days === range.value
+              ? 'bg-white text-slate-900 shadow-sm'
+              : 'text-slate-300 hover:text-white'
+          }`}
+        >
+          {range.label}
+        </button>
+      ))}
+    </div>
+  );
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f8fafc', padding: '24px 16px' }}>
-      <div style={{ maxWidth: 1200, margin: '0 auto' }}>
-        <nav style={{ display: 'flex', flexWrap: 'wrap', gap: 6, background: '#fff', borderRadius: 16, border: '1px solid #e2e8f0', padding: 6, marginBottom: 24 }}>
-          {navItems.map(({ to, label, icon: NavIcon }) => {
-            const active = location.pathname === to;
-            return (
-              <Link key={to} to={to} style={{
-                display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px',
-                borderRadius: 10, fontSize: 13, fontWeight: active ? 600 : 400,
-                background: active ? '#0f766e' : 'transparent',
-                color: active ? '#fff' : '#64748b', textDecoration: 'none', transition: 'all 0.15s'
-              }}>
-                <NavIcon size={14} /> {label}
-              </Link>
-            );
-          })}
-        </nav>
-
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
-          <div>
-            <h1 style={{ fontSize: 24, fontWeight: 700, color: '#0f172a', margin: 0 }}>Historique pages produit IA</h1>
-            <p style={{ fontSize: 13, color: '#64748b', margin: '4px 0 0' }}>Suivi detaille par utilisateur, credits utilises et contenu genere.</p>
-          </div>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <div style={{ display: 'flex', gap: 4, background: '#f1f5f9', borderRadius: 10, padding: 4 }}>
-              {RANGES.map((range) => (
-                <button key={range.value} onClick={() => setDays(range.value)} style={{
-                  padding: '6px 14px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 13,
-                  background: days === range.value ? '#fff' : 'transparent',
-                  color: days === range.value ? '#0f766e' : '#64748b',
-                  fontWeight: days === range.value ? 600 : 400,
-                  boxShadow: days === range.value ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'
-                }}>{range.label}</button>
-              ))}
-            </div>
-            <button onClick={fetchData} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 10, border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer', fontSize: 13, color: '#64748b' }}>
-              <RefreshCw size={14} /> Actualiser
-            </button>
-          </div>
+    <SuperAdminShell
+      title="Historique pages produit IA"
+      subtitle="Suivi detaille par utilisateur, credits utilises et contenu genere."
+      icon={FileText}
+      error={error}
+      refreshing={loading}
+      onRefresh={fetchData}
+      actions={rangeActions}
+    >
+      {loading ? (
+        <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+          <RefreshCw size={28} className="animate-spin mb-3" />
+          <span className="text-sm font-medium">Chargement...</span>
         </div>
-
-        {error && (
-          <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 12, padding: '12px 16px', color: '#dc2626', marginBottom: 20, fontSize: 14 }}>
-            {error}
+      ) : (
+        <>
+          {/* Primary KPI row */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            <KpiCard label="Generations totales" value={(generationOverview.totalGenerations || 0).toLocaleString()} icon={FileText} color="#0f766e" />
+            <KpiCard label="Credits utilises" value={(generationOverview.totalCreditsUsed || 0).toLocaleString()} icon={CreditCard} color="#1d4ed8" />
+            <KpiCard label="Users generateurs" value={(generationOverview.uniqueUsers || 0).toLocaleString()} icon={Users} color="#7c3aed" />
+            <KpiCard label="Workspaces touchees" value={(generationOverview.uniqueWorkspaces || 0).toLocaleString()} icon={Building2} color="#ea580c" />
           </div>
-        )}
 
-        {loading ? (
-          <div style={{ textAlign: 'center', padding: '80px 0', color: '#94a3b8' }}>
-            <div style={{ width: 36, height: 36, border: '3px solid #e2e8f0', borderTopColor: '#0f766e', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 12px' }} />
-            Chargement...
+          {/* Status mini-cards */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            {generationStatusRows.map(({ key, label, value, icon, color }) => (
+              <StatusMiniCard key={key} label={label} value={value} icon={icon} color={color} />
+            ))}
           </div>
-        ) : (
-          <>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 12, marginBottom: 20 }}>
-              <StatCard label="Generations totales" value={(generationOverview.totalGenerations || 0).toLocaleString()} icon={FileText} color="#0f766e" />
-              <StatCard label="Credits utilises" value={(generationOverview.totalCreditsUsed || 0).toLocaleString()} icon={CreditCard} color="#1d4ed8" />
-              <StatCard label="Users generateurs" value={(generationOverview.uniqueUsers || 0).toLocaleString()} icon={Users} color="#7c3aed" />
-              <StatCard label="Workspaces touchees" value={(generationOverview.uniqueWorkspaces || 0).toLocaleString()} icon={Building2} color="#ea580c" />
-            </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 12, marginBottom: 20 }}>
-              {generationStatusRows.map(({ key, label, value, icon: Icon, color }) => (
-                <div key={key} style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 14, padding: '16px 18px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-                    <div style={{ fontSize: 12, color: '#64748b', fontWeight: 600 }}>{label}</div>
-                    <Icon size={16} color={color} />
-                  </div>
-                  <div style={{ marginTop: 8, fontSize: 24, fontWeight: 700, color: '#0f172a' }}>{value}</div>
-                </div>
-              ))}
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 20, marginBottom: 20 }}>
-              <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 16, padding: 20 }}>
-                <div style={{ fontSize: 15, fontWeight: 600, color: '#0f172a', marginBottom: 16 }}>Top utilisateurs generateurs</div>
-                {generationUsers.length === 0 ? <p style={{ fontSize: 13, color: '#94a3b8', margin: 0 }}>Aucune donnee</p> : generationUsers.slice(0, 10).map((user, index) => (
+          {/* Users + Content type panels */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-6">
+            {/* Top users */}
+            <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+              <h2 className="text-sm font-bold text-slate-900 mb-4">Top utilisateurs generateurs</h2>
+              {generationUsers.length === 0 ? (
+                <p className="text-sm text-slate-400">Aucune donnee</p>
+              ) : (
+                generationUsers.slice(0, 10).map((user, index) => (
                   <button
                     key={String(user._id || index)}
                     type="button"
                     onClick={() => setSelectedGenerationUser((prev) => prev === String(user._id) ? 'all' : String(user._id))}
-                    style={{
-                      width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px',
-                      borderRadius: 12, textAlign: 'left', cursor: 'pointer', marginBottom: 8,
-                      border: selectedGenerationUser === String(user._id) ? '1px solid #99f6e4' : '1px solid transparent',
-                      background: selectedGenerationUser === String(user._id) ? '#f0fdfa' : 'transparent',
-                    }}
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left cursor-pointer mb-1.5 transition-all border ${
+                      selectedGenerationUser === String(user._id)
+                        ? 'border-emerald-200 bg-emerald-50'
+                        : 'border-transparent hover:bg-slate-50'
+                    }`}
                   >
-                    <div style={{ width: 28, height: 28, borderRadius: 8, background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: '#64748b', flexShrink: 0 }}>{index + 1}</div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user.name || user.email || 'Utilisateur'}</div>
-                      <div style={{ fontSize: 11, color: '#64748b' }}>{user.email || 'Email inconnu'} · {user.workspaceCount || 0} workspace{(user.workspaceCount || 0) > 1 ? 's' : ''}</div>
+                    <div className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-500 flex-shrink-0">
+                      {index + 1}
                     </div>
-                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                      <div style={{ fontSize: 14, fontWeight: 700, color: '#0f766e' }}>{user.generationCount || 0}</div>
-                      <div style={{ fontSize: 11, color: '#64748b' }}>{user.creditsUsed || 0} credit{(user.creditsUsed || 0) > 1 ? 's' : ''}</div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-semibold text-slate-900 truncate">{user.name || user.email || 'Utilisateur'}</div>
+                      <div className="text-xs text-slate-400">{user.email || 'Email inconnu'} · {user.workspaceCount || 0} workspace{(user.workspaceCount || 0) > 1 ? 's' : ''}</div>
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      <div className="text-sm font-bold text-emerald-700">{user.generationCount || 0}</div>
+                      <div className="text-xs text-slate-400">{user.creditsUsed || 0} credit{(user.creditsUsed || 0) > 1 ? 's' : ''}</div>
                     </div>
                   </button>
-                ))}
-              </div>
-
-              <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 16, padding: 20 }}>
-                <div style={{ fontSize: 15, fontWeight: 600, color: '#0f172a', marginBottom: 16 }}>Types de contenu</div>
-                {generationContentTypes.length === 0 ? <p style={{ fontSize: 13, color: '#94a3b8', margin: 0 }}>Aucune donnee</p> : generationContentTypes.map((row) => (
-                  <div key={row._id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 10 }}>
-                    <div style={{ fontSize: 13, color: '#334155' }}>{CONTENT_TYPE_LABELS[row._id] || row._id}</div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>{row.count}</div>
-                  </div>
-                ))}
-              </div>
+                ))
+              )}
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr 0.8fr', gap: 10, marginBottom: 18 }}>
-              <div style={{ position: 'relative' }}>
-                <Search size={15} color="#94a3b8" style={{ position: 'absolute', top: 13, left: 12 }} />
+            {/* Content types */}
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+              <h2 className="text-sm font-bold text-slate-900 mb-4">Types de contenu</h2>
+              {generationContentTypes.length === 0 ? (
+                <p className="text-sm text-slate-400">Aucune donnee</p>
+              ) : (
+                <div className="space-y-2.5">
+                  {generationContentTypes.map((row) => (
+                    <div key={row._id} className="flex items-center justify-between gap-3">
+                      <span className="text-sm text-slate-600">{CONTENT_TYPE_LABELS[row._id] || row._id}</span>
+                      <span className="text-sm font-bold text-slate-900 tabular-nums">{row.count}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Filters */}
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 mb-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="relative sm:col-span-1">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                   value={generationSearch}
-                  onChange={(event) => setGenerationSearch(event.target.value)}
-                  placeholder="Rechercher un produit, une URL, un user ou un workspace"
-                  style={{ width: '100%', padding: '11px 12px 11px 36px', borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 13, outline: 'none' }}
+                  onChange={(e) => setGenerationSearch(e.target.value)}
+                  placeholder="Produit, URL, user, workspace…"
+                  className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:border-emerald-400 bg-slate-50"
                 />
               </div>
-              <select value={selectedGenerationUser} onChange={(event) => setSelectedGenerationUser(event.target.value)} style={{ padding: '11px 12px', borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 13, background: '#fff' }}>
+              <select
+                value={selectedGenerationUser}
+                onChange={(e) => setSelectedGenerationUser(e.target.value)}
+                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm bg-slate-50 focus:outline-none focus:border-emerald-400"
+              >
                 <option value="all">Tous les utilisateurs</option>
                 {generationUsers.map((user) => (
-                  <option key={String(user._id)} value={String(user._id)}>{user.name || user.email || 'Utilisateur'}</option>
+                  <option key={String(user._id)} value={String(user._id)}>
+                    {user.name || user.email || 'Utilisateur'}
+                  </option>
                 ))}
               </select>
-              <select value={selectedGenerationStatus} onChange={(event) => setSelectedGenerationStatus(event.target.value)} style={{ padding: '11px 12px', borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 13, background: '#fff' }}>
+              <select
+                value={selectedGenerationStatus}
+                onChange={(e) => setSelectedGenerationStatus(e.target.value)}
+                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm bg-slate-50 focus:outline-none focus:border-emerald-400"
+              >
                 <option value="all">Tous les statuts</option>
                 {Object.entries(STATUS_META).map(([key, meta]) => (
                   <option key={key} value={key}>{meta.label}</option>
                 ))}
               </select>
             </div>
+          </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, fontSize: 12, color: '#64748b' }}>
-              <Filter size={14} />
-              {filteredGenerationHistory.length} entree{filteredGenerationHistory.length > 1 ? 's' : ''} affichee{filteredGenerationHistory.length > 1 ? 's' : ''}
-            </div>
+          <div className="flex items-center gap-2 mb-3 text-xs text-slate-500">
+            <Filter size={13} />
+            <span>{filteredGenerationHistory.length} entree{filteredGenerationHistory.length > 1 ? 's' : ''} affichee{filteredGenerationHistory.length > 1 ? 's' : ''}</span>
+          </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {filteredGenerationHistory.length === 0 && <p style={{ fontSize: 13, color: '#94a3b8', margin: 0 }}>Aucune generation ne correspond aux filtres.</p>}
-              {filteredGenerationHistory.map((item) => {
-                const statusMeta = STATUS_META[item.status] || STATUS_META.started;
-                const itemUserName = item.userId?.name || item.userSnapshot?.name || item.userId?.email || item.userSnapshot?.email || 'Utilisateur inconnu';
-                const itemUserEmail = item.userId?.email || item.userSnapshot?.email || 'Email inconnu';
-                const workspaceName = item.workspaceId?.name || item.workspaceSnapshot?.name || 'Workspace inconnue';
-                const contentTypes = (item.generatedContentTypes || []).slice(0, 4);
+          {/* Generation history cards */}
+          <div className="space-y-3">
+            {filteredGenerationHistory.length === 0 && (
+              <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-10 text-center">
+                <FileText size={32} className="mx-auto mb-3 text-slate-300" />
+                <p className="text-sm text-slate-400 font-medium">Aucune generation ne correspond aux filtres.</p>
+              </div>
+            )}
+            {filteredGenerationHistory.map((item) => {
+              const statusMeta = STATUS_META[item.status] || STATUS_META.started;
+              const itemUserName = item.userId?.name || item.userSnapshot?.name || item.userId?.email || item.userSnapshot?.email || 'Utilisateur inconnu';
+              const itemUserEmail = item.userId?.email || item.userSnapshot?.email || 'Email inconnu';
+              const workspaceName = item.workspaceId?.name || item.workspaceSnapshot?.name || 'Workspace inconnue';
+              const contentTypes = (item.generatedContentTypes || []).slice(0, 4);
 
-                return (
-                  <div key={item._id} style={{ border: '1px solid #e2e8f0', borderRadius: 14, padding: 16, background: '#fff' }}>
-                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
-                      <div style={{ flex: 1, minWidth: 280 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
-                          <div style={{ fontSize: 14, fontWeight: 700, color: '#0f172a' }}>{item.productName || item.productUrl || 'Produit sans nom'}</div>
-                          <span style={badgeStyle(statusMeta.bg, statusMeta.color)}>{statusMeta.label}</span>
-                          <span style={badgeStyle('#ecfeff', '#0f766e')}>{item.creditsUsed || 0} credit{(item.creditsUsed || 0) > 1 ? 's' : ''}</span>
-                          <span style={badgeStyle('#eff6ff', '#1d4ed8')}>{item.creditSource || 'unknown'}</span>
-                          <span style={badgeStyle('#f8fafc', '#475569')}>{item.outputMode === 'page_with_images' ? 'Page + images' : 'Page seule'}</span>
-                        </div>
-                        <div style={{ fontSize: 12, color: '#64748b', marginBottom: 8 }}>{itemUserName} · {itemUserEmail} · {workspaceName}</div>
-                        <div style={{ fontSize: 12, color: '#64748b', marginBottom: 10 }}>
-                          Debut: {formatDateTime(item.createdAt)} · Fin: {formatDateTime(item.completedAt)}
-                        </div>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                          {contentTypes.map((contentType) => (
-                            <span key={contentType} style={badgeStyle('#f1f5f9', '#475569')}>{CONTENT_TYPE_LABELS[contentType] || contentType}</span>
-                          ))}
-                          {(item.generatedContentTypes || []).length > contentTypes.length && (
-                            <span style={badgeStyle('#f8fafc', '#64748b')}>+{(item.generatedContentTypes || []).length - contentTypes.length}</span>
-                          )}
-                        </div>
-                        {item.productUrl ? <div style={{ marginTop: 10, fontSize: 12, color: '#475569', wordBreak: 'break-all' }}>{item.productUrl}</div> : null}
-                        {item.errorMessage ? <div style={{ marginTop: 10, fontSize: 12, color: '#b91c1c', background: '#fef2f2', borderRadius: 10, padding: '8px 10px' }}>{item.errorMessage}</div> : null}
+              return (
+                <div key={item._id} className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 hover:bg-slate-50 transition-colors">
+                  <div className="flex items-start justify-between gap-4 flex-wrap">
+                    <div className="flex-1 min-w-0" style={{ minWidth: 260 }}>
+                      {/* Title + badges */}
+                      <div className="flex flex-wrap items-center gap-2 mb-2">
+                        <span className="text-sm font-bold text-slate-900">
+                          {item.productName || item.productUrl || 'Produit sans nom'}
+                        </span>
+                        <Badge bg={statusMeta.bg} color={statusMeta.color}>{statusMeta.label}</Badge>
+                        <Badge bg="#ecfeff" color="#0f766e">{item.creditsUsed || 0} credit{(item.creditsUsed || 0) > 1 ? 's' : ''}</Badge>
+                        <Badge bg="#eff6ff" color="#1d4ed8">{item.creditSource || 'unknown'}</Badge>
+                        <Badge bg="#f8fafc" color="#475569">{item.outputMode === 'page_with_images' ? 'Page + images' : 'Page seule'}</Badge>
                       </div>
 
-                      <div style={{ minWidth: 260, display: 'grid', gridTemplateColumns: 'repeat(2, minmax(110px, 1fr))', gap: 10 }}>
-                        <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 12, padding: '10px 12px' }}>
-                          <div style={{ fontSize: 11, color: '#64748b' }}>Images generees</div>
-                          <div style={{ marginTop: 4, fontSize: 18, fontWeight: 700, color: '#0f172a' }}>{item.stats?.generatedImageCount || 0}</div>
-                        </div>
-                        <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 12, padding: '10px 12px' }}>
-                          <div style={{ fontSize: 11, color: '#64748b' }}>GIFs</div>
-                          <div style={{ marginTop: 4, fontSize: 18, fontWeight: 700, color: '#0f172a' }}>{item.stats?.generatedGifCount || 0}</div>
-                        </div>
-                        <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 12, padding: '10px 12px' }}>
-                          <div style={{ fontSize: 11, color: '#64748b' }}>Angles</div>
-                          <div style={{ marginTop: 4, fontSize: 18, fontWeight: 700, color: '#0f172a' }}>{item.stats?.anglesCount || 0}</div>
-                        </div>
-                        <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 12, padding: '10px 12px' }}>
-                          <div style={{ fontSize: 11, color: '#64748b' }}>FAQ</div>
-                          <div style={{ marginTop: 4, fontSize: 18, fontWeight: 700, color: '#0f172a' }}>{item.stats?.faqCount || 0}</div>
-                        </div>
+                      <p className="text-xs text-slate-500 mb-1.5">{itemUserName} · {itemUserEmail} · {workspaceName}</p>
+                      <p className="text-xs text-slate-400 mb-2.5">
+                        Debut: {formatDateTime(item.createdAt)} · Fin: {formatDateTime(item.completedAt)}
+                      </p>
+
+                      <div className="flex flex-wrap gap-1.5">
+                        {contentTypes.map((ct) => (
+                          <Badge key={ct} bg="#f1f5f9" color="#475569">{CONTENT_TYPE_LABELS[ct] || ct}</Badge>
+                        ))}
+                        {(item.generatedContentTypes || []).length > contentTypes.length && (
+                          <Badge bg="#f8fafc" color="#64748b">+{(item.generatedContentTypes || []).length - contentTypes.length}</Badge>
+                        )}
                       </div>
+
+                      {item.productUrl && (
+                        <p className="mt-2.5 text-xs text-slate-400 break-all">{item.productUrl}</p>
+                      )}
+                      {item.errorMessage && (
+                        <div className="mt-2.5 text-xs text-red-700 bg-red-50 border border-red-100 rounded-xl px-3 py-2">
+                          {item.errorMessage}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Stats mini-grid */}
+                    <div className="grid grid-cols-2 gap-2.5" style={{ minWidth: 240 }}>
+                      {[
+                        { label: 'Images generees', val: item.stats?.generatedImageCount || 0 },
+                        { label: 'GIFs', val: item.stats?.generatedGifCount || 0 },
+                        { label: 'Angles', val: item.stats?.anglesCount || 0 },
+                        { label: 'FAQ', val: item.stats?.faqCount || 0 },
+                      ].map(({ label, val }) => (
+                        <div key={label} className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5">
+                          <div className="text-xs text-slate-500">{label}</div>
+                          <div className="text-lg font-bold text-slate-900 mt-0.5">{val}</div>
+                        </div>
+                      ))}
                     </div>
                   </div>
-                );
-              })}
-            </div>
-          </>
-        )}
-      </div>
-
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-    </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
+    </SuperAdminShell>
   );
 };
 

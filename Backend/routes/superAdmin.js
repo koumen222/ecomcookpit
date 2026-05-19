@@ -11,12 +11,17 @@ import ProductPageGenerationLog from '../models/ProductPageGenerationLog.js';
 import WhatsAppLog from '../models/WhatsAppLog.js';
 import SupportConversation from '../models/SupportConversation.js';
 import StoreProduct from '../models/StoreProduct.js';
+import Order from '../models/Order.js';
+import Store from '../models/Store.js';
 import WhatsAppInstance from '../models/WhatsAppInstance.js';
 import ScalorUser from '../models/ScalorUser.js';
 import { requireEcomAuth, requireSuperAdmin, requireServiceClient } from '../middleware/ecomAuth.js';
 import bcrypt from 'bcryptjs';
 import { invalidatePlanCache } from '../middleware/planLimits.js';
 import { logAudit, auditSensitiveAccess, AuditLog } from '../middleware/security.js';
+import AnalyticsSession from '../models/AnalyticsSession.js';
+import AnalyticsEvent from '../models/AnalyticsEvent.js';
+import PushScheduledNotification from '../models/PushScheduledNotification.js';
 import { sendCustomNotificationEmail, sendNotificationEmail } from '../core/notifications/email.service.js';
 import { sendPushNotification, sendPushNotificationToUser } from '../services/pushService.js';
 import { buildPlanUpdatedWarning, buildRenewalSubscriptionWarning, clearSubscriptionWarning, downgradeWorkspaceToFree } from '../services/workspacePlanService.js';
@@ -646,58 +651,57 @@ router.get('/whatsapp-postulations',
 
       console.log('🔍 [SuperAdmin] Récupération des postulations WhatsApp...');
 
-      // Récupérer TOUS les workspaces et filtrer en JavaScript
-      const allWorkspaces = await Workspace.find({})
-        .populate('owner', 'email name role')
-        .lean();
-
-      console.log(`📊 [SuperAdmin] ${allWorkspaces.length} workspaces trouvés au total`);
-
-      // Normaliser les données et filtrer ceux qui ont une postulation WhatsApp
-      const postulations = [];
-      
-      for (const ws of allWorkspaces) {
-        const config = ws.settings?.whatsappConfig || ws.whatsappConfig || {};
-        
-        // Vérifier si ce workspace a une postulation WhatsApp
-        const hasPostulation = config.status && ['pending', 'active', 'rejected'].includes(config.status);
-        
-        if (hasPostulation) {
-          // Filtre optionnel par status
-          if (status && config.status !== status) {
-            continue;
+      // Filtrer côté DB les workspaces qui ont une postulation WhatsApp
+      const validStatuses = ['pending', 'active', 'rejected'];
+      const statusFilter = status && validStatuses.includes(status) ? status : { $in: validStatuses };
+      const allWorkspaces = await Workspace.aggregate([
+        {
+          $match: {
+            'settings.whatsappConfig.status': statusFilter,
           }
+        },
+        { $lookup: { from: EcomUser.collection.name, localField: 'owner', foreignField: '_id', as: '_owner', pipeline: [{ $project: { email: 1, name: 1, role: 1 } }] } },
+        { $addFields: { owner: { $ifNull: [{ $arrayElemAt: ['$_owner', 0] }, '$owner'] } } },
+        { $project: { _owner: 0 } },
+      ]);
 
-          // Récupérer l'utilisateur qui a fait la demande
-          let requestedByUser = null;
-          if (config.requestedBy) {
-            requestedByUser = await EcomUser.findById(config.requestedBy)
-              .select('email name role')
-              .lean();
-          }
+      console.log(`📊 [SuperAdmin] ${allWorkspaces.length} workspaces avec postulation WhatsApp`);
 
-          postulations.push({
-            _id: ws._id,
-            workspaceName: ws.name,
-            workspaceSlug: ws.slug,
-            owner: ws.owner,
-            isActive: ws.isActive,
-            phoneNumber: config.phoneNumber || '',
-            status: config.status || 'none',
-            requestedAt: config.requestedAt || null,
-            activatedAt: config.activatedAt || null,
-            note: config.note || '',
-            businessName: config.businessName || '',
-            contactName: config.contactName || '',
-            email: config.email || '',
-            currentWhatsappNumber: config.currentWhatsappNumber || '',
-            businessType: config.businessType || '',
-            monthlyMessages: config.monthlyMessages || '',
-            reason: config.reason || '',
-            requestedBy: requestedByUser
-          });
-        }
-      }
+      // Collecter tous les requestedBy IDs pour un seul batch fetch
+      const requestedByIds = [...new Set(
+        allWorkspaces
+          .map(ws => ws.settings?.whatsappConfig?.requestedBy)
+          .filter(Boolean)
+          .map(id => id.toString())
+      )];
+      const requestedByUsers = requestedByIds.length > 0
+        ? await EcomUser.find({ _id: { $in: requestedByIds } }).select('email name role').lean()
+        : [];
+      const requestedByMap = Object.fromEntries(requestedByUsers.map(u => [u._id.toString(), u]));
+
+      const postulations = allWorkspaces.map(ws => {
+        const config = ws.settings?.whatsappConfig || {};
+        return {
+          _id: ws._id,
+          workspaceName: ws.name,
+          workspaceSlug: ws.slug,
+          owner: ws.owner,
+          isActive: ws.isActive,
+          phoneNumber: config.phoneNumber || '',
+          status: config.status || 'none',
+          requestedAt: config.requestedAt || null,
+          activatedAt: config.activatedAt || null,
+          note: config.note || '',
+          businessName: config.businessName || '',
+          contactName: config.contactName || '',
+          email: config.email || '',
+          currentWhatsappNumber: config.currentWhatsappNumber || '',
+          businessType: config.businessType || '',
+          monthlyMessages: config.monthlyMessages || '',
+          reason: config.reason || '',
+          requestedBy: config.requestedBy ? (requestedByMap[config.requestedBy.toString()] || null) : null,
+        };
+      });
 
       // Trier par date de demande (plus récent en premier)
       postulations.sort((a, b) => {
@@ -1411,6 +1415,11 @@ router.get('/billing', requireEcomAuth, requireSuperAdmin, async (req, res) => {
     const twelveMonthsAgo = new Date(now);
     twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
 
+    const userLookup = { from: EcomUser.collection.name, localField: 'userId', foreignField: '_id', as: '_u', pipeline: [{ $project: { email: 1, name: 1, phone: 1 } }] };
+    const wsLookup = { from: Workspace.collection.name, localField: 'workspaceId', foreignField: '_id', as: '_w', pipeline: [{ $project: { name: 1, slug: 1, plan: 1, planExpiresAt: 1, trialEndsAt: 1, trialUsed: 1 } }] };
+    const flattenLookups = { $addFields: { userId: { $ifNull: [{ $arrayElemAt: ['$_u', 0] }, '$userId'] }, workspaceId: { $ifNull: [{ $arrayElemAt: ['$_w', 0] }, '$workspaceId'] } } };
+    const dropTmp = { $project: { _u: 0, _w: 0 } };
+
     const [
       planPayments,
       generationPayments,
@@ -1431,18 +1440,24 @@ router.get('/billing', requireEcomAuth, requireSuperAdmin, async (req, res) => {
       planPaymentMethods,
       generationPaymentMethods,
     ] = await Promise.all([
-      PlanPayment.find(planPaymentFilter)
-        .populate('userId', 'email name phone')
-        .populate('workspaceId', 'name slug plan planExpiresAt trialEndsAt trialUsed')
-        .sort({ createdAt: -1 })
-        .limit(fetchWindow)
-        .lean(),
-      GenerationPayment.find(generationPaymentFilter)
-        .populate('userId', 'email name phone')
-        .populate('workspaceId', 'name slug plan planExpiresAt trialEndsAt trialUsed')
-        .sort({ createdAt: -1 })
-        .limit(fetchWindow)
-        .lean(),
+      PlanPayment.aggregate([
+        { $match: planPaymentFilter },
+        { $sort: { createdAt: -1 } },
+        { $limit: fetchWindow },
+        { $lookup: userLookup },
+        { $lookup: wsLookup },
+        flattenLookups,
+        dropTmp,
+      ]),
+      GenerationPayment.aggregate([
+        { $match: generationPaymentFilter },
+        { $sort: { createdAt: -1 } },
+        { $limit: fetchWindow },
+        { $lookup: userLookup },
+        { $lookup: wsLookup },
+        flattenLookups,
+        dropTmp,
+      ]),
       PlanPayment.countDocuments(planPaymentFilter),
       GenerationPayment.countDocuments(generationPaymentFilter),
       PlanPayment.aggregate([
@@ -1548,74 +1563,58 @@ router.get('/billing', requireEcomAuth, requireSuperAdmin, async (req, res) => {
     // 3) Payment status breakdown
     const statusBreakdown = mergeGroupedTotals(planStatusBreakdown, generationStatusBreakdown);
 
-    // 4) Workspace plan distribution
-    console.log('[SuperAdmin] Calculating plan distribution...');
-    const freeCt = await Workspace.countDocuments({ plan: 'free' });
-    const proCt = await Workspace.countDocuments({ plan: 'pro' });
-    const ultraCt = await Workspace.countDocuments({ plan: 'ultra' });
-    const planDistribution = [
-      { _id: 'free', count: freeCt },
-      { _id: 'pro', count: proCt },
-      { _id: 'ultra', count: ultraCt }
-    ].filter(p => p.count > 0);
-
-    // 5) Active subscriptions (plan != 'free' and not expired)
-    console.log('[SuperAdmin] Calculating active subscriptions...');
-    const activeSubscriptions = await Workspace.countDocuments({
-      plan: { $in: ['pro', 'ultra'] },
-      planExpiresAt: { $gt: now }
-    });
-
-    // Expiring soon (within 7 days)
+    const ownerLookup = { from: EcomUser.collection.name, localField: 'owner', foreignField: '_id', as: '_owner', pipeline: [{ $project: { email: 1, name: 1, phone: 1 } }] };
+    const flatOwner = { $addFields: { owner: { $ifNull: [{ $arrayElemAt: ['$_owner', 0] }, '$owner'] } } };
+    const dropOwner = { $project: { _owner: 0 } };
     const sevenDaysFromNow = new Date(now.getTime() + 7 * 86400000);
-    const expiringSoon = await Workspace.find({
-      plan: { $in: ['pro', 'ultra'] },
-      planExpiresAt: { $gt: now, $lte: sevenDaysFromNow }
-    })
-      .select('name slug plan planExpiresAt owner')
-      .populate('owner', 'email name phone')
-      .lean();
-
-    // 6) Active trials
-    const activeTrials = await Workspace.find({
-      trialEndsAt: { $gt: now },
-      trialUsed: true
-    })
-      .select('name slug trialStartedAt trialEndsAt trialExpiryNotifiedAt trialExpiredNotifiedAt owner plan')
-      .populate('owner', 'email name phone')
-      .sort({ trialEndsAt: 1 })
-      .lean();
-
-    // 6b) Expired trials (trial ended, still on free plan)
-    const expiredTrials = await Workspace.find({
-      trialUsed: true,
-      trialEndsAt: { $lte: now },
-      plan: 'free',
-    })
-      .select('name slug trialStartedAt trialEndsAt trialExpiryNotifiedAt trialExpiredNotifiedAt owner plan')
-      .populate('owner', 'email name phone')
-      .sort({ trialEndsAt: -1 })
-      .limit(50)
-      .lean();
-
-    // 7) Expired (paid plans that expired, now effectively free)
-    const expiredPaid = await Workspace.find({
-      plan: { $in: ['pro', 'ultra'] },
-      planExpiresAt: { $lte: now }
-    })
-      .select('name slug plan planExpiresAt owner')
-      .populate('owner', 'email name phone')
-      .lean();
-
-    // 8) Recent payments (last 30 days stats)
-    // 9) All workspaces with plan details (for search/filter)
     const wsFilter = {};
     if (search) wsFilter.name = { $regex: search, $options: 'i' };
-    const allWorkspaces = await Workspace.find(wsFilter)
-      .select('name slug plan planExpiresAt trialStartedAt trialEndsAt trialUsed owner createdAt')
-      .populate('owner', 'email name phone')
-      .sort({ createdAt: -1 })
-      .lean();
+
+    // 4-9) Workspace stats — all parallel
+    console.log('[SuperAdmin] Calculating workspace stats...');
+    const [
+      planDistributionRaw,
+      activeSubscriptions,
+      expiringSoon,
+      activeTrials,
+      expiredTrials,
+      expiredPaid,
+      allWorkspaces,
+    ] = await Promise.all([
+      Workspace.aggregate([{ $group: { _id: '$plan', count: { $sum: 1 } } }]),
+      Workspace.countDocuments({ plan: { $in: ['pro', 'ultra'] }, planExpiresAt: { $gt: now } }),
+      Workspace.aggregate([
+        { $match: { plan: { $in: ['pro', 'ultra'] }, planExpiresAt: { $gt: now, $lte: sevenDaysFromNow } } },
+        { $project: { name: 1, slug: 1, plan: 1, planExpiresAt: 1, owner: 1 } },
+        { $lookup: ownerLookup }, flatOwner, dropOwner,
+      ]),
+      Workspace.aggregate([
+        { $match: { trialEndsAt: { $gt: now }, trialUsed: true } },
+        { $sort: { trialEndsAt: 1 } },
+        { $project: { name: 1, slug: 1, trialStartedAt: 1, trialEndsAt: 1, trialExpiryNotifiedAt: 1, trialExpiredNotifiedAt: 1, owner: 1, plan: 1 } },
+        { $lookup: ownerLookup }, flatOwner, dropOwner,
+      ]),
+      Workspace.aggregate([
+        { $match: { trialUsed: true, trialEndsAt: { $lte: now }, plan: 'free' } },
+        { $sort: { trialEndsAt: -1 } },
+        { $limit: 50 },
+        { $project: { name: 1, slug: 1, trialStartedAt: 1, trialEndsAt: 1, trialExpiryNotifiedAt: 1, trialExpiredNotifiedAt: 1, owner: 1, plan: 1 } },
+        { $lookup: ownerLookup }, flatOwner, dropOwner,
+      ]),
+      Workspace.aggregate([
+        { $match: { plan: { $in: ['pro', 'ultra'] }, planExpiresAt: { $lte: now } } },
+        { $project: { name: 1, slug: 1, plan: 1, planExpiresAt: 1, owner: 1 } },
+        { $lookup: ownerLookup }, flatOwner, dropOwner,
+      ]),
+      Workspace.aggregate([
+        { $match: wsFilter },
+        { $sort: { createdAt: -1 } },
+        { $project: { name: 1, slug: 1, plan: 1, planExpiresAt: 1, trialStartedAt: 1, trialEndsAt: 1, trialUsed: 1, owner: 1, createdAt: 1 } },
+        { $lookup: ownerLookup }, flatOwner, dropOwner,
+      ]),
+    ]);
+
+    const planDistribution = planDistributionRaw.filter(p => p._id && p.count > 0);
 
     console.log('[SuperAdmin] Billing request completed successfully');
     res.json({
@@ -2163,5 +2162,435 @@ router.post('/scalor-users/whatsapp/send', requireEcomAuth, requireSuperAdmin, a
     res.status(500).json({ success: false, message: 'Erreur serveur' });
   }
 });
+
+// ══════════════════════════════════════════════════════════════════════════════
+// GET /api/ecom/super-admin/dashboard-summary
+// Single endpoint — queries run in 3 small waves (≤10 concurrent each)
+// to avoid saturating MongoDB Atlas connection pool. 60s server-side cache.
+// ══════════════════════════════════════════════════════════════════════════════
+
+const _dashCache = new Map(); // key → { ts, data }
+const DASH_CACHE_TTL = 60_000; // 60 seconds
+
+function dashDateFilter(range = '30d') {
+  const now = new Date();
+  const ms = { '24h': 86400000, '7d': 604800000, '30d': 2592000000, '90d': 7776000000 };
+  return { since: new Date(now.getTime() - (ms[range] || ms['30d'])), until: now };
+}
+
+// Helper: safely extract value from allSettled result
+function settled(r, fallback = null) {
+  return r.status === 'fulfilled' ? r.value : fallback;
+}
+
+router.get('/dashboard-summary',
+  requireEcomAuth,
+  requireSuperAdmin,
+  async (req, res) => {
+    try {
+      const { range = '30d' } = req.query;
+      const cacheKey = range;
+
+      // ── Serve from in-memory cache ─────────────────────────────────────────
+      const cached = _dashCache.get(cacheKey);
+      if (cached && Date.now() - cached.ts < DASH_CACHE_TTL) {
+        return res.json({ success: true, data: cached.data, cached: true });
+      }
+
+      const { since, until } = dashDateFilter(range);
+      const now = new Date();
+      const day1  = new Date(now.getTime() - 86400000);
+      const day7  = new Date(now.getTime() - 604800000);
+      const day30 = new Date(now.getTime() - 2592000000);
+
+      // ── WAVE 1: Fast count queries + core user/workspace aggregates ────────
+      // Max ~10 concurrent operations. allSettled so one failure doesn't kill all.
+      const wave1 = await Promise.allSettled([
+        // [0] User stats in one aggregate (byRole + totals)
+        EcomUser.aggregate([
+          { $group: { _id: '$role', total: { $sum: 1 }, active: { $sum: { $cond: ['$isActive', 1, 0] } }, neverLoggedIn: { $sum: { $cond: [{ $eq: ['$lastLogin', null] }, 1, 0] } } } }
+        ]),
+        // [1] Total users
+        EcomUser.countDocuments(),
+        // [2] Users with workspace
+        EcomUser.countDocuments({ workspaceId: { $ne: null } }),
+        // [3] Signups in range
+        EcomUser.countDocuments({ createdAt: { $gte: since, $lte: until } }),
+        // [4] Activated in range
+        EcomUser.countDocuments({ createdAt: { $gte: since, $lte: until }, workspaceId: { $ne: null } }),
+        // [5] Users signed up >7d ago (for retention)
+        EcomUser.countDocuments({ createdAt: { $lte: day7 } }),
+        // [6] Workspaces: top 12 for display + stats in one aggregate
+        Workspace.aggregate([
+          { $sort: { createdAt: -1 } },
+          { $limit: 200 }, // enough for stats, first 12 shown
+          { $lookup: { from: 'ecom_users', localField: 'owner', foreignField: '_id', as: '_ownerArr', pipeline: [{ $project: { email: 1, role: 1 } }] } },
+          { $addFields: { owner: { $arrayElemAt: ['$_ownerArr', 0] } } },
+          { $project: { _ownerArr: 0, __v: 0, storeSettings: 0, shopifyWebhookToken: 0, whatsappAutoProductMediaRules: 0 } },
+        ]),
+        // [7] Member counts per workspace
+        EcomUser.aggregate([{ $match: { workspaceId: { $ne: null } } }, { $group: { _id: '$workspaceId', count: { $sum: 1 } } }]),
+        // [8] Workspace count created in range
+        Workspace.countDocuments({ createdAt: { $gte: since, $lte: until } }),
+        // [9] Security + push (very fast countDocuments — batch together)
+        Promise.allSettled([
+          AuditLog.countDocuments(),
+          AuditLog.countDocuments({ createdAt: { $gte: day1 } }),
+          AuditLog.countDocuments({ action: 'LOGIN_FAILED', createdAt: { $gte: day1 } }),
+          AuditLog.findOne().sort({ createdAt: -1 }).select('createdAt').lean(),
+          PushScheduledNotification.countDocuments(),
+          PushScheduledNotification.countDocuments({ status: 'sent' }),
+          PushScheduledNotification.countDocuments({ status: 'failed' }),
+          PushScheduledNotification.countDocuments({ status: 'scheduled' }),
+        ]),
+      ]);
+
+      // ── WAVE 2: Analytics sessions + signups trends ────────────────────────
+      const wave2 = await Promise.allSettled([
+        // [0] Session KPIs
+        AnalyticsSession.aggregate([
+          { $match: { startedAt: { $gte: since, $lte: until } } },
+          { $group: { _id: null, totalSessions: { $sum: 1 }, uniqueUsers: { $addToSet: '$userId' }, totalPageViews: { $sum: '$pageViews' }, avgDuration: { $avg: '$duration' }, bounces: { $sum: { $cond: ['$isBounce', 1, 0] } } } }
+        ]),
+        // [1] Daily sessions trend
+        AnalyticsSession.aggregate([
+          { $match: { startedAt: { $gte: since, $lte: until } } },
+          { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$startedAt' } }, sessions: { $sum: 1 }, pageViews: { $sum: '$pageViews' }, uniqueUsers: { $addToSet: '$userId' } } },
+          { $sort: { _id: 1 } },
+          { $project: { date: '$_id', sessions: 1, pageViews: 1, uniqueUsers: { $size: { $filter: { input: '$uniqueUsers', cond: { $ne: ['$$this', null] } } } } } }
+        ]),
+        // [2] Daily signups trend
+        EcomUser.aggregate([
+          { $match: { createdAt: { $gte: since, $lte: until } } },
+          { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } }, count: { $sum: 1 } } },
+          { $sort: { _id: 1 } }
+        ]),
+        // [3] DAU
+        AnalyticsEvent.aggregate([{ $match: { createdAt: { $gte: day1 }, userId: { $ne: null } } }, { $group: { _id: null, users: { $addToSet: '$userId' } } }]),
+        // [4] WAU
+        AnalyticsEvent.aggregate([{ $match: { createdAt: { $gte: day7 }, userId: { $ne: null } } }, { $group: { _id: null, users: { $addToSet: '$userId' } } }]),
+        // [5] MAU
+        AnalyticsEvent.aggregate([{ $match: { createdAt: { $gte: day30 }, userId: { $ne: null } } }, { $group: { _id: null, users: { $addToSet: '$userId' } } }]),
+        // [6] Retained users (7d retention)
+        AnalyticsEvent.aggregate([
+          { $match: { createdAt: { $gte: day7 }, userId: { $ne: null } } },
+          { $lookup: { from: 'ecom_users', localField: 'userId', foreignField: '_id', as: 'u', pipeline: [{ $project: { createdAt: 1 } }] } },
+          { $unwind: '$u' },
+          { $match: { 'u.createdAt': { $lte: day7 } } },
+          { $group: { _id: null, users: { $addToSet: '$userId' } } }
+        ]),
+        // [7] Funnel: visitors count
+        AnalyticsSession.aggregate([{ $match: { startedAt: { $gte: since, $lte: until } } }, { $group: { _id: null, count: { $sum: 1 } } }]),
+        // [8] Funnel: verified users in range
+        EcomUser.countDocuments({ createdAt: { $gte: since, $lte: until }, lastLogin: { $ne: null } }),
+        // [9] Funnel: active users (business events)
+        AnalyticsEvent.aggregate([
+          { $match: { createdAt: { $gte: since, $lte: until }, eventType: { $in: ['order_created','order_updated','delivery_completed','transaction_created','product_created','report_viewed'] }, userId: { $ne: null } } },
+          { $group: { _id: null, users: { $addToSet: '$userId' } } }
+        ]),
+      ]);
+
+      // ── WAVE 3: Traffic, geo, pages, activity ─────────────────────────────
+      const wave3 = await Promise.allSettled([
+        // [0] Traffic by device
+        AnalyticsSession.aggregate([
+          { $match: { startedAt: { $gte: since, $lte: until } } },
+          { $group: { _id: '$device', sessions: { $sum: 1 }, pageViews: { $sum: '$pageViews' }, avgDuration: { $avg: '$duration' }, bounces: { $sum: { $cond: ['$isBounce', 1, 0] } } } },
+          { $sort: { sessions: -1 } }
+        ]),
+        // [1] Traffic by browser
+        AnalyticsSession.aggregate([
+          { $match: { startedAt: { $gte: since, $lte: until } } },
+          { $group: { _id: '$browser', sessions: { $sum: 1 }, pageViews: { $sum: '$pageViews' } } },
+          { $sort: { sessions: -1 } }, { $limit: 10 }
+        ]),
+        // [2] Traffic by OS
+        AnalyticsSession.aggregate([
+          { $match: { startedAt: { $gte: since, $lte: until } } },
+          { $group: { _id: '$os', sessions: { $sum: 1 } } },
+          { $sort: { sessions: -1 } }, { $limit: 10 }
+        ]),
+        // [3] Daily traffic
+        AnalyticsSession.aggregate([
+          { $match: { startedAt: { $gte: since, $lte: until } } },
+          { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$startedAt' } }, sessions: { $sum: 1 }, uniqueUsers: { $addToSet: '$userId' }, pageViews: { $sum: '$pageViews' }, avgDuration: { $avg: '$duration' } } },
+          { $sort: { _id: 1 } },
+          { $project: { date: '$_id', sessions: 1, pageViews: 1, avgDuration: 1, uniqueUsers: { $size: { $filter: { input: '$uniqueUsers', cond: { $ne: ['$$this', null] } } } } } }
+        ]),
+        // [4] Countries
+        AnalyticsSession.aggregate([
+          { $match: { startedAt: { $gte: since, $lte: until }, country: { $ne: null } } },
+          { $group: { _id: '$country', sessions: { $sum: 1 }, pageViews: { $sum: '$pageViews' }, avgDuration: { $avg: '$duration' }, uniqueUsers: { $addToSet: '$userId' } } },
+          { $sort: { sessions: -1 } }, { $limit: 20 },
+          { $project: { country: '$_id', sessions: 1, pageViews: 1, avgDuration: { $round: ['$avgDuration', 0] }, uniqueUsers: { $size: { $filter: { input: '$uniqueUsers', cond: { $ne: ['$$this', null] } } } } } }
+        ]),
+        // [5] Top pages
+        AnalyticsEvent.aggregate([
+          { $match: { createdAt: { $gte: since, $lte: until }, eventType: 'page_view', page: { $ne: null } } },
+          { $group: { _id: '$page', views: { $sum: 1 }, uniqueUsers: { $addToSet: '$userId' } } },
+          { $sort: { views: -1 } }, { $limit: 20 },
+          { $project: { page: '$_id', views: 1, uniqueUsers: { $size: { $filter: { input: '$uniqueUsers', cond: { $ne: ['$$this', null] } } } } } }
+        ]),
+        // [6] Daily active users
+        AnalyticsEvent.aggregate([
+          { $match: { createdAt: { $gte: since, $lte: until }, userId: { $ne: null } } },
+          { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } }, activeUsers: { $addToSet: '$userId' }, events: { $sum: 1 } } },
+          { $sort: { _id: 1 } },
+          { $project: { date: '$_id', activeUsers: { $size: '$activeUsers' }, events: 1 } }
+        ]),
+      ]);
+
+      // ── Unpack wave1 ───────────────────────────────────────────────────────
+      const userRoleAgg    = settled(wave1[0], []);
+      const totalUsers     = settled(wave1[1], 0);
+      const usersWithWs    = settled(wave1[2], 0);
+      const signups        = settled(wave1[3], 0);
+      const activatedUsers = settled(wave1[4], 0);
+      const signedUp7dAgo  = settled(wave1[5], 0);
+      const workspacesList = settled(wave1[6], []);
+      const memberCounts   = settled(wave1[7], []);
+      const workspacesCreated = settled(wave1[8], 0);
+      const secPushResults = settled(wave1[9], []);
+
+      // Flatten userRoleAgg into stats
+      let totalActive = 0, totalInactive = 0, neverLoggedIn = 0;
+      const byRole = userRoleAgg.map(r => {
+        totalActive   += r.active || 0;
+        totalInactive += (r.total - r.active) || 0;
+        neverLoggedIn += r.neverLoggedIn || 0;
+        return { _id: r._id, count: r.total };
+      });
+      const userStatsFull = { byRole, totalUsers, totalActive, totalInactive, neverLoggedIn };
+
+      // Workspaces with member counts
+      const memberMap = {};
+      memberCounts.forEach(m => { memberMap[String(m._id)] = m.count; });
+      const workspacesWithCounts = workspacesList.map(ws => ({ ...ws, memberCount: memberMap[String(ws._id)] || 0 }));
+      const totalWorkspaces = workspacesWithCounts.length;
+      const totalActiveWs = workspacesWithCounts.filter(w => w.isActive).length;
+      const totalMembers = workspacesWithCounts.reduce((s, w) => s + (w.memberCount || 0), 0);
+
+      // Security & push
+      const sp = secPushResults.map ? secPushResults : [];
+      const totalLogs    = settled(sp[0], 0);
+      const last24h      = settled(sp[1], 0);
+      const failedLogins = settled(sp[2], 0);
+      const lastActivity = settled(sp[3], null);
+      const pushTotal    = settled(sp[4], 0);
+      const pushSent     = settled(sp[5], 0);
+      const pushFailed   = settled(sp[6], 0);
+      const pushScheduled = settled(sp[7], 0);
+
+      // ── Unpack wave2 ───────────────────────────────────────────────────────
+      const sessionStatsArr = settled(wave2[0], []);
+      const dailySessions   = settled(wave2[1], []);
+      const dailySignups    = settled(wave2[2], []);
+      const dauResult       = settled(wave2[3], []);
+      const wauResult       = settled(wave2[4], []);
+      const mauResult       = settled(wave2[5], []);
+      const retainedResult  = settled(wave2[6], []);
+      const funnelVisitors  = settled(wave2[7], []);
+      const funnelVerified  = settled(wave2[8], 0);
+      const funnelActive    = settled(wave2[9], []);
+
+      const ss = sessionStatsArr[0];
+      const totalSessions = ss?.totalSessions || 0;
+      const uniqueVisitors = (ss?.uniqueUsers || []).filter(Boolean).length;
+      const totalPageViews = ss?.totalPageViews || 0;
+      const avgSessionDuration = Math.round(ss?.avgDuration || 0);
+      const bounceRate = totalSessions > 0 ? Math.round(((ss?.bounces || 0) / totalSessions) * 100) : 0;
+      const dau = dauResult[0]?.users?.length || 0;
+      const wau = wauResult[0]?.users?.length || 0;
+      const mau = mauResult[0]?.users?.length || 0;
+      const conversionSignup = uniqueVisitors > 0 ? Math.round((signups / uniqueVisitors) * 100) : 0;
+      const conversionActivation = totalUsers > 0 ? Math.round((usersWithWs / totalUsers) * 100) : 0;
+      const retained = retainedResult[0]?.users?.length || 0;
+      const retention7d = signedUp7dAgo > 0 ? Math.round((retained / signedUp7dAgo) * 100) : 0;
+
+      // Funnel
+      const fVisitors  = funnelVisitors[0]?.count || 0;
+      const fAccounts  = signups;
+      const fJoined    = activatedUsers;
+      const fActiveU   = funnelActive[0]?.users?.length || 0;
+      const funnelSteps = [
+        { step: 'Visiteurs',          count: fVisitors,  rate: 100 },
+        { step: 'Comptes créés',      count: fAccounts,  rate: fVisitors > 0  ? Math.round((fAccounts  / fVisitors)  * 100) : 0 },
+        { step: 'Email vérifié',      count: funnelVerified, rate: fAccounts > 0 ? Math.round((funnelVerified / fAccounts) * 100) : 0 },
+        { step: 'Workspace rejoint',  count: fJoined,    rate: funnelVerified > 0 ? Math.round((fJoined / funnelVerified) * 100) : 0 },
+        { step: 'Utilisateur actif',  count: fActiveU,   rate: fJoined > 0 ? Math.round((fActiveU / fJoined) * 100) : 0 },
+      ];
+      const dropoffs = funnelSteps.slice(1).map((step, i) => {
+        const prev = funnelSteps[i];
+        const lost = prev.count - step.count;
+        return { from: prev.step, to: step.step, lost, dropRate: prev.count > 0 ? Math.round((lost / prev.count) * 100) : 0 };
+      });
+
+      // ── Unpack wave3 ───────────────────────────────────────────────────────
+      const trafficByDevice  = settled(wave3[0], []);
+      const trafficByBrowser = settled(wave3[1], []);
+      const trafficByOS      = settled(wave3[2], []);
+      const trafficDaily     = settled(wave3[3], []);
+      const countriesRaw     = settled(wave3[4], []);
+      const pagesRaw         = settled(wave3[5], []);
+      const activityDaily    = settled(wave3[6], []);
+
+      // ── Assemble final payload ─────────────────────────────────────────────
+      const data = {
+        users: {
+          // No full user list — dashboard only needs stats + neverLoggedIn count
+          users: [], // kept for shape compatibility; full list via /users endpoint
+          stats: userStatsFull,
+        },
+        workspaces: {
+          workspaces: workspacesWithCounts,
+          totalWorkspaces,
+          totalActive: totalActiveWs,
+          totalMembers,
+        },
+        overview: {
+          kpis: { totalSessions, uniqueVisitors, totalPageViews, avgSessionDuration, bounceRate, signups, activatedUsers, workspacesCreated, dau, wau, mau, conversionSignup, conversionActivation, retention7d },
+          trends: { dailySessions, dailySignups }
+        },
+        funnel: { funnel: funnelSteps, dropoffs },
+        traffic: { byDevice: trafficByDevice, byBrowser: trafficByBrowser, byOS: trafficByOS, daily: trafficDaily },
+        countries: countriesRaw,
+        pages: pagesRaw,
+        activity: { daily: activityDaily },
+        security: {
+          measures: [
+            { id: 'encryption', name: 'Chiffrement mots de passe', status: 'active', type: 'bcrypt (12 rounds)', desc: 'Irréversible — même les admins ne peuvent pas lire les mots de passe' },
+            { id: 'tls', name: 'Chiffrement en transit', status: 'active', type: 'HTTPS/TLS', desc: 'Toutes les communications sont chiffrées' },
+            { id: 'aes', name: 'Chiffrement données sensibles', status: 'active', type: 'AES-256-GCM', desc: 'Données sensibles chiffrées dans la base de données' },
+            { id: 'isolation', name: 'Isolation des workspaces', status: 'active', type: 'Filtrage MongoDB', desc: 'Chaque espace est cloisonné au niveau de la base de données' },
+            { id: 'rbac', name: "Contrôle d'accès par rôle", status: 'active', type: 'RBAC', desc: 'Principe du moindre privilège appliqué' },
+            { id: 'audit', name: "Journalisation d'audit", status: 'active', type: 'Logs immuables', desc: 'Chaque action est tracée et ne peut être ni modifiée ni supprimée' },
+            { id: 'headers', name: 'Headers de sécurité HTTP', status: 'active', type: 'HSTS, CSP, XSS', desc: 'Protection contre XSS, clickjacking, sniffing' },
+            { id: 'ratelimit', name: 'Protection brute force', status: 'active', type: 'Rate limiting', desc: 'Limitation des tentatives de connexion' },
+            { id: 'nocookies', name: 'Zéro cookie tracking', status: 'active', type: 'JWT uniquement', desc: 'Aucun cookie publicitaire ni outil de suivi tiers' },
+            { id: 'masking', name: 'Masquage des données', status: 'active', type: 'Data masking', desc: 'Les données sensibles sont masquées dans les réponses API' },
+          ],
+          stats: { totalAuditLogs: totalLogs, last24hActions: last24h, failedLoginsLast24h: failedLogins, lastActivity: lastActivity?.createdAt || null }
+        },
+        push: { total: pushTotal, sent: pushSent, failed: pushFailed, scheduled: pushScheduled },
+      };
+
+      _dashCache.set(cacheKey, { ts: Date.now(), data });
+      res.json({ success: true, data, cached: false });
+    } catch (error) {
+      console.error('[SuperAdmin] dashboard-summary error:', error);
+      res.status(500).json({ success: false, message: 'Erreur serveur' });
+    }
+  }
+);
+
+// ──────────────────────────────────────────────────────────────────────────────
+// GET /api/ecom/super-admin/boutique-stats?workspaceId=&storeId=
+// Stats d'une boutique par période (jour/semaine/mois) + top 3 vendeurs (closers)
+// ──────────────────────────────────────────────────────────────────────────────
+router.get('/boutique-stats',
+  requireEcomAuth,
+  requireSuperAdmin,
+  async (req, res) => {
+    try {
+      const { workspaceId, storeId } = req.query;
+
+      // ── 1. Liste des boutiques/workspaces pour le sélecteur ──
+      if (!workspaceId) {
+        const [workspaces, stores] = await Promise.all([
+          Workspace.find({}, { name: 1, subdomain: 1, owner: 1, isActive: 1, storeSettings: 1 })
+            .limit(500).lean(),
+          Store.find({}, { workspaceId: 1, name: 1, subdomain: 1, isActive: 1, storeSettings: 1 })
+            .limit(500).lean(),
+        ]);
+        return res.json({ success: true, data: { workspaces, stores } });
+      }
+
+      // ── 2. Périodes ──
+      const now = new Date();
+      const startOfDay   = new Date(now); startOfDay.setHours(0,0,0,0);
+      const startOfWeek  = new Date(now); startOfWeek.setDate(now.getDate() - now.getDay() + (now.getDay() === 0 ? -6 : 1)); startOfWeek.setHours(0,0,0,0);
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+      const wid = new mongoose.Types.ObjectId(workspaceId);
+      const baseMatch = { workspaceId: wid };
+      if (storeId) {
+        try { baseMatch.storeId = new mongoose.Types.ObjectId(storeId); } catch (_) {}
+      }
+
+      const periodStats = async (since) => {
+        const match = { ...baseMatch, createdAt: { $gte: since, $lte: now } };
+        const [orders, ordersByStatus, revenue] = await Promise.all([
+          Order.countDocuments(match),
+          Order.aggregate([
+            { $match: match },
+            { $group: { _id: '$status', count: { $sum: 1 }, revenue: { $sum: { $ifNull: ['$price', 0] } } } },
+          ]),
+          Order.aggregate([
+            { $match: { ...match, status: { $in: ['livré', 'delivered', 'livrée', 'livree', 'confirmé', 'confirmed'] } } },
+            { $group: { _id: null, total: { $sum: { $ifNull: ['$price', 0] } } } },
+          ]),
+        ]);
+        const byStatus = {};
+        ordersByStatus.forEach(s => { byStatus[s._id || 'unknown'] = { count: s.count, revenue: s.revenue || 0 }; });
+        return {
+          orders,
+          revenue: revenue[0]?.total || 0,
+          byStatus,
+          confirmed: (byStatus['confirmé']?.count || 0) + (byStatus['confirmed']?.count || 0) + (byStatus['livré']?.count || 0) + (byStatus['delivered']?.count || 0) + (byStatus['livrée']?.count || 0),
+        };
+      };
+
+      // ── 3. Top 3 closers/vendeurs ──
+      const top3Closer = async (since) => {
+        return Order.aggregate([
+          { $match: { ...baseMatch, closerId: { $ne: null }, createdAt: { $gte: since, $lte: now } } },
+          { $group: {
+            _id: '$closerId',
+            orders: { $sum: 1 },
+            sold: { $sum: { $cond: [{ $in: ['$closerStatus', ['sold']] }, 1, 0] } },
+            revenue: { $sum: { $ifNull: ['$price', 0] } },
+          }},
+          { $sort: { sold: -1, orders: -1 } },
+          { $limit: 3 },
+          { $lookup: { from: 'ecom_users', localField: '_id', foreignField: '_id', as: 'user', pipeline: [{ $project: { name: 1, email: 1, role: 1 } }] } },
+          { $unwind: { path: '$user', preserveNullAndEmptyArrays: true } },
+          { $project: { userId: '$_id', name: '$user.name', email: '$user.email', role: '$user.role', orders: 1, sold: 1, revenue: 1 } },
+        ]);
+      };
+
+      const [day, week, month, topDay, topWeek, topMonth, workspace, store] = await Promise.all([
+        periodStats(startOfDay),
+        periodStats(startOfWeek),
+        periodStats(startOfMonth),
+        top3Closer(startOfDay),
+        top3Closer(startOfWeek),
+        top3Closer(startOfMonth),
+        Workspace.findById(workspaceId, { name: 1, subdomain: 1, storeSettings: 1, isActive: 1 }).lean(),
+        storeId ? Store.findById(storeId, { name: 1, subdomain: 1, storeSettings: 1, isActive: 1 }).lean() : null,
+      ]);
+
+      // ── 4. Toutes les commandes du jour pour le feed ──
+      const todayOrders = await Order.find(
+        { ...baseMatch, createdAt: { $gte: startOfDay } },
+        { customerName: 1, clientName: 1, product: 1, price: 1, status: 1, closerId: 1, closerStatus: 1, createdAt: 1 }
+      ).sort({ createdAt: -1 }).limit(50).lean();
+
+      res.json({
+        success: true,
+        data: {
+          workspace,
+          store,
+          day,   topDay,
+          week,  topWeek,
+          month, topMonth,
+          todayOrders,
+        }
+      });
+    } catch (error) {
+      console.error('[SuperAdmin] boutique-stats error:', error);
+      res.status(500).json({ success: false, message: 'Erreur serveur' });
+    }
+  }
+);
 
 export default router;
