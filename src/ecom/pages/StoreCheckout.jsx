@@ -163,6 +163,12 @@ const StoreCheckout = () => {
     };
   }, [form.country, form.city, hasDeliveryConfig, deliveryCountries, deliveryZones]);
 
+  const cityOptions = useMemo(() => {
+    if (!hasDeliveryConfig || !form.country) return [];
+    const countryZones = deliveryZones.filter(z => z.country.toLowerCase() === form.country.trim().toLowerCase());
+    return [...new Set(countryZones.map(z => z.city).filter(Boolean))];
+  }, [hasDeliveryConfig, form.country, deliveryZones]);
+
   useEffect(() => {
     captureAffiliateAttributionFromSearch(location.search);
   }, [location.search]);
@@ -836,17 +842,35 @@ const StoreCheckout = () => {
                 <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Ville {hasDeliveryConfig ? '*' : ''}</label>
                 <div className="field-row has-icon">
                   <span className="field-icon"><MapPin className="w-3.5 h-3.5" style={{ color: fieldIconColor }} /></span>
-                  <input
-                    type="text"
-                    value={form.city}
-                    onChange={(e) => handleChange('city', e.target.value)}
-                    placeholder={activePlaceholders.city}
-                    required={hasDeliveryConfig}
-                    className="checkout-input w-full py-3 border text-sm font-medium transition-all"
-                    style={{ ...inputStyle('city'), borderRadius: '12px' }}
-                    onFocus={() => setFocusedField('city')}
-                    onBlur={() => setFocusedField(null)}
-                  />
+                  {cityOptions.length > 0 ? (
+                    <div className="relative w-full">
+                      <select
+                        value={form.city}
+                        onChange={(e) => handleChange('city', e.target.value)}
+                        required={hasDeliveryConfig}
+                        className="checkout-input w-full py-3 border text-sm font-medium transition-all appearance-none"
+                        style={{ ...inputStyle('city'), borderRadius: '12px', paddingRight: '32px' }}
+                        onFocus={() => setFocusedField('city')}
+                        onBlur={() => setFocusedField(null)}
+                      >
+                        <option value="">{activePlaceholders.city || 'Sélectionnez votre ville'}</option>
+                        {cityOptions.map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                      <ChevronDown className="w-3.5 h-3.5 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: fieldIconColor }} />
+                    </div>
+                  ) : (
+                    <input
+                      type="text"
+                      value={form.city}
+                      onChange={(e) => handleChange('city', e.target.value)}
+                      placeholder={activePlaceholders.city}
+                      required={hasDeliveryConfig}
+                      className="checkout-input w-full py-3 border text-sm font-medium transition-all"
+                      style={{ ...inputStyle('city'), borderRadius: '12px' }}
+                      onFocus={() => setFocusedField('city')}
+                      onBlur={() => setFocusedField(null)}
+                    />
+                  )}
                 </div>
               </div>
               <div>

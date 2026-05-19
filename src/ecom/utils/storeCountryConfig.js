@@ -8,7 +8,7 @@ const COUNTRY_CITY_PRESETS = {
   'Senegal': ['Dakar', 'Thies', 'Saint-Louis', 'Ziguinchor', 'Kaolack', 'Mbour', 'Rufisque', 'Tambacounda', 'Richard-Toll', 'Louga'],
   'Gabon': ['Libreville', 'Port-Gentil', 'Franceville', 'Oyem', 'Moanda', 'Lambarene', 'Mouila', 'Tchibanga'],
   'Congo': ['Brazzaville', 'Pointe-Noire', 'Dolisie', 'Nkayi', 'Owando', 'Ouesso', 'Impfondo'],
-  'RDC': ['Kinshasa', 'Lubumbashi', 'Mbuji-Mayi', 'Kananga', 'Kisangani', 'Goma', 'Bukavu', 'Tshikapa', 'Kolwezi'],
+  'RD Congo': ['Kinshasa', 'Lubumbashi', 'Mbuji-Mayi', 'Kananga', 'Kisangani', 'Goma', 'Bukavu', 'Tshikapa', 'Kolwezi'],
   'Mali': ['Bamako', 'Sikasso', 'Mopti', 'Koutiala', 'Segou', 'Kayes', 'Gao', 'Kati'],
   'Guinee': ['Conakry', 'Nzerekore', 'Kankan', 'Kindia', 'Labe', 'Mamou', 'Boke', 'Siguiri'],
   'Togo': ['Lome', 'Kara', 'Sokode', 'Atakpame', 'Kpalime', 'Dapaong', 'Tsevie'],
@@ -104,6 +104,16 @@ const normalizeCountryToken = (value) => String(value || '')
   .replace(/[^a-z0-9]+/g, ' ')
   .trim();
 
+const lookupByNormalizedKey = (map, key) => {
+  if (!key) return undefined;
+  if (map[key] !== undefined) return map[key];
+  const token = normalizeCountryToken(key);
+  for (const k of Object.keys(map)) {
+    if (normalizeCountryToken(k) === token) return map[k];
+  }
+  return undefined;
+};
+
 const dedupeStrings = (values = []) => {
   const seen = new Set();
   const next = [];
@@ -122,13 +132,17 @@ export function normalizeCountryName(value) {
   const normalized = normalizeCountryToken(trimmed);
   if (!normalized) return '';
 
-  if (COUNTRY_ALIASES[normalized]) {
-    return COUNTRY_ALIASES[normalized];
-  }
-
+  // Always prefer PHONE_CODES.name as canonical — it's what the UI displays
   const phoneCodeMatch = PHONE_CODES.find((entry) => normalizeCountryToken(entry.name) === normalized);
   if (phoneCodeMatch) {
     return phoneCodeMatch.name;
+  }
+
+  if (COUNTRY_ALIASES[normalized]) {
+    // Resolve alias then try to match PHONE_CODES again for canonical name
+    const aliasValue = COUNTRY_ALIASES[normalized];
+    const aliasPhoneMatch = PHONE_CODES.find((entry) => normalizeCountryToken(entry.name) === normalizeCountryToken(aliasValue));
+    return aliasPhoneMatch ? aliasPhoneMatch.name : aliasValue;
   }
 
   return trimmed;
@@ -173,7 +187,7 @@ export function resolvePopularCitiesMap(existingMap = {}, countries = []) {
 
   resolveFormCountries(countries).forEach((country) => {
     if (!Array.isArray(next[country]) || next[country].length === 0) {
-      next[country] = COUNTRY_CITY_PRESETS[country] || [];
+      next[country] = lookupByNormalizedKey(COUNTRY_CITY_PRESETS, country) || [];
     }
   });
 
@@ -184,7 +198,7 @@ export function getPopularCitiesForCountry(country, customMap = {}) {
   const canonicalCountry = normalizeCountryName(country);
   if (!canonicalCountry) return [];
 
-  const presetCities = COUNTRY_CITY_PRESETS[canonicalCountry] || [];
+  const presetCities = lookupByNormalizedKey(COUNTRY_CITY_PRESETS, canonicalCountry) || [];
   const customCities = Array.isArray(customMap?.[canonicalCountry]) ? customMap[canonicalCountry] : [];
 
   return dedupeStrings([...customCities, ...presetCities]);
@@ -209,9 +223,9 @@ export function getCountryFormPlaceholders(country) {
   const cityExample = cities[0] || 'Votre ville';
 
   return {
-    phone: COUNTRY_PHONE_PLACEHOLDERS[canonicalCountry] || '6XX XXX XXX',
+    phone: lookupByNormalizedKey(COUNTRY_PHONE_PLACEHOLDERS, canonicalCountry) || '6XX XXX XXX',
     city: `Ex : ${cityExample}`,
-    address: COUNTRY_ADDRESS_PLACEHOLDERS[canonicalCountry] || 'Quartier, rue, repere...',
+    address: lookupByNormalizedKey(COUNTRY_ADDRESS_PLACEHOLDERS, canonicalCountry) || 'Quartier, rue, repere...',
   };
 }
 

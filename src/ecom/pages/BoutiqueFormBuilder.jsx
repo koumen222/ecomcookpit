@@ -869,6 +869,28 @@ const FormPreview = ({ config, offersPreview = null, shopColor = '#0F6B4F' }) =>
             <span className="text-xs" style={{ color: field.subtextColor || '#6b7280' }}>— {field.shippingNote || 'vous payez à la réception'}</span>
           </div>
         );
+      case 'phone': {
+        const configCountries = config.general?.countries || [];
+        const firstCode = configCountries.length > 0
+          ? PHONE_CODES.find(c => c.name === configCountries[0]) || PHONE_CODES[0]
+          : PHONE_CODES[0];
+        return (
+          <div key={i} className="flex gap-1.5">
+            <div className="border h-12 flex items-center gap-1 px-2.5 flex-shrink-0"
+              style={{ borderColor, backgroundColor: fieldBg, borderRadius: fieldRadius, borderWidth: formBorderWidth }}>
+              <span className="text-sm">{firstCode.label.split(' ')[0]}</span>
+              <span className="text-xs font-bold text-gray-700">{firstCode.code}</span>
+              <ChevronDown size={12} className="text-gray-400" />
+            </div>
+            <div className="border h-12 flex-1 flex items-center gap-0 overflow-hidden"
+              style={{ borderColor, backgroundColor: fieldBg, borderRadius: fieldRadius, borderWidth: formBorderWidth }}>
+              <div className="flex-1 px-3 flex items-center">
+                <span className="text-sm" style={{ color: '#9ca3af' }}>{field.placeholder || 'Numéro de téléphone'}{field.required ? ' *' : ''}</span>
+              </div>
+            </div>
+          </div>
+        );
+      }
       case 'textarea':
         return (
           <div key={i} className="border flex items-start gap-0 overflow-hidden"

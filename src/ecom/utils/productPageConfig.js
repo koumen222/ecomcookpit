@@ -61,13 +61,26 @@ export function buildMergedProductPageConfig(storeConfig, productConfig) {
   const store = cloneOrFallback(storeConfig, {});
   const product = cloneOrFallback(productConfig, {});
 
+  const storeGeneral = store.general || {};
+  const productGeneral = product.general || {};
+
+  // Form-builder fields: store-level takes priority (configured globally via form builder)
+  const formBuilderOverrides = {};
+  if (Array.isArray(storeGeneral.countries) && storeGeneral.countries.length > 0) {
+    formBuilderOverrides.countries = storeGeneral.countries;
+  }
+  if (storeGeneral.formType !== undefined) {
+    formBuilderOverrides.formType = storeGeneral.formType;
+  }
+
   return {
     ...store,
     ...product,
     general: {
-      ...(store.general || {}),
-      ...(product.general || {}),
-      sections: mergeInheritedProductPageSections(store.general?.sections, product.general?.sections),
+      ...storeGeneral,
+      ...productGeneral,
+      ...formBuilderOverrides,
+      sections: mergeInheritedProductPageSections(storeGeneral.sections, productGeneral.sections),
     },
     design: {
       ...(store.design || {}),

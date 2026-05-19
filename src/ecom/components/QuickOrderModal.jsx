@@ -82,8 +82,12 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
   const orderFormContext = useMemo(() => resolveOrderFormContext({ store, generalConfig }), [store, generalConfig]);
   const formCountries = orderFormContext.countries;
   const storeCountry = resolveStoreCountry(store);
+  const phoneCountry = useMemo(() => {
+    const entry = PHONE_CODES.find(c => c.code === phoneCode);
+    return entry ? entry.name : '';
+  }, [phoneCode]);
   const selectedCountry = resolveSelectedOrderCountry({
-    explicitCountry: getSelectedCountryValue(effectiveFields, form),
+    explicitCountry: getSelectedCountryValue(effectiveFields, form) || phoneCountry,
     configuredCountries: formCountries,
     storeCountry,
   });
@@ -93,7 +97,12 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
         ? deliveryZoneOptions.filter((zone) => findMatchingCountryOption(selectedCountry, [zone.country]))
         : deliveryZoneOptions;
       const source = matchingZones.length > 0 ? matchingZones : deliveryZoneOptions;
-      return [...new Set(source.map((zone) => zone.city).filter(Boolean))];
+      const cities = source.flatMap((zone) => {
+        const raw = zone.city || '';
+        if (raw.includes(',')) return [raw.split(',')[0].trim()];
+        return [raw];
+      }).filter(Boolean);
+      return [...new Set(cities)];
     }
 
     return getPopularCitiesForCountries(selectedCountry ? [selectedCountry] : formCountries, orderFormContext.popularCities);
@@ -154,6 +163,32 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
       setPhoneCode(nextPhoneCode);
     }
   }, [selectedCountry, phoneCode]);
+
+  const availablePhoneCodes = useMemo(() => {
+    if (!formCountries.length) return PHONE_CODES;
+    const configCodes = formCountries.map(c => getPhoneCodeByCountryName(c)).filter(Boolean);
+    if (!configCodes.length) return PHONE_CODES;
+    const filtered = PHONE_CODES.filter(c => configCodes.includes(c.code));
+    return filtered.length > 0 ? filtered : PHONE_CODES;
+  }, [formCountries]);
+
+  useEffect(() => {
+    if (availablePhoneCodes.length > 0 && !availablePhoneCodes.find(c => c.code === phoneCode)) {
+      setPhoneCode(availablePhoneCodes[0].code);
+    }
+  }, [availablePhoneCodes, phoneCode]);
+
+  useEffect(() => {
+    if (phoneCountry && form.city) {
+      const cityField = effectiveFields.find(f => f.type === 'city_select' && f.enabled !== false);
+      if (cityField) {
+        const key = FIELD_KEY_MAP[cityField.name] || cityField.name;
+        if (form[key] && !cityOptions.includes(form[key])) {
+          setForm(prev => ({ ...prev, [key]: '' }));
+        }
+      }
+    }
+  }, [cityOptions]);
 
   const configQuantities = conversionConfig.quantities || [];
   const useQuantityButtons = configQuantities.length > 0;
@@ -494,17 +529,19 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
                 );
 
               case 'phone': {
-                const phoneEntry = PHONE_CODES.find(p => p.code === phoneCode) || PHONE_CODES[0];
                 return (
-                  <div key={field.name} style={{ display: 'flex', gap: 6 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '0 10px', borderRadius, border: `1.5px solid ${fieldBorderColor}`, backgroundColor: '#F9FAFB', fontSize: 13, fontWeight: 700, color: '#374151', flexShrink: 0, whiteSpace: 'nowrap' }}>
-                      <span>{phoneEntry.label.split(' ')[0]}</span>
-                      <span>{phoneCode}</span>
+                  <div key={field.name} style={{ display: 'flex', gap: 0 }}>
+                    <div style={{ position: 'relative', flexShrink: 0 }}>
+                      <select value={phoneCode} onChange={e => setPhoneCode(e.target.value)}
+                        style={{ appearance: 'none', WebkitAppearance: 'none', padding: '11px 28px 11px 10px', borderRadius: `${borderRadius} 0 0 ${borderRadius}`, border: `1.5px solid ${fieldBorderColor}`, borderRight: 'none', backgroundColor: '#F9FAFB', fontSize: 13, fontWeight: 700, color: '#374151', cursor: 'pointer', outline: 'none', minWidth: 90 }}>
+                        {availablePhoneCodes.map(c => <option key={c.code} value={c.code}>{c.label}</option>)}
+                      </select>
+                      <span style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: '#9CA3AF', display: 'flex' }}><ChevronDown size={13} /></span>
                     </div>
                     <input type="tel" inputMode="tel" value={form[formKey] || ''}
                       onChange={e => set(formKey, e.target.value.replace(/[^0-9\s\-+()]/g, ''))}
                       placeholder={ph} required={field.required !== false}
-                      style={{ ...inputStyle, paddingLeft: '14px' }}
+                      style={{ ...inputStyle, paddingLeft: '14px', borderTopLeftRadius: 0, borderBottomLeftRadius: 0, borderLeft: 'none' }}
                       onFocus={e => e.currentTarget.style.borderColor = btnColor}
                       onBlur={e => e.currentTarget.style.borderColor = '#E5E7EB'} />
                   </div>
@@ -529,11 +566,12 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
                 );
               }
 
-              case 'city_select':
+              case 'city_select': {
+                const showCitySelect = deliveryZoneOptions.length > 0 || (field.cityAuto !== false && cityOptions.length > 0);
                 return (
                   <div key={field.name} style={{ position: 'relative' }}>
                     {IconComp && <span style={iconStyle}><IconComp size={15} /></span>}
-                    {field.cityAuto !== false && cityOptions.length > 0 ? (<>
+                    {showCitySelect && cityOptions.length > 0 ? (<>
                       <select value={form[formKey] || ''} onChange={e => set(formKey, e.target.value)} required={field.required !== false}
                         style={{ ...inputStyle, paddingRight: 34, appearance: 'none', WebkitAppearance: 'none', cursor: 'pointer', color: form[formKey] ? inputTextColor : '#9CA3AF' }}
                         onFocus={e => e.currentTarget.style.borderColor = btnColor}
@@ -551,6 +589,7 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
                     )}
                   </div>
                 );
+              }
 
               case 'textarea':
                 return (
