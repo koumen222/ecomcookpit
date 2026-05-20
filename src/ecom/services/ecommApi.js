@@ -95,13 +95,21 @@ const _inflight = new Map();
 
 // How long to serve cached responses without re-fetching (milliseconds).
 // Endpoints can opt into longer TTLs via config._cacheTtl.
-const DEFAULT_CACHE_TTL = 20_000; // 20 s
+const DEFAULT_CACHE_TTL = 10_000; // 10 s — short enough to stay fresh, long enough to deduplicate bursts
 const CACHE_TTLS = {
-  '/super-admin/dashboard-summary': 300_000, // 5 min (also cached server-side)
+  // Super-admin (heavy aggregations, server-side cached)
+  '/super-admin/dashboard-summary': 300_000, // 5 min
   '/super-admin/dashboard-quick':   120_000, // 2 min
   '/super-admin/users':              30_000, // 30 s
   '/super-admin/workspaces':         30_000, // 30 s
   '/super-admin/settings':           60_000, // 1 min
+  // Store config — changes infrequently, served from sessionStorage on top
+  '/store-manage/config':            30_000, // 30 s
+  '/store-manage/subdomain':         30_000, // 30 s
+  // Static-ish lists
+  '/products':                       15_000, // 15 s
+  '/delivery-zones':                 60_000, // 1 min
+  '/orders/config':                  30_000, // 30 s
 };
 
 function getCacheTtl(url = '') {

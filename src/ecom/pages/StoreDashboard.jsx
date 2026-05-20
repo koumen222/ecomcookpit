@@ -116,12 +116,21 @@ function getDashboardCacheKey(workspaceId, storeId) {
   return `storeDashboard:lastMeaningful:${workspaceId || 'unknown'}${storeSuffix}`;
 }
 
+const DASHBOARD_CACHE_TTL = 30 * 60 * 1000; // 30 min
+
 function readCachedDashboard(workspaceId, storeId) {
   try {
     const raw = localStorage.getItem(getDashboardCacheKey(workspaceId, storeId));
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === 'object' ? parsed : null;
+    if (!parsed || typeof parsed !== 'object') return null;
+    // Evict stale entries
+    if (parsed._ts && Date.now() - parsed._ts > DASHBOARD_CACHE_TTL) {
+      localStorage.removeItem(getDashboardCacheKey(workspaceId, storeId));
+      return null;
+    }
+    const { _ts, ...data } = parsed;
+    return data;
   } catch {
     return null;
   }
@@ -130,7 +139,7 @@ function readCachedDashboard(workspaceId, storeId) {
 function writeCachedDashboard(workspaceId, storeId, payload) {
   if (!workspaceId || !payload || !hasMeaningfulDashboardData(payload)) return;
   try {
-    localStorage.setItem(getDashboardCacheKey(workspaceId, storeId), JSON.stringify(payload));
+    localStorage.setItem(getDashboardCacheKey(workspaceId, storeId), JSON.stringify({ ...payload, _ts: Date.now() }));
   } catch {
     // Ignore storage quota/security errors
   }

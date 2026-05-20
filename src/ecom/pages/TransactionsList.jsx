@@ -269,6 +269,20 @@ const TransactionsList = () => {
 
   useEffect(()=>{ loadTab(); }, [loadTab]);
 
+  useEffect(() => {
+    const onStoreSwitch = () => {
+      setTransactions([]);
+      setSummary({});
+      setBudgets([]);
+      setBudgetSummary({});
+      setAccountingSummary({});
+      setForecast({});
+      loadTab();
+    };
+    window.addEventListener('scalor:store-switch', onStoreSwitch);
+    return () => window.removeEventListener('scalor:store-switch', onStoreSwitch);
+  }, [loadTab]);
+
   const handleDelete = async (id) => {
     if (!window.confirm('Supprimer cette transaction ?')) return;
     try { await ecomApi.delete(`/transactions/${id}`); loadTab(); } catch (err) { setError(getContextualError(err, 'delete_transaction')); }

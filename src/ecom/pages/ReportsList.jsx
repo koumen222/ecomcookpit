@@ -71,6 +71,17 @@ const ReportsList = () => {
     loadData();
   }, [filter]);
 
+  useEffect(() => {
+    const onStoreSwitch = () => {
+      setReports([]);
+      setFinancialStats({});
+      setFilter({ dateStart: '', dateEnd: '', status: '', productId: '' });
+      setDateRangePreset('all');
+    };
+    window.addEventListener('scalor:store-switch', onStoreSwitch);
+    return () => window.removeEventListener('scalor:store-switch', onStoreSwitch);
+  }, []);
+
   const loadData = async () => {
     try {
       setLoading(true);
