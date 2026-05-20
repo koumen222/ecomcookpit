@@ -17,7 +17,7 @@ import {
   resolveSelectedOrderCountry,
 } from '../utils/storeCountryConfig.js';
 
-const _CO_TTL = 10 * 60 * 1000;
+const _CO_TTL = 2 * 60 * 1000;
 function _coRead(key) {
   try {
     const raw = sessionStorage.getItem(key);

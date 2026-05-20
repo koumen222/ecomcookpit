@@ -7,7 +7,7 @@ import { injectStoreCssVars } from '../hooks/useStoreData.js';
 import { injectPixelScripts, firePixelEvent } from '../utils/pixelTracking.js';
 import { formatMoney } from '../utils/currency.js';
 
-const _SF_TTL = 10 * 60 * 1000;
+const _SF_TTL = 2 * 60 * 1000;
 function _sfRead(key) {
   try {
     const raw = sessionStorage.getItem(key);

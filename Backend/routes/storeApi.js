@@ -156,7 +156,7 @@ async function resolveStore(subdomain) {
     isActive: true,
     'storeSettings.isStoreEnabled': true
   })
-  .select('_id workspaceId name subdomain storeSettings storeTheme storePages storeFooter storeLegalPages storePixels storePayments storeDomains storeDeliveryZones whatsappAutoConfirm whatsappOrderTemplate whatsappAutoInstanceId whatsappAutoImageUrl whatsappAutoAudioUrl whatsappAutoVideoUrl whatsappAutoDocumentUrl whatsappAutoSendOrder whatsappAutoProductMediaRules')
+  .select('_id workspaceId name subdomain storeSettings storeTheme storePages storeFooter storeLegalPages storePixels storePayments storeDomains storeDeliveryZones whatsappAutoConfirm whatsappOrderTemplate whatsappAutoInstanceId whatsappAutoImageUrl whatsappAutoAudioUrl whatsappAutoVideoUrl whatsappAutoDocumentUrl whatsappAutoSendOrder whatsappAutoProductMediaRules updatedAt')
   .lean();
 
   if (store) {
@@ -175,7 +175,7 @@ async function resolveStore(subdomain) {
     isActive: true,
     'storeSettings.isStoreEnabled': true
   })
-  .select('_id name subdomain storeSettings storeTheme storePages storeFooter storeLegalPages storePixels storePayments storeDomains storeDeliveryZones whatsappAutoConfirm whatsappOrderTemplate whatsappAutoInstanceId whatsappAutoImageUrl whatsappAutoAudioUrl whatsappAutoVideoUrl whatsappAutoDocumentUrl whatsappAutoSendOrder whatsappAutoProductMediaRules')
+  .select('_id name subdomain storeSettings storeTheme storePages storeFooter storeLegalPages storePixels storePayments storeDomains storeDeliveryZones whatsappAutoConfirm whatsappOrderTemplate whatsappAutoInstanceId whatsappAutoImageUrl whatsappAutoAudioUrl whatsappAutoVideoUrl whatsappAutoDocumentUrl whatsappAutoSendOrder whatsappAutoProductMediaRules updatedAt')
   .lean();
 
   if (workspace) {
@@ -331,14 +331,15 @@ router.get('/:subdomain', readLimiter, async (req, res) => {
         cost: zone.cost || 0,
       }));
 
-    // 90s CDN cache — store config changes are less frequent than product edits
-    setCacheHeaders(res, 90);
+    // 30s CDN cache — short enough that config changes show within one reload
+    setCacheHeaders(res, 30);
 
     res.json({
       success: true,
       data: {
         store: {
           _id: workspace._id,
+          configVersion: workspace.updatedAt ? new Date(workspace.updatedAt).getTime() : null,
           name: settings.name || settings.storeName || workspace.name,
           description: settings.description || settings.storeDescription || '',
           logo: settings.logo || settings.storeLogo || '',
@@ -464,8 +465,8 @@ router.get('/:subdomain/products', readLimiter, async (req, res) => {
       category: p.category
     }));
 
-    // Cache at Cloudflare edge — search results cached for 2 minutes only
-    setCacheHeaders(res, search ? 120 : 300);
+    // Cache at Cloudflare edge — 30s so product/stock changes reflect quickly
+    setCacheHeaders(res, search ? 30 : 60);
 
     res.json({
       success: true,
@@ -519,8 +520,8 @@ router.get('/:subdomain/products/:slug', readLimiter, async (req, res) => {
 
     const quantityOffer = await quantityOfferPromise;
 
-    // 5 minutes CDN cache — ads traffic benefits from edge caching; stale-while-revalidate handles freshness
-    setCacheHeaders(res, 300);
+    // 30s CDN cache — short enough to reflect product/design changes quickly
+    setCacheHeaders(res, 30);
 
     // Per-product-page currency/country ALWAYS override the store's global config.
     // Why: a single store can publish multiple product pages, each targeting a different market.
@@ -689,8 +690,8 @@ router.get('/:subdomain/product-page/:slug', readLimiter, async (req, res) => {
       if (quantityOffer.design) productData.quantityOfferDesign = quantityOffer.design;
     }
 
-    // 5 min CDN cache — ads traffic benefits from edge caching
-    setCacheHeaders(res, 300);
+    // 30s CDN cache — short enough to reflect design/product changes after admin saves
+    setCacheHeaders(res, 30);
 
     res.json({
       success: true,

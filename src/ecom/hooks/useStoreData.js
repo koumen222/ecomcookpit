@@ -125,7 +125,7 @@ function consumeInitialData() {
 }
 
 // ─── sessionStorage cache ─────────────────────────────────────────────────────
-const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
+const CACHE_TTL = 2 * 60 * 1000; // 2 min — short enough that admin changes show quickly
 
 function readCache(key) {
   try {
@@ -139,6 +139,15 @@ function readCache(key) {
 
 function writeCache(key, data) {
   try { sessionStorage.setItem(key, JSON.stringify({ d: data, t: Date.now() })); } catch {}
+}
+
+// If server returns a newer configVersion than what we cached, discard the cache
+function isCacheStale(cachedStore, freshStore) {
+  if (!cachedStore || !freshStore) return false;
+  const cachedV = cachedStore.configVersion;
+  const freshV = freshStore.configVersion;
+  if (!cachedV || !freshV) return false;
+  return freshV > cachedV;
 }
 
 const productPrefetchRequests = new Map();
@@ -259,6 +268,20 @@ export function useStoreData(subdomain) {
         const pixelsData = data.pixels || null;
         const footerData = data.footer || null;
         const legalPagesData = data.legalPages || null;
+
+        // If configVersion changed (admin saved changes), purge all product caches for this store
+        if (cacheKey && isCacheStale(bootstrap?.store, storeData)) {
+          try {
+            const prefix = `sfp_${subdomain}_`;
+            const toRemove = [];
+            for (let i = 0; i < sessionStorage.length; i++) {
+              const k = sessionStorage.key(i);
+              if (k && k.startsWith(prefix)) toRemove.push(k);
+            }
+            toRemove.forEach(k => sessionStorage.removeItem(k));
+          } catch {}
+        }
+
         if (cacheKey) writeCache(cacheKey, { store: storeData, sections: sectionsData, products: productsData, pixels: pixelsData, footer: footerData, legalPages: legalPagesData });
 
         injectStoreCssVars(storeData);
