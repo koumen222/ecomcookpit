@@ -4,6 +4,7 @@ import StoreAnalytics from '../models/StoreAnalytics.js';
 import StoreOrder from '../models/StoreOrder.js';
 import Order from '../models/Order.js';
 import Store from '../models/Store.js';
+import EcomWorkspace from '../models/Workspace.js';
 import { requireEcomAuth } from '../middleware/ecomAuth.js';
 import { convertCurrency } from '../utils/currencyConvert.js';
 
@@ -191,8 +192,21 @@ router.get('/dashboard', requireEcomAuth, async (req, res) => {
     const activeStoreId = useAllStores ? null : req.activeStoreId;
     if (activeStoreId) {
       const store = await Store.findById(activeStoreId).select('subdomain').lean();
-      storeSubdomain = store?.subdomain || null;
+      if (store?.subdomain) {
+        storeSubdomain = store.subdomain;
+      } else {
+        // Legacy model: subdomain lives on the workspace document, not the store
+        const ws = await EcomWorkspace.findById(workspaceId).select('subdomain').lean();
+        storeSubdomain = ws?.subdomain || null;
+      }
     }
+
+    console.log('[DASHBOARD] workspaceId:', workspaceId, '| activeStoreId:', activeStoreId, '| storeSubdomain:', storeSubdomain, '| useAllStores:', useAllStores);
+
+    // Quick count to verify data exists before full aggregation
+    const rawCount = await StoreAnalytics.countDocuments({ workspaceId, timestamp: { $gte: start, $lte: end } });
+    const subdomainCount = storeSubdomain ? await StoreAnalytics.countDocuments({ workspaceId, subdomain: storeSubdomain, timestamp: { $gte: start, $lte: end } }) : null;
+    console.log('[DASHBOARD] raw analytics count (no subdomain filter):', rawCount, '| with subdomain filter:', subdomainCount);
 
     // Récupérer les stats analytics (filtrées par subdomain si store actif)
     const analyticsStats = await StoreAnalytics.getStoreDashboardStats(
