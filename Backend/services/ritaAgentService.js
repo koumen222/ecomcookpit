@@ -3759,7 +3759,14 @@ function buildCompactSystemPrompt(config, context = {}) {
   let expeditionSection = '';
   if (config.expeditionEnabled && config.expeditionCities?.length) {
     const agencies = (config.expeditionAgencies || []).filter(a => a.available !== false && a.name);
-    expeditionSection = `\nEXPÉDITION PAR AGENCE activée pour: ${config.expeditionCities.join(', ')}.${agencies.length ? ` Agences dispo: ${agencies.map(a => a.name + (a.estimatedCost ? ` (${a.estimatedCost})` : '')).join(', ')}.` : ''} Dans ces villes → paiement EN AVANCE obligatoire, client récupère à l'agence. Utilise [PAYMENT_COORDS] pour envoyer les coordonnées de paiement.`;
+    const agencyStr = agencies.length ? ` Agences: ${agencies.map(a => a.name + (a.estimatedCost ? ` (${a.estimatedCost})` : '')).join(', ')}.` : '';
+    expeditionSection = `\nEXPÉDITION PAR AGENCE — villes couvertes: ${config.expeditionCities.join(', ')}.${agencyStr} Dans ces villes → paiement EN AVANCE obligatoire, client récupère à l'agence. Utilise [PAYMENT_COORDS] pour les coordonnées de paiement.
+RÈGLES EXPÉDITION STRICTES:
+- "Vous livrez/expédiez ?" → cite UNIQUEMENT les villes de la liste (jamais de quartier/zone)
+- Ville du client DANS la liste → "Oui, on expédie à [ville] 👍 Paiement en avance puis récupération à l'agence." + [PAYMENT_COORDS]
+- Ville du client PAS dans la liste → "Désolée, on n'expédie pas encore à [ville]. On couvre: ${config.expeditionCities.join(', ')}."
+- Ne JAMAIS demander dans quel quartier récupérer (c'est en agence, pas à domicile)
+- Ne JAMAIS se contredire sur les villes couvertes`;
   }
 
   // Premier message

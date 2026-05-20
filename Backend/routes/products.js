@@ -5,6 +5,8 @@ import StockLocation from '../models/StockLocation.js';
 import { requireEcomAuth, requireEcomPermission, validateEcomAccess } from '../middleware/ecomAuth.js';
 import { validateProduct } from '../middleware/validation.js';
 import { checkBusinessRules } from '../services/businessRules.js';
+import WhatsAppInstance from '../models/WhatsAppInstance.js';
+import evolutionApiService from '../services/evolutionApiService.js';
 
 const router = express.Router();
 
@@ -18,95 +20,58 @@ const calculateActualStock = async (productId) => {
 // GET /api/ecom/products/search - Recherche de produits (authentifié, workspace-scoped)
 router.get('/search', requireEcomAuth, async (req, res) => {
   try {
-    console.log('🔍 GET /api/ecom/products/search - Recherche produits');
-    
     const { search, status, isActive, limit = 20 } = req.query;
-    
-    const filter = { 
-      workspaceId: req.workspaceId,
-      isActive: true
-    };
-    
-    // Ajout de la logique de recherche
+
+    const filter = { workspaceId: req.workspaceId, isActive: true };
+
     if (search) {
       filter.$or = [
         { name: { $regex: search, $options: 'i' } },
         { status: { $regex: search, $options: 'i' } }
       ];
     }
-    
     if (status) {
       const statuses = status.split(',').map(s => s.trim());
       filter.status = statuses.length > 1 ? { $in: statuses } : statuses[0];
     }
-    
     if (isActive !== undefined) filter.isActive = isActive === 'true';
 
-    console.log('🔎 Filtre recherche publique:', filter);
-    
     const products = await Product.find(filter)
       .select('name status sellingPrice productCost deliveryCost avgAdsCost stock isActive createdAt')
-      .limit(parseInt(limit))
-      .sort({ createdAt: -1 });
+      .limit(Math.min(parseInt(limit), 100))
+      .sort({ createdAt: -1 })
+      .lean();
 
-    console.log('📊 Produits trouvés (public):', products.length);
-
-    res.json({
-      success: true,
-      data: products,
-      count: products.length,
-      search: search || null
-    });
+    res.json({ success: true, data: products, count: products.length, search: search || null });
   } catch (error) {
-    console.error('Erreur search products public:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Erreur serveur'
-    });
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
   }
 });
 
 // GET /api/ecom/products - Liste des produits (tous roles peuvent voir)
 router.get('/', requireEcomAuth, async (req, res) => {
   try {
-    console.log('📦 GET /api/ecom/products - Liste des produits');
-    console.log('👤 Utilisateur:', req.ecomUser?.email);
-    console.log('🔍 Filtres:', req.query);
-    console.log('🏢 WorkspaceId utilisé:', req.workspaceId);
-    console.log('🎭 Mode incarnation:', req.user?.workspaceId ? 'OUI' : 'NON');
-    
-    const { status, isActive, search } = req.query;
+    const { status, isActive, search, limit = 200 } = req.query;
     const filter = { workspaceId: req.workspaceId };
-    
-    console.log('🔎 Filtre initial:', filter);
-    
-    // Ajout de la logique de recherche
+
     if (search) {
       filter.$or = [
         { name: { $regex: search, $options: 'i' } },
         { status: { $regex: search, $options: 'i' } }
       ];
     }
-    
     if (status) {
-      // Support comma-separated status values: ?status=test,stable,winner
       const statuses = status.split(',').map(s => s.trim());
       filter.status = statuses.length > 1 ? { $in: statuses } : statuses[0];
     }
     if (isActive !== undefined) filter.isActive = isActive === 'true';
 
-    console.log('🔎 Filtre final appliqué:', filter);
-    
     const products = await Product.find(filter)
+      .select('-__v')
       .populate('createdBy', 'email')
-      .sort({ createdAt: -1 });
-
-    console.log('📊 Produits trouvés:', products.length);
-    console.log('📋 Premier produit (si existe):', products[0] ? {
-      name: products[0].name,
-      workspaceId: products[0].workspaceId,
-      isActive: products[0].isActive
-    } : 'Aucun');
+      .sort({ createdAt: -1 })
+      .limit(Math.min(parseInt(limit), 500))
+      .lean();
 
     res.json({
       success: true,
@@ -121,56 +86,33 @@ router.get('/', requireEcomAuth, async (req, res) => {
   }
 });
 
-// GET /api/ecom/products/research - Recherche publique de produits (sans authentification)
+// GET /api/ecom/products/search - Recherche publique de produits (sans authentification)
 router.get('/search', async (req, res) => {
   try {
-    console.log('🔍 GET /api/ecom/products/search - Recherche publique');
-    console.log('🔍 Termes de recherche:', req.query);
-    
     const { search, status, isActive, limit = 20 } = req.query;
-    
-    // Pour la démo, on retourne tous les produits actifs sans filtre de workspace
-    // En production, vous pourriez avoir une logique pour déterminer le workspace public
-    const filter = { 
-      isActive: true // Uniquement les produits actifs pour la recherche publique
-    };
-    
-    // Ajout de la logique de recherche
+    const filter = { isActive: true };
+
     if (search) {
       filter.$or = [
         { name: { $regex: search, $options: 'i' } },
         { status: { $regex: search, $options: 'i' } }
       ];
     }
-    
     if (status) {
       const statuses = status.split(',').map(s => s.trim());
       filter.status = statuses.length > 1 ? { $in: statuses } : statuses[0];
     }
-    
     if (isActive !== undefined) filter.isActive = isActive === 'true';
 
-    console.log('🔎 Filtre recherche publique:', filter);
-    
     const products = await Product.find(filter)
       .select('name status sellingPrice productCost deliveryCost avgAdsCost stock isActive createdAt')
-      .limit(parseInt(limit))
-      .sort({ createdAt: -1 });
+      .limit(Math.min(parseInt(limit), 100))
+      .sort({ createdAt: -1 })
+      .lean();
 
-    console.log('📊 Produits trouvés (public):', products.length);
-
-    res.json({
-      success: true,
-      data: products,
-      count: products.length,
-      search: search || null
-    });
+    res.json({ success: true, data: products, count: products.length, search: search || null });
   } catch (error) {
-    console.error('Erreur search products public:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Erreur serveur'
-    });
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
   }
 });
 
@@ -201,7 +143,7 @@ router.get('/stats/overview',
         workspaceId,
         isActive: true,
         $expr: { $lte: ['$stock', '$reorderThreshold'] }
-      }).select('name stock reorderThreshold');
+      }).select('name stock reorderThreshold').lean();
 
       res.json({
         success: true,
@@ -226,58 +168,59 @@ router.get('/quick', requireEcomAuth, async (req, res) => {
   try {
     const { limit = 20 } = req.query;
     
-    const products = await Product.find({ 
-      workspaceId: req.workspaceId,
-      isActive: true 
-    })
-    .select('name sellingPrice stock isActive')
-    .limit(parseInt(limit))
-    .sort({ createdAt: -1 });
+    const products = await Product.find({ workspaceId: req.workspaceId, isActive: true })
+      .select('name sellingPrice stock isActive')
+      .limit(Math.min(parseInt(limit), 100))
+      .sort({ createdAt: -1 })
+      .lean();
 
-    res.json({
-      success: true,
-      data: products
-    });
+    res.json({ success: true, data: products });
   } catch (error) {
-    console.error('Erreur quick products:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Erreur serveur'
-    });
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// GET /api/ecom/products/whatsapp-groups - Lister les groupes WhatsApp de l'instance connectée
+router.get('/whatsapp-groups', requireEcomAuth, validateEcomAccess('products', 'write'), async (req, res) => {
+  try {
+    const instance = await WhatsAppInstance.findOne({
+      workspaceId: req.workspaceId,
+      isActive: true,
+      status: { $in: ['connected', 'active'] }
+    }).sort({ lastSeen: -1 }).lean();
+
+    if (!instance) return res.json({ success: true, groups: [], connected: false });
+
+    const result = await evolutionApiService.listGroups(instance.instanceName, instance.instanceToken);
+    const groups = (result.groups || []).map(g => ({
+      jid: g.id,
+      name: g.subject || g.name || g.id,
+      size: g.size,
+    })).sort((a, b) => a.name.localeCompare(b.name));
+
+    res.json({ success: true, groups, connected: true });
+  } catch (error) {
+    console.error('Erreur whatsapp-groups:', error);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
   }
 });
 
 // GET /api/ecom/products/:id - Détail d'un produit
 router.get('/:id', requireEcomAuth, async (req, res) => {
   try {
-    console.log('📦 GET /products/:id', req.params.id);
-    console.log('🏢 workspaceId:', req.workspaceId);
-
-    // Vérifier si l'ID est un ObjectId valide
     if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-      return res.status(400).json({
-        success: false,
-        message: 'ID de produit invalide'
-      });
+      return res.status(400).json({ success: false, message: 'ID de produit invalide' });
     }
 
     if (!req.workspaceId) {
-      console.error('❌ workspaceId manquant dans le token');
-      return res.status(400).json({
-        success: false,
-        message: 'workspaceId manquant'
-      });
+      return res.status(400).json({ success: false, message: 'workspaceId manquant' });
     }
 
     const product = await Product.findOne({ _id: req.params.id, workspaceId: req.workspaceId })
       .populate('createdBy', 'email').lean();
 
     if (!product) {
-      console.log('⚠️ Produit non trouvé pour id:', req.params.id, 'workspace:', req.workspaceId);
-      return res.status(404).json({
-        success: false,
-        message: 'Produit non trouvé'
-      });
+      return res.status(404).json({ success: false, message: 'Produit non trouvé' });
     }
 
     res.json({
@@ -301,36 +244,15 @@ router.post('/',
   validateProduct, 
   async (req, res) => {
     try {
-      console.log('📦 POST /api/ecom/products - Création de produit');
-      console.log('👤 Utilisateur:', req.ecomUser?.email);
-      console.log('📋 Données reçues:', req.body);
-      
-      const productData = {
-        ...req.body,
-        workspaceId: req.workspaceId,
-        createdBy: req.ecomUser._id
-      };
+      const productData = { ...req.body, workspaceId: req.workspaceId, createdBy: req.ecomUser._id };
 
-      console.log('🔍 Vérification des règles métier...');
-      // Vérifier les règles métier
-      const businessCheck = await checkBusinessRules('createProduct', {
-        user: req.ecomUser,
-        productData
-      });
-
-      console.log('✅ Résultat règles métier:', businessCheck);
+      const businessCheck = await checkBusinessRules('createProduct', { user: req.ecomUser, productData });
       if (!businessCheck.allowed) {
-        console.log('❌ Règles métier refusées:', businessCheck.message);
-        return res.status(400).json({
-          success: false,
-          message: businessCheck.message
-        });
+        return res.status(400).json({ success: false, message: businessCheck.message });
       }
 
-      console.log('💾 Création du produit...');
       const product = new Product(productData);
       await product.save();
-      console.log('✅ Produit créé avec ID:', product._id);
 
       const populatedProduct = await Product.findById(product._id)
         .populate('createdBy', 'email');
@@ -433,6 +355,51 @@ router.put('/:id',
     }
   }
 );
+
+// GET /api/ecom/products/:id/whatsapp-groups - Lister les groupes WhatsApp disponibles
+router.get('/:id/whatsapp-groups', requireEcomAuth, validateEcomAccess('products', 'write'), async (req, res) => {
+  try {
+    const instance = await WhatsAppInstance.findOne({
+      workspaceId: req.workspaceId,
+      isActive: true,
+      status: { $in: ['connected', 'active'] }
+    }).sort({ lastSeen: -1 }).lean();
+
+    if (!instance) {
+      return res.json({ success: true, groups: [], connected: false });
+    }
+
+    const result = await evolutionApiService.listGroups(instance.instanceName, instance.instanceToken);
+    const groups = (result.groups || []).map(g => ({
+      jid: g.id,
+      name: g.subject || g.name || g.id,
+      size: g.size,
+    })).sort((a, b) => a.name.localeCompare(b.name));
+
+    res.json({ success: true, groups, connected: true });
+  } catch (error) {
+    console.error('Erreur whatsapp-groups:', error);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// PATCH /api/ecom/products/:id/whatsapp-group - Assigner/retirer un groupe WhatsApp
+router.patch('/:id/whatsapp-group', requireEcomAuth, validateEcomAccess('products', 'write'), async (req, res) => {
+  try {
+    const { groupJid, groupName } = req.body;
+    const product = await Product.findOne({ _id: req.params.id, workspaceId: req.workspaceId });
+    if (!product) return res.status(404).json({ success: false, message: 'Produit non trouvé' });
+
+    product.whatsappGroupJid = groupJid || null;
+    product.whatsappGroupName = groupName || null;
+    await product.save();
+
+    res.json({ success: true, data: { whatsappGroupJid: product.whatsappGroupJid, whatsappGroupName: product.whatsappGroupName } });
+  } catch (error) {
+    console.error('Erreur patch whatsapp-group:', error);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
 
 // DELETE /api/ecom/products/:id - Supprimer un produit (admin uniquement)
 router.delete('/:id', 

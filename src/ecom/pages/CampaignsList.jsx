@@ -552,11 +552,6 @@ const CampaignsList = () => {
     }
   };
 
-  if (loading) return <CenteredSpinner message="Chargement…" />; return (
-    <div className="flex items-center justify-center h-64">
-      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div>
-    </div>
-  );
 
   const totalTargeted = campaigns.reduce((sum, campaign) => sum + (campaign.stats?.targeted || campaign.recipientSnapshotIds?.length || campaign.selectedClientIds?.length || 0), 0);
   const totalSentCount = campaigns.reduce((sum, campaign) => sum + (campaign.stats?.sent || 0), 0);

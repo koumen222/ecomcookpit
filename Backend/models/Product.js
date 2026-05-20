@@ -54,6 +54,16 @@ const productSchema = new mongoose.Schema({
     type: Boolean,
     default: true
   },
+  whatsappGroupJid: {
+    type: String,
+    default: null,
+    trim: true
+  },
+  whatsappGroupName: {
+    type: String,
+    default: null,
+    trim: true
+  },
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'EcomUser',
@@ -65,9 +75,10 @@ const productSchema = new mongoose.Schema({
 });
 
 // Index pour recherche rapide
-productSchema.index({ status: 1, isActive: 1 });
+productSchema.index({ workspaceId: 1, isActive: 1, status: 1 }); // compound pour les listes filtrées
+productSchema.index({ workspaceId: 1, createdAt: -1 }); // tri par défaut
 productSchema.index({ stock: 1 });
-productSchema.index({ name: 'text', status: 'text' }); // Index pour recherche plein texte
+productSchema.index({ name: 'text' });
 
 // Méthode pour calculer la marge (sans inclure avgAdsCost)
 productSchema.methods.getMargin = function() {

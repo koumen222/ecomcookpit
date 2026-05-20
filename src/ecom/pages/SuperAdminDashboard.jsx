@@ -9,7 +9,7 @@ import {
   Crown, Briefcase, Package, Calculator, Truck, Settings,
   MessageSquare, FileText, WifiOff
 } from 'lucide-react';
-import ecomApi from '../services/ecommApi.js';
+import ecomApi, { clearEcomGetCache } from '../services/ecommApi.js';
 import SuperAdminShell from '../components/SuperAdminShell.jsx';
 import { DashboardSkeleton, Shimmer, SkeletonKpi, SkeletonChart, SkeletonCard, SectionError } from '../components/Skeleton.jsx';
 
@@ -249,25 +249,44 @@ const SuperAdminDashboard = () => {
 
   const fetchAll = useCallback(async (silent = false) => {
     if (!silent) {
-      // Check sessionStorage for stale data — show it immediately
+      // 1. Check sessionStorage — show stale data immediately so the page isn't blank
       try {
         const raw = sessionStorage.getItem(CACHE_KEY);
         if (raw) {
           const { ts, data } = JSON.parse(raw);
-          if (Date.now() - ts < CACHE_TTL * 5) { // accept up to 5 min stale for instant render
+          if (Date.now() - ts < CACHE_TTL * 5) {
             applyData(data);
             setInitialLoading(false);
-            setRefreshing(true); // signal background refresh
+            setRefreshing(true);
           }
         }
       } catch (_) {}
+
+      // 2. Fetch quick stats (just counts, responds in <300 ms) to populate KPIs instantly
+      //    while the full summary loads in parallel.
+      if (initialLoading) {
+        ecomApi.get('/super-admin/dashboard-quick', { timeout: 5000 }).then(qr => {
+          const q = qr.data?.data;
+          if (!q) return;
+          setWorkspaceSummary(prev => ({
+            ...prev,
+            totalWorkspaces: q.totalWorkspaces || prev.totalWorkspaces,
+            totalActive:     q.activeWorkspaces || prev.totalActive,
+          }));
+          setUserStats(prev => ({ ...prev, totalUsers: q.totalUsers || prev.totalUsers }));
+          setInitialLoading(false);
+        }).catch(() => {});
+      }
+
       if (initialLoading) setInitialLoading(true);
     } else {
       setRefreshing(true);
     }
 
     try {
-      const res = await ecomApi.get('/super-admin/dashboard-summary', { params: { range }, timeout: 60000 });
+      // silent=true means the user clicked "Actualiser" — bypass both caches
+      if (silent) clearEcomGetCache();
+      const res = await ecomApi.get('/super-admin/dashboard-summary', { params: { range }, timeout: 60000, _bypassCache: silent });
       const body = res.data;
       if (!body?.success) throw new Error(body?.message || 'Réponse invalide');
 

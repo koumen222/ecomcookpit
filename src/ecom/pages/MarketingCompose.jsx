@@ -1,12 +1,12 @@
-﻿import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect, useRef } from 'react';
 import { safeHtml } from '../utils/sanitize';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
-import { 
+import {
   Mail, Send, Eye, Edit3, Save, ArrowLeft, Users, Calendar,
   Clock, Sparkles, TrendingUp, AlertCircle, CheckCircle2, Copy,
   FileText, Zap, Target, Bell, Gift, Heart, Info, Briefcase,
-  Package, Calculator, Truck, TrendingDown
+  Package, Calculator, Truck, TrendingDown, X, Loader2
 } from 'lucide-react';
 import { marketingApi } from '../services/marketingApi.js';
 
@@ -214,17 +214,46 @@ const PERIOD_FILTERS = [
   { value: 'never_logged_in', label: 'Jamais connectés', icon: TrendingDown },
 ];
 
-const Inp = ({ value, onChange, placeholder, type = 'text' }) => (
+const Inp = ({ value, onChange, placeholder, type = 'text', className = '' }) => (
   <input type={type} value={value} onChange={onChange} placeholder={placeholder}
-    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-600" />
+    className={`w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-400 placeholder:text-slate-400 bg-white transition-colors ${className}`} />
+);
+
+const Section = ({ icon: Icon, title, accent = 'text-emerald-600', children, actions }) => (
+  <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+    <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-slate-100 bg-slate-50/50">
+      <div className="flex items-center gap-2.5">
+        <Icon className={`w-4 h-4 ${accent}`} />
+        <h3 className="text-sm font-bold text-slate-800">{title}</h3>
+      </div>
+      {actions}
+    </div>
+    <div className="p-5 space-y-4">{children}</div>
+  </div>
+);
+
+const Label = ({ children, required }) => (
+  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+    {children}{required && <span className="text-red-400 ml-0.5">*</span>}
+  </label>
+);
+
+const Tag = ({ label, onClick }) => (
+  <button type="button" onClick={onClick}
+    className="px-2.5 py-1 text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg hover:bg-emerald-100 transition-colors">
+    {`{${label}}`}
+  </button>
 );
 
 const Dlg = ({ open, onClose, title, children }) => {
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-6 py-4 border-b"><h2 className="text-base font-semibold">{title}</h2><button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl">×</button></div>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+          <h2 className="text-sm font-bold text-slate-800">{title}</h2>
+          <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-400"><X className="w-4 h-4" /></button>
+        </div>
         <div className="px-6 py-5">{children}</div>
       </div>
     </div>
@@ -275,9 +304,15 @@ export default function MarketingCompose({ editingId, onSaved, onCancel, flash }
         setContentMode(c.bodyHtml ? 'html' : 'text');
       } catch { flash('Erreur chargement', 'err'); }
     })();
-  }, [editingId]);
+  }, [editingId]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Serialize segmentFilter to avoid object reference instability triggering debounce every render
+  const segmentFilterKey = JSON.stringify(form.segmentFilter);
+  const prevAudKey = useRef('');
   useEffect(() => {
+    const key = `${form.audienceType}|${form.customEmails}|${segmentFilterKey}`;
+    if (key === prevAudKey.current) return;
+    prevAudKey.current = key;
     const t = setTimeout(async () => {
       setAudLoad(true);
       try {
@@ -286,9 +321,9 @@ export default function MarketingCompose({ editingId, onSaved, onCancel, flash }
         setAudCnt(r.data.data.count);
       } catch { setAudCnt(null); }
       finally { setAudLoad(false); }
-    }, 700);
+    }, 900);
     return () => clearTimeout(t);
-  }, [form.audienceType, form.customEmails, form.segmentFilter]);
+  }, [form.audienceType, form.customEmails, segmentFilterKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const save = async () => {
     if (!form.name.trim()) return flash('Nom requis', 'err');
@@ -334,267 +369,212 @@ export default function MarketingCompose({ editingId, onSaved, onCancel, flash }
     sf('segmentFilter', { ...form.segmentFilter, roles });
   };
 
+  const TAGS = ['prenom', 'name', 'email', 'workspace', 'role'];
+
   return (
-    <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-      <div className="xl:col-span-2 space-y-5">
-        {/* Info */}
-        <div className="bg-white rounded-2xl border-2 border-slate-200 p-6 space-y-4 shadow-lg">
-          <div className="flex items-center gap-3 mb-2">
-            <Info className="w-5 h-5 text-emerald-700" />
-            <h3 className="text-base font-black text-slate-900">Informations</h3>
-            {eid && <span className="ml-auto text-xs text-slate-400 font-mono bg-slate-100 px-2 py-1 rounded">{eid}</span>}
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div><label className="block text-xs font-bold text-slate-700 mb-2">Nom de la campagne *</label><Inp value={form.name} onChange={e => sf('name', e.target.value)} placeholder="Ex: Promo Janvier 2026" /></div>
-            <div><label className="block text-xs font-bold text-slate-700 mb-2">Tags</label><Inp value={form.tags} onChange={e => sf('tags', e.target.value)} placeholder="promo, clients" /></div>
-          </div>
-        </div>
-
-        {/* Headers */}
-        <div className="bg-white rounded-2xl border-2 border-slate-200 p-6 space-y-4 shadow-lg">
-          <div className="flex items-center gap-3 mb-2">
-            <Mail className="w-5 h-5 text-teal-600" />
-            <h3 className="text-base font-black text-slate-900">En-têtes et expéditeur</h3>
-          </div>
-          <div>
-            <label className="block text-xs font-bold text-slate-700 mb-2">Sujet de l'email *</label>
-            <div className="flex gap-2 mb-2">
-              <div className="flex-1">
-                <Inp value={form.subject} onChange={e => sf('subject', e.target.value)} placeholder="🎉 Offre exclusive !" />
-              </div>
-              <div className="flex gap-1 flex-wrap">
-                {[
-                  { tag: '{{prenom}}', label: 'Prénom' },
-                  { tag: '{{name}}', label: 'Nom' }
-                ].map(({ tag, label }) => (
-                  <button
-                    key={tag}
-                    onClick={() => {
-                      const input = document.querySelector('input[placeholder="🎉 Offre exclusive !"]');
-                      if (input) {
-                        const start = input.selectionStart;
-                        const end = input.selectionEnd;
-                        const text = form.subject;
-                        const newText = text.substring(0, start) + tag + text.substring(end);
-                        sf('subject', newText);
-                        setTimeout(() => {
-                          input.focus();
-                          input.setSelectionRange(start + tag.length, start + tag.length);
-                        }, 0);
-                      }
-                    }}
-                    className="px-3 py-2 text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-lg hover:bg-emerald-200 hover:border-emerald-400 transition-all duration-200 shadow-sm hover:shadow-md"
-                    title={`Insérer ${label}`}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-          <div><label className="block text-xs font-bold text-slate-700 mb-2">Texte de prévisualisation</label><Inp value={form.previewText} onChange={e => sf('previewText', e.target.value)} placeholder="Court texte visible avant ouverture..." /></div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div><label className="block text-xs font-bold text-slate-700 mb-2">Nom expéditeur</label><Inp value={form.fromName} onChange={e => sf('fromName', e.target.value)} placeholder="Scalor" /></div>
-            <div><label className="block text-xs font-bold text-slate-700 mb-2">Email expéditeur</label><Inp value={form.fromEmail} onChange={e => sf('fromEmail', e.target.value)} placeholder="contact@ecomcockpit.site" /></div>
-            <div><label className="block text-xs font-bold text-slate-700 mb-2">Reply-To</label><Inp value={form.replyTo} onChange={e => sf('replyTo', e.target.value)} placeholder="support@ecomcockpit.site" /></div>
-          </div>
-        </div>
-
-        {/* Body */}
-        <div className="bg-white rounded-2xl border-2 border-slate-200 p-6 space-y-4 shadow-lg">
-          <div className="flex items-center justify-between">
+    <div className="min-h-screen bg-slate-50">
+      {/* ── Compose header ── */}
+      <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 px-6 pt-6 pb-5 shadow-xl">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <Edit3 className="w-5 h-5 text-emerald-600" />
-              <h3 className="text-base font-black text-slate-900">Contenu de l'email *</h3>
+              <button
+                onClick={onCancel}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl transition-all"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                Retour
+              </button>
+              <div className="w-px h-5 bg-white/10" />
+              <div className="w-9 h-9 rounded-2xl bg-white/10 border border-white/20 flex items-center justify-center">
+                <Edit3 className="w-4 h-4 text-white" />
+              </div>
+              <div>
+                <h1 className="text-base font-black text-white">{eid ? 'Modifier la campagne' : 'Nouvelle campagne'}</h1>
+                {eid && <p className="text-[10px] text-slate-400 font-mono mt-0.5">{eid}</p>}
+              </div>
             </div>
-            <div className="flex gap-2">
-              <button onClick={() => setShowTpls(true)} className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold border-2 border-emerald-200 bg-emerald-50 text-emerald-800 rounded-lg hover:bg-emerald-100 transition-colors">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowTpls(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl transition-all"
+              >
                 <FileText className="w-3.5 h-3.5" />
                 Templates
               </button>
-              <button onClick={() => setPreview(p => !p)} className={`inline-flex items-center gap-2 px-4 py-2 text-xs font-bold border-2 rounded-lg transition-all duration-300 ${preview ? 'bg-teal-600 text-white border-teal-600 shadow-md' : 'border-slate-200 text-slate-700 hover:bg-slate-50'}`}>
-                {preview ? <><Edit3 className="w-3.5 h-3.5" /> Éditer</> : <><Eye className="w-3.5 h-3.5" /> Aperçu</>}
+              <button
+                onClick={save}
+                disabled={saving}
+                className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 rounded-xl transition-all shadow-sm disabled:opacity-50"
+              >
+                {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                {saving ? 'Enregistrement…' : eid ? 'Mettre à jour' : 'Créer'}
               </button>
             </div>
           </div>
-          {!preview && (
-            <div className="inline-flex p-1 rounded-xl bg-slate-100 border border-slate-200">
-              <button
-                onClick={() => setContentMode('html')}
-                className={`px-4 py-2 text-xs font-bold rounded-lg transition-all ${contentMode === 'html' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-              >
-                HTML
-              </button>
-              <button
-                onClick={() => setContentMode('text')}
-                className={`px-4 py-2 text-xs font-bold rounded-lg transition-all ${contentMode === 'text' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-              >
-                Texte
-              </button>
-            </div>
-          )}
-          {preview ? (
-            <div className="border border-gray-200 rounded-lg overflow-hidden">
-              <div className="bg-gray-50 px-3 py-2 text-xs text-gray-500 border-b">Aperçu — {form.subject || 'Sans sujet'}</div>
-              <div className="p-4 max-h-96 overflow-y-auto">
-                {contentMode === 'html'
-                  ? (form.bodyHtml ? <div dangerouslySetInnerHTML={safeHtml(form.bodyHtml)} /> : <p className="text-gray-400 text-sm whitespace-pre-wrap">Aucun contenu HTML</p>)
-                  : <p className="text-gray-700 text-sm whitespace-pre-wrap">{form.bodyText || 'Aucun contenu texte'}</p>}
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {contentMode === 'html' ? (
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">HTML (Éditeur riche)</label>
-                  <div className="mb-3 flex flex-wrap gap-2">
-                    <span className="text-xs text-gray-500 mr-1 self-center">Personnalisation :</span>
-                    {[
-                      { tag: '{{prenom}}', label: 'Prénom' },
-                      { tag: '{{name}}', label: 'Nom' },
-                      { tag: '{{email}}', label: 'Email' },
-                      { tag: '{{workspace}}', label: 'Workspace' },
-                      { tag: '{{role}}', label: 'Rôle' }
-                    ].map(({ tag, label }) => (
-                      <button
-                        key={tag}
-                        onClick={() => {
-                          const quill = document.querySelector('.ql-editor');
-                          if (quill) {
-                            const range = window.getSelection().getRangeAt(0);
-                            const start = range.startOffset;
-                            const end = range.endOffset;
-                            const text = form.bodyHtml;
-                            const newText = text.substring(0, start) + tag + text.substring(end);
-                            sf('bodyHtml', newText);
-                            setTimeout(() => {
-                              quill.focus();
-                              const newRange = document.createRange();
-                              newRange.setStart(quill, start + tag.length);
-                              newRange.setEnd(quill, start + tag.length);
-                              const selection = window.getSelection();
-                              selection.removeAllRanges();
-                              selection.addRange(newRange);
-                            }, 0);
-                          }
-                        }}
-                        className="px-3 py-1.5 text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-lg hover:bg-emerald-200 hover:border-emerald-400 transition-all duration-200 shadow-sm hover:shadow-md"
-                        title={`Insérer ${label}`}
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="border border-gray-200 rounded-lg">
-                    <ReactQuill
-                      value={form.bodyHtml}
-                      onChange={(value) => sf('bodyHtml', value)}
-                      modules={quillModules}
-                      formats={quillFormats}
-                      placeholder="Composez votre email HTML..."
-                      style={{ minHeight: '300px' }}
-                    />
-                  </div>
-                </div>
-              ) : (
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Texte</label>
-                  <div className="mb-3 flex flex-wrap gap-2">
-                    <span className="text-xs text-gray-500 mr-1 self-center">Personnalisation :</span>
-                    {[
-                      { tag: '{{prenom}}', label: 'Prénom' },
-                      { tag: '{{name}}', label: 'Nom' },
-                      { tag: '{{email}}', label: 'Email' },
-                      { tag: '{{workspace}}', label: 'Workspace' },
-                      { tag: '{{role}}', label: 'Rôle' }
-                    ].map(({ tag, label }) => (
-                      <button
-                        key={tag}
-                        onClick={() => {
-                          const textarea = document.querySelector('textarea[placeholder="Votre message..."]');
-                          if (textarea) {
-                            const start = textarea.selectionStart;
-                            const end = textarea.selectionEnd;
-                            const text = form.bodyText;
-                            const newText = text.substring(0, start) + tag + text.substring(end);
-                            sf('bodyText', newText);
-                            setTimeout(() => {
-                              textarea.focus();
-                              textarea.setSelectionRange(start + tag.length, start + tag.length);
-                            }, 0);
-                          }
-                        }}
-                        className="px-3 py-1.5 text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-lg hover:bg-emerald-200 hover:border-emerald-400 transition-all duration-200 shadow-sm hover:shadow-md"
-                        title={`Insérer ${label}`}
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-                  <textarea value={form.bodyText} onChange={e => sf('bodyText', e.target.value)} rows={10} placeholder="Votre message..." className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-600 resize-y" />
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Scheduling */}
-        <div className="bg-white rounded-2xl border-2 border-slate-200 p-6 shadow-lg">
-          <div className="flex items-center gap-3 mb-4">
-            <Calendar className="w-5 h-5 text-amber-600" />
-            <h3 className="text-base font-black text-slate-900">Planification</h3>
-          </div>
-          <div><label className="block text-xs font-bold text-slate-700 mb-2">Envoyer le (optionnel)</label><Inp type="datetime-local" value={form.scheduledAt} onChange={e => sf('scheduledAt', e.target.value)} /></div>
         </div>
       </div>
 
-      {/* Sidebar */}
-      <div className="space-y-5">
-        {/* Audience */}
-        <div className="bg-white rounded-2xl border-2 border-slate-200 p-6 space-y-4 shadow-lg">
-          <div className="flex items-center gap-3 mb-2">
-            <Users className="w-5 h-5 text-emerald-700" />
-            <h3 className="text-base font-black text-slate-900">Destinataires</h3>
+      {/* ── Body ── */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
+      <div className="xl:col-span-2 space-y-4">
+
+        {/* Infos */}
+        <Section icon={Info} title="Informations de la campagne">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <Label required>Nom de la campagne</Label>
+              <Inp value={form.name} onChange={e => sf('name', e.target.value)} placeholder="Ex : Promo Janvier 2026" />
+            </div>
+            <div>
+              <Label>Tags</Label>
+              <Inp value={form.tags} onChange={e => sf('tags', e.target.value)} placeholder="promo, newsletter, relance" />
+            </div>
           </div>
+        </Section>
+
+        {/* Headers */}
+        <Section icon={Mail} title="En-têtes et expéditeur" accent="text-blue-500">
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <Label required>Sujet de l'email</Label>
+              <div className="flex gap-1">
+                {['prenom', 'name'].map(t => (
+                  <Tag key={t} label={t} onClick={() => sf('subject', form.subject + `{{${t}}}`)} />
+                ))}
+              </div>
+            </div>
+            <Inp value={form.subject} onChange={e => sf('subject', e.target.value)} placeholder="Offre exclusive réservée pour vous !" />
+          </div>
+          <div>
+            <Label>Texte de prévisualisation</Label>
+            <Inp value={form.previewText} onChange={e => sf('previewText', e.target.value)} placeholder="Court texte affiché avant ouverture dans la boîte mail…" />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div><Label>Nom expéditeur</Label><Inp value={form.fromName} onChange={e => sf('fromName', e.target.value)} placeholder="Scalor" /></div>
+            <div><Label>Email expéditeur</Label><Inp value={form.fromEmail} onChange={e => sf('fromEmail', e.target.value)} placeholder="contact@ecomcockpit.site" /></div>
+            <div><Label>Reply-To</Label><Inp value={form.replyTo} onChange={e => sf('replyTo', e.target.value)} placeholder="support@ecomcockpit.site" /></div>
+          </div>
+        </Section>
+
+        {/* Body */}
+        <Section
+          icon={Edit3}
+          title="Contenu de l'email"
+          accent="text-violet-500"
+          actions={
+            <button
+              onClick={() => setPreview(p => !p)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold rounded-lg transition-all ${preview ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+            >
+              {preview ? <><Edit3 className="w-3 h-3" /> Éditer</> : <><Eye className="w-3 h-3" /> Aperçu</>}
+            </button>
+          }
+        >
+          {!preview && (
+            <div className="flex items-center gap-3">
+              <div className="inline-flex p-1 rounded-xl bg-slate-100">
+                {['html', 'text'].map(m => (
+                  <button key={m} onClick={() => setContentMode(m)}
+                    className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${contentMode === m ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                    {m === 'html' ? 'HTML' : 'Texte brut'}
+                  </button>
+                ))}
+              </div>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-[10px] text-slate-400 font-semibold">Variables :</span>
+                {TAGS.map(t => (
+                  <Tag key={t} label={t} onClick={() => {
+                    if (contentMode === 'html') sf('bodyHtml', form.bodyHtml + `{{${t}}}`);
+                    else sf('bodyText', form.bodyText + `{{${t}}}`);
+                  }} />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {preview ? (
+            <div className="border border-slate-200 rounded-xl overflow-hidden">
+              <div className="flex items-center gap-2 bg-slate-50 px-4 py-2.5 border-b border-slate-100">
+                <Eye className="w-3.5 h-3.5 text-slate-400" />
+                <span className="text-xs font-semibold text-slate-600">{form.subject || 'Sans sujet'}</span>
+              </div>
+              <div className="p-5 max-h-[500px] overflow-y-auto">
+                {contentMode === 'html'
+                  ? (form.bodyHtml ? <div dangerouslySetInnerHTML={safeHtml(form.bodyHtml)} /> : <p className="text-slate-400 text-sm">Aucun contenu HTML</p>)
+                  : <p className="text-slate-700 text-sm whitespace-pre-wrap leading-relaxed">{form.bodyText || 'Aucun contenu'}</p>}
+              </div>
+            </div>
+          ) : contentMode === 'html' ? (
+            <div className="border border-slate-200 rounded-xl overflow-hidden">
+              <ReactQuill value={form.bodyHtml} onChange={v => sf('bodyHtml', v)} modules={quillModules} formats={quillFormats} placeholder="Composez votre email HTML…" style={{ minHeight: '320px' }} />
+            </div>
+          ) : (
+            <textarea
+              value={form.bodyText}
+              onChange={e => sf('bodyText', e.target.value)}
+              rows={12}
+              placeholder="Composez votre message en texte brut…"
+              className="w-full px-4 py-3 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-400 resize-y placeholder:text-slate-400 leading-relaxed"
+            />
+          )}
+        </Section>
+
+        {/* Scheduling */}
+        <Section icon={Calendar} title="Planification" accent="text-amber-500">
+          <div>
+            <Label>Date et heure d'envoi <span className="normal-case font-normal text-slate-400">(optionnel — laisser vide pour envoyer manuellement)</span></Label>
+            <Inp type="datetime-local" value={form.scheduledAt} onChange={e => sf('scheduledAt', e.target.value)} />
+          </div>
+        </Section>
+      </div>
+
+      {/* Sidebar */}
+      <div className="space-y-4">
+        {/* Audience */}
+        <Section icon={Users} title="Destinataires" accent="text-emerald-500">
           <div className="space-y-2">
-            {[{ v: 'custom_list', l: 'Liste personnalisée' }, { v: 'all_users', l: 'Tous les utilisateurs' }, { v: 'workspace_users', l: 'Utilisateurs workspace' }].map(o => (
-              <label key={o.v} className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer ${form.audienceType === o.v ? 'border-emerald-600 bg-emerald-50' : 'border-gray-200 hover:border-gray-300'}`}>
-                <input type="radio" name="aud" value={o.v} checked={form.audienceType === o.v} onChange={() => sf('audienceType', o.v)} />
-                <span className="text-sm font-medium text-gray-800">{o.l}</span>
+            {[
+              { v: 'custom_list',    l: 'Liste personnalisée',      desc: 'Entrez des emails manuellement' },
+              { v: 'all_users',      l: 'Tous les utilisateurs',    desc: 'Tous les comptes de la plateforme' },
+              { v: 'workspace_users',l: 'Utilisateurs workspace',   desc: 'Segmentez par rôle et activité' },
+            ].map(o => (
+              <label key={o.v} className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all ${form.audienceType === o.v ? 'border-emerald-400 bg-emerald-50' : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50'}`}>
+                <input type="radio" name="aud" value={o.v} checked={form.audienceType === o.v} onChange={() => sf('audienceType', o.v)} className="mt-0.5 accent-emerald-600" />
+                <div>
+                  <p className="text-xs font-bold text-slate-800">{o.l}</p>
+                  <p className="text-[10px] text-slate-400 mt-0.5">{o.desc}</p>
+                </div>
               </label>
             ))}
           </div>
+
           {form.audienceType === 'custom_list' && (
-            <div><label className="block text-xs font-medium text-gray-600 mb-1">Emails (un par ligne)</label><textarea value={form.customEmails} onChange={e => sf('customEmails', e.target.value)} rows={5} placeholder="email1@ex.com&#10;email2@ex.com" className="w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-600 resize-y" /></div>
+            <div>
+              <Label>Emails (un par ligne ou séparés par virgule)</Label>
+              <textarea value={form.customEmails} onChange={e => sf('customEmails', e.target.value)} rows={5} placeholder={"email1@exemple.com\nemail2@exemple.com"} className="w-full px-3 py-2.5 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-400 resize-y placeholder:text-slate-400 font-mono" />
+            </div>
           )}
+
           {form.audienceType === 'workspace_users' && (
             <>
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-3">Période d'activité</label>
-                <div className="space-y-2">
+                <Label>Période d'activité</Label>
+                <div className="space-y-1.5">
                   {PERIOD_FILTERS.map(p => {
                     const PeriodIcon = p.icon;
                     return (
-                      <label key={p.value} className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all duration-300 ${form.segmentFilter.period === p.value ? 'border-emerald-600 bg-emerald-50' : 'border-slate-200 hover:border-slate-300'}`}>
-                        <input 
-                          type="radio" 
-                          name="period" 
-                          value={p.value} 
-                          checked={form.segmentFilter.period === p.value} 
-                          onChange={() => sf('segmentFilter', { ...form.segmentFilter, period: p.value })} 
-                          className="text-emerald-700"
-                        />
-                        <PeriodIcon className="w-4 h-4 text-slate-500" />
-                        <span className="text-sm font-medium text-slate-800">{p.label}</span>
+                      <label key={p.value} className={`flex items-center gap-2.5 p-2.5 rounded-lg border cursor-pointer transition-all text-xs ${form.segmentFilter.period === p.value ? 'border-emerald-400 bg-emerald-50 font-semibold text-emerald-800' : 'border-slate-200 text-slate-600 hover:border-slate-300'}`}>
+                        <input type="radio" name="period" value={p.value} checked={form.segmentFilter.period === p.value} onChange={() => sf('segmentFilter', { ...form.segmentFilter, period: p.value })} className="accent-emerald-600" />
+                        <PeriodIcon className="w-3.5 h-3.5 flex-shrink-0" />
+                        {p.label}
                       </label>
                     );
                   })}
                   {form.segmentFilter.period && (
-                    <button 
-                      onClick={() => sf('segmentFilter', { ...form.segmentFilter, period: '' })}
-                      className="text-xs text-slate-500 hover:text-slate-700 font-medium"
-                    >
-                      ✕ Retirer le filtre de période
+                    <button onClick={() => sf('segmentFilter', { ...form.segmentFilter, period: '' })} className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-slate-600 font-semibold pt-1">
+                      <X className="w-3 h-3" /> Retirer le filtre
                     </button>
                   )}
                 </div>
@@ -621,52 +601,64 @@ export default function MarketingCompose({ editingId, onSaved, onCancel, flash }
               </div>
             </>
           )}
-          <div className="flex items-center justify-between p-4 bg-gradient-to-r from-emerald-50 to-emerald-50 rounded-xl border-2 border-emerald-200">
+          <div className="flex items-center justify-between p-3.5 bg-emerald-50 rounded-xl border border-emerald-200">
             <div className="flex items-center gap-2">
-              <Target className="w-5 h-5 text-emerald-700" />
-              <span className="text-sm font-bold text-slate-700">Destinataires :</span>
+              <Target className="w-4 h-4 text-emerald-700" />
+              <span className="text-xs font-bold text-slate-700">Destinataires estimés</span>
             </div>
             {audLoad ? (
               <div className="flex items-center gap-2">
-                <div className="w-4 h-4 border-2 border-emerald-700 border-t-transparent rounded-full animate-spin" />
-                <span className="text-xs text-slate-500">Calcul...</span>
+                <Loader2 className="w-4 h-4 text-emerald-600 animate-spin" />
+                <span className="text-xs text-slate-500">Calcul…</span>
               </div>
             ) : (
               <span className="text-2xl font-black text-emerald-700">{audCnt ?? '—'}</span>
             )}
           </div>
-        </div>
+        </Section>
 
         {/* Test */}
-        <div className="bg-white rounded-2xl border-2 border-slate-200 p-6 space-y-3 shadow-lg">
-          <div className="flex items-center gap-3 mb-2">
-            <Send className="w-5 h-5 text-teal-600" />
-            <h3 className="text-base font-black text-slate-900">Envoyer un test</h3>
-          </div>
+        <Section icon={Send} title="Envoyer un test" accent="text-sky-500">
           <div className="flex gap-2">
             <Inp value={testEmail} onChange={e => setTestEmail(e.target.value)} placeholder="test@email.com" />
-            <button onClick={sendTest} disabled={testLoad} className="inline-flex items-center gap-2 px-4 py-2 bg-teal-600 text-white text-sm font-bold rounded-lg hover:bg-sky-700 disabled:opacity-50 whitespace-nowrap transition-colors">
-              {testLoad ? <><div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> ...</> : <><Send className="w-3.5 h-3.5" /> Test</>}
+            <button
+              onClick={sendTest}
+              disabled={testLoad}
+              className="inline-flex items-center gap-1.5 px-4 py-2 bg-sky-600 text-white text-xs font-bold rounded-xl hover:bg-sky-500 disabled:opacity-50 whitespace-nowrap transition-colors"
+            >
+              {testLoad ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+              Test
             </button>
           </div>
-          {testMsg && <p className="text-xs font-medium">{testMsg}</p>}
-        </div>
+          {testMsg && (
+            <p className={`text-xs font-semibold px-3 py-2 rounded-lg ${testMsg.startsWith('✅') ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'}`}>
+              {testMsg}
+            </p>
+          )}
+        </Section>
 
         {/* Actions */}
-        <div className="bg-white rounded-2xl border-2 border-slate-200 p-6 space-y-3 shadow-lg">
-          <button onClick={save} disabled={saving} className="w-full inline-flex items-center justify-center gap-2 py-3 bg-emerald-700 text-white text-sm font-bold rounded-xl hover:bg-emerald-800 disabled:opacity-50 transition-all duration-300 shadow-md hover:shadow-lg">
-            <Save className="w-4 h-4" />
-            {saving ? 'Enregistrement...' : eid ? 'Mettre à jour' : 'Créer la campagne'}
+        <Section icon={Save} title="Actions" accent="text-emerald-600">
+          <button
+            onClick={save}
+            disabled={saving}
+            className="w-full inline-flex items-center justify-center gap-2 py-2.5 bg-emerald-600 text-white text-sm font-bold rounded-xl hover:bg-emerald-500 disabled:opacity-50 transition-all shadow-sm"
+          >
+            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+            {saving ? 'Enregistrement…' : eid ? 'Mettre à jour' : 'Créer la campagne'}
           </button>
-          <button onClick={onCancel} className="w-full inline-flex items-center justify-center gap-2 py-3 bg-slate-100 text-slate-700 text-sm font-bold rounded-xl hover:bg-slate-200 transition-colors">
+          <button
+            onClick={onCancel}
+            className="w-full inline-flex items-center justify-center gap-2 py-2.5 bg-slate-100 text-slate-600 text-sm font-bold rounded-xl hover:bg-slate-200 transition-colors"
+          >
             <ArrowLeft className="w-4 h-4" />
             Retour aux campagnes
           </button>
-        </div>
+        </Section>
       </div>
 
       {/* Templates modal */}
-      <Dlg open={showTpls} onClose={() => setShowTpls(false)} title="📋 Choisir un template d'email">
+      <Dlg open={showTpls} onClose={() => setShowTpls(false)} title="Choisir un template d'email">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {EMAIL_TPLS.map(t => {
             const TplIcon = t.icon;
@@ -688,6 +680,9 @@ export default function MarketingCompose({ editingId, onSaved, onCancel, flash }
           })}
         </div>
       </Dlg>
+
+      </div>{/* end grid */}
+      </div>{/* end body padding */}
     </div>
   );
 }

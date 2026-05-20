@@ -104,10 +104,7 @@ const Settings = () => {
     setSavingGroups(true);
     setGroupsError('');
     try {
-      const res = await ecomApi.get('/orders/config/whatsapp');
-      const closeuseNotifNumbers = res.data.data?.closeuseNotifNumbers || [];
-      const reportNotifNumber = res.data.data?.reportNotifNumber || '';
-      await ecomApi.patch('/orders/config/whatsapp-notifs', { closeuseNotifNumbers, deliveryGroupNumbers: deliveryGroups, reportNotifNumber });
+      await ecomApi.patch('/orders/config/whatsapp-notifs', { deliveryGroupNumbers: deliveryGroups, reportNotifNumber: reportWANumber });
       setGroupsSaved(true);
       setTimeout(() => setGroupsSaved(false), 3000);
     } catch (err) {
@@ -121,10 +118,7 @@ const Settings = () => {
     setSavingReportWA(true);
     setReportWAError('');
     try {
-      const res = await ecomApi.get('/orders/config/whatsapp');
-      const closeuseNotifNumbers = res.data.data?.closeuseNotifNumbers || [];
-      const deliveryGroupNumbers = res.data.data?.deliveryGroupNumbers || [];
-      await ecomApi.patch('/orders/config/whatsapp-notifs', { closeuseNotifNumbers, deliveryGroupNumbers, reportNotifNumber: reportWANumber });
+      await ecomApi.patch('/orders/config/whatsapp-notifs', { deliveryGroupNumbers: deliveryGroups, reportNotifNumber: reportWANumber });
       setReportWASaved(true);
       setTimeout(() => setReportWASaved(false), 3000);
     } catch (err) {
@@ -151,7 +145,45 @@ const Settings = () => {
     }
   };
 
-  useEffect(() => { if (activeTab === 'delivery_groups') fetchDeliveryGroups(); }, [activeTab]);
+  // ── Groupes WhatsApp par produit ──
+  const [products, setProducts] = useState([]);
+  const [waGroups, setWaGroups] = useState([]);
+  const [waGroupsConnected, setWaGroupsConnected] = useState(true);
+  const [productGroupsLoading, setProductGroupsLoading] = useState(false);
+  const [productGroupsSaving, setProductGroupsSaving] = useState({});
+  const [productGroupsSaved, setProductGroupsSaved] = useState({});
+
+  const fetchProductGroups = async () => {
+    setProductGroupsLoading(true);
+    try {
+      const [prodRes, grpRes] = await Promise.all([
+        ecomApi.get('/products?isActive=true'),
+        ecomApi.get('/products/whatsapp-groups').catch(() => ({ data: { groups: [], connected: false } }))
+      ]);
+      setProducts(prodRes.data?.data || []);
+      setWaGroups(grpRes.data?.groups || []);
+      setWaGroupsConnected(grpRes.data?.connected !== false);
+    } catch {}
+    finally { setProductGroupsLoading(false); }
+  };
+
+  const saveProductGroup = async (productId, groupJid, groupName) => {
+    setProductGroupsSaving(p => ({ ...p, [productId]: true }));
+    try {
+      await ecomApi.patch(`/products/${productId}/whatsapp-group`, { groupJid: groupJid || null, groupName: groupName || null });
+      setProducts(prev => prev.map(p => p._id === productId ? { ...p, whatsappGroupJid: groupJid || null, whatsappGroupName: groupName || null } : p));
+      setProductGroupsSaved(p => ({ ...p, [productId]: true }));
+      setTimeout(() => setProductGroupsSaved(p => ({ ...p, [productId]: false })), 2500);
+    } catch {}
+    finally { setProductGroupsSaving(p => ({ ...p, [productId]: false })); }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'delivery_groups') {
+      fetchDeliveryGroups();
+      fetchProductGroups();
+    }
+  }, [activeTab]);
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     if (params.get('tab')) setActiveTab(params.get('tab'));
@@ -933,6 +965,70 @@ const Settings = () => {
             {groupsSaved && <span className="text-sm text-emerald-600 font-medium">✅ Groupes enregistrés</span>}
             {groupsError && <span className="text-sm text-red-500">❌ {groupsError}</span>}
           </div>
+        </div>
+
+        {/* ── Groupes WhatsApp par produit ── */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center shrink-0">
+              <svg className="w-5 h-5 text-green-600" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
+                <path d="M12 0C5.373 0 0 5.373 0 12c0 2.124.558 4.117 1.533 5.84L0 24l6.335-1.507A11.945 11.945 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818a9.818 9.818 0 01-5.007-1.369l-.36-.214-3.727.977.994-3.635-.235-.374A9.818 9.818 0 1112 21.818z"/>
+              </svg>
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-gray-900">Groupes WhatsApp par produit</h2>
+              <p className="text-xs text-gray-400">Chaque nouvelle commande est automatiquement notifiée dans le groupe assigné au produit concerné.</p>
+            </div>
+          </div>
+
+          {!waGroupsConnected && (
+            <div className="mb-4 p-3 bg-amber-50 border border-amber-100 rounded-xl text-xs text-amber-700">
+              Aucune instance WhatsApp connectée. Configurez votre instance dans <strong>WhatsApp &gt; Connexion</strong> pour choisir des groupes.
+            </div>
+          )}
+
+          {productGroupsLoading ? (
+            <div className="py-8 flex justify-center"><div className="w-5 h-5 border-2 border-green-500 border-t-transparent rounded-full animate-spin"/></div>
+          ) : products.length === 0 ? (
+            <p className="text-sm text-gray-400 italic py-2">Aucun produit actif trouvé.</p>
+          ) : (
+            <div className="space-y-2">
+              {products.map(product => (
+                <div key={product._id} className="flex items-center gap-3 p-3 bg-gray-50 border border-gray-100 rounded-xl">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-gray-900 truncate">{product.name}</p>
+                    {product.whatsappGroupName && (
+                      <p className="text-[11px] text-green-600 truncate">→ {product.whatsappGroupName}</p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <select
+                      value={product.whatsappGroupJid || ''}
+                      onChange={e => {
+                        const jid = e.target.value;
+                        const grp = waGroups.find(g => g.jid === jid);
+                        saveProductGroup(product._id, jid, grp?.name || '');
+                      }}
+                      disabled={!waGroupsConnected || productGroupsSaving[product._id]}
+                      className="text-sm border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:ring-2 focus:ring-green-400 focus:border-green-400 focus:outline-none max-w-[200px] disabled:opacity-50"
+                    >
+                      <option value="">— Aucun groupe —</option>
+                      {waGroups.map(g => (
+                        <option key={g.jid} value={g.jid}>{g.name}{g.size ? ` (${g.size})` : ''}</option>
+                      ))}
+                    </select>
+                    {productGroupsSaving[product._id] && (
+                      <div className="w-4 h-4 border-2 border-green-500 border-t-transparent rounded-full animate-spin"/>
+                    )}
+                    {productGroupsSaved[product._id] && (
+                      <svg className="w-4 h-4 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7"/></svg>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         </div>

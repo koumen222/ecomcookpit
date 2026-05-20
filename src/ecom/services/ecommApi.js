@@ -86,12 +86,45 @@ console.log('🔧 [API] ECOM_API_BASE_URL =', ECOM_API_BASE_URL, '| VITE_API_URL
 const RETRYABLE_STATUS_CODES = new Set([502, 503, 504]);
 const MAX_RETRY_ATTEMPTS = 1;
 const RETRY_DELAY_MS = 700;
+
+// ─── In-memory GET cache + in-flight deduplication ───────────────────────────
+// _cache:    URL → { data, ts }  — serves stale responses within TTL
+// _inflight: URL → Promise       — deduplicates simultaneous identical requests
 const _cache = new Map();
 const _inflight = new Map();
+
+// How long to serve cached responses without re-fetching (milliseconds).
+// Endpoints can opt into longer TTLs via config._cacheTtl.
+const DEFAULT_CACHE_TTL = 20_000; // 20 s
+const CACHE_TTLS = {
+  '/super-admin/dashboard-summary': 300_000, // 5 min (also cached server-side)
+  '/super-admin/dashboard-quick':   120_000, // 2 min
+  '/super-admin/users':              30_000, // 30 s
+  '/super-admin/workspaces':         30_000, // 30 s
+  '/super-admin/settings':           60_000, // 1 min
+};
+
+function getCacheTtl(url = '') {
+  for (const [pattern, ttl] of Object.entries(CACHE_TTLS)) {
+    if (url.includes(pattern)) return ttl;
+  }
+  return DEFAULT_CACHE_TTL;
+}
+
+function getCacheKey(config) {
+  const params = config.params ? JSON.stringify(config.params) : '';
+  return `${config.url}::${params}`;
+}
 
 export function clearEcomGetCache() {
   _cache.clear();
   _inflight.clear();
+}
+
+export function invalidateCacheFor(urlPattern) {
+  for (const key of _cache.keys()) {
+    if (key.includes(urlPattern)) _cache.delete(key);
+  }
 }
 
 function sleep(ms) {
@@ -114,7 +147,7 @@ function isRetryableRequestError(error) {
 
 const ecomApi = axios.create({
   baseURL: ECOM_API_BASE_URL,
-  timeout: 600000, // 10 minutes
+  timeout: 30000, // 30 s — was 10 min, which let hung requests block the UI forever
   withCredentials: false,
   headers: {
     'Content-Type': 'application/json'
@@ -177,6 +210,31 @@ ecomApi.interceptors.request.use(
       config.headers['X-Store-Id'] = storeId;
     }
 
+    // ── Client-side GET cache ─────────────────────────────────────────────
+    // Serves cached responses to avoid duplicate network requests.
+    // Bypassed automatically by mutations (POST/PUT/PATCH/DELETE clear the cache).
+    if (config.method === 'get' && !config._bypassCache) {
+      const key = getCacheKey(config);
+      const ttl = config._cacheTtl ?? getCacheTtl(config.url ?? '');
+      const entry = _cache.get(key);
+
+      if (entry && Date.now() - entry.ts < ttl) {
+        // Return cached data immediately via a custom adapter
+        config._fromCache = true;
+        config.adapter = () => Promise.resolve({
+          data: entry.data,
+          status: 200,
+          statusText: 'OK (cached)',
+          headers: {},
+          config,
+          request: {},
+        });
+      } else {
+        // Tag the request so the response interceptor can populate the cache
+        config._cacheKey = key;
+      }
+    }
+
     // Marquer le timestamp de départ pour mesurer la durée
     config._startTime = Date.now();
 
@@ -212,13 +270,23 @@ const processQueue = (error, token = null) => {
 ecomApi.interceptors.response.use(
   (response) => {
     const method = String(response.config?.method || 'get').toLowerCase();
-    logApiResponse(response);
-    window.dispatchEvent(new Event('toploader:stop'));
+
+    // Skip logging + toploader for cache hits
+    if (!response.config?._fromCache) {
+      logApiResponse(response);
+      window.dispatchEvent(new Event('toploader:stop'));
+    }
 
     // Any successful mutation invalidates short-lived GET cache entries.
     if (method !== 'get') {
       clearEcomGetCache();
       return response;
+    }
+
+    // Populate cache for future requests
+    const key = response.config?._cacheKey;
+    if (key && response.status === 200) {
+      _cache.set(key, { data: response.data, ts: Date.now() });
     }
 
     return response;

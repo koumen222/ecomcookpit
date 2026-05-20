@@ -381,5 +381,19 @@ orderSchema.index({ workspaceId: 1, date: -1 });
 orderSchema.index({ workspaceId: 1, updatedAt: -1 });
 orderSchema.index({ workspaceId: 1, clientPhoneNormalized: 1 });
 
+// Capture isNew before save (post hook resets it to false)
+orderSchema.pre('save', function () {
+  this.$locals.wasNew = this.isNew;
+});
+
+// Notifier le groupe WhatsApp lié au produit dès qu'une commande est créée
+orderSchema.post('save', function (doc) {
+  if (!doc.$locals?.wasNew) return;
+  import('../services/whatsappService.js').then(({ sendOrderToProductGroup }) => {
+    sendOrderToProductGroup(doc, doc.workspaceId?.toString())
+      .catch(err => console.error('❌ [Order hook] sendOrderToProductGroup:', err.message));
+  }).catch(() => {});
+});
+
 const Order = mongoose.model('Order', orderSchema);
 export default Order;

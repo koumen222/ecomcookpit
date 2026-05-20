@@ -435,9 +435,65 @@ export async function sendWhatsAppDocument({ to, documentUrl, caption = '', work
   });
 }
 
+/**
+ * Envoie une nouvelle commande dans le groupe WhatsApp lié au produit
+ * @param {Object} order - Objet commande (mongoose doc ou plain object)
+ * @param {string} workspaceId
+ */
+export async function sendOrderToProductGroup(order, workspaceId) {
+  try {
+    if (!order?.productId && !order?.product) return;
+    if (!workspaceId) return;
+
+    // Récupérer le produit pour avoir le groupe assigné
+    const { default: Product } = await import('../models/Product.js');
+    let product = null;
+    if (order.productId) {
+      product = await Product.findOne({ _id: order.productId, workspaceId }).select('whatsappGroupJid whatsappGroupName name').lean();
+    }
+    // Fallback: chercher par nom si pas de productId
+    if (!product && order.product) {
+      product = await Product.findOne({
+        workspaceId,
+        name: { $regex: `^${order.product.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, $options: 'i' }
+      }).select('whatsappGroupJid whatsappGroupName name').lean();
+    }
+
+    if (!product?.whatsappGroupJid) return;
+
+    const groupJid = product.whatsappGroupJid;
+    const now = new Date();
+    const dateStr = now.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    const timeStr = now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+
+    const message =
+      `🛒 *NOUVELLE COMMANDE — ${(order.product || product.name || '').toUpperCase()}*\n\n` +
+      `📋 *Réf:* ${order.orderId || '#—'}\n` +
+      `📅 *Date:* ${dateStr} à ${timeStr}\n\n` +
+      `👤 *Client:* ${order.clientName || '—'}\n` +
+      `📞 *Tel:* ${order.clientPhone || '—'}\n` +
+      `📍 *Ville:* ${order.city || '—'}\n` +
+      `${order.address ? `🏠 *Adresse:* ${order.address}\n` : ''}` +
+      `\n` +
+      `📦 *Produit:* ${order.product || product.name}\n` +
+      `🔢 *Qté:* ${order.quantity || 1}\n` +
+      `💰 *Prix:* ${order.price || 0} ${order.currency || 'XAF'}\n` +
+      `💰 *Total:* ${(order.price || 0) * (order.quantity || 1)} ${order.currency || 'XAF'}\n` +
+      `${order.notes ? `\n📝 *Notes:* ${order.notes}\n` : ''}` +
+      `\n_Source: ${order.source || 'manual'}_`;
+
+    await sendWhatsAppMessage({ to: groupJid, message, workspaceId });
+    console.log(`✅ [OrderGroup] Commande #${order.orderId} envoyée au groupe "${product.whatsappGroupName}" (${groupJid})`);
+  } catch (error) {
+    console.error('❌ sendOrderToProductGroup:', error.message);
+    // Ne pas propager — ne jamais bloquer la création de commande
+  }
+}
+
 export default {
   sendWhatsAppMessage,
   sendOrderNotification,
+  sendOrderToProductGroup,
   sendWhatsAppMedia,
   sendWhatsAppAudio,
   sendWhatsAppVideo,

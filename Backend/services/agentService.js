@@ -200,7 +200,7 @@ const calculateConfidenceImpact = (intent, sentiment) => {
     return rendered;
   };
 
-const buildSystemPrompt = (productConfig, conversation) => {
+const buildSystemPrompt = (productConfig, conversation, ritaConfig = null) => {
   const tonalityMap = {
     friendly: 'Tu es chaleureux, proche et utilise un ton amical comme un ami qui conseille.',
     professional: 'Tu es professionnel mais accessible, tu inspires confiance.',
@@ -236,20 +236,28 @@ Si ce n'est pas clair → pose UNE question directe.
 📋 RÈGLES STRICTES:
 1. COMPRENDS avant de répondre — analyse l'intention, le besoin, le niveau d'intérêt
 2. Si le prospect dit juste "bonjour", "salut", "hello" → commence TOUJOURS par: "Bonjour 👌 quel produit vous intéresse ?"
-3. Ne donne JAMAIS le prix directement au premier message
-4. Avant de vendre, pose toujours 1 ou 2 questions pour comprendre le besoin précis du client
-5. Dès que le produit est identifié → explique à quoi il sert, ses bénéfices, comment il marche, puis donne le prix si pertinent
-4. Réponds TOUJOURS aux questions du client de manière complète
+3. Si le client demande directement le prix → donne-le immédiatement sans détour
+4. Dès que le produit est identifié → donne le prix + un ou deux bénéfices clés, et propose la suite
+5. Réponds TOUJOURS aux questions du client de manière complète et directe
 6. Rassure le client sur ses inquiétudes avec paiement à la livraison + vérification avant paiement
 7. Utilise parfois une preuve sociale naturelle comme: "beaucoup de clientes à Douala utilisent déjà ça"
 8. Ramène TOUJOURS la conversation vers la commande, mais progressivement et naturellement
-9. Termine CHAQUE message par une question ou une proposition concrète
+9. Termine le message par une question UNIQUEMENT si c'est vraiment nécessaire pour avancer — jamais par réflexe
 10. Messages courts (max 3-4 phrases)
 11. Utilise des emojis avec modération (1-2 max)
 12. Adapte ton langage au contexte camerounais
 13. Ne sois JAMAIS robotique — chaque réponse doit être unique et naturelle
 14. N'envoie JAMAIS des infos non demandées ou des images inutiles (anti-spam)
 15. Ne spamme jamais "tu veux que je réserve" — propose la suite naturellement
+
+🚫 QUESTIONS INUTILES — ABSOLUMENT INTERDITES:
+- Ne pose JAMAIS une question à laquelle tu as déjà la réponse dans la conversation
+- Ne pose JAMAIS plus d'UNE question par message
+- Ne repose JAMAIS la même question si le client a déjà répondu
+- Ne demande JAMAIS une info que le client vient de donner (ville, quantité, nom…)
+- Si le client a dit "je veux X", n'ajoute pas "quel produit vous intéresse ?" — c'est déjà su
+- Si le client a confirmé sa ville, n'ajoute pas "et dans quelle zone ?" — passe à l'étape suivante
+- Si le produit est clair, va droit au prix + bénéfice — 0 question préalable
 
 🖼️ SI LE CLIENT ENVOIE UNE IMAGE:
 - Tu recevras la description de l'image entre crochets
@@ -260,10 +268,57 @@ Si ce n'est pas clair → pose UNE question directe.
 🛒 INFORMATIONS PRODUIT:
 - Nom: ${productConfig?.productName || conversation.productName || 'Non spécifié'}
 - Prix: ${productConfig?.pricing?.sellingPrice || conversation.productPrice || 'Non spécifié'} FCFA
-- Livraison: ${productConfig?.delivery?.estimatedTime || 'Dans la journée'}
+- Délai livraison: ${productConfig?.delivery?.estimatedTime || 'Dans la journée'}
 ${productConfig?.guarantee?.hasGuarantee ? `- Garantie: ${productConfig.guarantee.duration} - ${productConfig.guarantee.description}` : ''}
 
 `;
+
+  // ── Injection expédition depuis RitaConfig ──────────────────────────────
+  if (ritaConfig?.expeditionEnabled) {
+    const cities    = (ritaConfig.expeditionCities || []).filter(Boolean);
+    const agencies  = (ritaConfig.expeditionAgencies || []).filter(a => a.available !== false && a.name);
+    const mmAccounts = (ritaConfig.paymentCoordinates?.mobileMoney || []).filter(m => m.number);
+
+    systemPrompt += `📦 EXPÉDITION PAR AGENCE:\n`;
+    systemPrompt += `Nous expédions via agence (paiement AVANT envoi, récupération à l'agence).\n`;
+
+    if (cities.length > 0) {
+      systemPrompt += `Villes où nous expédions : ${cities.join(', ')}.\n`;
+      systemPrompt += `Pour toute autre ville NON listée → répondre EXACTEMENT : "Nous n'expédions pas encore dans votre ville."\n`;
+    } else {
+      systemPrompt += `(Villes non configurées — demande au client sa ville avant de confirmer la livraison.)\n`;
+    }
+
+    if (agencies.length > 0) {
+      const agencyList = agencies.map(a => `${a.name}${a.estimatedCost ? ` (frais : ${a.estimatedCost})` : ''}`).join(', ');
+      systemPrompt += `Agences utilisées : ${agencyList}.\n`;
+    }
+
+    if (mmAccounts.length > 0) {
+      const mm = mmAccounts[0];
+      systemPrompt += `Paiement avant envoi via ${mm.provider} : ${mm.number}${mm.name ? ` au nom de ${mm.name}` : ''}.\n`;
+    }
+
+    if (ritaConfig.expeditionInstructions?.trim()) {
+      systemPrompt += `Instructions supplémentaires : ${ritaConfig.expeditionInstructions.trim()}\n`;
+    }
+
+    systemPrompt += `
+🚨 RÈGLES LIVRAISON — OBLIGATOIRES, JAMAIS VIOLÉES:
+1. Quand le client demande "vous livrez ?", "vous expédiez ?", "vous faites la livraison ?" →
+   → Liste UNIQUEMENT les villes de la liste ci-dessus (ex: "Oui, on expédie à Douala, Yaoundé et Bafoussam.")
+   → Ne jamais citer un quartier (Akwa, Bali, Bastos…) — SEULE la ville compte
+2. Quand le client donne SA ville :
+   → Si sa ville EST dans la liste → "Oui, on expédie à [ville] 👍 Vous payez en avance et récupérez à l'agence [agence]. Je vous envoie les coordonnées de paiement dès que vous confirmez."
+   → Si sa ville N'EST PAS dans la liste → "Désolée, nous n'expédions pas encore à [ville]. Nous couvrons pour l'instant : [liste des villes]."
+3. Ne JAMAIS demander dans quel quartier ou zone le client se trouve — c'est une récupération en agence, pas une livraison à domicile.
+4. Ne JAMAIS te contredire : si tu as dit qu'on expédie à une ville, tu GARDES cette information.
+5. Ne JAMAIS inventer une ville ou une agence qui ne figure pas dans la liste ci-dessus.
+
+`;
+  } else {
+    systemPrompt += `📦 LIVRAISON: Livraison locale uniquement (pas d'expédition par agence configurée).\n\n`;
+  }
 
   if (productConfig?.advantages?.length > 0) {
     systemPrompt += `\n💪 AVANTAGES À METTRE EN AVANT:\n`;
@@ -379,17 +434,23 @@ const generateAgentResponse = async (conversation, clientMessage, intent, sentim
     throw new Error('Aucun modele texte configure (KIE_API_KEY ou GROQ_API_KEY manquant)');
   }
 
-  const productConfig = await ProductConfig.findByProductName(
-    conversation.workspaceId,
-    conversation.productName
-  );
+  // Charger ProductConfig + RitaConfig en parallèle
+  const workspace = await Workspace.findById(conversation.workspaceId).select('owner').lean().catch(() => null);
+  const workspaceOwnerId = workspace?.owner?.toString();
+
+  const [productConfig, ritaConfig] = await Promise.all([
+    ProductConfig.findByProductName(conversation.workspaceId, conversation.productName),
+    workspaceOwnerId
+      ? RitaConfig.findOne({ userId: workspaceOwnerId }).lean().catch(() => null)
+      : Promise.resolve(null),
+  ]);
 
   const conversationHistory = await AgentMessage.formatForPrompt(conversation._id, 10);
 
   // Extraire le prénom du client
   const clientFirstName = conversation.clientName ? conversation.clientName.split(' ')[0] : 'cher client';
 
-  const systemPrompt = buildSystemPrompt(productConfig, conversation);
+  const systemPrompt = buildSystemPrompt(productConfig, conversation, ritaConfig);
   const userPrompt = buildUserPrompt(clientMessage, conversationHistory, intent, sentiment, clientFirstName);
 
   try {
