@@ -92,7 +92,12 @@ const StockManagement = () => {
   const [form, setForm] = useState(createEmptyForm);
   const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => { loadAll(); }, []);
+  useEffect(() => {
+    loadAll();
+    const onStoreSwitch = () => loadAll(false);
+    window.addEventListener('scalor:store-switch', onStoreSwitch);
+    return () => window.removeEventListener('scalor:store-switch', onStoreSwitch);
+  }, []);
 
   const loadAll = async (useCache = true) => {
     setLoading(true);

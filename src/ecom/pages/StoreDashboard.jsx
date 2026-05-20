@@ -111,13 +111,14 @@ function hasMeaningfulDashboardData(payload) {
   return hasVisitors || hasPageViews || hasOrders || hasRevenue;
 }
 
-function getDashboardCacheKey(workspaceId) {
-  return `storeDashboard:lastMeaningful:${workspaceId || 'unknown'}`;
+function getDashboardCacheKey(workspaceId, storeId) {
+  const storeSuffix = storeId ? `:${storeId}` : '';
+  return `storeDashboard:lastMeaningful:${workspaceId || 'unknown'}${storeSuffix}`;
 }
 
-function readCachedDashboard(workspaceId) {
+function readCachedDashboard(workspaceId, storeId) {
   try {
-    const raw = localStorage.getItem(getDashboardCacheKey(workspaceId));
+    const raw = localStorage.getItem(getDashboardCacheKey(workspaceId, storeId));
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     return parsed && typeof parsed === 'object' ? parsed : null;
@@ -126,10 +127,10 @@ function readCachedDashboard(workspaceId) {
   }
 }
 
-function writeCachedDashboard(workspaceId, payload) {
+function writeCachedDashboard(workspaceId, storeId, payload) {
   if (!workspaceId || !payload || !hasMeaningfulDashboardData(payload)) return;
   try {
-    localStorage.setItem(getDashboardCacheKey(workspaceId), JSON.stringify(payload));
+    localStorage.setItem(getDashboardCacheKey(workspaceId, storeId), JSON.stringify(payload));
   } catch {
     // Ignore storage quota/security errors
   }
@@ -243,11 +244,14 @@ export default function StoreDashboard() {
 
   useEffect(() => {
     if (!resolvedWorkspaceId) return;
-    const cached = readCachedDashboard(resolvedWorkspaceId);
+    const cached = readCachedDashboard(resolvedWorkspaceId, activeStore?._id);
     if (cached && hasMeaningfulDashboardData(cached)) {
       setDashboardData(cached);
+    } else {
+      // No cache for this store — clear stale data from previous store
+      setDashboardData(null);
     }
-  }, [resolvedWorkspaceId]);
+  }, [resolvedWorkspaceId, activeStore?._id]);
 
   useEffect(() => {
     if (!resolvedWorkspaceId) return;
@@ -281,7 +285,10 @@ export default function StoreDashboard() {
   }, [isTodayActive, resolvedWorkspaceId, activeStore?._id, dateRange]);
 
   const loadDashboard = async (isInitial, options = {}) => {
-    const forceAllStores = options.forceAllStores !== false;
+    // When a specific store is active, always scope to that store.
+    // Only fetch all-stores aggregated data when no store is selected.
+    const hasActiveStore = !!activeStore?._id;
+    const useAllStores = !hasActiveStore && options.forceAllStores !== false;
     if (!resolvedWorkspaceId) return;
     try {
       if (isInitial) setLoading(true); else setRefreshing(true);
@@ -292,15 +299,19 @@ export default function StoreDashboard() {
         params.period = dateRange.period || period;
       }
       if (!params.period) params.period = period;
+
+      const fetchDashboard = useAllStores
+        ? withNoActiveStoreHeader(() => ecomApi.get('/store-analytics/dashboard', { params: { ...params, allStores: 1 } }))
+        : ecomApi.get('/store-analytics/dashboard', { params });
+
       const [response, configRes] = await Promise.all([
-        forceAllStores
-          ? withNoActiveStoreHeader(() => ecomApi.get('/store-analytics/dashboard', { params: { ...params, allStores: 1 } }))
-          : ecomApi.get('/store-analytics/dashboard', { params }),
+        fetchDashboard,
         ecomApi.get('/store-manage/config').catch(() => null),
       ]);
       let normalized = normalizeDashboardPayload(response.data);
 
-      if ((forceAllStores || activeStore?._id) && (!normalized || !hasMeaningfulDashboardData(normalized))) {
+      // Fallback to all-stores only when no specific store is active and data is empty
+      if (!hasActiveStore && (!normalized || !hasMeaningfulDashboardData(normalized))) {
         const allStoresResponse = await withNoActiveStoreHeader(() => ecomApi.get('/store-analytics/dashboard', {
           params: { ...params, allStores: 1 },
         })).catch(() => null);
@@ -312,22 +323,20 @@ export default function StoreDashboard() {
 
       if (normalized && hasMeaningfulDashboardData(normalized)) {
         setDashboardData(normalized);
-        writeCachedDashboard(resolvedWorkspaceId, normalized);
+        writeCachedDashboard(resolvedWorkspaceId, activeStore?._id, normalized);
       } else {
-        let summaryResponse = await ecomApi.get('/store/analytics/summary').catch(() => null);
+        const summaryFetch = useAllStores
+          ? withNoActiveStoreHeader(() => ecomApi.get('/store/analytics/summary', { params: { allStores: 1 } }))
+          : ecomApi.get('/store/analytics/summary');
+        let summaryResponse = await summaryFetch.catch(() => null);
         let summary = summaryResponse?.data?.data || summaryResponse?.data || {};
-
-        if ((forceAllStores || activeStore?._id) && !hasMeaningfulDashboardData(mapSummaryToDashboardData(summary, response?.data?.period || null))) {
-          summaryResponse = await withNoActiveStoreHeader(() => ecomApi.get('/store/analytics/summary', { params: { allStores: 1 } })).catch(() => null);
-          summary = summaryResponse?.data?.data || summaryResponse?.data || summary;
-        }
 
         const mappedSummary = mapSummaryToDashboardData(summary, response?.data?.period || null);
         if (hasMeaningfulDashboardData(mappedSummary)) {
           setDashboardData(mappedSummary);
-          writeCachedDashboard(resolvedWorkspaceId, mappedSummary);
+          writeCachedDashboard(resolvedWorkspaceId, activeStore?._id, mappedSummary);
         } else {
-          const cached = readCachedDashboard(resolvedWorkspaceId);
+          const cached = readCachedDashboard(resolvedWorkspaceId, activeStore?._id);
           if (cached && hasMeaningfulDashboardData(cached)) {
             setDashboardData(cached);
           } else {
@@ -342,24 +351,19 @@ export default function StoreDashboard() {
       else if (subdomain) setStoreUrl(`https://${subdomain}.scalor.net`);
     } catch (error) {
       console.error('Erreur dashboard:', error);
-      let summaryResponse = await ecomApi.get('/store/analytics/summary').catch(() => null);
+      const summaryFetch = useAllStores
+        ? withNoActiveStoreHeader(() => ecomApi.get('/store/analytics/summary', { params: { allStores: 1 } }))
+        : ecomApi.get('/store/analytics/summary');
+      let summaryResponse = await summaryFetch.catch(() => null);
       let summary = summaryResponse?.data?.data || summaryResponse?.data || null;
-
-      if ((forceAllStores || activeStore?._id) && summary) {
-        const firstMapped = mapSummaryToDashboardData(summary, null);
-        if (!hasMeaningfulDashboardData(firstMapped)) {
-          summaryResponse = await withNoActiveStoreHeader(() => ecomApi.get('/store/analytics/summary', { params: { allStores: 1 } })).catch(() => null);
-          summary = summaryResponse?.data?.data || summaryResponse?.data || summary;
-        }
-      }
 
       if (summary) {
         const mappedSummary = mapSummaryToDashboardData(summary, null);
         if (hasMeaningfulDashboardData(mappedSummary)) {
           setDashboardData(mappedSummary);
-          writeCachedDashboard(resolvedWorkspaceId, mappedSummary);
+          writeCachedDashboard(resolvedWorkspaceId, activeStore?._id, mappedSummary);
         } else {
-          const cached = readCachedDashboard(resolvedWorkspaceId);
+          const cached = readCachedDashboard(resolvedWorkspaceId, activeStore?._id);
           if (cached && hasMeaningfulDashboardData(cached)) {
             setDashboardData(cached);
           } else {
@@ -367,7 +371,7 @@ export default function StoreDashboard() {
           }
         }
       } else {
-        const cached = readCachedDashboard(resolvedWorkspaceId);
+        const cached = readCachedDashboard(resolvedWorkspaceId, activeStore?._id);
         if (cached && hasMeaningfulDashboardData(cached)) {
           setDashboardData(cached);
         }

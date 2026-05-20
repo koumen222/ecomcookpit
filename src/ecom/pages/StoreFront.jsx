@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Search, ShoppingBag, ChevronLeft, ChevronRight, Phone, MessageCircle, Filter, SlidersHorizontal, X, Check, Shield, Truck, Headphones, ArrowUpDown } from 'lucide-react';
 import { publicStoreApi } from '../services/storeApi.js';
@@ -119,17 +119,15 @@ const StoreFront = () => {
     return `https://${subdomain}.scalor.net${path}`;
   };
 
-  const cacheKey = subdomain ? `sf_${subdomain}` : null;
-  const _cached = cacheKey ? _sfRead(cacheKey) : null;
-
-  const [store, setStore] = useState(_cached?.store || null);
-  const [products, setProducts] = useState(_cached?.products || []);
-  const [categories, setCategories] = useState(_cached?.categories || []);
-  const [loading, setLoading] = useState(!_cached);
+  const [store, setStore] = useState(null);
+  const [products, setProducts] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [loadingProducts, setLoadingProducts] = useState(false);
+  const _mainFetchComplete = useRef(false);
   const [error, setError] = useState('');
   const [loadingTimeout, setLoadingTimeout] = useState(false);
-  const [pagination, setPagination] = useState(_cached?.pagination || { page: 1, limit: 20, total: 0, pages: 0 });
+  const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0, pages: 0 });
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
   const [sortBy, setSortBy] = useState('-createdAt');
@@ -138,13 +136,40 @@ const StoreFront = () => {
 
   useEffect(() => {
     if (!subdomain) return;
-    const hasCached = !!_sfRead(cacheKey);
 
-    // If cached data already shown, inject CSS vars immediately
-    if (hasCached && store) injectStoreCssVars(store);
+    // Reset all state for the new subdomain
+    _mainFetchComplete.current = false;
+    setError('');
+    setSearch('');
+    setSelectedCategory('');
+    setSortBy('-createdAt');
+    setAvailability('all');
+    setLoadingTimeout(false);
+
+    // Check cache for this specific subdomain
+    const cacheKey = `sf_${subdomain}`;
+    const cached = _sfRead(cacheKey);
+    const hasCachedProducts = !!(cached?.store && cached?.products?.length);
+
+    if (hasCachedProducts) {
+      // Show cached data immediately, revalidate in background
+      setStore(cached.store);
+      setProducts(cached.products);
+      setCategories(cached.categories || []);
+      setPagination(cached.pagination || { page: 1, limit: 20, total: 0, pages: 0 });
+      setLoading(false);
+      injectStoreCssVars(cached.store);
+    } else {
+      // Cold load — show skeleton
+      setStore(null);
+      setProducts([]);
+      setCategories([]);
+      setPagination({ page: 1, limit: 20, total: 0, pages: 0 });
+      setLoading(true);
+    }
 
     let timeoutId;
-    if (!hasCached) {
+    if (!hasCachedProducts) {
       timeoutId = setTimeout(() => setLoadingTimeout(true), 8000);
     }
 
@@ -161,17 +186,18 @@ const StoreFront = () => {
         setProducts(newProducts);
         setPagination(newPagination);
         setCategories(newCategories);
+        _mainFetchComplete.current = true;
 
         if (storeData) injectStoreCssVars(storeData);
 
-        if (cacheKey) _sfWrite(cacheKey, { store: storeData, products: newProducts, pagination: newPagination, categories: newCategories, pixels: data?.pixels });
+        _sfWrite(cacheKey, { store: storeData, products: newProducts, pagination: newPagination, categories: newCategories, pixels: data?.pixels });
 
         if (data?.pixels) {
           injectPixelScripts(data.pixels);
           firePixelEvent('PageView');
         }
       } catch (err) {
-        if (!hasCached) {
+        if (!hasCachedProducts) {
           console.error('Store loading error:', err);
           setError('Boutique introuvable');
         }
@@ -199,14 +225,15 @@ const StoreFront = () => {
     }
   }, [subdomain, selectedCategory, search, sortBy]);
 
-  // Debounced search
+  // Debounced search — fires only when user changes filters (search/category/sort)
+  // Does NOT include store in deps to avoid triggering on initial data arrival
   useEffect(() => {
-    if (!store) return;
+    if (!_mainFetchComplete.current) return;
     const timer = setTimeout(() => {
       fetchProducts(1, selectedCategory, search, sortBy);
     }, 400);
     return () => clearTimeout(timer);
-  }, [search, selectedCategory, sortBy, store, fetchProducts]);
+  }, [search, selectedCategory, sortBy, fetchProducts]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleCategoryChange = (cat) => {
     setSelectedCategory(cat);

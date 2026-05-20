@@ -185,10 +185,12 @@ export default function Marketing() {
     }
   }, []);
 
-  // Au montage uniquement
   useEffect(() => {
     loadCampaigns(1);
     loadStats();
+    const onStoreSwitch = () => { loadCampaigns(1); loadStats(); };
+    window.addEventListener('scalor:store-switch', onStoreSwitch);
+    return () => window.removeEventListener('scalor:store-switch', onStoreSwitch);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Debounced search

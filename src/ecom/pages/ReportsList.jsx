@@ -773,9 +773,7 @@ const ReportsList = () => {
                         </td>
                       )}
                       <td className="px-4 sm:px-5 py-3.5 text-center">
-                        <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold ${`
-                          rate >= 70 ? 'bg-green-100 text-green-700' : rate >= 50 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-600'
-                        }`}>
+                        <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold ${rate >= 70 ? 'bg-green-100 text-green-700' : rate >= 50 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-600'}`}>
                           {rate}%
                         </span>
                       </td>

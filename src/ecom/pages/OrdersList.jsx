@@ -836,10 +836,9 @@ const OrdersList = () => {
   useEffect(() => {
     const init = async () => {
       if (isAdmin || isSuperAdmin) {
-        // Config en parallèle avec le quick load
         fetchConfig();
         fetchWhatsAppConfig();
-        fetchProducts(); // Charger les produits pour le formulaire
+        fetchProducts();
       } else if (isCloseuse) {
         await fetchCloseuseSources();
         fetchCommissions('month');
@@ -848,6 +847,25 @@ const OrdersList = () => {
       setLoading(false);
     };
     init();
+
+    // Re-fetch everything when the active store changes
+    const onStoreSwitch = () => {
+      setOrders([]);
+      setStats({});
+      setLoading(true);
+      setPage(1);
+      setSearch('');
+      setFilterStatus('');
+      setFilterCity('');
+      setFilterProduct('');
+      setFilterTag('');
+      setFilterStartDate('');
+      setFilterEndDate('');
+      sessionStorage.removeItem(FILTERS_STORAGE_KEY);
+      init();
+    };
+    window.addEventListener('scalor:store-switch', onStoreSwitch);
+    return () => window.removeEventListener('scalor:store-switch', onStoreSwitch);
   }, []);
 
   useEffect(() => { if (isCloseuse && !loading) fetchCommissions(commissionPeriod); }, [commissionPeriod]);

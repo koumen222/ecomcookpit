@@ -116,6 +116,8 @@ export const StoreProvider = ({ children }) => {
       lastKnownStoreRef.current = store;
     }
     window.__activeStoreId__ = store?._id || null;
+    // Notify all components that need to re-fetch for the new store
+    window.dispatchEvent(new CustomEvent('scalor:store-switch', { detail: { storeId: store?._id || null } }));
     if (!workspaceId) return;
 
     if (store?._id) {

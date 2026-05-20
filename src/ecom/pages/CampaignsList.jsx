@@ -230,9 +230,12 @@ const CampaignsList = () => {
     }
   };
 
-  useEffect(() => { 
-    fetchCampaigns().finally(() => setLoading(false)); 
+  useEffect(() => {
+    fetchCampaigns().finally(() => setLoading(false));
     fetchAvailableStatuses();
+    const onStoreSwitch = () => { setLoading(true); fetchCampaigns().finally(() => setLoading(false)); };
+    window.addEventListener('scalor:store-switch', onStoreSwitch);
+    return () => window.removeEventListener('scalor:store-switch', onStoreSwitch);
   }, []);
   
   // Force refresh when coming from campaign creation

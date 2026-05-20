@@ -123,6 +123,20 @@ function getCacheKey(config) {
 export function clearEcomGetCache() {
   _cache.clear();
   _inflight.clear();
+  // Clear all workspace-scoped sessionStorage keys so the next workspace gets fresh data
+  try {
+    const keysToRemove = [];
+    for (let i = 0; i < sessionStorage.length; i++) {
+      const k = sessionStorage.key(i);
+      if (k && (
+        k.startsWith('sf_') ||          // StoreFront/StoreProduct public cache
+        k.startsWith('sfp_') ||         // StoreProduct public cache
+        k.startsWith('dash_summary_') || // AdminDashboard range cache
+        k === 'orders_list_filters'      // OrdersList saved filters
+      )) keysToRemove.push(k);
+    }
+    keysToRemove.forEach(k => sessionStorage.removeItem(k));
+  } catch {}
 }
 
 export function invalidateCacheFor(urlPattern) {

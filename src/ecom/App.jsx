@@ -409,6 +409,13 @@ const RequireStore = ({ children }) => {
   return children;
 };
 
+// Forces a full remount of BoutiqueLayout and all child pages when activeStore changes.
+// This ensures every page with useEffect([], []) re-fetches data for the new store.
+const KeyedBoutiqueLayout = () => {
+  const { activeStore } = useStore();
+  return <BoutiqueLayout key={activeStore?._id || 'no-store'} />;
+};
+
 const DashboardRedirect = () => {
   const { user, isAuthenticated } = useEcomAuth();
   const hasLocalSession = !!localStorage.getItem('ecomToken') && !!localStorage.getItem('ecomUser');
@@ -796,7 +803,7 @@ const EcomApp = () => {
                 <Route path="/ecom/boutique/products/generator" element={<ProtectedRoute requiredRole="ecom_admin"><ProductPageGeneratorWizard /></ProtectedRoute>} />
                 <Route path="/ecom/boutique/products/:id/builder" element={<ProtectedRoute requiredRole="ecom_admin"><RequireStore><ProductPageBuilder /></RequireStore></ProtectedRoute>} />
                 <Route path="/ecom/boutique/pages" element={<ProtectedRoute requiredRole="ecom_admin"><RequireStore><BoutiquePages /></RequireStore></ProtectedRoute>} />
-                <Route element={<ProtectedRoute requiredRole="ecom_admin"><RequireStore><BoutiqueLayout /></RequireStore></ProtectedRoute>}>
+                <Route element={<ProtectedRoute requiredRole="ecom_admin"><RequireStore><KeyedBoutiqueLayout /></RequireStore></ProtectedRoute>}>
                   <Route path="/ecom/boutique" element={<StoreDashboard />} />
                   <Route path="/ecom/boutique/analytics" element={<StoreDashboard />} />
                   <Route path="/ecom/boutique/generations" element={<Navigate to="/ecom/boutique/product-page-studio/generations" replace />} />
