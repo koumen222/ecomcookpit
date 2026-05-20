@@ -334,6 +334,9 @@ export const publicStoreApi = {
   // Get store config + initial products (single call — optimized for African markets)
   getStore: (subdomain) => publicApi.get(`/${subdomain}`),
 
+  // Get store config + full product in one round-trip (use on product pages)
+  getProductPage: (subdomain, slug) => publicApi.get(`/${subdomain}/product-page/${slug}`),
+
   // Get published products (paginated, filtered)
   getProducts: (subdomain, params = {}) => publicApi.get(`/${subdomain}/products`, { params }),
 

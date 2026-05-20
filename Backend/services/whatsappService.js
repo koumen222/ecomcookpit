@@ -87,6 +87,39 @@ async function resolveWhatsAppNumber(rawPhone, workspaceId) {
 }
 
 /**
+/**
+ * Traduit un message d'erreur Evolution API brut en message lisible pour l'utilisateur.
+ */
+function _friendlyError(rawError = '') {
+  const e = String(rawError).toLowerCase();
+  if (e.includes('connection closed') || e.includes('connectionclosed') || e.includes('session closed') || e.includes('not connected')) {
+    return 'Instance WhatsApp déconnectée — reconnectez-la dans Paramètres > WhatsApp';
+  }
+  if (e.includes('unauthorized') || e.includes('invalid token') || e.includes('invalid apikey')) {
+    return 'Token d\'instance invalide — vérifiez la clé API de l\'instance';
+  }
+  if (e.includes('rate') || e.includes('too many')) {
+    return 'Trop de messages envoyés — réessayez dans quelques instants';
+  }
+  return rawError || 'Erreur lors de l\'envoi du message';
+}
+
+/**
+ * Marque l'instance comme déconnectée si Evolution API signale une session fermée.
+ */
+async function _handleSendFailure(instance, rawError = '') {
+  try {
+    const e = String(rawError).toLowerCase();
+    if (e.includes('connection closed') || e.includes('connectionclosed') || e.includes('session closed') || e.includes('not connected')) {
+      console.warn(`⚠️ [WhatsApp] Instance "${instance.instanceName}" déconnectée détectée — mise à jour statut`);
+      instance.status = 'disconnected';
+      instance.disconnectedAt = new Date();
+      await instance.save();
+    }
+  } catch {}
+}
+
+/**
  * Envoie un message WhatsApp via l'instance connectée
  * @param {Object} params - Paramètres d'envoi
  * @param {string} params.to - Numéro de téléphone destinataire
@@ -126,7 +159,10 @@ export async function sendWhatsAppMessage({ to, message, workspaceId, userId, fi
         cleanNumber,
         message
       );
-      if (!result.success) throw new Error(result.error || 'Erreur lors de l\'envoi du message');
+      if (!result.success) {
+        await _handleSendFailure(instance, result.error);
+        throw new Error(_friendlyError(result.error));
+      }
       instance.lastSeen = new Date();
       await instance.save();
       return { success: true, messageId: result.data?.key?.id || 'unknown', instanceName: instance.instanceName };
@@ -152,7 +188,8 @@ export async function sendWhatsAppMessage({ to, message, workspaceId, userId, fi
 
     if (!result.success) {
       console.error(`❌ Evolution API a refusé l'envoi — numéro: ${cleanNumber}, erreur: ${result.error}`);
-      throw new Error(result.error || 'Erreur lors de l\'envoi du message');
+      await _handleSendFailure(instance, result.error);
+      throw new Error(_friendlyError(result.error));
     }
 
     // Mettre à jour lastSeen de l'instance

@@ -352,37 +352,40 @@ export function useStoreProduct(subdomain, slug) {
 
     async function load() {
       try {
-        // If store is already cached, only fetch the product — saves one round-trip
-        const requests = [
-          fetchWithRetry(() => publicStoreApi.getProduct(subdomain, slug)),
-        ];
-        if (!bootstrapStore) requests.push(fetchWithRetry(() => publicStoreApi.getStore(subdomain)));
+        let productData, storeData, pixelsData, footerData;
 
-        const [productRes, storeRes] = await Promise.all(requests);
-
-        if (cancelled) return;
-
-        const productData = productRes?.data?.data || null;
-        if (productCacheKey && productData) {
-          writeCache(productCacheKey, productData);
+        if (bootstrapStore) {
+          // Store already cached — only fetch the product (saves one round-trip)
+          const productRes = await fetchWithRetry(() => publicStoreApi.getProduct(subdomain, slug));
+          if (cancelled) return;
+          productData = productRes?.data?.data || null;
+          storeData = bootstrapStore;
+          pixelsData = cachedStore?.pixels || (bootstrapStore?.pixels ?? null);
+          footerData = cachedStore?.footer || null;
+        } else {
+          // Cold load: one combined call returns store + product + pixels in a single round-trip
+          const pageRes = await fetchWithRetry(() => publicStoreApi.getProductPage(subdomain, slug));
+          if (cancelled) return;
+          const pageData = pageRes?.data?.data || {};
+          productData = pageData.product || null;
+          storeData = pageData.store || null;
+          pixelsData = pageData.pixels || null;
+          footerData = pageData.footer || null;
+          // Populate store cache so subsequent navigations skip the store call
+          if (storeCacheKey && storeData) {
+            writeCache(storeCacheKey, {
+              store: storeData,
+              sections: null,
+              products: [],
+              pixels: pixelsData,
+              footer: footerData,
+              legalPages: null,
+            });
+          }
         }
 
-        let storeData = bootstrapStore;
-        let pixelsData = cachedStore?.pixels || (bootstrapStore?.pixels ?? null);
-        let footerData = cachedStore?.footer || null;
-        if (storeRes) {
-          const data = storeRes.data?.data || {};
-          storeData = data.store || data;
-          pixelsData = data.pixels || null;
-          footerData = data.footer || null;
-          if (storeCacheKey) writeCache(storeCacheKey, {
-            store: storeData,
-            sections: data.sections ?? null,
-            products: data.products || [],
-            pixels: pixelsData,
-            footer: footerData,
-            legalPages: data.legalPages || null,
-          });
+        if (productCacheKey && productData) {
+          writeCache(productCacheKey, productData);
         }
 
         injectStoreCssVars(storeData);

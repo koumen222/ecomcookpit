@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useRef } from 'react';
 import { useEcomAuth } from './useEcomAuth';
-import ecomApi from '../services/ecommApi';
+import ecomApi, { clearEcomGetCache } from '../services/ecommApi';
 
 const roleDashMap = {
   'super_admin': '/ecom/super-admin',
@@ -58,6 +58,9 @@ export const useWorkspaceSwitch = () => {
       if (res.data.success) {
         const { token, user: nextUser, workspace: nextWs } = res.data.data;
         if (switchWorkspace) await switchWorkspace(token, nextUser, nextWs);
+
+        // Flush API cache so the new workspace gets fresh data on reload
+        clearEcomGetCache();
 
         const target = roleDashMap[nextUser?.role] || '/ecom/dashboard';
         if (window.location.pathname === target) {

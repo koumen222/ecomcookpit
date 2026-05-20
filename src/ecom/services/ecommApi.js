@@ -112,7 +112,11 @@ function getCacheTtl(url = '') {
 }
 
 function getCacheKey(config) {
-  const params = config.params ? JSON.stringify(config.params) : '';
+  // Strip _t (cache-bust timestamp) so the in-memory cache key is stable
+  // across repeated calls to the same endpoint.
+  const raw = config.params || {};
+  const { _t, ...stableParams } = raw;
+  const params = Object.keys(stableParams).length ? JSON.stringify(stableParams) : '';
   return `${config.url}::${params}`;
 }
 

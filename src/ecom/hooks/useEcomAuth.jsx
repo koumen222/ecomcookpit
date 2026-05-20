@@ -145,13 +145,13 @@ export const EcomAuthProvider = ({ children }) => {
   // Sauvegarder le token dans le localStorage
   const saveToken = (token, user, workspace) => {
     const normalizedWorkspace = normalizeWorkspace(workspace);
+    const wsToSave = normalizedWorkspace || workspace || null;
     logAuthEvent('token_saved', { userEmail: user?.email, userRole: user?.role, hasWorkspace: !!workspace });
     localStorage.setItem('ecomToken', token);
     localStorage.setItem('ecomUser', JSON.stringify(user));
-    if (normalizedWorkspace) {
-      localStorage.setItem('ecomWorkspace', JSON.stringify(normalizedWorkspace));
-      logWorkspace('saved', normalizedWorkspace);
-    }
+    // Always update workspace — never silently skip, so workspace switch is always persisted
+    localStorage.setItem('ecomWorkspace', JSON.stringify(wsToSave));
+    logWorkspace('saved', wsToSave);
   };
 
   // Charger l'utilisateur depuis le token

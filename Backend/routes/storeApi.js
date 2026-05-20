@@ -519,8 +519,8 @@ router.get('/:subdomain/products/:slug', readLimiter, async (req, res) => {
 
     const quantityOffer = await quantityOfferPromise;
 
-    // 2 minutes CDN cache — short enough to see edits quickly, long enough for Cloudflare edge benefit
-    setCacheHeaders(res, 120);
+    // 5 minutes CDN cache — ads traffic benefits from edge caching; stale-while-revalidate handles freshness
+    setCacheHeaders(res, 300);
 
     // Per-product-page currency/country ALWAYS override the store's global config.
     // Why: a single store can publish multiple product pages, each targeting a different market.
@@ -595,6 +595,157 @@ router.get('/:subdomain/categories', readLimiter, async (req, res) => {
   } catch (error) {
     console.error('❌ GET /api/store/:subdomain/categories error:', error.message);
     res.status(500).json({ success: false, message: 'Error loading categories' });
+  }
+});
+
+/**
+ * GET /api/store/:subdomain/product-page/:slug
+ *
+ * Single-call endpoint for product pages: returns store config + full product data.
+ * Replaces 2 sequential API calls with 1 — critical for 4G latency in African markets.
+ * Store data served from in-memory cache (5min TTL), product fetched fresh.
+ */
+router.get('/:subdomain/product-page/:slug', readLimiter, async (req, res) => {
+  try {
+    const workspace = await resolveStore(req.params.subdomain);
+    if (!workspace) {
+      return res.status(404).json({ success: false, message: 'Store not found' });
+    }
+
+    const productFilter = {
+      ...getProductFilter(workspace),
+      slug: req.params.slug,
+      isPublished: true,
+    };
+
+    // Fetch product + quantity offer in parallel
+    const [product, quantityOffer] = await Promise.all([
+      StoreProduct.findOne(productFilter)
+        .select('name slug description price compareAtPrice currency country targetMarket city locale stock images category tags seoTitle seoDescription features faq testimonials _pageData productPageConfig')
+        .lean(),
+      QuantityOffer.findOne({
+        workspaceId: workspace._workspaceId || workspace._id,
+        isActive: true,
+      }).select('offers design productId').sort({ createdAt: -1 }).lean(),
+    ]);
+
+    if (!product) {
+      return res.status(404).json({ success: false, message: 'Product not found' });
+    }
+
+    const settings = workspace.storeSettings || {};
+    const theme = workspace.storeTheme || {};
+    const sectionColors = {
+      socialProof: theme.sectionColors?.socialProof || theme.accentColor || theme.primaryColor || '#7C3AED',
+      benefits: theme.sectionColors?.benefits || theme.primaryColor || '#0F6B4F',
+      trust: theme.sectionColors?.trust || theme.accentColor || theme.primaryColor || '#2563EB',
+      problem: theme.sectionColors?.problem || theme.errorColor || '#DC2626',
+      solution: theme.sectionColors?.solution || theme.primaryColor || '#059669',
+      faq: theme.sectionColors?.faq || theme.accentColor || theme.primaryColor || '#7C3AED',
+    };
+    const pixels = workspace.storePixels || {};
+    const deliveryConfig = workspace.storeDeliveryZones || { countries: [], zones: [] };
+    const publicDeliveryZones = (deliveryConfig.zones || [])
+      .filter((zone) => zone?.enabled !== false)
+      .map((zone) => ({ id: zone.id, country: zone.country, city: zone.city, aliases: zone.aliases || [], cost: zone.cost || 0 }));
+
+    const productCurrency = product.currency || settings.storeCurrency || settings.currency || 'XAF';
+    const productCountry = product.country || settings.country || '';
+
+    const productData = {
+      _id: product._id,
+      name: product.name,
+      slug: product.slug,
+      description: product.description,
+      price: product.price,
+      compareAtPrice: product.compareAtPrice,
+      currency: productCurrency,
+      country: productCountry,
+      targetMarket: product.targetMarket || '',
+      city: product.city || '',
+      locale: product.locale || settings.locale || '',
+      stock: product.stock,
+      images: product.images || [],
+      category: product.category,
+      tags: product.tags,
+      seoTitle: product.seoTitle,
+      seoDescription: product.seoDescription,
+      features: product.features || [],
+      faq: product.faq || [],
+      testimonials: product.testimonials || [],
+      _pageData: product._pageData || null,
+      productPageConfig: product.productPageConfig || null,
+    };
+
+    // Attach quantity offers only if they belong to this product
+    if (quantityOffer?.offers?.length > 0 && quantityOffer.productId?.toString() === product._id.toString()) {
+      productData.quantityOffers = quantityOffer.offers.map((o, i) => ({
+        qty: o.quantity,
+        price: o.price,
+        comparePrice: o.compare_price || 0,
+        badge: o.label || '',
+        selected: i === (quantityOffer.design?.highlight_offer ?? 0),
+      }));
+      if (quantityOffer.design) productData.quantityOfferDesign = quantityOffer.design;
+    }
+
+    // 5 min CDN cache — ads traffic benefits from edge caching
+    setCacheHeaders(res, 300);
+
+    res.json({
+      success: true,
+      data: {
+        store: {
+          _id: workspace._id,
+          name: settings.name || settings.storeName || workspace.name,
+          description: settings.description || settings.storeDescription || '',
+          logo: settings.logo || settings.storeLogo || '',
+          banner: settings.banner || settings.storeBanner || '',
+          phone: settings.phone || settings.storePhone || '',
+          whatsapp: settings.whatsapp || settings.storeWhatsApp || '',
+          themeColor: settings.themeColor || settings.storeThemeColor || '#0F6B4F',
+          currency: settings.storeCurrency || settings.currency || 'XAF',
+          country: settings.country || settings.storeCountry || '',
+          subdomain: workspace.subdomain,
+          template: theme.template || 'classic',
+          primaryColor: settings.primaryColor || settings.storeThemeColor || theme.primaryColor || '#0F6B4F',
+          accentColor: settings.accentColor || settings.ctaColor || theme.accentColor || theme.ctaColor || '#059669',
+          backgroundColor: settings.backgroundColor || theme.backgroundColor || '#FFFFFF',
+          textColor: settings.textColor || theme.textColor || '#111827',
+          font: settings.font || theme.font || 'inter',
+          borderRadius: theme.borderRadius || 'lg',
+          sectionColors,
+          sectionToggles: theme.sections || {},
+          email: settings.email || '',
+          address: settings.address || '',
+          facebook: settings.facebook || '',
+          instagram: settings.instagram || '',
+          tiktok: settings.tiktok || '',
+          seoTitle: settings.seoTitle || '',
+          seoDescription: settings.seoDescription || '',
+          announcement: settings.announcement || '',
+          announcementEnabled: settings.announcementEnabled || false,
+          deliveryCountries: deliveryConfig.countries || [],
+          deliveryZones: publicDeliveryZones,
+          flatShippingEnabled: deliveryConfig.flatShippingEnabled === true,
+          flatShippingFee: Math.max(0, Number(deliveryConfig.flatShippingFee) || 0),
+          freeShippingThreshold: Math.max(0, Number(deliveryConfig.freeShippingThreshold) || 0),
+          productPageConfig: settings.productPageConfig || theme.productPageConfig || null,
+        },
+        product: productData,
+        pixels: {
+          metaPixelId: pixels.metaPixelId || '',
+          tiktokPixelId: pixels.tiktokPixelId || '',
+          googleTagId: pixels.googleTagId || '',
+          googleAdsId: pixels.googleAdsId || '',
+          snapchatPixelId: pixels.snapchatPixelId || pixels.snapPixelId || '',
+        },
+        footer: workspace.storeFooter || null,
+      },
+    });
+  } catch (error) {
+    console.error('❌ GET /api/store/:subdomain/product-page/:slug error:', error.message);
+    res.status(500).json({ success: false, message: 'Error loading product page' });
   }
 });
 

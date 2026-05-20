@@ -3338,8 +3338,21 @@ const OrdersList = () => {
               <div className={`mt-4 p-3 rounded-lg text-xs ${testNotifResult.success ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-red-50 text-red-800 border border-red-200'}`}>
                 <p className="font-semibold mb-1">{testNotifResult.success ? '✅' : '❌'} {testNotifResult.message}</p>
                 {testNotifResult.results?.map((r, i) => (
-                  <p key={i} className="font-mono">{r.status === 'ok' ? '✅' : '❌'} {r.label ? `${r.label} — ` : ''}{r.phone}{r.error ? ` : ${r.error}` : ''}</p>
+                  <p key={i} className="font-mono text-[11px] mt-0.5">
+                    {r.status === 'ok' ? '✅' : '❌'} {r.label ? `${r.label} — ` : ''}{r.phone || r.jid || ''}
+                    {r.error ? ` : ${r.error}` : ''}
+                  </p>
                 ))}
+                {/* Lien de reconnexion si l'instance est déconnectée */}
+                {!testNotifResult.success && testNotifResult.results?.some(r => r.error?.toLowerCase().includes('déconnect') || r.error?.toLowerCase().includes('reconnect')) && (
+                  <a
+                    href="/ecom/whatsapp"
+                    className="inline-flex items-center gap-1.5 mt-2 px-3 py-1.5 bg-red-600 text-white rounded-lg text-xs font-semibold hover:bg-red-700 transition"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                    Reconnecter l'instance WhatsApp
+                  </a>
+                )}
               </div>
             )}
             <div className="mt-5 flex items-center justify-between gap-3">

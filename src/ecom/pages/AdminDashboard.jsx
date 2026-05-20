@@ -158,7 +158,7 @@ const DashboardSkeleton = () => (
 const AdminDashboard = () => {
   const { user, workspace } = useEcomAuth();
   const { fmt } = useMoney();
-  const { stores, loading: storesLoading } = useStore();
+  const { stores, activeStore, loading: storesLoading } = useStore();
   const navigate = useNavigate();
   const workspaceId = workspace?._id || workspace?.id || null;
   const [loadingKpi, setLoadingKpi] = useState(true);   // Phase 1 : KPIs
@@ -526,7 +526,7 @@ const AdminDashboard = () => {
 
   useEffect(() => {
     loadDashboardDataRef.current();
-  }, [timeRange, customStartDate, customEndDate]);
+  }, [timeRange, customStartDate, customEndDate, activeStore?._id]);
 
   const getGreeting = () => {
     const hour = new Date().getHours();

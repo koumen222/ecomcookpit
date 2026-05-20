@@ -865,7 +865,7 @@ const Settings = () => {
           </div>
 
           <div className="my-4 p-3 bg-orange-50 border border-orange-100 rounded-xl text-xs text-orange-700">
-            <strong>Comment ajouter un groupe :</strong> Collez le lien d'invitation du groupe WhatsApp, cliquez <strong>Ajouter</strong> pour résoudre automatiquement l'ID, puis <strong>Enregistrer</strong>.
+            <strong>Comment ajouter un groupe :</strong> Cliquez <strong>Ajouter un groupe</strong>, sélectionnez un groupe depuis la liste de votre instance WhatsApp, puis cliquez <strong>Enregistrer</strong>. Votre instance WhatsApp doit être connectée et membre du groupe.
           </div>
 
           {loadingGroups ? (
@@ -878,18 +878,40 @@ const Settings = () => {
               {deliveryGroups.map((item, idx) => (
                 <div key={idx} className="bg-orange-50 border border-orange-100 rounded-xl p-3 space-y-2">
                   <div className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      placeholder="Nom du groupe"
-                      value={item.label || ''}
-                      onChange={e => setDeliveryGroups(prev => prev.map((n, i) => i === idx ? { ...n, label: e.target.value } : n))}
-                      className="flex-1 px-3 py-2 border border-orange-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-orange-400 focus:outline-none"
-                    />
+                    {/* Sélecteur de groupe depuis l'instance WhatsApp connectée */}
+                    {waGroups.length > 0 ? (
+                      <select
+                        value={item.phoneNumber || ''}
+                        onChange={e => {
+                          const g = waGroups.find(g => g.id === e.target.value);
+                          setDeliveryGroups(prev => prev.map((n, i) => i === idx ? {
+                            ...n,
+                            phoneNumber: e.target.value,
+                            label: n.label || g?.name || ''
+                          } : n));
+                        }}
+                        className="flex-1 px-3 py-2 border border-orange-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-orange-400 focus:outline-none"
+                      >
+                        <option value="">— Choisir un groupe WhatsApp —</option>
+                        {waGroups.map(g => (
+                          <option key={g.id} value={g.id}>{g.name}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      /* Fallback : saisie manuelle du JID si aucun groupe chargé */
+                      <input
+                        type="text"
+                        placeholder="JID du groupe (ex: 120363xxx@g.us)"
+                        value={item.phoneNumber || ''}
+                        onChange={e => setDeliveryGroups(prev => prev.map((n, i) => i === idx ? { ...n, phoneNumber: e.target.value } : n))}
+                        className="flex-1 px-3 py-2 border border-orange-200 rounded-lg text-sm font-mono bg-white focus:ring-2 focus:ring-orange-400 focus:outline-none"
+                      />
+                    )}
                     <button
                       type="button"
                       onClick={() => setDeliveryGroups(prev => prev.map((n, i) => i === idx ? { ...n, isActive: n.isActive === false ? true : false } : n))}
                       className={`p-2 rounded-lg border transition ${item.isActive !== false ? 'bg-orange-100 border-orange-300 text-orange-600' : 'bg-gray-50 border-gray-200 text-gray-400'}`}
-                      title={item.isActive !== false ? 'Actif' : 'Inactif'}
+                      title={item.isActive !== false ? 'Actif — cliquer pour désactiver' : 'Inactif — cliquer pour activer'}
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg>
                     </button>
@@ -901,40 +923,16 @@ const Settings = () => {
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
                     </button>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      placeholder="Lien d'invitation (https://chat.whatsapp.com/...) ou JID"
-                      value={item.inviteLink ?? item.phoneNumber ?? ''}
-                      onChange={e => {
-                        const val = e.target.value;
-                        setDeliveryGroups(prev => prev.map((n, i) => {
-                          if (i !== idx) return n;
-                          return { ...n, inviteLink: val, phoneNumber: val.includes('@g.us') ? val : (val.includes('chat.whatsapp.com') ? '' : val) };
-                        }));
-                      }}
-                      className="flex-1 px-3 py-2 border border-orange-200 rounded-lg text-sm font-mono bg-white focus:ring-2 focus:ring-orange-400 focus:outline-none"
-                    />
-                    {(item.inviteLink || item.phoneNumber || '').includes('chat.whatsapp.com') && (
-                      <button
-                        type="button"
-                        disabled={item._resolving}
-                        onClick={() => resolveGroupLink(idx)}
-                        className="inline-flex items-center gap-1.5 px-3 py-2 bg-orange-500 text-white rounded-lg text-sm font-medium hover:bg-orange-600 disabled:opacity-50 transition whitespace-nowrap"
-                      >
-                        {item._resolving
-                          ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"/>
-                          : <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-                        }
-                        Ajouter
-                      </button>
-                    )}
-                  </div>
+                  {/* Nom personnalisé (optionnel, auto-rempli depuis le groupe sélectionné) */}
+                  <input
+                    type="text"
+                    placeholder="Nom affiché (optionnel — auto-rempli)"
+                    value={item.label || ''}
+                    onChange={e => setDeliveryGroups(prev => prev.map((n, i) => i === idx ? { ...n, label: e.target.value } : n))}
+                    className="w-full px-3 py-2 border border-orange-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-orange-400 focus:outline-none"
+                  />
                   {item.phoneNumber && item.phoneNumber.includes('@g.us') && (
-                    <p className="text-xs text-emerald-600 font-mono">✅ JID : {item.phoneNumber}</p>
-                  )}
-                  {item._resolveError && (
-                    <p className="text-xs text-red-500">❌ {item._resolveError}</p>
+                    <p className="text-xs text-emerald-600 font-mono">✅ {item.label || item.phoneNumber}</p>
                   )}
                 </div>
               ))}
