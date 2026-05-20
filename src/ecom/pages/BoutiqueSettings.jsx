@@ -192,34 +192,70 @@ const ColorPicker = ({ label, value, onChange }) => (
   </div>
 );
 
+// ── Settings cache (stale-while-revalidate) ──────────────────────────────────
+const SETTINGS_CACHE_TTL = 5 * 60 * 1000; // 5 min
+
+function _scRead(key) {
+  try {
+    const raw = sessionStorage.getItem(key);
+    if (!raw) return null;
+    const { data, ts } = JSON.parse(raw);
+    if (Date.now() - ts > SETTINGS_CACHE_TTL) { sessionStorage.removeItem(key); return null; }
+    return data;
+  } catch { return null; }
+}
+
+function _scWrite(key, data) {
+  try { sessionStorage.setItem(key, JSON.stringify({ data, ts: Date.now() })); } catch {}
+}
+
+function settingsToForm(s, workspaceName) {
+  return {
+    storeName:           s.storeName           || workspaceName || '',
+    storeDescription:    s.storeDescription    || '',
+    storeLogo:           s.storeLogo           || '',
+    storeFavicon:        s.storeFavicon        || '',
+    storePhone:          s.storePhone          || '',
+    storeWhatsApp:       s.storeWhatsApp       || '',
+    storeCountry:        s.storeCountry        || 'Cameroun',
+    storeCurrency:       s.storeCurrency       || 'XAF',
+    isStoreEnabled:      s.isStoreEnabled      ?? true,
+    primaryColor:        s.primaryColor        || s.storeThemeColor || '#0F6B4F',
+    accentColor:         s.accentColor         || '#059669',
+    backgroundColor:     s.backgroundColor     || '#FFFFFF',
+    textColor:           s.textColor           || '#111827',
+    font:                s.font                || 'inter',
+    announcement:        s.announcement        || '',
+    announcementEnabled: s.announcementEnabled ?? false,
+  };
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 const BoutiqueSettings = () => {
   const navigate = useNavigate();
   const { workspace } = useEcomAuth();
-  const { getActiveStorefrontUrl } = useStore();
+  const { activeStore, getActiveStorefrontUrl } = useStore();
 
-  const [form, setForm] = useState({
-    storeName: '',
-    storeDescription: '',
-    storeLogo: '',
-    storeFavicon: '',
-    storePhone: '',
-    storeWhatsApp: '',
-    storeCountry: 'Cameroun',
-    storeCurrency: 'XAF',
-    isStoreEnabled: true,
-    primaryColor: '#0F6B4F',
-    accentColor: '#059669',
-    backgroundColor: '#FFFFFF',
-    textColor: '#111827',
-    font: 'inter',
-    announcement: '',
-    announcementEnabled: false,
+  const _cacheKey = activeStore?._id
+    ? `boutique_settings_${activeStore._id}`
+    : workspace?._id ? `boutique_settings_ws_${workspace._id}` : null;
+
+  const _cached = _cacheKey ? _scRead(_cacheKey) : null;
+
+  const [form, setForm] = useState(() => {
+    if (_cached?.storeSettings) return settingsToForm(_cached.storeSettings, workspace?.name);
+    return {
+      storeName: '', storeDescription: '', storeLogo: '', storeFavicon: '',
+      storePhone: '', storeWhatsApp: '', storeCountry: 'Cameroun', storeCurrency: 'XAF',
+      isStoreEnabled: true, primaryColor: '#0F6B4F', accentColor: '#059669',
+      backgroundColor: '#FFFFFF', textColor: '#111827', font: 'inter',
+      announcement: '', announcementEnabled: false,
+    };
   });
 
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [subdomain, setSubdomain] = useState('');
+  const [subdomain, setSubdomain] = useState(() => _cached?.subdomain || '');
   const [regenerating, setRegenerating] = useState(false);
   const [regenMsg, setRegenMsg] = useState('');
   const [activeTab, setActiveTab] = useState('general');
@@ -245,46 +281,33 @@ const BoutiqueSettings = () => {
     }
   };
 
-  // Load existing settings on mount
+  // Load settings — show cache instantly, then revalidate in background
   useEffect(() => {
+    if (!workspace?._id) return;
+    const key = activeStore?._id
+      ? `boutique_settings_${activeStore._id}`
+      : `boutique_settings_ws_${workspace._id}`;
     const load = async () => {
       try {
         const settingsRes = await storeManageApi.getStoreConfig();
         const data = settingsRes.data?.data || {};
         const s = data.storeSettings || {};
-        setForm(prev => ({
-          ...prev,
-          storeName:       s.storeName       || workspace?.name || '',
-          storeDescription: s.storeDescription || '',
-          storeLogo:       s.storeLogo        || '',
-          storeFavicon:    s.storeFavicon     || '',
-          storePhone:      s.storePhone       || '',
-          storeWhatsApp:   s.storeWhatsApp    || '',
-          storeCountry:    s.storeCountry     || 'Cameroun',
-          storeCurrency:   s.storeCurrency    || 'XAF',
-          isStoreEnabled:  s.isStoreEnabled   ?? true,
-          primaryColor:    s.primaryColor     || s.storeThemeColor || '#0F6B4F',
-          accentColor:     s.accentColor      || '#059669',
-          backgroundColor: s.backgroundColor  || '#FFFFFF',
-          textColor:       s.textColor        || '#111827',
-          font:            s.font             || 'inter',
-          announcement:    s.announcement     || '',
-          announcementEnabled: s.announcementEnabled ?? false,
-        }));
+        _scWrite(key, data);
+        setForm(settingsToForm(s, workspace?.name));
         setSubdomain(data.subdomain || '');
       } catch (err) {
         console.error('BoutiqueSettings load error:', err);
       }
     };
     load();
-  }, [workspace]);
+  }, [workspace?._id, activeStore?._id]);
 
   const set = (key, val) => setForm(p => ({ ...p, [key]: val }));
 
   const handleSave = async () => {
     setSaving(true);
     try {
-      await storeManageApi.updateStoreConfig({
+      const res = await storeManageApi.updateStoreConfig({
         storeName: form.storeName,
         storeDescription: form.storeDescription,
         storeLogo: form.storeLogo,
@@ -303,6 +326,15 @@ const BoutiqueSettings = () => {
         announcement: form.announcement,
         announcementEnabled: form.announcementEnabled,
       });
+      // Write response back into cache so next visit is instant
+      const saved_data = res.data?.data;
+      if (saved_data) {
+        const key = activeStore?._id
+          ? `boutique_settings_${activeStore._id}`
+          : workspace?._id ? `boutique_settings_ws_${workspace._id}` : null;
+        if (key) _scWrite(key, saved_data);
+        if (saved_data.subdomain) setSubdomain(saved_data.subdomain);
+      }
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch (err) {

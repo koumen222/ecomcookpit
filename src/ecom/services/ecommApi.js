@@ -129,10 +129,11 @@ export function clearEcomGetCache() {
     for (let i = 0; i < sessionStorage.length; i++) {
       const k = sessionStorage.key(i);
       if (k && (
-        k.startsWith('sf_') ||          // StoreFront/StoreProduct public cache
-        k.startsWith('sfp_') ||         // StoreProduct public cache
-        k.startsWith('dash_summary_') || // AdminDashboard range cache
-        k === 'orders_list_filters'      // OrdersList saved filters
+        k.startsWith('sf_') ||              // StoreFront/StoreProduct public cache
+        k.startsWith('sfp_') ||             // StoreProduct public cache
+        k.startsWith('dash_summary_') ||    // AdminDashboard range cache
+        k.startsWith('boutique_settings_') || // BoutiqueSettings config cache
+        k === 'orders_list_filters'         // OrdersList saved filters
       )) keysToRemove.push(k);
     }
     keysToRemove.forEach(k => sessionStorage.removeItem(k));
