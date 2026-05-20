@@ -34,7 +34,7 @@ const STATUS_CONFIG = {
 export default function MyDeliveries() {
   const { user } = useEcomAuth();
   const navigate = useNavigate();
-  const localUser = user || JSON.parse(localStorage.getItem('ecomUser') || 'null');
+  const localUser = user || (() => { try { return JSON.parse(localStorage.getItem('ecomUser') || 'null'); } catch { return null; } })();
 
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);

@@ -60,20 +60,36 @@ router.post('/track', async (req, res) => {
       return res.status(400).json({ error: 'Subdomain invalide' });
     }
 
-    // Récupérer le workspaceId depuis le subdomain — exige isActive pour éviter de tracker une boutique désactivée
-    const Workspace = (await import('../models/Workspace.js')).default;
-    const workspace = await Workspace.findOne({
+    // Résoudre le workspaceId depuis le subdomain.
+    // Ordre de priorité :
+    //   1. Store (multi-boutique) — chaque boutique a son propre subdomain dans la collection stores
+    //   2. Workspace (legacy single-boutique) — ancien modèle où le subdomain est sur le workspace
+    const storeDoc = await Store.findOne({
       subdomain,
       isActive: true,
       'storeSettings.isStoreEnabled': true,
-    }).select('_id').lean();
+    }).select('_id workspaceId').lean();
 
-    if (!workspace) {
-      // Return 200 silently — don't leak whether a subdomain exists or is disabled
-      return res.json({ success: true, skipped: true });
+    let workspaceId;
+    let resolvedStoreId = null;
+
+    if (storeDoc) {
+      workspaceId = storeDoc.workspaceId;
+      resolvedStoreId = storeDoc._id;
+    } else {
+      const Workspace = (await import('../models/Workspace.js')).default;
+      const workspace = await Workspace.findOne({
+        subdomain,
+        isActive: true,
+        'storeSettings.isStoreEnabled': true,
+      }).select('_id').lean();
+
+      if (!workspace) {
+        // Return 200 silently — don't leak whether a subdomain exists or is disabled
+        return res.json({ success: true, skipped: true });
+      }
+      workspaceId = workspace._id;
     }
-
-    const workspaceId = workspace._id;
 
     // Anti-spam : dédupliquer les page_view et product_view par visiteur
     if (['page_view', 'product_view'].includes(eventType)) {
@@ -89,6 +105,8 @@ router.post('/track', async (req, res) => {
             { sessionId: identifier },
           ],
         };
+        // Scope dedup to the specific store when in multi-boutique mode
+        if (resolvedStoreId) dedupQuery.storeId = resolvedStoreId;
         if (eventType === 'product_view' && productId) {
           dedupQuery.productId = productId;
         } else if (eventType === 'page_view') {
@@ -104,6 +122,7 @@ router.post('/track', async (req, res) => {
     // Créer l'événement analytics
     await StoreAnalytics.create({
       workspaceId,
+      ...(resolvedStoreId && { storeId: resolvedStoreId }),
       subdomain,
       eventType,
       page,

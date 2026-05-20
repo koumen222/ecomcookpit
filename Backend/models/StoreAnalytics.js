@@ -2,6 +2,9 @@ import mongoose from 'mongoose';
 
 const storeAnalyticsSchema = new mongoose.Schema({
   workspaceId: { type: String, required: true, index: true },
+  // Optional: scoped to a specific Store document (multi-boutique).
+  // Absent for legacy events recorded before multi-boutique support.
+  storeId: { type: mongoose.Schema.Types.ObjectId, ref: 'Store', default: null, index: true },
   subdomain: { type: String, required: true, index: true },
   
   // Type d'événement

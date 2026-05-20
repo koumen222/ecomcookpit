@@ -18,7 +18,7 @@ import { useEcomAuth } from '../../hooks/useEcomAuth.jsx';
 export default function LivreurProfile() {
   const { user, logout } = useEcomAuth();
   const navigate = useNavigate();
-  const localUser = user || JSON.parse(localStorage.getItem('ecomUser') || 'null');
+  const localUser = user || (() => { try { return JSON.parse(localStorage.getItem('ecomUser') || 'null'); } catch { return null; } })();
   const [loggingOut, setLoggingOut] = useState(false);
 
   const handleLogout = async () => {

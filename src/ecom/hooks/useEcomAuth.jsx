@@ -21,10 +21,31 @@ const normalizeWorkspace = (workspace) => {
   };
 };
 
+// Safe localStorage JSON parser — returns fallback instead of throwing on corrupted data.
+// Corrupted localStorage is the root cause of "erreur de chargement" for some users:
+// an unguarded JSON.parse failure anywhere in the interceptor / auth context crashes
+// the whole session silently.
+function safeParseJson(raw, fallback = null) {
+  if (raw == null) return fallback;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return fallback;
+  }
+}
+
+function safeGetJson(key, fallback = null) {
+  try {
+    return safeParseJson(localStorage.getItem(key), fallback);
+  } catch {
+    return fallback;
+  }
+}
+
 // État initial - charger les données locales pour une persistance immédiate
 const storedToken = localStorage.getItem('ecomToken');
-const storedUser = JSON.parse(localStorage.getItem('ecomUser') || 'null');
-const storedWorkspace = normalizeWorkspace(JSON.parse(localStorage.getItem('ecomWorkspace') || 'null'));
+const storedUser = safeGetJson('ecomUser', null);
+const storedWorkspace = normalizeWorkspace(safeGetJson('ecomWorkspace', null));
 
 const initialState = {
   user: storedUser,
@@ -217,8 +238,8 @@ export const EcomAuthProvider = ({ children }) => {
       } else if (!error.response) {
         // Erreur réseau - garder l'utilisateur connecté avec les données locales
         logAuthEvent('load_user_network', { message: error.message });
-        const userData = JSON.parse(localStorage.getItem('ecomUser') || 'null');
-        const workspaceData = normalizeWorkspace(JSON.parse(localStorage.getItem('ecomWorkspace') || 'null'));
+        const userData = safeGetJson('ecomUser', null);
+        const workspaceData = normalizeWorkspace(safeGetJson('ecomWorkspace', null));
         if (userData) {
           logAuthEvent('session_restored', { userEmail: userData?.email, source: 'localStorage' });
           dispatch({
@@ -230,8 +251,8 @@ export const EcomAuthProvider = ({ children }) => {
         }
       } else {
         // Autre erreur serveur (500, etc) - garder la session
-        const userData = JSON.parse(localStorage.getItem('ecomUser') || 'null');
-        const workspaceData = JSON.parse(localStorage.getItem('ecomWorkspace') || 'null');
+        const userData = safeGetJson('ecomUser', null);
+        const workspaceData = safeGetJson('ecomWorkspace', null);
         if (userData) {
           logAuthEvent('session_restored', { userEmail: userData?.email, source: 'localStorage_server_error', status: error.response?.status });
           dispatch({
@@ -426,7 +447,7 @@ export const EcomAuthProvider = ({ children }) => {
       });
 
       // Update localStorage with new currency
-      const storedUser = JSON.parse(localStorage.getItem('ecomUser') || '{}');
+      const storedUser = safeGetJson('ecomUser', {});
       storedUser.currency = currency;
       localStorage.setItem('ecomUser', JSON.stringify(storedUser));
 

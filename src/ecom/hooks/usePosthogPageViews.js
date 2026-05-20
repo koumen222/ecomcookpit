@@ -21,7 +21,7 @@ export function usePosthogPageViews() {
     const durationMs = Date.now() - entryTime.current;
     // Only send if > 500ms (ignore instant redirects)
     if (durationMs > 500) {
-      const workspace = JSON.parse(localStorage.getItem('ecomWorkspace') || 'null');
+      const workspace = (() => { try { return JSON.parse(localStorage.getItem('ecomWorkspace') || 'null'); } catch { return null; } })();
       _track('page_duration', {
         path,
         durationMs,

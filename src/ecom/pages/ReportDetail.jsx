@@ -249,9 +249,22 @@ const ReportDetail = () => {
                         </svg>
                         <span className="font-medium text-gray-900">{delivery.agencyName}</span>
                       </div>
-                      <span className="text-lg font-bold text-green-600">{delivery.ordersDelivered} commandes</span>
+                      <div className="flex items-center gap-4">
+                        <span className="text-sm font-bold text-green-600">{delivery.ordersDelivered} commandes</span>
+                        {delivery.deliveryCost > 0 && (
+                          <span className="text-sm font-semibold text-amber-600">{fmt(delivery.deliveryCost)}</span>
+                        )}
+                      </div>
                     </div>
                   ))}
+                  {report.deliveries.length > 0 && (
+                    <div className="flex items-center justify-between px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg mt-1">
+                      <span className="text-xs font-semibold text-amber-700">Total frais livraison</span>
+                      <span className="text-sm font-bold text-amber-700">
+                        {fmt(report.deliveries.reduce((s, d) => s + (d.deliveryCost || 0), 0))}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
             )}

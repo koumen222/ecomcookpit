@@ -200,6 +200,8 @@ const AdminDashboard = () => {
 
   // CRITICAL: Create ref first, assign after function declaration
   const loadDashboardDataRef = useRef(null);
+  // Track which store we last loaded data for — detect store switches
+  const lastLoadedStoreIdRef = useRef(null);
 
   // Animation de progression du chargement + timeout de sécurité anti-infinite-loading
   useEffect(() => {
@@ -347,11 +349,23 @@ const AdminDashboard = () => {
       });
     }).catch(() => {});
 
+    // Detect a store switch: if the active store changed since last load,
+    // wipe old data and show the full loader instead of a silent refresh.
+    const currentStoreId = activeStore?._id ?? null;
+    const isStoreSwitch = lastLoadedStoreIdRef.current !== null
+      && currentStoreId !== lastLoadedStoreIdRef.current;
+    lastLoadedStoreIdRef.current = currentStoreId;
+
     // NE JAMAIS afficher le loader pour les KPI après le premier chargement
     // Utiliser isRefreshing pour indiquer un refresh silencieux en arrière-plan
-    const isFirstLoad = !stats.financialStats || Object.keys(stats.financialStats).length === 0;
+    const isFirstLoad = isStoreSwitch
+      || !stats.financialStats
+      || Object.keys(stats.financialStats).length === 0;
 
     if (isFirstLoad) {
+      // Reset stale data from the previous store immediately
+      setStats({ products: [], stockAlerts: [], financialStats: {}, prevFinancialStats: {}, dailyFinancial: [], decisions: [], orders: [], recentActivity: [], goals: [] });
+      setDashboardStats({ conversionRate: '0', conversionTrend: '0', averageOrderValue: 0, avgOrderTrend: '0', activeClients: 0, activeClientsTrend: 0, returnRate: '0', returnRateTrend: '0', topProducts: [] });
       setLoadingKpi(true);
       setLoadingSecondary(true);
       setLoadingProgress(5);

@@ -44,7 +44,7 @@ const WhatsAppConnexion = () => {
   const [submitting, setSubmitting]     = useState(false);
   const [formData, setFormData]         = useState({ instanceName: '', instanceToken: '', customName: '', defaultPart: 50 });
 
-  const user   = JSON.parse(localStorage.getItem('ecomUser') || '{}');
+  const user   = (() => { try { return JSON.parse(localStorage.getItem('ecomUser') || '{}'); } catch { return {}; } })();
   const userId = user._id || user.id;
 
   useEffect(() => { loadInstances(); }, []);

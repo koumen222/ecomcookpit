@@ -50,7 +50,7 @@ const DEFAULT_RUNTIME_LIMITS = {
     maxOrders: null,
     maxClients: null,
     maxProducts: null,
-    maxStores: 1,
+    maxStores: 3,
     maxUsers: 3,
   },
   pro: {
@@ -63,7 +63,7 @@ const DEFAULT_RUNTIME_LIMITS = {
     maxOrders: null,
     maxClients: null,
     maxProducts: null,
-    maxStores: 1,
+    maxStores: 3,
     maxUsers: 5,
   },
   ultra: {

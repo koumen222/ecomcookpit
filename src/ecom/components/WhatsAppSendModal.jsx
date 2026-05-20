@@ -29,7 +29,7 @@ const WhatsAppSendModal = ({
   const loadWhatsAppConfig = async () => {
     try {
       const token = localStorage.getItem('ecomToken');
-      const workspace = JSON.parse(localStorage.getItem('ecomWorkspace') || 'null');
+      const workspace = (() => { try { return JSON.parse(localStorage.getItem('ecomWorkspace') || 'null'); } catch { return null; } })();
       
       const response = await fetch(`${BACKEND_URL}/api/ecom/whatsapp-config`, {
         headers: {
@@ -64,7 +64,7 @@ const WhatsAppSendModal = ({
 
     try {
       const token = localStorage.getItem('ecomToken');
-      const workspace = JSON.parse(localStorage.getItem('ecomWorkspace') || 'null');
+      const workspace = (() => { try { return JSON.parse(localStorage.getItem('ecomWorkspace') || 'null'); } catch { return null; } })();
       
       const response = await fetch(`${BACKEND_URL}/api/ecom/whatsapp-config/send-message`, {
         method: 'POST',

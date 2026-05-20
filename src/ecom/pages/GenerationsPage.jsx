@@ -87,7 +87,7 @@ export default function GenerationsPage() {
     const token = localStorage.getItem('ecomToken');
     const headers = { Authorization: `Bearer ${token}` };
     try {
-      const workspace = JSON.parse(localStorage.getItem('ecomWorkspace') || 'null');
+      const workspace = (() => { try { return JSON.parse(localStorage.getItem('ecomWorkspace') || 'null'); } catch { return null; } })();
       const workspaceId = workspace?._id || workspace?.id || '';
       if (workspaceId) headers['X-Workspace-Id'] = workspaceId;
     } catch {}

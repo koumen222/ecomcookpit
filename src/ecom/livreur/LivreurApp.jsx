@@ -13,7 +13,7 @@ import LivreurProfile from './pages/LivreurProfile.jsx';
 
 export default function LivreurApp() {
   const { user, isAuthenticated } = useEcomAuth();
-  const localUser = user || JSON.parse(localStorage.getItem('ecomUser') || 'null');
+  const localUser = user || (() => { try { return JSON.parse(localStorage.getItem('ecomUser') || 'null'); } catch { return null; } })();
   const effectiveAuth = isAuthenticated || !!localStorage.getItem('ecomToken');
 
   if (!effectiveAuth) return <Navigate to="/ecom/login" replace />;

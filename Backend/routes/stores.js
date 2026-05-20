@@ -153,8 +153,8 @@ router.get('/', requireEcomAuth, async (req, res) => {
   }
 });
 
-// POST /api/ecom/stores — create a new store (max 3 per workspace)
-const MAX_STORES_PER_WORKSPACE = 3;
+// POST /api/ecom/stores — hard cap (plan limits enforced upstream by checkPlanLimit)
+const MAX_STORES_PER_WORKSPACE = 10;
 router.post('/', requireEcomAuth, checkPlanLimit('stores'), async (req, res) => {
   try {
     const { name, subdomain } = req.body;

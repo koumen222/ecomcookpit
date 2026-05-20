@@ -3760,13 +3760,16 @@ function buildCompactSystemPrompt(config, context = {}) {
   if (config.expeditionEnabled && config.expeditionCities?.length) {
     const agencies = (config.expeditionAgencies || []).filter(a => a.available !== false && a.name);
     const agencyStr = agencies.length ? ` Agences: ${agencies.map(a => a.name + (a.estimatedCost ? ` (${a.estimatedCost})` : '')).join(', ')}.` : '';
+    const directZoneCities = (config.deliveryZones || []).map(z => (z.city || z.zone || '').toLowerCase()).filter(Boolean);
     expeditionSection = `\nEXPÉDITION PAR AGENCE — villes couvertes: ${config.expeditionCities.join(', ')}.${agencyStr} Dans ces villes → paiement EN AVANCE obligatoire, client récupère à l'agence. Utilise [PAYMENT_COORDS] pour les coordonnées de paiement.
 RÈGLES EXPÉDITION STRICTES:
-- "Vous livrez/expédiez ?" → cite UNIQUEMENT les villes de la liste (jamais de quartier/zone)
-- Ville du client DANS la liste → "Oui, on expédie à [ville] 👍 Paiement en avance puis récupération à l'agence." + [PAYMENT_COORDS]
-- Ville du client PAS dans la liste → "Désolée, on n'expédie pas encore à [ville]. On couvre: ${config.expeditionCities.join(', ')}."
-- Ne JAMAIS demander dans quel quartier récupérer (c'est en agence, pas à domicile)
-- Ne JAMAIS se contredire sur les villes couvertes`;
+- "Vous livrez/expédiez ?" → cite UNIQUEMENT les villes de la liste d'expédition (jamais de quartier/zone)
+- Ville du client DANS la liste d'expédition → "Oui, on expédie à [ville] 👍 Paiement en avance puis récupération à l'agence." + [PAYMENT_COORDS]
+- Ville du client PAS dans la liste d'expédition MAIS dans les zones de livraison directe → elle a déjà la livraison à domicile, NE PAS dire qu'on n'expédie pas, c'est encore mieux : on livre directement. Traite-la comme une zone de livraison normale.
+- Ville du client PAS dans la liste d'expédition ET PAS dans les zones de livraison directe → "Désolée, on n'expédie pas encore à [ville]. On couvre: ${config.expeditionCities.join(', ')}."
+- Ne JAMAIS demander dans quel quartier récupérer pour l'expédition (c'est en agence, pas à domicile)
+- Ne JAMAIS se contredire sur les villes couvertes
+- ⚠️ IMPORTANT : Les villes de livraison directe (${directZoneCities.length ? directZoneCities.join(', ') : 'voir zones de livraison ci-dessus'}) sont MIEUX que l'expédition — on livre chez le client. Ne jamais les traiter comme des villes non couvertes.`;
   }
 
   // Premier message

@@ -268,7 +268,7 @@ const WhatsAppService = () => {
   const [messageStats, setMessageStats] = useState({});
   const [dashboardStats, setDashboardStats] = useState(null);
 
-  const user = JSON.parse(localStorage.getItem('ecomUser') || '{}');
+  const user = (() => { try { return JSON.parse(localStorage.getItem('ecomUser') || '{}'); } catch { return {}; } })();
   const userId = user._id || user.id;
   const canAccessRitaAgent = user?.role === 'super_admin' || (user?.role === 'ecom_admin' && user?.canAccessRitaAgent !== false);
 
@@ -1911,7 +1911,7 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
     }
   };
 
-  const user = JSON.parse(localStorage.getItem('ecomUser') || '{}');
+  const user = (() => { try { return JSON.parse(localStorage.getItem('ecomUser') || '{}'); } catch { return {}; } })();
   const userId = user._id || user.id;
 
   useEffect(() => { loadConfig(); }, []);

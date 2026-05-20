@@ -52,7 +52,7 @@ const getWorkspaceId = () => {
   const direct = String(localStorage.getItem('ecomWorkspaceId') || '').trim();
   if (direct) return direct;
   try {
-    const ws = JSON.parse(localStorage.getItem('ecomWorkspace') || 'null');
+    const ws = (() => { try { return JSON.parse(localStorage.getItem('ecomWorkspace') || 'null'); } catch { return null; } })();
     return ws?._id || ws?.id || '';
   } catch {
     return '';

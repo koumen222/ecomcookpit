@@ -27,7 +27,7 @@ const statusLabel = {
 export default function LivreurHome() {
   const { user } = useEcomAuth();
   const navigate = useNavigate();
-  const localUser = user || JSON.parse(localStorage.getItem('ecomUser') || 'null');
+  const localUser = user || (() => { try { return JSON.parse(localStorage.getItem('ecomUser') || 'null'); } catch { return null; } })();
 
   const [stats, setStats] = useState(null);
   const [recentDeliveries, setRecentDeliveries] = useState([]);

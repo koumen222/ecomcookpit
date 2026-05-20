@@ -7,7 +7,8 @@ export const useWorkspaceApi = () => {
 
   // Obtenir le workspace actif
   const getActiveWorkspace = () => {
-    const workspace = JSON.parse(localStorage.getItem('ecomWorkspace') || 'null');
+    let workspace = null;
+    try { workspace = JSON.parse(localStorage.getItem('ecomWorkspace') || 'null'); } catch { /* corrupted — ignore */ }
     if (workspace) {
       console.log('🏢 Utilisation workspace localStorage:', workspace.name);
       return workspace;

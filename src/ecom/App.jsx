@@ -351,7 +351,7 @@ const ProtectedRoute = ({ children, requiredRole, requireRitaAgentAccess = false
 
   const hasLocalSession = !!localStorage.getItem('ecomToken') && !!localStorage.getItem('ecomUser');
   const hasToken = !!localStorage.getItem('ecomToken');
-  const localUser = !user ? JSON.parse(localStorage.getItem('ecomUser') || 'null') : user;
+  const localUser = !user ? (() => { try { return JSON.parse(localStorage.getItem('ecomUser') || 'null'); } catch { return null; } })() : user;
   const effectiveAuth = isAuthenticated || (hasToken && localUser);
   const effectiveUser = user || localUser;
 
@@ -413,7 +413,7 @@ const DashboardRedirect = () => {
   const { user, isAuthenticated } = useEcomAuth();
   const hasLocalSession = !!localStorage.getItem('ecomToken') && !!localStorage.getItem('ecomUser');
   const hasToken = !!localStorage.getItem('ecomToken');
-  const localUser = !user ? JSON.parse(localStorage.getItem('ecomUser') || 'null') : user;
+  const localUser = !user ? (() => { try { return JSON.parse(localStorage.getItem('ecomUser') || 'null'); } catch { return null; } })() : user;
   const effectiveAuth = isAuthenticated || (hasToken && localUser);
   const effectiveUser = user || localUser;
 
@@ -436,7 +436,7 @@ const DashboardRedirect = () => {
 const RootRedirect = () => {
   const { isAuthenticated, user } = useEcomAuth();
   const hasLocalSession = !!localStorage.getItem('ecomToken') && !!localStorage.getItem('ecomUser');
-  const effectiveUser = user || JSON.parse(localStorage.getItem('ecomUser') || 'null');
+  const effectiveUser = user || (() => { try { return JSON.parse(localStorage.getItem('ecomUser') || 'null'); } catch { return null; } })();
   const effectiveAuth = isAuthenticated || hasLocalSession;
 
   if (!effectiveAuth) {

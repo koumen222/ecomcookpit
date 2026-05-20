@@ -66,7 +66,7 @@ export default function DeliveryDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useEcomAuth();
-  const localUser = user || JSON.parse(localStorage.getItem('ecomUser') || 'null');
+  const localUser = user || (() => { try { return JSON.parse(localStorage.getItem('ecomUser') || 'null'); } catch { return null; } })();
 
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);

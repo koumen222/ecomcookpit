@@ -591,7 +591,7 @@ export default function BillingPage() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const workspace = JSON.parse(localStorage.getItem('ecomWorkspace') || 'null');
+  const workspace = (() => { try { return JSON.parse(localStorage.getItem('ecomWorkspace') || 'null'); } catch { return null; } })();
   const workspaceId = workspace?._id || workspace?.id;
   const userCountry = workspace?.country || 'Cameroun';
 

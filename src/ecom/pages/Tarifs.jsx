@@ -39,7 +39,7 @@ function PublicCheckoutModal({ plan, onClose }) {
 
     // Check if user is logged in
     const token = localStorage.getItem('ecomToken');
-    const workspace = JSON.parse(localStorage.getItem('ecomWorkspace') || 'null');
+    const workspace = (() => { try { return JSON.parse(localStorage.getItem('ecomWorkspace') || 'null'); } catch { return null; } })();
     const workspaceId = workspace?._id || workspace?.id;
 
     if (!token || !workspaceId) {
@@ -458,7 +458,7 @@ const Tarifs = () => {
                   <button
                     onClick={() => {
                       const token = localStorage.getItem('ecomToken');
-                      const workspace = JSON.parse(localStorage.getItem('ecomWorkspace') || 'null');
+                      const workspace = (() => { try { return JSON.parse(localStorage.getItem('ecomWorkspace') || 'null'); } catch { return null; } })();
                       const workspaceId = workspace?._id || workspace?.id;
                       const durationMonths = isAnnual ? 12 : 1;
                       const checkoutKey = plan.isFree ? null : `${plan.key}_${durationMonths}`;

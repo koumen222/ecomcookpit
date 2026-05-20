@@ -707,6 +707,12 @@ const ReportsList = () => {
                 {user?.role !== 'ecom_closeuse' && (
                   <th className="px-4 sm:px-5 py-3.5 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Pub</th>
                 )}
+                {user?.role !== 'ecom_closeuse' && (
+                  <th className="px-4 sm:px-5 py-3.5 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">CA</th>
+                )}
+                {user?.role !== 'ecom_closeuse' && (
+                  <th className="px-4 sm:px-5 py-3.5 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">Frais livraison</th>
+                )}
                 <th className="px-4 sm:px-5 py-3.5 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Taux</th>
                 <th className="px-4 sm:px-5 py-3.5 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">Actions</th>
               </tr>
@@ -714,7 +720,7 @@ const ReportsList = () => {
             <tbody className="divide-y divide-gray-50">
               {reports.length === 0 ? (
                 <tr>
-                  <td colSpan={user?.role === 'ecom_closeuse' ? 6 : 7} className="px-6 py-12 text-center">
+                  <td colSpan={user?.role === 'ecom_closeuse' ? 6 : 9} className="px-6 py-12 text-center">
                     <Package size={36} className="text-gray-200 mx-auto mb-3" />
                     <p className="text-sm text-gray-400">Aucun rapport trouvé</p>
                   </td>
@@ -756,8 +762,18 @@ const ReportsList = () => {
                           <span className="text-sm text-gray-500">{fmt(report.adSpend)}</span>
                         </td>
                       )}
+                      {user?.role !== 'ecom_closeuse' && (
+                        <td className="px-4 sm:px-5 py-3.5 text-right">
+                          <span className="text-sm font-semibold text-emerald-600">{fmt(report.revenue || 0)}</span>
+                        </td>
+                      )}
+                      {user?.role !== 'ecom_closeuse' && (
+                        <td className="px-4 sm:px-5 py-3.5 text-right">
+                          <span className="text-sm font-semibold text-amber-600">{fmt(report.deliveryCost || 0)}</span>
+                        </td>
+                      )}
                       <td className="px-4 sm:px-5 py-3.5 text-center">
-                        <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold ${
+                        <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold ${`
                           rate >= 70 ? 'bg-green-100 text-green-700' : rate >= 50 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-600'
                         }`}>
                           {rate}%

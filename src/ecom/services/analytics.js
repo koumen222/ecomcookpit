@@ -20,8 +20,8 @@ export function trackEvent(eventType, extra = {}) {
       return;
     }
 
-    const user = JSON.parse(localStorage.getItem('ecomUser') || 'null');
-    const workspace = JSON.parse(localStorage.getItem('ecomWorkspace') || 'null');
+    const user = (() => { try { return JSON.parse(localStorage.getItem('ecomUser') || 'null'); } catch { return null; } })();
+    const workspace = (() => { try { return JSON.parse(localStorage.getItem('ecomWorkspace') || 'null'); } catch { return null; } })();
     const sessionId = getSessionId();
 
     const payload = {

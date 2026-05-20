@@ -57,7 +57,7 @@ export default function StoreAnalytics() {
   const { workspace } = useEcomAuth();
   const storedWorkspace = (() => {
     try {
-      return JSON.parse(localStorage.getItem('ecomWorkspace') || 'null');
+      return (() => { try { return JSON.parse(localStorage.getItem('ecomWorkspace') || 'null'); } catch { return null; } })();
     } catch {
       return null;
     }

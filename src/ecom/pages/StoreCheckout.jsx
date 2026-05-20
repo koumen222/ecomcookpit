@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, ShoppingCart, CheckCircle, AlertCircle, Loader2, User, Phone, MapPin, FileText, Truck, Package, ChevronDown } from 'lucide-react';
 import { PHONE_CODES, getDefaultPhoneCodeFromConfig, getPhoneCodeByCountryName, buildFullPhone } from '../utils/phoneCodes.js';
@@ -16,6 +16,22 @@ import {
   resolveOrderFormContext,
   resolveSelectedOrderCountry,
 } from '../utils/storeCountryConfig.js';
+
+const _CO_TTL = 10 * 60 * 1000;
+function _coRead(key) {
+  try {
+    const raw = sessionStorage.getItem(key);
+    if (!raw) return null;
+    const { d, t } = JSON.parse(raw);
+    if (Date.now() - t > _CO_TTL) { sessionStorage.removeItem(key); return null; }
+    return d;
+  } catch { return null; }
+}
+
+const CO_SKEL_CSS = `
+@keyframes _coskel { 0%{background-position:-200% center} 100%{background-position:200% center} }
+.co-sk { background:linear-gradient(90deg,#efefef 25%,#e2e2e2 50%,#efefef 75%);background-size:200% 100%;animation:_coskel 1.4s ease infinite;border-radius:8px; }
+`;
 
 /**
  * Normalize a city name for fuzzy matching.
@@ -68,9 +84,12 @@ const StoreCheckout = () => {
   // Build store-relative paths (subdomain: /path, root: /store/sub/path)
   const storePath = (path) => isStoreDomain ? path : `/store/${subdomain}${path}`;
 
-  const [store, setStore] = useState(null);
-  const [pixels, setPixels] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const _coCacheKey = subdomain ? `sf_${subdomain}` : null;
+  const _coCache = _coCacheKey ? _coRead(_coCacheKey) : null;
+
+  const [store, setStore] = useState(_coCache?.store || null);
+  const [pixels, setPixels] = useState(_coCache?.pixels || null);
+  const [loading, setLoading] = useState(!_coCache?.store);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [orderResult, setOrderResult] = useState(null);
@@ -173,7 +192,41 @@ const StoreCheckout = () => {
     captureAffiliateAttributionFromSearch(location.search);
   }, [location.search]);
 
+  const _pixelsFiredRef = useRef(false);
+
   useEffect(() => {
+    if (!subdomain) return;
+    const hasCached = !!(_coCacheKey ? _coRead(_coCacheKey) : null);
+
+    const fireCheckoutPixels = (pixelsData, storeData) => {
+      if (_pixelsFiredRef.current) return;
+      _pixelsFiredRef.current = true;
+      const total = cartProducts.reduce((sum, p) => sum + (p.price || 0) * (p.quantity || 1), 0);
+      const cartCurrs = [...new Set(cartProducts.map((p) => String(p.currency || '').trim().toUpperCase()).filter(Boolean))];
+      const checkoutCur = cartCurrs.length === 1 ? cartCurrs[0] : (storeData?.currency || 'XAF');
+      trackStorefrontEvent({
+        subdomain,
+        pixels: pixelsData,
+        eventName: 'InitiateCheckout',
+        params: {
+          value: total,
+          currency: checkoutCur,
+          num_items: cartProducts.length,
+          content_ids: cartProducts.map(p => p._id || p.productId || ''),
+        },
+      });
+    };
+
+    // If we have cached store, fire pixels immediately and set phone code
+    if (hasCached && store) {
+      const ppc = store?.productPageConfig;
+      const storeCountries = resolveFormCountries(ppc?.general?.countries, store?.country || store?.storeCountry || '');
+      const cartCurrs = [...new Set(cartProducts.map((p) => String(p.currency || '').trim().toUpperCase()).filter(Boolean))];
+      const checkoutCur = cartCurrs.length === 1 ? cartCurrs[0] : (store?.currency || 'XAF');
+      setPhoneCode(getDefaultPhoneCodeFromConfig(storeCountries, checkoutCur));
+      if (pixels) fireCheckoutPixels(pixels, store);
+    }
+
     (async () => {
       try {
         const res = await publicStoreApi.getStore(subdomain);
@@ -182,38 +235,18 @@ const StoreCheckout = () => {
         setStore(storeData);
         const ppc = storeData?.productPageConfig;
         const storeCountries = resolveFormCountries(ppc?.general?.countries, storeData?.country || storeData?.storeCountry || '');
-        const cartCurrencies = [...new Set(cartProducts.map((p) => String(p.currency || '').trim().toUpperCase()).filter(Boolean))];
-        const checkoutCurrency = cartCurrencies.length === 1
-          ? cartCurrencies[0]
-          : (storeData?.currency || storeData?.storeSettings?.storeCurrency || 'XAF');
-        setPhoneCode(getDefaultPhoneCodeFromConfig(storeCountries, checkoutCurrency));
+        const cartCurrs = [...new Set(cartProducts.map((p) => String(p.currency || '').trim().toUpperCase()).filter(Boolean))];
+        const checkoutCur = cartCurrs.length === 1 ? cartCurrs[0] : (storeData?.currency || storeData?.storeSettings?.storeCurrency || 'XAF');
+        setPhoneCode(getDefaultPhoneCodeFromConfig(storeCountries, checkoutCur));
         setPixels(data.pixels || null);
-        // Inject pixels + fire InitiateCheckout
-        if (data.pixels) {
-          const total = cartProducts.reduce((sum, p) => sum + (p.price || 0) * (p.quantity || 1), 0);
-          const cartCurrencies = [...new Set(cartProducts.map((p) => String(p.currency || '').trim().toUpperCase()).filter(Boolean))];
-          const checkoutCurrency = cartCurrencies.length === 1
-            ? cartCurrencies[0]
-            : (data.store?.currency || storeData?.currency || 'XAF');
-          trackStorefrontEvent({
-            subdomain,
-            pixels: data.pixels,
-            eventName: 'InitiateCheckout',
-            params: {
-              value: total,
-              currency: checkoutCurrency,
-              num_items: cartProducts.length,
-              content_ids: cartProducts.map(p => p._id || p.productId || ''),
-            },
-          });
-        }
+        if (data.pixels) fireCheckoutPixels(data.pixels, storeData);
       } catch {
-        setError('Boutique introuvable');
+        if (!hasCached) setError('Boutique introuvable');
       } finally {
         setLoading(false);
       }
     })();
-  }, [subdomain, cartProducts]);
+  }, [subdomain]);
 
   const orderFormContext = useMemo(
     () => resolveOrderFormContext({ store, generalConfig: store?.productPageConfig?.general || {} }),
@@ -437,8 +470,55 @@ const StoreCheckout = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin" style={{ color: themeColor }} />
+      <div className="min-h-screen" style={{ backgroundColor: '#f8f9fb' }}>
+        <style>{CO_SKEL_CSS}</style>
+        {/* Header skeleton */}
+        <div className="bg-white sticky top-0 z-40 px-4 py-3" style={{ boxShadow: '0 1px 0 rgba(0,0,0,0.07)' }}>
+          <div className="max-w-lg mx-auto flex items-center gap-3">
+            <div className="co-sk w-8 h-8 rounded-xl" />
+            <div className="flex-1 space-y-1.5">
+              <div className="co-sk h-3.5 w-36" />
+              <div className="co-sk h-3 w-24" />
+            </div>
+          </div>
+        </div>
+        <div className="max-w-lg mx-auto px-4 pt-4 pb-8 space-y-3">
+          {/* Order summary card skeleton */}
+          <div className="bg-white rounded-2xl overflow-hidden" style={{ boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
+            <div className="co-sk h-1" style={{ borderRadius: 0 }} />
+            <div className="p-4 space-y-3">
+              <div className="co-sk h-4 w-32" />
+              {[...Array(2)].map((_, i) => (
+                <div key={i} className="flex items-center gap-3">
+                  <div className="co-sk w-11 h-11 rounded-xl flex-shrink-0" />
+                  <div className="flex-1 space-y-1.5">
+                    <div className="co-sk h-3.5 w-3/4" />
+                    <div className="co-sk h-3 w-1/4" />
+                  </div>
+                  <div className="co-sk h-4 w-16 flex-shrink-0" />
+                </div>
+              ))}
+              <div className="pt-2 space-y-2" style={{ borderTop: '1px dashed #e5e7eb' }}>
+                <div className="flex justify-between"><div className="co-sk h-3 w-20" /><div className="co-sk h-3 w-16" /></div>
+                <div className="flex justify-between items-center pt-1"><div className="co-sk h-4 w-24" /><div className="co-sk h-5 w-20" /></div>
+              </div>
+            </div>
+          </div>
+          {/* Form skeleton */}
+          <div className="bg-white rounded-2xl overflow-hidden" style={{ boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
+            <div className="co-sk h-1" style={{ borderRadius: 0 }} />
+            <div className="p-4 space-y-4">
+              <div className="co-sk h-4 w-48" />
+              {[...Array(4)].map((_, i) => (
+                <div key={i} className="space-y-1.5">
+                  <div className="co-sk h-3 w-28" />
+                  <div className="co-sk h-11 rounded-xl" />
+                </div>
+              ))}
+              <div className="co-sk h-12 rounded-2xl" />
+            </div>
+          </div>
+        </div>
       </div>
     );
   }

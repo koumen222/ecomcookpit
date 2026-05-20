@@ -11,7 +11,7 @@ export default function WhatsAppClient() {
 
   const getHeaders = () => {
     const token = localStorage.getItem('ecomToken');
-    const workspace = JSON.parse(localStorage.getItem('ecomWorkspace') || 'null');
+    const workspace = (() => { try { return JSON.parse(localStorage.getItem('ecomWorkspace') || 'null'); } catch { return null; } })();
     return {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${token}`,

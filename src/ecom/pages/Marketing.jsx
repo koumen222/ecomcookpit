@@ -255,7 +255,7 @@ export default function Marketing() {
     setWaInstances([]);
     setWaLoading(true);
     try {
-      const user = JSON.parse(localStorage.getItem('ecomUser') || '{}');
+      const user = (() => { try { return JSON.parse(localStorage.getItem('ecomUser') || '{}'); } catch { return {}; } })();
       const uId = user._id || user.id;
       const r = await marketingApi.getWhatsAppInstances(uId);
       setWaInstances(r.data.instances || []);
@@ -269,7 +269,7 @@ export default function Marketing() {
   const refreshWaStatus = async () => {
     setWaLoading(true);
     try {
-      const user = JSON.parse(localStorage.getItem('ecomUser') || '{}');
+      const user = (() => { try { return JSON.parse(localStorage.getItem('ecomUser') || '{}'); } catch { return {}; } })();
       const { default: ecomApi } = await import('../services/ecommApi.js');
       const r = await ecomApi.post('/v1/external/whatsapp/refresh-status', { userId: user._id || user.id });
       setWaInstances(r.data?.instances || []);

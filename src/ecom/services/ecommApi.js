@@ -181,7 +181,16 @@ ecomApi.interceptors.request.use(
     }
 
     // Ajouter automatiquement le workspaceId aux requêtes
-    const workspace = JSON.parse(localStorage.getItem('ecomWorkspace') || 'null');
+    // Wrapped in try-catch: corrupted localStorage JSON would otherwise throw
+    // a SyntaxError inside the interceptor, causing every API call to fail silently
+    // for that user ("erreur de chargement" on every page).
+    let workspace = null;
+    try {
+      workspace = JSON.parse(localStorage.getItem('ecomWorkspace') || 'null');
+    } catch {
+      // Self-heal: remove the corrupted entry so the user isn't permanently stuck.
+      try { localStorage.removeItem('ecomWorkspace'); } catch { /* ignore */ }
+    }
     const wsId = workspace?._id || workspace?.id;
 
     const isSuperAdminEndpoint = typeof config.url === 'string' && config.url.includes('/super-admin');

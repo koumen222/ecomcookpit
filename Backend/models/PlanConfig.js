@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 
 const PLAN_KEYS = ['free', 'starter', 'pro', 'ultra'];
 let _productLimitsMigrated = false;
+let _multiStoreMigrated = false;
 let _pricingV2Migrated = false;
 
 const planConfigSchema = new mongoose.Schema({
@@ -72,6 +73,18 @@ planConfigSchema.statics.seedDefaults = async function () {
       await this.updateMany(
         { key: { $in: ['starter', 'pro', 'ultra'] }, 'limits.maxProducts': { $ne: -1 } },
         { $set: { 'limits.maxProducts': -1 } }
+      );
+    }
+    if (!_multiStoreMigrated) {
+      _multiStoreMigrated = true;
+      // starter & pro: raise maxStores from 1 → 3 so multi-boutique works on paid plans
+      await this.updateOne(
+        { key: 'starter', 'limits.maxStores': { $lt: 3 } },
+        { $set: { 'limits.maxStores': 3 } }
+      );
+      await this.updateOne(
+        { key: 'pro', 'limits.maxStores': { $lt: 3 } },
+        { $set: { 'limits.maxStores': 3 } }
       );
     }
     if (!_pricingV2Migrated) {
@@ -162,7 +175,7 @@ planConfigSchema.statics.seedDefaults = async function () {
         maxOrders: -1,
         maxCustomers: -1,
         maxProducts: -1,
-        maxStores: 1,
+        maxStores: 3,
         maxUsers: 3,
         maxWhatsappInstances: 0,
         maxWhatsappMessagesPerDay: 0,
@@ -174,7 +187,7 @@ planConfigSchema.statics.seedDefaults = async function () {
         hasAiPageGen: false,
         hasPrioritySupport: false,
         hasApiWebhooks: false,
-        hasMultiStore: false,
+        hasMultiStore: true,
         hasAnalyticsDashboard: true,
         hasCustomStore: true
       },
@@ -183,7 +196,7 @@ planConfigSchema.statics.seedDefaults = async function () {
         'Gestion clients complète',
         'Catalogue produits illimité',
         'Tableau de bord analytique',
-        'Boutique en ligne personnalisée',
+        'Jusqu\'à 3 boutiques en ligne',
         'Notifications & suivi livraisons'
       ],
       ctaLabel: 'Commencer avec Scalor'
@@ -202,7 +215,7 @@ planConfigSchema.statics.seedDefaults = async function () {
         maxOrders: -1,
         maxCustomers: -1,
         maxProducts: -1,
-        maxStores: 1,
+        maxStores: 3,
         maxUsers: 5,
         maxWhatsappInstances: 1,
         maxWhatsappMessagesPerDay: 1000,
@@ -214,7 +227,7 @@ planConfigSchema.statics.seedDefaults = async function () {
         hasAiPageGen: false,
         hasPrioritySupport: true,
         hasApiWebhooks: false,
-        hasMultiStore: false,
+        hasMultiStore: true,
         hasAnalyticsDashboard: true,
         hasCustomStore: true
       },

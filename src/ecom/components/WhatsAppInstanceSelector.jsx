@@ -16,7 +16,7 @@ const WhatsAppInstanceSelector = ({ onInstanceSelected, selectedInstanceId }) =>
   const loadInstances = async () => {
     try {
       setLoading(true);
-      const user = JSON.parse(localStorage.getItem('ecomUser') || '{}');
+      const user = (() => { try { return JSON.parse(localStorage.getItem('ecomUser') || '{}'); } catch { return {}; } })();
       const userId = user._id || user.id;
       
       const response = await ecomApi.get(`/v1/external/whatsapp/instances?userId=${userId}`);

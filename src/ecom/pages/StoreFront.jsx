@@ -7,6 +7,25 @@ import { injectStoreCssVars } from '../hooks/useStoreData.js';
 import { injectPixelScripts, firePixelEvent } from '../utils/pixelTracking.js';
 import { formatMoney } from '../utils/currency.js';
 
+const _SF_TTL = 10 * 60 * 1000;
+function _sfRead(key) {
+  try {
+    const raw = sessionStorage.getItem(key);
+    if (!raw) return null;
+    const { d, t } = JSON.parse(raw);
+    if (Date.now() - t > _SF_TTL) { sessionStorage.removeItem(key); return null; }
+    return d;
+  } catch { return null; }
+}
+function _sfWrite(key, data) {
+  try { sessionStorage.setItem(key, JSON.stringify({ d: data, t: Date.now() })); } catch {}
+}
+
+const SF_SKEL_CSS = `
+@keyframes _sfskel { 0%{background-position:-200% center} 100%{background-position:200% center} }
+.sf-sk { background:linear-gradient(90deg,#efefef 25%,#e2e2e2 50%,#efefef 75%);background-size:200% 100%;animation:_sfskel 1.4s ease infinite;border-radius:8px; }
+`;
+
 const RADIUS_MAP = {
   none: '0px',
   sm: '10px',
@@ -100,56 +119,64 @@ const StoreFront = () => {
     return `https://${subdomain}.scalor.net${path}`;
   };
 
-  const [store, setStore] = useState(null);
-  const [products, setProducts] = useState([]);
-  const [categories, setCategories] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const cacheKey = subdomain ? `sf_${subdomain}` : null;
+  const _cached = cacheKey ? _sfRead(cacheKey) : null;
+
+  const [store, setStore] = useState(_cached?.store || null);
+  const [products, setProducts] = useState(_cached?.products || []);
+  const [categories, setCategories] = useState(_cached?.categories || []);
+  const [loading, setLoading] = useState(!_cached);
   const [loadingProducts, setLoadingProducts] = useState(false);
   const [error, setError] = useState('');
   const [loadingTimeout, setLoadingTimeout] = useState(false);
-  const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0, pages: 0 });
+  const [pagination, setPagination] = useState(_cached?.pagination || { page: 1, limit: 20, total: 0, pages: 0 });
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
   const [sortBy, setSortBy] = useState('-createdAt');
   const [availability, setAvailability] = useState('all');
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
 
-  // Load store config + products + categories in a SINGLE call
-  // The unified /api/store/:subdomain endpoint returns everything at once
-  // This reduces 3 HTTP requests to 1 — critical for African market latency
   useEffect(() => {
-    (async () => {
-      // Set timeout for slow loading
-      const timeoutId = setTimeout(() => {
-        setLoadingTimeout(true);
-      }, 8000); // 8 seconds
+    if (!subdomain) return;
+    const hasCached = !!_sfRead(cacheKey);
 
+    // If cached data already shown, inject CSS vars immediately
+    if (hasCached && store) injectStoreCssVars(store);
+
+    let timeoutId;
+    if (!hasCached) {
+      timeoutId = setTimeout(() => setLoadingTimeout(true), 8000);
+    }
+
+    (async () => {
       try {
         const res = await publicStoreApi.getStore(subdomain);
         const data = res.data?.data;
         const storeData = data?.store;
+        const newProducts = data?.products || [];
+        const newPagination = data?.pagination || { page: 1, limit: 20, total: 0, pages: 0 };
+        const newCategories = data?.categories || [];
+
         setStore(storeData);
-        setProducts(data?.products || []);
-        setPagination(data?.pagination || { page: 1, limit: 20, total: 0, pages: 0 });
-        setCategories(data?.categories || []);
+        setProducts(newProducts);
+        setPagination(newPagination);
+        setCategories(newCategories);
 
-        // Injecter les couleurs et le thème du store
-        if (storeData) {
-          injectStoreCssVars(storeData);
-        }
+        if (storeData) injectStoreCssVars(storeData);
 
-        // Injecter les pixels de tracking et fire PageView
+        if (cacheKey) _sfWrite(cacheKey, { store: storeData, products: newProducts, pagination: newPagination, categories: newCategories, pixels: data?.pixels });
+
         if (data?.pixels) {
           injectPixelScripts(data.pixels);
           firePixelEvent('PageView');
         }
-        
-        clearTimeout(timeoutId);
       } catch (err) {
-        clearTimeout(timeoutId);
-        console.error('Store loading error:', err);
-        setError('Boutique introuvable');
+        if (!hasCached) {
+          console.error('Store loading error:', err);
+          setError('Boutique introuvable');
+        }
       } finally {
+        clearTimeout(timeoutId);
         setLoading(false);
         setLoadingTimeout(false);
       }
@@ -253,43 +280,52 @@ const StoreFront = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-4" style={{ backgroundColor: 'var(--s-bg, #ffffff)', color: 'var(--s-text, #111827)', fontFamily: 'var(--s-font-base, var(--s-font, Inter, sans-serif))', ...shellVars }}>
-        {/* Logo/Icon animation */}
-        <div className="mb-8 w-16 h-16 flex items-center justify-center" style={{ backgroundColor: 'var(--sf-soft-surface)', borderRadius: 'var(--sf-radius)' }}>
-          <ShoppingBag className="w-7 h-7" style={{ color: 'var(--s-primary)' }} />
+      <div className="min-h-screen" style={{ backgroundColor: '#f5f5f5' }}>
+        <style>{SF_SKEL_CSS}</style>
+        {/* Header skeleton */}
+        <div style={{ backgroundColor: '#fff', borderBottom: '1px solid #e5e7eb', padding: '12px 16px' }}>
+          <div className="max-w-6xl mx-auto flex items-center gap-3">
+            <div className="sf-sk w-10 h-10 rounded-full" />
+            <div className="flex-1 space-y-1.5">
+              <div className="sf-sk h-4 w-32" />
+              <div className="sf-sk h-3 w-48" />
+            </div>
+          </div>
         </div>
-        
-        {/* Loading text */}
-        <div className="text-center space-y-2">
-          <h2 className="text-lg font-semibold" style={{ color: 'var(--s-text)' }}>
-            {loadingTimeout ? 'Prend plus de temps que prévu...' : 'Chargement de la boutique'}
-          </h2>
-          <p className="text-sm" style={{ color: 'var(--s-text2)' }}>
-            {loadingTimeout 
-              ? 'Veuillez patienter, cela peut prendre quelques secondes...' 
-              : 'Préparation de votre expérience d\'achat...'
-            }
-          </p>
+        <div className="max-w-6xl mx-auto px-4 pt-8 pb-12">
+          {/* Title skeleton */}
+          <div className="text-center space-y-2 mb-6">
+            <div className="sf-sk h-3 w-32 mx-auto" />
+            <div className="sf-sk h-8 w-52 mx-auto" />
+          </div>
+          {/* Category pills skeleton */}
+          <div className="flex gap-2 justify-center mb-6">
+            {[60,80,70,90].map((w,i) => <div key={i} className="sf-sk h-8 rounded-full" style={{width:w}} />)}
+          </div>
+          {/* Search bar skeleton */}
+          <div className="sf-sk h-12 rounded-2xl mb-6" />
+          {/* Product grid skeleton */}
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">
+            {[...Array(8)].map((_, i) => (
+              <div key={i} className="bg-white rounded-2xl overflow-hidden" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
+                <div className="sf-sk aspect-square" />
+                <div className="p-3 space-y-2">
+                  <div className="sf-sk h-4" />
+                  <div className="sf-sk h-3 w-3/4" />
+                  <div className="sf-sk h-5 w-1/2" />
+                </div>
+              </div>
+            ))}
+          </div>
+          {loadingTimeout && (
+            <div className="text-center mt-8">
+              <p className="text-sm text-gray-500 mb-3">Prend plus de temps que prévu…</p>
+              <button onClick={() => window.location.reload()} className="px-4 py-2 text-sm font-medium text-gray-600 border border-gray-300 rounded-xl">
+                Réessayer
+              </button>
+            </div>
+          )}
         </div>
-        
-        {/* Animated dots */}
-        <div className="mt-4 px-3 py-1.5 rounded-full text-xs font-medium" style={{ backgroundColor: 'var(--sf-soft-surface)', color: 'var(--s-primary)' }}>
-          Chargement initial…
-        </div>
-        
-        {/* Subtle progress bar */}
-        <div className="mt-6 text-xs" style={{ color: 'var(--s-text2)' }}>Préparation du catalogue…</div>
-        
-        {/* Retry button after timeout */}
-        {loadingTimeout && (
-          <button
-            onClick={() => window.location.reload()}
-            className="mt-6 px-4 py-2 text-sm font-medium transition-colors"
-            style={{ color: 'var(--s-text)' }}
-          >
-            Réessayer
-          </button>
-        )}
       </div>
     );
   }
@@ -308,16 +344,7 @@ const StoreFront = () => {
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: 'var(--s-bg)', color: 'var(--s-text)', fontFamily: 'var(--s-font-base, var(--s-font, Inter, sans-serif))', ...shellVars }}>
-      {/* Add custom styles for shimmer animation */}
-      <style jsx>{`
-        @keyframes shimmer {
-          0% { transform: translateX(-100%); }
-          100% { transform: translateX(200%); }
-        }
-        .shimmer {
-          animation: shimmer 2s infinite;
-        }
-      `}</style>
+      <style>{SF_SKEL_CSS}</style>
       
       {/* Store Header */}
       <header className="sticky top-0 z-40" style={{ backgroundColor: 'var(--sf-surface)', borderBottom: '1px solid var(--sf-soft-border)', backdropFilter: 'blur(14px)' }}>
@@ -530,28 +557,17 @@ const StoreFront = () => {
 
         <section className="min-w-0 mt-6">
         {loadingProducts ? (
-          <div className="space-y-4">
-            {/* Loading skeleton cards */}
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">
-              {[...Array(8)].map((_, i) => (
-                <div key={i} className="overflow-hidden" style={{ backgroundColor: 'var(--sf-surface)', borderRadius: 'var(--sf-radius)', border: '1px solid var(--sf-soft-border)' }}>
-                  {/* Image skeleton */}
-                  <div className="aspect-square shimmer" style={{ backgroundColor: 'var(--sf-soft-surface)' }}>
-                    <div className="w-full h-full bg-gradient-to-r from-gray-100 via-gray-200 to-gray-100 animate-pulse"></div>
-                  </div>
-                  {/* Content skeleton */}
-                  <div className="p-2.5 sm:p-3 space-y-2">
-                    <div className="h-4 bg-gray-100 rounded animate-pulse"></div>
-                    <div className="h-3 bg-gray-100 rounded w-3/4 animate-pulse"></div>
-                    <div className="h-5 bg-gray-100 rounded w-1/2 animate-pulse"></div>
-                  </div>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">
+            {[...Array(8)].map((_, i) => (
+              <div key={i} className="overflow-hidden" style={{ backgroundColor: 'var(--sf-surface)', borderRadius: 'var(--sf-radius)', border: '1px solid var(--sf-soft-border)' }}>
+                <div className="sf-sk aspect-square" />
+                <div className="p-2.5 sm:p-3 space-y-2">
+                  <div className="sf-sk h-4" />
+                  <div className="sf-sk h-3 w-3/4" />
+                  <div className="sf-sk h-5 w-1/2" />
                 </div>
-              ))}
-            </div>
-            {/* Loading text */}
-            <div className="text-center py-4">
-              <span className="text-sm" style={{ color: 'var(--s-text2)' }}>Chargement des produits...</span>
-            </div>
+              </div>
+            ))}
           </div>
         ) : filteredProducts.length === 0 ? (
           <div className="text-center py-16">

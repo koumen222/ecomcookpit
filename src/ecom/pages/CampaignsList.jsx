@@ -257,7 +257,7 @@ const CampaignsList = () => {
   const loadInstances = async () => {
     try {
       setLoadingInstances(true);
-      const user = JSON.parse(localStorage.getItem('ecomUser') || '{}');
+      const user = (() => { try { return JSON.parse(localStorage.getItem('ecomUser') || '{}'); } catch { return {}; } })();
       const userId = user._id || user.id;
       const response = await ecomApi.get(`/v1/external/whatsapp/instances?userId=${userId}`);
       const list = response.data.success ? (response.data.instances || []) : [];
@@ -274,7 +274,7 @@ const CampaignsList = () => {
   const refreshInstancesStatus = async () => {
     try {
       setLoadingInstances(true);
-      const user = JSON.parse(localStorage.getItem('ecomUser') || '{}');
+      const user = (() => { try { return JSON.parse(localStorage.getItem('ecomUser') || '{}'); } catch { return {}; } })();
       const userId = user._id || user.id;
       const res = await ecomApi.post('/v1/external/whatsapp/refresh-status', { userId });
       const list = res.data?.instances || [];
@@ -320,7 +320,7 @@ const CampaignsList = () => {
     setPendingCampaignId(id);
     setLoadingInstances(true);
     try {
-      const user = JSON.parse(localStorage.getItem('ecomUser') || '{}');
+      const user = (() => { try { return JSON.parse(localStorage.getItem('ecomUser') || '{}'); } catch { return {}; } })();
       const userId = user._id || user.id;
       const response = await ecomApi.get(`/v1/external/whatsapp/instances?userId=${userId}`);
       const loadedInstances = response.data.success ? (response.data.instances || []) : [];
@@ -352,7 +352,7 @@ const CampaignsList = () => {
     try {
       const baseUrl = ecomApi.defaults.baseURL;
       const token = localStorage.getItem('ecomToken');
-      const workspace = JSON.parse(localStorage.getItem('ecomWorkspace') || 'null');
+      const workspace = (() => { try { return JSON.parse(localStorage.getItem('ecomWorkspace') || 'null'); } catch { return null; } })();
       const wsId = workspace?._id || workspace?.id;
 
       const response = await fetch(`${baseUrl}/marketing/campaigns/${id}/send`, {
