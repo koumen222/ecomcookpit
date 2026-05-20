@@ -42,20 +42,6 @@ const TransactionDetail = () => {
 
   if (loading) return <CenteredSpinner message="Chargement…" />;
 
-  return (
-    <div className="p-4 sm:p-6">
-      <div className="h-8 w-40 bg-gray-200 rounded-lg animate-pulse mb-6" />
-      <div className="grid grid-cols-2 gap-3 mb-6">
-        {[...Array(4)].map((_, i) => (
-          <div key={i} className="bg-white rounded-xl border border-gray-100 p-4">
-            <div className="h-3 w-20 bg-gray-200 rounded animate-pulse mb-2" />
-            <div className="h-6 w-24 bg-gray-200 rounded animate-pulse" />
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-
   if (error || !tx) {
     return (
       <div className="p-3 sm:p-4 lg:p-6">
@@ -90,7 +76,7 @@ const TransactionDetail = () => {
             </span>
           </div>
         </div>
-        <Link to={`/transactions/${id}/edit`}
+        <Link to={`/ecom/transactions/${id}/edit`}
           className="px-3 py-2 bg-emerald-700 text-white rounded-lg hover:bg-emerald-800 text-sm font-medium">
           Modifier
         </Link>
