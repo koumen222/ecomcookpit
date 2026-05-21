@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useRef, useCallback } from 'react';
 import axios from 'axios';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://ecomcookpit-production.up.railway.app';
@@ -84,7 +84,7 @@ export const useStoreAnalytics = (subdomain) => {
     };
   };
 
-  const track = async (eventType, data = {}) => {
+  const track = useCallback(async (eventType, data = {}) => {
     // Allow tracking even without a subdomain — backend can resolve via hostname fallback
     const path = window.location.pathname;
     const productId = data.productId || '';
@@ -92,7 +92,6 @@ export const useStoreAnalytics = (subdomain) => {
     // Throttle côté client pour page_view et product_view
     if (['page_view', 'product_view'].includes(eventType)) {
       if (isThrottled(eventType, productId, path)) return;
-      setThrottleStamp(eventType, productId, path);
     }
 
     try {
@@ -114,20 +113,24 @@ export const useStoreAnalytics = (subdomain) => {
       };
 
       await axios.post(`${API_URL}/api/ecom/store-analytics/track`, event);
+      // Only stamp throttle after successful send — prevents silently losing visits on network errors
+      if (['page_view', 'product_view'].includes(eventType)) {
+        setThrottleStamp(eventType, productId, path);
+      }
     } catch (error) {
       console.warn('Analytics tracking failed:', error.message);
     }
-  };
+  }, [subdomain]);
 
   return {
-    trackPageView: () => track('page_view'),
-    trackProductView: (productId, productName, productPrice) =>
-      track('product_view', { productId, productName, productPrice }),
-    trackAddToCart: (productId, productName, productPrice) =>
-      track('add_to_cart', { productId, productName, productPrice }),
-    trackCheckoutStarted: () => track('checkout_started'),
-    trackOrderPlaced: (orderId, orderValue) =>
-      track('order_placed', { orderId, orderValue }),
+    trackPageView: useCallback(() => track('page_view'), [track]),
+    trackProductView: useCallback((productId, productName, productPrice) =>
+      track('product_view', { productId, productName, productPrice }), [track]),
+    trackAddToCart: useCallback((productId, productName, productPrice) =>
+      track('add_to_cart', { productId, productName, productPrice }), [track]),
+    trackCheckoutStarted: useCallback(() => track('checkout_started'), [track]),
+    trackOrderPlaced: useCallback((orderId, orderValue) =>
+      track('order_placed', { orderId, orderValue }), [track]),
   };
 };
 
