@@ -3,7 +3,7 @@ import { safeHtml } from '../utils/sanitize';
 import { ShoppingCart, User, Phone, MapPin, Loader2, CheckCircle, Truck, Plus, Minus, AlertCircle, ChevronDown, Mail, FileText, Hash, Calendar, Clock, Shield, Globe, Star, ShoppingBag, ArrowRight, Check } from 'lucide-react';
 import { publicStoreApi } from '../services/storeApi.js';
 import defaultConfig from './productSettings/defaultConfig.js';
-import { createMetaEventId, firePixelEvent } from '../utils/pixelTracking';
+import { createMetaEventId, injectPixelScripts, safeFirePixelEvent } from '../utils/pixelTracking';
 import { PHONE_CODES, getDefaultPhoneCodeFromConfig, getPhoneCodeByCountryName, buildFullPhone } from '../utils/phoneCodes.js';
 import {
   buildStorefrontOrderWhatsappMessage,
@@ -35,7 +35,7 @@ const isMeaningfulPlaceholder = (value, ignoredPatterns = []) => {
  * Remplace le bouton CTA + popup quand formType === 'embedded'.
  * Même logique que QuickOrderModal, version inline.
  */
-const EmbeddedOrderForm = ({ product, subdomain, store, productPageConfig }) => {
+const EmbeddedOrderForm = ({ product, subdomain, store, pixels, productPageConfig }) => {
   const [form, setForm] = useState({ customerName: '', phone: '', city: '', address: '', notes: '', quantity: 1 });
   const [phoneCode, setPhoneCode] = useState(() => getDefaultPhoneCodeFromConfig(productPageConfig?.general?.countries, store?.currency));
   const [submitting, setSubmitting] = useState(false);
@@ -105,6 +105,12 @@ const EmbeddedOrderForm = ({ product, subdomain, store, productPageConfig }) => 
   }, [deliveryZoneOptions, selectedCountry, formCountries, orderFormContext.popularCities]);
 
   // Countdown timer for urgency field
+  // Inject pixel scripts at mount so Purchase always fires, even if the
+  // product page ViewContent effect hasn't run yet (slow API, race condition).
+  useEffect(() => {
+    if (pixels) injectPixelScripts(pixels);
+  }, [pixels]);
+
   useEffect(() => {
     if (!urgencyConfig.countdown) return;
     const total =
@@ -282,7 +288,7 @@ const EmbeddedOrderForm = ({ product, subdomain, store, productPageConfig }) => 
       setOrderResult(res.data?.data);
       setSuccess(true);
 
-      firePixelEvent('Purchase', {
+      safeFirePixelEvent(pixels, 'Purchase', {
         content_ids: [product._id || product.slug || ''],
         content_name: product.name || '',
         value: total,

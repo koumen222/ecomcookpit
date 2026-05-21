@@ -114,12 +114,13 @@ export function ThemeProvider({ children, subdomain = null }) {
       }
     };
 
-    if (workspace?.id) {
+    const wsId = workspace?._id || workspace?.id;
+    if (wsId) {
       loadTheme();
     } else {
       setLoading(false);
     }
-  }, [workspace?.id]);
+  }, [workspace?._id, workspace?.id]);
 
   // Update CSS variables when theme changes
   useEffect(() => {

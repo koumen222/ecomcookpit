@@ -2,7 +2,7 @@
  * BoutiqueSettings — Unique page de configuration de la boutique.
  * Radical & minimal : nom, logo, 4 couleurs, 1 police, description. C'est tout.
  */
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useEcomAuth } from '../hooks/useEcomAuth';
 import { useStore } from '../contexts/StoreContext.jsx';
@@ -253,12 +253,70 @@ const BoutiqueSettings = () => {
     };
   });
 
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
   const [subdomain, setSubdomain] = useState(() => _cached?.subdomain || '');
   const [regenerating, setRegenerating] = useState(false);
   const [regenMsg, setRegenMsg] = useState('');
   const [activeTab, setActiveTab] = useState('general');
+
+  // ── Auto-save ────────────────────────────────────────────────────────────────
+  const [autoSave, setAutoSave] = useState('idle'); // 'idle'|'saving'|'saved'|'error'
+  const saveTimer = useRef(null);
+  const isLoaded = useRef(false); // don't auto-save before initial data load
+
+  // Allow auto-save 900 ms after mount (covers both cache & API paths)
+  useEffect(() => {
+    const t = setTimeout(() => { isLoaded.current = true; }, 900);
+    return () => clearTimeout(t);
+  }, []);
+
+  // Cleanup timer on unmount
+  useEffect(() => () => { if (saveTimer.current) clearTimeout(saveTimer.current); }, []);
+
+  // Persist to backend after last form change
+  useEffect(() => {
+    if (!isLoaded.current) return;
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    setAutoSave('idle'); // reset while debouncing — spinner shows only when request fires
+    saveTimer.current = setTimeout(async () => {
+      setAutoSave('saving'); // spinner starts only when request actually fires
+      try {
+        const res = await storeManageApi.updateStoreConfig({
+          storeName:           form.storeName,
+          storeDescription:    form.storeDescription,
+          storeLogo:           form.storeLogo,
+          storeFavicon:        form.storeFavicon,
+          storePhone:          form.storePhone,
+          storeWhatsApp:       form.storeWhatsApp,
+          storeCountry:        form.storeCountry,
+          storeCurrency:       form.storeCurrency,
+          isStoreEnabled:      form.isStoreEnabled,
+          storeThemeColor:     form.primaryColor,
+          primaryColor:        form.primaryColor,
+          accentColor:         form.accentColor,
+          backgroundColor:     form.backgroundColor,
+          textColor:           form.textColor,
+          font:                form.font,
+          announcement:        form.announcement,
+          announcementEnabled: form.announcementEnabled,
+        });
+        const saved_data = res.data?.data;
+        if (saved_data) {
+          const cKey = activeStore?._id
+            ? `boutique_settings_${activeStore._id}`
+            : workspace?._id ? `boutique_settings_ws_${workspace._id}` : null;
+          if (cKey) _scWrite(cKey, saved_data);
+          if (saved_data.subdomain) setSubdomain(saved_data.subdomain);
+        }
+        setAutoSave('saved');
+        setTimeout(() => setAutoSave('idle'), 2500);
+      } catch (err) {
+        console.error('BoutiqueSettings auto-save error:', err);
+        setAutoSave('error');
+        setTimeout(() => setAutoSave('idle'), 4000);
+      }
+    }, 400);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form]);
 
   const TABS = [
     { id: 'general', label: 'Général', icon: <Store size={15} /> },
@@ -293,8 +351,11 @@ const BoutiqueSettings = () => {
         const data = settingsRes.data?.data || {};
         const s = data.storeSettings || {};
         _scWrite(key, data);
+        isLoaded.current = false; // pause auto-save while form resets
         setForm(settingsToForm(s, workspace?.name));
         setSubdomain(data.subdomain || '');
+        // Re-enable auto-save after the state update flushes
+        setTimeout(() => { isLoaded.current = true; }, 400);
       } catch (err) {
         console.error('BoutiqueSettings load error:', err);
       }
@@ -304,46 +365,47 @@ const BoutiqueSettings = () => {
 
   const set = (key, val) => setForm(p => ({ ...p, [key]: val }));
 
-  const handleSave = async () => {
-    setSaving(true);
+  // Manual save (used as error-retry fallback)
+  const handleSave = useCallback(async () => {
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    setAutoSave('saving');
     try {
       const res = await storeManageApi.updateStoreConfig({
-        storeName: form.storeName,
-        storeDescription: form.storeDescription,
-        storeLogo: form.storeLogo,
-        storeFavicon: form.storeFavicon,
-        storePhone: form.storePhone,
-        storeWhatsApp: form.storeWhatsApp,
-        storeCountry: form.storeCountry,
-        storeCurrency: form.storeCurrency,
-        isStoreEnabled: form.isStoreEnabled,
-        storeThemeColor: form.primaryColor,
-        primaryColor: form.primaryColor,
-        accentColor: form.accentColor,
-        backgroundColor: form.backgroundColor,
-        textColor: form.textColor,
-        font: form.font,
-        announcement: form.announcement,
+        storeName:           form.storeName,
+        storeDescription:    form.storeDescription,
+        storeLogo:           form.storeLogo,
+        storeFavicon:        form.storeFavicon,
+        storePhone:          form.storePhone,
+        storeWhatsApp:       form.storeWhatsApp,
+        storeCountry:        form.storeCountry,
+        storeCurrency:       form.storeCurrency,
+        isStoreEnabled:      form.isStoreEnabled,
+        storeThemeColor:     form.primaryColor,
+        primaryColor:        form.primaryColor,
+        accentColor:         form.accentColor,
+        backgroundColor:     form.backgroundColor,
+        textColor:           form.textColor,
+        font:                form.font,
+        announcement:        form.announcement,
         announcementEnabled: form.announcementEnabled,
       });
-      // Write response back into cache so next visit is instant
       const saved_data = res.data?.data;
       if (saved_data) {
-        const key = activeStore?._id
+        const cKey = activeStore?._id
           ? `boutique_settings_${activeStore._id}`
           : workspace?._id ? `boutique_settings_ws_${workspace._id}` : null;
-        if (key) _scWrite(key, saved_data);
+        if (cKey) _scWrite(cKey, saved_data);
         if (saved_data.subdomain) setSubdomain(saved_data.subdomain);
       }
-      setSaved(true);
-      setTimeout(() => setSaved(false), 3000);
+      setAutoSave('saved');
+      setTimeout(() => setAutoSave('idle'), 2500);
     } catch (err) {
-      alert('Erreur lors de la sauvegarde. Veuillez réessayer.');
-      console.error(err);
-    } finally {
-      setSaving(false);
+      console.error('handleSave error:', err);
+      setAutoSave('error');
+      setTimeout(() => setAutoSave('idle'), 4000);
     }
-  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form, activeStore, workspace]);
 
   const previewUrl = getActiveStorefrontUrl() || (subdomain ? `https://${subdomain}.scalor.net` : null);
 
@@ -367,13 +429,31 @@ const BoutiqueSettings = () => {
               <ExternalLink size={14} /> Voir la boutique
             </a>
           )}
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className={`px-5 py-2.5 rounded-xl text-sm font-bold text-white shadow-md transition disabled:opacity-60 flex items-center gap-2 ${saved ? 'bg-green-500' : 'bg-[#0F6B4F] hover:bg-[#0A5740]'}`}
-          >
-            {saved ? (<><Check size={15} /> Sauvegardé</>) : saving ? 'Enregistrement…' : 'Sauvegarder'}
-          </button>
+          {/* Auto-save status indicator */}
+          <div className="flex items-center gap-2 px-3 py-2.5 h-[42px]">
+            {autoSave === 'idle' && (
+              <span className="text-xs text-gray-400">Auto-sauvegarde activée</span>
+            )}
+            {autoSave === 'saving' && (
+              <span className="flex items-center gap-1.5 text-xs text-gray-400">
+                <span className="w-3 h-3 rounded-full border-2 border-gray-200 border-t-[#0F6B4F] animate-spin inline-block flex-shrink-0" />
+                Sauvegarde...
+              </span>
+            )}
+            {autoSave === 'saved' && (
+              <span className="flex items-center gap-1.5 text-xs text-[#0F6B4F] font-semibold">
+                <Check size={13} className="flex-shrink-0" /> Sauvegardé
+              </span>
+            )}
+            {autoSave === 'error' && (
+              <button
+                onClick={handleSave}
+                className="flex items-center gap-1.5 text-xs text-red-500 font-semibold hover:text-red-700 transition"
+              >
+                ✕ Erreur — Réessayer
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -612,15 +692,22 @@ const BoutiqueSettings = () => {
         </>
       )}
 
-      {/* ── Bottom save ─────────────────────────────────────────────────── */}
+      {/* ── Bottom auto-save status ──────────────────────────────────────── */}
       <div className="flex justify-end pb-8">
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className={`px-8 py-3 rounded-xl text-sm font-bold text-white shadow-lg transition disabled:opacity-60 flex items-center gap-2 ${saved ? 'bg-green-500' : 'bg-[#0F6B4F] hover:bg-[#0A5740]'}`}
-        >
-          {saved ? (<><Check size={15} /> Sauvegardé !</>) : saving ? 'Enregistrement…' : 'Sauvegarder les modifications'}
-        </button>
+        {autoSave === 'error' ? (
+          <button
+            onClick={handleSave}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-white bg-red-500 hover:bg-red-600 transition shadow"
+          >
+            ✕ Erreur — Sauvegarder maintenant
+          </button>
+        ) : (
+          <span className="text-xs text-gray-400 py-2.5">
+            {autoSave === 'saving' && 'Sauvegarde en cours...'}
+            {autoSave === 'saved' && '✓ Toutes les modifications sont sauvegardées'}
+            {autoSave === 'idle' && 'Les modifications sont sauvegardées automatiquement'}
+          </span>
+        )}
       </div>
     </div>
   );

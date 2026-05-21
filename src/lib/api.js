@@ -117,7 +117,8 @@ api.interceptors.request.use(
       config.headers.Authorization = `Bearer ${token}`;
     }
 
-    const workspace = JSON.parse(localStorage.getItem('ecomWorkspace') || 'null');
+    let workspace = null;
+    try { workspace = JSON.parse(localStorage.getItem('ecomWorkspace') || 'null'); } catch { try { localStorage.removeItem('ecomWorkspace'); } catch { /* ignore */ } }
     const workspaceId = workspace?._id || workspace?.id;
     const isSuperAdminEndpoint = typeof config.url === 'string' && config.url.includes('/super-admin');
 

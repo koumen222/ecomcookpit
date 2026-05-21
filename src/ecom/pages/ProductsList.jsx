@@ -100,37 +100,6 @@ const SortIcon = ({ active, dir }) => {
   return <span className="text-emerald-600 ml-1 text-[10px]">{dir === 'asc' ? '↑' : '↓'}</span>;
 };
 
-const Skeleton = () => (
-  <div className="flex flex-col min-h-full animate-pulse bg-[#f8f9fb]">
-    <div className="bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between">
-      <div className="space-y-1.5">
-        <div className="h-5 w-24 bg-gray-200 rounded" />
-        <div className="h-3 w-36 bg-gray-100 rounded" />
-      </div>
-      <div className="h-9 w-36 bg-gray-200 rounded-lg" />
-    </div>
-    <div className="px-6 pt-5 pb-4 grid grid-cols-2 lg:grid-cols-4 gap-3">
-      {[...Array(4)].map((_, i) => <div key={i} className="h-20 bg-white rounded-xl border border-gray-100" />)}
-    </div>
-    <div className="px-6 pb-3">
-      <div className="h-11 bg-white rounded-xl border border-gray-100" />
-    </div>
-    <div className="flex-1 mx-6 mb-6 bg-white rounded-xl border border-gray-100 overflow-hidden">
-      {[...Array(7)].map((_, i) => (
-        <div key={i} className="flex items-center gap-4 px-5 py-4 border-b border-gray-50">
-          <div className="w-10 h-10 bg-gray-100 rounded-xl" />
-          <div className="flex-1 space-y-1.5">
-            <div className="h-4 w-48 bg-gray-100 rounded" />
-            <div className="h-3 w-20 bg-gray-100 rounded" />
-          </div>
-          <div className="h-4 w-20 bg-gray-100 rounded ml-auto" />
-          <div className="h-4 w-20 bg-gray-100 rounded" />
-          <div className="h-5 w-14 bg-gray-100 rounded-full" />
-        </div>
-      ))}
-    </div>
-  </div>
-);
 
 /* ─── Main Component ─────────────────────────────────────────────────────── */
 
@@ -204,7 +173,11 @@ export default function ProductsList() {
 
   const hasFilters = search || statusFilter || activeFilter;
 
-  if (loading) return <Skeleton />;
+  if (loading) return (
+    <div className="flex items-center justify-center min-h-[60vh]">
+      <div className="w-7 h-7 rounded-full border-[3px] border-gray-200 border-t-emerald-600 animate-spin" />
+    </div>
+  );
 
   return (
     <div className="flex flex-col min-h-full bg-[#f8f9fb]">

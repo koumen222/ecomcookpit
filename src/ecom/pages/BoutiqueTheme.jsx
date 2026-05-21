@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useEcomAuth } from '../hooks/useEcomAuth';
 import { useTheme } from '../contexts/ThemeContext';
 import api from '../../lib/api';
@@ -94,45 +94,51 @@ const Toggle = ({ checked, onChange, label, desc }) => (
 const BoutiqueTheme = () => {
   const { workspace } = useEcomAuth();
   const { theme, updateTheme: updateGlobalTheme, loading: themeLoading } = useTheme();
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
+  // auto-save status: 'idle' | 'saving' | 'saved' | 'error'
+  const [autoSave, setAutoSave] = useState('idle');
+  const saveTimer = useRef(null);
 
   // Local theme state for real-time preview
   const [localTheme, setLocalTheme] = useState(theme);
 
-  // Update local theme when global theme changes
+  // Update local theme when global theme loads/resets from context
   useEffect(() => {
     setLocalTheme(theme);
   }, [theme]);
 
+  // Cleanup timer on unmount
+  useEffect(() => () => { if (saveTimer.current) clearTimeout(saveTimer.current); }, []);
+
+  // Debounced persist to backend (700 ms after last change)
+  const debouncedSave = useCallback((themeToSave) => {
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    setAutoSave('idle'); // reset while debouncing — spinner only shows when request fires
+    saveTimer.current = setTimeout(async () => {
+      setAutoSave('saving'); // spinner starts only when request actually fires
+      try {
+        await updateGlobalTheme(themeToSave, true); // persist
+        setAutoSave('saved');
+        setTimeout(() => setAutoSave('idle'), 2000);
+      } catch {
+        setAutoSave('error');
+        setTimeout(() => setAutoSave('idle'), 3000);
+      }
+    }, 300);
+  }, [updateGlobalTheme]);
+
   const updateTheme = useCallback((key, value) => {
     const newTheme = { ...localTheme, [key]: value };
     setLocalTheme(newTheme);
-    // Update global theme immediately for real-time preview
-    updateGlobalTheme(newTheme, false); // Don't persist yet
-    setSaved(false);
-  }, [localTheme, updateGlobalTheme]);
+    updateGlobalTheme(newTheme, false); // immediate preview (no persist)
+    debouncedSave(newTheme);
+  }, [localTheme, updateGlobalTheme, debouncedSave]);
 
   const updateSection = useCallback((key, value) => {
     const newTheme = { ...localTheme, sections: { ...localTheme.sections, [key]: value } };
     setLocalTheme(newTheme);
-    // Update global theme immediately for real-time preview
-    updateGlobalTheme(newTheme, false); // Don't persist yet
-    setSaved(false);
-  }, [localTheme, updateGlobalTheme]);
-
-  const handleSave = async () => {
-    setSaving(true);
-    try {
-      await updateGlobalTheme(localTheme, true); // Persist to backend
-      setSaved(true);
-      setTimeout(() => setSaved(false), 3000);
-    } catch (err) {
-      alert('Erreur lors de la sauvegarde');
-    } finally {
-      setSaving(false);
-    }
-  };
+    updateGlobalTheme(newTheme, false); // immediate preview (no persist)
+    debouncedSave(newTheme);
+  }, [localTheme, updateGlobalTheme, debouncedSave]);
 
   return (
     <div className="p-4 lg:p-6 max-w-4xl mx-auto space-y-6">
@@ -141,17 +147,30 @@ const BoutiqueTheme = () => {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-gray-900">Thème & Apparence</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Personnalisez le look de votre boutique</p>
+          <p className="text-sm text-gray-500 mt-0.5">Les modifications s'appliquent et se sauvegardent automatiquement</p>
         </div>
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className={`px-5 py-2.5 rounded-xl text-sm font-bold text-white transition shadow-md ${
-            saved ? 'bg-green-500' : 'bg-[#0F6B4F] hover:bg-[#0A5740]'
-          } disabled:opacity-60`}
-        >
-          {saving ? 'Enregistrement...' : saved ? '✓ Sauvegardé' : 'Sauvegarder'}
-        </button>
+        {/* Auto-save indicator */}
+        <div className="flex items-center gap-2 h-10 px-1">
+          {autoSave === 'saving' && (
+            <span className="flex items-center gap-1.5 text-xs text-gray-400">
+              <span className="w-3 h-3 rounded-full border-2 border-gray-200 border-t-[#0F6B4F] animate-spin inline-block flex-shrink-0" />
+              Sauvegarde...
+            </span>
+          )}
+          {autoSave === 'saved' && (
+            <span className="flex items-center gap-1.5 text-xs text-[#0F6B4F] font-semibold">
+              <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+              </svg>
+              Sauvegardé
+            </span>
+          )}
+          {autoSave === 'error' && (
+            <span className="flex items-center gap-1.5 text-xs text-red-500 font-semibold">
+              ✕ Erreur de sauvegarde — réessayez
+            </span>
+          )}
+        </div>
       </div>
 
       {/* ── 1. Template Selection ──────────────────────────────────────────── */}

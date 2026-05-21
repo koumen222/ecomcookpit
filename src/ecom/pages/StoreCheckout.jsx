@@ -5,7 +5,7 @@ import { PHONE_CODES, getDefaultPhoneCodeFromConfig, getPhoneCodeByCountryName, 
 import { publicStoreApi } from '../services/storeApi.js';
 import { useSubdomain } from '../hooks/useSubdomain.js';
 import { setDocumentMeta } from '../utils/pageMeta';
-import { createMetaEventId, firePixelEvent, trackStorefrontEvent } from '../utils/pixelTracking.js';
+import { createMetaEventId, injectPixelScripts, safeFirePixelEvent, trackStorefrontEvent } from '../utils/pixelTracking.js';
 import { formatMoney } from '../utils/currency.js';
 import { captureAffiliateAttributionFromSearch, getAffiliateAttribution } from '../utils/affiliateAttribution.js';
 import {
@@ -452,9 +452,9 @@ const StoreCheckout = () => {
       const orderData = res.data?.data;
       setOrderResult(orderData);
 
-      // Fire Purchase pixel event
+      // Fire Purchase pixel event — ensure scripts are loaded first
       const orderTotal = orderData?.total ?? cartProducts.reduce((sum, p) => sum + (p.price || 0) * (p.quantity || 1), 0);
-      firePixelEvent('Purchase', {
+      safeFirePixelEvent(pixels, 'Purchase', {
         value: orderTotal,
         currency,
         content_ids: cartProducts.map(p => p._id || p.productId || ''),

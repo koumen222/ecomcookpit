@@ -1978,36 +1978,9 @@ const StoreProductPage = () => {
   };
 
   if (loading && !product) return (
-    <div style={{ minHeight: '100vh', background: 'var(--s-bg, #fff)', fontFamily: 'var(--s-font, sans-serif)' }}>
-      <style>{`
-        @keyframes skel-shine { 0%{background-position:-400px 0} 100%{background-position:400px 0} }
-        .skel { background:linear-gradient(90deg,#f0f0f0 25%,#e0e0e0 50%,#f0f0f0 75%); background-size:800px 100%; animation:skel-shine 1.4s ease infinite; border-radius:8px; }
-      `}</style>
-      {/* Header skeleton */}
-      <div style={{ height: 60, borderBottom: '1px solid #f0f0f0', display: 'flex', alignItems: 'center', padding: '0 16px', gap: 12 }}>
-        <div className="skel" style={{ width: 40, height: 40, borderRadius: 10 }} />
-        <div className="skel" style={{ width: 120, height: 18 }} />
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-          <div className="skel" style={{ width: 64, height: 32, borderRadius: 8 }} />
-        </div>
-      </div>
-      {/* Product skeleton */}
-      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '20px 16px', display: 'grid', gridTemplateColumns: '1fr', gap: 20 }}>
-        {/* Gallery placeholder */}
-        <div className="skel" style={{ width: '100%', aspectRatio: '1/1', maxHeight: '70vw', borderRadius: 16 }} />
-        {/* Info placeholder */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <div className="skel" style={{ width: '80%', height: 32, borderRadius: 8 }} />
-          <div className="skel" style={{ width: '55%', height: 22, borderRadius: 8 }} />
-          <div className="skel" style={{ width: '40%', height: 36, borderRadius: 8, marginTop: 8 }} />
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
-            <div className="skel" style={{ width: '100%', height: 14 }} />
-            <div className="skel" style={{ width: '90%', height: 14 }} />
-            <div className="skel" style={{ width: '70%', height: 14 }} />
-          </div>
-          <div className="skel" style={{ width: '100%', height: 56, borderRadius: 14, marginTop: 16 }} />
-        </div>
-      </div>
+    <div style={{ minHeight: '100vh', background: 'var(--s-bg, #fff)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ width: 32, height: 32, borderRadius: '50%', border: '3px solid #e5e7eb', borderTopColor: 'var(--s-primary, #0F6B4F)', animation: 'spin 0.7s linear infinite' }} />
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 
@@ -2491,6 +2464,7 @@ const StoreProductPage = () => {
                               product={product}
                               subdomain={subdomain}
                               store={store}
+                              pixels={pixels}
                               productPageConfig={productPageConfig}
                             />
                           ) : (
@@ -2880,6 +2854,7 @@ const StoreProductPage = () => {
           product={product}
           store={store}
           subdomain={subdomain}
+          pixels={pixels}
           onClose={() => setShowOrderModal(false)}
           productPageConfig={productPageConfig}
           selectedVariants={selectedVariants}

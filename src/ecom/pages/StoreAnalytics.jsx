@@ -39,6 +39,35 @@ const DATE_PRESETS = [
 ];
 const TODAY_AUTO_REFRESH_MS = 15000;
 
+// ISO 3166-1 alpha-2 → French name mapping (focused on Africa + common countries)
+const COUNTRY_NAMES = {
+  AF:'Afghanistan',AO:'Angola',BJ:'Bénin',BF:'Burkina Faso',BI:'Burundi',
+  CM:'Cameroun',CV:'Cap-Vert',CF:'Centrafrique',TD:'Tchad',KM:'Comores',
+  CG:'Congo',CD:'RD Congo',CI:"Côte d'Ivoire",DJ:'Djibouti',EG:'Égypte',
+  GQ:'Guinée équatoriale',ER:'Érythrée',ET:'Éthiopie',GA:'Gabon',GM:'Gambie',
+  GH:'Ghana',GN:'Guinée',GW:'Guinée-Bissau',KE:'Kenya',LS:'Lesotho',
+  LR:'Liberia',LY:'Libye',MG:'Madagascar',MW:'Malawi',ML:'Mali',MR:'Mauritanie',
+  MU:'Maurice',MA:'Maroc',MZ:'Mozambique',NA:'Namibie',NE:'Niger',NG:'Nigeria',
+  RW:'Rwanda',ST:'Sao Tomé-et-Principe',SN:'Sénégal',SL:'Sierra Leone',
+  SO:'Somalie',ZA:'Afrique du Sud',SS:'Soudan du Sud',SD:'Soudan',SZ:'Eswatini',
+  TZ:'Tanzanie',TG:'Togo',TN:'Tunisie',UG:'Ouganda',DZ:'Algérie',ZM:'Zambie',
+  ZW:'Zimbabwe',
+  // Europe
+  FR:'France',BE:'Belgique',CH:'Suisse',DE:'Allemagne',ES:'Espagne',IT:'Italie',
+  GB:'Royaume-Uni',PT:'Portugal',NL:'Pays-Bas',AT:'Autriche',SE:'Suède',
+  NO:'Norvège',DK:'Danemark',FI:'Finlande',PL:'Pologne',
+  // Americas
+  US:'États-Unis',CA:'Canada',BR:'Brésil',MX:'Mexique',AR:'Argentine',
+  // Asia/Oceania
+  CN:'Chine',IN:'Inde',JP:'Japon',KR:'Corée du Sud',AU:'Australie',
+  AE:'Émirats Arabes Unis',SA:'Arabie Saoudite',TR:'Turquie',
+};
+
+function countryLabel(code) {
+  if (!code) return 'Inconnu';
+  return COUNTRY_NAMES[code.toUpperCase()] || code;
+}
+
 const fmtNumber   = (n) => new Intl.NumberFormat('fr-FR').format(n || 0);
 const fmtPct      = (n) => `${Number.isFinite(n) ? (Math.round((n || 0) * 100) / 100) : 0}%`;
 const fmtCompactCurrency = (v) => {
@@ -807,7 +836,7 @@ function VisitsTab({ kpi, daily }) {
         <section className="space-y-3">
           <SectionTitle>Visites par pays</SectionTitle>
           <RankedCard
-            items={kpi.countryStats.map(c => ({ label: c._id || 'Inconnu', value: c.count }))}
+            items={kpi.countryStats.map(c => ({ label: countryLabel(c._id), value: c.count }))}
             icon={Globe}
             emptyText="Aucun pays détecté"
           />

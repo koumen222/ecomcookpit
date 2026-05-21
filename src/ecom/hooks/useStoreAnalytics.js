@@ -85,8 +85,7 @@ export const useStoreAnalytics = (subdomain) => {
   };
 
   const track = async (eventType, data = {}) => {
-    if (!subdomain) return;
-
+    // Allow tracking even without a subdomain — backend can resolve via hostname fallback
     const path = window.location.pathname;
     const productId = data.productId || '';
 
@@ -98,7 +97,10 @@ export const useStoreAnalytics = (subdomain) => {
 
     try {
       const event = {
-        subdomain,
+        ...(subdomain ? { subdomain } : {}),
+        // Always send the raw hostname so the backend can resolve custom domains
+        // when subdomain hasn't been resolved yet on the client side
+        hostname: window.location.hostname,
         eventType,
         visitorId: getOrCreateVisitorId(),
         sessionId: sessionId.current,

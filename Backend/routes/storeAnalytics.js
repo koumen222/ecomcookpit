@@ -1,5 +1,7 @@
 import express from 'express';
 import mongoose from 'mongoose';
+import rateLimit from 'express-rate-limit';
+import geoip from 'geoip-lite';
 import StoreAnalytics from '../models/StoreAnalytics.js';
 import StoreOrder from '../models/StoreOrder.js';
 import Order from '../models/Order.js';
@@ -7,6 +9,134 @@ import Store from '../models/Store.js';
 import EcomWorkspace from '../models/Workspace.js';
 import { requireEcomAuth } from '../middleware/ecomAuth.js';
 import { convertCurrency } from '../utils/currencyConvert.js';
+
+// Bot UA patterns — covers major crawlers and headless browsers
+const BOT_UA_RE = /bot|crawler|spider|crawling|headless|phantom|selenium|puppeteer|googlebot|bingbot|yandexbot|baiduspider|facebookexternalhit|semrushbot|ahrefsbot|dotbot|mj12bot|petalbot|bytespider|gptbot|claudebot/i;
+
+function isBot(userAgent) {
+  if (!userAgent) return false;
+  return BOT_UA_RE.test(userAgent);
+}
+
+function getClientIp(req) {
+  // Cloudflare always sets CF-Connecting-IP with the real visitor IP
+  const cfIp = req.headers['cf-connecting-ip'];
+  if (cfIp) return cfIp.trim();
+  // Standard forwarded-for (Railway, nginx, etc.)
+  const forwarded = req.headers['x-forwarded-for'];
+  if (forwarded) return forwarded.split(',')[0].trim();
+  return req.socket?.remoteAddress || '';
+}
+
+// ── GeoIP lookup (geoip-lite + ipinfo.io fallback) ────────────────────────────
+
+// In-memory cache: IP → { country, city, ts }
+const GEO_CACHE = new Map();
+const GEO_CACHE_MAX = 8000;
+const GEO_CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+// Private / loopback ranges that have no meaningful geo data
+function isPrivateIp(ip) {
+  if (!ip) return true;
+  // IPv6 loopback
+  if (ip === '::1' || ip === '::ffff:127.0.0.1') return true;
+  // IPv4 loopback
+  if (ip === '127.0.0.1') return true;
+  // Strip IPv6-mapped IPv4 prefix so the range checks below work
+  const stripped = ip.startsWith('::ffff:') ? ip.slice(7) : ip;
+  if (stripped.startsWith('10.')) return true;
+  if (stripped.startsWith('192.168.')) return true;
+  if (/^172\.(1[6-9]|2\d|3[01])\./.test(stripped)) return true;
+  return false;
+}
+
+// Normalize IPv6-mapped IPv4 to plain IPv4 for geoip-lite
+function normalizeIp(ip) {
+  if (!ip) return ip;
+  if (ip.startsWith('::ffff:') && ip.includes('.')) return ip.slice(7);
+  return ip;
+}
+
+async function lookupIpGeo(ip) {
+  if (isPrivateIp(ip)) return { country: '', city: '' };
+
+  const normalizedIp = normalizeIp(ip);
+
+  // Check in-memory cache first
+  const cached = GEO_CACHE.get(normalizedIp);
+  if (cached && Date.now() - cached.ts < GEO_CACHE_TTL_MS) {
+    return { country: cached.country, city: cached.city };
+  }
+
+  // 1. Try geoip-lite (instant, no network, handles most IPv4)
+  const lite = geoip.lookup(normalizedIp);
+  if (lite?.country) {
+    // geoip-lite has country but not city — try ipinfo.io to get city
+    // (run async, don't block the response)
+    const result = { country: lite.country, city: lite.city || '' };
+    _cacheGeo(normalizedIp, result);
+
+    // If city is missing, enrich in background
+    if (!result.city) {
+      _enrichCity(normalizedIp, lite.country).catch(() => {});
+    }
+    return result;
+  }
+
+  // 2. geoip-lite returned null (common for African IPs, IPv6 ranges)
+  //    → try ipinfo.io with a 2s timeout
+  try {
+    const ctrl = new AbortController();
+    const timeout = setTimeout(() => ctrl.abort(), 2000);
+    const res = await fetch(`https://ipinfo.io/${normalizedIp}/json`, {
+      signal: ctrl.signal,
+      headers: { Accept: 'application/json' },
+    });
+    clearTimeout(timeout);
+    if (res.ok) {
+      const data = await res.json();
+      const result = { country: data.country || '', city: data.city || '' };
+      _cacheGeo(normalizedIp, result);
+      return result;
+    }
+  } catch {
+    // timeout or network error — return empty, do not cache to allow future retries
+  }
+
+  return { country: '', city: '' };
+}
+
+function _cacheGeo(ip, result) {
+  if (GEO_CACHE.size >= GEO_CACHE_MAX) {
+    GEO_CACHE.delete(GEO_CACHE.keys().next().value);
+  }
+  GEO_CACHE.set(ip, { ...result, ts: Date.now() });
+}
+
+async function _enrichCity(ip, knownCountry) {
+  try {
+    const ctrl = new AbortController();
+    const timeout = setTimeout(() => ctrl.abort(), 2000);
+    const res = await fetch(`https://ipinfo.io/${ip}/json`, {
+      signal: ctrl.signal,
+      headers: { Accept: 'application/json' },
+    });
+    clearTimeout(timeout);
+    if (res.ok) {
+      const data = await res.json();
+      if (data.city) _cacheGeo(ip, { country: knownCountry, city: data.city });
+    }
+  } catch { /* ignore background enrichment failures */ }
+}
+
+const trackRateLimit = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests' },
+  skip: () => false,
+});
 
 const router = express.Router();
 const SCALOR_ORDER_SOURCES = ['skelor', 'boutique'];
@@ -36,10 +166,11 @@ function parseDateParam(value, boundary = 'start') {
 // Fenêtre anti-spam : une même visite (page ou produit) par visiteur toutes les 30 minutes
 const DEDUP_WINDOW_MS = 30 * 60 * 1000;
 
-router.post('/track', async (req, res) => {
+router.post('/track', trackRateLimit, async (req, res) => {
   try {
     const {
       subdomain,
+      hostname,   // client's window.location.hostname — fallback for custom domain resolution
       eventType,
       page,
       productId,
@@ -52,47 +183,84 @@ router.post('/track', async (req, res) => {
       visitorId,
     } = req.body;
 
-    if (!subdomain || !eventType) {
-      return res.status(400).json({ error: 'subdomain et eventType requis' });
+    if (!eventType) {
+      return res.status(400).json({ error: 'eventType requis' });
     }
 
-    // Validate subdomain format to prevent injection or accidental cross-tenant leaks
-    if (!/^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/.test(subdomain)) {
-      return res.status(400).json({ error: 'Subdomain invalide' });
+    // Silently drop bot traffic
+    const ua = req.headers['user-agent'] || visitor?.userAgent || '';
+    if (isBot(ua)) {
+      return res.json({ success: true, skipped: true });
     }
 
-    // Résoudre le workspaceId depuis le subdomain.
-    // Ordre de priorité :
-    //   1. Store (multi-boutique) — chaque boutique a son propre subdomain dans la collection stores
-    //   2. Workspace (legacy single-boutique) — ancien modèle où le subdomain est sur le workspace
-    const storeDoc = await Store.findOne({
-      subdomain,
-      isActive: true,
-      'storeSettings.isStoreEnabled': true,
-    }).select('_id workspaceId').lean();
-
+    // ── Resolve workspaceId ────────────────────────────────────────────────────
+    // Priority order:
+    //   1. subdomain param  → Store (multi-boutique) → Workspace (legacy)
+    //   2. hostname param   → custom domain lookup (for visitors arriving via maboutique.com)
     let workspaceId;
     let resolvedStoreId = null;
+    let resolvedSubdomain = subdomain || '';
 
-    if (storeDoc) {
-      workspaceId = storeDoc.workspaceId;
-      resolvedStoreId = storeDoc._id;
-    } else {
-      const Workspace = (await import('../models/Workspace.js')).default;
-      const workspace = await Workspace.findOne({
+    if (subdomain) {
+      // Validate subdomain format to prevent injection
+      if (!/^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/.test(subdomain)) {
+        return res.status(400).json({ error: 'Subdomain invalide' });
+      }
+
+      const storeDoc = await Store.findOne({
         subdomain,
         isActive: true,
         'storeSettings.isStoreEnabled': true,
-      }).select('_id').lean();
+      }).select('_id workspaceId').lean();
 
-      if (!workspace) {
-        // Return 200 silently — don't leak whether a subdomain exists or is disabled
-        return res.json({ success: true, skipped: true });
+      if (storeDoc) {
+        workspaceId = storeDoc.workspaceId;
+        resolvedStoreId = storeDoc._id;
+      } else {
+        const workspace = await EcomWorkspace.findOne({
+          subdomain,
+          isActive: true,
+          'storeSettings.isStoreEnabled': true,
+        }).select('_id').lean();
+        if (workspace) workspaceId = workspace._id;
       }
-      workspaceId = workspace._id;
     }
 
-    // Anti-spam : dédupliquer les page_view et product_view par visiteur
+    // Fallback: resolve via custom domain hostname (when frontend hasn't resolved yet
+    // or visitor is directly on maboutique.com without a subdomain param)
+    if (!workspaceId && hostname) {
+      const cleanHost = String(hostname).toLowerCase().trim().replace(/^www\./, '').substring(0, 253);
+      if (cleanHost && !/localhost|127\.0\.0\.1|railway/.test(cleanHost)) {
+        const storeByDomain = await Store.findOne({
+          'storeDomains.customDomain': cleanHost,
+          isActive: true,
+          'storeSettings.isStoreEnabled': true,
+        }).select('_id workspaceId subdomain').lean();
+
+        if (storeByDomain) {
+          workspaceId = storeByDomain.workspaceId;
+          resolvedStoreId = storeByDomain._id;
+          resolvedSubdomain = storeByDomain.subdomain;
+        } else {
+          const ws = await EcomWorkspace.findOne({
+            'storeDomains.customDomain': cleanHost,
+            isActive: true,
+            'storeSettings.isStoreEnabled': true,
+          }).select('_id subdomain').lean();
+          if (ws) {
+            workspaceId = ws._id;
+            resolvedSubdomain = ws.subdomain;
+          }
+        }
+      }
+    }
+
+    if (!workspaceId) {
+      // Return 200 silently — don't leak whether a store exists or is disabled
+      return res.json({ success: true, skipped: true });
+    }
+
+    // ── Anti-spam dedup ────────────────────────────────────────────────────────
     if (['page_view', 'product_view'].includes(eventType)) {
       const identifier = visitorId || sessionId;
       if (identifier) {
@@ -101,12 +269,8 @@ router.post('/track', async (req, res) => {
           workspaceId,
           eventType,
           timestamp: { $gte: since },
-          $or: [
-            { visitorId: identifier },
-            { sessionId: identifier },
-          ],
+          $or: [{ visitorId: identifier }, { sessionId: identifier }],
         };
-        // Scope dedup to the specific store when in multi-boutique mode
         if (resolvedStoreId) dedupQuery.storeId = resolvedStoreId;
         if (eventType === 'product_view' && productId) {
           dedupQuery.productId = productId;
@@ -120,11 +284,32 @@ router.post('/track', async (req, res) => {
       }
     }
 
-    // Créer l'événement analytics
+    // ── GeoIP enrichment ───────────────────────────────────────────────────────
+    // 1. Cloudflare headers (instant, most reliable when behind CF CDN)
+    const cfCountry = req.headers['cf-ipcountry'];
+    const cfCity    = req.headers['cf-ipcity'] || '';
+    let geoCountry  = (cfCountry && cfCountry !== 'XX' && cfCountry !== 'T1') ? cfCountry : '';
+    let geoCity     = cfCity;
+
+    // 2. IP lookup — geoip-lite first, ipinfo.io fallback
+    if (!geoCountry || !geoCity) {
+      const clientIp = getClientIp(req);
+      const geo = await lookupIpGeo(clientIp);
+      if (!geoCountry) geoCountry = geo.country || '';
+      if (!geoCity)    geoCity    = geo.city    || '';
+    }
+
+    const enrichedVisitor = {
+      ...(visitor || {}),
+      country: geoCountry || visitor?.country || '',
+      city:    geoCity    || visitor?.city    || '',
+    };
+
+    // ── Persist event ──────────────────────────────────────────────────────────
     await StoreAnalytics.create({
       workspaceId,
       ...(resolvedStoreId && { storeId: resolvedStoreId }),
-      subdomain,
+      subdomain: resolvedSubdomain,
       eventType,
       page,
       productId,
@@ -132,7 +317,7 @@ router.post('/track', async (req, res) => {
       productPrice,
       orderId,
       orderValue,
-      visitor,
+      visitor: enrichedVisitor,
       sessionId: sessionId || '',
       visitorId: visitorId || '',
       timestamp: new Date(),

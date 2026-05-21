@@ -38,6 +38,7 @@ const storeAnalyticsSchema = new mongoose.Schema({
     language: { type: String, default: '' },
     country: { type: String, default: '' },
     city: { type: String, default: '' },
+    region: { type: String, default: '' },
     device: { type: String, enum: ['desktop', 'mobile', 'tablet', 'unknown'], default: 'unknown' },
     browser: { type: String, default: '' },
   },
@@ -62,6 +63,9 @@ storeAnalyticsSchema.index({ workspaceId: 1, eventType: 1, timestamp: -1 });
 storeAnalyticsSchema.index({ subdomain: 1, timestamp: -1 });
 storeAnalyticsSchema.index({ sessionId: 1, timestamp: -1 });
 storeAnalyticsSchema.index({ visitorId: 1, workspaceId: 1, timestamp: -1 });
+
+// TTL: auto-delete events older than 90 days
+storeAnalyticsSchema.index({ timestamp: 1 }, { expireAfterSeconds: 90 * 24 * 60 * 60 });
 
 // Méthode statique pour obtenir les statistiques
 storeAnalyticsSchema.statics.getStoreDashboardStats = async function(workspaceId, startDate, endDate, period = '7d', subdomain = null) {

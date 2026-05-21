@@ -163,6 +163,7 @@ const StoreFront = lazy(() => import('./pages/StoreFront.jsx'));
 const BoutiqueLayout = lazy(() => import('./components/BoutiqueLayout.jsx'));
 const BoutiqueDashboard = lazy(() => import('./pages/BoutiqueDashboard.jsx'));
 const BoutiquePages = lazy(() => import('./pages/BoutiquePages.jsx'));
+const StorepageBuilder = lazy(() => import('./pages/StorepageBuilder.jsx'));
 const BoutiquePixel = lazy(() => import('./pages/BoutiquePixel.jsx'));
 const BoutiquePayments = lazy(() => import('./pages/BoutiquePayments.jsx'));
 const BoutiqueDomains = lazy(() => import('./pages/BoutiqueDomains.jsx'));
@@ -299,6 +300,7 @@ const PLATFORM_TITLE_RULES = [
   { path: '/ecom/boutique/payments', title: 'Paiements boutique' },
   { path: '/ecom/boutique/domains', title: 'Domaines boutique' },
   { path: '/ecom/boutique/delivery-zones', title: 'Zones de livraison' },
+  { path: '/ecom/boutique/page-builder', title: 'Page Builder' },
   { path: '/ecom/boutique/settings', title: 'Paramètres boutique' },
   { path: '/ecom/boutique/product-settings', title: 'Paramètres page produit' },
   { path: '/ecom/boutique/theme', title: 'Thème page produit' },
@@ -804,6 +806,7 @@ const EcomApp = () => {
                 <Route path="/ecom/boutique/products/generator" element={<ProtectedRoute requiredRole="ecom_admin"><ProductPageGeneratorWizard /></ProtectedRoute>} />
                 <Route path="/ecom/boutique/products/:id/builder" element={<ProtectedRoute requiredRole="ecom_admin"><RequireStore><ProductPageBuilder /></RequireStore></ProtectedRoute>} />
                 <Route path="/ecom/boutique/pages" element={<ProtectedRoute requiredRole="ecom_admin"><RequireStore><BoutiquePages /></RequireStore></ProtectedRoute>} />
+                <Route path="/ecom/boutique/page-builder" element={<ProtectedRoute requiredRole="ecom_admin"><RequireStore><StorepageBuilder /></RequireStore></ProtectedRoute>} />
                 <Route element={<ProtectedRoute requiredRole="ecom_admin"><RequireStore><KeyedBoutiqueLayout /></RequireStore></ProtectedRoute>}>
                   <Route path="/ecom/boutique" element={<StoreDashboard />} />
                   <Route path="/ecom/boutique/analytics" element={<StoreDashboard />} />

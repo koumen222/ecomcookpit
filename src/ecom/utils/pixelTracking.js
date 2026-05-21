@@ -6,8 +6,23 @@
 
 import { publicStoreApi } from '../services/storeApi.js';
 
-let _injected = false;
+// Track injected pixel signature (instead of a simple boolean) so that if
+// the merchant updates their pixel IDs the new config is picked up on the
+// next call to injectPixelScripts without requiring a full page refresh.
+let _injectedSignature = '';
 let _pixels = null;
+
+/** Returns a stable string key for a given pixel config object */
+function _pixelSig(pixels) {
+  if (!pixels) return '';
+  return [
+    pixels.metaPixelId    || '',
+    pixels.tiktokPixelId  || '',
+    pixels.googleTagId    || '',
+    pixels.snapchatPixelId || '',
+    pixels.googleAdsId    || '',
+  ].join('|');
+}
 
 function readCookie(name) {
   if (typeof document === 'undefined') return '';
@@ -60,10 +75,21 @@ export function getMetaBrowserData() {
 
 /**
  * Inject pixel scripts into the page <head>.
- * Safe to call multiple times — only injects once per session.
+ * Safe to call multiple times — re-injects only when pixel config changes.
+ * Always updates the stored _pixels reference so firePixelEvent uses
+ * current IDs even if the DOM scripts were already loaded.
  */
 export function injectPixelScripts(pixels) {
-  if (!pixels || _injected) return;
+  if (!pixels) return;
+  const sig = _pixelSig(pixels);
+  if (!sig || sig === '||||') return; // nothing configured
+
+  // Always keep latest config reference so downstream callers are in sync
+  _pixels = pixels;
+
+  // Already injected with same config — nothing to do
+  if (_injectedSignature === sig) return;
+  _injectedSignature = sig;
 
   const { metaPixelId, tiktokPixelId, googleTagId, snapchatPixelId } = pixels;
   _pixels = pixels;
@@ -172,7 +198,6 @@ export function injectPixelScripts(pixels) {
     }
   }
 
-  _injected = true;
 }
 
 /**
@@ -265,6 +290,19 @@ export function firePixelEvent(eventName, params = {}) {
       window.snaptr('track', snapEvent, snapParams);
     }
   }
+}
+
+/**
+ * Ensure pixels are injected then fire the event.
+ * Use this instead of bare firePixelEvent in order-form components
+ * that receive a `pixels` prop but can't guarantee injection happened first.
+ * @param {Object|null} pixels  - pixel config from the store API
+ * @param {string}      eventName
+ * @param {Object}      params
+ */
+export function safeFirePixelEvent(pixels, eventName, params = {}) {
+  if (pixels) injectPixelScripts(pixels);
+  firePixelEvent(eventName, params);
 }
 
 export async function trackStorefrontEvent({

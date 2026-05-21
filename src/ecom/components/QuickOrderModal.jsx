@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { safeHtml } from '../utils/sanitize';
 import { X, ShoppingCart, User, Phone, MapPin, Loader2, CheckCircle, AlertCircle, Plus, Minus, Truck, ChevronDown, Mail, FileText, Hash, Calendar, Clock, Shield, Globe, Star, ShoppingBag, ArrowRight, Check } from 'lucide-react';
 import { publicStoreApi } from '../services/storeApi.js';
-import { createMetaEventId, firePixelEvent } from '../utils/pixelTracking';
+import { createMetaEventId, injectPixelScripts, safeFirePixelEvent } from '../utils/pixelTracking';
 import defaultConfig from './productSettings/defaultConfig.js';
 import { PHONE_CODES, getDefaultPhoneCodeFromConfig, getPhoneCodeByCountryName, buildFullPhone } from '../utils/phoneCodes.js';
 import {
@@ -36,7 +36,7 @@ const isMeaningfulPlaceholder = (value, ignoredPatterns = []) => {
  * Après succès → affiche un bouton WhatsApp pré-rempli avec les détails de commande.
  * Accepts productPageConfig to apply design, field visibility, and quantity options.
  */
-const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPageConfig, selectedVariants = {} }) => {
+const QuickOrderModal = ({ isOpen, onClose, product, subdomain, pixels, store, productPageConfig, selectedVariants = {} }) => {
   const [form, setForm] = useState({ customerName: '', phone: '', city: '', address: '', notes: '', quantity: 1 });
   const [phoneCode, setPhoneCode] = useState(() => getDefaultPhoneCodeFromConfig(productPageConfig?.general?.countries, store?.currency));
   const [submitting, setSubmitting] = useState(false);
@@ -109,6 +109,12 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
   }, [deliveryZoneOptions, selectedCountry, formCountries, orderFormContext.popularCities]);
 
   // Countdown timer for urgency field
+  // Ensure pixel scripts are loaded as soon as the modal opens.
+  // injectPixelScripts is idempotent — safe to call multiple times.
+  useEffect(() => {
+    if (isOpen && pixels) injectPixelScripts(pixels);
+  }, [isOpen, pixels]);
+
   useEffect(() => {
     if (!urgencyConfig.countdown) return;
     const total =
@@ -287,7 +293,7 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
       setOrderResult(res.data?.data);
       setSuccess(true);
 
-      firePixelEvent('Purchase', {
+      safeFirePixelEvent(pixels, 'Purchase', {
         content_ids: [product._id || product.slug || ''],
         content_name: product.name || '',
         value: total,

@@ -65,6 +65,15 @@ const BOUTIQUE_NAV = [
     ],
   },
   {
+    name: 'Page Builder',
+    href: '/ecom/boutique/page-builder',
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M4 5a1 1 0 011-1h4a1 1 0 011 1v5a1 1 0 01-1 1H5a1 1 0 01-1-1V5zm10 0a1 1 0 011-1h4a1 1 0 011 1v2a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 14a1 1 0 011-1h4a1 1 0 011 1v5a1 1 0 01-1 1H5a1 1 0 01-1-1v-5zm10-2a1 1 0 011-1h4a1 1 0 011 1v7a1 1 0 01-1 1h-4a1 1 0 01-1-1v-7z" />
+      </svg>
+    ),
+  },
+  {
     name: 'Pages',
     href: '/ecom/boutique/pages',
     icon: (
@@ -566,6 +575,7 @@ const getBoutiquePageTitle = (pathname) => {
   if (pathname.includes('/boutique/products') && pathname.includes('/edit')) return 'Modifier produit';
   if (pathname.includes('/boutique/products')) return 'Produits';
   if (pathname.includes('/boutique/orders')) return 'Commandes';
+  if (pathname.includes('/boutique/page-builder')) return 'Page Builder';
   if (pathname.includes('/boutique/theme')) return 'Thème & Apparence';
   if (pathname.includes('/boutique/pages')) return 'Pages';
   if (pathname.includes('/boutique/pixel')) return 'Pixel & Tracking';
