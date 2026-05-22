@@ -316,7 +316,10 @@ export const validateEcomAccess = (resource, action) => {
         'stock:read', 'stock:write',
         'store:read', 'store:write',
         'agent:read', 'agent:write',
-        'admin:read'
+        // L'admin de workspace gère sa propre équipe (création/modif/reset de
+        // closeuses, comptables, livreurs) et ses objectifs internes. Sa portée
+        // reste limitée à son workspaceId par validateEcomAccess.
+        'admin:read', 'admin:write'
       ],
       'ecom_closeuse': ['orders:read', 'orders:write', 'reports:read', 'reports:write', 'products:read', 'campaigns:read', 'campaigns:write'],
       'ecom_compta': ['finance:read', 'finance:write', 'reports:read', 'reports:write', 'products:read'],

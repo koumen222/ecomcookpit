@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import ecomApi from '../services/ecommApi.js';
 import { useEcomAuth } from '../hooks/useEcomAuth.jsx';
+import { useStore } from '../contexts/StoreContext.jsx';
 import { formatMoney } from '../utils/currency.js';
 
 /**
@@ -84,6 +85,7 @@ const fmtDateLabel = (d) => new Date(d).toLocaleDateString('en-US', { month: 'lo
 
 export default function StoreAnalytics() {
   const { workspace } = useEcomAuth();
+  const { activeStore } = useStore();
   const storedWorkspace = (() => {
     try {
       return (() => { try { return JSON.parse(localStorage.getItem('ecomWorkspace') || 'null'); } catch { return null; } })();
@@ -92,6 +94,8 @@ export default function StoreAnalytics() {
     }
   })();
   const workspaceId = workspace?._id || workspace?.id || storedWorkspace?._id || storedWorkspace?.id;
+  // Track the active store ID so the fetch re-runs when the user switches boutiques
+  const activeStoreId = activeStore?._id || null;
 
   const [activeTab, setActiveTab] = useState('summary');
   const [presetKey, setPresetKey] = useState('all');
@@ -206,7 +210,8 @@ export default function StoreAnalytics() {
       }
     })();
     return () => { cancelled = true; };
-  }, [workspaceId, startDate, endDate]);
+  // activeStoreId triggers a fresh fetch whenever the user switches boutiques
+  }, [workspaceId, startDate, endDate, activeStoreId]);
 
   useEffect(() => {
     if (!workspaceId || !isTodayActive) return undefined;

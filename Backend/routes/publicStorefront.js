@@ -454,36 +454,66 @@ async function fetchInitialData(routeContext) {
       ? { workspaceId: workspace._workspaceId, storeId: workspace._storeId }
       : { workspaceId: workspace._workspaceId };
 
+    // Champs envoyés pour les "aperçus produit" du __SCALOR_INITIAL__ —
+    // assez complets pour que useStoreProduct rende quasi toute la page produit
+    // instantanément lors d'une navigation SPA (toProductPreview lit ces champs).
+    const PREVIEW_FIELDS = 'name slug description price compareAtPrice currency country targetMarket city locale stock images category tags seoTitle seoDescription features faq';
+    const previewMap = (p) => ({
+      _id: p._id,
+      name: p.name,
+      slug: p.slug,
+      description: p.description || '',
+      price: p.price,
+      compareAtPrice: p.compareAtPrice,
+      currency: p.currency || storePayload.currency,
+      country: p.country || '',
+      targetMarket: p.targetMarket || '',
+      city: p.city || '',
+      locale: p.locale || '',
+      stock: p.stock,
+      image: p.images?.[0]?.url || '',
+      images: p.images || [],
+      category: p.category,
+      tags: p.tags || [],
+      seoTitle: p.seoTitle || '',
+      seoDescription: p.seoDescription || '',
+      features: p.features || [],
+      faq: p.faq || [],
+    });
+
     if (routeContext.pageType === 'product' && routeContext.slug) {
       const [product, products] = await Promise.all([
         StoreProduct.findOne({ ...productFilter, slug: routeContext.slug, isPublished: true })
           .select('name slug description price compareAtPrice currency country targetMarket city locale stock images category tags seoTitle seoDescription features faq testimonials _pageData productPageConfig')
           .lean(),
+        // Pré-charge élargie : permet à useStoreProduct de rendre instantanément
+        // l'aperçu pour n'importe quel autre produit listé en page d'accueil
+        // lors d'une navigation SPA. Limite passée de 8 → 50.
         StoreProduct.find({ ...productFilter, isPublished: true })
-          .select('name slug price compareAtPrice currency stock images category')
-          .sort('-createdAt').limit(8).lean(),
+          .select(PREVIEW_FIELDS)
+          .sort('-createdAt').limit(50).lean(),
       ]);
       return {
         pageType: 'product',
         store: storePayload,
         product: product || null,
-        products: products.map(p => ({ _id: p._id, name: p.name, slug: p.slug, price: p.price, compareAtPrice: p.compareAtPrice, currency: p.currency || storePayload.currency, stock: p.stock, image: p.images?.[0]?.url || '', category: p.category })),
+        products: products.map(previewMap),
         footer: workspace.storeFooter || null,
         legalPages: workspace.storeLegalPages || null,
         sections: workspace.storePages?.sections ?? null,
       };
     }
 
-    // home / products listing
+    // home / products listing — limite 20 → 50, avec champs élargis
     const products = await StoreProduct.find({ ...productFilter, isPublished: true })
-      .select('name slug price compareAtPrice currency country stock images category')
-      .sort('-createdAt').limit(20).lean();
+      .select(PREVIEW_FIELDS)
+      .sort('-createdAt').limit(50).lean();
 
     return {
       pageType: routeContext.pageType || 'home',
       store: storePayload,
       product: null,
-      products: products.map(p => ({ _id: p._id, name: p.name, slug: p.slug, price: p.price, compareAtPrice: p.compareAtPrice, currency: p.currency || storePayload.currency, stock: p.stock, image: p.images?.[0]?.url || '', category: p.category })),
+      products: products.map(previewMap),
       footer: workspace.storeFooter || null,
       legalPages: workspace.storeLegalPages || null,
       sections: workspace.storePages?.sections ?? null,

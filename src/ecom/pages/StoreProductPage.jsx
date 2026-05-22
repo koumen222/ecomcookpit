@@ -66,6 +66,69 @@ const LazySection = ({ children, minHeight = 80, style = {} }) => {
   );
 };
 
+// ── Skeleton de la page produit (chargement initial) ─────────────────────────
+// Ne s'affiche qu'après un court délai pour éviter le flash sur les requêtes rapides.
+const ProductPageSkeleton = ({ delayMs = 400 }) => {
+  const [show, setShow] = useState(false);
+  useEffect(() => {
+    const id = setTimeout(() => setShow(true), delayMs);
+    return () => clearTimeout(id);
+  }, [delayMs]);
+  if (!show) return <div style={{ minHeight: '100vh', background: 'var(--s-bg, #fff)' }} />;
+
+  const shimmer = {
+    background: 'linear-gradient(90deg, #f1f5f9 0%, #e2e8f0 50%, #f1f5f9 100%)',
+    backgroundSize: '200% 100%',
+    animation: 'sf-shimmer 1.2s ease-in-out infinite',
+    borderRadius: 8,
+  };
+  const block = (style = {}) => ({ ...shimmer, ...style });
+
+  return (
+    <div style={{ minHeight: '100vh', background: 'var(--s-bg, #fff)', fontFamily: 'var(--s-font, Inter, sans-serif)' }}>
+      {/* Header */}
+      <div style={{ height: 56, borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', padding: '0 16px', gap: 12 }}>
+        <div style={block({ width: 28, height: 28, borderRadius: '50%' })} />
+        <div style={block({ flex: 1, maxWidth: 120, height: 16 })} />
+      </div>
+      {/* Hero image + colonne infos */}
+      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '16px', display: 'grid', gridTemplateColumns: 'minmax(0,1fr)', gap: 24 }}>
+        <div style={block({ width: '100%', aspectRatio: '1 / 1', borderRadius: 16 })} />
+        {/* Thumbs */}
+        <div style={{ display: 'flex', gap: 8 }}>
+          {[0, 1, 2, 3].map(i => <div key={i} style={block({ width: 64, height: 64, borderRadius: 10 })} />)}
+        </div>
+        {/* Titre */}
+        <div style={block({ width: '70%', height: 24 })} />
+        {/* Prix */}
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+          <div style={block({ width: 110, height: 28 })} />
+          <div style={block({ width: 70, height: 18, opacity: 0.6 })} />
+        </div>
+        {/* Description courte */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={block({ width: '95%', height: 12 })} />
+          <div style={block({ width: '88%', height: 12 })} />
+          <div style={block({ width: '60%', height: 12 })} />
+        </div>
+        {/* CTA */}
+        <div style={block({ width: '100%', height: 52, borderRadius: 14, marginTop: 4 })} />
+        <div style={block({ width: '100%', height: 44, borderRadius: 12, opacity: 0.7 })} />
+        {/* Bandeau confiance */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginTop: 8 }}>
+          {[0, 1, 2].map(i => (
+            <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'center' }}>
+              <div style={block({ width: 28, height: 28, borderRadius: '50%' })} />
+              <div style={block({ width: '80%', height: 10 })} />
+            </div>
+          ))}
+        </div>
+      </div>
+      <style>{`@keyframes sf-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }`}</style>
+    </div>
+  );
+};
+
 const deepClone = (obj) => JSON.parse(JSON.stringify(obj));
 
 const mergeProductSections = (stored) => {
@@ -1977,12 +2040,7 @@ const StoreProductPage = () => {
     });
   };
 
-  if (loading && !product) return (
-    <div style={{ minHeight: '100vh', background: 'var(--s-bg, #fff)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ width: 32, height: 32, borderRadius: '50%', border: '3px solid #e5e7eb', borderTopColor: 'var(--s-primary, #0F6B4F)', animation: 'spin 0.7s linear infinite' }} />
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-    </div>
-  );
+  if (loading && !product) return <ProductPageSkeleton delayMs={400} />;
 
   // Network/server error but no product — show retry instead of hard error screen
   if (!loading && !product && !error) return (

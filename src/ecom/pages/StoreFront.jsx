@@ -21,9 +21,11 @@ function _sfWrite(key, data) {
   try { sessionStorage.setItem(key, JSON.stringify({ d: data, t: Date.now() })); } catch {}
 }
 
-const SF_SKEL_CSS = `
-@keyframes _sfskel { 0%{background-position:-200% center} 100%{background-position:200% center} }
-.sf-sk { background:linear-gradient(90deg,#efefef 25%,#e2e2e2 50%,#efefef 75%);background-size:200% 100%;animation:_sfskel 1.4s ease infinite;border-radius:8px; }
+const SF_ANIM_CSS = `
+@keyframes _sfin { from { opacity:0; transform:translateY(6px) } to { opacity:1; transform:none } }
+.sf-in { animation: _sfin 0.28s ease both; }
+@keyframes _sfpbar { 0%{width:0%} 60%{width:75%} 100%{width:100%} }
+.sf-pbar { position:fixed;top:0;left:0;height:2px;z-index:9999;pointer-events:none;animation:_sfpbar 8s ease-out forwards; }
 `;
 
 const RADIUS_MAP = {
@@ -305,59 +307,8 @@ const StoreFront = () => {
     letterSpacing: '-0.01em',
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen" style={{ backgroundColor: '#f5f5f5' }}>
-        <style>{SF_SKEL_CSS}</style>
-        {/* Header skeleton */}
-        <div style={{ backgroundColor: '#fff', borderBottom: '1px solid #e5e7eb', padding: '12px 16px' }}>
-          <div className="max-w-6xl mx-auto flex items-center gap-3">
-            <div className="sf-sk w-10 h-10 rounded-full" />
-            <div className="flex-1 space-y-1.5">
-              <div className="sf-sk h-4 w-32" />
-              <div className="sf-sk h-3 w-48" />
-            </div>
-          </div>
-        </div>
-        <div className="max-w-6xl mx-auto px-4 pt-8 pb-12">
-          {/* Title skeleton */}
-          <div className="text-center space-y-2 mb-6">
-            <div className="sf-sk h-3 w-32 mx-auto" />
-            <div className="sf-sk h-8 w-52 mx-auto" />
-          </div>
-          {/* Category pills skeleton */}
-          <div className="flex gap-2 justify-center mb-6">
-            {[60,80,70,90].map((w,i) => <div key={i} className="sf-sk h-8 rounded-full" style={{width:w}} />)}
-          </div>
-          {/* Search bar skeleton */}
-          <div className="sf-sk h-12 rounded-2xl mb-6" />
-          {/* Product grid skeleton */}
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">
-            {[...Array(8)].map((_, i) => (
-              <div key={i} className="bg-white rounded-2xl overflow-hidden" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
-                <div className="sf-sk aspect-square" />
-                <div className="p-3 space-y-2">
-                  <div className="sf-sk h-4" />
-                  <div className="sf-sk h-3 w-3/4" />
-                  <div className="sf-sk h-5 w-1/2" />
-                </div>
-              </div>
-            ))}
-          </div>
-          {loadingTimeout && (
-            <div className="text-center mt-8">
-              <p className="text-sm text-gray-500 mb-3">Prend plus de temps que prévu…</p>
-              <button onClick={() => window.location.reload()} className="px-4 py-2 text-sm font-medium text-gray-600 border border-gray-300 rounded-xl">
-                Réessayer
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  if (error || !store) {
+  // Error only after loading is done — never block render with a skeleton
+  if (error && !loading) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4" style={{ backgroundColor: 'var(--s-bg, #ffffff)', color: 'var(--s-text, #111827)', fontFamily: 'var(--s-font-base, var(--s-font, Inter, sans-serif))' }}>
         <div className="text-center">
@@ -370,11 +321,16 @@ const StoreFront = () => {
   }
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: 'var(--s-bg)', color: 'var(--s-text)', fontFamily: 'var(--s-font-base, var(--s-font, Inter, sans-serif))', ...shellVars }}>
-      <style>{SF_SKEL_CSS}</style>
-      
-      {/* Store Header */}
-      <header className="sticky top-0 z-40" style={{ backgroundColor: 'var(--sf-surface)', borderBottom: '1px solid var(--sf-soft-border)', backdropFilter: 'blur(14px)' }}>
+    <div className="min-h-screen" style={{ backgroundColor: store ? 'var(--s-bg)' : '#f9fafb', color: 'var(--s-text)', fontFamily: 'var(--s-font-base, var(--s-font, Inter, sans-serif))', ...(shellVars || {}) }}>
+      <style>{SF_ANIM_CSS}</style>
+
+      {/* Thin progress bar — only on cold load, no skeleton */}
+      {loading && !store && (
+        <div className="sf-pbar" style={{ backgroundColor: '#10b981' }} />
+      )}
+
+      {/* Store Header — appears as soon as store data is ready */}
+      {store && <header className="sf-in sticky top-0 z-40" style={{ backgroundColor: 'var(--sf-surface)', borderBottom: '1px solid var(--sf-soft-border)', backdropFilter: 'blur(14px)' }}>
         {/* Banner */}
         {store.banner && (
           <div className="h-32 sm:h-44 overflow-hidden">
@@ -439,9 +395,9 @@ const StoreFront = () => {
             </div>
           </div>
         </div>
-      </header>
+      </header>}
 
-      <main className="max-w-6xl mx-auto px-4 pb-12 pt-8 lg:pt-10">
+      {store && <main className="sf-in max-w-6xl mx-auto px-4 pb-12 pt-8 lg:pt-10">
         <section className="text-center">
           <div className="text-xs font-semibold uppercase tracking-[0.22em]" style={{ color: 'var(--s-text2)' }}>
             Accueil / Produits
@@ -582,21 +538,8 @@ const StoreFront = () => {
           )}
         </section>
 
-        <section className="min-w-0 mt-6">
-        {loadingProducts ? (
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">
-            {[...Array(8)].map((_, i) => (
-              <div key={i} className="overflow-hidden" style={{ backgroundColor: 'var(--sf-surface)', borderRadius: 'var(--sf-radius)', border: '1px solid var(--sf-soft-border)' }}>
-                <div className="sf-sk aspect-square" />
-                <div className="p-2.5 sm:p-3 space-y-2">
-                  <div className="sf-sk h-4" />
-                  <div className="sf-sk h-3 w-3/4" />
-                  <div className="sf-sk h-5 w-1/2" />
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : filteredProducts.length === 0 ? (
+        <section className="min-w-0 mt-6" style={{ opacity: loadingProducts ? 0.5 : 1, transition: 'opacity 0.2s ease' }}>
+        {filteredProducts.length === 0 && !loadingProducts ? (
           <div className="text-center py-16">
             <ShoppingBag className="w-12 h-12 mx-auto" style={{ color: 'var(--s-text2)' }} />
             <p className="mt-3 text-sm" style={{ color: 'var(--s-text2)' }}>
@@ -737,10 +680,10 @@ const StoreFront = () => {
             );
           })}
         </section>
-      </main>
+      </main>}
 
       {/* Fixed WhatsApp FAB for mobile */}
-      {store.whatsapp && (
+      {store?.whatsapp && (
         <a
           href={`https://wa.me/${store.whatsapp.replace(/\D/g, '')}`}
           target="_blank"

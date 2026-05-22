@@ -1,4 +1,4 @@
-import React, { useState, useEffect, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
 import { safeHtml } from '../utils/sanitize';
 import { Link, useParams, useSearchParams, useLocation } from 'react-router-dom';
 import {
@@ -24,6 +24,33 @@ import { captureAffiliateAttributionFromSearch } from '../utils/affiliateAttribu
 
 // Lazy load des sections below-the-fold pour performance
 const TestimonialsCarousel = lazy(() => import('../components/TestimonialsCarousel'));
+
+// ── Hook : déclenche un prefetch dès qu'un élément entre dans le viewport ─────
+// Sert à précharger le chunk JS + les données du produit avant même que l'utilisateur
+// ne tape la carte — particulièrement important sur mobile où onMouseEnter n'existe pas.
+const useViewportPrefetch = (onIntersect, rootMargin = '400px') => {
+  const ref = useRef(null);
+  const triggered = useRef(false);
+  useEffect(() => {
+    if (!ref.current || triggered.current) return;
+    if (typeof IntersectionObserver === 'undefined') {
+      // Pas de support : prefetch immédiat
+      triggered.current = true;
+      try { onIntersect(); } catch {}
+      return;
+    }
+    const obs = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting && !triggered.current) {
+        triggered.current = true;
+        try { onIntersect(); } catch {}
+        obs.disconnect();
+      }
+    }, { rootMargin });
+    obs.observe(ref.current);
+    return () => obs.disconnect();
+  }, [onIntersect, rootMargin]);
+  return ref;
+};
 
 const fmt = (n, cur = 'XAF') => formatMoney(n, cur);
 
@@ -1878,12 +1905,14 @@ const ProductCard = ({ product, prefix, store, subdomain }) => {
   // Check if product is new (created within last 7 days)
   const isNew = product.createdAt && (Date.now() - new Date(product.createdAt).getTime()) < 7 * 24 * 60 * 60 * 1000;
   
-  const handlePrefetch = () => {
+  const handlePrefetch = useCallback(() => {
     preloadStoreProductRoute();
     if (subdomain && product?.slug) {
       prefetchStoreProduct(subdomain, product.slug);
     }
-  };
+  }, [subdomain, product?.slug]);
+
+  const viewportRef = useViewportPrefetch(handlePrefetch);
 
   const cardStyle = {
     backgroundColor: '#fff',
@@ -1942,12 +1971,13 @@ const ProductCard = ({ product, prefix, store, subdomain }) => {
   };
 
   return (
-    <Link 
-      to={`${prefix}/product/${product.slug}`} 
+    <Link
+      to={`${prefix}/product/${product.slug}`}
+      ref={viewportRef}
       style={{ textDecoration: 'none', display: 'block' }}
-      onMouseEnter={() => { setHovered(true); handlePrefetch(); }} 
-      onMouseLeave={() => setHovered(false)} 
-      onFocus={handlePrefetch} 
+      onMouseEnter={() => { setHovered(true); handlePrefetch(); }}
+      onMouseLeave={() => setHovered(false)}
+      onFocus={handlePrefetch}
       onTouchStart={handlePrefetch}
     >
       <div style={cardStyle}>
@@ -2115,16 +2145,19 @@ const CollectionProductCard = React.memo(({ product, prefix, store, subdomain })
   const discountPercent = hasDiscount ? Math.round((1 - product.price / product.compareAtPrice) * 100) : 0;
   const productImage = product.image || product.images?.[0]?.url || '';
 
-  const handlePrefetch = () => {
+  const handlePrefetch = useCallback(() => {
     preloadStoreProductRoute();
     if (subdomain && product?.slug) {
       prefetchStoreProduct(subdomain, product.slug);
     }
-  };
+  }, [subdomain, product?.slug]);
+
+  const viewportRef = useViewportPrefetch(handlePrefetch);
 
   return (
     <Link
       to={`${prefix}/product/${product.slug}`}
+      ref={viewportRef}
       style={{ textDecoration: 'none', display: 'block', height: '100%' }}
       onMouseEnter={handlePrefetch}
       onFocus={handlePrefetch}
