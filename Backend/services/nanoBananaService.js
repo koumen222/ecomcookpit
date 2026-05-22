@@ -7,6 +7,7 @@
 import axios from 'axios';
 import sharp from 'sharp';
 import { uploadToR2 } from './cloudflareImagesService.js';
+import { generateGeminiImageToImage, isGeminiConfigured } from './geminiImageService.js';
 import ffmpegPath from 'ffmpeg-static';
 import { promises as fs } from 'fs';
 import os from 'os';
@@ -405,44 +406,78 @@ async function bufferToPublicUrl(buffer, label = 'ref') {
   }
 }
 
+// Tente Gemini (Nano Banana 2) en filet de secours quand Kie.ai échoue.
+// Retourne l'URL R2 si succès, relance l'erreur sinon (avec contexte combiné).
+async function tryGeminiFallback(prompt, imageInput, aspectRatio, logoInput, originalErr) {
+  if (!isGeminiConfigured()) {
+    console.warn(`⚠️ Gemini fallback indisponible (GEMINI_API_KEY absente) — rethrow erreur Kie.ai`);
+    throw originalErr;
+  }
+  console.warn(`↪️ Kie.ai a échoué (${originalErr.message}) — bascule sur Gemini Nano Banana 2...`);
+  try {
+    const url = await generateGeminiImageToImage(prompt, imageInput, aspectRatio, logoInput);
+    console.log(`✅ Gemini fallback OK : ${url.slice(0, 80)}...`);
+    sessionStats.totalImages++;
+    return url;
+  } catch (geminiErr) {
+    console.error(`❌ Gemini fallback aussi en échec : ${geminiErr.message}`);
+    // On lance une erreur combinée pour conserver le contexte des deux providers
+    const combined = new Error(`Kie.ai: ${originalErr.message} | Gemini: ${geminiErr.message}`);
+    combined.cause = { primary: originalErr, fallback: geminiErr };
+    throw combined;
+  }
+}
+
 export async function generateGptImage2ImageToImage(prompt, imageInput, aspectRatio = 'auto', logoInput = null) {
-  if (!KIE_API_KEY) throw new Error('Kie.ai API key not configured (NANOBANANA_PRO_API_KEY)');
-
-  let imageUrls = [];
-
-  if (typeof imageInput === 'string' && /^https?:\/\//i.test(imageInput)) {
-    imageUrls = [imageInput];
-  } else {
-    imageUrls = [await bufferToPublicUrl(imageInput, 'product')];
-  }
-
-  // Append logo as second reference image if provided
-  if (logoInput) {
-    try {
-      const logoUrl = typeof logoInput === 'string' && /^https?:\/\//i.test(logoInput)
-        ? logoInput
-        : await bufferToPublicUrl(logoInput, 'logo');
-      imageUrls.push(logoUrl);
-      console.log(`🏷️ GPT Image 2 logo reference added (${imageUrls.length} images total)`);
-    } catch (logoErr) {
-      console.warn(`⚠️ Logo upload failed, generating without logo: ${logoErr.message}`);
+  // Si Kie.ai n'est pas configuré du tout, on bascule directement sur Gemini.
+  if (!KIE_API_KEY) {
+    if (isGeminiConfigured()) {
+      console.warn('⚠️ NANOBANANA_PRO_API_KEY absent — utilisation directe de Gemini Nano Banana 2');
+      return await generateGeminiImageToImage(prompt, imageInput, aspectRatio, logoInput);
     }
+    throw new Error('Kie.ai API key not configured (NANOBANANA_PRO_API_KEY) et GEMINI_API_KEY absent');
   }
 
-  if (!imageUrls.length) throw new Error('GPT Image 2 I2I: no reference image URL available');
+  try {
+    let imageUrls = [];
 
-  console.log(`🤖 GPT Image 2 image-to-image [${GPT_IMAGE_2_IMG2IMG_MODEL}] (${aspectRatio}, ${imageUrls.length} ref images)...`);
-  const taskId = await submitGptImage2ImageToImageTask(prompt, imageUrls, aspectRatio);
-  console.log(`📋 GPT Image 2 task submitted: ${taskId}`);
+    if (typeof imageInput === 'string' && /^https?:\/\//i.test(imageInput)) {
+      imageUrls = [imageInput];
+    } else {
+      imageUrls = [await bufferToPublicUrl(imageInput, 'product')];
+    }
 
-  const imageUrl = await pollKieTask(taskId, { maxWaitMs: 180000, mediaType: 'image', label: 'GPT Image 2' });
+    // Append logo as second reference image if provided
+    if (logoInput) {
+      try {
+        const logoUrl = typeof logoInput === 'string' && /^https?:\/\//i.test(logoInput)
+          ? logoInput
+          : await bufferToPublicUrl(logoInput, 'logo');
+        imageUrls.push(logoUrl);
+        console.log(`🏷️ GPT Image 2 logo reference added (${imageUrls.length} images total)`);
+      } catch (logoErr) {
+        console.warn(`⚠️ Logo upload failed, generating without logo: ${logoErr.message}`);
+      }
+    }
 
-  const costFcfa = Math.round(NANOBANANA_PRO_COST_USD * USD_TO_FCFA);
-  sessionStats.totalImages++;
-  sessionStats.totalCostUsd += NANOBANANA_PRO_COST_USD;
-  sessionStats.totalCostFcfa += costFcfa;
-  console.log(`✅ GPT Image 2 result: ${imageUrl.slice(0, 80)}...`);
-  return imageUrl;
+    if (!imageUrls.length) throw new Error('GPT Image 2 I2I: no reference image URL available');
+
+    console.log(`🤖 GPT Image 2 image-to-image [${GPT_IMAGE_2_IMG2IMG_MODEL}] (${aspectRatio}, ${imageUrls.length} ref images)...`);
+    const taskId = await submitGptImage2ImageToImageTask(prompt, imageUrls, aspectRatio);
+    console.log(`📋 GPT Image 2 task submitted: ${taskId}`);
+
+    const imageUrl = await pollKieTask(taskId, { maxWaitMs: 180000, mediaType: 'image', label: 'GPT Image 2' });
+
+    const costFcfa = Math.round(NANOBANANA_PRO_COST_USD * USD_TO_FCFA);
+    sessionStats.totalImages++;
+    sessionStats.totalCostUsd += NANOBANANA_PRO_COST_USD;
+    sessionStats.totalCostFcfa += costFcfa;
+    console.log(`✅ GPT Image 2 result: ${imageUrl.slice(0, 80)}...`);
+    return imageUrl;
+  } catch (kieErr) {
+    // Fallback vers Gemini si configuré, sinon on remonte l'erreur d'origine.
+    return await tryGeminiFallback(prompt, imageInput, aspectRatio, logoInput, kieErr);
+  }
 }
 
 export async function generateKieImageToVideo(prompt, imageInput, options = {}) {

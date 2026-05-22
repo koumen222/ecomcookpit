@@ -4,6 +4,13 @@ import { Save, Loader2, Check, GripVertical, Eye, EyeOff, Plus, ChevronUp, Chevr
 import { storeManageApi, storeProductsApi } from '../services/storeApi';
 import { useStore } from '../contexts/StoreContext.jsx';
 import defaultConfig from '../components/productSettings/defaultConfig.js';
+import {
+  ICONS as BUTTON_ICONS,
+  ANIMATIONS as BUTTON_ANIMATIONS,
+  getIconComponent as getButtonIcon,
+  getAnimationClass as getButtonAnimClass,
+  ButtonAnimationStyles,
+} from '../components/productSettings/ButtonEditor.jsx';
 import { PHONE_CODES } from '../utils/phoneCodes.js';
 import { formatMoney } from '../utils/currency.js';
 import {
@@ -1546,22 +1553,19 @@ const BoutiqueFormBuilder = () => {
                   <label className="block text-[11px] font-semibold text-gray-500 mb-1">Animation</label>
                   <select className={inputCls} value={config.button?.animation || 'none'}
                     onChange={e => update(c => ({ ...c, button: { ...c.button, animation: e.target.value } }))}>
-                    <option value="none">None</option>
-                    <option value="pulse">Pulse</option>
-                    <option value="bounce">Bounce</option>
-                    <option value="shake">Shake</option>
-                    <option value="glow">Glow</option>
+                    {BUTTON_ANIMATIONS.map(a => (
+                      <option key={a.id} value={a.id}>{a.label}</option>
+                    ))}
                   </select>
                 </div>
                 <div>
                   <label className="block text-[11px] font-semibold text-gray-500 mb-1">Icône du bouton</label>
                   <select className={inputCls} value={config.button?.icon || 'cart'}
                     onChange={e => update(c => ({ ...c, button: { ...c.button, icon: e.target.value } }))}>
-                    <option value="arrow">→ Changer d'icône</option>
-                    <option value="cart">🛒 Panier</option>
-                    <option value="bag">🛍️ Sac</option>
-                    <option value="check">✓ Valider</option>
                     <option value="none">Aucune icône</option>
+                    {BUTTON_ICONS.map(i => (
+                      <option key={i.id} value={i.id}>{i.label}</option>
+                    ))}
                   </select>
                 </div>
               </div>
@@ -1883,33 +1887,51 @@ const BoutiqueFormBuilder = () => {
             </div>
             <div className="sticky top-[7.5rem]">
               {/* Aperçu bouton CTA (popup uniquement) */}
-              {(config.general?.formType || 'popup') === 'popup' && (
-                <div className="mb-4">
-                  <button className="w-full flex flex-col items-center justify-center gap-1" style={{
-                    padding: '18px 24px',
-                    borderRadius: config.design?.ctaBorderRadius || '14px',
-                    border: config.design?.buttonBorderWidth && parseInt(config.design?.buttonBorderWidth) > 0
-                      ? `${config.design.buttonBorderWidth} solid ${config.design?.buttonBorderColor || 'transparent'}`
-                      : 'none',
-                    backgroundColor: config.design?.ctaButtonColor || '#0F6B4F',
-                    color: config.design?.buttonTextColor || '#fff',
-                    fontWeight: config.design?.buttonBold ? 700 : 700,
-                    fontSize: parseInt(config.design?.buttonFontSize) || 17,
-                    fontStyle: config.design?.buttonItalic ? 'italic' : 'normal',
-                    boxShadow: config.design?.buttonShadow && parseInt(config.design?.buttonShadow) > 0
-                      ? `0 ${config.design.buttonShadow}px ${parseInt(config.design.buttonShadow)*2}px rgba(0,0,0,0.12)`
-                      : '0 4px 16px rgba(0,0,0,0.12)',
-                    cursor: 'default',
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-                      <ShoppingCart size={18} /> {config.button?.text || 'Commander maintenant'}
-                    </div>
-                    <span style={{ fontSize: 12, opacity: 0.9, fontWeight: 500 }}>
-                      {config.button?.subtext || 'Paiement à la livraison'}
-                    </span>
-                  </button>
-                </div>
-              )}
+              {(config.general?.formType || 'popup') === 'popup' && (() => {
+                const previewBtnColor = config.design?.ctaButtonColor || '#0F6B4F';
+                const previewIconId = config.button?.icon || 'cart';
+                const PreviewIcon = previewIconId === 'none' ? null : getButtonIcon(previewIconId);
+                const previewAnim = getButtonAnimClass(config.button?.animation);
+                // Pour les animations "gradient-shift" et "shimmer", il faut un background dégradé
+                // pour que l'effet soit visible — sinon on garde la couleur unie.
+                const useGradient = config.button?.animation === 'gradient-shift';
+                const useShimmer = config.button?.animation === 'shimmer';
+                const previewBg = useGradient
+                  ? `linear-gradient(135deg, ${previewBtnColor}, ${previewBtnColor}cc, ${previewBtnColor})`
+                  : previewBtnColor;
+                return (
+                  <div className="mb-4">
+                    <ButtonAnimationStyles />
+                    <button className={`w-full flex flex-col items-center justify-center gap-1 ${previewAnim}`} style={{
+                      padding: '18px 24px',
+                      borderRadius: config.design?.ctaBorderRadius || '14px',
+                      border: config.design?.buttonBorderWidth && parseInt(config.design?.buttonBorderWidth) > 0
+                        ? `${config.design.buttonBorderWidth} solid ${config.design?.buttonBorderColor || 'transparent'}`
+                        : 'none',
+                      background: previewBg,
+                      // currentColor pilote les keyframes glow/neon → suit la couleur du bouton
+                      color: config.design?.buttonTextColor || '#fff',
+                      fontWeight: config.design?.buttonBold ? 700 : 700,
+                      fontSize: parseInt(config.design?.buttonFontSize) || 17,
+                      fontStyle: config.design?.buttonItalic ? 'italic' : 'normal',
+                      boxShadow: config.design?.buttonShadow && parseInt(config.design?.buttonShadow) > 0
+                        ? `0 ${config.design.buttonShadow}px ${parseInt(config.design.buttonShadow)*2}px ${previewBtnColor}40`
+                        : '0 4px 16px rgba(0,0,0,0.12)',
+                      cursor: 'default',
+                      position: 'relative',
+                      overflow: useShimmer ? 'hidden' : 'visible',
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+                        {PreviewIcon && <PreviewIcon size={18} />}
+                        {config.button?.text || 'Commander maintenant'}
+                      </div>
+                      <span style={{ fontSize: 12, opacity: 0.9, fontWeight: 500 }}>
+                        {config.button?.subtext || 'Paiement à la livraison'}
+                      </span>
+                    </button>
+                  </div>
+                );
+              })()}
               <FormPreview
                 config={config}
                 shopColor={shopColor}

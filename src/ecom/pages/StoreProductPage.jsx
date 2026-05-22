@@ -21,7 +21,7 @@ import { setDocumentMeta } from '../utils/pageMeta';
 import { trackStorefrontEvent } from '../utils/pixelTracking';
 import { useStoreAnalytics } from '../hooks/useStoreAnalytics';
 import { preloadStoreCheckoutRoute, preloadStoreProductRoute } from '../utils/routePrefetch';
-import { getIconComponent } from '../components/productSettings/ButtonEditor';
+import { getIconComponent, getAnimationClass as getButtonAnimationClass, ANIMATION_CSS as BUTTON_ANIMATION_CSS } from '../components/productSettings/ButtonEditor';
 import defaultConfig from '../components/productSettings/defaultConfig';
 import { formatMoney } from '../utils/currency.js';
 import { buildMergedProductPageConfig } from '../utils/productPageConfig.js';
@@ -1955,7 +1955,8 @@ const StoreProductPage = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [product?._id, descriptionRaw]
   );
-  const ctaAnimClass = ctaAnimation === 'pulse' ? 'pp-pulse' : ctaAnimation === 'bounce' ? 'pp-bounce' : ctaAnimation === 'shake' ? 'pp-shake' : ctaAnimation === 'glow' ? 'pp-glow' : '';
+  // Catalogue d'animations partagé avec le form builder (15+ choix) — voir ButtonEditor.jsx.
+  const ctaAnimClass = getButtonAnimationClass(ctaAnimation);
   const shareUrl = typeof window !== 'undefined' ? window.location.href : '';
   const shareText = product?.name ? `${product.name} - ${shareUrl}` : shareUrl;
 
@@ -2167,15 +2168,8 @@ const StoreProductPage = () => {
           letter-spacing: 0.04em !important;
         }
 
-        /* Button animations from product page config */
-        .pp-pulse { animation: pp-pulse-kf 2s ease-in-out infinite; }
-        .pp-bounce { animation: pp-bounce-kf 1s ease infinite; }
-        .pp-shake { animation: pp-shake-kf 0.6s ease-in-out infinite; }
-        .pp-glow { animation: pp-glow-kf 2s ease-in-out infinite; }
-        @keyframes pp-pulse-kf { 0%,100%{transform:scale(1)} 50%{transform:scale(1.03)} }
-        @keyframes pp-bounce-kf { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-4px)} }
-        @keyframes pp-shake-kf { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-3px)} 75%{transform:translateX(3px)} }
-        @keyframes pp-glow-kf { 0%,100%{box-shadow:0 0 5px rgba(255,255,255,0.2)} 50%{box-shadow:0 0 20px rgba(255,255,255,0.5)} }
+        /* Animations CTA — catalogue partagé avec le form builder (ButtonEditor.jsx) */
+        ${BUTTON_ANIMATION_CSS}
 
         /* ═══ GLOBAL CONTAINMENT ═══ */
         .product-grid { overflow:hidden; width:100%; max-width:100%; }
