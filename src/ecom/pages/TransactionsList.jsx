@@ -939,7 +939,7 @@ const BudgetsTab = ({ budgets, budgetSummary, showBudgetForm, setShowBudgetForm,
       </div>
 
       {showBudgetForm && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => {if(!budgetSaving){setShowBudgetForm(false);setEditingBudget(null);setBudgetError('');}}>
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => { if (!budgetSaving) { setShowBudgetForm(false); setEditingBudget(null); setBudgetError(''); } }}>
           <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full p-6" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-5">
               <h3 className="text-lg font-bold text-gray-900">{editingBudget?'Modifier le budget':'Nouveau budget'}</h3>
