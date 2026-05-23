@@ -71,25 +71,12 @@ const trackLimiter = rateLimit({
   message: { success: false, message: 'Trop d\'événements de tracking, réessayez dans une minute.' },
 });
 
-// ─── Simple in-memory cache for workspace lookups ─────────────────────────────
+// Store cache désactivé — chaque requête lit MongoDB directement
 const storeCache = new Map();
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
-function getCachedStore(subdomain) {
-  const entry = storeCache.get(subdomain);
-  if (!entry) return null;
-  if (Date.now() > entry.expires) {
-    storeCache.delete(subdomain);
-    return null;
-  }
-  return entry.data;
-}
+function getCachedStore(_subdomain) { return null; }
+function setCachedStore(_subdomain, _data) {}
 
-function setCachedStore(subdomain, data) {
-  storeCache.set(subdomain, { data, expires: Date.now() + CACHE_TTL });
-}
-
-// Invalidate cache for a subdomain (called after admin saves config)
 export function invalidateStoreCache(subdomain) {
   if (subdomain) storeCache.delete(subdomain.toLowerCase().trim());
 }
@@ -124,13 +111,6 @@ function buildDefaultLegalPages(settings, workspace) {
   };
 }
 
-// Cleanup expired entries every 10 minutes
-setInterval(() => {
-  const now = Date.now();
-  for (const [key, value] of storeCache.entries()) {
-    if (now > value.expires) storeCache.delete(key);
-  }
-}, 10 * 60 * 1000);
 
 // ─── Cache-Control helper ─────────────────────────────────────────────────────
 // public: Cloudflare (and any CDN) may cache
@@ -619,20 +599,19 @@ router.get('/:subdomain/product-page/:slug', readLimiter, async (req, res) => {
       isPublished: true,
     };
 
-    // Fetch product + quantity offer in parallel
-    const [product, quantityOffer] = await Promise.all([
-      StoreProduct.findOne(productFilter)
-        .select('name slug description price compareAtPrice currency country targetMarket city locale stock images category tags seoTitle seoDescription features faq testimonials _pageData productPageConfig')
-        .lean(),
-      QuantityOffer.findOne({
-        workspaceId: workspace._workspaceId || workspace._id,
-        isActive: true,
-      }).select('offers design productId').sort({ createdAt: -1 }).lean(),
-    ]);
+    const product = await StoreProduct.findOne(productFilter)
+      .select('name slug description price compareAtPrice currency country targetMarket city locale stock images category tags seoTitle seoDescription features faq testimonials _pageData productPageConfig')
+      .lean();
 
     if (!product) {
       return res.status(404).json({ success: false, message: 'Product not found' });
     }
+
+    const quantityOffer = await QuantityOffer.findOne({
+      workspaceId: workspace._workspaceId || workspace._id,
+      productId: product._id,
+      isActive: true,
+    }).select('offers design productId').sort({ createdAt: -1 }).lean();
 
     const settings = workspace.storeSettings || {};
     const theme = workspace.storeTheme || {};
@@ -678,8 +657,7 @@ router.get('/:subdomain/product-page/:slug', readLimiter, async (req, res) => {
       productPageConfig: product.productPageConfig || null,
     };
 
-    // Attach quantity offers only if they belong to this product
-    if (quantityOffer?.offers?.length > 0 && quantityOffer.productId?.toString() === product._id.toString()) {
+    if (quantityOffer?.offers?.length > 0) {
       productData.quantityOffers = quantityOffer.offers.map((o, i) => ({
         qty: o.quantity,
         price: o.price,

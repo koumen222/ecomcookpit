@@ -1464,6 +1464,188 @@ const AiNewsletterSection = ({ cfg }) => (
   </section>
 );
 
+// ─── ANNOUNCEMENT BAR ──────────────────────────────────────────────────────────
+const AiAnnouncementBar = ({ cfg }) => (
+  <div style={{ backgroundColor: cfg.backgroundColor || '#1f2937', padding: '10px 24px', textAlign: 'center' }}>
+    <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: cfg.textColor || '#ffffff', fontFamily: 'var(--s-font)' }}>
+      {cfg.text || ''}
+      {cfg.link && cfg.linkText && (
+        <a href={cfg.link} style={{ color: cfg.textColor || '#ffffff', marginLeft: 12, textDecoration: 'underline', fontWeight: 700 }}>{cfg.linkText} →</a>
+      )}
+    </p>
+  </div>
+);
+
+// ─── RICH TEXT ─────────────────────────────────────────────────────────────────
+const AiRichTextSection = ({ cfg }) => (
+  <section style={{ padding: 'clamp(48px, 8vw, 80px) 24px', backgroundColor: cfg.backgroundColor || '#fff', textAlign: cfg.alignment || 'center' }}>
+    <div style={{ maxWidth: 720, margin: '0 auto' }}>
+      {cfg.title && <h2 style={{ fontSize: 'clamp(22px, 3.5vw, 36px)', fontWeight: 900, color: cfg.textColor || 'var(--s-text)', margin: '0 0 14px', fontFamily: 'var(--s-font)', letterSpacing: '-0.02em' }}>{cfg.title}</h2>}
+      {cfg.subtitle && <p style={{ fontSize: 16, color: 'var(--s-text2)', margin: '0 0 20px', fontFamily: 'var(--s-font)', lineHeight: 1.6 }}>{cfg.subtitle}</p>}
+      {cfg.content && <p style={{ fontSize: 15, color: cfg.textColor || 'var(--s-text2)', lineHeight: 1.75, fontFamily: 'var(--s-font)', whiteSpace: 'pre-line' }}>{cfg.content}</p>}
+    </div>
+  </section>
+);
+
+// ─── FEATURED COLLECTION ────────────────────────────────────────────────────────
+const AiFeaturedCollection = ({ cfg, products, prefix, store }) => {
+  const limit = cfg.limit || 4;
+  const filtered = cfg.category
+    ? products.filter(p => p.category === cfg.category).slice(0, limit)
+    : products.slice(0, limit);
+  if (filtered.length === 0) return null;
+  return (
+    <section style={{ padding: 'clamp(48px, 8vw, 80px) 24px', backgroundColor: cfg.backgroundColor || '#ffffff' }}>
+      <div style={{ maxWidth: 1200, margin: '0 auto' }}>
+        <div style={{ textAlign: 'center', marginBottom: 32 }}>
+          {cfg.title && <h2 style={{ fontSize: 'clamp(22px, 3.5vw, 32px)', fontWeight: 900, color: 'var(--s-text)', margin: '0 0 8px', letterSpacing: '-0.025em', fontFamily: 'var(--s-font)' }}>{cfg.title}</h2>}
+          {cfg.subtitle && <p style={{ fontSize: 15, color: 'var(--s-text2)', margin: 0, fontFamily: 'var(--s-font)' }}>{cfg.subtitle}</p>}
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 220px), 1fr))', gap: 20 }}>
+          {filtered.map(p => (
+            <Link key={p._id || p.slug} to={`${prefix || ''}/products/${p.slug}`} style={{ textDecoration: 'none', borderRadius: 'var(--sf-radius, 12px)', overflow: 'hidden', backgroundColor: '#fff', border: '1px solid #e5e7eb', display: 'block', transition: 'transform 0.2s, box-shadow 0.2s' }}>
+              <div style={{ aspectRatio: '1', overflow: 'hidden', backgroundColor: '#f3f4f6' }}>
+                {p.image && <img src={p.image} alt={p.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} loading="lazy" />}
+              </div>
+              <div style={{ padding: '14px 16px' }}>
+                <p style={{ margin: '0 0 6px', fontSize: 14, fontWeight: 700, color: 'var(--s-text)', fontFamily: 'var(--s-font)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</p>
+                <p style={{ margin: 0, fontSize: 15, fontWeight: 800, color: 'var(--s-primary)', fontFamily: 'var(--s-font)' }}>{p.price ? `${p.price.toLocaleString()} ${store?.currency || 'FCFA'}` : ''}</p>
+              </div>
+            </Link>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+};
+
+// ─── MULTICOLUMN ────────────────────────────────────────────────────────────────
+const AiMulticolumn = ({ cfg }) => {
+  const cols = cfg.columns || 3;
+  return (
+    <section style={{ padding: 'clamp(48px, 8vw, 80px) 24px', backgroundColor: cfg.backgroundColor || '#ffffff' }}>
+      <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+        {cfg.title && <h2 style={{ fontSize: 'clamp(22px, 3.5vw, 32px)', fontWeight: 900, color: 'var(--s-text)', margin: '0 0 40px', textAlign: 'center', letterSpacing: '-0.025em', fontFamily: 'var(--s-font)' }}>{cfg.title}</h2>}
+        <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fit, minmax(min(100%, ${cols === 2 ? '340px' : cols === 4 ? '200px' : '260px'}), 1fr))`, gap: 32 }}>
+          {(cfg.items || []).map((item, i) => (
+            <div key={i} style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: 36, marginBottom: 16 }}>{item.icon}</div>
+              <h3 style={{ fontSize: 17, fontWeight: 800, color: 'var(--s-text)', margin: '0 0 10px', fontFamily: 'var(--s-font)' }}>{item.title}</h3>
+              <p style={{ fontSize: 14, color: 'var(--s-text2)', lineHeight: 1.6, margin: 0, fontFamily: 'var(--s-font)' }}>{item.text}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+};
+
+// ─── ICON BAR ──────────────────────────────────────────────────────────────────
+const AiIconBar = ({ cfg }) => (
+  <section style={{ backgroundColor: cfg.backgroundColor || '#f9fafb', padding: '16px 24px' }}>
+    <div style={{ maxWidth: 1100, margin: '0 auto', display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '8px 32px' }}>
+      {(cfg.items || []).map((item, i) => (
+        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 20 }}>{item.icon}</span>
+          <span style={{ fontSize: 13, fontWeight: 600, color: cfg.textColor || 'var(--s-text)', fontFamily: 'var(--s-font)', whiteSpace: 'nowrap' }}>{item.text}</span>
+        </div>
+      ))}
+    </div>
+  </section>
+);
+
+// ─── BEFORE / AFTER ────────────────────────────────────────────────────────────
+const AiBeforeAfter = ({ cfg }) => (
+  <section style={{ padding: 'clamp(48px, 8vw, 72px) 24px', backgroundColor: cfg.backgroundColor || '#ffffff' }}>
+    <div style={{ maxWidth: 900, margin: '0 auto' }}>
+      {cfg.title && <h2 style={{ fontSize: 'clamp(22px, 3.5vw, 32px)', fontWeight: 900, color: 'var(--s-text)', margin: '0 0 32px', textAlign: 'center', fontFamily: 'var(--s-font)' }}>{cfg.title}</h2>}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+        {[{ img: cfg.imageBefore, label: cfg.labelBefore || 'Avant' }, { img: cfg.imageAfter, label: cfg.labelAfter || 'Après' }].map((side, i) => (
+          <div key={i} style={{ borderRadius: 'var(--sf-radius, 12px)', overflow: 'hidden', position: 'relative', aspectRatio: '1' }}>
+            {side.img ? (
+              <img src={side.img} alt={side.label} style={{ width: '100%', height: '100%', objectFit: 'cover' }} loading="lazy" />
+            ) : (
+              <div style={{ width: '100%', height: '100%', backgroundColor: i === 0 ? '#e5e7eb' : 'color-mix(in srgb, var(--s-primary) 15%, white)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <span style={{ color: '#9ca3af', fontSize: 13 }}>{side.label}</span>
+              </div>
+            )}
+            <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '10px 14px', background: 'linear-gradient(transparent, rgba(0,0,0,0.6))' }}>
+              <span style={{ color: '#fff', fontSize: 13, fontWeight: 700, fontFamily: 'var(--s-font)' }}>{side.label}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+);
+
+// ─── VIDEO ─────────────────────────────────────────────────────────────────────
+const AiVideoSection = ({ cfg }) => {
+  const url = cfg.videoUrl || '';
+  const isYoutube = url.includes('youtube.com') || url.includes('youtu.be');
+  const ytId = isYoutube ? (url.match(/(?:v=|youtu\.be\/)([^&?/]+)/)?.[1] || '') : '';
+  const embedUrl = ytId ? `https://www.youtube.com/embed/${ytId}?autoplay=0&rel=0` : '';
+  return (
+    <section style={{ backgroundColor: cfg.backgroundColor || '#000', padding: cfg.title ? 'clamp(48px, 8vw, 72px) 24px' : 0 }}>
+      <div style={{ maxWidth: 900, margin: '0 auto' }}>
+        {cfg.title && <h2 style={{ fontSize: 'clamp(22px, 3.5vw, 32px)', fontWeight: 900, color: '#fff', margin: '0 0 24px', textAlign: 'center', fontFamily: 'var(--s-font)' }}>{cfg.title}</h2>}
+        <div style={{ position: 'relative', aspectRatio: '16/9', borderRadius: 'var(--sf-radius, 12px)', overflow: 'hidden', backgroundColor: '#111' }}>
+          {embedUrl ? (
+            <iframe src={embedUrl} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 'none' }} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen title="video" />
+          ) : url ? (
+            <video src={url} poster={cfg.poster} controls style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+          ) : (
+            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#666', fontSize: 14 }}>Aucune vidéo configurée</div>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+};
+
+// ─── PRICING TABLE ─────────────────────────────────────────────────────────────
+const AiPricingTable = ({ cfg }) => (
+  <section style={{ padding: 'clamp(48px, 8vw, 80px) 24px', backgroundColor: cfg.backgroundColor || '#f9fafb' }}>
+    <div style={{ maxWidth: 1000, margin: '0 auto' }}>
+      {cfg.title && <h2 style={{ fontSize: 'clamp(22px, 3.5vw, 36px)', fontWeight: 900, color: 'var(--s-text)', margin: '0 0 40px', textAlign: 'center', letterSpacing: '-0.025em', fontFamily: 'var(--s-font)' }}>{cfg.title}</h2>}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))', gap: 24 }}>
+        {(cfg.items || []).map((item, i) => (
+          <div key={i} style={{ borderRadius: 'var(--sf-radius, 16px)', overflow: 'hidden', border: item.highlight ? '2px solid var(--s-primary)' : '2px solid #e5e7eb', backgroundColor: '#fff', padding: '32px 28px', textAlign: 'center', position: 'relative', boxShadow: item.highlight ? '0 20px 60px rgba(0,0,0,0.1)' : 'none' }}>
+            {item.highlight && <div style={{ position: 'absolute', top: -1, left: '50%', transform: 'translateX(-50%)', backgroundColor: 'var(--s-primary)', color: '#fff', fontSize: 11, fontWeight: 700, padding: '4px 16px', borderRadius: '0 0 10px 10px', fontFamily: 'var(--s-font)' }}>POPULAIRE</div>}
+            <h3 style={{ fontSize: 18, fontWeight: 800, color: 'var(--s-text)', margin: '0 0 16px', fontFamily: 'var(--s-font)' }}>{item.name}</h3>
+            <div style={{ marginBottom: 24 }}>
+              <span style={{ fontSize: 38, fontWeight: 900, color: item.highlight ? 'var(--s-primary)' : 'var(--s-text)', fontFamily: 'var(--s-font)' }}>{item.price}</span>
+              <span style={{ fontSize: 14, color: 'var(--s-text2)', fontFamily: 'var(--s-font)' }}> {item.currency}{item.period}</span>
+            </div>
+            <ul style={{ listStyle: 'none', margin: '0 0 28px', padding: 0, textAlign: 'left', display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {(item.features || []).map((f, j) => <li key={j} style={{ fontSize: 14, color: 'var(--s-text2)', display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'var(--s-font)' }}><span style={{ color: 'var(--s-primary)', fontWeight: 700 }}>✓</span>{f}</li>)}
+            </ul>
+            <a href="#products" style={{ display: 'block', padding: '14px 24px', borderRadius: 'var(--sf-radius, 12px)', backgroundColor: item.highlight ? 'var(--s-primary)' : 'transparent', border: `2px solid ${item.highlight ? 'var(--s-primary)' : '#e5e7eb'}`, color: item.highlight ? '#fff' : 'var(--s-text)', fontWeight: 700, fontSize: 14, textDecoration: 'none', fontFamily: 'var(--s-font)' }}>{item.cta || 'Choisir'}</a>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+);
+
+// ─── TICKER ────────────────────────────────────────────────────────────────────
+const AiTicker = ({ cfg }) => {
+  const items = cfg.items || [];
+  if (items.length === 0) return null;
+  const text = items.join('  ·  ');
+  const speed = cfg.speed || 30;
+  return (
+    <div style={{ backgroundColor: cfg.backgroundColor || '#111827', overflow: 'hidden', padding: '10px 0' }}>
+      <style>{`@keyframes ticker-scroll { from { transform: translateX(100vw); } to { transform: translateX(-100%); } }`}</style>
+      <div style={{ display: 'flex', gap: 0 }}>
+        <div style={{ whiteSpace: 'nowrap', animation: `ticker-scroll ${speed}s linear infinite`, fontSize: 13, fontWeight: 600, color: cfg.textColor || '#ffffff', fontFamily: 'var(--s-font)', paddingRight: 40 }}>
+          {text + '  ·  ' + text + '  ·  ' + text}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const AiSpacerSection = ({ cfg }) => (
   <div style={{ height: cfg.height || 40, backgroundColor: cfg.backgroundColor || 'transparent' }} />
 );
@@ -1483,6 +1665,15 @@ const SECTION_TYPE_LABELS = {
   faq: 'FAQ',
   contact: 'Contact',
   spacer: 'Espacement',
+  announcement_bar: "Barre d'annonces",
+  rich_text: 'Texte enrichi',
+  featured_collection: 'Collection vedette',
+  multicolumn: 'Multicolonne',
+  icon_bar: 'Barre icônes',
+  before_after: 'Avant / Après',
+  video: 'Vidéo',
+  pricing_table: 'Tableau de prix',
+  ticker: 'Ticker',
 };
 
 const isLegacyStorySection = (section) => {
@@ -1533,8 +1724,17 @@ const SectionRenderer = ({ section, store, products, prefix }) => {
             <AiContactSection cfg={cfg} store={store} />
           </Suspense>
         );
-      case 'spacer':       return <AiSpacerSection cfg={cfg} />;
-      default:             return null;
+      case 'spacer':            return <AiSpacerSection cfg={cfg} />;
+      case 'announcement_bar':  return <AiAnnouncementBar cfg={cfg} />;
+      case 'rich_text':         return <AiRichTextSection cfg={cfg} />;
+      case 'featured_collection': return <AiFeaturedCollection cfg={cfg} products={products} prefix={prefix} store={store} />;
+      case 'multicolumn':       return <AiMulticolumn cfg={cfg} />;
+      case 'icon_bar':          return <AiIconBar cfg={cfg} />;
+      case 'before_after':      return <AiBeforeAfter cfg={cfg} />;
+      case 'video':             return <AiVideoSection cfg={cfg} />;
+      case 'pricing_table':     return <AiPricingTable cfg={cfg} />;
+      case 'ticker':            return <AiTicker cfg={cfg} />;
+      default:                  return null;
     }
   };
 

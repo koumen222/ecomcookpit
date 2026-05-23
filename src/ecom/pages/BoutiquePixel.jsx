@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useEcomAuth } from '../hooks/useEcomAuth';
 import ecomApi from '../services/ecommApi.js';
 
-const PixelCard = ({ title, icon, color, description, fields, values, onChange, validatePixel }) => (
+const PixelCard = ({ title, icon, color, description, fields, values, onChange, validatePixel, extra }) => (
   <div className="bg-white rounded-2xl border border-gray-200 p-5">
     <div className="flex items-center gap-3 mb-4">
       <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: color + '15', color }}>
@@ -34,6 +34,7 @@ const PixelCard = ({ title, icon, color, description, fields, values, onChange, 
         );
       })}
     </div>
+    {extra && <div className="mt-4">{extra}</div>}
   </div>
 );
 
@@ -87,6 +88,8 @@ const BoutiquePixel = () => {
   });
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [metaTest, setMetaTest] = useState({ status: null, pixelId: '' });
+  // status: null | 'testing' | 'fired' | 'error'
 
   useEffect(() => {
     const load = async () => {
@@ -127,6 +130,38 @@ const BoutiquePixel = () => {
   };
 
   const hasErrors = Object.entries(pixels).some(([k, v]) => v && validatePixel(k, v));
+
+  // ── Test Meta Pixel ───────────────────────────────────────────────────────────
+  // Injecte le pixel sur cette page et envoie un PageView de test.
+  // Le marchand peut ensuite ouvrir Events Manager → Événements de test pour confirmer.
+  const testMetaPixel = () => {
+    const pixelId = pixels.metaPixelId?.trim();
+    if (!pixelId || validatePixel('metaPixelId', pixelId)) return;
+
+    setMetaTest({ status: 'testing', pixelId });
+
+    try {
+      // Inject Meta Pixel SDK if not already present
+      if (!window.fbq) {
+        /* eslint-disable */
+        (function(f,b,e,v,n,t,s){
+          if(f.fbq)return;
+          n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+          if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];
+          t=b.createElement(e);t.async=!0;t.src=v;
+          s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s);
+        }(window,document,'script','https://connect.facebook.net/en_US/fbevents.js'));
+        /* eslint-enable */
+      }
+
+      window.fbq('init', pixelId);
+      window.fbq('track', 'PageView');
+
+      setMetaTest({ status: 'fired', pixelId });
+    } catch {
+      setMetaTest({ status: 'error', pixelId });
+    }
+  };
 
   const handleSave = async () => {
     if (hasErrors) return;
@@ -186,6 +221,67 @@ const BoutiquePixel = () => {
           values={pixels}
           onChange={update}
           validatePixel={validatePixel}
+          extra={
+            <div className="space-y-2.5">
+              {/* Test button */}
+              <button
+                type="button"
+                onClick={testMetaPixel}
+                disabled={!pixels.metaPixelId || !!validatePixel('metaPixelId', pixels.metaPixelId) || metaTest.status === 'testing'}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold border transition"
+                style={
+                  !pixels.metaPixelId || !!validatePixel('metaPixelId', pixels.metaPixelId)
+                    ? { borderColor: '#e5e7eb', color: '#9ca3af', backgroundColor: '#f9fafb', cursor: 'not-allowed' }
+                    : { borderColor: '#1877F2', color: '#1877F2', backgroundColor: '#eff6ff', cursor: 'pointer' }
+                }
+              >
+                {metaTest.status === 'testing' ? (
+                  <>
+                    <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                    Envoi en cours…
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Tester le pixel Meta
+                  </>
+                )}
+              </button>
+
+              {/* Result: success */}
+              {metaTest.status === 'fired' && (
+                <div className="rounded-xl p-3 flex items-start gap-2.5" style={{ backgroundColor: '#f0fdf4', border: '1px solid #86efac' }}>
+                  <svg className="w-4 h-4 mt-0.5 flex-shrink-0" fill="none" stroke="#16a34a" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold" style={{ color: '#15803d' }}>Événement envoyé — pixel ID {metaTest.pixelId}</p>
+                    <p className="text-[11px] mt-0.5" style={{ color: '#166534' }}>
+                      Ouvrez{' '}
+                      <a
+                        href={`https://business.facebook.com/events_manager2/list/pixel/${metaTest.pixelId}/test_events`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-semibold underline"
+                        style={{ color: '#1877F2' }}
+                      >
+                        Events Manager → Événements de test
+                      </a>{' '}
+                      pour confirmer la réception. Si aucun événement n'apparaît après 30 secondes, l'ID est incorrect.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Result: error */}
+              {metaTest.status === 'error' && (
+                <div className="rounded-xl p-3 flex items-start gap-2.5" style={{ backgroundColor: '#fef2f2', border: '1px solid #fca5a5' }}>
+                  <svg className="w-4 h-4 mt-0.5 flex-shrink-0" fill="none" stroke="#dc2626" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                  <p className="text-xs font-semibold" style={{ color: '#b91c1c' }}>Erreur lors du test — vérifiez votre connexion et réessayez.</p>
+                </div>
+              )}
+            </div>
+          }
         />
 
         <PixelCard

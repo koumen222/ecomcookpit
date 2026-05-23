@@ -82,13 +82,14 @@ export function buildMergedProductPageConfig(storeConfig, productConfig) {
       ...formBuilderOverrides,
       sections: mergeInheritedProductPageSections(storeGeneral.sections, productGeneral.sections),
     },
+    // Store-level design & button take priority — one global config for all product pages
     design: {
-      ...(store.design || {}),
       ...(product.design || {}),
+      ...(store.design || {}),
     },
     button: {
-      ...(store.button || {}),
       ...(product.button || {}),
+      ...(store.button || {}),
     },
     conversion: {
       ...(store.conversion || {}),

@@ -31,6 +31,41 @@ export const PHONE_CODES = [
 ];
 
 /**
+ * Map phone code → currency.
+ */
+const CODE_TO_CURRENCY = {
+  '+237': 'XAF',   // Cameroun
+  '+225': 'XOF',   // Côte d'Ivoire
+  '+221': 'XOF',   // Sénégal
+  '+228': 'XOF',   // Togo
+  '+229': 'XOF',   // Bénin
+  '+226': 'XOF',   // Burkina Faso
+  '+223': 'XOF',   // Mali
+  '+224': 'GNF',   // Guinée
+  '+222': 'MRO',   // Mauritanie
+  '+227': 'XOF',   // Niger
+  '+235': 'XAF',   // Tchad
+  '+241': 'XAF',   // Gabon
+  '+242': 'XAF',   // Congo
+  '+243': 'CDF',   // RD Congo
+  '+240': 'XAF',   // Guinée Éq.
+  '+236': 'XAF',   // Centrafrique
+  '+234': 'NGN',   // Nigeria
+  '+233': 'GHS',   // Ghana
+  '+212': 'MAD',   // Maroc
+  '+216': 'TND',   // Tunisie
+  '+213': 'DZD',   // Algérie
+  '+33':  'EUR',   // France
+  '+32':  'EUR',   // Belgique
+  '+41':  'CHF',   // Suisse
+  '+1':   'USD',   // USA / Canada
+};
+
+export function getCurrencyByPhoneCode(code) {
+  return CODE_TO_CURRENCY[code] || null;
+}
+
+/**
  * Map store currency → default phone code.
  */
 const CURRENCY_TO_CODE = {

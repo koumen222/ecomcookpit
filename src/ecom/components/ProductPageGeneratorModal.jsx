@@ -699,7 +699,7 @@ const IMAGE_GENERATION_MODES = [
   },
 ];
 
-const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initialTaskId = null }) => {
+const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initialTaskId = null, initialPageStyle = 'classic' }) => {
   // Helper to extract workspaceId from ecomWorkspace JSON in localStorage
   const getWsId = () => {
     try { const ws = JSON.parse(localStorage.getItem('ecomWorkspace') || 'null'); return ws?._id || ws?.id || ''; }
@@ -736,7 +736,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
     } catch { return null; }
   });
   const [step, setStep] = useState(1); // 1: Base info, 2: Copywriting, 3: Advanced (optional)
-  const [pageStyle, setPageStyle] = useState('classic'); // 'classic' | 'infographics'
+  const [pageStyle, setPageStyle] = useState(initialPageStyle || 'classic'); // 'classic' | 'infographics' | 'hero_page' | 'hero'
   const [productSubstep, setProductSubstep] = useState(1);
   const [inputMode, setInputMode] = useState('url'); // 'url' ou 'description'
   const [url, setUrl] = useState('');
@@ -747,6 +747,18 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
   const [fashionSizes, setFashionSizes] = useState([]); // ['S','M','L','XL']
   const [fashionColors, setFashionColors] = useState([]); // [{name, hex}]
   const [fashionMinimalist, setFashionMinimalist] = useState(true);
+
+  // ── Hero image builder (mode gratuit — canvas only, no AI) ────────────────
+  const heroCanvasRef = useRef(null);
+  const [heroFile, setHeroFile] = useState(null);       // File
+  const [heroImg, setHeroImg] = useState(null);         // HTMLImageElement
+  const [heroName, setHeroName] = useState('');
+  const [heroTagline, setHeroTagline] = useState('');
+  const [heroPrice, setHeroPrice] = useState('');
+  const [heroCta, setHeroCta] = useState('Commander maintenant');
+  const [heroBadge, setHeroBadge] = useState('Livraison gratuite');
+  const [heroAccent, setHeroAccent] = useState('#0F6B4F');
+  const [heroDragOver, setHeroDragOver] = useState(false);
   const [customPrimaryColor, setCustomPrimaryColor] = useState(null); // null = suit le template, hex = couleur custom
   const [templateTheme, setTemplateTheme] = useState(() => buildTemplateTheme('beauty'));
   const [heroVisualDirection, setHeroVisualDirection] = useState(() => buildTemplateTheme('beauty').heroVisual || '');
@@ -879,67 +891,86 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
     setImagesLoading(true);
     let cancelled = false;
     const authHeaders = getAuthHeaders();
+    const pollStart = Date.now();
+    const MAX_POLL_MS = 5 * 60 * 1000; // 5 minutes max — never get stuck forever
+
+    const finishPoll = (data) => {
+      // Merge whatever images arrived (may be partial or empty on error/timeout)
+      const imgs = (data && data.images) || {};
+      setProduct(prev => {
+        if (!prev) return prev;
+        const newAngles = prev.angles?.map((a, i) => {
+          const bgAngle = imgs.angles?.find(ba => ba.index === i + 1);
+          return bgAngle ? { ...a, poster_url: bgAngle.poster_url, flashType: bgAngle.flashType || a?.flashType || null } : a;
+        }) || [];
+        const peoplePhotos = Array.isArray(imgs.peoplePhotos) ? imgs.peoplePhotos : (prev.peoplePhotos || []);
+        const beforeAfterImages = Array.isArray(imgs.beforeAfterImages) ? imgs.beforeAfterImages : (prev.beforeAfterImages || []);
+        const socialProofImages = Array.isArray(imgs.socialProofImages)
+          ? imgs.socialProofImages
+          : (prev.socialProofImages || []);
+        const descriptionGifs = Array.isArray(imgs.descriptionGifs) ? imgs.descriptionGifs : (prev.descriptionGifs || []);
+        const allImages = [
+          ...peoplePhotos,
+          ...socialProofImages,
+          ...(imgs.heroImage ? [imgs.heroImage] : []),
+          ...(imgs.heroPosterImage ? [imgs.heroPosterImage] : []),
+          ...beforeAfterImages,
+          ...newAngles.map(a => a.poster_url).filter(Boolean)
+        ];
+        return {
+          ...prev,
+          heroImage: imgs.heroImage || prev.heroImage,
+          heroPosterImage: imgs.heroPosterImage || prev.heroPosterImage || newAngles.find(a => a.poster_url)?.poster_url || null,
+          beforeAfterImage: imgs.beforeAfterImage || prev.beforeAfterImage,
+          beforeAfterImages,
+          angles: newAngles,
+          peoplePhotos,
+          socialProofImages,
+          descriptionGifs,
+          allImages: [...(prev.allImages || []), ...allImages].filter((v, i, a) => v && a.indexOf(v) === i),
+        };
+      });
+      setImagesLoading(false);
+      setImageJobId(null);
+      // Save final draft with whatever images we got
+      setProduct(prev2 => { if (prev2) saveDraft(prev2, visualTemplate); return prev2; });
+    };
 
     const poll = async () => {
+      if (cancelled) return;
+
+      // Hard timeout — stop after 5 min and show whatever text/images we have
+      if (Date.now() - pollStart > MAX_POLL_MS) {
+        console.warn('⏱️ Image polling timeout — showing page with available content');
+        finishPoll(null);
+        return;
+      }
+
       try {
         const resp = await fetch(`${API_ORIGIN}/api/ai/product-generator/images/${imageJobId}`, {
           headers: authHeaders
         });
-        if (!resp.ok || cancelled) return;
+        if (!resp.ok || cancelled) {
+          if (!cancelled) setTimeout(poll, 4000);
+          return;
+        }
         const data = await resp.json();
         if (cancelled) return;
 
-        if (data.status === 'done' || data.status === 'error') {
-          // Merge images into product
-          setProduct(prev => {
-            if (!prev) return prev;
-            const imgs = data.images || {};
-            const newAngles = prev.angles?.map((a, i) => {
-              const bgAngle = imgs.angles?.find(ba => ba.index === i + 1);
-              return bgAngle ? { ...a, poster_url: bgAngle.poster_url, flashType: bgAngle.flashType || a?.flashType || null } : a;
-            }) || [];
-            const peoplePhotos = Array.isArray(imgs.peoplePhotos) ? imgs.peoplePhotos : (prev.peoplePhotos || []);
-            const beforeAfterImages = Array.isArray(imgs.beforeAfterImages) ? imgs.beforeAfterImages : (prev.beforeAfterImages || []);
-            const socialProofImages = Array.isArray(imgs.socialProofImages)
-              ? imgs.socialProofImages
-              : (prev.socialProofImages || []);
-            const descriptionGifs = Array.isArray(imgs.descriptionGifs) ? imgs.descriptionGifs : (prev.descriptionGifs || []);
-            const allImages = [
-              ...peoplePhotos,
-              ...socialProofImages,
-              ...(imgs.heroImage ? [imgs.heroImage] : []),
-              ...(imgs.heroPosterImage ? [imgs.heroPosterImage] : []),
-              ...beforeAfterImages,
-              ...newAngles.map(a => a.poster_url).filter(Boolean)
-            ];
-            return {
-              ...prev,
-              heroImage: imgs.heroImage || prev.heroImage,
-              heroPosterImage: imgs.heroPosterImage || prev.heroPosterImage || newAngles.find(a => a.poster_url)?.poster_url || null,
-              beforeAfterImage: imgs.beforeAfterImage || prev.beforeAfterImage,
-              beforeAfterImages,
-              angles: newAngles,
-              peoplePhotos,
-              socialProofImages,
-              descriptionGifs,
-              allImages: [...(prev.allImages || []), ...allImages].filter((v, i, a) => v && a.indexOf(v) === i),
-            };
-          });
-          setImagesLoading(false);
-          setImageJobId(null);
-          // Save final draft with images
-          setProduct(prev2 => { if (prev2) saveDraft(prev2, visualTemplate); return prev2; });
+        // Terminal statuses: done, error, or not_found (job lost after server restart)
+        if (data.status === 'done' || data.status === 'error' || data.status === 'not_found') {
+          finishPoll(data);
           return; // Stop polling
         }
 
-        // Still generating — poll again in 4s
+        // Still generating — poll again in 3s
         if (!cancelled) setTimeout(poll, 3000);
       } catch {
         if (!cancelled) setTimeout(poll, 4000);
       }
     };
 
-    // Start first poll after 2s (images take time)
+    // Start first poll after 2s (images take time to start generating)
     const timer = setTimeout(poll, 2000);
     return () => { cancelled = true; clearTimeout(timer); };
   }, [imageJobId, phase]);
@@ -1175,9 +1206,10 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
 
   useEffect(() => {
     if (initialTaskId || phase !== 'input' || showPaymentForm || !hasNoCredits) return;
+    if (pageStyle === 'hero_page') return; // hero mode is free, no credit prompt
     if (zeroCreditPromptRef.current) return;
     openCreditsPaymentModal('Tu n\'as plus de crédits. Choisis un pack pour lancer une nouvelle génération.');
-  }, [hasNoCredits, initialTaskId, openCreditsPaymentModal, phase, showPaymentForm]);
+  }, [hasNoCredits, initialTaskId, openCreditsPaymentModal, pageStyle, phase, showPaymentForm]);
 
   const handleNextStep = () => {
     if (step === 1) {
@@ -1332,7 +1364,8 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
     // Validation selon le mode
     if (inputMode === 'url' && (!isValidUrl || photos.length === 0)) return;
     if (inputMode === 'description' && !hasValidDescription) return;
-    if (hasNoCredits) {
+    // Hero page mode is free — skip credit check
+    if (pageStyle !== 'hero_page' && hasNoCredits) {
       openCreditsPaymentModal('Tu n\'as plus de crédits. Choisis un pack pour payer et débloquer la génération.');
       return;
     }
@@ -1363,7 +1396,8 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
       formData.append('skipScraping', 'true');
     }
     
-    formData.append('withImages', 'true');
+    formData.append('withImages', 'true'); // hero_page still generates the hero image via AI
+    if (pageStyle === 'hero_page') formData.append('heroMode', 'true');
     formData.append('imageGenerationMode', imageGenerationMode);
     formData.append('imageAspectRatio', imageGenerationMode === 'ad_4_5' ? '4:5' : '1:1');
     formData.append('marketingApproach', marketingApproach);
@@ -1409,7 +1443,16 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
         let errorMessage;
         try {
           const errorData = await resp.json();
-          
+
+          // Token expiré ou invalide
+          if (resp.status === 401) {
+            setPhase('input');
+            abortRef.current = null;
+            isGeneratingRef.current = false;
+            setError('Session expirée. Reconnecte-toi et réessaie.');
+            return;
+          }
+
           // Gérer le cas de limite atteinte
           if (errorData.limitReached) {
             setLimitReached(true);
@@ -1426,7 +1469,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
             openCreditsPaymentModal(errorData.message || 'Tu n\'as plus de crédits. Achète un pack pour continuer.');
             return;
           }
-          
+
           errorMessage = errorData.message || errorData.error || `Erreur HTTP ${resp.status}`;
         } catch {
           errorMessage = `Erreur HTTP ${resp.status}: ${resp.statusText}`;
@@ -1444,7 +1487,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
           setGenerationsInfo(result.generations);
         }
 
-        // Store product in state but DON'T switch to preview yet
+        // Store product (text is ready — show preview immediately regardless of images)
         setProduct(result.product);
         // Save text-only draft immediately so generation is never lost
         saveDraft(result.product, visualTemplate);
@@ -1453,100 +1496,14 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
         // Store taskId for background tracking
         if (result.taskId) setCurrentTaskId(result.taskId);
 
-        // If there's an image job, wait for all images before showing preview
+        // If images are being generated in background, register the job so the
+        // useEffect poller picks it up once we enter preview phase
         if (result.imageJobId) {
-          setBuildProgress(70);
-          setBuildMessage('Génération des images en cours...');
-
-          // Poll until all images are done
-          const pollImages = () => new Promise((resolve) => {
-            const doPoll = async () => {
-              try {
-                const imgResp = await fetch(`${API_ORIGIN}/api/ai/product-generator/images/${result.imageJobId}`, {
-                  headers: {
-                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-                    ...(wsId ? { 'X-Workspace-Id': wsId } : {})
-                  }
-                });
-                if (!imgResp.ok) { setTimeout(doPoll, 3000); return; }
-                const imgData = await imgResp.json();
-
-                // Update progress based on images received
-                const totalExpected = 7;
-                const done = (imgData.progress || 0);
-                const pct = Math.min(95, 70 + Math.round((done / totalExpected) * 25));
-                setBuildProgress(pct);
-                const msgs = [
-                  'Création de l\'image principale...',
-                  'Génération des visuels marketing...',
-                  'Design des posters produit...',
-                  'Retouches et optimisation...',
-                  'Assemblage des visuels...',
-                  'Finalisation des images...',
-                  'Dernières retouches...'
-                ];
-                setBuildMessage(msgs[Math.min(done, msgs.length - 1)] || 'Génération des images...');
-
-                if (imgData.status === 'done' || imgData.status === 'error') {
-                  resolve(imgData);
-                  return;
-                }
-                setTimeout(doPoll, 3000);
-              } catch {
-                setTimeout(doPoll, 4000);
-              }
-            };
-            // First poll after 2s
-            setTimeout(doPoll, 2000);
-          });
-
-          const imgResult = await pollImages();
-
-          // Merge images into product
-          const imgs = imgResult.images || {};
-          setProduct(prev => {
-            if (!prev) return prev;
-            const newAngles = prev.angles?.map((a, i) => {
-              const bgAngle = imgs.angles?.find(ba => ba.index === i + 1);
-              return bgAngle ? { ...a, poster_url: bgAngle.poster_url, flashType: bgAngle.flashType || a?.flashType || null } : a;
-            }) || [];
-            const peoplePhotos = Array.isArray(imgs.peoplePhotos) ? imgs.peoplePhotos : (prev.peoplePhotos || []);
-            const beforeAfterImages = Array.isArray(imgs.beforeAfterImages) ? imgs.beforeAfterImages : (prev.beforeAfterImages || []);
-            const socialProofImages = Array.isArray(imgs.socialProofImages)
-              ? imgs.socialProofImages
-              : (prev.socialProofImages || []);
-            const descriptionGifs = Array.isArray(imgs.descriptionGifs) ? imgs.descriptionGifs : (prev.descriptionGifs || []);
-            const allImages = [
-              ...peoplePhotos,
-              ...socialProofImages,
-              ...(imgs.heroImage ? [imgs.heroImage] : []),
-              ...(imgs.heroPosterImage ? [imgs.heroPosterImage] : []),
-              ...beforeAfterImages,
-              ...newAngles.map(a => a.poster_url).filter(Boolean)
-            ];
-            return {
-              ...prev,
-              heroImage: imgs.heroImage || prev.heroImage,
-              heroPosterImage: imgs.heroPosterImage || prev.heroPosterImage || newAngles.find(a => a.poster_url)?.poster_url || null,
-              beforeAfterImage: imgs.beforeAfterImage || prev.beforeAfterImage,
-              beforeAfterImages,
-              angles: newAngles,
-              peoplePhotos,
-              socialProofImages,
-              descriptionGifs,
-              allImages: [...(prev.allImages || []), ...allImages].filter((v, i, a) => v && a.indexOf(v) === i),
-            };
-          });
-          setImagesLoading(false);
+          setImageJobId(result.imageJobId);
         }
 
-        // Save draft to localStorage so generation is never lost
-        setProduct(prev => {
-          if (prev) saveDraft(prev, visualTemplate);
-          return prev;
-        });
-
-        // NOW show confetti and switch to preview (all images are ready)
+        // Show confetti and switch to preview NOW — text is ready, images will
+        // appear progressively via the background useEffect poller
         setBuildProgress(100);
         setBuildMessage('Votre page est prête.');
         setShowConfetti(true);
@@ -1902,6 +1859,172 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
     setShowConfetti(false);
   };
 
+  // ── Hero image builder helpers ─────────────────────────────────────────────
+
+  const handleHeroFile = (file) => {
+    if (!file || !file.type.startsWith('image/')) return;
+    setHeroFile(file);
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => setHeroImg(img);
+    img.src = url;
+  };
+
+  // Draw hero composite image onto canvas
+  useEffect(() => {
+    const canvas = heroCanvasRef.current;
+    if (!canvas) return;
+    const SIZE = 1080;
+    canvas.width = SIZE;
+    canvas.height = SIZE;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, SIZE, SIZE);
+
+    // Background
+    if (heroImg) {
+      // Cover-fit the image
+      const iw = heroImg.naturalWidth, ih = heroImg.naturalHeight;
+      const scale = Math.max(SIZE / iw, SIZE / ih);
+      const sw = iw * scale, sh = ih * scale;
+      const sx = (SIZE - sw) / 2, sy = (SIZE - sh) / 2;
+      ctx.drawImage(heroImg, sx, sy, sw, sh);
+    } else {
+      ctx.fillStyle = '#1a1a2e';
+      ctx.fillRect(0, 0, SIZE, SIZE);
+    }
+
+    // Gradient overlay (bottom 65%)
+    const grad = ctx.createLinearGradient(0, SIZE * 0.28, 0, SIZE);
+    grad.addColorStop(0, 'rgba(0,0,0,0)');
+    grad.addColorStop(0.45, 'rgba(0,0,0,0.55)');
+    grad.addColorStop(1, 'rgba(0,0,0,0.88)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, SIZE, SIZE);
+
+    const accent = heroAccent || '#0F6B4F';
+    const PAD = 58;
+
+    // ── Top badge ──────────────────────────────────────────────────────────
+    if (heroBadge) {
+      const badgeTxt = heroBadge.toUpperCase();
+      ctx.font = 'bold 26px Arial';
+      const bw = ctx.measureText(badgeTxt).width + 44;
+      const bh = 48;
+      const bx = PAD, by = PAD;
+      ctx.fillStyle = accent;
+      _roundRect(ctx, bx, by, bw, bh, 24);
+      ctx.fill();
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 22px Arial';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(badgeTxt, bx + 22, by + bh / 2);
+    }
+
+    // ── Price badge (top-right) ──────────────────────────────────────────
+    if (heroPrice) {
+      ctx.font = 'bold 38px Arial';
+      const priceTxt = heroPrice;
+      const pw = ctx.measureText(priceTxt).width + 56;
+      const ph = 64;
+      const px = SIZE - PAD - pw, py = PAD;
+      ctx.fillStyle = 'rgba(255,255,255,0.95)';
+      _roundRect(ctx, px, py, pw, ph, 32);
+      ctx.fill();
+      ctx.fillStyle = accent;
+      ctx.font = 'bold 34px Arial';
+      ctx.textBaseline = 'middle';
+      ctx.textAlign = 'center';
+      ctx.fillText(priceTxt, px + pw / 2, py + ph / 2);
+      ctx.textAlign = 'left';
+    }
+
+    // ── Headline ──────────────────────────────────────────────────────────
+    const headline = heroName || 'Nom du produit';
+    ctx.fillStyle = '#ffffff';
+    ctx.textBaseline = 'alphabetic';
+    const headlineLines = _wrapText(ctx, headline, 'bold 74px Arial', SIZE - PAD * 2 - 40);
+    let ty = SIZE - PAD - 220;
+    if (heroCta) ty -= 100;
+    if (heroTagline) ty -= 60;
+    headlineLines.forEach((line) => {
+      ctx.font = 'bold 74px Arial';
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(line, PAD, ty);
+      ty += 88;
+    });
+
+    // ── Tagline ────────────────────────────────────────────────────────────
+    if (heroTagline) {
+      ctx.font = '34px Arial';
+      ctx.fillStyle = 'rgba(255,255,255,0.75)';
+      ctx.fillText(heroTagline.slice(0, 68), PAD, ty + 6);
+      ty += 52;
+    }
+
+    // ── CTA button ────────────────────────────────────────────────────────
+    if (heroCta) {
+      ty += 24;
+      const ctaTxt = heroCta;
+      ctx.font = 'bold 30px Arial';
+      const cw = ctx.measureText(ctaTxt).width + 80;
+      const ch = 72;
+      ctx.fillStyle = accent;
+      _roundRect(ctx, PAD, ty, cw, ch, 36);
+      ctx.fill();
+      ctx.fillStyle = '#ffffff';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(ctaTxt, PAD + 40, ty + ch / 2);
+      ctx.textBaseline = 'alphabetic';
+
+      // "Paiement à la livraison" beside CTA
+      ctx.font = 'bold 22px Arial';
+      ctx.fillStyle = 'rgba(255,255,255,0.6)';
+      ctx.fillText('✓ Paiement à la livraison', PAD + cw + 24, ty + ch / 2 + 8);
+    }
+
+  }, [heroImg, heroName, heroTagline, heroPrice, heroCta, heroBadge, heroAccent]);
+
+  function _roundRect(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+  }
+
+  function _wrapText(ctx, text, font, maxWidth) {
+    ctx.font = font;
+    const words = text.split(' ');
+    const lines = [];
+    let current = '';
+    for (const word of words) {
+      const test = current ? `${current} ${word}` : word;
+      if (ctx.measureText(test).width > maxWidth && current) {
+        lines.push(current);
+        current = word;
+      } else {
+        current = test;
+      }
+    }
+    if (current) lines.push(current);
+    return lines.slice(0, 3);
+  }
+
+  const downloadHero = () => {
+    const canvas = heroCanvasRef.current;
+    if (!canvas) return;
+    const link = document.createElement('a');
+    link.download = `hero-${Date.now()}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+  };
+
   return (
     <div className={pageMode ? 'min-h-screen bg-white' : 'fixed inset-0 z-50 h-screen w-screen overflow-hidden bg-black/50 backdrop-blur-sm'}>
       <div className={pageMode ? 'mx-auto min-h-screen w-full max-w-[1120px] px-4 py-6 sm:px-6 lg:px-8' : 'flex h-full w-full items-stretch justify-stretch'}>
@@ -1934,7 +2057,12 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
                   <Sparkles className="h-3.5 w-3.5" />
                   Générateur de page produit
                 </span>
-                {generationsInfo && (
+                {pageStyle === 'hero_page' ? (
+                  <span className="inline-flex items-center gap-2 rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700">
+                    <CheckCircle className="h-3.5 w-3.5" />
+                    Gratuit
+                  </span>
+                ) : generationsInfo && (
                   <span className="inline-flex items-center gap-2 rounded-full border border-[#96C7B5] bg-[#E6F2ED] px-3 py-1.5 text-xs font-semibold text-[#0A5740]">
                     <Zap className="h-3.5 w-3.5" />
                     {generationsInfo.remaining || 0} crédit{(generationsInfo?.remaining || 0) > 1 ? 's' : ''}
@@ -2038,8 +2166,121 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
                     <p className="text-sm font-bold text-gray-900">Infographies 9:16</p>
                     <p className="text-xs text-gray-500 mt-0.5">Pile d'infographies verticales + formulaire minimal</p>
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => { setPageStyle('hero_page'); setInfographicsTaskResult(null); }}
+                    className={`relative text-left rounded-xl border-2 px-4 py-3 transition ${pageStyle === 'hero_page' ? 'border-emerald-500 bg-emerald-50' : 'border-gray-200 bg-white hover:border-gray-300'}`}
+                  >
+                    <span className="absolute -top-2 -right-2 text-[10px] font-black bg-emerald-500 text-white px-2 py-0.5 rounded-full uppercase tracking-wide">Gratuit</span>
+                    <p className="text-sm font-bold text-gray-900">Page Complète — Image réduite</p>
+                    <p className="text-xs text-gray-500 mt-0.5">Page IA complète + hero généré par IA — sans images d'angles ni GIFs</p>
+                  </button>
                 </div>
               </div>
+
+              {/* ── Hero Image Builder (gratuit, canvas) ────────────────────────────── */}
+              {pageStyle === 'hero' && (
+                <div className="rounded-2xl border border-emerald-200 bg-white overflow-hidden">
+                  {/* Header */}
+                  <div className="flex items-center gap-3 px-5 py-4 bg-emerald-50 border-b border-emerald-100">
+                    <div className="w-8 h-8 rounded-xl bg-emerald-500 flex items-center justify-center flex-shrink-0">
+                      <ImageIcon className="w-4 h-4 text-white" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-gray-900">Image Hero — Gratuit</p>
+                      <p className="text-xs text-emerald-700">Compose une image 1080×1080 avec ta photo + texte. Aucun crédit requis.</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-0">
+                    {/* Left: form */}
+                    <div className="p-5 space-y-4 border-r border-gray-100">
+
+                      {/* Photo upload */}
+                      <div>
+                        <label className="text-xs font-bold text-gray-700 mb-1.5 block">Photo du produit</label>
+                        <div
+                          onDragOver={(e) => { e.preventDefault(); setHeroDragOver(true); }}
+                          onDragLeave={() => setHeroDragOver(false)}
+                          onDrop={(e) => { e.preventDefault(); setHeroDragOver(false); const f = e.dataTransfer.files[0]; if (f) handleHeroFile(f); }}
+                          className={`relative flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed cursor-pointer transition p-4 ${heroDragOver ? 'border-emerald-500 bg-emerald-50' : heroImg ? 'border-emerald-300 bg-emerald-50' : 'border-gray-200 hover:border-gray-300'}`}
+                          style={{ minHeight: 120 }}
+                          onClick={() => { const inp = document.createElement('input'); inp.type='file'; inp.accept='image/*'; inp.onchange=(e)=>{ if(e.target.files[0]) handleHeroFile(e.target.files[0]); }; inp.click(); }}
+                        >
+                          {heroImg ? (
+                            <div className="flex items-center gap-3 w-full">
+                              <img src={heroImg.src} alt="preview" className="w-16 h-16 object-cover rounded-lg border border-gray-200 flex-shrink-0" />
+                              <div className="min-w-0">
+                                <p className="text-xs font-semibold text-gray-800 truncate">{heroFile?.name || 'Image chargée'}</p>
+                                <button type="button" className="text-[11px] text-emerald-600 font-semibold mt-0.5" onClick={(e)=>{ e.stopPropagation(); setHeroFile(null); setHeroImg(null); }}>Changer d'image</button>
+                              </div>
+                            </div>
+                          ) : (
+                            <>
+                              <Upload className="w-6 h-6 text-gray-400" />
+                              <p className="text-xs text-gray-500 text-center">Glisse ta photo ici ou <span className="text-emerald-600 font-semibold">clique pour choisir</span></p>
+                            </>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Text fields */}
+                      <div className="grid grid-cols-1 gap-3">
+                        {[
+                          { label: 'Nom du produit', val: heroName, set: setHeroName, ph: 'Ex: Sérum éclat naturel', max: 48 },
+                          { label: 'Accroche / Tagline', val: heroTagline, set: setHeroTagline, ph: 'Ex: Résultat visible en 7 jours', max: 68 },
+                          { label: 'Prix', val: heroPrice, set: setHeroPrice, ph: 'Ex: 14 900 FCFA', max: 24 },
+                          { label: 'Texte du bouton CTA', val: heroCta, set: setHeroCta, ph: 'Commander maintenant', max: 36 },
+                          { label: 'Badge promo (en haut)', val: heroBadge, set: setHeroBadge, ph: 'Ex: Livraison gratuite', max: 32 },
+                        ].map(({ label, val, set, ph, max }) => (
+                          <div key={label}>
+                            <label className="text-[11px] font-semibold text-gray-600 mb-1 block">{label}</label>
+                            <input
+                              type="text"
+                              value={val}
+                              onChange={(e) => set(e.target.value.slice(0, max))}
+                              placeholder={ph}
+                              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl bg-gray-50 focus:bg-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition"
+                            />
+                          </div>
+                        ))}
+
+                        {/* Accent color */}
+                        <div>
+                          <label className="text-[11px] font-semibold text-gray-600 mb-1.5 block">Couleur accent</label>
+                          <div className="flex items-center gap-3">
+                            <input type="color" value={heroAccent} onChange={(e) => setHeroAccent(e.target.value)} className="w-10 h-10 rounded-xl border-2 border-gray-200 cursor-pointer p-0.5" />
+                            {['#0F6B4F','#1877F2','#DC2626','#7C3AED','#B45309','#000000'].map(c => (
+                              <button key={c} type="button" onClick={() => setHeroAccent(c)} className="w-8 h-8 rounded-full border-2 transition" style={{ backgroundColor: c, borderColor: heroAccent === c ? '#fff' : 'transparent', boxShadow: heroAccent === c ? `0 0 0 2px ${c}` : 'none' }} />
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Right: canvas preview + download */}
+                    <div className="p-5 flex flex-col items-center gap-4 bg-gray-50">
+                      <p className="text-xs font-bold text-gray-600 self-start">Aperçu (1080×1080)</p>
+                      <canvas
+                        ref={heroCanvasRef}
+                        style={{ width: '100%', maxWidth: 340, aspectRatio: '1/1', borderRadius: 16, border: '1.5px solid #e5e7eb', boxShadow: '0 4px 24px rgba(0,0,0,0.10)' }}
+                      />
+                      <button
+                        type="button"
+                        onClick={downloadHero}
+                        className="w-full max-w-[340px] flex items-center justify-center gap-2 px-5 py-3 rounded-xl font-bold text-sm text-white transition"
+                        style={{ backgroundColor: '#0F6B4F' }}
+                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#0A5740'}
+                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#0F6B4F'}
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                        Télécharger PNG (1080×1080)
+                      </button>
+                      <p className="text-[11px] text-gray-400 text-center max-w-[300px]">Image haute résolution prête pour Facebook Ads, TikTok ou votre boutique. 100% gratuit, aucun crédit.</p>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {pageStyle === 'infographics' && (
                 <InfographicsGeneratorPanel
@@ -2151,7 +2392,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
               )}
 
               {/* ÉTAPE 1: Informations produit */}
-              {pageStyle === 'classic' && step === 1 && (
+              {['classic', 'hero_page'].includes(pageStyle) && step === 1 && (
                 <>
                   {/* Template de page produit */}
                   {productSubstep === 1 && (
@@ -2533,7 +2774,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
               )}
 
               {/* ÉTAPE 2: Méthode Copywriting (simplifié) */}
-              {pageStyle === 'classic' && step === 2 && (
+              {['classic', 'hero_page'].includes(pageStyle) && step === 2 && (
                 <>
                   {/* 3 Méthodes Copywriting */}
                   <div className="rounded-[30px] border border-gray-200 bg-white p-5 shadow-[0_16px_40px_rgba(15,23,42,0.06)] sm:p-6">
@@ -2579,7 +2820,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
               )}
 
               {/* ÉTAPE 3: Paramètres avancés (simplifié) */}
-              {pageStyle === 'classic' && step === 3 && (
+              {['classic', 'hero_page'].includes(pageStyle) && step === 3 && (
                 <>
                   {/* Header */}
                   <div className="text-center space-y-2 mb-4">
@@ -2733,6 +2974,20 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
                       <button type="button" onClick={() => openCreditsPaymentModal('Tu n\'as plus de crédits. Choisis un pack pour acheter de nouveaux crédits.')}
                         className="px-4 py-2 bg-scalor-copper text-white font-bold rounded-xl hover:bg-scalor-copper-dark transition text-sm shadow-lg whitespace-nowrap">
                         Acheter des crédits
+                      </button>
+                    </div>
+                  ) : error.includes('Session expirée') ? (
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center shrink-0">
+                        <Lock className="w-5 h-5 text-red-500" />
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="text-sm font-bold text-gray-900">Session expirée</h3>
+                        <p className="text-xs text-gray-500">Reconnecte-toi pour continuer à générer des pages.</p>
+                      </div>
+                      <button type="button" onClick={() => { window.location.href = '/ecom/login'; }}
+                        className="px-4 py-2 bg-red-500 text-white font-bold rounded-xl hover:bg-red-600 transition text-sm shadow-lg whitespace-nowrap">
+                        Se reconnecter
                       </button>
                     </div>
                   ) : (
@@ -3614,10 +3869,18 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
 
         {/* Footer */}
               <div className={pageMode ? 'border-t border-gray-200 bg-white px-6 py-4 shadow-[0_-14px_40px_rgba(15,23,42,0.04)] backdrop-blur-sm shrink-0' : 'px-6 py-4 border-t border-gray-100 shrink-0'}>
-          {phase === 'input' && pageStyle === 'classic' && (
+          {phase === 'input' && ['classic', 'hero_page'].includes(pageStyle) && (
             <>
-              {/* Info générations restantes */}
-              {generationsInfo && !pageMode && (
+              {/* Info générations restantes / mode gratuit */}
+              {pageStyle === 'hero_page' && !pageMode && (
+                <div className="mb-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3">
+                  <div className="flex items-center gap-2 text-sm">
+                    <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span className="font-medium text-emerald-800">Mode gratuit — page complète + hero IA, sans images d'angles ni GIFs</span>
+                  </div>
+                </div>
+              )}
+              {pageStyle !== 'hero_page' && generationsInfo && !pageMode && (
                 <div className="mb-3 rounded-lg border border-[#96C7B5] bg-[#E6F2ED] p-3">
                   <div className="flex items-center justify-between text-sm">
                     <div className="flex items-center gap-2">
@@ -3644,7 +3907,9 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
                   <div className="rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-xs leading-5 text-gray-600 md:max-w-[340px]">
                     {step < 3
                       ? 'Renseigne le produit, définis la méthode puis affine le ciblage avant de lancer la génération.'
-                      : 'Tout est prêt. Lance la génération pour produire la page, les visuels et les blocs marketing.'}
+                      : pageStyle === 'hero_page'
+                        ? 'Tout est prêt. La génération est gratuite — page complète + hero IA, sans images d\'angles.'
+                        : 'Tout est prêt. Lance la génération pour produire la page, les visuels et les blocs marketing.'}
                   </div>
                 )}
                 {(step > 1 || productSubstep > 1) && (
@@ -3679,8 +3944,8 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
                       disabled={!canGenerate()}
                       className={`w-full py-3 text-white font-bold text-sm transition disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg ${pageMode ? 'rounded-2xl bg-[linear-gradient(135deg,#0A5740,#14855F)] hover:brightness-105' : 'bg-scalor-green rounded-xl hover:bg-scalor-green-dark'}`}
                     >
-                      {hasNoCredits ? <Zap className="w-4 h-4" /> : <Sparkles className="w-4 h-4" />}
-                      {hasNoCredits ? 'Acheter des crédits' : 'Générer ma page produit'}
+                      {(hasNoCredits && pageStyle !== 'hero_page') ? <Zap className="w-4 h-4" /> : <Sparkles className="w-4 h-4" />}
+                      {(hasNoCredits && pageStyle !== 'hero_page') ? 'Acheter des crédits' : pageStyle === 'hero_page' ? 'Générer — Gratuit' : 'Générer ma page produit'}
                     </button>
                   </div>
                 )}

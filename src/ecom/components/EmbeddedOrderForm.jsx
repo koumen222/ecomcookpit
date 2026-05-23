@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { safeHtml } from '../utils/sanitize';
-import { ShoppingCart, User, Phone, MapPin, Loader2, CheckCircle, Truck, Plus, Minus, AlertCircle, ChevronDown, Mail, FileText, Hash, Calendar, Clock, Shield, Globe, Star, ShoppingBag, ArrowRight, Check } from 'lucide-react';
+import { ShoppingCart, User, Phone, MapPin, Loader2, CheckCircle, Truck, Plus, Minus, AlertCircle, ChevronDown, Mail, FileText, Hash, Calendar, Clock, Shield, Globe, Star, ShoppingBag, ArrowRight, Check, CreditCard, Rocket, Gift, Sparkles, Zap, Flame, Crown, Gem, Trophy, Lock, BadgeCheck, Tag, Send, Bell, ThumbsUp, Wallet, Package } from 'lucide-react';
 import { publicStoreApi } from '../services/storeApi.js';
 import defaultConfig from './productSettings/defaultConfig.js';
 import { createMetaEventId, injectPixelScripts, safeFirePixelEvent } from '../utils/pixelTracking';
-import { PHONE_CODES, getDefaultPhoneCodeFromConfig, getPhoneCodeByCountryName, buildFullPhone } from '../utils/phoneCodes.js';
+import { PHONE_CODES, getDefaultPhoneCodeFromConfig, getPhoneCodeByCountryName, buildFullPhone, getCurrencyByPhoneCode } from '../utils/phoneCodes.js';
 import {
   buildStorefrontOrderWhatsappMessage,
   getPopularCitiesForCountries,
@@ -13,9 +13,11 @@ import {
   resolveStoreCountry,
   findMatchingCountryOption,
 } from '../utils/storeCountryConfig.js';
+import { getIconComponent, getAnimationClass, ANIMATION_CSS } from './productSettings/ButtonEditor.jsx';
 
 const fmt = (n, cur = 'XAF') => `${new Intl.NumberFormat('fr-FR').format(n)} ${cur === 'XAF' || cur === 'XOF' ? 'FCFA' : cur}`;
-const ICON_MAP = { user: User, phone: Phone, map: MapPin, pin: MapPin, mail: Mail, cart: ShoppingCart, file: FileText, hash: Hash, calendar: Calendar, bag: ShoppingBag, arrow: ArrowRight, check: Check };
+const getImgSrc = (img) => (img && typeof img === 'object' ? img.url : img) || null;
+const ICON_MAP = { user: User, phone: Phone, map: MapPin, pin: MapPin, mail: Mail, cart: ShoppingCart, file: FileText, hash: Hash, calendar: Calendar, bag: ShoppingBag, arrow: ArrowRight, check: Check, credit: CreditCard, wallet: Wallet, rocket: Rocket, gift: Gift, sparkles: Sparkles, zap: Zap, flame: Flame, star: Star, crown: Crown, gem: Gem, trophy: Trophy, truck: Truck, package: Package, send: Send, heart: ShoppingBag, thumbs: ThumbsUp, tag: Tag, lock: Lock, badge: BadgeCheck, bell: Bell };
 const FIELD_KEY_MAP = { fullname: 'customerName', phone: 'phone', city: 'city', address: 'address', note: 'notes' };
 
 const getSelectedCountryValue = (fields, formState) => {
@@ -38,6 +40,7 @@ const isMeaningfulPlaceholder = (value, ignoredPatterns = []) => {
 const EmbeddedOrderForm = ({ product, subdomain, store, pixels, productPageConfig }) => {
   const [form, setForm] = useState({ customerName: '', phone: '', city: '', address: '', notes: '', quantity: 1 });
   const [phoneCode, setPhoneCode] = useState(() => getDefaultPhoneCodeFromConfig(productPageConfig?.general?.countries, store?.currency));
+  const phoneCodeUserSet = useRef(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
@@ -45,7 +48,9 @@ const EmbeddedOrderForm = ({ product, subdomain, store, pixels, productPageConfi
   const [deliveryZoneOptions, setDeliveryZoneOptions] = useState([]);
   const [countdownSecs, setCountdownSecs] = useState(null);
 
-  const currency = product?.currency || store?.currency || 'XAF';
+  const baseCurrency = product?.currency || store?.currency || 'XAF';
+  const [displayCurrency, setDisplayCurrency] = useState(baseCurrency);
+  const currency = displayCurrency;
 
   const design = productPageConfig?.design || {};
   const formConfig = productPageConfig?.form || {};
@@ -54,7 +59,35 @@ const EmbeddedOrderForm = ({ product, subdomain, store, pixels, productPageConfi
 
   const offerDesign = conversionConfig.offerDesign || null;
   const btnColor = design.formButtonColor || '#0F6B4F';
-  const offerBorderStyle = offerDesign?.border_style || 'solid';
+  const od = offerDesign || {};
+  const accentColor = btnColor;
+  const offerBorderRadius = od.borderRadius ?? 10;
+  const offerBorderStyle = od.borderStyle || od.border_style || 'solid';
+  const offerBorderSel = od.borderColorSelected || accentColor;
+  const offerBorderUnsel = od.borderColorUnselected || '#E5E7EB';
+  const offerBgSel = od.bgColorSelected || `${accentColor}08`;
+  const offerBgUnsel = od.bgColorUnselected || '#ffffff';
+  const offerRadioColor = od.radioColor || accentColor;
+  const offerBadgeBg = od.badgeBg || accentColor;
+  const offerBadgeTextColor = od.badgeTextColor || '#ffffff';
+  const offerBadgeRadius = od.badgeRadius ?? 20;
+  const offerBadgeFontSize = od.badgeFontSize ?? 10;
+  const offerBadgeStyle = od.badgeStyle || 'pill';
+  const offerLabelGradient = od.labelGradient || od.badgeBg || accentColor;
+  const offerLabelTextColor = od.labelTextColor || od.badgeTextColor || '#ffffff';
+  const offerLabelFontSize = od.labelFontSize ?? 11;
+  const offerLabelStyle = od.labelStyle || 'banner';
+  const offerPriceColor = od.priceColor || accentColor;
+  const offerPriceFontSize = od.priceFontSize ?? 14;
+  const offerPriceFontWeight = od.priceFontWeight === 'black' ? 900 : od.priceFontWeight === 'normal' ? 400 : 800;
+  const offerTitleColor = od.titleTextColor || '#111827';
+  const offerTitleFontSize = od.titleFontSize ?? 14;
+  const offerTitleFontWeight = od.titleFontWeight === 'black' ? 900 : od.titleFontWeight === 'normal' ? 400 : 700;
+  const offerCompareColor = od.compareColor || '#9CA3AF';
+  const offerDiscBg = od.discountBg || '#FEE2E2';
+  const offerDiscText = od.discountTextColor || '#EF4444';
+  const offerSectionLabel = od.sectionLabel || 'Choisissez votre offre';
+  const offerDisplayType = od.displayType || 'radio';
   const urgencyConfig = {
     ...(defaultConfig.urgency || {}),
     ...(design.showCountdown ? {
@@ -67,9 +100,20 @@ const EmbeddedOrderForm = ({ product, subdomain, store, pixels, productPageConfi
     ...(productPageConfig?.urgency || {}),
   };
   const callScheduleConfig = productPageConfig?.callSchedule || defaultConfig.callSchedule || {};
+
   const textColor = design.formTextColor || '#111827';
-  const inputTextColor = '#111827';
+  const inputTextColor = design.fieldTextColor || '#111827';
   const borderRadius = design.formInputRadius || '12px';
+  const formBgResolved = design.formBgColor || '#ffffff';
+  const formShadowVal = parseInt(design.formShadow) || 0;
+  const formBoxShadow = formShadowVal > 0
+    ? `0 ${formShadowVal}px ${formShadowVal * 2}px rgba(0,0,0,${Math.min(0.06 + formShadowVal * 0.015, 0.45).toFixed(2)})`
+    : 'none';
+  const inputBorderColor = design.fieldBorderColor || design.formBorderColor || '#E5E7EB';
+  const inputBgColor = design.fieldBgColor || '#ffffff';
+  const labelColorResolved = design.fieldIconColor || '#9CA3AF';
+  const effectiveBtnColor = btnColor;
+
   const showQuantitySelector = design.showQuantitySelector !== false;
 
   const configFields = formConfig.fields || [];
@@ -143,11 +187,10 @@ const EmbeddedOrderForm = ({ product, subdomain, store, pixels, productPageConfi
   }, [subdomain]);
 
   useEffect(() => {
+    if (phoneCodeUserSet.current) return;
     const defaultPhoneCode = getDefaultPhoneCodeFromConfig(formCountries, store?.currency);
-    if (defaultPhoneCode && defaultPhoneCode !== phoneCode && !form.phone.trim()) {
-      setPhoneCode(defaultPhoneCode);
-    }
-  }, [formCountries, store?.currency, phoneCode, form.phone]);
+    if (defaultPhoneCode) setPhoneCode(defaultPhoneCode);
+  }, [formCountries, store?.currency]);
 
   useEffect(() => {
     const countryField = effectiveFields.find((field) => field.enabled !== false && field.type === 'country');
@@ -160,11 +203,10 @@ const EmbeddedOrderForm = ({ product, subdomain, store, pixels, productPageConfi
   }, [effectiveFields, selectedCountry]);
 
   useEffect(() => {
+    if (phoneCodeUserSet.current) return;
     const nextPhoneCode = getPhoneCodeByCountryName(selectedCountry);
-    if (nextPhoneCode && nextPhoneCode !== phoneCode) {
-      setPhoneCode(nextPhoneCode);
-    }
-  }, [selectedCountry, phoneCode]);
+    if (nextPhoneCode) setPhoneCode(nextPhoneCode);
+  }, [selectedCountry]);
 
   const availablePhoneCodes = useMemo(() => {
     if (!formCountries.length) return PHONE_CODES;
@@ -176,6 +218,7 @@ const EmbeddedOrderForm = ({ product, subdomain, store, pixels, productPageConfi
 
   useEffect(() => {
     if (availablePhoneCodes.length > 0 && !availablePhoneCodes.find(c => c.code === phoneCode)) {
+      phoneCodeUserSet.current = false;
       setPhoneCode(availablePhoneCodes[0].code);
     }
   }, [availablePhoneCodes, phoneCode]);
@@ -394,13 +437,11 @@ const EmbeddedOrderForm = ({ product, subdomain, store, pixels, productPageConfi
     );
   }
 
-  const formBgColor = design.formBgColor || '#ffffff';
-
   // ── Inline form ──
   return (
-    <div style={{ borderRadius: 0, border: 'none', borderTop: `3px solid ${btnColor}`, padding: '24px 16px', backgroundColor: formBgColor }}>
+    <div style={{ borderRadius: design.formBorderRadius || 0, border: 'none', borderTop: `3px solid ${effectiveBtnColor}`, padding: '24px 16px', margin: '0 8px', backgroundColor: formBgResolved, boxShadow: formBoxShadow }}>
       <h3 style={{ fontSize: 16, fontWeight: 800, color: textColor, margin: '0 0 14px', display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'var(--s-font)' }}>
-        <ShoppingCart size={18} color={btnColor} /> {btnCfg.text || 'Commander maintenant'}
+        <ShoppingCart size={18} color={effectiveBtnColor} /> {btnCfg.text || 'Commander maintenant'}
       </h3>
 
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -423,11 +464,11 @@ const EmbeddedOrderForm = ({ product, subdomain, store, pixels, productPageConfi
                 ? (isMeaningfulPlaceholder(field.placeholder, [/adresse/i, /quartier/i, /rue/i]) ? field.placeholder : countryPlaceholders.address)
                 : (field.placeholder || field.label || '');
           const ph = basePlaceholder + (field.required !== false && !['product_info', 'shipping', 'cta_button'].includes(field.type) ? ' *' : '');
-          const fIconColor = field.iconColor || '#9CA3AF';
+          const fIconColor = field.iconColor || labelColorResolved;
           const iconStyle = { position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: fIconColor, display: 'flex', pointerEvents: 'none' };
           const inputPadLeft = IconComp ? '34px' : '14px';
-          const fieldBorderColor = field.borderColor || '#E5E7EB';
-          const fieldBgColor = field.bgColor || '#fff';
+          const fieldBorderColor = field.borderColor || inputBorderColor;
+          const fieldBgColor = field.bgColor || inputBgColor;
           const fieldTxtColor = field.textColor || inputTextColor;
           const inputStyle = { width: '100%', padding: `11px 14px 11px ${inputPadLeft}`, borderRadius, border: `1.5px solid ${fieldBorderColor}`, fontSize: 14, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', color: fieldTxtColor, backgroundColor: fieldBgColor, transition: 'border-color 0.15s' };
 
@@ -435,31 +476,120 @@ const EmbeddedOrderForm = ({ product, subdomain, store, pixels, productPageConfi
             case 'product_info':
               return (
                 <div key={field.name}>
-                  <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 5 }}>
-                    {offersEnabled ? 'Choisissez votre offre' : 'Quantité'}
+                  <label style={{ fontSize: 12, fontWeight: 600, color: labelColorResolved, display: 'block', marginBottom: 5 }}>
+                    {offersEnabled ? offerSectionLabel : 'Quantité'}
                   </label>
                   {offersEnabled ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                    <div style={offerDisplayType === 'grid' ? { display: 'grid', gridTemplateColumns: `repeat(${offers.length}, 1fr)`, gap: 6 } : { display: 'flex', flexDirection: 'column', gap: 5 }}>
                       {offers.map((offer, i) => {
                         const displayPrice = offer.price > 0 ? offer.price : (product?.price || 0) * (offer.qty || 1);
                         const displayCompare = offer.comparePrice > 0 ? offer.comparePrice : 0;
                         const disc = displayCompare > displayPrice && displayPrice > 0 ? Math.round((1 - displayPrice / displayCompare) * 100) : 0;
                         const sel = selectedOfferIdx === i;
-                        return (
-                          <div key={i} onClick={() => { setSelectedOfferIdx(i); set('quantity', offer.qty); }}
-                            style={{ padding: '10px 12px', borderRadius: 10, cursor: 'pointer', borderWidth: sel ? 2 : 1.5, borderStyle: offerBorderStyle === 'flat' ? 'solid' : offerBorderStyle, borderColor: sel ? btnColor : '#E5E7EB', backgroundColor: sel ? `${btnColor}08` : '#fff', display: 'flex', alignItems: 'center', gap: 10, transition: 'all 0.15s ease' }}>
-                            <div style={{ width: 16, height: 16, borderRadius: '50%', border: sel ? `4px solid ${btnColor}` : '2px solid #D1D5DB', flexShrink: 0 }} />
-                            <div style={{ flex: 1 }}>
-                              <div style={{ fontSize: 13, fontWeight: 700, color: '#111827', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                                {offer.qty} {offer.qty === 1 ? 'unité' : 'unités'}
-                                {offer.badge && <span style={{ fontSize: 9, fontWeight: 700, color: '#fff', backgroundColor: btnColor, padding: '1px 6px', borderRadius: 20 }}>{offer.badge}</span>}
+                        const badgeRad = offerBadgeStyle === 'square' ? 4 : 20;
+                        const renderDiscLabel = () => {
+                          if (!disc) return null;
+                          const txt = `-${disc}%`;
+                          if (offerLabelStyle === 'underline') return <span style={{ color: offerLabelTextColor, fontSize: offerLabelFontSize, fontWeight: 700, textDecoration: 'underline' }}>{txt}</span>;
+                          if (offerLabelStyle === 'chip') return <span style={{ background: offerLabelGradient, color: offerLabelTextColor, fontSize: offerLabelFontSize, fontWeight: 700, padding: '1px 5px', borderRadius: 20 }}>{txt}</span>;
+                          return <span style={{ background: offerLabelGradient, color: offerLabelTextColor, fontSize: offerLabelFontSize, fontWeight: 700, padding: '1px 6px', borderRadius: 6 }}>{txt}</span>;
+                        };
+
+                        // ── Grille (colonnes) ──
+                        if (offerDisplayType === 'grid') {
+                          return (
+                            <div key={i} onClick={() => { setSelectedOfferIdx(i); set('quantity', offer.qty); }}
+                              style={{ borderRadius: offerBorderRadius, cursor: 'pointer', borderWidth: sel ? 2 : 1.5, borderStyle: 'solid', borderColor: sel ? offerBorderSel : offerBorderUnsel, backgroundColor: sel ? offerBgSel : offerBgUnsel, display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '10px 8px 12px', gap: 5, position: 'relative', overflow: 'hidden', transition: 'all 0.15s ease' }}>
+                              {offer.badge && (
+                                <div style={{ position: 'absolute', top: 0, left: 0, right: 0, textAlign: 'center', background: offerBadgeBg, color: offerBadgeTextColor, fontSize: offerBadgeFontSize, fontWeight: 700, padding: '2px 0' }}>{offer.badge}</div>
+                              )}
+                              <div style={{ width: 56, height: 56, borderRadius: 8, overflow: 'hidden', backgroundColor: '#F3F4F6', display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: offer.badge ? 14 : 0 }}>
+                                {getImgSrc(product?.images?.[0])
+                                  ? <img src={getImgSrc(product.images[0])} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                  : <Package size={22} color="#D1D5DB" />
+                                }
                               </div>
-                              <div style={{ display: 'flex', alignItems: 'baseline', gap: 5, marginTop: 2 }}>
-                                <span style={{ fontSize: 14, fontWeight: 800, color: btnColor }}>{fmt(displayPrice, currency)}</span>
-                                {disc > 0 && (<>
-                                  <span style={{ fontSize: 11, color: '#9CA3AF', textDecoration: 'line-through' }}>{fmt(displayCompare, currency)}</span>
-                                  <span style={{ fontSize: 10, fontWeight: 700, color: '#EF4444', backgroundColor: '#FEE2E2', padding: '1px 5px', borderRadius: 10 }}>-{disc}%</span>
-                                </>)}
+                              <div style={{ fontSize: offerTitleFontSize - 1, fontWeight: offerTitleFontWeight, color: offerTitleColor, textAlign: 'center' }}>
+                                {offer.qty} {offer.qty === 1 ? 'unité' : 'unités'}
+                              </div>
+                              {disc > 0 && (
+                                <div style={{ background: offerDiscBg, padding: '2px 8px', borderRadius: 20 }}>
+                                  <span style={{ fontSize: 9, fontWeight: 700, color: offerDiscText }}>Économisez {disc}%</span>
+                                </div>
+                              )}
+                              <div style={{ textAlign: 'center' }}>
+                                <div style={{ fontSize: offerPriceFontSize - 1, fontWeight: offerPriceFontWeight, color: offerPriceColor }}>{fmt(displayPrice, currency)}</div>
+                                {displayCompare > displayPrice && displayPrice > 0 && (
+                                  <div style={{ fontSize: 10, color: offerCompareColor, textDecoration: 'line-through' }}>{fmt(displayCompare, currency)}</div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        }
+
+                        // ── Image + texte (liste) ──
+                        if (offerDisplayType === 'image-row') {
+                          return (
+                            <div key={i} onClick={() => { setSelectedOfferIdx(i); set('quantity', offer.qty); }}
+                              style={{ padding: '10px 12px', borderRadius: offerBorderRadius, cursor: 'pointer', borderWidth: sel ? 2 : 1.5, borderStyle: 'solid', borderColor: sel ? offerBorderSel : offerBorderUnsel, backgroundColor: sel ? offerBgSel : offerBgUnsel, display: 'flex', alignItems: 'center', gap: 10, transition: 'all 0.15s ease' }}>
+                              <div style={{ width: 52, height: 52, borderRadius: 8, overflow: 'hidden', flexShrink: 0, backgroundColor: '#F3F4F6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                {getImgSrc(product?.images?.[0])
+                                  ? <img src={getImgSrc(product.images[0])} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                  : <Package size={22} color="#D1D5DB" />
+                                }
+                              </div>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ fontSize: offerTitleFontSize, fontWeight: offerTitleFontWeight, color: offerTitleColor }}>
+                                  {offer.qty} {offer.qty === 1 ? 'unité' : 'unités'}
+                                </div>
+                                {disc > 0 && (
+                                  <div style={{ display: 'inline-flex', alignItems: 'center', background: offerDiscBg, padding: '1px 7px', borderRadius: 20, marginTop: 2 }}>
+                                    <span style={{ fontSize: 10, fontWeight: 700, color: offerDiscText }}>Économisez {disc}%</span>
+                                  </div>
+                                )}
+                                <div style={{ display: 'flex', alignItems: 'baseline', gap: 5, marginTop: 3, flexWrap: 'wrap' }}>
+                                  <span style={{ fontSize: offerPriceFontSize, fontWeight: offerPriceFontWeight, color: offerPriceColor }}>{fmt(displayPrice, currency)}</span>
+                                  {displayCompare > displayPrice && displayPrice > 0 && (
+                                    <span style={{ fontSize: 11, color: offerCompareColor, textDecoration: 'line-through' }}>{fmt(displayCompare, currency)}</span>
+                                  )}
+                                </div>
+                              </div>
+                              {offer.badge && (
+                                <div style={{ flexShrink: 0, fontSize: offerBadgeFontSize, fontWeight: 700, color: offerBadgeTextColor, backgroundColor: offerBadgeBg, padding: '2px 7px', borderRadius: offerBadgeRadius, whiteSpace: 'nowrap' }}>
+                                  {offer.badge}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        }
+
+                        // ── Radio classique (défaut) ──
+                        return (
+                          <div key={i} style={{ position: 'relative', overflow: offerBadgeStyle === 'ribbon' ? 'hidden' : 'visible' }}>
+                            {offer.badge && offerBadgeStyle !== 'ribbon' && (
+                              <div style={{ position: 'absolute', top: -8, right: 8, background: offerBadgeBg, color: offerBadgeTextColor, fontSize: offerBadgeFontSize, fontWeight: 700, padding: '1px 7px', borderRadius: badgeRad, zIndex: 2, whiteSpace: 'nowrap' }}>
+                                {offer.badge}
+                              </div>
+                            )}
+                            {offer.badge && offerBadgeStyle === 'ribbon' && (
+                              <div style={{ position: 'absolute', top: 0, right: 0, width: 48, height: 48, overflow: 'hidden', zIndex: 2 }}>
+                                <div style={{ position: 'absolute', top: 9, right: -13, width: 65, textAlign: 'center', transform: 'rotate(45deg)', background: offerBadgeBg, color: offerBadgeTextColor, fontSize: offerBadgeFontSize, fontWeight: 700, padding: '2px 0' }}>{offer.badge}</div>
+                              </div>
+                            )}
+                            <div onClick={() => { setSelectedOfferIdx(i); set('quantity', offer.qty); }}
+                              style={{ padding: '10px 12px', borderRadius: offerBorderRadius, cursor: 'pointer', borderWidth: sel ? 2 : 1.5, borderStyle: offerBorderStyle === 'flat' ? 'solid' : offerBorderStyle, borderColor: sel ? offerBorderSel : offerBorderUnsel, backgroundColor: sel ? offerBgSel : offerBgUnsel, display: 'flex', alignItems: 'center', gap: 10, transition: 'all 0.15s ease' }}>
+                              <div style={{ width: 16, height: 16, borderRadius: '50%', border: sel ? `4px solid ${offerRadioColor}` : '2px solid #D1D5DB', flexShrink: 0 }} />
+                              <div style={{ flex: 1 }}>
+                                <div style={{ fontSize: offerTitleFontSize, fontWeight: offerTitleFontWeight, color: offerTitleColor }}>
+                                  {offer.qty} {offer.qty === 1 ? 'unité' : 'unités'}
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'baseline', gap: 5, marginTop: 2, flexWrap: 'wrap' }}>
+                                  <span style={{ fontSize: offerPriceFontSize, fontWeight: offerPriceFontWeight, color: offerPriceColor }}>{fmt(displayPrice, currency)}</span>
+                                  {displayCompare > displayPrice && displayPrice > 0 && (
+                                    <span style={{ fontSize: 11, color: offerCompareColor, textDecoration: 'line-through' }}>{fmt(displayCompare, currency)}</span>
+                                  )}
+                                  {renderDiscLabel()}
+                                </div>
                               </div>
                             </div>
                           </div>
@@ -467,20 +597,20 @@ const EmbeddedOrderForm = ({ product, subdomain, store, pixels, productPageConfi
                       })}
                     </div>
                   ) : !showQuantitySelector ? (
-                    <div style={{ padding: '11px 14px', borderRadius, border: '1.5px solid #E5E7EB', backgroundColor: '#fff', color: '#374151', fontSize: 14, fontWeight: 600 }}>
+                    <div style={{ padding: '11px 14px', borderRadius, border: `1.5px solid ${inputBorderColor}`, backgroundColor: inputBgColor, color: inputTextColor, fontSize: 14, fontWeight: 600 }}>
                       1 unité
                     </div>
                   ) : useQuantityButtons ? (
                     <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                       {configQuantities.map(qty => (
-                        <button key={qty} type="button" onClick={() => set('quantity', qty)} style={{ padding: '7px 16px', borderRadius: 8, border: `1.5px solid ${form.quantity === qty ? btnColor : '#E5E7EB'}`, backgroundColor: form.quantity === qty ? btnColor : '#fff', color: form.quantity === qty ? '#fff' : '#374151', fontWeight: 700, fontSize: 14, cursor: 'pointer', transition: 'all 0.15s' }}>{qty}</button>
+                        <button key={qty} type="button" onClick={() => set('quantity', qty)} style={{ padding: '7px 16px', borderRadius: 8, border: `1.5px solid ${form.quantity === qty ? effectiveBtnColor : inputBorderColor}`, backgroundColor: form.quantity === qty ? effectiveBtnColor : inputBgColor, color: form.quantity === qty ? '#fff' : inputTextColor, fontWeight: 700, fontSize: 14, cursor: 'pointer', transition: 'all 0.15s' }}>{qty}</button>
                       ))}
                     </div>
                   ) : (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <button type="button" onClick={() => set('quantity', Math.max(1, form.quantity - 1))} style={{ width: 34, height: 34, borderRadius: 8, border: `1.5px solid ${btnColor}`, background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: btnColor }}><Minus size={14} /></button>
-                      <span style={{ fontSize: 15, fontWeight: 800, minWidth: 28, textAlign: 'center' }}>{form.quantity}</span>
-                      <button type="button" onClick={() => set('quantity', Math.min(product.stock || 99, form.quantity + 1))} style={{ width: 34, height: 34, borderRadius: 8, border: `1.5px solid ${btnColor}`, background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: btnColor }}><Plus size={14} /></button>
+                      <button type="button" onClick={() => set('quantity', Math.max(1, form.quantity - 1))} style={{ width: 34, height: 34, borderRadius: 8, border: `1.5px solid ${effectiveBtnColor}`, background: inputBgColor, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: effectiveBtnColor }}><Minus size={14} /></button>
+                      <span style={{ fontSize: 15, fontWeight: 800, minWidth: 28, textAlign: 'center', color: inputTextColor }}>{form.quantity}</span>
+                      <button type="button" onClick={() => set('quantity', Math.min(product.stock || 99, form.quantity + 1))} style={{ width: 34, height: 34, borderRadius: 8, border: `1.5px solid ${effectiveBtnColor}`, background: inputBgColor, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: effectiveBtnColor }}><Plus size={14} /></button>
                     </div>
                   )}
                 </div>
@@ -488,20 +618,23 @@ const EmbeddedOrderForm = ({ product, subdomain, store, pixels, productPageConfi
 
             case 'phone': {
               return (
-                <div key={field.name} style={{ display: 'flex', gap: 0 }}>
+                <div key={field.name}>
+                  {field.showLabel === true && field.label && <label style={{ fontSize: 12, fontWeight: 600, color: labelColorResolved, display: 'block', marginBottom: 4 }}>{field.label}</label>}
+                  <div style={{ display: 'flex', gap: 0 }}>
                   <div style={{ position: 'relative', flexShrink: 0 }}>
-                    <select value={phoneCode} onChange={e => setPhoneCode(e.target.value)}
-                      style={{ appearance: 'none', WebkitAppearance: 'none', padding: '11px 28px 11px 10px', borderRadius: `${borderRadius} 0 0 ${borderRadius}`, border: `1.5px solid ${fieldBorderColor}`, borderRight: 'none', backgroundColor: '#F9FAFB', fontSize: 13, fontWeight: 700, color: '#374151', cursor: 'pointer', outline: 'none', minWidth: 90 }}>
+                    <select value={phoneCode} onChange={e => { phoneCodeUserSet.current = true; setPhoneCode(e.target.value); setDisplayCurrency(getCurrencyByPhoneCode(e.target.value) || baseCurrency); }}
+                      style={{ appearance: 'none', WebkitAppearance: 'none', padding: '11px 28px 11px 10px', borderRadius: `${borderRadius} 0 0 ${borderRadius}`, border: `1.5px solid ${fieldBorderColor}`, borderRight: 'none', backgroundColor: inputBgColor, fontSize: 13, fontWeight: 700, color: inputTextColor, cursor: 'pointer', outline: 'none', minWidth: 90 }}>
                       {availablePhoneCodes.map(c => <option key={c.code} value={c.code}>{c.label}</option>)}
                     </select>
-                    <span style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: '#9CA3AF', display: 'flex' }}><ChevronDown size={13} /></span>
+                    <span style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: labelColorResolved, display: 'flex' }}><ChevronDown size={13} /></span>
                   </div>
                   <input type="tel" inputMode="tel" value={form[formKey] || ''}
                     onChange={e => set(formKey, e.target.value.replace(/[^0-9\s\-+()]/g, ''))}
                     placeholder={ph} required={field.required !== false}
                     style={{ ...inputStyle, paddingLeft: '14px', borderTopLeftRadius: 0, borderBottomLeftRadius: 0, borderLeft: 'none' }}
-                    onFocus={e => e.currentTarget.style.borderColor = btnColor}
-                    onBlur={e => e.currentTarget.style.borderColor = '#E5E7EB'} />
+                    onFocus={e => e.currentTarget.style.borderColor = effectiveBtnColor}
+                    onBlur={e => e.currentTarget.style.borderColor = fieldBorderColor} />
+                  </div>
                 </div>
               );
             }
@@ -513,13 +646,16 @@ const EmbeddedOrderForm = ({ product, subdomain, store, pixels, productPageConfi
               const inputType = { email: 'email', number: 'number', date: 'date' }[field.type] || 'text';
               const inputMode = field.type === 'email' ? 'email' : undefined;
               return (
-                <div key={field.name} style={{ position: 'relative' }}>
-                  {IconComp && <span style={iconStyle}><IconComp size={15} /></span>}
-                  <input type={inputType} value={form[formKey] || ''} onChange={e => set(formKey, e.target.value)}
-                    inputMode={inputMode} placeholder={ph} required={field.required !== false}
-                    style={inputStyle}
-                    onFocus={e => e.currentTarget.style.borderColor = btnColor}
-                    onBlur={e => e.currentTarget.style.borderColor = '#E5E7EB'} />
+                <div key={field.name}>
+                  {field.showLabel === true && field.label && <label style={{ fontSize: 12, fontWeight: 600, color: labelColorResolved, display: 'block', marginBottom: 4 }}>{field.label}</label>}
+                  <div style={{ position: 'relative' }}>
+                    {IconComp && <span style={iconStyle}><IconComp size={15} /></span>}
+                    <input type={inputType} value={form[formKey] || ''} onChange={e => set(formKey, e.target.value)}
+                      inputMode={inputMode} placeholder={ph} required={field.required !== false}
+                      style={inputStyle}
+                      onFocus={e => e.currentTarget.style.borderColor = effectiveBtnColor}
+                      onBlur={e => e.currentTarget.style.borderColor = fieldBorderColor} />
+                  </div>
                 </div>
               );
             }
@@ -527,50 +663,59 @@ const EmbeddedOrderForm = ({ product, subdomain, store, pixels, productPageConfi
             case 'city_select': {
               const showCitySelect = deliveryZoneOptions.length > 0 || (field.cityAuto !== false && cityOptions.length > 0);
               return (
-                <div key={field.name} style={{ position: 'relative' }}>
+                <div key={field.name}>
+                  {field.showLabel === true && field.label && <label style={{ fontSize: 12, fontWeight: 600, color: labelColorResolved, display: 'block', marginBottom: 4 }}>{field.label}</label>}
+                  <div style={{ position: 'relative' }}>
                   {IconComp && <span style={iconStyle}><IconComp size={15} /></span>}
                   {showCitySelect && cityOptions.length > 0 ? (<>
                     <select value={form[formKey] || ''} onChange={e => set(formKey, e.target.value)} required={field.required !== false}
-                      style={{ ...inputStyle, paddingRight: 32, appearance: 'none', WebkitAppearance: 'none', cursor: 'pointer', color: form[formKey] ? inputTextColor : '#9CA3AF' }}
-                      onFocus={e => e.currentTarget.style.borderColor = btnColor}
-                      onBlur={e => e.currentTarget.style.borderColor = '#E5E7EB'}>
+                      style={{ ...inputStyle, paddingRight: 32, appearance: 'none', WebkitAppearance: 'none', cursor: 'pointer', color: form[formKey] ? inputTextColor : labelColorResolved }}
+                      onFocus={e => e.currentTarget.style.borderColor = effectiveBtnColor}
+                      onBlur={e => e.currentTarget.style.borderColor = fieldBorderColor}>
                       <option value="" disabled>{ph}</option>
                       {cityOptions.map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
-                    <span style={{ position: 'absolute', right: 11, top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF', display: 'flex', pointerEvents: 'none' }}><ChevronDown size={15} /></span>
+                    <span style={{ position: 'absolute', right: 11, top: '50%', transform: 'translateY(-50%)', color: labelColorResolved, display: 'flex', pointerEvents: 'none' }}><ChevronDown size={15} /></span>
                   </>) : (
                     <input type="text" value={form[formKey] || ''} onChange={e => set(formKey, e.target.value)}
                       placeholder={ph} required={field.required !== false}
                       style={inputStyle}
-                      onFocus={e => e.currentTarget.style.borderColor = btnColor}
-                      onBlur={e => e.currentTarget.style.borderColor = '#E5E7EB'} />
+                      onFocus={e => e.currentTarget.style.borderColor = effectiveBtnColor}
+                      onBlur={e => e.currentTarget.style.borderColor = fieldBorderColor} />
                   )}
+                  </div>
                 </div>
               );
             }
 
             case 'textarea':
               return (
-                <textarea key={field.name} value={form[formKey] || ''} onChange={e => set(formKey, e.target.value)}
-                  placeholder={ph} rows={2}
-                  style={{ width: '100%', padding: '11px 14px', borderRadius, border: `1.5px solid ${fieldBorderColor}`, fontSize: 14, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', color: fieldTxtColor, backgroundColor: fieldBgColor, resize: 'none', transition: 'border-color 0.15s' }}
-                  onFocus={e => e.currentTarget.style.borderColor = btnColor}
-                  onBlur={e => e.currentTarget.style.borderColor = fieldBorderColor} />
+                <div key={field.name}>
+                  {field.showLabel === true && field.label && <label style={{ fontSize: 12, fontWeight: 600, color: labelColorResolved, display: 'block', marginBottom: 4 }}>{field.label}</label>}
+                  <textarea value={form[formKey] || ''} onChange={e => set(formKey, e.target.value)}
+                    placeholder={ph} rows={2}
+                    style={{ width: '100%', padding: '11px 14px', borderRadius, border: `1.5px solid ${fieldBorderColor}`, fontSize: 14, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', color: fieldTxtColor, backgroundColor: fieldBgColor, resize: 'none', transition: 'border-color 0.15s' }}
+                    onFocus={e => e.currentTarget.style.borderColor = effectiveBtnColor}
+                    onBlur={e => e.currentTarget.style.borderColor = fieldBorderColor} />
+                </div>
               );
 
             case 'select': {
               const options = field.options || [];
               return (
-                <div key={field.name} style={{ position: 'relative' }}>
-                  {IconComp && <span style={iconStyle}><IconComp size={15} /></span>}
-                  <select value={form[formKey] || ''} onChange={e => set(formKey, e.target.value)} required={field.required !== false}
-                    style={{ ...inputStyle, paddingRight: 32, appearance: 'none', WebkitAppearance: 'none', cursor: 'pointer', color: form[formKey] ? inputTextColor : '#9CA3AF' }}
-                    onFocus={e => e.currentTarget.style.borderColor = btnColor}
-                    onBlur={e => e.currentTarget.style.borderColor = '#E5E7EB'}>
-                    <option value="" disabled>{ph}</option>
-                    {options.map(o => <option key={o} value={o}>{o}</option>)}
-                  </select>
-                  <span style={{ position: 'absolute', right: 11, top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF', display: 'flex', pointerEvents: 'none' }}><ChevronDown size={15} /></span>
+                <div key={field.name}>
+                  {field.showLabel === true && field.label && <label style={{ fontSize: 12, fontWeight: 600, color: labelColorResolved, display: 'block', marginBottom: 4 }}>{field.label}</label>}
+                  <div style={{ position: 'relative' }}>
+                    {IconComp && <span style={iconStyle}><IconComp size={15} /></span>}
+                    <select value={form[formKey] || ''} onChange={e => set(formKey, e.target.value)} required={field.required !== false}
+                      style={{ ...inputStyle, paddingRight: 32, appearance: 'none', WebkitAppearance: 'none', cursor: 'pointer', color: form[formKey] ? inputTextColor : labelColorResolved }}
+                      onFocus={e => e.currentTarget.style.borderColor = effectiveBtnColor}
+                      onBlur={e => e.currentTarget.style.borderColor = fieldBorderColor}>
+                      <option value="" disabled>{ph}</option>
+                      {options.map(o => <option key={o} value={o}>{o}</option>)}
+                    </select>
+                    <span style={{ position: 'absolute', right: 11, top: '50%', transform: 'translateY(-50%)', color: labelColorResolved, display: 'flex', pointerEvents: 'none' }}><ChevronDown size={15} /></span>
+                  </div>
                 </div>
               );
             }
@@ -599,7 +744,7 @@ const EmbeddedOrderForm = ({ product, subdomain, store, pixels, productPageConfi
                 : 0;
               const displaySecs = fieldTotal > 0 ? fieldTotal : countdownSecs;
               const showCd = (urgencyConfig.countdown || (field.showCountdown !== false && fieldTotal > 0)) && displaySecs != null;
-              const urgBg = field.urgencyBgColor || btnColor;
+              const urgBg = field.urgencyBgColor || effectiveBtnColor;
               const urgColor = field.urgencyTextColor || '#fff';
               const urgRadius = field.urgencyRadius || '12px';
               const urgStyle = field.urgencyStyle || 'banner';
@@ -726,7 +871,7 @@ const EmbeddedOrderForm = ({ product, subdomain, store, pixels, productPageConfi
             case 'radio':
               return (
                 <div key={field.name} style={{ display: 'flex', flexDirection: 'column', gap: 6, paddingTop: 4 }}>
-                  {field.showLabel !== false && <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: textColor }}>{field.label}</p>}
+                  {design.showFieldLabels !== false && field.showLabel !== false && <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: textColor }}>{field.label}</p>}
                   {(field.options || []).map((opt, j) => (
                     <label key={j} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: textColor, cursor: 'pointer' }}>
                       <input type="radio" name={field.name} value={opt}
@@ -742,7 +887,7 @@ const EmbeddedOrderForm = ({ product, subdomain, store, pixels, productPageConfi
             case 'checkbox':
               return (
                 <div key={field.name} style={{ display: 'flex', flexDirection: 'column', gap: 6, paddingTop: 4 }}>
-                  {field.showLabel !== false && <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: textColor }}>{field.label}</p>}
+                  {design.showFieldLabels !== false && field.showLabel !== false && <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: textColor }}>{field.label}</p>}
                   {(field.options || []).map((opt, j) => (
                     <label key={j} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: textColor, cursor: 'pointer' }}>
                       <input type="checkbox" checked={(form[field.name] || []).includes(opt)}
@@ -759,40 +904,46 @@ const EmbeddedOrderForm = ({ product, subdomain, store, pixels, productPageConfi
 
             case 'address':
               return (
-                <div key={field.name} style={{ position: 'relative' }}>
-                  {field.showIcon !== false && <span style={iconStyle}><MapPin size={15} /></span>}
-                  <input type="text" placeholder={ph} value={form[field.name] || ''}
-                    onChange={e => set(field.name, e.target.value)}
-                    style={inputStyle}
-                    onFocus={e => e.currentTarget.style.borderColor = btnColor}
-                    onBlur={e => e.currentTarget.style.borderColor = '#E5E7EB'} />
+                <div key={field.name}>
+                  {field.showLabel === true && field.label && <label style={{ fontSize: 12, fontWeight: 600, color: labelColorResolved, display: 'block', marginBottom: 4 }}>{field.label}</label>}
+                  <div style={{ position: 'relative' }}>
+                    {field.showIcon !== false && <span style={iconStyle}><MapPin size={15} /></span>}
+                    <input type="text" placeholder={ph} value={form[field.name] || ''}
+                      onChange={e => set(field.name, e.target.value)}
+                      style={inputStyle}
+                      onFocus={e => e.currentTarget.style.borderColor = effectiveBtnColor}
+                      onBlur={e => e.currentTarget.style.borderColor = fieldBorderColor} />
+                  </div>
                 </div>
               );
 
             case 'country':
               return (
-                <div key={field.name} style={{ position: 'relative' }}>
-                  {field.showIcon !== false && <span style={iconStyle}><Globe size={15} /></span>}
-                  {formCountries.length > 0 ? (
-                    <>
-                      <select value={form[field.name] || selectedCountry || ''} onChange={e => set(field.name, e.target.value)}
-                        style={{ ...inputStyle, paddingRight: 32, appearance: 'none', WebkitAppearance: 'none', cursor: 'pointer', color: (form[field.name] || selectedCountry) ? inputTextColor : '#9CA3AF' }}
-                        onFocus={e => e.currentTarget.style.borderColor = btnColor}
-                        onBlur={e => e.currentTarget.style.borderColor = '#E5E7EB'}>
-                        <option value="" disabled>{ph}</option>
-                        {formCountries.map((countryName) => (
-                          <option key={countryName} value={countryName}>{countryName}</option>
-                        ))}
-                      </select>
-                      <span style={{ position: 'absolute', right: 11, top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF', display: 'flex', pointerEvents: 'none' }}><ChevronDown size={15} /></span>
-                    </>
-                  ) : (
-                    <input type="text" placeholder={ph} value={form[field.name] || selectedCountry || ''}
-                      onChange={e => set(field.name, e.target.value)}
-                      style={inputStyle}
-                      onFocus={e => e.currentTarget.style.borderColor = btnColor}
-                      onBlur={e => e.currentTarget.style.borderColor = '#E5E7EB'} />
-                  )}
+                <div key={field.name}>
+                  {field.showLabel === true && field.label && <label style={{ fontSize: 12, fontWeight: 600, color: labelColorResolved, display: 'block', marginBottom: 4 }}>{field.label}</label>}
+                  <div style={{ position: 'relative' }}>
+                    {field.showIcon !== false && <span style={iconStyle}><Globe size={15} /></span>}
+                    {formCountries.length > 0 ? (
+                      <>
+                        <select value={form[field.name] || selectedCountry || ''} onChange={e => set(field.name, e.target.value)}
+                          style={{ ...inputStyle, paddingRight: 32, appearance: 'none', WebkitAppearance: 'none', cursor: 'pointer', color: (form[field.name] || selectedCountry) ? inputTextColor : labelColorResolved }}
+                          onFocus={e => e.currentTarget.style.borderColor = effectiveBtnColor}
+                          onBlur={e => e.currentTarget.style.borderColor = fieldBorderColor}>
+                          <option value="" disabled>{ph}</option>
+                          {formCountries.map((countryName) => (
+                            <option key={countryName} value={countryName}>{countryName}</option>
+                          ))}
+                        </select>
+                        <span style={{ position: 'absolute', right: 11, top: '50%', transform: 'translateY(-50%)', color: labelColorResolved, display: 'flex', pointerEvents: 'none' }}><ChevronDown size={15} /></span>
+                      </>
+                    ) : (
+                      <input type="text" placeholder={ph} value={form[field.name] || selectedCountry || ''}
+                        onChange={e => set(field.name, e.target.value)}
+                        style={inputStyle}
+                        onFocus={e => e.currentTarget.style.borderColor = effectiveBtnColor}
+                        onBlur={e => e.currentTarget.style.borderColor = fieldBorderColor} />
+                    )}
+                  </div>
                 </div>
               );
 
@@ -800,7 +951,7 @@ const EmbeddedOrderForm = ({ product, subdomain, store, pixels, productPageConfi
               const testimonials = field.testimonials || [];
               return testimonials.length > 0 ? (
                 <div key={field.name} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {field.showLabel !== false && <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: textColor }}>{field.label}</p>}
+                  {design.showFieldLabels !== false && field.showLabel !== false && <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: textColor }}>{field.label}</p>}
                   <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4 }}>
                     {testimonials.map((t, ti) => (
                       <div key={ti} style={{ minWidth: 200, maxWidth: 220, flexShrink: 0, backgroundColor: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 12, padding: 12 }}>
@@ -839,42 +990,64 @@ const EmbeddedOrderForm = ({ product, subdomain, store, pixels, productPageConfi
 
             case 'cta_button': {
               const ctaLabel = (field.label || 'ACHETER MAINTENANT - {total}').replace('{total}', fmt(total, currency));
-              const CtaIcon = ICON_MAP[field.icon] || ShoppingCart;
-              const ctaBgColor = design.ctaButtonColor || btnColor;
-              const ctaTextColor = design.buttonTextColor || '#fff';
-              const ctaFontSize = parseInt(design.buttonFontSize) || 15;
-              const ctaFontWeight = design.buttonBold !== false ? 700 : 400;
-              const ctaFontStyle = design.buttonItalic ? 'italic' : 'normal';
+              const CtaIcon = getIconComponent(field.icon) || ICON_MAP[field.icon] || ShoppingCart;
+              // field.* takes priority → allows per-button customisation independent of design tab
+              const ctaBgColor = field.bgColor || design.ctaButtonColor || effectiveBtnColor;
+              const ctaTextColor = field.textColor || design.buttonTextColor || '#fff';
+              const ctaFontSize = field.fontSize || parseInt(design.buttonFontSize) || 15;
+              const ctaFontWeight = field.bold !== false && design.buttonBold !== false ? 700 : 400;
+              const ctaFontStyle = (field.italic || design.buttonItalic) ? 'italic' : 'normal';
+              const ctaBorderW = field.borderWidth ?? parseInt(design.buttonBorderWidth) ?? 0;
+              const ctaBorderColor = field.borderColor || design.buttonBorderColor || 'transparent';
+              const ctaRadius = `${field.borderRadius ?? parseInt(design.ctaBorderRadius) ?? 14}px`;
+              const ctaShadowVal = field.shadow ?? parseInt(design.buttonShadow) ?? 0;
+              const ctaShadow = submitting ? 'none'
+                : ctaShadowVal > 0
+                  ? `0 ${ctaShadowVal}px ${ctaShadowVal * 2}px rgba(0,0,0,${Math.min(ctaShadowVal * 0.06, 0.5).toFixed(2)})`
+                  : `0 4px 16px ${ctaBgColor}50`;
+              const hasCustomAnim = field.animation && field.animation !== 'none';
+              const ctaAnimClass = !submitting && hasCustomAnim ? getAnimationClass(field.animation) : '';
+              const ctaInlineAnim = !submitting && !hasCustomAnim
+                ? 'pulse 1.9s ease-in-out infinite, glow 1.9s ease-in-out infinite alternate'
+                : undefined;
               return (
                 <React.Fragment key={field.name}>
-                  <button type="submit" disabled={submitting} style={{
-                    width: '100%', padding: '15px 20px',
-                    borderRadius: design.formBorderRadius || borderRadius,
-                    border: design.formBorderWidth && parseInt(design.formBorderWidth) > 0
-                      ? `${design.formBorderWidth} solid ${design.formBorderColor || 'transparent'}`
-                      : 'none',
-                    backgroundColor: submitting ? '#9CA3AF' : ctaBgColor,
-                    boxShadow: design.formShadow && parseInt(design.formShadow) > 0
-                      ? `0 ${design.formShadow}px ${parseInt(design.formShadow)*2}px ${ctaBgColor}40`
-                      : 'none',
-                    color: ctaTextColor, fontWeight: ctaFontWeight, fontSize: ctaFontSize,
-                    fontStyle: ctaFontStyle, cursor: submitting ? 'not-allowed' : 'pointer',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                    transition: 'opacity 0.15s', fontFamily: 'inherit',
-                    animation: submitting ? 'none' : 'pulse 1.9s ease-in-out infinite, glow 1.9s ease-in-out infinite alternate',
-                    willChange: 'opacity, box-shadow',
-                  }}>
-                    {submitting
-                      ? <><Loader2 size={17} style={{ animation: 'spin 1s linear infinite' }} /> Traitement...</>
-                      : <>{field.showIcon !== false && <CtaIcon size={17} />} {ctaLabel}</>}
-                  </button>
-                  <style>{`
-                    @keyframes spin{to{transform:rotate(360deg)}}
-                    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.7}}
-                    @keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
-                    @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-3px)}75%{transform:translateX(3px)}}
-                    @keyframes glow{from{box-shadow:0 0 5px ${ctaBgColor}60}to{box-shadow:0 0 20px ${ctaBgColor}90}}
-                  `}</style>
+                  {hasCustomAnim && <style>{ANIMATION_CSS}</style>}
+                  <style>{`@keyframes spin{to{transform:rotate(360deg)}}@keyframes pulse{0%,100%{opacity:1}50%{opacity:.7}}@keyframes glow{from{box-shadow:0 0 5px ${ctaBgColor}60}to{box-shadow:0 0 20px ${ctaBgColor}90}}`}</style>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+                    <button type="submit" disabled={submitting}
+                      className={ctaAnimClass}
+                      style={{
+                        width: '100%', padding: '15px 20px',
+                        borderRadius: ctaRadius,
+                        border: ctaBorderW > 0 ? `${ctaBorderW}px solid ${ctaBorderColor}` : 'none',
+                        backgroundColor: submitting ? '#9CA3AF' : ctaBgColor,
+                        boxShadow: ctaShadow,
+                        color: ctaTextColor, fontWeight: ctaFontWeight, fontSize: ctaFontSize,
+                        fontStyle: ctaFontStyle, cursor: submitting ? 'not-allowed' : 'pointer',
+                        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2,
+                        transition: 'opacity 0.15s', fontFamily: 'inherit',
+                        animation: submitting ? 'none' : ctaInlineAnim,
+                        willChange: 'opacity, box-shadow',
+                      }}>
+                      {submitting ? (
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <Loader2 size={17} style={{ animation: 'spin 1s linear infinite' }} /> Traitement...
+                        </span>
+                      ) : (
+                        <>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            {field.showIcon !== false && <CtaIcon size={17} />} {ctaLabel}
+                          </span>
+                          {field.subtext && (
+                            <span style={{ fontSize: Math.max(10, ctaFontSize - 4), fontWeight: 500, opacity: 0.82 }}>
+                              {field.subtext}
+                            </span>
+                          )}
+                        </>
+                      )}
+                    </button>
+                  </div>
                 </React.Fragment>
               );
             }

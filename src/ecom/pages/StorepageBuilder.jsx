@@ -170,6 +170,101 @@ const SECTION_TYPES = {
       backgroundColor: 'transparent',
     },
   },
+  featured_collection: {
+    label: 'Collection vedette',
+    icon: <ShoppingBag className="w-4 h-4" />,
+    color: '#10b981',
+    category: 'E-commerce',
+    defaults: { title: 'Notre collection', subtitle: '', category: '', limit: 4, backgroundColor: '#ffffff' },
+  },
+  announcement_bar: {
+    label: "Barre d'annonces",
+    icon: <AlignCenter className="w-4 h-4" />,
+    color: '#f59e0b',
+    category: 'Marketing',
+    defaults: { text: '🚚 Livraison gratuite dès 15 000 FCFA — Paiement à la livraison', backgroundColor: '#1f2937', textColor: '#ffffff', link: '', linkText: '' },
+  },
+  rich_text: {
+    label: 'Texte enrichi',
+    icon: <Type className="w-4 h-4" />,
+    color: '#3b82f6',
+    category: 'Contenu',
+    defaults: { title: '', subtitle: '', content: '', alignment: 'center', backgroundColor: '#ffffff', textColor: '#111827' },
+  },
+  multicolumn: {
+    label: 'Multicolonne',
+    icon: <Layout className="w-4 h-4" />,
+    color: '#8b5cf6',
+    category: 'Contenu',
+    defaults: {
+      title: 'Nos avantages',
+      columns: 3,
+      backgroundColor: '#ffffff',
+      items: [
+        { icon: '🚚', title: 'Livraison rapide', text: '24h à 72h partout au pays' },
+        { icon: '💳', title: 'Paiement à la livraison', text: 'Payez en espèces à la réception' },
+        { icon: '🔒', title: 'Achat sécurisé', text: 'Vos données sont protégées' },
+      ],
+    },
+  },
+  icon_bar: {
+    label: 'Barre icônes',
+    icon: <Star className="w-4 h-4" />,
+    color: '#0891b2',
+    category: 'Marketing',
+    defaults: {
+      backgroundColor: '#f9fafb',
+      textColor: '#111827',
+      items: [
+        { icon: '🛡️', text: 'Qualité garantie' },
+        { icon: '🚚', text: 'Livraison rapide' },
+        { icon: '💬', text: 'Support 7j/7' },
+        { icon: '↩️', text: 'Retour facile' },
+      ],
+    },
+  },
+  before_after: {
+    label: 'Avant / Après',
+    icon: <Image className="w-4 h-4" />,
+    color: '#ec4899',
+    category: 'Contenu',
+    defaults: { title: 'Avant / Après', imageBefore: '', imageAfter: '', labelBefore: 'Avant', labelAfter: 'Après', backgroundColor: '#ffffff' },
+  },
+  video: {
+    label: 'Vidéo',
+    icon: <Zap className="w-4 h-4" />,
+    color: '#ef4444',
+    category: 'Contenu',
+    defaults: { title: '', videoUrl: '', poster: '', backgroundColor: '#000000' },
+  },
+  pricing_table: {
+    label: 'Tableau de prix',
+    icon: <Star className="w-4 h-4" />,
+    color: '#10b981',
+    category: 'E-commerce',
+    defaults: {
+      title: 'Nos offres',
+      backgroundColor: '#f9fafb',
+      items: [
+        { name: 'Starter', price: '5 000', currency: 'FCFA', period: '/mois', features: ['Feature 1', 'Feature 2'], cta: 'Choisir', highlight: false },
+        { name: 'Pro', price: '15 000', currency: 'FCFA', period: '/mois', features: ['Feature 1', 'Feature 2', 'Feature 3'], cta: 'Choisir', highlight: true },
+      ],
+    },
+  },
+  ticker: {
+    label: 'Ticker horizontal',
+    icon: <AlignCenter className="w-4 h-4" />,
+    color: '#6366f1',
+    category: 'Marketing',
+    defaults: { items: ['Livraison gratuite', 'Paiement à la livraison', 'Qualité garantie', 'Support 24/7'], backgroundColor: '#111827', textColor: '#ffffff', speed: 30 },
+  },
+  newsletter: {
+    label: 'Newsletter',
+    icon: <Phone className="w-4 h-4" />,
+    color: '#6366f1',
+    category: 'Marketing',
+    defaults: { title: 'Restez informé', subtitle: 'Recevez nos offres en exclusivité', placeholder: 'Votre email', buttonText: "S'inscrire", backgroundColor: '' },
+  },
 };
 
 const CATEGORIES = ['Marketing', 'E-commerce', 'Contenu', 'Social Proof', 'Support', 'Layout'];
@@ -788,6 +883,173 @@ function SectionEditor({ section, onChange }) {
         </div>
       );
 
+    case 'announcement_bar':
+      return (
+        <div className="space-y-4">
+          <FieldRow label="Texte"><input type="text" value={config.text || ''} onChange={(e) => set('text', e.target.value)} className={inputCls} /></FieldRow>
+          <FieldRow label="Lien (optionnel)"><input type="text" value={config.link || ''} onChange={(e) => set('link', e.target.value)} className={inputCls} placeholder="https://..." /></FieldRow>
+          <FieldRow label="Texte du lien"><input type="text" value={config.linkText || ''} onChange={(e) => set('linkText', e.target.value)} className={inputCls} /></FieldRow>
+          <ColorField label="Fond" value={config.backgroundColor} onChange={(v) => set('backgroundColor', v)} />
+          <ColorField label="Texte" value={config.textColor} onChange={(v) => set('textColor', v)} />
+        </div>
+      );
+
+    case 'rich_text':
+      return (
+        <div className="space-y-4">
+          <FieldRow label="Titre"><input type="text" value={config.title || ''} onChange={(e) => set('title', e.target.value)} className={inputCls} /></FieldRow>
+          <FieldRow label="Sous-titre"><input type="text" value={config.subtitle || ''} onChange={(e) => set('subtitle', e.target.value)} className={inputCls} /></FieldRow>
+          <FieldRow label="Contenu"><textarea value={config.content || ''} onChange={(e) => set('content', e.target.value)} rows={6} className={textareaCls} /></FieldRow>
+          <FieldRow label="Alignement"><AlignPicker value={config.alignment || 'center'} onChange={(v) => set('alignment', v)} /></FieldRow>
+          <ColorField label="Fond" value={config.backgroundColor} onChange={(v) => set('backgroundColor', v)} />
+          <ColorField label="Texte" value={config.textColor} onChange={(v) => set('textColor', v)} />
+        </div>
+      );
+
+    case 'featured_collection':
+      return (
+        <div className="space-y-4">
+          <FieldRow label="Titre"><input type="text" value={config.title || ''} onChange={(e) => set('title', e.target.value)} className={inputCls} /></FieldRow>
+          <FieldRow label="Sous-titre"><input type="text" value={config.subtitle || ''} onChange={(e) => set('subtitle', e.target.value)} className={inputCls} /></FieldRow>
+          <FieldRow label="Catégorie (laisser vide = tous)"><input type="text" value={config.category || ''} onChange={(e) => set('category', e.target.value)} className={inputCls} placeholder="ex: robes" /></FieldRow>
+          <FieldRow label={`Nombre de produits : ${config.limit || 4}`}>
+            <input type="range" min={2} max={12} value={config.limit || 4} onChange={(e) => set('limit', Number(e.target.value))} className="w-full" />
+          </FieldRow>
+          <ColorField label="Fond" value={config.backgroundColor} onChange={(v) => set('backgroundColor', v)} />
+        </div>
+      );
+
+    case 'multicolumn':
+      return (
+        <div className="space-y-4">
+          <FieldRow label="Titre"><input type="text" value={config.title || ''} onChange={(e) => set('title', e.target.value)} className={inputCls} /></FieldRow>
+          <FieldRow label="Colonnes">
+            <div className="flex gap-2">
+              {[2, 3, 4].map((n) => (
+                <button key={n} onClick={() => set('columns', n)} className={`flex-1 py-2 text-xs rounded border font-medium transition ${config.columns === n ? 'bg-indigo-600 text-white border-indigo-600' : 'border-gray-200 text-gray-600'}`}>{n}</button>
+              ))}
+            </div>
+          </FieldRow>
+          <ColorField label="Fond" value={config.backgroundColor} onChange={(v) => set('backgroundColor', v)} />
+          <FieldRow label="Éléments">
+            <div className="space-y-3">
+              {(config.items || []).map((item, i) => (
+                <div key={i} className="p-3 bg-gray-50 rounded-lg border border-gray-200 space-y-2">
+                  <input type="text" value={item.icon || ''} onChange={(e) => { const items = [...(config.items || [])]; items[i] = { ...items[i], icon: e.target.value }; set('items', items); }} className={inputCls} placeholder="Emoji ou icône" />
+                  <input type="text" value={item.title || ''} onChange={(e) => { const items = [...(config.items || [])]; items[i] = { ...items[i], title: e.target.value }; set('items', items); }} className={inputCls} placeholder="Titre" />
+                  <input type="text" value={item.text || ''} onChange={(e) => { const items = [...(config.items || [])]; items[i] = { ...items[i], text: e.target.value }; set('items', items); }} className={inputCls} placeholder="Description" />
+                  <button onClick={() => { const items = (config.items || []).filter((_, j) => j !== i); set('items', items); }} className="text-xs text-red-500 hover:text-red-700">Supprimer</button>
+                </div>
+              ))}
+              <button onClick={() => set('items', [...(config.items || []), { icon: '⭐', title: 'Nouveau', text: '' }])} className="w-full py-2 border-2 border-dashed border-gray-300 rounded-lg text-xs text-gray-500 hover:border-indigo-400 hover:text-indigo-600 transition">+ Ajouter un élément</button>
+            </div>
+          </FieldRow>
+        </div>
+      );
+
+    case 'icon_bar':
+      return (
+        <div className="space-y-4">
+          <ColorField label="Fond" value={config.backgroundColor} onChange={(v) => set('backgroundColor', v)} />
+          <ColorField label="Texte" value={config.textColor} onChange={(v) => set('textColor', v)} />
+          <FieldRow label="Éléments">
+            <div className="space-y-2">
+              {(config.items || []).map((item, i) => (
+                <div key={i} className="flex gap-2 items-center">
+                  <input type="text" value={item.icon || ''} onChange={(e) => { const items = [...(config.items || [])]; items[i] = { ...items[i], icon: e.target.value }; set('items', items); }} className={`${inputCls} w-16`} placeholder="🚚" />
+                  <input type="text" value={item.text || ''} onChange={(e) => { const items = [...(config.items || [])]; items[i] = { ...items[i], text: e.target.value }; set('items', items); }} className={inputCls} placeholder="Texte" />
+                  <button onClick={() => set('items', (config.items || []).filter((_, j) => j !== i))} className="text-gray-400 hover:text-red-500"><X className="w-3.5 h-3.5" /></button>
+                </div>
+              ))}
+              <button onClick={() => set('items', [...(config.items || []), { icon: '⭐', text: 'Avantage' }])} className="w-full py-2 border-2 border-dashed border-gray-300 rounded-lg text-xs text-gray-500 hover:border-indigo-400 hover:text-indigo-600 transition">+ Ajouter</button>
+            </div>
+          </FieldRow>
+        </div>
+      );
+
+    case 'before_after':
+      return (
+        <div className="space-y-4">
+          <FieldRow label="Titre"><input type="text" value={config.title || ''} onChange={(e) => set('title', e.target.value)} className={inputCls} /></FieldRow>
+          <ImageUploader label="Image Avant" value={config.imageBefore} onChange={(v) => set('imageBefore', v)} />
+          <ImageUploader label="Image Après" value={config.imageAfter} onChange={(v) => set('imageAfter', v)} />
+          <FieldRow label="Label Avant"><input type="text" value={config.labelBefore || 'Avant'} onChange={(e) => set('labelBefore', e.target.value)} className={inputCls} /></FieldRow>
+          <FieldRow label="Label Après"><input type="text" value={config.labelAfter || 'Après'} onChange={(e) => set('labelAfter', e.target.value)} className={inputCls} /></FieldRow>
+          <ColorField label="Fond" value={config.backgroundColor} onChange={(v) => set('backgroundColor', v)} />
+        </div>
+      );
+
+    case 'video':
+      return (
+        <div className="space-y-4">
+          <FieldRow label="Titre (optionnel)"><input type="text" value={config.title || ''} onChange={(e) => set('title', e.target.value)} className={inputCls} /></FieldRow>
+          <FieldRow label="URL vidéo (YouTube / MP4)"><input type="text" value={config.videoUrl || ''} onChange={(e) => set('videoUrl', e.target.value)} className={inputCls} placeholder="https://youtube.com/..." /></FieldRow>
+          <ImageUploader label="Image poster (optionnel)" value={config.poster} onChange={(v) => set('poster', v)} />
+          <ColorField label="Fond" value={config.backgroundColor} onChange={(v) => set('backgroundColor', v)} />
+        </div>
+      );
+
+    case 'pricing_table':
+      return (
+        <div className="space-y-4">
+          <FieldRow label="Titre"><input type="text" value={config.title || ''} onChange={(e) => set('title', e.target.value)} className={inputCls} /></FieldRow>
+          <ColorField label="Fond" value={config.backgroundColor} onChange={(v) => set('backgroundColor', v)} />
+          <FieldRow label="Offres">
+            <div className="space-y-3">
+              {(config.items || []).map((item, i) => (
+                <div key={i} className="p-3 bg-gray-50 rounded-lg border border-gray-200 space-y-2">
+                  <input type="text" value={item.name || ''} onChange={(e) => { const items = [...(config.items||[])]; items[i]={...items[i],name:e.target.value}; set('items',items); }} className={inputCls} placeholder="Nom de l'offre" />
+                  <div className="flex gap-2">
+                    <input type="text" value={item.price || ''} onChange={(e) => { const items=[...(config.items||[])]; items[i]={...items[i],price:e.target.value}; set('items',items); }} className={inputCls} placeholder="Prix" />
+                    <input type="text" value={item.currency || 'FCFA'} onChange={(e) => { const items=[...(config.items||[])]; items[i]={...items[i],currency:e.target.value}; set('items',items); }} className={`${inputCls} w-20`} placeholder="Devise" />
+                  </div>
+                  <input type="text" value={item.cta || 'Choisir'} onChange={(e) => { const items=[...(config.items||[])]; items[i]={...items[i],cta:e.target.value}; set('items',items); }} className={inputCls} placeholder="Texte bouton" />
+                  <label className="flex items-center gap-2 text-xs cursor-pointer">
+                    <input type="checkbox" checked={!!item.highlight} onChange={(e) => { const items=[...(config.items||[])]; items[i]={...items[i],highlight:e.target.checked}; set('items',items); }} />
+                    Mettre en avant
+                  </label>
+                  <button onClick={() => set('items',(config.items||[]).filter((_,j)=>j!==i))} className="text-xs text-red-500">Supprimer</button>
+                </div>
+              ))}
+              <button onClick={() => set('items',[...(config.items||[]),{name:'Offre',price:'0',currency:'FCFA',period:'/mois',features:[],cta:'Choisir',highlight:false}])} className="w-full py-2 border-2 border-dashed border-gray-300 rounded-lg text-xs text-gray-500 hover:border-indigo-400 hover:text-indigo-600 transition">+ Ajouter une offre</button>
+            </div>
+          </FieldRow>
+        </div>
+      );
+
+    case 'ticker':
+      return (
+        <div className="space-y-4">
+          <ColorField label="Fond" value={config.backgroundColor} onChange={(v) => set('backgroundColor', v)} />
+          <ColorField label="Texte" value={config.textColor} onChange={(v) => set('textColor', v)} />
+          <FieldRow label={`Vitesse : ${config.speed || 30}s`}>
+            <input type="range" min={10} max={80} value={config.speed || 30} onChange={(e) => set('speed', Number(e.target.value))} className="w-full" />
+          </FieldRow>
+          <FieldRow label="Messages">
+            <div className="space-y-2">
+              {(config.items || []).map((item, i) => (
+                <div key={i} className="flex gap-2 items-center">
+                  <input type="text" value={item} onChange={(e) => { const items=[...(config.items||[])]; items[i]=e.target.value; set('items',items); }} className={inputCls} />
+                  <button onClick={() => set('items',(config.items||[]).filter((_,j)=>j!==i))} className="text-gray-400 hover:text-red-500"><X className="w-3.5 h-3.5" /></button>
+                </div>
+              ))}
+              <button onClick={() => set('items',[...(config.items||[]),'Nouveau message'])} className="w-full py-2 border-2 border-dashed border-gray-300 rounded-lg text-xs text-gray-500 hover:border-indigo-400 hover:text-indigo-600 transition">+ Ajouter</button>
+            </div>
+          </FieldRow>
+        </div>
+      );
+
+    case 'newsletter':
+      return (
+        <div className="space-y-4">
+          <FieldRow label="Titre"><input type="text" value={config.title || ''} onChange={(e) => set('title', e.target.value)} className={inputCls} /></FieldRow>
+          <FieldRow label="Sous-titre"><input type="text" value={config.subtitle || ''} onChange={(e) => set('subtitle', e.target.value)} className={inputCls} /></FieldRow>
+          <FieldRow label="Placeholder"><input type="text" value={config.placeholder || ''} onChange={(e) => set('placeholder', e.target.value)} className={inputCls} /></FieldRow>
+          <FieldRow label="Texte bouton"><input type="text" value={config.buttonText || ''} onChange={(e) => set('buttonText', e.target.value)} className={inputCls} /></FieldRow>
+          <ColorField label="Fond" value={config.backgroundColor} onChange={(v) => set('backgroundColor', v)} />
+        </div>
+      );
+
     default:
       return <p className="text-sm text-gray-500">Éditeur non disponible pour ce type de section.</p>;
   }
@@ -1095,15 +1357,16 @@ const StorepageBuilder = () => {
   const [sections, setSections] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
   const [showAddPanel, setShowAddPanel] = useState(false);
-  const [previewMode, setPreviewMode] = useState(false);
   const [device, setDevice] = useState('desktop');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [dirty, setDirty] = useState(false);
-  const [iframeKey, setIframeKey] = useState(0);
+  const iframeRef = useRef(null);
+  const sectionsRef = useRef([]);
 
   const subdomain = activeStore?.subdomain || workspace?.subdomain || '';
+  const iframeUrl = subdomain ? `/store/${subdomain}?builderPreview` : null;
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -1125,25 +1388,49 @@ const StorepageBuilder = () => {
     load();
   }, [activeStore?._id]);
 
+  // Keep ref in sync so onLoad always sees latest sections
+  useEffect(() => { sectionsRef.current = sections; }, [sections]);
+
+  // ─ postMessage live update to iframe ─
+  const broadcastToIframe = useCallback((secs) => {
+    if (!iframeRef.current?.contentWindow) return;
+    iframeRef.current.contentWindow.postMessage(
+      { type: 'storefront-builder:update-sections', sections: secs },
+      window.location.origin,
+    );
+  }, []);
+
   // ─ Derived ─
   const selectedSection = useMemo(() => sections.find((s) => s.id === selectedId) || null, [sections, selectedId]);
 
   // ─ Mutations ─
-  const updateSections = useCallback((next) => { setSections(next); setDirty(true); }, []);
+  const updateSections = useCallback((next) => {
+    setSections(next);
+    setDirty(true);
+    broadcastToIframe(next);
+  }, [broadcastToIframe]);
 
   const addSection = useCallback((type) => {
     const sec = makeSection(type);
-    setSections((prev) => [...prev, sec]);
+    setSections((prev) => {
+      const next = [...prev, sec];
+      broadcastToIframe(next);
+      return next;
+    });
     setSelectedId(sec.id);
     setDirty(true);
-  }, []);
+  }, [broadcastToIframe]);
 
   const deleteSection = useCallback((id) => {
     if (!window.confirm('Supprimer cette section ?')) return;
-    setSections((prev) => prev.filter((s) => s.id !== id));
+    setSections((prev) => {
+      const next = prev.filter((s) => s.id !== id);
+      broadcastToIframe(next);
+      return next;
+    });
     setSelectedId((sel) => sel === id ? null : sel);
     setDirty(true);
-  }, []);
+  }, [broadcastToIframe]);
 
   const duplicateSection = useCallback((id) => {
     setSections((prev) => {
@@ -1152,30 +1439,41 @@ const StorepageBuilder = () => {
       const copy = { ...prev[idx], id: genId() };
       const next = [...prev];
       next.splice(idx + 1, 0, copy);
+      broadcastToIframe(next);
       return next;
     });
     setDirty(true);
-  }, []);
+  }, [broadcastToIframe]);
 
   const toggleVisible = useCallback((id) => {
-    setSections((prev) => prev.map((s) => s.id === id ? { ...s, visible: !s.visible } : s));
+    setSections((prev) => {
+      const next = prev.map((s) => s.id === id ? { ...s, visible: !s.visible } : s);
+      broadcastToIframe(next);
+      return next;
+    });
     setDirty(true);
-  }, []);
+  }, [broadcastToIframe]);
 
   const updateSelected = useCallback((updated) => {
-    setSections((prev) => prev.map((s) => s.id === updated.id ? updated : s));
+    setSections((prev) => {
+      const next = prev.map((s) => s.id === updated.id ? updated : s);
+      broadcastToIframe(next);
+      return next;
+    });
     setDirty(true);
-  }, []);
+  }, [broadcastToIframe]);
 
   const handleDragEnd = useCallback(({ active, over }) => {
     if (!over || active.id === over.id) return;
     setSections((prev) => {
       const from = prev.findIndex((s) => s.id === active.id);
       const to = prev.findIndex((s) => s.id === over.id);
-      return arrayMove(prev, from, to);
+      const next = arrayMove(prev, from, to);
+      broadcastToIframe(next);
+      return next;
     });
     setDirty(true);
-  }, []);
+  }, [broadcastToIframe]);
 
   // ─ Save ─
   const handleSave = async () => {
@@ -1184,7 +1482,6 @@ const StorepageBuilder = () => {
       await storeManageApi.updatePages({ sections });
       setSaved(true);
       setDirty(false);
-      setIframeKey((k) => k + 1);
       setTimeout(() => setSaved(false), 3000);
     } catch {
       alert('Erreur lors de la sauvegarde');
@@ -1193,29 +1490,29 @@ const StorepageBuilder = () => {
     }
   };
 
-  // ─ Device preview frames ─
-  const deviceStyle = useMemo(() => {
-    if (device === 'mobile') return { width: 390, height: 844, scale: 0.75 };
-    if (device === 'tablet') return { width: 768, height: 1024, scale: 0.7 };
-    return null;
-  }, [device]);
-
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="flex flex-col items-center gap-3">
           <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
-          <p className="text-sm text-gray-500 font-medium">Chargement du builder...</p>
+          <p className="text-sm text-gray-500 font-medium">Chargement...</p>
         </div>
       </div>
     );
   }
 
+  // iframe container sizing per device
+  const iframeContainerCls = device === 'mobile'
+    ? 'w-[390px] mx-auto'
+    : device === 'tablet'
+    ? 'w-[768px] mx-auto'
+    : 'w-full';
+
   return (
-    <div className="flex flex-col h-screen bg-gray-50 overflow-hidden">
+    <div className="flex flex-col h-screen bg-gray-100 overflow-hidden">
 
       {/* ── Top bar ─────────────────────────────────────────────────────────── */}
-      <header className="flex items-center justify-between h-14 px-4 bg-white border-b border-gray-200 flex-shrink-0 shadow-sm z-30">
+      <header className="flex items-center justify-between h-14 px-4 bg-white border-b border-gray-200 flex-shrink-0 z-30">
         <div className="flex items-center gap-3">
           <button onClick={() => navigate(-1)} className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 transition font-medium">
             <ArrowLeft className="w-4 h-4" />
@@ -1226,39 +1523,24 @@ const StorepageBuilder = () => {
             <div className="w-6 h-6 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center">
               <Layers className="w-3.5 h-3.5 text-white" />
             </div>
-            <h1 className="text-base font-bold text-gray-900">Page Builder</h1>
+            <h1 className="text-base font-bold text-gray-900">Theme Builder</h1>
           </div>
-          {dirty && <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">Non sauvegardé</span>}
+          {dirty && <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">Non publié</span>}
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Edit / Preview toggle */}
+          {/* Device switcher */}
           <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
-            <button onClick={() => setPreviewMode(false)} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition ${!previewMode ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>
-              <Pencil className="w-3.5 h-3.5" />Éditer
-            </button>
-            <button onClick={() => setPreviewMode(true)} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition ${previewMode ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>
-              <Eye className="w-3.5 h-3.5" />Aperçu
-            </button>
+            {[
+              { id: 'desktop', icon: <Monitor className="w-3.5 h-3.5" /> },
+              { id: 'tablet', icon: <Tablet className="w-3.5 h-3.5" /> },
+              { id: 'mobile', icon: <Smartphone className="w-3.5 h-3.5" /> },
+            ].map(({ id, icon }) => (
+              <button key={id} onClick={() => setDevice(id)} title={id} className={`p-2 rounded-md transition ${device === id ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>{icon}</button>
+            ))}
           </div>
 
-          {previewMode && (
-            <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
-              {[
-                { id: 'desktop', icon: <Monitor className="w-3.5 h-3.5" /> },
-                { id: 'tablet', icon: <Tablet className="w-3.5 h-3.5" /> },
-                { id: 'mobile', icon: <Smartphone className="w-3.5 h-3.5" /> },
-              ].map(({ id, icon }) => (
-                <button key={id} onClick={() => setDevice(id)} title={id} className={`p-2 rounded-md transition ${device === id ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>{icon}</button>
-              ))}
-            </div>
-          )}
-
           <div className="w-px h-5 bg-gray-200" />
-
-          <button onClick={() => setIframeKey((k) => k + 1)} className="p-2 rounded-lg text-gray-500 hover:text-gray-800 hover:bg-gray-100 transition" title="Rafraîchir aperçu">
-            <RefreshCw className="w-4 h-4" />
-          </button>
 
           {subdomain && (
             <a href={`/store/${subdomain}`} target="_blank" rel="noopener noreferrer" className="p-2 rounded-lg text-gray-500 hover:text-gray-800 hover:bg-gray-100 transition" title="Ouvrir la boutique">
@@ -1280,22 +1562,27 @@ const StorepageBuilder = () => {
       {/* ── Body ────────────────────────────────────────────────────────────── */}
       <div className="flex flex-1 overflow-hidden">
 
-        {/* ── Left panel: section list + add ─────────────────────────────── */}
-        {!previewMode && (
-          <div className="w-64 xl:w-72 bg-white border-r border-gray-200 flex flex-col flex-shrink-0 relative overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-              <div>
-                <p className="text-xs font-bold text-gray-900 uppercase tracking-wider">Sections</p>
-                <p className="text-[11px] text-gray-400 mt-0.5">{sections.length} section{sections.length !== 1 ? 's' : ''}</p>
-              </div>
-              <button onClick={() => setShowAddPanel(true)} className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg transition shadow-sm">
-                <Plus className="w-3.5 h-3.5" />Ajouter
-              </button>
-            </div>
+        {/* ── Left panel: sections list + inline editor ───────────────────── */}
+        <div className="w-72 xl:w-80 bg-white border-r border-gray-200 flex flex-col flex-shrink-0 relative overflow-hidden">
 
-            <div className="flex-1 overflow-y-auto p-3 space-y-2">
+          {/* Header */}
+          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 flex-shrink-0">
+            <div>
+              <p className="text-xs font-bold text-gray-900 uppercase tracking-wider">Sections</p>
+              <p className="text-[11px] text-gray-400 mt-0.5">{sections.length} section{sections.length !== 1 ? 's' : ''}</p>
+            </div>
+            <button onClick={() => setShowAddPanel(true)} className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg transition shadow-sm">
+              <Plus className="w-3.5 h-3.5" />Ajouter
+            </button>
+          </div>
+
+          {/* Scrollable content */}
+          <div className="flex-1 overflow-y-auto">
+
+            {/* Section list */}
+            <div className="p-3 space-y-1.5">
               {sections.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-48 text-center px-4">
+                <div className="flex flex-col items-center justify-center py-16 text-center px-4">
                   <div className="w-12 h-12 bg-indigo-50 rounded-xl flex items-center justify-center mb-3">
                     <Layers className="w-6 h-6 text-indigo-400" />
                   </div>
@@ -1309,135 +1596,86 @@ const StorepageBuilder = () => {
                 <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
                   <SortableContext items={sections.map((s) => s.id)} strategy={verticalListSortingStrategy}>
                     {sections.map((sec) => (
-                      <SectionCard
-                        key={sec.id}
-                        section={sec}
-                        isSelected={selectedId === sec.id}
-                        onSelect={setSelectedId}
-                        onDelete={deleteSection}
-                        onDuplicate={duplicateSection}
-                        onToggleVisible={toggleVisible}
-                      />
+                      <React.Fragment key={sec.id}>
+                        <SectionCard
+                          section={sec}
+                          isSelected={selectedId === sec.id}
+                          onSelect={setSelectedId}
+                          onDelete={deleteSection}
+                          onDuplicate={duplicateSection}
+                          onToggleVisible={toggleVisible}
+                        />
+                        {selectedId === sec.id && (
+                          <div className="rounded-xl border border-indigo-200 bg-indigo-50/40 overflow-hidden mb-1">
+                            <div className="flex items-center justify-between px-3 py-2 bg-white border-b border-indigo-100">
+                              <div className="flex items-center gap-1.5">
+                                <div className="w-4 h-4 rounded flex items-center justify-center text-white" style={{ background: SECTION_TYPES[sec.type]?.color || '#6b7280' }}>
+                                  {SECTION_TYPES[sec.type]?.icon}
+                                </div>
+                                <p className="text-[11px] font-bold text-gray-800">{SECTION_TYPES[sec.type]?.label}</p>
+                              </div>
+                              <button onClick={() => setSelectedId(null)} className="p-0.5 rounded hover:bg-gray-100 text-gray-400"><X className="w-3 h-3" /></button>
+                            </div>
+                            <div className="p-3">
+                              <SectionEditor section={sec} onChange={updateSelected} />
+                            </div>
+                          </div>
+                        )}
+                      </React.Fragment>
                     ))}
                   </SortableContext>
                 </DndContext>
               )}
             </div>
-
-            {/* Add section overlay */}
-            {showAddPanel && <AddSectionPanel onAdd={addSection} onClose={() => setShowAddPanel(false)} />}
           </div>
-        )}
 
-        {/* ── Center: canvas ─────────────────────────────────────────────── */}
-        <div className={`flex-1 overflow-auto bg-gray-100 flex flex-col items-center ${previewMode ? 'p-6' : 'p-3'}`}>
-          {/* Mode Aperçu = iframe full device */}
-          {previewMode ? (
-            !subdomain ? (
-              <div className="flex flex-col items-center justify-center h-full text-center">
-                <Monitor className="w-12 h-12 text-gray-300 mb-3" />
-                <p className="text-sm font-semibold text-gray-600">Aucun sous-domaine configuré</p>
-              </div>
-            ) : (
-              <div
-                className="bg-white rounded-2xl shadow-2xl overflow-hidden transition-all duration-300"
-                style={deviceStyle
-                  ? { width: deviceStyle.width, transform: `scale(${deviceStyle.scale})`, transformOrigin: 'top center', height: deviceStyle.height }
-                  : { width: '100%', maxWidth: 1280, minHeight: 600 }}
-              >
-                <div className="h-9 bg-gray-100 border-b border-gray-200 flex items-center px-3 gap-2 flex-shrink-0">
-                  <div className="flex gap-1.5">
-                    <div className="w-3 h-3 rounded-full bg-red-400" />
-                    <div className="w-3 h-3 rounded-full bg-yellow-400" />
-                    <div className="w-3 h-3 rounded-full bg-green-400" />
-                  </div>
-                  <div className="flex-1 bg-white border border-gray-200 rounded-md px-3 py-1 text-xs text-gray-500 font-mono truncate">
-                    {window.location.origin}/store/{subdomain}
-                  </div>
-                </div>
-                <iframe
-                  key={iframeKey}
-                  src={`/store/${subdomain}`}
-                  className="w-full border-0"
-                  style={{ height: deviceStyle ? deviceStyle.height : 780 }}
-                  title="Aperçu boutique"
-                  sandbox="allow-scripts allow-same-origin allow-forms"
-                />
-              </div>
-            )
+          {/* Add section overlay */}
+          {showAddPanel && <AddSectionPanel onAdd={addSection} onClose={() => setShowAddPanel(false)} />}
+        </div>
+
+        {/* ── Right: live iframe preview ───────────────────────────────────── */}
+        <div className="flex-1 overflow-auto bg-gray-100 p-4">
+          {!iframeUrl ? (
+            <div className="flex flex-col items-center justify-center h-full text-center">
+              <Monitor className="w-12 h-12 text-gray-300 mb-3" />
+              <p className="text-sm font-semibold text-gray-600">Aucun sous-domaine configuré</p>
+            </div>
           ) : (
-            /* Mode Édition = canvas React live — zéro latence */
-            <div className="w-full max-w-3xl bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-200">
-              {/* Fake browser chrome */}
-              <div className="h-9 bg-gray-50 border-b border-gray-200 flex items-center px-3 gap-2 flex-shrink-0 sticky top-0 z-10">
+            <div className={`${iframeContainerCls} h-full flex flex-col bg-white rounded-2xl shadow-xl overflow-hidden transition-all duration-300`}>
+              {/* Browser chrome */}
+              <div className="h-9 bg-gray-50 border-b border-gray-200 flex items-center px-3 gap-2 flex-shrink-0">
                 <div className="flex gap-1.5">
                   <div className="w-2.5 h-2.5 rounded-full bg-red-400" />
                   <div className="w-2.5 h-2.5 rounded-full bg-yellow-400" />
                   <div className="w-2.5 h-2.5 rounded-full bg-green-400" />
                 </div>
                 <div className="flex-1 bg-white border border-gray-100 rounded px-2 py-0.5 text-[11px] text-gray-400 font-mono truncate">
-                  {subdomain ? `${window.location.origin}/store/${subdomain}` : 'aperçu temps réel'}
+                  {window.location.origin}/store/{subdomain}
                 </div>
                 <span className="text-[10px] text-emerald-600 font-semibold bg-emerald-50 px-2 py-0.5 rounded-full flex-shrink-0">● Live</span>
               </div>
 
-              {sections.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-32 text-center px-8">
-                  <div className="w-16 h-16 bg-indigo-50 rounded-2xl flex items-center justify-center mb-4">
-                    <Layers className="w-8 h-8 text-indigo-300" />
-                  </div>
-                  <p className="text-base font-bold text-gray-600 mb-1">Page vide</p>
-                  <p className="text-sm text-gray-400">Ajoutez votre première section dans le panneau gauche</p>
-                  <button onClick={() => setShowAddPanel(true)} className="mt-4 px-5 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 transition">
-                    <Plus className="w-4 h-4 inline mr-1.5 -mt-0.5" />Ajouter une section
-                  </button>
-                </div>
-              ) : (
-                sections.map((sec) => (
-                  <LiveSectionRender
-                    key={sec.id}
-                    section={sec}
-                    selected={selectedId === sec.id}
-                    onClick={() => setSelectedId(sec.id)}
-                  />
-                ))
-              )}
+              <iframe
+                ref={iframeRef}
+                src={iframeUrl}
+                className="w-full border-0 flex-1"
+                title="Aperçu boutique"
+                sandbox="allow-scripts allow-same-origin allow-forms"
+                onLoad={() => {
+                  setTimeout(() => {
+                    const current = sectionsRef.current;
+                    if (iframeRef.current?.contentWindow && current.length > 0) {
+                      iframeRef.current.contentWindow.postMessage(
+                        { type: 'storefront-builder:update-sections', sections: current },
+                        window.location.origin,
+                      );
+                    }
+                  }, 400);
+                }}
+              />
             </div>
           )}
         </div>
-
-        {/* ── Right panel: section editor ─────────────────────────────────── */}
-        {!previewMode && (
-          <div className="w-72 xl:w-80 bg-white border-l border-gray-200 flex flex-col flex-shrink-0">
-            {selectedSection ? (
-              <>
-                <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-                  <div className="flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-md flex items-center justify-center text-white" style={{ background: SECTION_TYPES[selectedSection.type]?.color || '#6b7280' }}>
-                      {SECTION_TYPES[selectedSection.type]?.icon}
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold text-gray-900">{SECTION_TYPES[selectedSection.type]?.label}</p>
-                      <p className="text-[10px] text-gray-400">Propriétés</p>
-                    </div>
-                  </div>
-                  <button onClick={() => setSelectedId(null)} className="p-1 rounded-lg hover:bg-gray-100 text-gray-400"><X className="w-4 h-4" /></button>
-                </div>
-                <div className="flex-1 overflow-y-auto p-4">
-                  <SectionEditor section={selectedSection} onChange={updateSelected} />
-                </div>
-              </>
-            ) : (
-              <div className="flex flex-col items-center justify-center h-full text-center px-6">
-                <div className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center mb-3">
-                  <Pencil className="w-5 h-5 text-gray-400" />
-                </div>
-                <p className="text-sm font-semibold text-gray-600">Sélectionnez une section</p>
-                <p className="text-xs text-gray-400 mt-1">Cliquez sur une section pour modifier ses propriétés</p>
-              </div>
-            )}
-          </div>
-        )}
       </div>
     </div>
   );

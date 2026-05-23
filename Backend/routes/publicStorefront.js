@@ -668,4 +668,8 @@ router.get('*', async (req, res) => {
   }
 });
 
+export function invalidateStorefrontCache(subdomain) {
+  if (subdomain) _sfStoreCache.delete(subdomain.toLowerCase().trim());
+}
+
 export default router;

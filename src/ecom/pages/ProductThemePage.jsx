@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { storeManageApi } from '../services/storeApi';
 import { useStore } from '../contexts/StoreContext.jsx';
+import { applyFont } from '../hooks/useStoreData';
 
 // ── 5 Layout Themes ───────────────────────────────────────────────────────────
 const THEMES = [
@@ -148,12 +149,24 @@ const FONT_OPTIONS = [
   { id: 'montserrat',    name: 'Montserrat',       family: '"Montserrat", sans-serif' },
   { id: 'nunito',        name: 'Nunito',           family: '"Nunito", sans-serif' },
   { id: 'roboto',        name: 'Roboto',           family: '"Roboto", sans-serif' },
+  { id: 'raleway',       name: 'Raleway',          family: '"Raleway", sans-serif' },
+  { id: 'oswald',        name: 'Oswald',           family: '"Oswald", sans-serif' },
+  { id: 'open-sans',     name: 'Open Sans',        family: '"Open Sans", sans-serif' },
+  { id: 'geist',         name: 'Geist',            family: '"Geist", sans-serif' },
+  { id: 'plus-jakarta',  name: 'Plus Jakarta Sans',family: '"Plus Jakarta Sans", sans-serif' },
+  { id: 'urbanist',      name: 'Urbanist',         family: '"Urbanist", sans-serif' },
+  { id: 'syne',          name: 'Syne',             family: '"Syne", sans-serif' },
+  { id: 'josefin',       name: 'Josefin Sans',     family: '"Josefin Sans", sans-serif' },
   { id: 'playfair',      name: 'Playfair Display', family: '"Playfair Display", serif' },
   { id: 'lora',          name: 'Lora',             family: '"Lora", serif' },
+  { id: 'merriweather',  name: 'Merriweather',     family: '"Merriweather", serif' },
+  { id: 'cormorant',     name: 'Cormorant Garamond',family: '"Cormorant Garamond", serif' },
   { id: 'dm-sans',       name: 'DM Sans',          family: '"DM Sans", sans-serif' },
   { id: 'satoshi',       name: 'Satoshi',          family: '"Satoshi", sans-serif' },
   { id: 'outfit',        name: 'Outfit',           family: '"Outfit", sans-serif' },
   { id: 'space-grotesk', name: 'Space Grotesk',    family: '"Space Grotesk", sans-serif' },
+  { id: 'bebas',         name: 'Bebas Neue',       family: '"Bebas Neue", cursive' },
+  { id: 'archivo',       name: 'Archivo',          family: '"Archivo", sans-serif' },
 ];
 
 const BORDER_STYLES = [
@@ -393,7 +406,11 @@ const ProductThemePage = () => {
   }, []);
 
   const handleSelect = useCallback((themeId) => { setCurrentTheme(themeId); setSaved(false); }, []);
-  const updateDesign = useCallback((key, value) => { setDesign(prev => ({ ...prev, [key]: value })); setSaved(false); }, []);
+  const updateDesign = useCallback((key, value) => {
+    if (key === 'fontFamily') applyFont(value);
+    setDesign(prev => ({ ...prev, [key]: value }));
+    setSaved(false);
+  }, []);
   const applyColorPreset = useCallback((preset) => {
     setDesign(prev => ({ ...prev, buttonColor: preset.accent, ctaButtonColor: preset.cta || preset.accent, backgroundColor: preset.bg, textColor: preset.text, badgeColor: preset.badge }));
     setSectionColors({

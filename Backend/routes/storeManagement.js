@@ -5,6 +5,8 @@ import Store from '../models/Store.js';
 import { requireEcomAuth, requireWorkspace } from '../middleware/ecomAuth.js';
 import { requireStoreOwner } from '../middleware/storeAuth.js';
 import { invalidateStoreCache } from './storeApi.js';
+import { invalidateStorefrontCache } from './publicStorefront.js';
+import { emitStoreUpdate } from '../services/socketService.js';
 import { generateNanoBananaImage } from '../services/nanoBananaService.js';
 import { uploadToR2 } from '../services/cloudflareImagesService.js';
 import axios from 'axios';
@@ -1013,8 +1015,7 @@ router.put('/config', requireEcomAuth, requireWorkspace, requireStoreOwner, asyn
       await Store.findByIdAndUpdate(store._id, { $set: update });
       const updated = await Store.findById(store._id).select('name subdomain storeSettings').lean();
       subdomain = updated?.subdomain || null;
-      // Invalidate public store cache so iframe preview reflects changes immediately
-      if (subdomain) invalidateStoreCache(subdomain);
+      if (subdomain) { invalidateStoreCache(subdomain); invalidateStorefrontCache(subdomain); emitStoreUpdate(subdomain); }
       res.json({
         success: true,
         message: 'Configuration boutique mise à jour',
@@ -1032,7 +1033,7 @@ router.put('/config', requireEcomAuth, requireWorkspace, requireStoreOwner, asyn
       ).select('name subdomain storeSettings').lean();
       if (!workspace) return res.status(404).json({ success: false, message: 'Workspace introuvable' });
       subdomain = workspace.subdomain;
-      if (subdomain) invalidateStoreCache(subdomain);
+      if (subdomain) { invalidateStoreCache(subdomain); invalidateStorefrontCache(subdomain); emitStoreUpdate(subdomain); }
       res.json({
         success: true,
         message: 'Configuration boutique mise à jour',
@@ -1113,10 +1114,10 @@ router.put('/subdomain', requireEcomAuth, requireWorkspace, requireStoreOwner, a
 
     // Invalidate cache for old and new subdomains
     if (previousSubdomain && previousSubdomain !== subdomain) {
-      invalidateStoreCache(previousSubdomain);
+      invalidateStoreCache(previousSubdomain); invalidateStorefrontCache(previousSubdomain);
     }
     if (subdomain) {
-      invalidateStoreCache(subdomain);
+      invalidateStoreCache(subdomain); invalidateStorefrontCache(subdomain);
     }
 
     console.log('✅ Subdomain updated:', previousSubdomain, '→', subdomain, '— store:', store?._id || 'workspace-only', '— workspace:', req.workspaceId);
@@ -1308,7 +1309,7 @@ router.post('/generate-homepage', requireEcomAuth, requireWorkspace, async (req,
 
     // Invalidate public store cache
     const subdomain = activeStore?.subdomain || workspace.subdomain;
-    if (subdomain) invalidateStoreCache(subdomain);
+    if (subdomain) { invalidateStoreCache(subdomain); invalidateStorefrontCache(subdomain); }
 
     console.log(`✅ AI homepage generated: ${sections.length} sections + footer + legal pages for workspace ${req.workspaceId}`);
     res.json({ success: true, sections, footer: footerAndLegal.footer, legalPages: footerAndLegal.legalPages });
@@ -1359,7 +1360,7 @@ router.post('/regenerate-homepage', requireEcomAuth, requireWorkspace, async (re
 
     // Invalidate public store cache
     const subdomain = activeStore?.subdomain || workspace.subdomain;
-    if (subdomain) invalidateStoreCache(subdomain);
+    if (subdomain) { invalidateStoreCache(subdomain); invalidateStorefrontCache(subdomain); }
 
     console.log(`✅ Homepage regenerated: ${sections.length} sections + footer + legal for workspace ${req.workspaceId}`);
     res.json({ success: true, sections, footer: footerAndLegal.footer, legalPages: footerAndLegal.legalPages });

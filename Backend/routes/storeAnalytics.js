@@ -207,21 +207,19 @@ router.post('/track', trackRateLimit, async (req, res) => {
         return res.status(400).json({ error: 'Subdomain invalide' });
       }
 
-      const storeDoc = await Store.findOne({
-        subdomain,
-        isActive: true,
-        'storeSettings.isStoreEnabled': true,
-      }).select('_id workspaceId').lean();
+      // Analytics tracking: find by subdomain only — do NOT filter by isActive/isStoreEnabled.
+      // We want to record visits even when a store is temporarily paused. The merchant needs
+      // to see traffic data regardless of store status.
+      const storeDoc = await Store.findOne({ subdomain })
+        .select('_id workspaceId').lean();
 
       if (storeDoc) {
         workspaceId = storeDoc.workspaceId;
         resolvedStoreId = storeDoc._id;
       } else {
-        const workspace = await EcomWorkspace.findOne({
-          subdomain,
-          isActive: true,
-          'storeSettings.isStoreEnabled': true,
-        }).select('_id').lean();
+        // Legacy single-store model: subdomain lives on the Workspace document
+        const workspace = await EcomWorkspace.findOne({ subdomain })
+          .select('_id').lean();
         if (workspace) workspaceId = workspace._id;
       }
     }
@@ -231,10 +229,9 @@ router.post('/track', trackRateLimit, async (req, res) => {
     if (!workspaceId && hostname) {
       const cleanHost = String(hostname).toLowerCase().trim().replace(/^www\./, '').substring(0, 253);
       if (cleanHost && !/localhost|127\.0\.0\.1|railway/.test(cleanHost)) {
+        // No isActive/isStoreEnabled filter — track visits regardless of store status
         const storeByDomain = await Store.findOne({
           'storeDomains.customDomain': cleanHost,
-          isActive: true,
-          'storeSettings.isStoreEnabled': true,
         }).select('_id workspaceId subdomain').lean();
 
         if (storeByDomain) {
@@ -244,8 +241,6 @@ router.post('/track', trackRateLimit, async (req, res) => {
         } else {
           const ws = await EcomWorkspace.findOne({
             'storeDomains.customDomain': cleanHost,
-            isActive: true,
-            'storeSettings.isStoreEnabled': true,
           }).select('_id subdomain').lean();
           if (ws) {
             workspaceId = ws._id;
@@ -261,17 +256,19 @@ router.post('/track', trackRateLimit, async (req, res) => {
     }
 
     // ── Anti-spam dedup ────────────────────────────────────────────────────────
+    // IMPORTANT: always scope dedup by subdomain so visits to different boutiques
+    // on the same workspace are never cross-deduplicated.
     if (['page_view', 'product_view'].includes(eventType)) {
       const identifier = visitorId || sessionId;
       if (identifier) {
         const since = new Date(Date.now() - DEDUP_WINDOW_MS);
         const dedupQuery = {
           workspaceId,
+          subdomain: resolvedSubdomain,   // ← per-boutique scope (never cross-dedup)
           eventType,
           timestamp: { $gte: since },
           $or: [{ visitorId: identifier }, { sessionId: identifier }],
         };
-        if (resolvedStoreId) dedupQuery.storeId = resolvedStoreId;
         if (eventType === 'product_view' && productId) {
           dedupQuery.productId = productId;
         } else if (eventType === 'page_view') {

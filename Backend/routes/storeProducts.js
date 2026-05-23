@@ -6,6 +6,7 @@ import Product from '../models/Product.js';
 import { requireEcomAuth, requireWorkspace } from '../middleware/ecomAuth.js';
 import { requireStoreOwner } from '../middleware/storeAuth.js';
 import { checkPlanLimit } from '../middleware/planLimits.js';
+import { emitStoreUpdate } from '../services/socketService.js';
 import { uploadImage, isConfigured } from '../services/cloudflareImagesService.js';
 import OpenAI from 'openai';
 
@@ -1634,6 +1635,12 @@ router.put('/:id', requireEcomAuth, requireWorkspace, requireStoreOwner, async (
     if (!product) {
       return res.status(404).json({ success: false, message: 'Produit introuvable' });
     }
+
+    // Notify storefront visitors in real-time
+    try {
+      const subdomain = req.store?.subdomain || null;
+      if (subdomain) emitStoreUpdate(subdomain);
+    } catch {}
 
     res.json({
       success: true,

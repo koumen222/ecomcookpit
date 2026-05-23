@@ -3,17 +3,18 @@ import {
   Save, RotateCcw, Loader2, LayoutDashboard, ClipboardList,
   Package, MessageCircle, Palette, AlignLeft, Plus, X,
   ChevronUp, ChevronDown, GripVertical, ExternalLink, Smartphone,
-  ChevronRight, MousePointerClick, Tag, Layers, Sparkles,
+  ChevronRight, MousePointerClick, Tag, Layers, Sparkles, Settings2,
 } from 'lucide-react';
 import defaultConfig from '../components/productSettings/defaultConfig';
 import { storeManageApi, storeProductsApi } from '../services/storeApi';
 import BlocksEditor from '../components/productSettings/BlocksEditor';
 import OffersEditor from '../components/productSettings/OffersEditor';
-import ButtonEditor from '../components/productSettings/ButtonEditor';
+import ButtonEditor, { ICONS, ANIMATIONS, ButtonAnimationStyles, getAnimationClass } from '../components/productSettings/ButtonEditor';
 import DesignSettings from '../components/productSettings/DesignSettings';
 import AutomationSettings from '../components/productSettings/AutomationSettings';
 import ToggleSwitch from '../components/productSettings/ToggleSwitch';
 import LivePreview from '../components/productSettings/LivePreview';
+import FormThemePicker from '../components/productSettings/FormThemeSelector';
 
 const deepClone = (obj) => JSON.parse(JSON.stringify(obj));
 
@@ -52,6 +53,7 @@ const mergeWithDefaults = (stored) => ({
   button: { ...defaultConfig.button, ...(stored?.button || {}) },
   form: {
     ...defaultConfig.form,
+    ...(stored?.form || {}),
     fields: stored?.form?.fields?.length ? stored.form.fields : defaultConfig.form.fields,
   },
 });
@@ -67,14 +69,205 @@ const EDITOR_SECTIONS = [
 ];
 
 // ── Form Fields Editor (inline) ──────────────────────────────────────────────
+// Fields that can be expanded for inline editing
+const EDITABLE_FIELD_NAMES = new Set(['address', 'fullname', 'city', 'cta_button']);
+
+const inputCls = 'w-full px-2.5 py-2 rounded-xl border border-gray-200 text-[12px] focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-200';
+
+const ColorRow = ({ label, value, onChange }) => (
+  <div>
+    <div className="text-[11px] font-semibold text-gray-500 mb-1">{label}</div>
+    <div className="flex items-center gap-2">
+      <input type="color" value={value} onChange={e => onChange(e.target.value)}
+        className="w-7 h-7 border border-gray-200 rounded-lg cursor-pointer flex-shrink-0 p-0.5" />
+      <input className={inputCls + ' font-mono text-[11px]'} value={value} onChange={e => onChange(e.target.value)} />
+    </div>
+  </div>
+);
+
+const FieldInlineEditor = ({ field, onFieldChange }) => {
+  const update = (key, val) => onFieldChange({ ...field, [key]: val });
+  const isCta = field.type === 'cta_button' || field.name === 'cta_button';
+  const currentIcon = field.icon || (isCta ? 'cart' : 'pin');
+  const animId = field.animation || 'none';
+  const animClass = getAnimationClass(animId);
+  const SelectedIcon = ICONS.find(i => i.id === currentIcon)?.Icon;
+
+  // All values stored directly in field.* — no design dependency
+  const bg = field.bgColor || '#D94A1F';
+  const textColor = field.textColor || '#ffffff';
+  const fontSize = field.fontSize || 15;
+  const bold = field.bold !== false;
+  const italic = !!field.italic;
+  const borderW = field.borderWidth ?? 0;
+  const borderColor = field.borderColor || '#ffffff';
+  const radius = field.borderRadius ?? 14;
+  const shadowVal = field.shadow ?? 4;
+  const shadow = shadowVal > 0
+    ? `0 ${shadowVal}px ${shadowVal * 2}px rgba(0,0,0,${Math.min(shadowVal * 0.06, 0.5).toFixed(2)})`
+    : `0 4px 16px ${bg}50`;
+
+  return (
+    <div className="px-3 pb-4 space-y-3">
+      <ButtonAnimationStyles />
+
+      {/* Label */}
+      <div>
+        <div className="text-[11px] font-semibold text-gray-500 mb-1">
+          {isCta ? 'Texte du bouton' : 'Label du champ'}
+        </div>
+        <input type="text" value={field.label || ''} onChange={e => update('label', e.target.value)}
+          placeholder={isCta ? 'ACHETER MAINTENANT - {total}' : 'Label'}
+          className={inputCls + ' font-medium'} />
+      </div>
+
+      {/* Subtext — cta only */}
+      {isCta && (
+        <div>
+          <div className="text-[11px] font-semibold text-gray-500 mb-1">Sous-titre du bouton</div>
+          <input type="text" value={field.subtext || ''} onChange={e => update('subtext', e.target.value)}
+            placeholder="Ex: Il n'y a plus assez de pièces" className={inputCls} />
+        </div>
+      )}
+
+      {/* Placeholder — non-cta */}
+      {!isCta && (
+        <div>
+          <div className="text-[11px] font-semibold text-gray-500 mb-1">Placeholder</div>
+          <input type="text" value={field.placeholder || ''} onChange={e => update('placeholder', e.target.value)}
+            placeholder="Ex: Votre quartier, rue..." className={inputCls} />
+        </div>
+      )}
+
+      {/* Icon picker */}
+      <div>
+        <div className="text-[11px] font-semibold text-gray-500 mb-1.5">Icône</div>
+        <div className="grid grid-cols-6 gap-1">
+          {ICONS.map(({ id, label, Icon }) => (
+            <button key={id} type="button" onClick={() => update('icon', id)} title={label}
+              className={`flex flex-col items-center gap-0.5 p-1.5 rounded-lg border-2 transition-all ${
+                currentIcon === id
+                  ? 'border-emerald-400 bg-emerald-50 text-emerald-700'
+                  : 'border-transparent bg-gray-50 text-gray-400 hover:bg-gray-100 hover:text-gray-600'
+              }`}>
+              <Icon size={13} />
+              <span className="text-[8px] font-medium leading-tight truncate w-full text-center">{label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* CTA-only visual params — all stored in field.* */}
+      {isCta && (<>
+        {/* Text color / font size / style */}
+        <div className="grid grid-cols-3 gap-2">
+          <ColorRow label="Couleur du texte" value={textColor} onChange={v => update('textColor', v)} />
+          <div>
+            <div className="text-[11px] font-semibold text-gray-500 mb-1">Taille</div>
+            <div className="flex items-center gap-1">
+              <input type="number" min="10" max="30" className={inputCls + ' text-center w-14'}
+                value={fontSize} onChange={e => update('fontSize', parseInt(e.target.value) || 15)} />
+              <span className="text-[11px] text-gray-400">px</span>
+            </div>
+          </div>
+          <div>
+            <div className="text-[11px] font-semibold text-gray-500 mb-1">Style</div>
+            <div className="flex gap-1">
+              <button type="button"
+                className={`px-3 py-2 rounded-lg border text-xs font-bold transition ${bold ? 'bg-gray-900 text-white border-gray-900' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}
+                onClick={() => update('bold', !bold)}>B</button>
+              <button type="button"
+                className={`px-3 py-2 rounded-lg border text-xs italic transition ${italic ? 'bg-gray-900 text-white border-gray-900' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}
+                onClick={() => update('italic', !italic)}>I</button>
+            </div>
+          </div>
+        </div>
+
+        {/* Bg color / animation */}
+        <div className="grid grid-cols-2 gap-2">
+          <ColorRow label="Couleur du bouton" value={bg} onChange={v => update('bgColor', v)} />
+          <div>
+            <div className="text-[11px] font-semibold text-gray-500 mb-1">Animation</div>
+            <select className={inputCls} value={animId} onChange={e => update('animation', e.target.value)}>
+              {ANIMATIONS.map(a => <option key={a.id} value={a.id}>{a.label}</option>)}
+            </select>
+          </div>
+        </div>
+
+        {/* Border color / width */}
+        <div className="grid grid-cols-2 gap-2">
+          <ColorRow label="Couleur de la bordure" value={borderColor} onChange={v => update('borderColor', v)} />
+          <div>
+            <div className="text-[11px] font-semibold text-gray-500 mb-1">
+              Épaisseur bordure — {borderW}px
+            </div>
+            <input type="range" min="0" max="6" className="w-full mt-2 accent-emerald-500"
+              value={borderW} onChange={e => update('borderWidth', parseInt(e.target.value))} />
+          </div>
+        </div>
+
+        {/* Radius / shadow */}
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <div className="text-[11px] font-semibold text-gray-500 mb-1">
+              Coins arrondis — {radius}px
+            </div>
+            <input type="range" min="0" max="40" className="w-full mt-2 accent-emerald-500"
+              value={radius} onChange={e => update('borderRadius', parseInt(e.target.value))} />
+          </div>
+          <div>
+            <div className="text-[11px] font-semibold text-gray-500 mb-1">
+              Ombre — {shadowVal}
+            </div>
+            <input type="range" min="0" max="30" className="w-full mt-2 accent-emerald-500"
+              value={shadowVal} onChange={e => update('shadow', parseInt(e.target.value))} />
+          </div>
+        </div>
+
+        {/* Live preview */}
+        <div className="rounded-xl bg-gradient-to-br from-gray-50 to-gray-100/50 border border-gray-100 p-3">
+          <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2 text-center">
+            Aperçu en direct
+          </div>
+          <div className="flex justify-center">
+            <button type="button"
+              className={`flex flex-col items-center gap-0.5 px-6 py-3 pointer-events-none ${animClass}`}
+              style={{
+                backgroundColor: bg, color: textColor, fontSize,
+                fontWeight: bold ? 700 : 400, fontStyle: italic ? 'italic' : 'normal',
+                borderRadius: `${radius}px`,
+                border: borderW > 0 ? `${borderW}px solid ${borderColor}` : 'none',
+                boxShadow: shadow, minWidth: 200,
+              }}>
+              <span className="flex items-center gap-2">
+                {SelectedIcon && <SelectedIcon size={15} />}
+                {(field.label || 'ACHETER MAINTENANT').replace(' - {total}', '')}
+              </span>
+              {field.subtext && (
+                <span style={{ fontSize: Math.max(10, fontSize - 4), fontWeight: 500, opacity: 0.82 }}>
+                  {field.subtext}
+                </span>
+              )}
+            </button>
+          </div>
+        </div>
+      </>)}
+    </div>
+  );
+};
+
 const FormFieldsEditor = ({ config, onChange }) => {
   const fields = config.form.fields;
+  const [expandedField, setExpandedField] = useState(null);
+
   const updateGeneral = (key, val) =>
     onChange({ ...config, general: { ...config.general, [key]: val } });
 
-  const toggleField = (index) => {
-    const updated = fields.map((f, i) => i === index ? { ...f, enabled: !f.enabled } : f);
+  const updateFields = (updated) =>
     onChange({ ...config, form: { ...config.form, fields: updated } });
+
+  const toggleField = (index) => {
+    updateFields(fields.map((f, i) => i === index ? { ...f, enabled: !f.enabled } : f));
   };
 
   const moveField = (index, dir) => {
@@ -82,12 +275,31 @@ const FormFieldsEditor = ({ config, onChange }) => {
     if (t < 0 || t >= fields.length) return;
     const updated = [...fields];
     [updated[index], updated[t]] = [updated[t], updated[index]];
-    onChange({ ...config, form: { ...config.form, fields: updated } });
+    updateFields(updated);
   };
+
+  const updateField = (index, updatedField) => {
+    updateFields(fields.map((f, i) => i === index ? updatedField : f));
+  };
+
+  // Separate CTA button from regular fields (match by type OR name for legacy saved configs)
+  const isCTAField = (f) => f.type === 'cta_button' || f.name === 'cta_button';
+  const ctaIndex = fields.findIndex(isCTAField);
+  const ctaField = ctaIndex >= 0 ? fields[ctaIndex] : null;
+  const regularFields = fields.filter(f => !isCTAField(f));
+
+  const isEditable = (field) => EDITABLE_FIELD_NAMES.has(field.name);
 
   return (
     <div className="space-y-5">
-      {/* Form type toggle */}
+
+      {/* ── Form theme ── */}
+      <FormThemePicker
+        config={config}
+        onConfigChange={onChange}
+      />
+
+      {/* ── Form type ── */}
       <div>
         <div className="text-xs font-bold text-gray-700 mb-2.5">Type d'affichage</div>
         <div className="flex gap-2">
@@ -95,15 +307,12 @@ const FormFieldsEditor = ({ config, onChange }) => {
             { id: 'popup', label: 'Popup', icon: '💬' },
             { id: 'embedded', label: 'Intégré', icon: '📋' },
           ].map(({ id, label, icon }) => (
-            <button
-              key={id}
-              onClick={() => updateGeneral('formType', id)}
+            <button key={id} onClick={() => updateGeneral('formType', id)}
               className={`flex-1 flex items-center gap-2.5 px-4 py-3 rounded-xl text-sm font-medium border-2 transition-all ${
                 config.general.formType === id
                   ? 'border-emerald-400 bg-emerald-50 text-emerald-700 shadow-sm'
                   : 'border-gray-150 bg-white text-gray-500 hover:border-gray-200'
-              }`}
-            >
+              }`}>
               <span className="text-base">{icon}</span>
               <div className="text-left">
                 <div className="font-bold text-[13px]">{label}</div>
@@ -116,50 +325,97 @@ const FormFieldsEditor = ({ config, onChange }) => {
         </div>
       </div>
 
-      {/* Fields */}
+      {/* ── Regular fields ── */}
       <div>
         <div className="text-xs font-bold text-gray-700 mb-2.5">Champs du formulaire</div>
         <div className="space-y-1.5">
-          {fields.map((field, index) => (
-            <div
-              key={field.name}
-              className={`flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl border transition-all ${
-                field.enabled
-                  ? 'border-emerald-200/60 bg-emerald-50/40'
-                  : 'border-gray-100 bg-gray-50/50'
-              }`}
-            >
-              <GripVertical size={14} className="text-gray-300 shrink-0" />
-              <div className="flex-1 min-w-0">
-                <span className={`text-[13px] font-semibold ${field.enabled ? 'text-gray-800' : 'text-gray-400'}`}>
-                  {field.label}
-                </span>
-                <span className="text-[10px] text-gray-400 ml-2 font-mono">{field.name}</span>
+          {regularFields.map((field) => {
+            const index = fields.indexOf(field);
+            const editable = isEditable(field);
+            const isExpanded = expandedField === index;
+
+            return (
+              <div key={field.name}
+                className={`rounded-xl border transition-all overflow-hidden ${
+                  field.enabled ? 'border-emerald-200/60 bg-emerald-50/40' : 'border-gray-100 bg-gray-50/50'
+                }`}>
+                <div className="flex items-center gap-2.5 px-3.5 py-2.5">
+                  <GripVertical size={14} className="text-gray-300 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <span className={`text-[13px] font-semibold ${field.enabled ? 'text-gray-800' : 'text-gray-400'}`}>
+                      {field.label}
+                    </span>
+                    <span className="text-[10px] text-gray-400 ml-2 font-mono">{field.name}</span>
+                  </div>
+                  <div className="flex items-center gap-0.5 shrink-0">
+                    {editable && (
+                      <button type="button"
+                        onClick={() => setExpandedField(isExpanded ? null : index)}
+                        className={`p-1.5 rounded-lg transition-colors ${
+                          isExpanded ? 'bg-emerald-200 text-emerald-700' : 'hover:bg-white text-gray-400 hover:text-gray-600'
+                        }`}>
+                        <Settings2 size={13} />
+                      </button>
+                    )}
+                    <button onClick={() => moveField(index, -1)} disabled={index === 0}
+                      className="p-1 rounded-lg hover:bg-white disabled:opacity-20 transition-colors">
+                      <ChevronUp size={13} className="text-gray-400" />
+                    </button>
+                    <button onClick={() => moveField(index, 1)} disabled={index === fields.length - 1}
+                      className="p-1 rounded-lg hover:bg-white disabled:opacity-20 transition-colors">
+                      <ChevronDown size={13} className="text-gray-400" />
+                    </button>
+                  </div>
+                  <button onClick={() => toggleField(index)}
+                    className={`relative inline-flex h-[22px] w-10 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ${
+                      field.enabled ? 'bg-emerald-500' : 'bg-gray-200'
+                    }`}>
+                    <span className={`inline-block h-[18px] w-[18px] rounded-full bg-white shadow-sm transition duration-200 ${
+                      field.enabled ? 'translate-x-[18px]' : 'translate-x-0'
+                    }`} />
+                  </button>
+                </div>
+                {isExpanded && editable && (
+                  <FieldInlineEditor field={field} onFieldChange={(updated) => updateField(index, updated)} />
+                )}
               </div>
-              <div className="flex items-center gap-0.5 shrink-0">
-                <button onClick={() => moveField(index, -1)} disabled={index === 0}
-                  className="p-1 rounded-lg hover:bg-white disabled:opacity-20 transition-colors">
-                  <ChevronUp size={13} className="text-gray-400" />
-                </button>
-                <button onClick={() => moveField(index, 1)} disabled={index === fields.length - 1}
-                  className="p-1 rounded-lg hover:bg-white disabled:opacity-20 transition-colors">
-                  <ChevronDown size={13} className="text-gray-400" />
-                </button>
-              </div>
-              <button
-                onClick={() => toggleField(index)}
-                className={`relative inline-flex h-[22px] w-10 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ${
-                  field.enabled ? 'bg-emerald-500' : 'bg-gray-200'
-                }`}
-              >
-                <span className={`inline-block h-[18px] w-[18px] rounded-full bg-white shadow-sm transition duration-200 ${
-                  field.enabled ? 'translate-x-[18px]' : 'translate-x-0'
-                }`} />
-              </button>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
+
+      {/* ── CTA button editor — always visible, dedicated section ── */}
+      {ctaField && (
+        <div className="rounded-2xl border-2 border-emerald-200 bg-white overflow-hidden">
+          {/* Section header */}
+          <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-emerald-50 to-emerald-50/30 border-b border-emerald-100">
+            <div className="flex items-center gap-2.5">
+              <div className="w-7 h-7 rounded-lg bg-emerald-100 flex items-center justify-center">
+                <MousePointerClick size={14} className="text-emerald-600" />
+              </div>
+              <div>
+                <div className="text-[13px] font-bold text-gray-800">Bouton du formulaire</div>
+                <div className="text-[10px] text-gray-400">Personnalisez l'apparence du bouton de commande</div>
+              </div>
+            </div>
+            {/* Enable/disable toggle */}
+            <button onClick={() => toggleField(ctaIndex)}
+              className={`relative inline-flex h-[22px] w-10 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ${
+                ctaField.enabled ? 'bg-emerald-500' : 'bg-gray-200'
+              }`}>
+              <span className={`inline-block h-[18px] w-[18px] rounded-full bg-white shadow-sm transition duration-200 ${
+                ctaField.enabled ? 'translate-x-[18px]' : 'translate-x-0'
+              }`} />
+            </button>
+          </div>
+
+          {/* Full editor always open */}
+          <FieldInlineEditor
+            field={{ ...ctaField, type: 'cta_button' }}
+            onFieldChange={(updated) => updateField(ctaIndex, { ...updated, type: 'cta_button' })}
+          />
+        </div>
+      )}
     </div>
   );
 };

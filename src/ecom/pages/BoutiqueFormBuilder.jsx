@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { safeHtml } from '../utils/sanitize';
-import { Save, Loader2, Check, GripVertical, Eye, EyeOff, Plus, ChevronUp, ChevronDown, Settings2, ShoppingCart, Layers, Phone, User, MapPin, Trash2, Mail, FileText, Hash, Calendar, Type, Image, Minus, Shield, CheckCircle, Clock, PhoneCall, MessageSquare, ListOrdered, CheckSquare, Link2, Globe, Star, ChevronLeft, ChevronRight, Upload, X } from 'lucide-react';
+import { Save, Loader2, Check, GripVertical, Eye, EyeOff, Plus, ChevronUp, ChevronDown, Settings2, ShoppingCart, Layers, Phone, User, MapPin, Trash2, Mail, FileText, Hash, Calendar, Type, Image, Minus, Shield, CheckCircle, Clock, PhoneCall, MessageSquare, ListOrdered, CheckSquare, Link2, Globe, Star, ChevronLeft, ChevronRight, Upload, X, MousePointerClick } from 'lucide-react';
 import { storeManageApi, storeProductsApi } from '../services/storeApi';
 import { useStore } from '../contexts/StoreContext.jsx';
 import defaultConfig from '../components/productSettings/defaultConfig.js';
+import FormThemePicker from '../components/productSettings/FormThemeSelector.jsx';
 import {
   ICONS as BUTTON_ICONS,
   ANIMATIONS as BUTTON_ANIMATIONS,
@@ -31,13 +32,8 @@ const mergeWithDefaults = (stored, storeCountry = '') => {
   // Merge each stored field with its default counterpart, and add missing defaults
   let mergedFields;
   if (stored?.form?.fields?.length) {
-    const storedNames = new Set(stored.form.fields.map(f => f.name));
-    const merged = stored.form.fields.map(f => ({ ...(defaultFieldMap[f.name] || {}), ...f }));
-    // Add default fields not present in stored data
-    defaults.form.fields.forEach(df => {
-      if (!storedNames.has(df.name)) merged.push(df);
-    });
-    mergedFields = merged;
+    // Only merge defaults with stored fields — never re-add fields the user deleted
+    mergedFields = stored.form.fields.map(f => ({ ...(defaultFieldMap[f.name] || {}), ...f }));
   } else {
     mergedFields = defaults.form.fields;
   }
@@ -68,7 +64,7 @@ const mergeWithDefaults = (stored, storeCountry = '') => {
       countries: resolvedCountries,
       popularCities: resolvePopularCitiesMap(stored?.general?.popularCities || defaults.general.popularCities, resolvedCountries),
     },
-    form: { ...defaults.form, fields: mergedFields },
+    form: { ...defaults.form, ...(stored?.form || {}), fields: mergedFields },
     button: { ...defaults.button, ...(stored?.button || {}) },
     design: { ...defaults.design, ...(stored?.design || {}) },
     conversion: {
@@ -113,6 +109,136 @@ const ICON_OPTIONS = [
 const FIELD_ICON_MAP = {
   user: User, phone: Phone, map: MapPin, pin: MapPin, mail: Mail,
   cart: ShoppingCart, file: FileText, hash: Hash, calendar: Calendar,
+};
+
+// ── CTA button inline editor (dedicated section, not a FieldCard) ────────────
+const CtaButtonEditor = ({ field, onChange }) => {
+  const update = (key, val) => onChange({ ...field, [key]: val, type: 'cta_button' });
+  const bg = field.bgColor || '#D94A1F';
+  const textColor = field.textColor || '#ffffff';
+  const fontSize = field.fontSize || 15;
+  const bold = field.bold !== false;
+  const italic = !!field.italic;
+  const borderW = field.borderWidth ?? 0;
+  const borderColor = field.borderColor || '#ffffff';
+  const radius = field.borderRadius ?? 14;
+  const shadowVal = field.shadow ?? 4;
+  const shadow = shadowVal > 0
+    ? `0 ${shadowVal}px ${shadowVal * 2}px rgba(0,0,0,${Math.min(shadowVal * 0.06, 0.5).toFixed(2)})`
+    : `0 4px 16px ${bg}50`;
+  const animId = field.animation || 'none';
+  const animClass = getButtonAnimClass(animId);
+  const currentIcon = field.icon || 'cart';
+  const SelectedIcon = BUTTON_ICONS.find(i => i.id === currentIcon)?.Icon;
+
+  const ColorPicker = ({ label, value, onColorChange }) => (
+    <div>
+      <div className="text-[11px] font-semibold text-gray-500 mb-1">{label}</div>
+      <div className="flex items-center gap-2">
+        <input type="color" value={value} onChange={e => onColorChange(e.target.value)}
+          className="w-7 h-7 border border-gray-200 rounded-lg cursor-pointer flex-shrink-0 p-0.5" />
+        <input className={inputCls + ' font-mono text-[11px]'} value={value} onChange={e => onColorChange(e.target.value)} />
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="px-4 pb-4 space-y-3">
+      <ButtonAnimationStyles />
+
+      {/* Label */}
+      <div>
+        <div className="text-[11px] font-semibold text-gray-500 mb-1">Texte du bouton</div>
+        <input className={inputCls + ' font-medium'} value={field.label || ''}
+          onChange={e => update('label', e.target.value)}
+          placeholder="ACHETER MAINTENANT - {total}" />
+      </div>
+
+      {/* Subtext */}
+      <div>
+        <div className="text-[11px] font-semibold text-gray-500 mb-1">Sous-titre</div>
+        <input className={inputCls} value={field.subtext || ''}
+          onChange={e => update('subtext', e.target.value)}
+          placeholder="Ex: Il n'y a plus assez de pièces" />
+      </div>
+
+      {/* Icon picker */}
+      <div>
+        <div className="text-[11px] font-semibold text-gray-500 mb-1.5">Icône</div>
+        <div className="grid grid-cols-6 gap-1">
+          {BUTTON_ICONS.map(({ id, label, Icon }) => (
+            <button key={id} type="button" onClick={() => update('icon', id)} title={label}
+              className={`flex flex-col items-center gap-0.5 p-1.5 rounded-lg border-2 transition-all ${
+                currentIcon === id ? 'border-emerald-400 bg-emerald-50 text-emerald-700' : 'border-transparent bg-gray-50 text-gray-400 hover:bg-gray-100 hover:text-gray-600'
+              }`}>
+              <Icon size={13} />
+              <span className="text-[8px] font-medium leading-tight truncate w-full text-center">{label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Text color / font size / style */}
+      <div className="grid grid-cols-3 gap-2">
+        <ColorPicker label="Couleur du texte" value={textColor} onColorChange={v => update('textColor', v)} />
+        <div>
+          <div className="text-[11px] font-semibold text-gray-500 mb-1">Taille</div>
+          <div className="flex items-center gap-1">
+            <input type="number" min="10" max="30" className={inputCls + ' text-center w-14'}
+              value={fontSize} onChange={e => update('fontSize', parseInt(e.target.value) || 15)} />
+            <span className="text-[11px] text-gray-400">px</span>
+          </div>
+        </div>
+        <div>
+          <div className="text-[11px] font-semibold text-gray-500 mb-1">Style</div>
+          <div className="flex gap-1">
+            <button type="button"
+              className={`px-3 py-2 rounded-lg border text-xs font-bold transition ${bold ? 'bg-gray-900 text-white border-gray-900' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}
+              onClick={() => update('bold', !bold)}>B</button>
+            <button type="button"
+              className={`px-3 py-2 rounded-lg border text-xs italic transition ${italic ? 'bg-gray-900 text-white border-gray-900' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}
+              onClick={() => update('italic', !italic)}>I</button>
+          </div>
+        </div>
+      </div>
+
+      {/* Bg color / animation */}
+      <div className="grid grid-cols-2 gap-2">
+        <ColorPicker label="Couleur du bouton" value={bg} onColorChange={v => update('bgColor', v)} />
+        <div>
+          <div className="text-[11px] font-semibold text-gray-500 mb-1">Animation</div>
+          <select className={inputCls} value={animId} onChange={e => update('animation', e.target.value)}>
+            {BUTTON_ANIMATIONS.map(a => <option key={a.id} value={a.id}>{a.label}</option>)}
+          </select>
+        </div>
+      </div>
+
+      {/* Border color / width */}
+      <div className="grid grid-cols-2 gap-2">
+        <ColorPicker label="Couleur de la bordure" value={borderColor} onColorChange={v => update('borderColor', v)} />
+        <div>
+          <div className="text-[11px] font-semibold text-gray-500 mb-1">Épaisseur bordure — {borderW}px</div>
+          <input type="range" min="0" max="6" className="w-full mt-2 accent-emerald-500"
+            value={borderW} onChange={e => update('borderWidth', parseInt(e.target.value))} />
+        </div>
+      </div>
+
+      {/* Radius / shadow */}
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <div className="text-[11px] font-semibold text-gray-500 mb-1">Coins arrondis — {radius}px</div>
+          <input type="range" min="0" max="40" className="w-full mt-2 accent-emerald-500"
+            value={radius} onChange={e => update('borderRadius', parseInt(e.target.value))} />
+        </div>
+        <div>
+          <div className="text-[11px] font-semibold text-gray-500 mb-1">Ombre — {shadowVal}</div>
+          <input type="range" min="0" max="30" className="w-full mt-2 accent-emerald-500"
+            value={shadowVal} onChange={e => update('shadow', parseInt(e.target.value))} />
+        </div>
+      </div>
+
+    </div>
+  );
 };
 
 // Small helper for testimonial avatar upload inside BoutiqueFormBuilder
@@ -809,7 +935,7 @@ const FormPreview = ({ config, offersPreview = null, shopColor = '#0F6B4F' }) =>
   const formBorderColor = design.formBorderColor || '#e5e5e5';
   const formBorderWidth = design.formBorderWidth || '1px';
   const formShadowVal = parseInt(design.formShadow) || 0;
-  const formShadow = formShadowVal > 0 ? `0 ${formShadowVal}px ${formShadowVal * 2}px rgba(0,0,0,${Math.min(formShadowVal * 0.02, 0.3).toFixed(2)})` : 'none';
+  const formShadow = formShadowVal > 0 ? `0 ${formShadowVal}px ${formShadowVal * 2}px rgba(0,0,0,${Math.min(0.06 + formShadowVal * 0.015, 0.45).toFixed(2)})` : 'none';
   const formBgColor = design.formBgColor || '#ffffff';
   const formTextColor = design.formTextColor || '#1F2937';
   const formFontSize = design.fontSize || '16px';
@@ -817,9 +943,10 @@ const FormPreview = ({ config, offersPreview = null, shopColor = '#0F6B4F' }) =>
   const formItalic = design.formItalic || false;
   const labelAlign = design.labelAlign || 'left';
   const fieldIconBg = design.fieldIconBg || '#eCe7e7';
+  const placeholderColor = design.fieldIconColor || '#9ca3af';
 
   const renderField = (field, i) => {
-    const fIconColor = field.iconColor || shopColor || design.fieldIconColor || '#9b9b9b';
+    const fIconColor = field.iconColor || design.fieldIconColor || shopColor || '#9b9b9b';
     const showIcon = field.showIcon !== false;
     const IconComp = PREVIEW_ICON_MAP[field.icon];
     const borderColor = formBorderColor;
@@ -840,9 +967,9 @@ const FormPreview = ({ config, offersPreview = null, shopColor = '#0F6B4F' }) =>
         );
       case 'product_info':
         return (
-          <div key={i} className="flex items-center gap-3 rounded-xl p-3 border" style={{ backgroundColor: shopColor + '10', borderColor: shopColor + '30' }}>
-            <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: shopColor + '20' }}>
-              <ShoppingCart className="w-6 h-6" style={{ color: shopColor }} />
+          <div key={i} className="flex items-center gap-3 rounded-xl p-3 border" style={{ backgroundColor: btnColor + '10', borderColor: btnColor + '30' }}>
+            <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: btnColor + '20' }}>
+              <ShoppingCart className="w-6 h-6" style={{ color: btnColor }} />
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-[11px] text-gray-400">Variante</p>
@@ -882,17 +1009,20 @@ const FormPreview = ({ config, offersPreview = null, shopColor = '#0F6B4F' }) =>
           ? PHONE_CODES.find(c => c.name === configCountries[0]) || PHONE_CODES[0]
           : PHONE_CODES[0];
         return (
-          <div key={i} className="flex gap-1.5">
-            <div className="border h-12 flex items-center gap-1 px-2.5 flex-shrink-0"
-              style={{ borderColor, backgroundColor: fieldBg, borderRadius: fieldRadius, borderWidth: formBorderWidth }}>
-              <span className="text-sm">{firstCode.label.split(' ')[0]}</span>
-              <span className="text-xs font-bold text-gray-700">{firstCode.code}</span>
-              <ChevronDown size={12} className="text-gray-400" />
-            </div>
-            <div className="border h-12 flex-1 flex items-center gap-0 overflow-hidden"
-              style={{ borderColor, backgroundColor: fieldBg, borderRadius: fieldRadius, borderWidth: formBorderWidth }}>
-              <div className="flex-1 px-3 flex items-center">
-                <span className="text-sm" style={{ color: '#9ca3af' }}>{field.placeholder || 'Numéro de téléphone'}{field.required ? ' *' : ''}</span>
+          <div key={i}>
+            {field.showLabel === true && field.label && <p className="text-xs font-semibold mb-1" style={{ color: formTextColor }}>{field.label}</p>}
+            <div className="flex gap-1.5">
+              <div className="border h-12 flex items-center gap-1 px-2.5 flex-shrink-0"
+                style={{ borderColor, backgroundColor: fieldBg, borderRadius: fieldRadius, borderWidth: formBorderWidth }}>
+                <span className="text-sm">{firstCode.label.split(' ')[0]}</span>
+                <span className="text-xs font-bold text-gray-700">{firstCode.code}</span>
+                <ChevronDown size={12} className="text-gray-400" />
+              </div>
+              <div className="border h-12 flex-1 flex items-center gap-0 overflow-hidden"
+                style={{ borderColor, backgroundColor: fieldBg, borderRadius: fieldRadius, borderWidth: formBorderWidth }}>
+                <div className="flex-1 px-3 flex items-center">
+                  <span className="text-sm" style={{ color: placeholderColor }}>{field.placeholder || 'Numéro de téléphone'}{field.required ? ' *' : ''}</span>
+                </div>
               </div>
             </div>
           </div>
@@ -900,50 +1030,59 @@ const FormPreview = ({ config, offersPreview = null, shopColor = '#0F6B4F' }) =>
       }
       case 'textarea':
         return (
-          <div key={i} className="border flex items-start gap-0 overflow-hidden"
-            style={{ borderColor, backgroundColor: fieldBg, borderRadius: fieldRadius, borderWidth: formBorderWidth }}>
-            {showIcon && IconComp && (
-              <div className="flex items-start justify-center pl-3 pt-3 flex-shrink-0"
-                style={{ backgroundColor: fieldIconBg, borderRadius: `${fieldRadius} 0 0 ${fieldRadius}` }}>
-                <IconComp size={18} style={{ color: fIconColor }} />
+          <div key={i}>
+            {field.showLabel === true && field.label && <p className="text-xs font-semibold mb-1" style={{ color: formTextColor }}>{field.label}</p>}
+            <div className="border flex items-start gap-0 overflow-hidden"
+              style={{ borderColor, backgroundColor: fieldBg, borderRadius: fieldRadius, borderWidth: formBorderWidth }}>
+              {showIcon && IconComp && (
+                <div className="flex items-start justify-center pl-3 pt-3 flex-shrink-0"
+                  style={{ backgroundColor: fieldIconBg, borderRadius: `${fieldRadius} 0 0 ${fieldRadius}` }}>
+                  <IconComp size={18} style={{ color: fIconColor }} />
+                </div>
+              )}
+              <div className="flex-1 h-20 px-3 py-3 flex items-start">
+                <span className="text-sm" style={{ color: placeholderColor }}>{placeholderText}</span>
               </div>
-            )}
-            <div className="flex-1 h-20 px-3 py-3 flex items-start">
-              <span className="text-sm" style={{ color: '#9ca3af' }}>{placeholderText}</span>
             </div>
           </div>
         );
       case 'city_select': {
         const isCityAuto = field.cityAuto !== false;
         return (
-          <div key={i} className="border h-12 flex items-center gap-0 overflow-hidden"
-            style={{ borderColor, backgroundColor: fieldBg, borderRadius: fieldRadius, borderWidth: formBorderWidth }}>
-            {showIcon && (
-              <div className="flex items-center justify-center px-3 h-full flex-shrink-0"
-                style={{ backgroundColor: fieldIconBg }}>
-                <MapPin size={18} style={{ color: fIconColor }} />
+          <div key={i}>
+            {field.showLabel === true && field.label && <p className="text-xs font-semibold mb-1" style={{ color: formTextColor }}>{field.label}</p>}
+            <div className="border h-12 flex items-center gap-0 overflow-hidden"
+              style={{ borderColor, backgroundColor: fieldBg, borderRadius: fieldRadius, borderWidth: formBorderWidth }}>
+              {showIcon && (
+                <div className="flex items-center justify-center px-3 h-full flex-shrink-0"
+                  style={{ backgroundColor: fieldIconBg }}>
+                  <MapPin size={18} style={{ color: fIconColor }} />
+                </div>
+              )}
+              <div className="flex-1 px-3 flex items-center justify-between">
+                <span className="text-sm" style={{ color: placeholderColor }}>{placeholderText}</span>
+                {isCityAuto && <ChevronDown size={14} style={{ color: placeholderColor }} className="flex-shrink-0" />}
               </div>
-            )}
-            <div className="flex-1 px-3 flex items-center justify-between">
-              <span className="text-sm" style={{ color: '#9ca3af' }}>{placeholderText}</span>
-              {isCityAuto && <ChevronDown size={14} className="text-gray-400 flex-shrink-0" />}
             </div>
           </div>
         );
       }
       case 'select':
         return (
-          <div key={i} className="border h-12 flex items-center gap-0 overflow-hidden"
-            style={{ borderColor, backgroundColor: fieldBg, borderRadius: fieldRadius, borderWidth: formBorderWidth }}>
-            {showIcon && IconComp && (
-              <div className="flex items-center justify-center px-3 h-full flex-shrink-0"
-                style={{ backgroundColor: fieldIconBg }}>
-                <IconComp size={18} style={{ color: fIconColor }} />
+          <div key={i}>
+            {field.showLabel === true && field.label && <p className="text-xs font-semibold mb-1" style={{ color: formTextColor }}>{field.label}</p>}
+            <div className="border h-12 flex items-center gap-0 overflow-hidden"
+              style={{ borderColor, backgroundColor: fieldBg, borderRadius: fieldRadius, borderWidth: formBorderWidth }}>
+              {showIcon && IconComp && (
+                <div className="flex items-center justify-center px-3 h-full flex-shrink-0"
+                  style={{ backgroundColor: fieldIconBg }}>
+                  <IconComp size={18} style={{ color: fIconColor }} />
+                </div>
+              )}
+              <div className="flex-1 px-3 flex items-center justify-between">
+                <span className="text-sm" style={{ color: placeholderColor }}>{placeholderText}</span>
+                <ChevronDown size={14} style={{ color: placeholderColor }} />
               </div>
-            )}
-            <div className="flex-1 px-3 flex items-center justify-between">
-              <span className="text-sm" style={{ color: '#9ca3af' }}>{placeholderText}</span>
-              <ChevronDown size={14} className="text-gray-400" />
             </div>
           </div>
         );
@@ -1005,23 +1144,46 @@ const FormPreview = ({ config, offersPreview = null, shopColor = '#0F6B4F' }) =>
           </div>
         ) : null;
       }
-      case 'cta_button':
+      case 'cta_button': {
+        const ctaBg = field.bgColor || btnColor;
+        const ctaText = field.textColor || design.buttonTextColor || '#ffffff';
+        const ctaFz = field.fontSize || parseInt(design.buttonFontSize) || 15;
+        const ctaFw = field.bold !== false ? 700 : 400;
+        const ctaFi = (field.italic || design.buttonItalic) ? 'italic' : 'normal';
+        const ctaBrW = field.borderWidth ?? 0;
+        const ctaBrC = field.borderColor || 'transparent';
+        const ctaR = `${field.borderRadius ?? 14}px`;
+        const ctaSv = field.shadow ?? 4;
+        const ctaShadow = ctaSv > 0
+          ? `0 ${ctaSv}px ${ctaSv * 2}px rgba(0,0,0,${Math.min(ctaSv * 0.06, 0.5).toFixed(2)})`
+          : `0 4px 16px ${ctaBg}50`;
+        const ctaAnimCls = field.animation && field.animation !== 'none' ? getButtonAnimClass(field.animation) : '';
+        const CtaIconComp = field.icon ? (BUTTON_ICONS.find(ic => ic.id === field.icon)?.Icon || ShoppingCart) : ShoppingCart;
         return (
-          <button key={i}
-            className="w-full py-3.5 font-bold flex items-center justify-center gap-2"
-            style={{
-              backgroundColor: btnColor,
-              borderRadius: btnRadius,
-              color: design.buttonTextColor || '#ffffff',
-              fontWeight: 'bold',
-              fontStyle: design.buttonItalic ? 'italic' : 'normal',
-              fontSize: design.buttonFontSize || '16px',
-            }}
-          >
-            {showIcon && <ShoppingCart size={18} />}
-            <span>{field.label || btn.text || 'Commander'}</span>
-          </button>
+          <React.Fragment key={i}>
+            <ButtonAnimationStyles />
+            <button
+              className={`w-full flex flex-col items-center justify-center gap-0.5 py-3.5 ${ctaAnimCls}`}
+              style={{
+                backgroundColor: ctaBg, color: ctaText, fontSize: ctaFz,
+                fontWeight: ctaFw, fontStyle: ctaFi, borderRadius: ctaR,
+                border: ctaBrW > 0 ? `${ctaBrW}px solid ${ctaBrC}` : 'none',
+                boxShadow: ctaShadow, cursor: 'default',
+              }}
+            >
+              <span className="flex items-center gap-2">
+                {field.showIcon !== false && <CtaIconComp size={17} />}
+                {field.label || btn.text || 'Commander'}
+              </span>
+              {field.subtext && (
+                <span style={{ fontSize: Math.max(10, ctaFz - 4), fontWeight: 500, opacity: 0.82 }}>
+                  {field.subtext}
+                </span>
+              )}
+            </button>
+          </React.Fragment>
         );
+      }
       case 'image':
         return field.imageUrl ? (
           <img key={i} src={field.imageUrl} alt={field.label || 'Image'} className="w-full rounded-xl object-contain max-h-48" />
@@ -1060,7 +1222,7 @@ const FormPreview = ({ config, offersPreview = null, shopColor = '#0F6B4F' }) =>
         ];
         return (
           <div key={i} className="space-y-2">
-            {field.showLabel !== false && <p className="text-xs font-bold" style={{ color: formTextColor }}>{field.label}</p>}
+            {config.design?.showFieldLabels !== false && field.showLabel !== false && <p className="text-xs font-bold" style={{ color: formTextColor }}>{field.label}</p>}
             <div className="relative overflow-hidden">
               <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
                 {testimonials.map((t, ti) => (
@@ -1081,17 +1243,20 @@ const FormPreview = ({ config, offersPreview = null, shopColor = '#0F6B4F' }) =>
       }
       case 'country':
         return (
-          <div key={i} className="border h-12 flex items-center gap-0 overflow-hidden"
-            style={{ borderColor, backgroundColor: fieldBg, borderRadius: fieldRadius, borderWidth: formBorderWidth }}>
-            {showIcon && (
-              <div className="flex items-center justify-center px-3 h-full flex-shrink-0"
-                style={{ backgroundColor: fieldIconBg }}>
-                <Globe size={18} style={{ color: fIconColor }} />
+          <div key={i}>
+            {field.showLabel === true && field.label && <p className="text-xs font-semibold mb-1" style={{ color: formTextColor }}>{field.label}</p>}
+            <div className="border h-12 flex items-center gap-0 overflow-hidden"
+              style={{ borderColor, backgroundColor: fieldBg, borderRadius: fieldRadius, borderWidth: formBorderWidth }}>
+              {showIcon && (
+                <div className="flex items-center justify-center px-3 h-full flex-shrink-0"
+                  style={{ backgroundColor: fieldIconBg }}>
+                  <Globe size={18} style={{ color: fIconColor }} />
+                </div>
+              )}
+              <div className="flex-1 px-3 flex items-center justify-between">
+                <span className="text-sm" style={{ color: placeholderColor }}>{placeholderText}</span>
+                <ChevronDown size={14} style={{ color: placeholderColor }} />
               </div>
-            )}
-            <div className="flex-1 px-3 flex items-center justify-between">
-              <span className="text-sm" style={{ color: '#9ca3af' }}>{placeholderText}</span>
-              <ChevronDown size={14} className="text-gray-400" />
             </div>
           </div>
         );
@@ -1105,7 +1270,7 @@ const FormPreview = ({ config, offersPreview = null, shopColor = '#0F6B4F' }) =>
       case 'radio':
         return (
           <div key={i} className="space-y-2 pt-1">
-            {field.showLabel !== false && <p className="text-xs font-semibold" style={{ color: formTextColor }}>{field.label}</p>}
+            {config.design?.showFieldLabels !== false && field.showLabel !== false && <p className="text-xs font-semibold" style={{ color: formTextColor }}>{field.label}</p>}
             {(field.options || ['Option 1', 'Option 2']).map((opt, j) => (
               <label key={j} className="flex items-center gap-2 text-xs cursor-pointer">
                 <div className="w-4 h-4 rounded-full border-2 border-gray-300 flex-shrink-0" />
@@ -1117,7 +1282,7 @@ const FormPreview = ({ config, offersPreview = null, shopColor = '#0F6B4F' }) =>
       case 'checkbox':
         return (
           <div key={i} className="space-y-2 pt-1">
-            {field.showLabel !== false && <p className="text-xs font-semibold" style={{ color: formTextColor }}>{field.label}</p>}
+            {config.design?.showFieldLabels !== false && field.showLabel !== false && <p className="text-xs font-semibold" style={{ color: formTextColor }}>{field.label}</p>}
             {(field.options || ['Option 1', 'Option 2']).map((opt, j) => (
               <label key={j} className="flex items-center gap-2 text-xs cursor-pointer">
                 <div className="w-4 h-4 rounded border-2 border-gray-300 flex-shrink-0" />
@@ -1128,17 +1293,20 @@ const FormPreview = ({ config, offersPreview = null, shopColor = '#0F6B4F' }) =>
         );
       default: {
         return (
-          <div key={i} className="border h-12 flex items-center gap-0 overflow-hidden"
-            style={{ borderColor, backgroundColor: fieldBg, borderRadius: fieldRadius, borderWidth: formBorderWidth }}>
-            {showIcon && IconComp && (
-              <div className="flex items-center justify-center px-3 h-full flex-shrink-0"
-                style={{ backgroundColor: fieldIconBg }}>
-                <IconComp size={18} style={{ color: fIconColor }} />
+          <div key={i}>
+            {field.showLabel === true && field.label && <p className="text-xs font-semibold mb-1" style={{ color: formTextColor }}>{field.label}</p>}
+            <div className="border h-12 flex items-center gap-0 overflow-hidden"
+              style={{ borderColor, backgroundColor: fieldBg, borderRadius: fieldRadius, borderWidth: formBorderWidth }}>
+              {showIcon && IconComp && (
+                <div className="flex items-center justify-center px-3 h-full flex-shrink-0"
+                  style={{ backgroundColor: fieldIconBg }}>
+                  <IconComp size={18} style={{ color: fIconColor }} />
+                </div>
+              )}
+              <div className="flex-1 px-3 flex items-center"
+                style={{ color: fieldTxtColor }}>
+                <span className="text-sm" style={{ color: placeholderColor }}>{placeholderText}</span>
               </div>
-            )}
-            <div className="flex-1 px-3 flex items-center"
-              style={{ color: fieldTxtColor }}>
-              <span className="text-sm" style={{ color: '#9ca3af' }}>{placeholderText}</span>
             </div>
           </div>
         );
@@ -1246,9 +1414,10 @@ const BoutiqueFormBuilder = () => {
   const [saved, setSaved] = useState(false);
   const [offersPreviewData, setOffersPreviewData] = useState(null);
   const [offersPreviewSelected, setOffersPreviewSelected] = useState(0);
-  const [buttonSectionOpen, setButtonSectionOpen] = useState(true);
+  const [buttonSectionOpen, setButtonSectionOpen] = useState(false);
   const [countrySectionOpen, setCountrySectionOpen] = useState(false);
   const [fieldsSectionOpen, setFieldsSectionOpen] = useState(true);
+  const [ctaButtonSectionOpen, setCtaButtonSectionOpen] = useState(false);
   const [formStyleSectionOpen, setFormStyleSectionOpen] = useState(false);
   const [fieldStyleSectionOpen, setFieldStyleSectionOpen] = useState(false);
   const [addFieldMenuOpen, setAddFieldMenuOpen] = useState(false);
@@ -1284,6 +1453,13 @@ const BoutiqueFormBuilder = () => {
     })();
   }, [activeStore]);
 
+  // Properties owned by the global site theme — form builder must never overwrite them
+  const SITE_DESIGN_PROPS = ['buttonColor', 'ctaButtonColor', 'backgroundColor', 'textColor',
+    'fontFamily', 'fontBase', 'fontWeight', 'badgeColor', 'borderRadius', 'shadow',
+    'buttonTextColor', 'buttonFontSize', 'buttonBold', 'buttonItalic',
+    'buttonBorderColor', 'buttonBorderWidth', 'buttonShadow',
+    'fontSize', 'formBold', 'formItalic', 'labelAlign'];
+
   const handleSave = async () => {
     if (!config) return;
     setSaving(true);
@@ -1291,11 +1467,15 @@ const BoutiqueFormBuilder = () => {
       const res = await storeManageApi.getStoreConfig();
       const raw = res.data?.data || res.data || {};
       const existing = raw.storeSettings?.productPageConfig || raw.productPageConfig || {};
-      // Deep merge design to avoid overwriting theme properties
+      // Merge form-builder design props, but preserve site-global design props from existing
+      const siteDesignOverrides = {};
+      SITE_DESIGN_PROPS.forEach(k => {
+        if (existing.design?.[k] !== undefined) siteDesignOverrides[k] = existing.design[k];
+      });
       const mergedConfig = {
         ...existing,
         ...config,
-        design: { ...existing.design, ...config.design },
+        design: { ...existing.design, ...config.design, ...siteDesignOverrides },
       };
       await storeManageApi.updateStoreConfig({ productPageConfig: mergedConfig });
       setSaved(true);
@@ -1389,7 +1569,7 @@ const BoutiqueFormBuilder = () => {
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <div className="bg-white border-b border-gray-200 fixed top-0 left-0 lg:left-[240px] right-0 z-30">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3 min-w-0">
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-200">
@@ -1423,11 +1603,11 @@ const BoutiqueFormBuilder = () => {
         </div>
       </div>
 
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 pt-20 pb-6 sm:pb-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-20 pb-6 sm:pb-8">
         {/* Type de formulaire */}
-        <div className="bg-white rounded-2xl border border-gray-200 p-5 mb-6">
-          <h2 className="text-sm font-bold text-gray-800 mb-3">Type de formulaire</h2>
-          <div className="grid grid-cols-2 gap-3">
+        <div className="bg-white rounded-2xl border border-gray-200 p-3 mb-6">
+          <h2 className="text-xs font-bold text-gray-800 mb-2">Type de formulaire</h2>
+          <div className="grid grid-cols-2 gap-2">
             {[
               { id: 'popup', label: 'Formulaire sous forme de pop-up' },
               { id: 'embedded', label: 'Formulaire intégré' },
@@ -1435,50 +1615,50 @@ const BoutiqueFormBuilder = () => {
               const sel = (config.general?.formType || 'popup') === opt.id;
               return (
                 <button key={opt.id} onClick={() => update(c => ({ ...c, general: { ...c.general, formType: opt.id } }))}
-                  className={`text-left p-4 rounded-xl border-2 transition-all ${sel ? 'border-gray-800 bg-gray-800' : 'border-gray-200 hover:border-gray-300 bg-white'}`}>
-                  <div className={`flex items-center gap-2 mb-3 ${sel ? 'text-white' : 'text-gray-400'}`}>
+                  className={`text-left p-2.5 rounded-xl border-2 transition-all ${sel ? 'border-gray-800 bg-gray-800' : 'border-gray-200 hover:border-gray-300 bg-white'}`}>
+                  <div className={`flex items-center gap-1.5 mb-1.5 ${sel ? 'text-white' : 'text-gray-400'}`}>
                     {opt.id === 'popup' ? (
                       <>
-                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${sel ? 'bg-gray-700' : 'bg-gray-100'}`}>
-                          <Settings2 size={20} />
+                        <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${sel ? 'bg-gray-700' : 'bg-gray-100'}`}>
+                          <Settings2 size={14} />
                         </div>
                         <div className="flex gap-1">
-                          <div className={`w-6 h-6 rounded flex items-center justify-center ${sel ? 'bg-gray-700' : 'bg-gray-100'}`}>
-                            <Layers size={11} />
+                          <div className={`w-5 h-5 rounded flex items-center justify-center ${sel ? 'bg-gray-700' : 'bg-gray-100'}`}>
+                            <Layers size={9} />
                           </div>
-                          <div className={`w-6 h-6 rounded flex items-center justify-center ${sel ? 'bg-gray-700' : 'bg-gray-100'}`}>
-                            <Settings2 size={11} />
+                          <div className={`w-5 h-5 rounded flex items-center justify-center ${sel ? 'bg-gray-700' : 'bg-gray-100'}`}>
+                            <Settings2 size={9} />
                           </div>
                         </div>
                       </>
                     ) : (
-                      <div className="flex items-center gap-1.5">
-                        <div className={`w-7 h-7 rounded flex items-center justify-center ${sel ? 'bg-gray-700' : 'bg-gray-100'}`}>
-                          <User size={13} />
+                      <div className="flex items-center gap-1">
+                        <div className={`w-6 h-6 rounded flex items-center justify-center ${sel ? 'bg-gray-700' : 'bg-gray-100'}`}>
+                          <User size={11} />
                         </div>
-                        <div className={`w-7 h-7 rounded flex items-center justify-center ${sel ? 'bg-gray-700' : 'bg-gray-100'}`}>
-                          <Layers size={13} />
+                        <div className={`w-6 h-6 rounded flex items-center justify-center ${sel ? 'bg-gray-700' : 'bg-gray-100'}`}>
+                          <Layers size={11} />
                         </div>
-                        <div className={`w-7 h-7 rounded flex items-center justify-center ${sel ? 'bg-gray-700' : 'bg-gray-100'}`}>
-                          <Settings2 size={13} />
+                        <div className={`w-6 h-6 rounded flex items-center justify-center ${sel ? 'bg-gray-700' : 'bg-gray-100'}`}>
+                          <Settings2 size={11} />
                         </div>
                       </div>
                     )}
                   </div>
-                  <div className={`font-bold text-sm ${sel ? 'text-white' : 'text-gray-900'}`}>{opt.label}</div>
+                  <div className={`font-bold text-xs ${sel ? 'text-white' : 'text-gray-900'}`}>{opt.label}</div>
                 </button>
               );
             })}
           </div>
-          <p className="text-[11px] text-gray-500 mt-3">
+          <p className="text-[10px] text-gray-400 mt-2">
             {(config.general?.formType || 'popup') === 'popup'
-              ? 'Le formulaire s\'ouvrira lorsque le client cliquera sur le bouton Acheter de l\'application.'
+              ? 'Le formulaire s\'ouvrira lorsque le client cliquera sur le bouton Acheter.'
               : 'Le formulaire est affiché directement dans la page produit.'}
           </p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* ── Panel gauche: éditeur (tout en scroll) ── */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:items-start">
+          {/* ── Panel gauche: éditeur scrollable ── */}
           <div className="space-y-6">
 
             {/* ─── Bouton d'achat (popup uniquement) ─── */}
@@ -1669,25 +1849,29 @@ const BoutiqueFormBuilder = () => {
               </div>
               {fieldsSectionOpen && (<>
               <div className="space-y-2">
-                {config.form.fields.map((field, idx) => (
-                  <FieldCard
-                    key={field.name + idx}
-                    field={field}
-                    index={idx}
-                    total={config.form.fields.length}
-                    onMove={moveField}
-                    onToggle={toggleField}
-                    onChange={changeField}
-                    onRemove={removeField}
-                    shopColor={shopColor}
-                    onDragStart={handleDragStart}
-                    onDragOver={handleDragOver}
-                    onDrop={handleDrop}
-                    onDragEnd={handleDragEnd}
-                    isDragOver={dragOverIdx === idx && dragFromIdx !== idx}
-                    isDragging={dragFromIdx === idx}
-                  />
-                ))}
+                {config.form.fields.map((field, idx) => {
+                  // CTA button is handled in its own dedicated section below
+                  if (field.type === 'cta_button' || field.name === 'cta_button') return null;
+                  return (
+                    <FieldCard
+                      key={field.name + idx}
+                      field={field}
+                      index={idx}
+                      total={config.form.fields.length}
+                      onMove={moveField}
+                      onToggle={toggleField}
+                      onChange={changeField}
+                      onRemove={removeField}
+                      shopColor={shopColor}
+                      onDragStart={handleDragStart}
+                      onDragOver={handleDragOver}
+                      onDrop={handleDrop}
+                      onDragEnd={handleDragEnd}
+                      isDragOver={dragOverIdx === idx && dragFromIdx !== idx}
+                      isDragging={dragFromIdx === idx}
+                    />
+                  );
+                })}
               </div>
 
               {/* Add field button + dropdown */}
@@ -1722,6 +1906,46 @@ const BoutiqueFormBuilder = () => {
               </>)}
             </div>
 
+            {/* ─── Bouton du formulaire ─── */}
+            {config.form.fields.some(f => f.type === 'cta_button' || f.name === 'cta_button') && (() => {
+              const ctaIdx = config.form.fields.findIndex(f => f.type === 'cta_button' || f.name === 'cta_button');
+              const ctaField = config.form.fields[ctaIdx];
+              const updateCta = (updatedField) => {
+                const next = config.form.fields.map((f, i) => i === ctaIdx ? updatedField : f);
+                update(c => ({ ...c, form: { ...c.form, fields: next } }));
+              };
+              return (
+                <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+                  <div className="flex items-center justify-between px-5 py-3.5 cursor-pointer select-none"
+                    onClick={() => setCtaButtonSectionOpen(v => !v)}>
+                    <div className="flex items-center gap-2.5">
+                      <MousePointerClick size={15} className="text-emerald-600" />
+                      <h3 className="text-sm font-bold text-gray-800">Bouton du formulaire</h3>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <button type="button"
+                        onClick={e => {
+                          e.stopPropagation();
+                          const next = config.form.fields.map((f, i) => i === ctaIdx ? { ...f, enabled: !f.enabled } : f);
+                          update(c => ({ ...c, form: { ...c.form, fields: next } }));
+                        }}
+                        className={`relative inline-flex h-[22px] w-10 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ${ctaField.enabled ? 'bg-emerald-500' : 'bg-gray-200'}`}>
+                        <span className={`inline-block h-[18px] w-[18px] rounded-full bg-white shadow-sm transition duration-200 ${ctaField.enabled ? 'translate-x-[18px]' : 'translate-x-0'}`} />
+                      </button>
+                      <span className="flex items-center text-[11px] text-emerald-600 font-semibold">
+                        {ctaButtonSectionOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                      </span>
+                    </div>
+                  </div>
+                  {ctaButtonSectionOpen && (
+                    <div className="border-t border-gray-100">
+                      <CtaButtonEditor field={{ ...ctaField, type: 'cta_button' }} onChange={updateCta} />
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
             {/* ─── Style de formulaire ─── */}
             <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-4">
               <div className="flex items-center justify-between cursor-pointer select-none" onClick={() => setFormStyleSectionOpen(v => !v)}>
@@ -1730,6 +1954,13 @@ const BoutiqueFormBuilder = () => {
                   {formStyleSectionOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                 </span>
               </div>
+
+              {/* ── Thème du formulaire (toujours visible) ── */}
+              <FormThemePicker
+                config={config}
+                onConfigChange={(newConfig) => update(() => newConfig)}
+              />
+
               {formStyleSectionOpen && (<>
               <div className="grid grid-cols-3 gap-3">
                 <div>
@@ -1773,6 +2004,16 @@ const BoutiqueFormBuilder = () => {
                       </button>
                     ))}
                   </div>
+                </div>
+                <div className="flex flex-col justify-end">
+                  <label className="flex items-center gap-2 cursor-pointer select-none">
+                    <div
+                      className={`relative w-9 h-5 rounded-full transition-colors ${config.design?.showFieldLabels !== false ? 'bg-emerald-500' : 'bg-gray-300'}`}
+                      onClick={() => update(c => ({ ...c, design: { ...c.design, showFieldLabels: c.design?.showFieldLabels === false } }))}>
+                      <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${config.design?.showFieldLabels !== false ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                    </div>
+                    <span className="text-[11px] font-semibold text-gray-600">Afficher les labels</span>
+                  </label>
                 </div>
                 <div>
                   <label className="block text-[11px] font-semibold text-gray-500 mb-1">Couleur de l'arrière plan</label>
@@ -1877,15 +2118,17 @@ const BoutiqueFormBuilder = () => {
               </div>
               </>)}
             </div>
+
           </div>
 
-          {/* ── Panel droit: aperçu en direct ── */}
-          <div className="space-y-4">
-            <div className="flex items-center gap-2 mb-1">
+          {/* ── Panel droit: aperçu fixe ── */}
+          <div className="hidden lg:block">
+            <div className="sticky top-[5rem]">
+            <div className="flex items-center gap-2 mb-3">
               <Eye size={14} className="text-gray-400" />
               <span className="text-sm font-bold text-gray-600">Aperçu en direct:</span>
             </div>
-            <div className="sticky top-[7.5rem]">
+            <div>
               {/* Aperçu bouton CTA (popup uniquement) */}
               {(config.general?.formType || 'popup') === 'popup' && (() => {
                 const previewBtnColor = config.design?.ctaButtonColor || '#0F6B4F';
@@ -1941,6 +2184,7 @@ const BoutiqueFormBuilder = () => {
                   setSelectedIdx: setOffersPreviewSelected,
                 } : null}
               />
+            </div>
             </div>
           </div>
         </div>

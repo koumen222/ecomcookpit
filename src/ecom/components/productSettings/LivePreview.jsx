@@ -87,8 +87,14 @@ const LivePreview = ({ config, product: productProp, onSectionClick, activeSecti
   const stock = product?.stock ?? 4;
   const cur = product?.currency || 'XAF';
 
-  const enabledFields = form.fields.filter(f => f.enabled);
-  const btnColor = design.formButtonColor || '#ff6600';
+  const enabledFields = form.fields.filter(f => f.enabled && !['product_info','cta_button','shipping','urgency','call_schedule','trust_badge','guarantee','divider','html','summary'].includes(f.type));
+  const btnColor = design.formButtonColor || '#0F6B4F';
+  const formBg = design.formBgColor || '#ffffff';
+  const fieldBg = design.fieldBgColor || '#ffffff';
+  const fieldBorder = design.fieldBorderColor || design.formBorderColor || '#E5E7EB';
+  const fieldText = design.fieldTextColor || '#111827';
+  const labelColor = design.fieldIconColor || '#6B7280';
+  const formText = design.formTextColor || '#111827';
   const radius = design.formInputRadius || design.borderRadius || '8px';
   const radiusNum = parseInt(radius) || 8;
   const hasShadow = design.shadow !== false;
@@ -96,7 +102,7 @@ const LivePreview = ({ config, product: productProp, onSectionClick, activeSecti
   const isOn = (id) => sections.find(s => s.id === id)?.enabled ?? true;
 
   const btnStyle = {
-    backgroundColor: btnColor, color: '#fff',
+    backgroundColor: btnColor, color: design.buttonTextColor || '#fff',
     borderRadius: radiusNum >= 16 ? '999px' : radius,
     boxShadow: hasShadow ? `0 4px 16px ${btnColor}50` : 'none',
     border: 'none', width: '100%', padding: '12px 16px',
@@ -104,46 +110,48 @@ const LivePreview = ({ config, product: productProp, onSectionClick, activeSecti
     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
     fontFamily: 'inherit', transition: 'all 0.2s ease',
   };
-  const inputRadius = Math.max(6, radiusNum / 1.5);
+  const inputRadius = Math.max(4, radiusNum * 0.8);
 
   const OrderFormContent = () => (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      {enabledFields.map(f => {
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 7, backgroundColor: formBg, padding: '8px 8px 10px', borderRadius: Math.max(6, radiusNum) }}>
+      <div style={{ fontSize: 9, fontWeight: 800, color: formText, marginBottom: 2, display: 'flex', alignItems: 'center', gap: 4 }}>
+        <ShoppingCart size={9} color={btnColor} />
+        {btnText}
+      </div>
+      {enabledFields.slice(0, 4).map(f => {
         const Icon = FIELD_ICONS[f.name] || User;
         return (
           <div key={f.name}>
-            <div style={{ fontSize: 9, fontWeight: 600, color: '#6B7280', marginBottom: 3 }}>{f.label}</div>
+            <div style={{ fontSize: 8, fontWeight: 600, color: labelColor, marginBottom: 2 }}>{f.label}</div>
             <div style={{
-              height: 30, borderRadius: inputRadius, border: `1.5px solid ${btnColor}30`,
-              backgroundColor: '#fff', padding: '0 8px', display: 'flex', alignItems: 'center', gap: 5,
+              height: 22, borderRadius: inputRadius,
+              border: `1px solid ${fieldBorder}`,
+              backgroundColor: fieldBg,
+              padding: '0 7px', display: 'flex', alignItems: 'center', gap: 4,
             }}>
-              <Icon size={10} color="#9CA3AF" />
-              <div style={{ height: 6, width: '55%', borderRadius: 3, backgroundColor: '#E5E7EB' }} />
+              <Icon size={8} color={labelColor} />
+              <div style={{ height: 4, width: '50%', borderRadius: 2, backgroundColor: fieldText, opacity: 0.15 }} />
             </div>
           </div>
         );
       })}
       {conversion.quantities?.length > 0 && (
-        <div>
-          <div style={{ fontSize: 9, fontWeight: 600, color: '#6B7280', marginBottom: 3 }}>Quantité</div>
-          <div style={{ display: 'flex', gap: 4 }}>
-            {conversion.quantities.slice(0, 4).map((q, i) => (
-              <div key={q} style={{
-                padding: '4px 10px', borderRadius: 6, fontSize: 9, fontWeight: 700,
-                backgroundColor: i === 0 ? btnColor : '#F3F4F6',
-                color: i === 0 ? '#fff' : '#374151',
-                border: `1px solid ${i === 0 ? btnColor : '#E5E7EB'}`,
-              }}>{q}</div>
-            ))}
-          </div>
+        <div style={{ display: 'flex', gap: 3 }}>
+          {conversion.quantities.slice(0, 3).map((q, i) => (
+            <div key={q} style={{
+              padding: '3px 8px', borderRadius: 5, fontSize: 8, fontWeight: 700,
+              backgroundColor: i === 0 ? btnColor : fieldBg,
+              color: i === 0 ? '#fff' : fieldText,
+              border: `1px solid ${i === 0 ? btnColor : fieldBorder}`,
+            }}>{q}</div>
+          ))}
         </div>
       )}
-      <div style={{ height: 2 }} />
-      <button style={{...btnStyle, flexDirection: 'column', gap: 1}}>
-        <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-          <BtnIcon size={12} /> {btnText}
+      <button style={{...btnStyle, padding: '7px 12px', fontSize: 9, borderRadius: inputRadius, flexDirection: 'column', gap: 1}}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <BtnIcon size={9} /> {btnText}
         </span>
-        {btnSubtext && <span style={{ fontSize: 8, fontWeight: 500, opacity: 0.8 }}>{btnSubtext}</span>}
+        {btnSubtext && <span style={{ fontSize: 7, fontWeight: 500, opacity: 0.8 }}>{btnSubtext}</span>}
       </button>
     </div>
   );
@@ -357,12 +365,7 @@ const LivePreview = ({ config, product: productProp, onSectionClick, activeSecti
                     )}
                     {/* CTA button or embedded form */}
                     {general.formType === 'embedded' ? (
-                      <div style={{ padding: 10, borderRadius: radiusNum, border: `1px solid ${btnColor}25`, backgroundColor: `${btnColor}06` }}>
-                        <div style={{ fontSize: 9.5, fontWeight: 700, color: '#374151', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 4 }}>
-                          <BtnIcon size={11} color={btnColor} /> {btnText}
-                        </div>
-                        <OrderFormContent />
-                      </div>
+                      <OrderFormContent />
                     ) : (
                       <>
                         <button style={{...btnStyle, flexDirection: 'column', gap: 1}} onClick={() => setPopupOpen(true)}>
@@ -769,33 +772,35 @@ const LivePreview = ({ config, product: productProp, onSectionClick, activeSecti
           borderRadius: 20,
         }} onClick={() => setPopupOpen(false)}>
           <div style={{
-            backgroundColor: design.formBgColor || '#fff',
-            borderRadius: '16px 16px 0 0', padding: '14px 14px 20px',
+            backgroundColor: formBg,
+            borderRadius: '16px 16px 0 0', padding: '12px 12px 18px',
             width: '100%', maxHeight: '80%', overflowY: 'auto',
             boxShadow: hasShadow ? '0 -8px 32px rgba(0,0,0,0.15)' : 'none',
+            borderTop: `3px solid ${btnColor}`,
           }} onClick={e => e.stopPropagation()}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, borderBottom: `1px solid ${fieldBorder}`, paddingBottom: 8 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                 <BtnIcon size={12} color={btnColor} />
-                <span style={{ fontSize: 11, fontWeight: 800, color: design.formTextColor || '#111827' }}>{btnText}</span>
+                <span style={{ fontSize: 11, fontWeight: 800, color: formText }}>{btnText}</span>
               </div>
               <button onClick={() => setPopupOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2 }}>
-                <X size={14} color="#9CA3AF" />
+                <X size={14} color={labelColor} />
               </button>
             </div>
             <div style={{
-              display: 'flex', alignItems: 'center', gap: 8, padding: '7px 9px',
-              backgroundColor: '#F9FAFB', borderRadius: 8, marginBottom: 10,
+              display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px',
+              backgroundColor: fieldBg, borderRadius: 8, marginBottom: 8,
+              border: `1px solid ${fieldBorder}`,
             }}>
               {mainImage ? (
-                <img src={mainImage} alt="" style={{ width: 36, height: 36, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />
+                <img src={mainImage} alt="" style={{ width: 32, height: 32, borderRadius: 6, objectFit: 'cover', flexShrink: 0 }} />
               ) : (
-                <div style={{ width: 36, height: 36, borderRadius: 8, backgroundColor: `${btnColor}20`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <Package size={16} color={btnColor} style={{ opacity: 0.5 }} />
+                <div style={{ width: 32, height: 32, borderRadius: 6, backgroundColor: `${btnColor}20`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <Package size={14} color={btnColor} style={{ opacity: 0.5 }} />
                 </div>
               )}
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 9, fontWeight: 700, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{product.name}</div>
+                <div style={{ fontSize: 9, fontWeight: 700, color: formText, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{product.name}</div>
                 <div style={{ fontSize: 9, fontWeight: 800, color: btnColor, marginTop: 1 }}>{fmt(price, cur)}</div>
               </div>
             </div>

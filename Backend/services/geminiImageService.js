@@ -21,15 +21,9 @@ import axios from 'axios';
 import sharp from 'sharp';
 import { uploadToR2 } from './cloudflareImagesService.js';
 
-// ⚠️ Clé en dur — repli pour quand la variable d'env n'est pas définie.
-// À retirer dès que GEMINI_API_KEY est configurée dans Railway. Cette clé
-// finira dans git history — la révoquer et la régénérer si le repo fuite.
-const HARDCODED_FALLBACK_KEY = 'AIzaSyC_YHblagHaeq7OA0a3VA9O6-3uBZk_yxE';
-
-// Priorité : seulement GEMINI_API_KEY (variable explicite) peut override.
-// On NE retombe PAS sur NANOBANANA_API_KEY ici car celle-ci est souvent restée
-// à une ancienne valeur révoquée dans le .env local — la clé en dur passe avant.
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY || HARDCODED_FALLBACK_KEY;
+// Clé lue exclusivement depuis la variable d'environnement GEMINI_API_KEY.
+// Ne JAMAIS mettre une clé en dur ici — elle finirait dans git history.
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
 // gemini-3-pro-image-preview = Nano Banana Pro (meilleure qualité, raisonnement
 // avancé, suivi de prompts complexes, texte haute fidélité). Override possible
 // via GEMINI_IMAGE_MODEL pour repasser sur gemini-3.1-flash-image-preview

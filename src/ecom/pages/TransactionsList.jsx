@@ -204,6 +204,8 @@ const TransactionsList = () => {
   const [forecast, setForecast] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [budgetError, setBudgetError] = useState('');
+  const [budgetSaving, setBudgetSaving] = useState(false);
 
   const loadProducts = useCallback(async () => {
     try {
@@ -289,6 +291,8 @@ const TransactionsList = () => {
   };
   const handleBudgetSubmit = async (e) => {
     e.preventDefault();
+    setBudgetError('');
+    setBudgetSaving(true);
     try {
       const monthValue = budgetForm.month || budgetMonth;
       const [year, month] = monthValue.split('-').map(Number);
@@ -312,7 +316,10 @@ const TransactionsList = () => {
       setBudgetForm({ name:'', category:'publicite', amount:'', productId:'', month:'' }); loadTab();
     } catch (err) { 
       console.error('Budget save error:', err);
-      setError(getContextualError(err, 'save_transaction')); 
+      const msg = err.response?.data?.message || getContextualError(err, 'save_transaction');
+      setBudgetError(msg);
+    } finally {
+      setBudgetSaving(false);
     }
   };
   const handleDeleteBudget = async (id) => {
@@ -363,7 +370,7 @@ const TransactionsList = () => {
             )}
             {tab === 'budgets' && (
               <button
-                onClick={()=>{setShowBudgetForm(true);setEditingBudget(null);setBudgetForm({name:'',category:'publicite',amount:'',productId:'',month:budgetMonth});loadProducts();}}
+                onClick={()=>{setBudgetError('');setShowBudgetForm(true);setEditingBudget(null);setBudgetForm({name:'',category:'publicite',amount:'',productId:'',month:budgetMonth});loadProducts();}}
                 className="inline-flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[13px] font-semibold shadow-sm shadow-emerald-200 transition-all active:scale-95">
                 <Ico d={I.plus} className="w-4 h-4"/>Nouveau budget
               </button>
@@ -432,7 +439,7 @@ const TransactionsList = () => {
           <>
             {tab === 'overview'      && <OverviewTab summary={summary} budgets={budgets} budgetSummary={budgetSummary} forecast={forecast} fmt={fmt} fmtC={fmtCompact} setTab={setTab} periodLabel={periodLabel} pStart={pStart} pEnd={pEnd}/>}
             {tab === 'transactions'  && <TransactionsTab transactions={transactions} summary={summary} balance={bal} filters={filters} setFilters={setFilters} handleDelete={handleDelete} fmt={fmt} fmtCompact={fmtCompact} periodLabel={periodLabel}/>}
-            {tab === 'budgets'       && <BudgetsTab budgets={budgets} budgetSummary={budgetSummary} showBudgetForm={showBudgetForm} setShowBudgetForm={setShowBudgetForm} editingBudget={editingBudget} setEditingBudget={setEditingBudget} budgetForm={budgetForm} setBudgetForm={setBudgetForm} handleBudgetSubmit={handleBudgetSubmit} handleDeleteBudget={handleDeleteBudget} products={products} fmt={fmt} fmtC={fmtCompact} budgetMonth={budgetMonth} setBudgetMonth={setBudgetMonth} loadProducts={loadProducts}/>}
+            {tab === 'budgets'       && <BudgetsTab budgets={budgets} budgetSummary={budgetSummary} showBudgetForm={showBudgetForm} setShowBudgetForm={setShowBudgetForm} editingBudget={editingBudget} setEditingBudget={setEditingBudget} budgetForm={budgetForm} setBudgetForm={setBudgetForm} handleBudgetSubmit={handleBudgetSubmit} handleDeleteBudget={handleDeleteBudget} products={products} fmt={fmt} fmtC={fmtCompact} budgetMonth={budgetMonth} setBudgetMonth={setBudgetMonth} loadProducts={loadProducts} budgetError={budgetError} setBudgetError={setBudgetError} budgetSaving={budgetSaving}/>}
             {tab === 'analyse'       && <AnalyseTab accountingSummary={accountingSummary} fmt={fmt} fmtC={fmtCompact} periodLabel={periodLabel} pStart={pStart} pEnd={pEnd}/>}
             {tab === 'previsions'    && <PrevisionsTab forecast={forecast} fmt={fmt} fmtC={fmtCompact}/>}
           </>
@@ -906,7 +913,7 @@ const TransactionsTab = ({ transactions, summary, balance, filters, setFilters, 
    ═══════════════════════════════════════════════════════════════════════════ */
 const budgetStatus = p => p>100?{badge:'Dépassé',variant:'danger',bar:'bg-red-500',dot:'bg-red-500'}:p>=70?{badge:'Attention',variant:'warning',bar:'bg-amber-400',dot:'bg-amber-400'}:{badge:'OK',variant:'success',bar:'bg-emerald-500',dot:'bg-emerald-500'};
 
-const BudgetsTab = ({ budgets, budgetSummary, showBudgetForm, setShowBudgetForm, editingBudget, setEditingBudget, budgetForm, setBudgetForm, handleBudgetSubmit, handleDeleteBudget, products, fmt, fmtC, budgetMonth, setBudgetMonth, loadProducts }) => {
+const BudgetsTab = ({ budgets, budgetSummary, showBudgetForm, setShowBudgetForm, editingBudget, setEditingBudget, budgetForm, setBudgetForm, handleBudgetSubmit, handleDeleteBudget, products, fmt, fmtC, budgetMonth, setBudgetMonth, loadProducts, budgetError, setBudgetError, budgetSaving }) => {
   const monthOptions = getMonthOptions();
   const currentMonthLabel = monthOptions.find(m=>m.value===budgetMonth)?.label || budgetMonth;
   const inputCls = "w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-gray-900/10 focus:border-gray-300 transition";
@@ -932,16 +939,22 @@ const BudgetsTab = ({ budgets, budgetSummary, showBudgetForm, setShowBudgetForm,
       </div>
 
       {showBudgetForm && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => {setShowBudgetForm(false);setEditingBudget(null);}}>
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => {if(!budgetSaving){setShowBudgetForm(false);setEditingBudget(null);setBudgetError('');}}>
           <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full p-6" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-5">
               <h3 className="text-lg font-bold text-gray-900">{editingBudget?'Modifier le budget':'Nouveau budget'}</h3>
-              <button onClick={() => {setShowBudgetForm(false);setEditingBudget(null);}} className="text-gray-400 hover:text-gray-600 transition">
+              <button onClick={() => {setShowBudgetForm(false);setEditingBudget(null);setBudgetError('');}} className="text-gray-400 hover:text-gray-600 transition">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
             
             <form onSubmit={handleBudgetSubmit} className="space-y-4">
+              {budgetError && (
+                <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2.5 rounded-lg text-sm font-medium flex items-center gap-2">
+                  <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                  {budgetError}
+                </div>
+              )}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Nom</label>
                 <input required value={budgetForm.name} onChange={e=>setBudgetForm(p=>({...p,name:e.target.value}))} placeholder="Ex: Budget Pub" className={inputCls}/>
@@ -976,11 +989,12 @@ const BudgetsTab = ({ budgets, budgetSummary, showBudgetForm, setShowBudgetForm,
               </div>
               
               <div className="flex gap-3 pt-2">
-                <button type="button" onClick={()=>{setShowBudgetForm(false);setEditingBudget(null);}} className="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 font-medium transition">
+                <button type="button" onClick={()=>{setShowBudgetForm(false);setEditingBudget(null);setBudgetError('');}} className="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 font-medium transition" disabled={budgetSaving}>
                   Annuler
                 </button>
-                <button type="submit" className="flex-1 px-4 py-2.5 bg-gray-900 text-white rounded-lg text-sm font-semibold hover:bg-gray-800 transition">
-                  {editingBudget?'Enregistrer':'Créer'}
+                <button type="submit" disabled={budgetSaving} className="flex-1 px-4 py-2.5 bg-gray-900 text-white rounded-lg text-sm font-semibold hover:bg-gray-800 transition disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+                  {budgetSaving && <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>}
+                  {budgetSaving ? 'Enregistrement...' : editingBudget ? 'Enregistrer' : 'Créer'}
                 </button>
               </div>
             </form>
@@ -991,7 +1005,7 @@ const BudgetsTab = ({ budgets, budgetSummary, showBudgetForm, setShowBudgetForm,
       {budgets.length===0 ? (
         <Card className="p-0">
           <EmptyState icon={I.target} title={`Aucun budget pour ${currentMonthLabel}`} sub="Définissez des budgets pour suivre vos dépenses par catégorie"
-            action={<button onClick={()=>{setShowBudgetForm(true);setBudgetForm({name:'',category:'publicite',amount:'',productId:'',month:budgetMonth});loadProducts();}} className="px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-semibold hover:bg-gray-800 transition">Créer un budget</button>}/>
+            action={<button onClick={()=>{setBudgetError('');setShowBudgetForm(true);setBudgetForm({name:'',category:'publicite',amount:'',productId:'',month:budgetMonth});loadProducts();}} className="px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-semibold hover:bg-gray-800 transition">Créer un budget</button>}/>
         </Card>
       ) : (
         <div className="space-y-3">
@@ -1020,7 +1034,7 @@ const BudgetsTab = ({ budgets, budgetSummary, showBudgetForm, setShowBudgetForm,
                       <p className="text-[10px] text-gray-400">{fmtC(Math.max(b.remaining,0))} restants — {b.transactionCount||0} tx</p>
                     </div>
                     <div className="flex gap-0.5">
-                      <button onClick={()=>{setEditingBudget(b);setBudgetForm({name:b.name,category:b.category,amount:b.amount,productId:b.productId?._id||'',month:b.month||budgetMonth});setShowBudgetForm(true);loadProducts();}} className="p-1.5 rounded-lg hover:bg-gray-100 transition" title="Modifier">
+                      <button onClick={()=>{setBudgetError('');setEditingBudget(b);setBudgetForm({name:b.name,category:b.category,amount:b.amount,productId:b.productId?._id||'',month:b.month||budgetMonth});setShowBudgetForm(true);loadProducts();}} className="p-1.5 rounded-lg hover:bg-gray-100 transition" title="Modifier">
                         <Ico d={I.edit} className="w-4 h-4 text-gray-400"/>
                       </button>
                       <button onClick={()=>handleDeleteBudget(b._id)} className="p-1.5 rounded-lg hover:bg-red-50 transition" title="Supprimer">

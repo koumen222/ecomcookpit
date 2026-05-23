@@ -12,6 +12,7 @@ import StoreOrder from '../models/StoreOrder.js';
 import { requireEcomAuth } from '../middleware/ecomAuth.js';
 import { checkPlanLimit } from '../middleware/planLimits.js';
 import { invalidateStoreCache } from './storeApi.js';
+import { invalidateStorefrontCache } from './publicStorefront.js';
 
 const router = express.Router();
 
@@ -362,7 +363,7 @@ router.delete('/:storeId', requireEcomAuth, async (req, res) => {
     await store.save();
 
     // Purge public store cache so the subdomain returns 404 immediately
-    if (subdomain) invalidateStoreCache(subdomain);
+    if (subdomain) invalidateStoreCache(subdomain); invalidateStorefrontCache(subdomain);
 
     // If it was primary, promote another store
     if (String(ws?.primaryStoreId) === String(store._id)) {

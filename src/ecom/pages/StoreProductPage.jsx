@@ -68,13 +68,19 @@ const LazySection = ({ children, minHeight = 80, style = {} }) => {
 
 // ── Skeleton de la page produit (chargement initial) ─────────────────────────
 // Ne s'affiche qu'après un court délai pour éviter le flash sur les requêtes rapides.
-const ProductPageSkeleton = ({ delayMs = 400 }) => {
-  const [show, setShow] = useState(false);
+const ProductPageSkeleton = ({ delayMs = 0 }) => {
+  const [show, setShow] = useState(delayMs === 0);
   useEffect(() => {
+    if (delayMs === 0) return;
     const id = setTimeout(() => setShow(true), delayMs);
     return () => clearTimeout(id);
   }, [delayMs]);
-  if (!show) return <div style={{ minHeight: '100vh', background: 'var(--s-bg, #fff)' }} />;
+  if (!show) return (
+    <div style={{ minHeight: '100vh', background: 'var(--s-bg, #fff)', position: 'relative' }}>
+      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, height: 2, background: '#10b981', zIndex: 9999, animation: 'pp-pbar 1.8s ease-in-out infinite' }} />
+      <style>{`@keyframes pp-pbar { 0%{transform:scaleX(0);transform-origin:left} 50%{transform:scaleX(0.7);transform-origin:left} 100%{transform:scaleX(1);transform-origin:left;opacity:0} }`}</style>
+    </div>
+  );
 
   const shimmer = {
     background: 'linear-gradient(90deg, #f1f5f9 0%, #e2e8f0 50%, #f1f5f9 100%)',
@@ -891,7 +897,7 @@ const ProductDescription = ({ content, design = {} }) => {
 
   // HTML with embedded styles — render as-is, only constrain images
   return (
-    <div className="ai-desc" dangerouslySetInnerHTML={safeHtml(htmlToRender, 'storefront')} />
+    <div className="ai-desc" style={{ fontFamily: 'var(--s-font)' }} dangerouslySetInnerHTML={safeHtml(htmlToRender, 'storefront')} />
   );
 };
 
@@ -1620,11 +1626,54 @@ const StoreProductPage = () => {
       ...(baseProductPageConfig.conversion || {}),
       ...(previewPC.conversion || {}),
       // Quantity offers from QuantityOffer model take highest priority
-      ...(product?.quantityOffers?.length > 0 ? {
-        offersEnabled: true,
-        offers: product.quantityOffers,
-        offerDesign: product.quantityOfferDesign || null,
-      } : {}),
+      ...(product?.quantityOffers?.length > 0 ? (() => {
+        const qd = product.quantityOfferDesign || {};
+        const primary = qd.colors?.primary || qd.sel_border || '#be123c';
+        // Reconstruct offerDesign from compact wizard fields
+        const offerDesign = {
+          borderColorSelected:   qd.borderColorSelected   || qd.sel_border     || primary,
+          borderColorUnselected: qd.borderColorUnselected || qd.unsel_border   || '#d1d1d1',
+          bgColorSelected:       qd.bgColorSelected       || qd.sel_bg         || '',
+          bgColorUnselected:     qd.bgColorUnselected      || qd.unsel_bg       || '#ffffff',
+          borderStyle:           qd.borderStyle            || qd.border_style   || 'solid',
+          borderRadius:          qd.borderRadius           ?? qd.border_radius  ?? 12,
+          radioColor:            qd.radioColor             || qd.radio_color    || primary,
+          badgeBg:               qd.badgeBg                || qd.badge_gradient || primary,
+          badgeTextColor:        qd.badgeTextColor         || qd.badge_text_color || '#ffffff',
+          badgeRadius:           qd.badgeRadius            ?? 20,
+          badgeFontSize:         qd.badgeFontSize          || qd.badge_font_size || 10,
+          badgeStyle:            qd.badgeStyle             || qd.badge_style    || 'pill',
+          labelGradient:         qd.labelGradient          || qd.label_gradient || primary,
+          labelTextColor:        qd.labelTextColor         || qd.label_text_color || '#ffffff',
+          labelFontSize:         qd.labelFontSize          || qd.label_font_size || 11,
+          labelStyle:            qd.labelStyle             || qd.label_style    || 'banner',
+          discountBg:            qd.discountBg             || qd.discount_bg    || '#FEE2E2',
+          discountTextColor:     qd.discountTextColor      || qd.discount_color || '#EF4444',
+          priceColor:            qd.priceColor             || qd.price_text_color || primary,
+          priceFontSize:         qd.priceFontSize          || qd.price_font_size || 14,
+          priceFontWeight:       qd.priceFontWeight        || qd.price_font_weight || 'bold',
+          titleTextColor:        qd.titleTextColor         || qd.title_text_color || '#111827',
+          titleFontSize:         qd.titleFontSize          || qd.title_font_size || 14,
+          titleFontWeight:       qd.titleFontWeight        || qd.title_font_weight || 'bold',
+          compareColor:          qd.compareColor           || qd.compare_color  || '#9CA3AF',
+          sectionLabel:          qd.sectionLabel           || qd.offerSectionLabel || 'Choisissez votre offre',
+          displayType:           qd.displayType            || qd.display_type     || 'radio',
+          position:              qd.position               || 'inside_form',
+          template:              qd.template               || 'modern',
+        };
+        return {
+          offersEnabled: true,
+          offers: product.quantityOffers.map(o => ({
+            qty:          o.qty ?? o.quantity ?? 1,
+            price:        Number(o.price) || 0,
+            comparePrice: Number(o.comparePrice ?? o.compare_price) || 0,
+            badge:        o.badge ?? o.label ?? '',
+            selected:     o.selected ?? false,
+            discount:     o.discount ?? 0,
+          })),
+          offerDesign,
+        };
+      })() : {}),
     },
   };
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1656,17 +1705,17 @@ const StoreProductPage = () => {
   const raisonsTheme = useMemo(() => buildSectionVisualTheme('benefits', { useTextAsTitle: true }), []);
   const guideTheme = useMemo(() => buildSectionVisualTheme('solution', { useTextAsTitle: true }), []);
   const faqTheme = useMemo(() => buildSectionVisualTheme('faq'), []);
-  const ctaBtnColor = ppDesign.ctaButtonColor || ppDesign.buttonColor || aiVisualTheme?.primary || 'var(--s-primary)';
-  const ctaBorderRadius = ppDesign.ctaBorderRadius || ppDesign.borderRadius || '14px';
+  // ppButton.* takes priority — allows per-button customisation independent of design tab
+  const ctaBtnColor = ppButton.bgColor || ppDesign.ctaButtonColor || ppDesign.buttonColor || aiVisualTheme?.primary || 'var(--s-primary)';
+  const ctaBorderRadius = ppButton.borderRadius != null ? `${ppButton.borderRadius}px` : (ppDesign.ctaBorderRadius || ppDesign.borderRadius || '14px');
   const ctaButtonStyle = ppDesign.buttonStyle || 'filled';
-  const ctaFontSize = Number.parseInt(ppDesign.buttonFontSize, 10) || ((Number.parseInt(ppDesign.fontBase, 10) || 14) + 3);
-  const ctaFontWeight = Number.parseInt(ppDesign.fontWeight, 10) || 700;
-  const ctaShadow = ppDesign.shadow === false
+  const ctaFontSize = ppButton.fontSize || Number.parseInt(ppDesign.buttonFontSize, 10) || ((Number.parseInt(ppDesign.fontBase, 10) || 14) + 3);
+  const ctaFontWeight = ppButton.bold !== false ? (Number.parseInt(ppDesign.fontWeight, 10) || 700) : 400;
+  const ctaShadowVal = ppButton.shadow ?? (ppDesign.shadow === false ? -1 : Number.parseInt(ppDesign.buttonShadow, 10) || 4);
+  const ctaShadow = ctaShadowVal <= 0
     ? 'none'
-    : (ppDesign.buttonShadow
-      ? `0 ${ppDesign.buttonShadow}px ${Number.parseInt(ppDesign.buttonShadow, 10) * 2}px rgba(0,0,0,0.12)`
-      : '0 4px 16px rgba(0,0,0,0.12)');
-  const ctaTextColor = ppDesign.buttonTextColor
+    : `0 ${ctaShadowVal}px ${ctaShadowVal * 2}px rgba(0,0,0,${Math.min(ctaShadowVal * 0.06, 0.5).toFixed(2)})`;
+  const ctaTextColor = ppButton.textColor || ppDesign.buttonTextColor
     || ((ctaButtonStyle === 'outline' || ctaButtonStyle === 'soft') ? ctaBtnColor : '#fff');
   const badgeColor = ppDesign.badgeColor || aiVisualTheme?.accent || 'var(--s-badge)';
   const badgeStyle = ppDesign.badgeStyle || 'filled';
@@ -1691,7 +1740,7 @@ const StoreProductPage = () => {
       overflow: 'hidden',
       fontWeight: ctaFontWeight,
       fontSize: compact ? Math.max(13, ctaFontSize - 2) : ctaFontSize,
-      fontStyle: ppDesign.buttonItalic ? 'italic' : 'normal',
+      fontStyle: (ppButton.italic || ppDesign.buttonItalic) ? 'italic' : 'normal',
     };
 
     if (!enabled) {
@@ -1703,8 +1752,10 @@ const StoreProductPage = () => {
       };
     }
 
-    if (ppDesign.buttonBorderWidth && Number.parseInt(ppDesign.buttonBorderWidth, 10) > 0) {
-      style.border = `${ppDesign.buttonBorderWidth} solid ${ppDesign.buttonBorderColor || 'transparent'}`;
+    const resolvedBorderW = ppButton.borderWidth ?? Number.parseInt(ppDesign.buttonBorderWidth, 10) ?? 0;
+    const resolvedBorderColor = ppButton.borderColor || ppDesign.buttonBorderColor || 'transparent';
+    if (resolvedBorderW > 0) {
+      style.border = `${resolvedBorderW}px solid ${resolvedBorderColor}`;
     } else if (ctaButtonStyle === 'outline') {
       style.border = `2px solid ${ctaBtnColor}`;
     } else {
@@ -2041,7 +2092,8 @@ const StoreProductPage = () => {
     });
   };
 
-  if (loading && !product) return <ProductPageSkeleton delayMs={400} />;
+  // Show skeleton immediately — no 400ms blank screen anymore
+  if (loading && !product) return <ProductPageSkeleton delayMs={0} />;
 
   // Network/server error but no product — show retry instead of hard error screen
   if (!loading && !product && !error) return (
@@ -2109,7 +2161,8 @@ const StoreProductPage = () => {
     }}>
       <style>{`
         *{box-sizing:border-box} body{margin:0;padding:0}
-        html,body{ overflow-x:hidden; max-width:100vw; }
+        html,body{ overflow-x:hidden; max-width:100vw; font-family:var(--s-font) !important; font-size:var(--s-font-base) !important; font-weight:var(--s-font-weight) !important; }
+        *{ font-family:inherit; }
         .sf-no-scrollbar { scrollbar-width:none; -ms-overflow-style:none; }
         .sf-no-scrollbar::-webkit-scrollbar { display:none; }
         img { max-width:100%; height:auto; }
@@ -2291,6 +2344,8 @@ const StoreProductPage = () => {
           .theme-bold .product-info { padding:0 var(--pp-desktop-info-padding) 48px 0; }
         }
 
+        .ai-desc { font-family: var(--s-font) !important; }
+        .ai-desc * { font-family: var(--s-font) !important; }
         .ai-desc img { width:auto !important; max-width:100% !important; height:auto !important; aspect-ratio:auto !important; object-fit:contain !important; display:block; margin:0; }
         .product-info.ai-themed {
           position: relative;

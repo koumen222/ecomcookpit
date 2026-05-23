@@ -7,8 +7,9 @@ import StoreProduct from '../models/StoreProduct.js';
 import StoreAnalytics from '../models/StoreAnalytics.js';
 import Store from '../models/Store.js';
 import { requireEcomAuth, requireWorkspace } from '../middleware/ecomAuth.js';
-import { emitThemeUpdate } from '../services/socketService.js';
+import { emitThemeUpdate, emitStoreUpdate } from '../services/socketService.js';
 import { invalidateStoreCache } from './storeApi.js';
+import { invalidateStorefrontCache } from './publicStorefront.js';
 
 const router = express.Router();
 const DEBUG_TAG = '[StoreAdmin:Settings]';
@@ -298,12 +299,13 @@ router.put('/theme', requireEcomAuth, requireWorkspace, async (req, res) => {
 
     // Invalidate public store cache so changes appear immediately
     if (updated?.subdomain) {
-      invalidateStoreCache(updated.subdomain);
+      invalidateStoreCache(updated.subdomain); invalidateStorefrontCache(updated.subdomain);
     }
 
     // Broadcast to all live visitors of this store
     if (updated?.subdomain) {
       emitThemeUpdate(updated.subdomain, req.body);
+      emitStoreUpdate(updated.subdomain);
     }
 
     console.log('✅ Theme updated + broadcasted to store:', updated?.subdomain);
@@ -366,7 +368,7 @@ router.put('/pages', requireEcomAuth, requireWorkspace, async (req, res) => {
     const storeForCache = req.activeStoreId
       ? await Store.findById(req.activeStoreId).select('subdomain').lean()
       : await Workspace.findById(req.workspaceId).select('subdomain').lean();
-    if (storeForCache?.subdomain) invalidateStoreCache(storeForCache.subdomain);
+    if (storeForCache?.subdomain) { invalidateStoreCache(storeForCache.subdomain); invalidateStorefrontCache(storeForCache.subdomain); }
 
     console.log('✅ Pages updated successfully');
     res.json({
@@ -655,10 +657,10 @@ router.put('/domains', requireEcomAuth, requireWorkspace, async (req, res) => {
     }
 
     if (previousSubdomain && previousSubdomain !== update.subdomain) {
-      invalidateStoreCache(previousSubdomain);
+      invalidateStoreCache(previousSubdomain); invalidateStorefrontCache(previousSubdomain);
     }
     if (update.subdomain) {
-      invalidateStoreCache(update.subdomain);
+      invalidateStoreCache(update.subdomain); invalidateStorefrontCache(update.subdomain);
     }
 
     const latestDomainState = activeStore

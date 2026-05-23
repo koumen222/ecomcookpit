@@ -98,26 +98,34 @@ export function useThemeSocket(subdomain, onThemeUpdate) {
   useEffect(() => {
     if (!subdomain) return;
 
-    // Live theme updates are only needed in builder preview (iframe).
-    // Skip socket connection for normal storefront visits to avoid noisy retries.
-    let isIframePreview = false;
-    try {
-      isIframePreview = window.self !== window.top;
-    } catch {
-      isIframePreview = true;
-    }
-    if (!isIframePreview) return;
-
     const socket = getOrCreateSocket(subdomain);
-
-    const handler = (theme) => {
-      callbackRef.current?.(theme);
-    };
-
+    const handler = (theme) => { callbackRef.current?.(theme); };
     socket.on('theme:update', handler);
 
     return () => {
       socket.off('theme:update', handler);
+      releaseSocket(subdomain);
+    };
+  }, [subdomain]);
+}
+
+/**
+ * useStoreUpdates — Listen for store:updated events emitted when admin saves any change.
+ * Calls onUpdate() so the page can refetch fresh data instantly.
+ */
+export function useStoreUpdates(subdomain, onUpdate) {
+  const callbackRef = useRef(onUpdate);
+  callbackRef.current = onUpdate;
+
+  useEffect(() => {
+    if (!subdomain) return;
+
+    const socket = getOrCreateSocket(subdomain);
+    const handler = () => { callbackRef.current?.(); };
+    socket.on('store:updated', handler);
+
+    return () => {
+      socket.off('store:updated', handler);
       releaseSocket(subdomain);
     };
   }, [subdomain]);

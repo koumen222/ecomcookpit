@@ -6,9 +6,10 @@
  * - sessionStorage cache (5min TTL): instant render on navigation within session
  * - CSS vars injected immediately from cache → no FOUC on subsequent visits
  */
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { publicStoreApi } from '../services/storeApi';
 import { normalizeHomepageSections } from '../utils/homepageSections';
+import { useStoreUpdates } from './useThemeSocket';
 
 const FONT_FAMILIES = {
   system: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
@@ -23,6 +24,18 @@ const FONT_FAMILIES = {
   lora: "'Lora', serif",
   outfit: "'Outfit', sans-serif",
   'space-grotesk': "'Space Grotesk', sans-serif",
+  raleway: "'Raleway', sans-serif",
+  oswald: "'Oswald', sans-serif",
+  'open-sans': "'Open Sans', sans-serif",
+  geist: "'Geist', sans-serif",
+  'plus-jakarta': "'Plus Jakarta Sans', sans-serif",
+  urbanist: "'Urbanist', sans-serif",
+  syne: "'Syne', sans-serif",
+  josefin: "'Josefin Sans', sans-serif",
+  merriweather: "'Merriweather', serif",
+  cormorant: "'Cormorant Garamond', serif",
+  bebas: "'Bebas Neue', cursive",
+  archivo: "'Archivo', sans-serif",
 };
 
 const FONT_GFONTS = {
@@ -36,6 +49,18 @@ const FONT_GFONTS = {
   lora: 'Lora:wght@400;500;600;700',
   outfit: 'Outfit:wght@400;500;600;700;800',
   'space-grotesk': 'Space+Grotesk:wght@400;500;600;700',
+  raleway: 'Raleway:wght@400;500;600;700;800;900',
+  oswald: 'Oswald:wght@400;500;600;700',
+  'open-sans': 'Open+Sans:wght@400;500;600;700;800',
+  geist: 'Geist:wght@400;500;600;700;800;900',
+  'plus-jakarta': 'Plus+Jakarta+Sans:wght@400;500;600;700;800',
+  urbanist: 'Urbanist:wght@400;500;600;700;800;900',
+  syne: 'Syne:wght@400;500;600;700;800',
+  josefin: 'Josefin+Sans:wght@400;500;600;700',
+  merriweather: 'Merriweather:wght@400;700;900',
+  cormorant: 'Cormorant+Garamond:wght@400;500;600;700',
+  bebas: 'Bebas+Neue:wght@400',
+  archivo: 'Archivo:wght@400;500;600;700;800;900',
 };
 
 function loadGoogleFont(fontId) {
@@ -48,6 +73,13 @@ function loadGoogleFont(fontId) {
   link.rel = 'stylesheet';
   link.href = `https://fonts.googleapis.com/css2?family=${gfont}&display=swap`;
   document.head.appendChild(link);
+}
+
+export function applyFont(fontId) {
+  if (!fontId) return;
+  const family = FONT_FAMILIES[fontId];
+  if (family) document.documentElement.style.setProperty('--s-font', family);
+  loadGoogleFont(fontId);
 }
 
 function withAlpha(color, alphaHex, fallback) {
@@ -77,6 +109,7 @@ export function injectStoreCssVars(store) {
   const r = document.documentElement.style;
   // Design overrides from productPageConfig take priority
   const d = store.productPageConfig?.design || {};
+  // formButtonColor is scoped to the order form only — never use it for global CSS vars
   const primaryColor = resolveThemeColor(d.buttonColor, store.primaryColor, '#0F6B4F') || '#0F6B4F';
   const accentColor = resolveThemeColor(d.ctaButtonColor, d.buttonColor, store.accentColor, primaryColor, '#059669') || '#059669';
   const sectionColors = {
@@ -186,25 +219,13 @@ function toProductPreview(product, fallbackCurrency) {
 }
 
 export async function prefetchStoreProduct(subdomain, slug) {
-  const cacheKey = getProductCacheKey(subdomain, slug);
-  if (!cacheKey) return null;
-
-  const cachedProduct = readCache(cacheKey);
-  if (cachedProduct) return cachedProduct;
-
   const requestKey = `${subdomain}:${slug}`;
   if (productPrefetchRequests.has(requestKey)) {
     return productPrefetchRequests.get(requestKey);
   }
 
   const request = publicStoreApi.getProduct(subdomain, slug)
-    .then((res) => {
-      const productData = res.data?.data || null;
-      if (productData) {
-        writeCache(cacheKey, productData);
-      }
-      return productData;
-    })
+    .then((res) => res.data?.data || null)
     .catch(() => null)
     .finally(() => {
       productPrefetchRequests.delete(requestKey);
@@ -304,19 +325,43 @@ export function useStoreData(subdomain) {
     return () => { cancelled = true; };
   }, [subdomain]);
 
+  // Refetch silently when admin saves any change
+  const refetchStore = useCallback(() => {
+    if (!subdomain) return;
+    publicStoreApi.getStore(subdomain)
+      .then(res => {
+        const data = res.data?.data || {};
+        const storeData = data.store || data;
+        const sectionsData = normalizeHomepageSections(data.sections ?? null);
+        const productsData = data.products || [];
+        injectStoreCssVars(storeData);
+        setStore(storeData);
+        setSections(sectionsData);
+        setProducts(productsData);
+        if (data.pixels !== undefined) setPixels(data.pixels);
+        if (data.footer !== undefined) setFooter(data.footer);
+        if (data.legalPages !== undefined) setLegalPages(data.legalPages);
+        if (cacheKey) writeCache(cacheKey, { store: storeData, sections: sectionsData, products: productsData, pixels: data.pixels || null, footer: data.footer || null, legalPages: data.legalPages || null });
+      })
+      .catch(() => {});
+  }, [subdomain]);
+
+  useStoreUpdates(subdomain, refetchStore);
+
   return { store, sections, products, pixels, footer, legalPages, loading, error };
 }
 
 // ─── useStoreProduct ──────────────────────────────────────────────────────────
 export function useStoreProduct(subdomain, slug) {
   const storeCacheKey = subdomain ? `sf_${subdomain}` : null;
-  const cachedStore = storeCacheKey ? readCache(storeCacheKey) : null;
   const productCacheKey = getProductCacheKey(subdomain, slug);
-  const cachedProduct = productCacheKey ? readCache(productCacheKey) : null;
 
-  // Bootstrap from server-injected data on first load (SSR-style)
-  const initial = !cachedStore && !cachedProduct ? consumeInitialData() : null;
-  if (initial?.store && storeCacheKey && !cachedStore) {
+  // Bootstrap only from server-injected data (SSR first load) — no sessionStorage cache reads
+  const initial = consumeInitialData();
+  const bootstrapProduct = initial?.product?.slug === slug ? initial.product : null;
+  const bootstrapStore = initial?.store || null;
+
+  if (initial?.store && storeCacheKey) {
     writeCache(storeCacheKey, {
       store: initial.store,
       sections: initial.sections ?? null,
@@ -326,30 +371,19 @@ export function useStoreProduct(subdomain, slug) {
       legalPages: initial.legalPages || null,
     });
   }
-  if (initial?.product && productCacheKey && !cachedProduct) {
-    writeCache(productCacheKey, initial.product);
-  }
-
-  const bootstrapStore = cachedStore?.store || initial?.store || null;
-  const bootstrapProduct = cachedProduct
-    || (initial?.product?.slug === slug ? initial.product : null)
-    || toProductPreview(
-        (cachedStore?.products || initial?.products || []).find((item) => item.slug === slug),
-        (bootstrapStore?.currency)
-      );
 
   const [store, setStore] = useState(bootstrapStore);
-  const [pixels, setPixels] = useState(cachedStore?.pixels || (initial?.store?.pixels ?? null));
-  const [storeFooter, setStoreFooter] = useState(cachedStore?.footer || initial?.footer || null);
+  const [pixels, setPixels] = useState(initial?.store?.pixels ?? null);
+  const [storeFooter, setStoreFooter] = useState(initial?.footer || null);
   const [product, setProduct] = useState(bootstrapProduct);
   const [related, setRelated] = useState([]);
-  const [loading, setLoading] = useState(!bootstrapProduct);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
     if (!subdomain || !slug) { setLoading(false); return; }
 
-    // CSS vars from cached/bootstrap store → no FOUC on product page
+    // CSS vars from bootstrap store
     if (bootstrapStore) injectStoreCssVars(bootstrapStore);
 
     let cancelled = false;
@@ -357,7 +391,7 @@ export function useStoreProduct(subdomain, slug) {
     setProduct(bootstrapProduct);
     setRelated([]);
     setError(null);
-    setLoading(!bootstrapProduct);
+    setLoading(true);
 
     async function fetchWithRetry(fn, retries = 2, delayMs = 800) {
       for (let attempt = 0; attempt <= retries; attempt++) {
@@ -377,39 +411,14 @@ export function useStoreProduct(subdomain, slug) {
       try {
         let productData, storeData, pixelsData, footerData;
 
-        if (bootstrapStore) {
-          // Store already cached — only fetch the product (saves one round-trip)
-          const productRes = await fetchWithRetry(() => publicStoreApi.getProduct(subdomain, slug));
-          if (cancelled) return;
-          productData = productRes?.data?.data || null;
-          storeData = bootstrapStore;
-          pixelsData = cachedStore?.pixels || (bootstrapStore?.pixels ?? null);
-          footerData = cachedStore?.footer || null;
-        } else {
-          // Cold load: one combined call returns store + product + pixels in a single round-trip
-          const pageRes = await fetchWithRetry(() => publicStoreApi.getProductPage(subdomain, slug));
-          if (cancelled) return;
-          const pageData = pageRes?.data?.data || {};
-          productData = pageData.product || null;
-          storeData = pageData.store || null;
-          pixelsData = pageData.pixels || null;
-          footerData = pageData.footer || null;
-          // Populate store cache so subsequent navigations skip the store call
-          if (storeCacheKey && storeData) {
-            writeCache(storeCacheKey, {
-              store: storeData,
-              sections: null,
-              products: [],
-              pixels: pixelsData,
-              footer: footerData,
-              legalPages: null,
-            });
-          }
-        }
-
-        if (productCacheKey && productData) {
-          writeCache(productCacheKey, productData);
-        }
+        // Always fetch fresh — no cache reads
+        const pageRes = await fetchWithRetry(() => publicStoreApi.getProductPage(subdomain, slug));
+        if (cancelled) return;
+        const pageData = pageRes?.data?.data || {};
+        productData = pageData.product || null;
+        storeData = pageData.store || null;
+        pixelsData = pageData.pixels || null;
+        footerData = pageData.footer || null;
 
         injectStoreCssVars(storeData);
         setStore(storeData);
@@ -445,6 +454,22 @@ export function useStoreProduct(subdomain, slug) {
     load();
     return () => { cancelled = true; };
   }, [subdomain, slug]);
+
+  // Refetch silently when admin saves any change
+  const refetch = useCallback(() => {
+    if (!subdomain || !slug) return;
+    publicStoreApi.getProductPage(subdomain, slug)
+      .then(res => {
+        const d = res?.data?.data || {};
+        if (d.product) setProduct(d.product);
+        if (d.store) { injectStoreCssVars(d.store); setStore(d.store); }
+        if (d.pixels !== undefined) setPixels(d.pixels);
+        if (d.footer !== undefined) setStoreFooter(d.footer);
+      })
+      .catch(() => {});
+  }, [subdomain, slug]);
+
+  useStoreUpdates(subdomain, refetch);
 
   return { store, pixels, product, related, loading, error };
 }

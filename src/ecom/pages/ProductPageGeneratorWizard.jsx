@@ -8,6 +8,7 @@ const ProductPageGeneratorWizard = () => {
   const basePath = location.pathname.startsWith('/ecom/boutique') ? '/ecom/boutique' : '/ecom/store';
   const returnTo = location.state?.from || `${basePath}/product-page-studio/generations`;
   const loadTaskId = location.state?.loadTaskId || null;
+  const initialPageStyle = location.state?.pageStyle || 'classic';
 
   const handleClose = () => {
     navigate(returnTo);
@@ -28,6 +29,7 @@ const ProductPageGeneratorWizard = () => {
       onApply={handleApply}
       pageMode
       initialTaskId={loadTaskId}
+      initialPageStyle={initialPageStyle}
     />
   );
 };

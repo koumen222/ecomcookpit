@@ -50,35 +50,11 @@ const BOUTIQUE_NAV = [
     ],
   },
   {
-    name: 'Product Page Studio',
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M4 6.75A2.75 2.75 0 016.75 4h10.5A2.75 2.75 0 0120 6.75v10.5A2.75 2.75 0 0117.25 20H6.75A2.75 2.75 0 014 17.25V6.75z" />
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M8 8.5h8M8 12h5.5M8 15.5h4" />
-      </svg>
-    ),
-    children: [
-      { name: 'Vue studio', href: '/ecom/boutique/product-page-studio' },
-      { name: 'Toutes les generations', href: '/ecom/boutique/product-page-studio/generations' },
-      { name: 'Echecs & reprise', href: '/ecom/boutique/product-page-studio/errors' },
-      { name: 'Nouvelle generation', href: '/ecom/boutique/products/generator' },
-    ],
-  },
-  {
-    name: 'Page Builder',
+    name: 'Theme Builder',
     href: '/ecom/boutique/page-builder',
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M4 5a1 1 0 011-1h4a1 1 0 011 1v5a1 1 0 01-1 1H5a1 1 0 01-1-1V5zm10 0a1 1 0 011-1h4a1 1 0 011 1v2a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 14a1 1 0 011-1h4a1 1 0 011 1v5a1 1 0 01-1 1H5a1 1 0 01-1-1v-5zm10-2a1 1 0 011-1h4a1 1 0 011 1v7a1 1 0 01-1 1h-4a1 1 0 01-1-1v-7z" />
-      </svg>
-    ),
-  },
-  {
-    name: 'Pages',
-    href: '/ecom/boutique/pages',
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
       </svg>
     ),
   },
@@ -575,7 +551,7 @@ const getBoutiquePageTitle = (pathname) => {
   if (pathname.includes('/boutique/products') && pathname.includes('/edit')) return 'Modifier produit';
   if (pathname.includes('/boutique/products')) return 'Produits';
   if (pathname.includes('/boutique/orders')) return 'Commandes';
-  if (pathname.includes('/boutique/page-builder')) return 'Page Builder';
+  if (pathname.includes('/boutique/page-builder')) return 'Theme Builder';
   if (pathname.includes('/boutique/theme')) return 'Thème & Apparence';
   if (pathname.includes('/boutique/pages')) return 'Pages';
   if (pathname.includes('/boutique/pixel')) return 'Pixel & Tracking';
@@ -592,10 +568,6 @@ const getBoutiquePageTitle = (pathname) => {
   if (pathname.includes('/boutique/product-settings')) return 'Paramètres Page Produit';
   if (pathname.includes('/boutique/theme')) return 'Thème & Design';
   if (pathname.includes('/creative-generator')) return 'Générateur de Créas';
-  if (pathname.includes('/boutique/product-page-studio/errors')) return 'Product Page Studio - Echecs';
-  if (pathname.includes('/boutique/product-page-studio/generations')) return 'Product Page Studio - Generations';
-  if (pathname.includes('/boutique/product-page-studio')) return 'Product Page Studio';
-  if (pathname.includes('/generations')) return 'Product Page Studio';
   if (pathname.includes('/boutique/settings')) return 'Paramètres & Branding';
   return 'Boutique';
 };

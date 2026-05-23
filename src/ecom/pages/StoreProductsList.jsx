@@ -101,10 +101,11 @@ const StoreProductsList = () => {
     window.open(url, '_blank');
   };
 
-  const handleOpenPageGenerator = () => {
+  const handleOpenPageGenerator = (pageStyle = 'classic') => {
     navigate(`${basePath}/products/generator`, {
       state: {
         from: `${basePath}/products`,
+        pageStyle,
       },
     });
   };
@@ -766,19 +767,31 @@ const StoreProductsList = () => {
               </>
             )}
             {viewMode !== 'categories' && (
-              <button
-                onClick={handleOpenPageGenerator}
-                className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-violet-500 to-purple-600 px-4 py-2.5 text-sm font-medium text-white transition hover:from-violet-600 hover:to-purple-700 shadow-sm"
-              >
-                <Sparkles className="h-4 w-4" />
-                <span>Générer Page IA</span>
-                {generationsInfo && (generationsInfo.freeRemaining + generationsInfo.paidRemaining) > 0 && (
-                  <span className="ml-1 inline-flex items-center gap-1 rounded-full bg-white/20 px-2 py-0.5 text-xs font-bold">
-                    <Zap className="h-3 w-3" />
-                    {generationsInfo.freeRemaining + generationsInfo.paidRemaining}
-                  </span>
-                )}
-              </button>
+              <div className="inline-flex rounded-xl shadow-sm overflow-hidden border border-violet-300">
+                {/* Gratuit — hero_page mode */}
+                <button
+                  onClick={() => handleOpenPageGenerator('hero_page')}
+                  className="inline-flex items-center justify-center gap-1.5 bg-emerald-500 hover:bg-emerald-600 px-3 py-2.5 text-sm font-semibold text-white transition border-r border-emerald-400"
+                  title="Page complète + hero IA — gratuit, sans images d'angles"
+                >
+                  <Sparkles className="h-4 w-4" />
+                  <span>Gratuit</span>
+                </button>
+                {/* Pro — classic mode with credits */}
+                <button
+                  onClick={() => handleOpenPageGenerator('classic')}
+                  className="inline-flex items-center justify-center gap-1.5 bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700 px-3 py-2.5 text-sm font-semibold text-white transition"
+                  title="Génération IA complète avec images générées par IA"
+                >
+                  <Zap className="h-4 w-4" />
+                  <span>Pro</span>
+                  {generationsInfo && (generationsInfo.freeRemaining + generationsInfo.paidRemaining) > 0 && (
+                    <span className="ml-0.5 inline-flex items-center gap-1 rounded-full bg-white/20 px-1.5 py-0.5 text-xs font-bold">
+                      {generationsInfo.freeRemaining + generationsInfo.paidRemaining}
+                    </span>
+                  )}
+                </button>
+              </div>
             )}
             {viewMode === 'categories' && (
               <button

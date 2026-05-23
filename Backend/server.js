@@ -201,19 +201,19 @@ app.use(
   })
 );
 
-// ─── Cache Headers for Performance ─────────────────────────────────────────────
+// ─── Cache Headers ────────────────────────────────────────────────────────────
 app.use((req, res, next) => {
-  // Cache static assets (images, CSS, JS) for 1 year
+  // Cache static assets (images, CSS, JS, fonts) for 1 year
   if (req.url.match(/\.(jpg|jpeg|png|gif|webp|svg|css|js|woff|woff2)$/)) {
     res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
     res.setHeader('Expires', new Date(Date.now() + 31536000000).toUTCString());
   }
-  // Cache HTML pages for 1 hour
-  else if (req.url.match(/\.(html)$/)) {
-    res.setHeader('Cache-Control', 'public, max-age=3600');
+  // HTML pages: no cache — product page changes must show immediately
+  else if (req.url.match(/\.(html)$/) || req.headers.accept?.includes('text/html')) {
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
   }
-  // NOTE: API route caching removed - should be opt-in per route to avoid stale data
-  // Individual routes can set their own Cache-Control headers as needed
   next();
 });
 

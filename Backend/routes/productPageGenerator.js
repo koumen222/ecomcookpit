@@ -373,6 +373,7 @@ async function runBackgroundImageGeneration({
   sourceBuffer = null,
   imageJobId = null,
   existingImages = null,
+  heroOnly = false, // When true: generate only the hero image (free mode)
 }) {
   const jobData = {
     status: 'generating',
@@ -479,52 +480,55 @@ async function runBackgroundImageGeneration({
         .finally(() => { jobData.progress += 1; })
     );
 
-    if (productData.prompt_avant_apres) {
+    if (!heroOnly) {
+      if (productData.prompt_avant_apres) {
+        imageTasks.push(
+          () => generateAndUpload(productData.prompt_avant_apres, `before-after-1-${Date.now()}.png`, 'before_after', '1:1')
+            .then((url) => ({ type: 'before_after', index: 0, url }))
+            .finally(() => { jobData.progress += 1; })
+        );
+      }
+
       imageTasks.push(
-        () => generateAndUpload(productData.prompt_avant_apres, `before-after-1-${Date.now()}.png`, 'before_after', '1:1')
-          .then((url) => ({ type: 'before_after', index: 0, url }))
+        () => generateAndUpload(buildSecondBeforeAfterPrompt(productData, visualContext), `before-after-2-${Date.now()}.png`, 'before_after', '1:1')
+          .then((url) => ({ type: 'before_after', index: 1, url }))
+          .finally(() => { jobData.progress += 1; })
+      );
+
+      const flashPrompts = buildFlashPrompts(productData, true, approach, visualTemplate, visualContext);
+      const angles = productData.angles || [];
+      for (let index = 0; index < flashPrompts.length; index += 1) {
+        const flash = flashPrompts[index];
+        const angle = angles[index] || null;
+        const fallbackAngle = {
+          titre_angle: flash?.type || `angle_${index + 1}`,
+          explication: productData.benefits_bullets?.[index] || productData.hero_slogan || getMainBenefit(productData),
+          promesse: productData.urgency_elements?.primary_urgency || productData.reassurance?.titre || getMainBenefit(productData),
+        };
+        const anglePrompt = index === 0
+          ? buildBenefitsInfographicPrompt(productData, visualTemplate, visualContext)
+          : (buildAngleImagePrompt(angle || fallbackAngle, productData, true, visualTemplate, index, visualContext, approach)
+            || buildFlashFallbackPrompt(flash, angle || fallbackAngle, productData, visualTemplate, visualContext, approach, index));
+
+        imageTasks.push(
+          () => generateAndUpload(anglePrompt, `flash-${index + 1}-${Date.now()}.png`, 'scene', productData.imageAspectRatio || '4:5')
+            .then((url) => ({ type: 'poster', index, url, angle, flashType: flash.type }))
+            .finally(() => { jobData.progress += 1; })
+        );
+      }
+
+      imageTasks.push(
+        () => generateAndUpload(buildSocialProofCollagePrompt(productData, visualTemplate, visualContext), `social-proof-${Date.now()}.png`, 'social_proof', '3:4')
+          .then((url) => ({ type: 'social_proof', index: 0, url }))
           .finally(() => { jobData.progress += 1; })
       );
     }
-
-    imageTasks.push(
-      () => generateAndUpload(buildSecondBeforeAfterPrompt(productData, visualContext), `before-after-2-${Date.now()}.png`, 'before_after', '1:1')
-        .then((url) => ({ type: 'before_after', index: 1, url }))
-        .finally(() => { jobData.progress += 1; })
-    );
-
-    const flashPrompts = buildFlashPrompts(productData, true, approach, visualTemplate, visualContext);
-    const angles = productData.angles || [];
-    for (let index = 0; index < flashPrompts.length; index += 1) {
-      const flash = flashPrompts[index];
-      const angle = angles[index] || null;
-      const fallbackAngle = {
-        titre_angle: flash?.type || `angle_${index + 1}`,
-        explication: productData.benefits_bullets?.[index] || productData.hero_slogan || getMainBenefit(productData),
-        promesse: productData.urgency_elements?.primary_urgency || productData.reassurance?.titre || getMainBenefit(productData),
-      };
-      const anglePrompt = index === 0
-        ? buildBenefitsInfographicPrompt(productData, visualTemplate, visualContext)
-        : (buildAngleImagePrompt(angle || fallbackAngle, productData, true, visualTemplate, index, visualContext, approach)
-          || buildFlashFallbackPrompt(flash, angle || fallbackAngle, productData, visualTemplate, visualContext, approach, index));
-
-      imageTasks.push(
-        () => generateAndUpload(anglePrompt, `flash-${index + 1}-${Date.now()}.png`, 'scene', productData.imageAspectRatio || '4:5')
-          .then((url) => ({ type: 'poster', index, url, angle, flashType: flash.type }))
-          .finally(() => { jobData.progress += 1; })
-      );
-    }
-
-    imageTasks.push(
-      () => generateAndUpload(buildSocialProofCollagePrompt(productData, visualTemplate, visualContext), `social-proof-${Date.now()}.png`, 'social_proof', '3:4')
-        .then((url) => ({ type: 'social_proof', index: 0, url }))
-        .finally(() => { jobData.progress += 1; })
-    );
 
     const batchSize = 6;
     const batchDelayMs = 800;
     const imageResults = [];
-    jobData.total = imageTasks.length + descriptionGifSpecs.length;
+    // In heroOnly mode GIF generation is skipped entirely — don't count those specs
+    jobData.total = imageTasks.length + (heroOnly ? 0 : descriptionGifSpecs.length);
 
     for (let batchStart = 0; batchStart < imageTasks.length; batchStart += batchSize) {
       const batch = imageTasks.slice(batchStart, batchStart + batchSize);
@@ -554,40 +558,42 @@ async function runBackgroundImageGeneration({
       }
     }
 
-    const descriptionGifImageGroups = [
-      [jobData.heroImage, jobData.angles?.[0]?.poster_url, jobData.beforeAfterImages?.[0], jobData.angles?.[1]?.poster_url, realPhotos[0]],
-      [jobData.heroPosterImage, jobData.angles?.[2]?.poster_url, jobData.beforeAfterImages?.[1] || jobData.beforeAfterImages?.[0], jobData.angles?.[3]?.poster_url],
-    ].map((group) => group.filter(Boolean));
+    if (!heroOnly) {
+      const descriptionGifImageGroups = [
+        [jobData.heroImage, jobData.angles?.[0]?.poster_url, jobData.beforeAfterImages?.[0], jobData.angles?.[1]?.poster_url, realPhotos[0]],
+        [jobData.heroPosterImage, jobData.angles?.[2]?.poster_url, jobData.beforeAfterImages?.[1] || jobData.beforeAfterImages?.[0], jobData.angles?.[3]?.poster_url],
+      ].map((group) => group.filter(Boolean));
 
-    const gifResults = await Promise.allSettled(descriptionGifSpecs.map((gifSpec, index) => (async () => {
-      const sourceImages = descriptionGifImageGroups[index] || [];
-      if (sourceImages.length < 2) return null;
-      try {
-        const url = await generateDescriptionGifFromImages(sourceImages, {
-          width: 768,
-          height: 432,
-          fps: 8,
-          frameDurationMs: 1200,
-          filePrefix: `${gifSpec.key}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-        });
-        return { url, key: gifSpec.key, title: gifSpec.title, order: index };
-      } catch (error) {
-        console.warn(`⚠️ GIF description ${gifSpec.key} échoué: ${error.message}`);
-        return null;
-      } finally {
-        jobData.progress += 1;
-      }
-    })()));
+      const gifResults = await Promise.allSettled(descriptionGifSpecs.map((gifSpec, index) => (async () => {
+        const sourceImages = descriptionGifImageGroups[index] || [];
+        if (sourceImages.length < 2) return null;
+        try {
+          const url = await generateDescriptionGifFromImages(sourceImages, {
+            width: 768,
+            height: 432,
+            fps: 8,
+            frameDurationMs: 1200,
+            filePrefix: `${gifSpec.key}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          });
+          return { url, key: gifSpec.key, title: gifSpec.title, order: index };
+        } catch (error) {
+          console.warn(`⚠️ GIF description ${gifSpec.key} échoué: ${error.message}`);
+          return null;
+        } finally {
+          jobData.progress += 1;
+        }
+      })()));
 
-    jobData.descriptionGifs = gifResults
-      .map((result) => (result.status === 'fulfilled' ? result.value : null))
-      .filter((entry) => entry?.url)
-      .map((entry) => ({
-        url: entry.url,
-        type: 'direct',
-        title: entry.title || (entry.key === 'usage-demo' ? 'GIF usage' : 'GIF résultat'),
-        order: entry.order,
-      }));
+      jobData.descriptionGifs = gifResults
+        .map((result) => (result.status === 'fulfilled' ? result.value : null))
+        .filter((entry) => entry?.url)
+        .map((entry) => ({
+          url: entry.url,
+          type: 'direct',
+          title: entry.title || (entry.key === 'usage-demo' ? 'GIF usage' : 'GIF résultat'),
+          order: entry.order,
+        }));
+    }
 
     jobData.status = 'done';
     const generatedImageCount = [
@@ -1733,12 +1739,15 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
     fashionColors: rawFashionColors,
     themeColor: rawThemeColor,
     customThemeColor: rawCustomThemeColor,
+    heroMode: rawHeroMode,
   } = req.body || {};
   const imageFiles = req.files || [];
   const approach = marketingApproach || 'PAS';
   const visualTemplate = rawVisualTemplate || 'general';
   const imageGenerationMode = rawImageGenerationMode === 'standard' ? 'standard' : 'ad_4_5';
-  const shouldGenerateImages = withImages !== 'false';
+  const isHeroMode = rawHeroMode === 'true' || rawHeroMode === true;
+  // heroMode always generates images (just the hero only) — withImages: 'false' means skip all images
+  const shouldGenerateImages = withImages !== 'false' || isHeroMode;
   const imageAspectRatio = rawImageAspectRatio === '1:1' ? '1:1' : '4:5';
   const preferredColor = typeof rawPreferredColor === 'string' ? rawPreferredColor.trim().slice(0, 80) : '';
   const heroVisualDirection = typeof rawHeroVisualDirection === 'string' ? rawHeroVisualDirection.trim().slice(0, 180) : '';
@@ -1844,8 +1853,9 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
 
     // ══════════════════════════════════════════════════════════════════════════
     // VÉRIFICATION DES LIMITES DE GÉNÉRATION
+    // Mode héro (photo uniquement, sans génération d'images IA) = gratuit
     // ══════════════════════════════════════════════════════════════════════════
-    if (workspace) {
+    if (workspace && !isHeroMode) {
       const pricingConfig = await GenerationPricingConfig.getSingleton();
       const pricing = pricingConfig.getSnapshot();
       const simpleRemaining = workspace.simpleGenerationsRemaining || 0;
@@ -1882,6 +1892,8 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
 
       const newRemaining = (workspace.simpleGenerationsRemaining || 0) + (workspace.freeGenerationsRemaining || 0) + (workspace.paidGenerationsRemaining || 0);
       console.log(`✅ Génération autorisée. Crédits restants: ${newRemaining}`);
+    } else if (isHeroMode) {
+      console.log(`✅ [HeroMode] Génération gratuite (photo hero, pas d'images IA)`);
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -2174,6 +2186,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       cleanUrl,
       sourceBuffer: imageFiles[0]?.buffer || null,
       imageJobId: jobId,
+      heroOnly: isHeroMode, // Free mode: only generate hero image
     });
 
   } catch (error) {

@@ -440,6 +440,15 @@ export function emitThemeUpdate(subdomain, theme) {
   storeLiveNamespace.to(`store:${subdomain.toLowerCase()}`).emit('theme:update', theme);
 }
 
+/**
+ * Notify all visitors of a store that the config has changed — they must refetch.
+ * Called after any admin save (productPageConfig, store settings, product update).
+ */
+export function emitStoreUpdate(subdomain) {
+  if (!storeLiveNamespace || !subdomain) return;
+  storeLiveNamespace.to(`store:${subdomain.toLowerCase()}`).emit('store:updated', { subdomain: subdomain.toLowerCase(), ts: Date.now() });
+}
+
 export default {
   initSocketServer,
   getIO,
@@ -450,5 +459,6 @@ export default {
   emitConversationUpdate,
   emitMessageDeleted,
   emitReactionUpdate,
-  emitThemeUpdate
+  emitThemeUpdate,
+  emitStoreUpdate,
 };
