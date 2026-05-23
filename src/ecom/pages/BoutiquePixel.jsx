@@ -88,8 +88,9 @@ const BoutiquePixel = () => {
   });
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [metaTest, setMetaTest] = useState({ status: null, pixelId: '' });
+  const [metaTest, setMetaTest] = useState({ status: null, pixelId: '', message: '', hint: '', code: '' });
   // status: null | 'testing' | 'fired' | 'error'
+  const [testEventCode, setTestEventCode] = useState('');
 
   useEffect(() => {
     const load = async () => {
@@ -131,35 +132,61 @@ const BoutiquePixel = () => {
 
   const hasErrors = Object.entries(pixels).some(([k, v]) => v && validatePixel(k, v));
 
-  // ── Test Meta Pixel ───────────────────────────────────────────────────────────
-  // Injecte le pixel sur cette page et envoie un PageView de test.
-  // Le marchand peut ensuite ouvrir Events Manager → Événements de test pour confirmer.
-  const testMetaPixel = () => {
+  // ── Test Meta Pixel — VRAI test via CAPI server-side ─────────────────────────
+  // Appelle le backend qui envoie un event au Graph API Meta avec le test_event_code.
+  // Si la config est cassée, Meta renvoie une erreur précise qu'on relaie au marchand
+  // (au lieu de l'ancien faux "✓ Envoyé" qui ne vérifiait rien).
+  const testMetaPixel = async () => {
     const pixelId = pixels.metaPixelId?.trim();
     if (!pixelId || validatePixel('metaPixelId', pixelId)) return;
 
-    setMetaTest({ status: 'testing', pixelId });
+    setMetaTest({ status: 'testing', pixelId, message: '', hint: '', code: '' });
 
+    // Sauvegarde d'abord s'il y a des changements non sauvés — sinon le test
+    // utiliserait l'ancienne config en DB.
+    if (!saved && !hasErrors) {
+      try { await ecomApi.put('/store/pixels', pixels); } catch { /* ignore, on continue */ }
+    }
+
+    // 1) Test serveur — confirme que la config (pixelId + accessToken) est valide
     try {
-      // Inject Meta Pixel SDK if not already present
-      if (!window.fbq) {
-        /* eslint-disable */
-        (function(f,b,e,v,n,t,s){
-          if(f.fbq)return;
-          n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};
-          if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];
-          t=b.createElement(e);t.async=!0;t.src=v;
-          s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s);
-        }(window,document,'script','https://connect.facebook.net/en_US/fbevents.js'));
-        /* eslint-enable */
-      }
+      const res = await ecomApi.post('/store/pixels/test', {
+        testEventCode: testEventCode.trim() || undefined,
+        eventName: 'PageView',
+      });
+      // 2) En complément, fire aussi côté navigateur pour le test "Pixel" (pas CAPI)
+      try {
+        if (!window.fbq) {
+          /* eslint-disable */
+          (function(f,b,e,v,n,t,s){
+            if(f.fbq)return;
+            n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+            if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];
+            t=b.createElement(e);t.async=!0;t.src=v;
+            s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s);
+          }(window,document,'script','https://connect.facebook.net/en_US/fbevents.js'));
+          /* eslint-enable */
+        }
+        window.fbq('init', pixelId);
+        window.fbq('track', 'PageView');
+      } catch { /* navigateur fail mais CAPI a réussi → on garde le succès */ }
 
-      window.fbq('init', pixelId);
-      window.fbq('track', 'PageView');
-
-      setMetaTest({ status: 'fired', pixelId });
-    } catch {
-      setMetaTest({ status: 'error', pixelId });
+      setMetaTest({
+        status: 'fired',
+        pixelId,
+        message: res.data?.message || 'Événement envoyé',
+        hint: '',
+        code: res.data?.code || 'SENT',
+      });
+    } catch (err) {
+      const data = err.response?.data || {};
+      setMetaTest({
+        status: 'error',
+        pixelId,
+        message: data.message || err.message || 'Erreur inconnue',
+        hint: data.hint || '',
+        code: data.code || 'UNKNOWN',
+      });
     }
   };
 
@@ -223,6 +250,23 @@ const BoutiquePixel = () => {
           validatePixel={validatePixel}
           extra={
             <div className="space-y-2.5">
+              {/* test_event_code input — pour faire apparaître l'event dans le tab Test Events de Meta */}
+              <div>
+                <label className="text-xs font-semibold text-gray-600 mb-1 block">
+                  Test Event Code (optionnel)
+                </label>
+                <input
+                  type="text"
+                  value={testEventCode}
+                  onChange={(e) => setTestEventCode(e.target.value.trim())}
+                  placeholder="TEST12345"
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#1877F2] focus:border-transparent transition bg-gray-50 focus:bg-white font-mono"
+                />
+                <p className="text-[11px] text-gray-400 mt-1">
+                  Récupère-le dans Events Manager → onglet <em>Test events</em>. Sans ce code, l'événement n'apparaît pas dans ce tab (mais sera visible dans l'Overview après quelques minutes).
+                </p>
+              </div>
+
               {/* Test button */}
               <button
                 type="button"
@@ -245,39 +289,42 @@ const BoutiquePixel = () => {
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
-                    Tester le pixel Meta
+                    Envoyer un événement de test à Meta
                   </>
                 )}
               </button>
 
-              {/* Result: success */}
+              {/* Result: success — Meta a réellement reçu et accepté */}
               {metaTest.status === 'fired' && (
                 <div className="rounded-xl p-3 flex items-start gap-2.5" style={{ backgroundColor: '#f0fdf4', border: '1px solid #86efac' }}>
                   <svg className="w-4 h-4 mt-0.5 flex-shrink-0" fill="none" stroke="#16a34a" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
                   <div className="min-w-0">
-                    <p className="text-xs font-bold" style={{ color: '#15803d' }}>Événement envoyé — pixel ID {metaTest.pixelId}</p>
-                    <p className="text-[11px] mt-0.5" style={{ color: '#166534' }}>
-                      Ouvrez{' '}
-                      <a
-                        href={`https://business.facebook.com/events_manager2/list/pixel/${metaTest.pixelId}/test_events`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="font-semibold underline"
-                        style={{ color: '#1877F2' }}
-                      >
-                        Events Manager → Événements de test
-                      </a>{' '}
-                      pour confirmer la réception. Si aucun événement n'apparaît après 30 secondes, l'ID est incorrect.
-                    </p>
+                    <p className="text-xs font-bold" style={{ color: '#15803d' }}>Meta a accepté l'événement — pixel {metaTest.pixelId}</p>
+                    <p className="text-[11px] mt-0.5" style={{ color: '#166534' }}>{metaTest.message}</p>
+                    <a
+                      href={`https://business.facebook.com/events_manager2/list/pixel/${metaTest.pixelId}/${testEventCode ? 'test_events' : 'overview'}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[11px] font-semibold underline inline-block mt-1.5"
+                      style={{ color: '#1877F2' }}
+                    >
+                      Ouvrir Events Manager →
+                    </a>
                   </div>
                 </div>
               )}
 
-              {/* Result: error */}
+              {/* Result: error — Meta a refusé, ou config manquante */}
               {metaTest.status === 'error' && (
                 <div className="rounded-xl p-3 flex items-start gap-2.5" style={{ backgroundColor: '#fef2f2', border: '1px solid #fca5a5' }}>
                   <svg className="w-4 h-4 mt-0.5 flex-shrink-0" fill="none" stroke="#dc2626" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                  <p className="text-xs font-semibold" style={{ color: '#b91c1c' }}>Erreur lors du test — vérifiez votre connexion et réessayez.</p>
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold" style={{ color: '#b91c1c' }}>Échec du test</p>
+                    <p className="text-[11px] mt-0.5 break-words" style={{ color: '#991b1b' }}>{metaTest.message}</p>
+                    {metaTest.hint && (
+                      <p className="text-[11px] mt-1.5 italic" style={{ color: '#7f1d1d' }}>{metaTest.hint}</p>
+                    )}
+                  </div>
                 </div>
               )}
             </div>

@@ -10,6 +10,7 @@ import { requireEcomAuth, requireWorkspace } from '../middleware/ecomAuth.js';
 import { emitThemeUpdate, emitStoreUpdate } from '../services/socketService.js';
 import { invalidateStoreCache } from './storeApi.js';
 import { invalidateStorefrontCache } from './publicStorefront.js';
+import { buildMetaEventPayload, buildMetaUserData, sendMetaCapiEvent } from '../services/metaCapi.js';
 
 const router = express.Router();
 const DEBUG_TAG = '[StoreAdmin:Settings]';
@@ -464,6 +465,113 @@ router.put('/pixels', requireEcomAuth, requireWorkspace, async (req, res) => {
     console.error('❌ Error PUT /store/pixels:', error);
     console.error('❌ Error details:', error.message);
     res.status(500).json({ success: false, message: 'Error saving pixels' });
+  }
+});
+
+/**
+ * POST /api/ecom/store/pixels/test
+ *
+ * Envoie un vrai événement CAPI de test à Meta avec un test_event_code pour
+ * que le marchand puisse vérifier directement dans Events Manager → "Test events".
+ * Renvoie la réponse réelle de Meta (success / error / events_received) au lieu
+ * d'un faux "✓ Envoyé" comme le test navigateur précédent.
+ *
+ * Body: { testEventCode?: string, eventName?: string }
+ */
+router.post('/pixels/test', requireEcomAuth, requireWorkspace, async (req, res) => {
+  try {
+    const { testEventCode = '', eventName = 'PageView' } = req.body || {};
+
+    // Charge la config pixel — Store actif prioritaire, sinon Workspace
+    let pixels = null;
+    if (req.activeStoreId) {
+      const store = await Store.findById(req.activeStoreId).select('storePixels').lean();
+      pixels = store?.storePixels;
+    }
+    if (!pixels) {
+      const workspace = await Workspace.findById(req.workspaceId).select('storePixels').lean();
+      pixels = workspace?.storePixels;
+    }
+
+    const metaPixelId = pixels?.metaPixelId?.trim();
+    const metaAccessToken = pixels?.metaAccessToken?.trim();
+
+    // Diagnostic clair : on dit exactement ce qui manque au lieu de fail silencieusement.
+    if (!metaPixelId) {
+      return res.status(400).json({
+        success: false,
+        code: 'NO_PIXEL_ID',
+        message: 'Aucun Meta Pixel ID configuré. Renseignez-le et sauvegardez avant de tester.',
+      });
+    }
+    if (!/^\d{10,20}$/.test(metaPixelId)) {
+      return res.status(400).json({
+        success: false,
+        code: 'INVALID_PIXEL_ID',
+        message: `Meta Pixel ID invalide : "${metaPixelId}". Doit être 10-20 chiffres uniquement.`,
+      });
+    }
+    if (!metaAccessToken) {
+      return res.status(400).json({
+        success: false,
+        code: 'NO_ACCESS_TOKEN',
+        message: 'Conversions API Token manquant. Sans token, seul le pixel navigateur fonctionne — ce qui rate ~30% des events (iOS, ad-blockers). Crée le token dans Meta Business → Events Manager → Paramètres → Conversions API.',
+      });
+    }
+
+    // Construit le payload CAPI réel — pas du faux
+    const clientIpAddress = (req.headers['x-forwarded-for'] || req.ip || '').toString().split(',')[0].trim();
+    const clientUserAgent = req.get('user-agent') || '';
+    const userData = buildMetaUserData(
+      {
+        fbp: req.cookies?._fbp,
+        fbc: req.cookies?._fbc,
+        externalId: `scalor-test-${req.workspaceId}`,
+      },
+      { clientIpAddress, clientUserAgent },
+    );
+    const eventPayload = buildMetaEventPayload({
+      eventName,
+      eventId: `scalor-test-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      eventSourceUrl: 'https://scalor.net/test-event',
+      userData,
+      customData: { content_type: 'product', test_source: 'scalor-pixel-tester' },
+    });
+
+    try {
+      const metaResponse = await sendMetaCapiEvent({
+        pixelId: metaPixelId,
+        accessToken: metaAccessToken,
+        eventPayload,
+        testEventCode: testEventCode || undefined,
+      });
+
+      // Meta renvoie { events_received: 1, messages: [], fbtrace_id: "..." } en cas de succès
+      return res.json({
+        success: true,
+        code: 'SENT',
+        message: testEventCode
+          ? `Événement ${eventName} envoyé avec test_event_code=${testEventCode}. Ouvre Events Manager → Test events pour le voir apparaître.`
+          : `Événement ${eventName} envoyé. Ouvre Events Manager → Overview pour le voir dans les 5-10 minutes (sans test_event_code, ça ne s'affiche pas dans "Test events").`,
+        metaResponse,
+      });
+    } catch (capiErr) {
+      // Erreur réelle de Meta — on remonte le détail au marchand
+      console.error('❌ Pixel test CAPI error:', capiErr.message);
+      return res.status(400).json({
+        success: false,
+        code: 'META_REJECTED',
+        message: `Meta a rejeté l'événement : ${capiErr.message}`,
+        hint: capiErr.message.includes('access_token')
+          ? 'Le Conversions API Token semble invalide ou expiré. Régénère-le depuis Meta Business.'
+          : capiErr.message.includes('pixel')
+            ? 'Le Pixel ID n\'est pas associé à ce token (ou pas accessible par ce token).'
+            : 'Vérifie que ton token a la permission ads_management sur le pixel.',
+      });
+    }
+  } catch (error) {
+    console.error('❌ POST /store/pixels/test error:', error);
+    res.status(500).json({ success: false, code: 'SERVER_ERROR', message: error.message });
   }
 });
 

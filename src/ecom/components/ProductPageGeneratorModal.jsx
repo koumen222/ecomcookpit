@@ -887,7 +887,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
 
   // Poll for background image generation
   useEffect(() => {
-    if (!imageJobId || phase !== 'preview') return;
+    if (!imageJobId || (phase !== 'preview' && phase !== 'loading')) return;
     setImagesLoading(true);
     let cancelled = false;
     const authHeaders = getAuthHeaders();
@@ -934,6 +934,15 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
       setImageJobId(null);
       // Save final draft with whatever images we got
       setProduct(prev2 => { if (prev2) saveDraft(prev2, visualTemplate); return prev2; });
+      // Now that images are ready, show the preview
+      setBuildProgress(100);
+      setBuildMessage('Votre page est prête.');
+      setShowConfetti(true);
+      setTimeout(() => {
+        setShowConfetti(false);
+        setPhase('preview');
+        setActiveTab('page');
+      }, 2000);
     };
 
     const poll = async () => {
@@ -963,8 +972,14 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
           return; // Stop polling
         }
 
-        // Still generating — poll again in 3s
-        if (!cancelled) setTimeout(poll, 3000);
+        // Still generating — update message and poll again in 3s
+        if (!cancelled) {
+          const elapsed = Math.floor((Date.now() - pollStart) / 1000);
+          if (elapsed < 30) setBuildMessage('Génération des visuels en cours...');
+          else if (elapsed < 60) setBuildMessage('Création des images marketing...');
+          else setBuildMessage('Finalisation des visuels...');
+          setTimeout(poll, 3000);
+        }
       } catch {
         if (!cancelled) setTimeout(poll, 4000);
       }
@@ -1496,23 +1511,23 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
         // Store taskId for background tracking
         if (result.taskId) setCurrentTaskId(result.taskId);
 
-        // If images are being generated in background, register the job so the
-        // useEffect poller picks it up once we enter preview phase
         if (result.imageJobId) {
+          // Images are being generated — stay in loading, poller will transition to preview when done
           setImageJobId(result.imageJobId);
+          setBuildStep(4);
+          setBuildProgress(90);
+          setBuildMessage('Génération des visuels en cours...');
+        } else {
+          // No images to wait for — go to preview immediately
+          setBuildProgress(100);
+          setBuildMessage('Votre page est prête.');
+          setShowConfetti(true);
+          setTimeout(() => {
+            setShowConfetti(false);
+            setPhase('preview');
+            setActiveTab('page');
+          }, 2000);
         }
-
-        // Show confetti and switch to preview NOW — text is ready, images will
-        // appear progressively via the background useEffect poller
-        setBuildProgress(100);
-        setBuildMessage('Votre page est prête.');
-        setShowConfetti(true);
-
-        setTimeout(() => {
-          setShowConfetti(false);
-          setPhase('preview');
-          setActiveTab('page');
-        }, 2000);
       } else {
         throw new Error(result.message || result.error || 'Erreur: Aucun produit généré');
       }
