@@ -1,6 +1,6 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Link2, Sparkles, Download, RefreshCw, Image, Globe, Loader2, CheckCircle, AlertCircle, ChevronDown, Copy, ExternalLink, Upload, X, FileText, Zap, Shield, Star, LayoutGrid, Package } from 'lucide-react';
+import { Link2, Sparkles, Download, RefreshCw, Image, Globe, Loader2, CheckCircle, AlertCircle, ChevronDown, Copy, ExternalLink, Upload, X, FileText, Zap, Shield, Star, LayoutGrid, Package, Wallet, Plus, CreditCard } from 'lucide-react';
 import ecomApi from '../services/ecommApi.js';
 
 const FORMATS = [
@@ -29,6 +29,12 @@ const STEPS = [
   { icon: Image, label: 'Génération des images…' },
 ];
 
+const CREDIT_PACKS = [
+  { quantity: 10, label: '10 images', price: 800 },
+  { quantity: 20, label: '20 images', price: 1600, badge: 'Populaire' },
+  { quantity: 50, label: '50 images', price: 4000, badge: 'Meilleure offre' },
+];
+
 const CreativeGenerator = () => {
   const [url, setUrl] = useState('');
   const [description, setDescription] = useState('');
@@ -46,6 +52,18 @@ const CreativeGenerator = () => {
   const [copiedId, setCopiedId] = useState(null);
   const fileInputRef = useRef(null);
   const logoInputRef = useRef(null);
+
+  // Credit system
+  const [credits, setCredits] = useState(null);
+  const [showBuyModal, setShowBuyModal] = useState(false);
+  const [buyPack, setBuyPack] = useState(CREDIT_PACKS[1]);
+  const [buyPhone, setBuyPhone] = useState('');
+  const [buyName, setBuyName] = useState('');
+  const [buyLoading, setBuyLoading] = useState(false);
+  const [buyError, setBuyError] = useState('');
+  const [buySuccess, setBuySuccess] = useState(null);
+  const pendingTokenRef = useRef(null);
+  const pollIntervalRef = useRef(null);
 
   const toggleFormat = (id) => {
     setSelectedFormats(prev =>
@@ -89,6 +107,62 @@ const CreativeGenerator = () => {
 
   const canGenerate = productImage || url.trim() || description.trim();
 
+  // Fetch credits on mount
+  useEffect(() => {
+    ecomApi.get('/billing/creative-credits')
+      .then(r => setCredits(r.data.credits ?? 0))
+      .catch(() => setCredits(0));
+  }, []);
+
+  // Poll payment status
+  const startPoll = useCallback((token) => {
+    pendingTokenRef.current = token;
+    pollIntervalRef.current = setInterval(async () => {
+      try {
+        const r = await ecomApi.get(`/billing/status/${token}`);
+        const s = r.data?.payment?.status;
+        if (s === 'paid') {
+          clearInterval(pollIntervalRef.current);
+          setBuySuccess('Paiement confirmé ! Vos crédits ont été ajoutés.');
+          setBuyLoading(false);
+          // Refresh credits
+          const cr = await ecomApi.get('/billing/creative-credits');
+          setCredits(cr.data.credits ?? 0);
+        } else if (s === 'failure' || s === 'no paid') {
+          clearInterval(pollIntervalRef.current);
+          setBuyError('Paiement échoué ou annulé.');
+          setBuyLoading(false);
+        }
+      } catch { /* ignore poll errors */ }
+    }, 4000);
+  }, []);
+
+  useEffect(() => () => clearInterval(pollIntervalRef.current), []);
+
+  const handleBuyCredits = async () => {
+    if (!buyPhone.trim() || buyPhone.trim().length < 8) { setBuyError('Numéro de téléphone invalide'); return; }
+    if (!buyName.trim() || buyName.trim().length < 2) { setBuyError('Nom requis'); return; }
+    setBuyLoading(true);
+    setBuyError('');
+    setBuySuccess(null);
+    try {
+      const r = await ecomApi.post('/billing/buy-creative', {
+        quantity: buyPack.quantity,
+        phone: buyPhone.trim(),
+        clientName: buyName.trim(),
+      });
+      if (r.data.success && r.data.paymentUrl) {
+        window.open(r.data.paymentUrl, '_blank', 'noopener,noreferrer');
+        startPoll(r.data.mfToken);
+      } else {
+        throw new Error(r.data.message || 'Erreur');
+      }
+    } catch (err) {
+      setBuyLoading(false);
+      setBuyError(err.response?.data?.message || err.message || 'Erreur paiement');
+    }
+  };
+
   const generate = useCallback(async () => {
     if (!canGenerate) return;
     setLoading(true);
@@ -110,8 +184,15 @@ const CreativeGenerator = () => {
         timeout: 0,
       });
       setResult(res.data);
+      if (res.data.creditsRemaining !== undefined) setCredits(res.data.creditsRemaining);
     } catch (err) {
-      setError(err.response?.data?.error || err.message || 'Erreur lors de la génération');
+      const errData = err.response?.data;
+      if (err.response?.status === 402) {
+        setError(errData?.error || 'Crédits insuffisants');
+        setShowBuyModal(true);
+      } else {
+        setError(errData?.error || err.message || 'Erreur lors de la génération');
+      }
     } finally {
       clearTimeout(stepTimer1);
       clearTimeout(stepTimer2);
@@ -144,8 +225,107 @@ const CreativeGenerator = () => {
 
   const activeTpl = TEMPLATES.find(t => t.id === visualTemplate) || TEMPLATES[0];
 
+  const insufficientCredits = credits !== null && credits < selectedFormats.length;
+
   return (
     <div className="min-h-screen bg-gray-50">
+
+      {/* ── Buy Credits Modal ─────────────────────────────────── */}
+      {showBuyModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+            <div className="bg-scalor-black px-5 py-4 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 bg-scalor-green rounded-lg flex items-center justify-center">
+                  <CreditCard size={14} className="text-white" />
+                </div>
+                <div>
+                  <p className="text-white font-black text-sm">Recharger les crédits</p>
+                  <p className="text-white/40 text-[11px]">80 FCFA / image générée</p>
+                </div>
+              </div>
+              <button onClick={() => { setShowBuyModal(false); clearInterval(pollIntervalRef.current); setBuyLoading(false); }} className="text-white/40 hover:text-white transition-colors">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="p-5 space-y-4">
+              {buySuccess ? (
+                <div className="text-center py-4">
+                  <div className="w-14 h-14 bg-green-50 rounded-full flex items-center justify-center mx-auto mb-3">
+                    <CheckCircle size={28} className="text-scalor-green" />
+                  </div>
+                  <p className="font-black text-gray-900 text-base">{buySuccess}</p>
+                  <p className="text-sm text-gray-500 mt-1">Solde actuel : <strong>{credits}</strong> crédit{credits !== 1 ? 's' : ''}</p>
+                  <button onClick={() => setShowBuyModal(false)} className="mt-4 w-full py-2.5 bg-scalor-green text-white font-bold rounded-xl text-sm">Fermer</button>
+                </div>
+              ) : (
+                <>
+                  {/* Pack selector */}
+                  <div>
+                    <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Choisir un pack</p>
+                    <div className="space-y-2">
+                      {CREDIT_PACKS.map(pack => (
+                        <button
+                          key={pack.quantity}
+                          onClick={() => setBuyPack(pack)}
+                          className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border-2 transition-all ${buyPack.quantity === pack.quantity ? 'border-scalor-green bg-green-50' : 'border-gray-100 hover:border-gray-200'}`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-sm text-gray-800">{pack.label}</span>
+                            {pack.badge && <span className="text-[10px] font-bold bg-scalor-green text-white px-2 py-0.5 rounded-full">{pack.badge}</span>}
+                          </div>
+                          <span className="font-black text-scalor-green">{pack.price.toLocaleString('fr-FR')} <span className="text-xs font-bold">FCFA</span></span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  {/* Contact info */}
+                  <div className="space-y-2">
+                    <div>
+                      <label className="text-xs font-semibold text-gray-600 mb-1 block">Numéro de téléphone</label>
+                      <input
+                        type="tel"
+                        value={buyPhone}
+                        onChange={e => setBuyPhone(e.target.value)}
+                        placeholder="Ex: 6XXXXXXXX"
+                        className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-scalor-green focus:ring-2 focus:ring-green-100"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-gray-600 mb-1 block">Nom complet</label>
+                      <input
+                        type="text"
+                        value={buyName}
+                        onChange={e => setBuyName(e.target.value)}
+                        placeholder="Votre nom"
+                        className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-scalor-green focus:ring-2 focus:ring-green-100"
+                      />
+                    </div>
+                  </div>
+                  {buyError && (
+                    <div className="bg-red-50 border border-red-200 rounded-xl px-3 py-2 flex items-center gap-2 text-xs text-red-700 font-medium">
+                      <AlertCircle size={13} /> {buyError}
+                    </div>
+                  )}
+                  {buyLoading && (
+                    <div className="bg-blue-50 border border-blue-200 rounded-xl px-3 py-2 flex items-center gap-2 text-xs text-blue-700 font-medium">
+                      <Loader2 size={13} className="animate-spin" /> Attente de confirmation du paiement…
+                    </div>
+                  )}
+                  <button
+                    onClick={handleBuyCredits}
+                    disabled={buyLoading}
+                    className="w-full py-3 bg-scalor-green hover:bg-scalor-green-dark disabled:opacity-50 text-white font-black rounded-xl text-sm flex items-center justify-center gap-2 transition-colors"
+                  >
+                    {buyLoading ? <Loader2 size={15} className="animate-spin" /> : <CreditCard size={15} />}
+                    {buyLoading ? 'Paiement en cours…' : `Payer ${buyPack.price.toLocaleString('fr-FR')} FCFA`}
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Hero Banner ─────────────────────────────────────────── */}
       <div className="fixed top-0 left-0 lg:left-[220px] right-0 z-20 bg-scalor-black px-6 py-3">
@@ -173,7 +353,7 @@ const CreativeGenerator = () => {
               ))}
             </div>
           </div>
-          {/* Right: gallery link + price badge */}
+          {/* Right: gallery link + credit balance + recharge */}
           <div className="flex items-center gap-2 shrink-0">
             <Link
               to="/ecom/creatives/gallery"
@@ -182,10 +362,17 @@ const CreativeGenerator = () => {
               <LayoutGrid size={11} />
               <span className="hidden sm:inline">Mes visuels</span>
             </Link>
-            <div className="flex items-center gap-2 bg-scalor-green/10 border border-scalor-green/30 rounded-lg px-3 py-1.5">
-              <span className="text-scalor-green font-black text-sm">80 FCFA</span>
-              <span className="text-white/40 text-xs hidden sm:inline">/ image</span>
+            <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-lg px-3 py-1.5">
+              <Wallet size={12} className="text-scalor-green" />
+              <span className="text-white font-black text-sm">{credits === null ? '…' : credits}</span>
+              <span className="text-white/40 text-xs hidden sm:inline">crédit{credits !== 1 ? 's' : ''}</span>
             </div>
+            <button
+              onClick={() => { setShowBuyModal(true); setBuyError(''); setBuySuccess(null); }}
+              className="flex items-center gap-1.5 text-[11px] font-bold text-white bg-scalor-green hover:bg-scalor-green-dark px-3 py-1.5 rounded-lg transition-colors"
+            >
+              <Plus size={12} /> Recharger
+            </button>
           </div>
         </div>
       </div>
@@ -366,41 +553,61 @@ const CreativeGenerator = () => {
               </div>
             </div>
 
-            {/* Pricing Preview */}
-            <div className="bg-scalor-green/5 rounded-2xl border border-scalor-green/15 p-4">
+            {/* Credit Balance + Pricing Preview */}
+            <div className={`rounded-2xl border p-4 ${insufficientCredits ? 'bg-red-50/60 border-red-200' : 'bg-scalor-green/5 border-scalor-green/15'}`}>
               <div className="flex items-center justify-between mb-3">
-                <p className="text-xs font-bold text-scalor-green uppercase tracking-widest">Coût de génération</p>
-                <span className="text-[11px] text-gray-500 font-semibold bg-white border border-gray-100 px-2 py-0.5 rounded-full">80 FCFA / image</span>
+                <p className={`text-xs font-bold uppercase tracking-widest ${insufficientCredits ? 'text-red-600' : 'text-scalor-green'}`}>
+                  {insufficientCredits ? 'Crédits insuffisants' : 'Crédits disponibles'}
+                </p>
+                <div className="flex items-center gap-1.5">
+                  <Wallet size={12} className={insufficientCredits ? 'text-red-400' : 'text-scalor-green'} />
+                  <span className={`text-sm font-black ${insufficientCredits ? 'text-red-600' : 'text-scalor-green'}`}>
+                    {credits === null ? '…' : credits}
+                  </span>
+                </div>
               </div>
               {selectedFormats.length > 0 ? (
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600 font-medium">{selectedFormats.length} image{selectedFormats.length > 1 ? 's' : ''} sélectionnée{selectedFormats.length > 1 ? 's' : ''}</span>
-                  <span className="text-xl font-black text-scalor-green">{selectedFormats.length * 80} <span className="text-sm font-bold">FCFA</span></span>
+                  <span className="text-sm text-gray-600 font-medium">
+                    {selectedFormats.length} crédit{selectedFormats.length > 1 ? 's' : ''} requis
+                  </span>
+                  {insufficientCredits ? (
+                    <span className="text-xs font-bold text-red-600">
+                      Manque {selectedFormats.length - (credits ?? 0)}
+                    </span>
+                  ) : (
+                    <span className="text-sm font-bold text-gray-500">
+                      → {(credits ?? 0) - selectedFormats.length} restants
+                    </span>
+                  )}
                 </div>
               ) : (
                 <p className="text-xs text-gray-400">Sélectionnez des slides</p>
               )}
-              <div className="mt-3 pt-3 border-t border-scalor-green/10 flex gap-1.5 flex-wrap">
-                {[{ count: 10, label: 'Pack 10' }, { count: 20, label: 'Pack 20' }, { count: 50, label: 'Pack 50' }].map(pack => (
-                  <div key={pack.count} className="text-[10px] bg-white border border-gray-100 text-gray-500 px-2 py-1 rounded-full font-semibold whitespace-nowrap">
-                    {pack.label} → {(pack.count * 80).toLocaleString('fr-FR')} FCFA
-                  </div>
-                ))}
-              </div>
+              {insufficientCredits && (
+                <button
+                  onClick={() => { setShowBuyModal(true); setBuyError(''); setBuySuccess(null); }}
+                  className="mt-3 w-full py-2 bg-scalor-green text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 hover:bg-scalor-green-dark transition-colors"
+                >
+                  <Plus size={11} /> Recharger les crédits
+                </button>
+              )}
             </div>
 
             {/* CTA */}
             <button
               onClick={generate}
-              disabled={loading || !canGenerate || selectedFormats.length === 0}
+              disabled={loading || !canGenerate || selectedFormats.length === 0 || insufficientCredits}
               className="w-full py-4 rounded-2xl bg-gradient-to-r from-scalor-green to-scalor-copper text-white font-black text-sm tracking-wide hover:from-scalor-green-dark hover:to-scalor-copper-dark disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-xl shadow-scalor-green/30 flex items-center justify-center gap-2.5"
             >
               {loading ? <Loader2 size={18} className="animate-spin" /> : <Sparkles size={18} />}
               {loading
                 ? 'Génération en cours…'
-                : `Générer ${selectedFormats.length} image${selectedFormats.length > 1 ? 's' : ''} — ${selectedFormats.length * 80} FCFA`}
+                : insufficientCredits
+                ? 'Crédits insuffisants'
+                : `Générer ${selectedFormats.length} image${selectedFormats.length > 1 ? 's' : ''}`}
             </button>
-            {!canGenerate && (
+            {!canGenerate && !insufficientCredits && (
               <p className="text-[11px] text-center text-gray-400 -mt-2">Ajoutez une image, un lien ou une description</p>
             )}
           </div>

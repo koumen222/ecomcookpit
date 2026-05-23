@@ -569,6 +569,30 @@ router.post('/checkout', requireEcomAuth, async (req, res) => {
   }
 });
 
+// ─── Creative payment helper ──────────────────────────────────────────────────
+async function applyCreativePayment(payment) {
+  const now = new Date();
+  const claimed = await GenerationPayment.findOneAndUpdate(
+    { _id: payment._id, status: { $ne: 'paid' } },
+    { $set: { status: 'paid', creditedAt: now } },
+    { new: true }
+  );
+  if (!claimed) {
+    console.log(`[billing] applyCreativePayment: payment ${payment._id} already processed`);
+    return;
+  }
+  const workspace = await EcomWorkspace.findByIdAndUpdate(
+    payment.workspaceId,
+    { $inc: { creativeCreditsRemaining: payment.quantity } },
+    { new: true }
+  );
+  if (!workspace) {
+    await GenerationPayment.findByIdAndUpdate(payment._id, { $set: { status: 'pending', creditedAt: null } });
+    return;
+  }
+  console.log(`[billing] Credited ${payment.quantity} creative image(s) to workspace ${workspace._id} (remaining: ${workspace.creativeCreditsRemaining})`);
+}
+
 // ─── POST /buy-generation ─────────────────────────────────────────────────────
 router.post('/buy-generation', requireEcomAuth, async (req, res) => {
   try {
@@ -676,6 +700,77 @@ router.post('/buy-generation', requireEcomAuth, async (req, res) => {
       });
     }
     console.error('[billing] POST /buy-generation error:', err);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// ─── POST /buy-creative ───────────────────────────────────────────────────────
+// Buy creative image credits: packs of 10, 20, or 50 images (80 FCFA each).
+router.post('/buy-creative', requireEcomAuth, async (req, res) => {
+  try {
+    const { quantity, phone, clientName, workspaceId: bodyWsId } = req.body;
+    const workspaceId = req.workspaceId || bodyWsId;
+    const PRICE_PER_CREDIT = 80; // FCFA
+
+    if (!workspaceId) return res.status(400).json({ success: false, message: 'workspaceId requis' });
+    if (!phone || String(phone).trim().length < 8) return res.status(400).json({ success: false, message: 'Numéro de téléphone requis' });
+    if (!clientName || String(clientName).trim().length < 2) return res.status(400).json({ success: false, message: 'Nom requis' });
+    if (!Number.isInteger(quantity) || quantity < 1 || quantity > 500) return res.status(400).json({ success: false, message: 'Quantité invalide' });
+
+    const amount = quantity * PRICE_PER_CREDIT;
+    const frontendUrl = process.env.FRONTEND_URL || 'https://scalor.net';
+    const backendUrl = process.env.BACKEND_URL || 'https://api.scalor.net';
+
+    const paymentData = {
+      totalPrice: amount,
+      article: [{ [`Scalor - ${quantity} Crédit${quantity > 1 ? 's' : ''} Image IA`]: amount }],
+      personal_Info: [{ workspaceId: workspaceId.toString(), userId: req.ecomUser._id.toString(), type: 'creative', quantity }],
+      numeroSend: String(phone).trim(),
+      nomclient: String(clientName).trim(),
+      return_url: `${frontendUrl}/ecom/creatives`,
+      webhook_url: `${backendUrl}/api/ecom/billing/webhook`,
+    };
+
+    const mfResponse = await axios.post(MF_API_URL, paymentData, { headers: { 'Content-Type': 'application/json' }, timeout: 60000 });
+    const { statut, token: mfToken, url: paymentUrl, message } = mfResponse.data;
+
+    if (!statut || !mfToken) {
+      return res.status(502).json({ success: false, message: message || 'Erreur paiement' });
+    }
+
+    const payment = new GenerationPayment({
+      workspaceId,
+      userId: req.ecomUser._id,
+      type: 'creative',
+      quantity,
+      pricePerGeneration: PRICE_PER_CREDIT,
+      amount,
+      mfToken,
+      paymentUrl: paymentUrl || '',
+      status: 'pending',
+      phone: String(phone).trim(),
+      clientName: String(clientName).trim(),
+    });
+    await payment.save();
+
+    res.json({ success: true, mfToken, paymentUrl, amount, quantity });
+  } catch (err) {
+    if (err.code === 'ECONNABORTED') return res.status(504).json({ success: false, message: 'Timeout du prestataire de paiement' });
+    if (err.response) return res.status(502).json({ success: false, message: 'Erreur prestataire de paiement' });
+    console.error('[billing] POST /buy-creative error:', err);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// ─── GET /creative-credits ────────────────────────────────────────────────────
+router.get('/creative-credits', requireEcomAuth, async (req, res) => {
+  try {
+    const workspaceId = req.workspaceId || req.query.workspaceId;
+    if (!workspaceId) return res.status(400).json({ success: false, message: 'workspaceId requis' });
+    const workspace = await EcomWorkspace.findById(workspaceId).select('creativeCreditsRemaining').lean();
+    if (!workspace) return res.status(404).json({ success: false, message: 'Workspace introuvable' });
+    res.json({ success: true, credits: workspace.creativeCreditsRemaining || 0 });
+  } catch (err) {
     res.status(500).json({ success: false, message: 'Erreur serveur' });
   }
 });
@@ -987,7 +1082,9 @@ router.post('/webhook', async (req, res) => {
         const Model = isGenerationPayment ? GenerationPayment : PlanPayment;
         await Model.findByIdAndUpdate(payment._id, { $set: ancillaryUpdates });
       }
-      if (isGenerationPayment) {
+      if (isGenerationPayment && payment.type === 'creative') {
+        await applyCreativePayment(payment);
+      } else if (isGenerationPayment) {
         await applyGenerationPayment(payment);
       } else {
         await applyPlanPayment(payment);
@@ -997,7 +1094,7 @@ router.post('/webhook', async (req, res) => {
       await payment.save();
     }
 
-    const paymentType = isGenerationPayment ? 'generation' : 'plan';
+    const paymentType = isGenerationPayment ? (payment.type || 'generation') : 'plan';
     console.log(`[billing/webhook] ${event} → token=${tokenPay} type=${paymentType} status=${incomingStatus}`);
   } catch (err) {
     console.error('[billing/webhook] processing error:', err);

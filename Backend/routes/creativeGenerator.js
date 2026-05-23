@@ -16,6 +16,7 @@ import { uploadImage } from '../services/cloudflareImagesService.js';
 import { extractProductInfo } from '../services/geminiProductExtractor.js';
 import FeatureUsageLog from '../models/FeatureUsageLog.js';
 import CreativeAsset from '../models/CreativeAsset.js';
+import EcomWorkspace from '../models/Workspace.js';
 
 // All slides now use image-to-image mode (product reference mandatory)
 
@@ -722,7 +723,23 @@ router.post('/', requireEcomAuth, upload.fields([
     if (!hasImage) {
       return res.status(400).json({ success: false, error: 'Aucune image produit fournie — impossible de générer en mode image-to-image. Uploadez une photo du produit.' });
     }
-    
+
+    // Credit check: user must have enough creativeCreditsRemaining
+    const neededCredits = selectedFormats.length;
+    let workspace = null;
+    if (req.workspaceId) {
+      workspace = await EcomWorkspace.findById(req.workspaceId).select('creativeCreditsRemaining');
+    }
+    const available = workspace?.creativeCreditsRemaining ?? 0;
+    if (available < neededCredits) {
+      return res.status(402).json({
+        success: false,
+        error: `Crédits insuffisants. Vous avez ${available} crédit${available !== 1 ? 's' : ''} et avez besoin de ${neededCredits}.`,
+        creditsRequired: neededCredits,
+        creditsAvailable: available,
+      });
+    }
+
     console.log(`🖼️ Step 2: Génération de ${selectedFormats.length} créa(s) avec image produit (image-to-image)...`);
     const creatives = [];
     const statsBefore = getImageGenerationStats();
@@ -798,6 +815,14 @@ router.post('/', requireEcomAuth, upload.fields([
       }
     }
 
+    // Deduct credits for successfully generated images
+    const successCount = creatives.filter(c => c.imageUrl).length;
+    if (req.workspaceId && successCount > 0) {
+      await EcomWorkspace.findByIdAndUpdate(req.workspaceId, {
+        $inc: { creativeCreditsRemaining: -successCount },
+      });
+    }
+
     // Calculate cost for this generation batch
     const statsAfter = getImageGenerationStats();
     const batchCost = {
@@ -821,6 +846,10 @@ router.post('/', requireEcomAuth, upload.fields([
       }).catch(() => {});
     }
 
+    const updatedWorkspace = req.workspaceId
+      ? await EcomWorkspace.findById(req.workspaceId).select('creativeCreditsRemaining').lean()
+      : null;
+
     res.json({
       success: true,
       analysis,
@@ -828,6 +857,7 @@ router.post('/', requireEcomAuth, upload.fields([
       formats: CREATIVE_FORMATS,
       productImageFound: hasImage,
       cost: batchCost,
+      creditsRemaining: updatedWorkspace?.creativeCreditsRemaining ?? 0,
     });
   } catch (err) {
     console.error('❌ Creative Generator error:', err);

@@ -257,6 +257,13 @@ const workspaceSchema = new mongoose.Schema({
     min: 0
   },
 
+  // ─── Creative image credits (FCFA-priced at 80 FCFA/image) ─────────────────
+  creativeCreditsRemaining: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+
   // ─── Two-tier: Simple / Pro credits ────────────────────────────────────────
   simpleGenerationsRemaining: {
     type: Number,

@@ -18,6 +18,13 @@ const generationPaymentSchema = new mongoose.Schema({
     required: true,
     index: true
   },
+  // 'generation' (product page gen) | 'creative' (creative image credits)
+  type: {
+    type: String,
+    enum: ['generation', 'creative'],
+    default: 'generation',
+    index: true
+  },
   // Number of generations purchased (default 1)
   quantity: {
     type: Number,
