@@ -923,7 +923,7 @@ const FormPreview = ({ config, offersPreview = null, shopColor = '#0F6B4F' }) =>
   const fields = config.form?.fields?.filter(f => f.enabled) || [];
   const btn = config.button || {};
   const design = config.design || {};
-  const btnColor = design.formButtonColor || shopColor || '#0F6B4F';
+  const btnColor = design.ctaButtonColor || design.formButtonColor || design.buttonColor || shopColor || '#0F6B4F';
   const btnRadius = design.formInputRadius || '8px';
   const isEmbedded = config.general?.formType === 'embedded';
   const callSchedule = config.callSchedule || {};
@@ -1453,12 +1453,15 @@ const BoutiqueFormBuilder = () => {
     })();
   }, [activeStore]);
 
-  // Properties owned by the global site theme — form builder must never overwrite them
-  const SITE_DESIGN_PROPS = ['buttonColor', 'ctaButtonColor', 'backgroundColor', 'textColor',
+  // Properties owned by the global site theme — form builder must not overwrite them
+  // NOTE: button colors (buttonColor, ctaButtonColor, formButtonColor) are intentionally excluded
+  // because BoutiqueFormBuilder has its own color pickers for these and should own them.
+  const SITE_DESIGN_PROPS = [
     'fontFamily', 'fontBase', 'fontWeight', 'badgeColor', 'borderRadius', 'shadow',
     'buttonTextColor', 'buttonFontSize', 'buttonBold', 'buttonItalic',
     'buttonBorderColor', 'buttonBorderWidth', 'buttonShadow',
-    'fontSize', 'formBold', 'formItalic', 'labelAlign'];
+    'fontSize', 'formBold', 'formItalic', 'labelAlign',
+  ];
 
   const handleSave = async () => {
     if (!config) return;
@@ -1722,11 +1725,19 @@ const BoutiqueFormBuilder = () => {
                 <div>
                   <label className="block text-[11px] font-semibold text-gray-500 mb-1">Couleur du bouton</label>
                   <div className="flex items-center gap-2">
-                    <input type="color" value={config.design?.ctaButtonColor || '#0F6B4F'}
-                      onChange={e => update(c => ({ ...c, design: { ...c.design, ctaButtonColor: e.target.value } }))}
+                    <input type="color" value={config.design?.formButtonColor || config.design?.ctaButtonColor || config.design?.buttonColor || '#0F6B4F'}
+                      onChange={e => update(c => {
+                        const v = e.target.value;
+                        const fields = (c.form?.fields || []).map(f => f.type === 'cta_button' ? { ...f, bgColor: '', textColor: '', borderColor: '' } : f);
+                        return { ...c, design: { ...c.design, formButtonColor: v, ctaButtonColor: v }, form: { ...c.form, fields } };
+                      })}
                       className="w-7 h-7 border border-gray-200 rounded-lg cursor-pointer flex-shrink-0" />
-                    <input className={inputCls + ' font-mono text-[11px]'} value={config.design?.ctaButtonColor || '#0F6B4F'}
-                      onChange={e => update(c => ({ ...c, design: { ...c.design, ctaButtonColor: e.target.value } }))} />
+                    <input className={inputCls + ' font-mono text-[11px]'} value={config.design?.formButtonColor || config.design?.ctaButtonColor || config.design?.buttonColor || '#0F6B4F'}
+                      onChange={e => update(c => {
+                        const v = e.target.value;
+                        const fields = (c.form?.fields || []).map(f => f.type === 'cta_button' ? { ...f, bgColor: '', textColor: '', borderColor: '' } : f);
+                        return { ...c, design: { ...c.design, formButtonColor: v, ctaButtonColor: v }, form: { ...c.form, fields } };
+                      })} />
                   </div>
                 </div>
                 <div>
@@ -2061,11 +2072,19 @@ const BoutiqueFormBuilder = () => {
               <div>
                 <label className="block text-[11px] font-semibold text-gray-500 mb-1">Couleur du bouton</label>
                 <div className="flex items-center gap-2">
-                  <input type="color" value={config.design?.formButtonColor || '#0F6B4F'}
-                    onChange={e => update(c => ({ ...c, design: { ...c.design, formButtonColor: e.target.value } }))}
+                  <input type="color" value={config.design?.formButtonColor || config.design?.ctaButtonColor || config.design?.buttonColor || '#0F6B4F'}
+                    onChange={e => update(c => {
+                      const v = e.target.value;
+                      const fields = (c.form?.fields || []).map(f => f.type === 'cta_button' ? { ...f, bgColor: '', textColor: '', borderColor: '' } : f);
+                      return { ...c, design: { ...c.design, formButtonColor: v }, form: { ...c.form, fields } };
+                    })}
                     className="w-7 h-7 border border-gray-200 rounded-lg cursor-pointer flex-shrink-0" />
-                  <input className={inputCls + ' font-mono text-[11px]'} value={config.design?.formButtonColor || '#0F6B4F'}
-                    onChange={e => update(c => ({ ...c, design: { ...c.design, formButtonColor: e.target.value } }))} />
+                  <input className={inputCls + ' font-mono text-[11px]'} value={config.design?.formButtonColor || config.design?.ctaButtonColor || config.design?.buttonColor || '#0F6B4F'}
+                    onChange={e => update(c => {
+                      const v = e.target.value;
+                      const fields = (c.form?.fields || []).map(f => f.type === 'cta_button' ? { ...f, bgColor: '', textColor: '', borderColor: '' } : f);
+                      return { ...c, design: { ...c.design, formButtonColor: v }, form: { ...c.form, fields } };
+                    })} />
                 </div>
               </div>
 
@@ -2131,7 +2150,7 @@ const BoutiqueFormBuilder = () => {
             <div>
               {/* Aperçu bouton CTA (popup uniquement) */}
               {(config.general?.formType || 'popup') === 'popup' && (() => {
-                const previewBtnColor = config.design?.ctaButtonColor || '#0F6B4F';
+                const previewBtnColor = config.design?.formButtonColor || config.design?.ctaButtonColor || config.design?.buttonColor || '#0F6B4F';
                 const previewIconId = config.button?.icon || 'cart';
                 const PreviewIcon = previewIconId === 'none' ? null : getButtonIcon(previewIconId);
                 const previewAnim = getButtonAnimClass(config.button?.animation);

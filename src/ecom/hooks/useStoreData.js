@@ -109,9 +109,9 @@ export function injectStoreCssVars(store) {
   const r = document.documentElement.style;
   // Design overrides from productPageConfig take priority
   const d = store.productPageConfig?.design || {};
-  // formButtonColor is scoped to the order form only — never use it for global CSS vars
-  const primaryColor = resolveThemeColor(d.buttonColor, store.primaryColor, '#0F6B4F') || '#0F6B4F';
-  const accentColor = resolveThemeColor(d.ctaButtonColor, d.buttonColor, store.accentColor, primaryColor, '#059669') || '#059669';
+  // formButtonColor is form-only — never use it for page-level --s-primary
+  const primaryColor = resolveThemeColor(d.ctaButtonColor, d.buttonColor, store.primaryColor, '#0F6B4F') || '#0F6B4F';
+  const accentColor = primaryColor;
   const sectionColors = {
     socialProof: store.sectionColors?.socialProof || store.accentColor || store.primaryColor || '#7C3AED',
     benefits: store.sectionColors?.benefits || store.primaryColor || '#0F6B4F',

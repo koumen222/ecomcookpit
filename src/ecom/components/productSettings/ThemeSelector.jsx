@@ -217,21 +217,30 @@ const ThemeSelector = ({ config, onChange }) => {
   const currentTheme = config.theme || 'classic';
 
   const handleSelect = (themeId) => {
-    // Update theme AND auto-set matching design colors
     const themeData = THEMES.find(t => t.id === themeId);
-    const newConfig = {
-      ...config,
-      theme: themeId,
-    };
+    const newConfig = { ...config, theme: themeId };
 
-    // Optionally sync design colors with theme
     if (themeData) {
+      const primary = themeData.preview.primary;
+      // Sync all button / form colors to the theme primary
       newConfig.design = {
         ...config.design,
-        buttonColor: themeData.preview.primary,
-        backgroundColor: themeData.preview.bg,
-        textColor: themeData.preview.text,
+        formButtonColor: primary,
+        ctaButtonColor: primary,
+        formBgColor: themeData.preview.bg,
+        formTextColor: themeData.preview.text,
       };
+      // Clear per-field bgColor on cta_button so design level wins
+      if (newConfig.form?.fields) {
+        newConfig.form = {
+          ...newConfig.form,
+          fields: newConfig.form.fields.map(f =>
+            f.type === 'cta_button'
+              ? { ...f, bgColor: '', textColor: '', borderColor: '' }
+              : f
+          ),
+        };
+      }
     }
 
     onChange(newConfig);

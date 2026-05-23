@@ -38,7 +38,7 @@ const DesignSettings = ({ config, onChange }) => {
           Couleurs
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <ColorField label="Bouton / Accent" value={config.buttonColor} onChange={(v) => update('buttonColor', v)} />
+          <ColorField label="Bouton / Accent" value={config.ctaButtonColor || config.formButtonColor || config.buttonColor} onChange={(v) => onChange({ ...config, buttonColor: v, ctaButtonColor: v, formButtonColor: v })} />
           <ColorField label="Arrière-plan" value={config.backgroundColor} onChange={(v) => update('backgroundColor', v)} />
           <ColorField label="Texte" value={config.textColor} onChange={(v) => update('textColor', v)} />
           <ColorField label="Badge promo" value={config.badgeColor || '#EF4444'} onChange={(v) => update('badgeColor', v)} />

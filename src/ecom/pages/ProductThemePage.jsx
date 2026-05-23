@@ -290,7 +290,7 @@ const Toggle = ({ label, desc, value, onChange, accentColor = '#7C3AED' }) => {
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 const DEFAULT_DESIGN = {
-  buttonColor: '#D94A1F', ctaButtonColor: '#D94A1F', backgroundColor: '#ffffff', textColor: '#1F2937', badgeColor: '#EF4444',
+  buttonColor: '#D94A1F', ctaButtonColor: '#D94A1F', formButtonColor: '#D94A1F', backgroundColor: '#ffffff', textColor: '#1F2937', badgeColor: '#EF4444',
   fontFamily: 'system', fontBase: 14, fontWeight: '600',
   borderRadius: '12px', shadow: true,
   buttonStyle: 'filled', badgeStyle: 'filled',
@@ -330,6 +330,8 @@ const ProductThemePage = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const loadedConfigRef = React.useRef({});   // full productPageConfig loaded from DB
+  const loadedThemeRef = React.useRef({});    // full storeTheme loaded from DB
   const [searchParams, setSearchParams] = useSearchParams();
   const [activeSection, setActiveSection] = useState(searchParams.get('tab') || 'layout');
   const [colorTab, setColorTab] = useState('presets');
@@ -392,6 +394,8 @@ const ProductThemePage = () => {
         };
         const savedSectionColors = { ...DEFAULT_SECTION_COLORS, ...(themeData.sectionColors || {}) };
         const savedInfographicsForm = { ...DEFAULT_INFOGRAPHICS_FORM, ...(config.infographicsForm || {}) };
+        loadedConfigRef.current = config;
+        loadedThemeRef.current = themeData;
         setCurrentTheme(savedTheme);
         setDesign(savedDesign);
         setSectionColors(savedSectionColors);
@@ -408,7 +412,14 @@ const ProductThemePage = () => {
   const handleSelect = useCallback((themeId) => { setCurrentTheme(themeId); setSaved(false); }, []);
   const updateDesign = useCallback((key, value) => {
     if (key === 'fontFamily') applyFont(value);
-    setDesign(prev => ({ ...prev, [key]: value }));
+    setDesign(prev => {
+      const next = { ...prev, [key]: value };
+      // keep all three button color fields in sync
+      if (key === 'buttonColor') { next.ctaButtonColor = value; next.formButtonColor = value; }
+      if (key === 'ctaButtonColor') { next.buttonColor = value; next.formButtonColor = value; }
+      if (key === 'formButtonColor') { next.buttonColor = value; next.ctaButtonColor = value; }
+      return next;
+    });
     setSaved(false);
   }, []);
   const applyColorPreset = useCallback((preset) => {
@@ -427,28 +438,9 @@ const ProductThemePage = () => {
   const handleSave = async () => {
     setSaving(true);
     try {
-      // Use allSettled to handle 404 errors gracefully
-      const [configResult, themeResult] = await Promise.allSettled([
-        storeManageApi.getStoreConfig(),
-        storeManageApi.getTheme(),
-      ]);
-
-      // Extract config if available, fallback to empty object on error
-      let existingConfig = {};
-      if (configResult.status === 'fulfilled') {
-        const raw = configResult.value?.data?.data || configResult.value?.data || {};
-        existingConfig = raw.storeSettings?.productPageConfig || raw.productPageConfig || {};
-      } else {
-        console.warn('Store config not available:', configResult.reason?.message);
-      }
-
-      // Extract theme if available, fallback to empty object on error
-      let existingTheme = {};
-      if (themeResult.status === 'fulfilled') {
-        existingTheme = themeResult.value?.data?.data || {};
-      } else {
-        console.warn('Theme not available:', themeResult.reason?.message);
-      }
+      // Use in-memory config loaded at page init — avoids a redundant GET and race conditions
+      const existingConfig = loadedConfigRef.current || {};
+      const existingTheme = loadedThemeRef.current || {};
 
       // Build the productPageConfig payload
       const updatedProductPageConfig = {
@@ -469,6 +461,8 @@ const ProductThemePage = () => {
 
       // Consider save successful if at least the theme was saved
       if (themeUpdate.status === 'fulfilled') {
+        loadedConfigRef.current = updatedProductPageConfig;
+        loadedThemeRef.current = { ...existingTheme, template: currentTheme, sectionColors, productPageConfig: updatedProductPageConfig };
         setOriginalData({ theme: currentTheme, design: { ...design }, sectionColors: { ...sectionColors }, infographicsForm: { ...infographicsForm } });
         setSaved(true);
         setTimeout(() => setSaved(false), 3000);

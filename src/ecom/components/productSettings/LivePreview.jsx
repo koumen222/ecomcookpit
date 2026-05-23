@@ -88,7 +88,7 @@ const LivePreview = ({ config, product: productProp, onSectionClick, activeSecti
   const cur = product?.currency || 'XAF';
 
   const enabledFields = form.fields.filter(f => f.enabled && !['product_info','cta_button','shipping','urgency','call_schedule','trust_badge','guarantee','divider','html','summary'].includes(f.type));
-  const btnColor = design.formButtonColor || '#0F6B4F';
+  const btnColor = design.ctaButtonColor || design.formButtonColor || design.buttonColor || '#0F6B4F';
   const formBg = design.formBgColor || '#ffffff';
   const fieldBg = design.fieldBgColor || '#ffffff';
   const fieldBorder = design.fieldBorderColor || design.formBorderColor || '#E5E7EB';

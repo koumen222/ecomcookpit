@@ -120,7 +120,7 @@ const resolveThemeColor = (...values) => values.find((value) => !isTransparentTh
 const buildStorefrontThemeVars = (store) => {
   const design = store?.productPageConfig?.design || {};
   const buttonStyle = String(design.buttonStyle || '').trim().toLowerCase();
-  const primaryColor = resolveThemeColor(design.buttonColor, store?.primaryColor, '#0F6B4F') || '#0F6B4F';
+  const primaryColor = resolveThemeColor(design.ctaButtonColor, design.buttonColor, store?.primaryColor, '#0F6B4F') || '#0F6B4F';
   const configuredButton = resolveThemeColor(design.ctaButtonColor, design.buttonColor, store?.accentColor, primaryColor, null);
 
   let ctaBackground = configuredButton || primaryColor;

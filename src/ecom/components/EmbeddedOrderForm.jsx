@@ -58,7 +58,7 @@ const EmbeddedOrderForm = ({ product, subdomain, store, pixels, productPageConfi
   const btnCfg = productPageConfig?.button || {};
 
   const offerDesign = conversionConfig.offerDesign || null;
-  const btnColor = design.formButtonColor || '#0F6B4F';
+  const btnColor = design.formButtonColor || design.ctaButtonColor || design.buttonColor || '#0F6B4F';
   const od = offerDesign || {};
   const accentColor = btnColor;
   const offerBorderRadius = od.borderRadius ?? 10;
@@ -991,9 +991,9 @@ const EmbeddedOrderForm = ({ product, subdomain, store, pixels, productPageConfi
             case 'cta_button': {
               const ctaLabel = (field.label || 'ACHETER MAINTENANT - {total}').replace('{total}', fmt(total, currency));
               const CtaIcon = getIconComponent(field.icon) || ICON_MAP[field.icon] || ShoppingCart;
-              // field.* takes priority → allows per-button customisation independent of design tab
-              const ctaBgColor = field.bgColor || design.ctaButtonColor || effectiveBtnColor;
-              const ctaTextColor = field.textColor || design.buttonTextColor || '#fff';
+              // formButtonColor owns the form CTA; field.bgColor only used when neither is set
+              const ctaBgColor = design.formButtonColor || field.bgColor || effectiveBtnColor;
+              const ctaTextColor = design.buttonTextColor || field.textColor || '#fff';
               const ctaFontSize = field.fontSize || parseInt(design.buttonFontSize) || 15;
               const ctaFontWeight = field.bold !== false && design.buttonBold !== false ? 700 : 400;
               const ctaFontStyle = (field.italic || design.buttonItalic) ? 'italic' : 'normal';

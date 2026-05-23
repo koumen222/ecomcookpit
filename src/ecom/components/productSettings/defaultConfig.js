@@ -92,10 +92,11 @@ const defaultConfig = {
     formBold: false,
     formItalic: false,
     labelAlign: 'left',
+    ctaButtonColor: '',     // empty = inherit from buttonColor
     // Form-specific colors (set by FormThemePicker, editable via pickers)
     formBgColor: '#ffffff',
     formTextColor: '#111827',
-    formButtonColor: '#0F6B4F',
+    formButtonColor: '',    // empty = inherit from buttonColor / ctaButtonColor
     formBorderColor: '#E5E7EB',
     formBorderWidth: '1px',
     formBorderRadius: '12px',

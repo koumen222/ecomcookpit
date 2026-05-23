@@ -883,10 +883,8 @@ const ProductDescription = ({ content, design = {} }) => {
   const isHTML = /<[^>]+>/.test(rawContent);
 
   if (!isHTML) {
-    const fontSize = design.fontBase ? parseInt(design.fontBase) : 14;
-    const textColor = design.textColor || 'var(--s-text2)';
     return (
-      <div className="ai-desc" style={{ fontSize, lineHeight: 1.75, color: textColor, fontFamily: 'var(--s-font)', whiteSpace: 'pre-wrap' }}>
+      <div className="ai-desc" style={{ fontSize: 'var(--s-font-base, 14px)', lineHeight: 1.75, color: 'var(--s-text2)', fontFamily: 'var(--s-font)', whiteSpace: 'pre-wrap' }}>
         {rawContent}
       </div>
     );
@@ -1580,7 +1578,9 @@ const StoreProductPage = () => {
           reconnection: true,
         });
         socket.on('connect', () => { socket.emit('store:join', { subdomain }); });
-        socket.on('theme:update', (themeData) => { if (themeData) injectStoreCssVars(themeData); });
+        // theme:update carries only storeTheme (no productPageConfig) — skip injecting CSS vars here.
+        // store:updated (via useStoreUpdates) triggers a full refetch with complete store data.
+        socket.on('theme:update', () => {});
         socket.on('connect_error', () => {});
       } catch {}
     }, 2000);
@@ -1705,8 +1705,8 @@ const StoreProductPage = () => {
   const raisonsTheme = useMemo(() => buildSectionVisualTheme('benefits', { useTextAsTitle: true }), []);
   const guideTheme = useMemo(() => buildSectionVisualTheme('solution', { useTextAsTitle: true }), []);
   const faqTheme = useMemo(() => buildSectionVisualTheme('faq'), []);
-  // ppButton.* takes priority — allows per-button customisation independent of design tab
-  const ctaBtnColor = ppButton.bgColor || ppDesign.ctaButtonColor || ppDesign.buttonColor || aiVisualTheme?.primary || 'var(--s-primary)';
+  // design color always wins; ppButton.bgColor only if no design color set
+  const ctaBtnColor = ppDesign.ctaButtonColor || ppDesign.buttonColor || ppButton.bgColor || aiVisualTheme?.primary || 'var(--s-primary)';
   const ctaBorderRadius = ppButton.borderRadius != null ? `${ppButton.borderRadius}px` : (ppDesign.ctaBorderRadius || ppDesign.borderRadius || '14px');
   const ctaButtonStyle = ppDesign.buttonStyle || 'filled';
   const ctaFontSize = ppButton.fontSize || Number.parseInt(ppDesign.buttonFontSize, 10) || ((Number.parseInt(ppDesign.fontBase, 10) || 14) + 3);
@@ -2648,7 +2648,7 @@ const StoreProductPage = () => {
                       }
 
                     case 'trustBadges':
-                      return <TrustBadges key={sectionId} compact accentColor={ctaBtnColor} />;
+                      return <TrustBadges key={sectionId} compact accentColor={trustTheme.primary} />;
 
                     case 'secureBadge':
                       return null;
@@ -2747,7 +2747,7 @@ const StoreProductPage = () => {
                       const customBullets = sectionContentMap.benefitsBullets?.items?.filter(Boolean);
                       const bulletsData = customBullets?.length > 0 ? customBullets : product._pageData?.benefits_bullets;
                       return bulletsData?.length > 0 ? (
-                        <ProductBenefits key={sectionId} benefits={bulletsData} title="" accentColor={ctaBtnColor} textColor={ppDesign.textColor || 'var(--s-text)'} />
+                        <ProductBenefits key={sectionId} benefits={bulletsData} title="" accentColor={benefitsTheme.primary} textColor={ppDesign.textColor || 'var(--s-text)'} />
                       ) : null;
                     }
 
@@ -2770,7 +2770,7 @@ const StoreProductPage = () => {
                           key={sectionId}
                           rows={rows}
                           productName={comparisonLabel}
-                          primaryColor={ctaBtnColor}
+                          primaryColor={benefitsTheme.primary}
                           note={comparisonNote}
                         />
                       ) : null;
@@ -2834,7 +2834,7 @@ const StoreProductPage = () => {
                           ? product.faq
                           : htmlFaqItems;
                       return faqItems.length > 0
-                        ? <LazySection key={sectionId} minHeight={120}><ProductFaqAccordion items={faqItems} primaryColor={ctaBtnColor} /></LazySection>
+                        ? <LazySection key={sectionId} minHeight={120}><ProductFaqAccordion items={faqItems} primaryColor={faqTheme.primary} /></LazySection>
                         : null;
                     }
 
