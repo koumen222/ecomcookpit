@@ -1167,8 +1167,31 @@ router.post('/',
       // Calculer le CA avec exceptions de prix
       const sellingPrice = product.sellingPrice || 0;
       const productCost = product.productCost || 0;
-      const deliveryCost = product.deliveryCost || 0;
-      const totalCostPerUnit = productCost + deliveryCost;
+      const defaultDeliveryCost = product.deliveryCost || 0;
+
+      // ── BUG FIX ───────────────────────────────────────────────────────────────
+      // AVANT : on calculait toujours `defaultDeliveryCost * ordersDelivered`,
+      // ce qui ignorait totalement les frais par agence saisis dans le formulaire.
+      // Le marchand voyait "Total livraison" rester à zéro dans son rapport.
+      //
+      // MAINTENANT : si l'utilisateur a rempli au moins une ligne `deliveries[]`
+      // avec un coût > 0, on prend la SOMME RÉELLE de ces lignes. Sinon on
+      // retombe sur le défaut produit × commandes livrées.
+      // ─────────────────────────────────────────────────────────────────────────
+      const userDeliveries = Array.isArray(deliveries) ? deliveries : [];
+      const userDeliveryTotal = userDeliveries.reduce(
+        (sum, d) => sum + (parseFloat(d.deliveryCost) || 0),
+        0
+      );
+      const computedDeliveryCost = userDeliveryTotal > 0
+        ? userDeliveryTotal
+        : defaultDeliveryCost * ordersDelivered;
+
+      // Coût de livraison "par unité" — pour le calcul du bénéfice unitaire
+      const perUnitDeliveryCost = ordersDelivered > 0
+        ? (computedDeliveryCost / ordersDelivered)
+        : defaultDeliveryCost;
+      const totalCostPerUnit = productCost + perUnitDeliveryCost;
 
       let customRevenue = null;
       let customBenefit = null;
@@ -1180,22 +1203,21 @@ router.post('/',
         const normalQty = Math.max(0, ordersDelivered - exceptionQty);
         const normalRevenue = normalQty * sellingPrice;
         customRevenue = normalRevenue + exceptionRevenue;
-        customBenefit = customRevenue - (totalCostPerUnit * ordersDelivered) - (adSpend || 0);
+        customBenefit = customRevenue - (productCost * ordersDelivered) - computedDeliveryCost - (adSpend || 0);
         console.log(`💰 CA avec exceptions: ${customRevenue} FCFA (normal: ${normalRevenue}, exceptions: ${exceptionRevenue})`);
       }
 
       // Calculer les valeurs financières à stocker
       // Les retours réduisent le CA mais les coûts restent engagés
       const effectiveDelivered = ordersDelivered - (parseInt(ordersReturned) || 0);
-      const computedRevenue = customRevenue !== null 
+      const computedRevenue = customRevenue !== null
         ? customRevenue - ((parseInt(ordersReturned) || 0) * sellingPrice)
         : sellingPrice * effectiveDelivered;
       const computedProductCost = productCost * ordersDelivered;
-      const computedDeliveryCost = deliveryCost * ordersDelivered;
       const computedCost = computedProductCost + computedDeliveryCost + (adSpend || 0);
       const computedProfit = computedRevenue - computedCost;
       const unitBenefit = sellingPrice - totalCostPerUnit;
-      const totalBenefit = customBenefit !== null ? customBenefit : unitBenefit * effectiveDelivered;
+      const totalBenefit = customBenefit !== null ? customBenefit : (computedRevenue - computedProductCost - computedDeliveryCost);
 
       console.log(`💰 Financier: revenue=${computedRevenue}, productCost=${computedProductCost}, deliveryCost=${computedDeliveryCost}, cost=${computedCost}, profit=${computedProfit}`);
 
@@ -1553,17 +1575,39 @@ router.put('/:id',
       if (productForCalc) {
         const sp = productForCalc.sellingPrice || 0;
         const pc = productForCalc.productCost || 0;
-        const dc = productForCalc.deliveryCost || 0;
+        const defaultDc = productForCalc.deliveryCost || 0;
         const qty = report.ordersDelivered || 0;
         const returned = report.ordersReturned || 0;
         const effectiveQty = qty - returned;
         const ad = report.adSpend || 0;
-        report.revenue = sp * effectiveQty;
+
+        // ── Même bug fix qu'en POST : on prend les vrais frais saisis si présents
+        const userDeliveryTotal = (report.deliveries || []).reduce(
+          (sum, d) => sum + (parseFloat(d.deliveryCost) || 0),
+          0
+        );
+        const computedDeliveryCost = userDeliveryTotal > 0
+          ? userDeliveryTotal
+          : defaultDc * qty;
+
+        // Recalcule CA si exceptions présentes (sinon mode standard)
+        let computedRevenue = sp * effectiveQty;
+        const validExceptions = (report.priceExceptions || []).filter(e => (e.quantity || 0) > 0 && (e.unitPrice || 0) >= 0);
+        if (validExceptions.length > 0) {
+          const exQty = validExceptions.reduce((s, e) => s + (e.quantity || 0), 0);
+          const exRev = validExceptions.reduce((s, e) => s + (e.quantity || 0) * (e.unitPrice || 0), 0);
+          const normalQty = Math.max(0, qty - exQty);
+          computedRevenue = normalQty * sp + exRev - (returned * sp);
+        }
+
+        report.revenue = computedRevenue;
         report.productCost = pc * qty;
-        report.deliveryCost = dc * qty;
-        report.cost = (pc + dc) * qty + ad;
+        report.deliveryCost = computedDeliveryCost;
+        report.cost = (pc * qty) + computedDeliveryCost + ad;
         report.profit = report.revenue - report.cost;
         report.quantity = qty;
+        report.unitBenefit = sp - pc - (qty > 0 ? (computedDeliveryCost / qty) : defaultDc);
+        report.totalBenefit = report.revenue - (pc * qty) - computedDeliveryCost;
       }
       
       console.log('📝 Mise à jour du rapport - revenue:', report.revenue, 'profit:', report.profit);

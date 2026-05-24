@@ -1780,7 +1780,8 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
     const sizes = Array.isArray(rawFashionSizes) ? rawFashionSizes : (parseJson(rawFashionSizes) || []);
     const colors = Array.isArray(rawFashionColors) ? rawFashionColors : (parseJson(rawFashionColors) || []);
     fashionConfig = {
-      avatar: ['female', 'male', 'both'].includes(rawFashionAvatar) ? rawFashionAvatar : 'female',
+      // 'both' déprécié — coerced vers 'female' pour rétro-compat des anciens jobs
+      avatar: (rawFashionAvatar === 'male') ? 'male' : 'female',
       minimalist: rawFashionMinimalist === 'true' || rawFashionMinimalist === true,
       sizes: Array.isArray(sizes) ? sizes.slice(0, 20).map(String) : [],
       colors: Array.isArray(colors) ? colors.slice(0, 20).filter(c => c && c.name && c.hex) : [],

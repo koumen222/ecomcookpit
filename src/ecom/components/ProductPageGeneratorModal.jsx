@@ -192,7 +192,6 @@ const FASHION_COLORS = [
 const FASHION_AVATAR_OPTIONS = [
   { value: 'female', label: 'Femme', icon: '👩', hint: 'Portée par une silhouette féminine' },
   { value: 'male', label: 'Homme', icon: '👨', hint: 'Portée par une silhouette masculine' },
-  { value: 'both', label: 'Les deux', icon: '👫', hint: 'Unisexe — visuels mixtes' },
 ];
 
 const VISUAL_TEMPLATES = [
@@ -743,7 +742,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
   const [description, setDescription] = useState('');
   const [photos, setPhotos] = useState([]);
   const [visualTemplate, setVisualTemplate] = useState('beauty');
-  const [fashionAvatar, setFashionAvatar] = useState('female'); // 'female' | 'male' | 'both'
+  const [fashionAvatar, setFashionAvatar] = useState('female'); // 'female' | 'male'
   const [fashionSizes, setFashionSizes] = useState([]); // ['S','M','L','XL']
   const [fashionColors, setFashionColors] = useState([]); // [{name, hex}]
   const [fashionMinimalist, setFashionMinimalist] = useState(true);
@@ -2532,7 +2531,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
                         {/* Avatar gender */}
                         <div className="mb-5">
                           <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-purple-800">Avatar / Mannequin</label>
-                          <div className="grid grid-cols-3 gap-2">
+                          <div className="grid grid-cols-2 gap-2">
                             {FASHION_AVATAR_OPTIONS.map(opt => (
                               <button
                                 key={opt.value}
@@ -3179,38 +3178,36 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
           {/* ─── AI GENERATION LOADING PHASE ─── */}
           {phase === 'loading' && (() => {
             const STEPS = [
-              { icon: Search,     label: 'Analyse',  desc: 'Analyse du produit' },
-              { icon: Zap,        label: 'Contenu',  desc: 'Génération marketing' },
-              { icon: Layers,     label: 'Design',   desc: 'Mise en page' },
-              { icon: CheckCircle,label: 'Texte',    desc: 'Finalisation' },
-              { icon: ImageIcon,  label: 'Visuels',  desc: 'Génération images' },
+              { icon: Search,     label: 'Analyse',     desc: 'Analyse du produit' },
+              { icon: Zap,        label: 'Contenu',     desc: 'Rédaction marketing' },
+              { icon: Layers,     label: 'Design',      desc: 'Mise en page' },
+              { icon: CheckCircle,label: 'Finalisation',desc: 'Vérification finale' },
+              { icon: ImageIcon,  label: 'Visuels',     desc: 'Génération des images' },
             ];
             const activeStep = Math.min(buildStep, STEPS.length - 1);
             return (
-              <div className="relative flex flex-col items-center justify-center overflow-hidden bg-[#080e18] min-h-[600px] w-full select-none">
+              <div className="relative flex flex-col items-center justify-center bg-white min-h-[640px] w-full select-none px-6">
                 <style dangerouslySetInnerHTML={{ __html: `
-                  @keyframes orb-float { 0%,100%{transform:translateY(0) scale(1)} 50%{transform:translateY(-18px) scale(1.06)} }
-                  @keyframes orb-float2 { 0%,100%{transform:translateY(0) scale(1)} 50%{transform:translateY(14px) scale(0.96)} }
-                  @keyframes shimmer { 0%{transform:translateX(-100%)} 100%{transform:translateX(200%)} }
-                  @keyframes ping-slow { 0%{transform:scale(1);opacity:.7} 100%{transform:scale(2.2);opacity:0} }
-                  @keyframes fade-up { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
+                  @keyframes spin-slow { to { transform: rotate(360deg) } }
+                  @keyframes pulse-dot { 0%,100%{opacity:.4;transform:scale(0.8)} 50%{opacity:1;transform:scale(1)} }
+                  @keyframes shimmer-light { 0%{transform:translateX(-100%)} 100%{transform:translateX(200%)} }
+                  @keyframes fade-up { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
                   @keyframes confetti-fall { to{transform:translateY(700px) rotate(720deg);opacity:0} }
-                  @keyframes glow-pulse { 0%,100%{opacity:.5} 50%{opacity:1} }
                 ` }} />
 
-                {/* Confetti */}
+                {/* Confetti — uniquement à la fin */}
                 {showConfetti && (
                   <div className="absolute inset-0 pointer-events-none z-50 overflow-hidden">
-                    {[...Array(60)].map((_, i) => (
+                    {[...Array(50)].map((_, i) => (
                       <div key={i} className="absolute" style={{
                         left: `${Math.random() * 100}%`, top: -12,
-                        animation: `confetti-fall ${1.2 + Math.random() * 2}s linear forwards`,
+                        animation: `confetti-fall ${1.4 + Math.random() * 2}s linear forwards`,
                         animationDelay: `${Math.random() * 0.6}s`,
                       }}>
                         <div style={{
-                          width: i % 3 === 0 ? 8 : 5, height: i % 3 === 0 ? 8 : 5,
+                          width: i % 3 === 0 ? 7 : 4, height: i % 3 === 0 ? 7 : 4,
                           borderRadius: i % 2 === 0 ? '50%' : 2,
-                          background: ['#34d399','#a78bfa','#fbbf24','#60a5fa','#f472b6','#fb923c'][i % 6],
+                          background: ['#0F6B4F','#14a373','#34d399','#fbbf24','#60a5fa','#f472b6'][i % 6],
                           transform: `rotate(${Math.random()*360}deg)`,
                         }} />
                       </div>
@@ -3218,103 +3215,118 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
                   </div>
                 )}
 
-                {/* Background orbs */}
-                <div className="absolute inset-0 pointer-events-none overflow-hidden">
-                  <div style={{ position:'absolute', top:'8%', left:'12%', width:320, height:320, borderRadius:'50%', background:'radial-gradient(circle, rgba(15,107,79,0.22) 0%, transparent 70%)', animation:'orb-float 7s ease-in-out infinite' }} />
-                  <div style={{ position:'absolute', bottom:'10%', right:'10%', width:280, height:280, borderRadius:'50%', background:'radial-gradient(circle, rgba(99,102,241,0.18) 0%, transparent 70%)', animation:'orb-float2 9s ease-in-out infinite' }} />
-                  <div style={{ position:'absolute', top:'45%', right:'20%', width:180, height:180, borderRadius:'50%', background:'radial-gradient(circle, rgba(251,191,36,0.12) 0%, transparent 70%)', animation:'orb-float 11s ease-in-out infinite' }} />
-                  {/* Grid lines */}
-                  <svg className="absolute inset-0 w-full h-full opacity-[0.04]" xmlns="http://www.w3.org/2000/svg">
-                    <defs><pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M 40 0 L 0 0 0 40" fill="none" stroke="white" strokeWidth="0.5"/></pattern></defs>
-                    <rect width="100%" height="100%" fill="url(#grid)" />
-                  </svg>
-                </div>
+                {/* Carte centrale — épurée, Material/Linear style */}
+                <div className="relative w-full max-w-[480px] text-center" style={{ animation: 'fade-up 0.4s ease forwards' }}>
 
-                {/* Central glow ring */}
-                <div className="relative z-10 mb-8">
-                  <div className="relative flex items-center justify-center" style={{ width:120, height:120 }}>
-                    <div style={{ position:'absolute', inset:0, borderRadius:'50%', background:'rgba(15,107,79,0.15)', animation:'ping-slow 2.4s ease-out infinite' }} />
-                    <div style={{ position:'absolute', inset:8, borderRadius:'50%', background:'rgba(15,107,79,0.12)', animation:'ping-slow 2.4s ease-out infinite', animationDelay:'0.8s' }} />
-                    <div style={{ position:'relative', width:80, height:80, borderRadius:'50%', background:'linear-gradient(135deg, #0F6B4F 0%, #14a373 100%)', boxShadow:'0 0 40px rgba(15,107,79,0.6), 0 0 80px rgba(15,107,79,0.2)', display:'flex', alignItems:'center', justifyContent:'center' }}>
-                      <Sparkles style={{ width:36, height:36, color:'#fff' }} />
-                    </div>
+                  {/* Spinner circulaire propre */}
+                  <div className="relative inline-flex items-center justify-center mb-7" style={{ width: 80, height: 80 }}>
+                    <svg width="80" height="80" viewBox="0 0 80 80" style={{ animation: 'spin-slow 1.4s linear infinite' }}>
+                      <circle cx="40" cy="40" r="34" fill="none" stroke="#E5E7EB" strokeWidth="4" />
+                      <circle
+                        cx="40" cy="40" r="34"
+                        fill="none"
+                        stroke="#0F6B4F"
+                        strokeWidth="4"
+                        strokeLinecap="round"
+                        strokeDasharray="60 213"
+                      />
+                    </svg>
+                    <Sparkles
+                      className="absolute"
+                      style={{ width: 26, height: 26, color: '#0F6B4F' }}
+                    />
                   </div>
-                </div>
 
-                {/* Title + message */}
-                <div className="relative z-10 text-center px-8 mb-8" style={{ animation:'fade-up 0.5s ease forwards' }}>
-                  <div style={{ display:'inline-flex', alignItems:'center', gap:6, background:'rgba(15,107,79,0.15)', border:'1px solid rgba(15,107,79,0.3)', borderRadius:20, padding:'4px 14px', marginBottom:14 }}>
-                    <div style={{ width:6, height:6, borderRadius:'50%', background:'#34d399', animation:'glow-pulse 1.4s ease-in-out infinite' }} />
-                    <span style={{ fontSize:11, fontWeight:700, color:'#34d399', letterSpacing:'0.1em', textTransform:'uppercase' }}>IA en cours</span>
+                  {/* Petit badge "IA en cours" */}
+                  <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 mb-4">
+                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" style={{ animation: 'pulse-dot 1.4s ease-in-out infinite' }} />
+                    <span className="text-[11px] font-semibold text-emerald-700 tracking-wide uppercase">IA en cours</span>
                   </div>
-                  <h2 style={{ fontSize:26, fontWeight:900, color:'#fff', margin:'0 0 10px', letterSpacing:'-0.02em', lineHeight:1.2 }}>
-                    {['Analyse de votre produit','Génération du contenu','Construction de la page','Finalisation','Génération des visuels'][activeStep] || 'Génération des visuels'}
+
+                  {/* Titre étape courante */}
+                  <h2 className="text-[22px] font-bold text-gray-900 mb-2 leading-tight tracking-tight">
+                    {['Analyse de votre produit','Génération du contenu','Construction de la page','Finalisation','Génération des visuels'][activeStep] || 'Préparation'}
                   </h2>
-                  <p style={{ fontSize:14, color:'rgba(255,255,255,0.55)', fontWeight:500, minHeight:22 }}>
+
+                  {/* Sous-titre dynamique */}
+                  <p className="text-sm text-gray-500 min-h-[22px] mb-7">
                     <TypingText text={buildMessage} />
                   </p>
-                </div>
 
-                {/* Progress bar */}
-                <div className="relative z-10 w-full px-10 mb-8" style={{ maxWidth:480 }}>
-                  <div style={{ display:'flex', justifyContent:'space-between', marginBottom:8 }}>
-                    <span style={{ fontSize:12, fontWeight:600, color:'rgba(255,255,255,0.4)' }}>Progression</span>
-                    <span style={{ fontSize:12, fontWeight:800, color:'#34d399' }}>{Math.round(buildProgress)}%</span>
-                  </div>
-                  <div style={{ height:6, background:'rgba(255,255,255,0.08)', borderRadius:6, overflow:'hidden' }}>
-                    <div style={{ height:'100%', width:`${buildProgress}%`, borderRadius:6, background:'linear-gradient(90deg, #0F6B4F, #34d399)', transition:'width 0.6s ease', position:'relative', overflow:'hidden' }}>
-                      <div style={{ position:'absolute', inset:0, background:'linear-gradient(90deg, transparent, rgba(255,255,255,0.35), transparent)', animation:'shimmer 1.8s infinite' }} />
+                  {/* Barre de progression — fine, Linear/Vercel style */}
+                  <div className="w-full mb-7">
+                    <div className="flex items-center justify-between text-[11px] font-medium text-gray-400 mb-1.5">
+                      <span>Progression</span>
+                      <span className="text-gray-900 font-semibold">{Math.round(buildProgress)}%</span>
+                    </div>
+                    <div className="relative h-1.5 w-full overflow-hidden rounded-full bg-gray-100">
+                      <div
+                        className="absolute inset-y-0 left-0 rounded-full"
+                        style={{
+                          width: `${buildProgress}%`,
+                          background: 'linear-gradient(90deg, #0F6B4F, #14a373)',
+                          transition: 'width 0.6s ease',
+                        }}
+                      >
+                        <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.5), transparent)', animation: 'shimmer-light 1.8s infinite' }} />
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                {/* Steps */}
-                <div className="relative z-10 flex items-center gap-0 mb-10" style={{ maxWidth:480, width:'100%', padding:'0 32px' }}>
-                  {STEPS.map((s, i) => {
-                    const Icon = s.icon;
-                    const done = i < activeStep;
-                    const active = i === activeStep;
-                    return (
-                      <React.Fragment key={i}>
-                        <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:6, flex: i < STEPS.length - 1 ? 'none' : undefined }}>
-                          <div style={{
-                            width:38, height:38, borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center',
-                            background: done ? 'linear-gradient(135deg,#0F6B4F,#34d399)' : active ? 'rgba(52,211,153,0.15)' : 'rgba(255,255,255,0.05)',
-                            border: active ? '2px solid #34d399' : done ? '2px solid #0F6B4F' : '2px solid rgba(255,255,255,0.1)',
-                            boxShadow: active ? '0 0 16px rgba(52,211,153,0.4)' : 'none',
-                            transition:'all 0.4s ease',
-                          }}>
+                  {/* Liste étapes — verticale, claire */}
+                  <div className="w-full text-left space-y-2 mb-8">
+                    {STEPS.map((s, i) => {
+                      const Icon = s.icon;
+                      const done = i < activeStep;
+                      const active = i === activeStep;
+                      return (
+                        <div
+                          key={i}
+                          className={`flex items-center gap-3 px-3 py-2 rounded-lg transition ${
+                            active ? 'bg-emerald-50/70' : done ? 'opacity-100' : 'opacity-50'
+                          }`}
+                        >
+                          <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${
+                            done ? 'bg-emerald-600' : active ? 'bg-white ring-2 ring-emerald-600' : 'bg-gray-100'
+                          }`}>
                             {done
-                              ? <CheckCircle style={{ width:16, height:16, color:'#fff' }} />
-                              : <Icon style={{ width:15, height:15, color: active ? '#34d399' : 'rgba(255,255,255,0.25)' }} />
+                              ? <CheckCircle className="w-4 h-4 text-white" />
+                              : active
+                                ? <Icon className="w-3.5 h-3.5 text-emerald-600" />
+                                : <Icon className="w-3.5 h-3.5 text-gray-400" />
                             }
                           </div>
-                          <span style={{ fontSize:9, fontWeight:700, color: active ? '#34d399' : done ? 'rgba(52,211,153,0.6)' : 'rgba(255,255,255,0.2)', letterSpacing:'0.05em', textTransform:'uppercase', whiteSpace:'nowrap' }}>{s.label}</span>
+                          <div className="flex-1 min-w-0">
+                            <p className={`text-[13px] font-semibold ${done ? 'text-gray-900' : active ? 'text-emerald-700' : 'text-gray-500'}`}>
+                              {s.label}
+                            </p>
+                            <p className="text-[11px] text-gray-400 truncate">{s.desc}</p>
+                          </div>
+                          {active && (
+                            <Loader2 className="w-3.5 h-3.5 text-emerald-600 animate-spin shrink-0" />
+                          )}
                         </div>
-                        {i < STEPS.length - 1 && (
-                          <div style={{ flex:1, height:2, margin:'0 4px 20px', background: i < activeStep ? 'linear-gradient(90deg,#0F6B4F,#34d399)' : 'rgba(255,255,255,0.07)', borderRadius:2, transition:'background 0.4s ease' }} />
-                        )}
-                      </React.Fragment>
-                    );
-                  })}
-                </div>
+                      );
+                    })}
+                  </div>
 
-                {/* Actions */}
-                <div className="relative z-10 flex items-center gap-4">
-                  <button type="button" onClick={handleContinueInBackground}
-                    style={{ padding:'10px 22px', borderRadius:12, background:'rgba(15,107,79,0.2)', border:'1px solid rgba(15,107,79,0.4)', color:'#34d399', fontSize:13, fontWeight:700, cursor:'pointer', transition:'all 0.2s' }}
-                    onMouseEnter={e => e.currentTarget.style.background='rgba(15,107,79,0.35)'}
-                    onMouseLeave={e => e.currentTarget.style.background='rgba(15,107,79,0.2)'}
-                  >
-                    Continuer en arrière-plan
-                  </button>
-                  <button type="button" onClick={() => { abortRef.current?.abort(); setPhase('input'); setBuildStep(0); setBuildProgress(0); setBuildMessage(''); setShowConfetti(false); }}
-                    style={{ fontSize:13, color:'rgba(255,255,255,0.3)', background:'none', border:'none', cursor:'pointer', transition:'color 0.2s' }}
-                    onMouseEnter={e => e.currentTarget.style.color='rgba(255,255,255,0.6)'}
-                    onMouseLeave={e => e.currentTarget.style.color='rgba(255,255,255,0.3)'}
-                  >
-                    Annuler
-                  </button>
+                  {/* Actions — secondaire / texte */}
+                  <div className="flex items-center justify-center gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={handleContinueInBackground}
+                      className="px-4 py-2 rounded-lg border border-gray-200 bg-white text-gray-700 text-xs font-semibold hover:bg-gray-50 hover:border-gray-300 transition"
+                    >
+                      Continuer en arrière-plan
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { abortRef.current?.abort(); setPhase('input'); setBuildStep(0); setBuildProgress(0); setBuildMessage(''); setShowConfetti(false); }}
+                      className="text-xs text-gray-400 hover:text-gray-600 transition px-2 py-2"
+                    >
+                      Annuler
+                    </button>
+                  </div>
                 </div>
               </div>
             );
@@ -3926,25 +3938,26 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
 
           {phase === 'preview' && (
             <div className="space-y-3">
-              {/* Info message */}
-              <div className={pageMode ? 'rounded-2xl border border-[#cfe5dc] bg-white px-4 py-3' : 'px-4 py-2 bg-[#E6F2ED] border border-[#96C7B5] rounded-lg'}>
-                <p className="text-xs text-[#0A5740] text-center">
-                  Explorez l'aperçu ci-dessus, puis cliquez sur <strong>"Utiliser cette page"</strong> pour l'ajouter à votre boutique.
+              {/* Info message — clean, neutre */}
+              <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5">
+                <p className="text-xs text-gray-700 text-center">
+                  Aperçu ci-dessus. Cliquez sur <strong className="text-emerald-700">"Utiliser cette page"</strong> pour l'appliquer à votre produit.
                 </p>
               </div>
-              
+
               <div className="flex gap-3">
                 <button
                   type="button"
                   onClick={handleRestart}
-                  className={pageMode ? 'flex-1 py-3 border border-gray-200 bg-white text-gray-700 rounded-2xl font-medium text-sm hover:bg-gray-50 transition' : 'flex-1 py-3 border-2 border-gray-200 text-gray-600 rounded-xl font-medium text-sm hover:bg-gray-50 hover:border-gray-300 transition'}
+                  className="flex-1 py-3 border border-gray-200 bg-white text-gray-700 rounded-xl font-semibold text-sm hover:bg-gray-50 hover:border-gray-300 transition flex items-center justify-center gap-2"
                 >
-                  <span className="inline-flex items-center gap-2"><RefreshCw className="h-4 w-4" />Recommencer</span>
+                  <RefreshCw className="h-4 w-4" />
+                  Recommencer
                 </button>
                 <button
                   type="button"
                   onClick={handleApply}
-                  className={pageMode ? 'flex-[2] py-3.5 rounded-2xl bg-[#0F6B4F] text-white font-bold text-sm transition flex items-center justify-center gap-2 shadow-[0_18px_40px_rgba(15,107,79,0.22)] hover:brightness-105' : 'flex-[2] py-3.5 bg-scalor-copper text-white rounded-xl font-bold text-sm hover:bg-scalor-copper-dark transition flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-[1.02] active:scale-[0.98]'}
+                  className="flex-[2] py-3.5 rounded-xl bg-[#0F6B4F] text-white font-bold text-sm transition flex items-center justify-center gap-2 hover:bg-[#0A5740] shadow-[0_4px_14px_rgba(15,107,79,0.25)] hover:shadow-[0_6px_20px_rgba(15,107,79,0.35)]"
                 >
                   <CheckCircle className="w-5 h-5" />
                   Utiliser cette page
