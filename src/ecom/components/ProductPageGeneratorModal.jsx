@@ -972,8 +972,12 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
           return; // Stop polling
         }
 
-        // Still generating — update message and poll again in 3s
+        // Still generating — update progress bar and poll again in 3s
         if (!cancelled) {
+          if (data.total > 0) {
+            const imgProgress = Math.min(98, 90 + Math.round((data.progress / data.total) * 8));
+            setBuildProgress(imgProgress);
+          }
           const elapsed = Math.floor((Date.now() - pollStart) / 1000);
           if (elapsed < 30) setBuildMessage('Génération des visuels en cours...');
           else if (elapsed < 60) setBuildMessage('Création des images marketing...');
@@ -3172,197 +3176,149 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
             </div>
           )}
 
-          {/* ─── AI STORE BUILDER PHASE ─── */}
-          {phase === 'loading' && (
-            <div className={pageMode ? 'flex min-h-[560px] items-center justify-center px-6 py-10' : 'p-8 flex flex-col items-center justify-center gap-8 min-h-[500px] relative overflow-hidden'}>
-              {/* Confetti effect */}
-              {showConfetti && (
-                <div className="absolute inset-0 pointer-events-none z-50">
-                  {[...Array(50)].map((_, i) => (
-                    <div
-                      key={i}
-                      className="absolute"
-                      style={{
-                        left: `${Math.random() * 100}%`,
-                        top: `-20px`,
-                        animation: `fall ${1 + Math.random() * 2}s linear forwards`,
-                        animationDelay: `${Math.random() * 0.5}s`
-                      }}
-                    >
-                      <div
-                        className="w-2 h-2 rounded-full"
-                        style={{
-                          backgroundColor: ['#ec4899', '#8b5cf6', '#f59e0b', '#10b981', '#3b82f6', '#ef4444'][Math.floor(Math.random() * 6)],
-                          transform: `rotate(${Math.random() * 360}deg)`
-                        }}
-                      />
-                    </div>
-                  ))}
-                  <style dangerouslySetInnerHTML={{
-                    __html: `
-                      @keyframes fall {
-                        to {
-                          transform: translateY(600px) rotate(720deg);
-                          opacity: 0;
-                        }
-                      }
-                    `
-                  }} />
-                </div>
-              )}
+          {/* ─── AI GENERATION LOADING PHASE ─── */}
+          {phase === 'loading' && (() => {
+            const STEPS = [
+              { icon: Search,     label: 'Analyse',  desc: 'Analyse du produit' },
+              { icon: Zap,        label: 'Contenu',  desc: 'Génération marketing' },
+              { icon: Layers,     label: 'Design',   desc: 'Mise en page' },
+              { icon: CheckCircle,label: 'Texte',    desc: 'Finalisation' },
+              { icon: ImageIcon,  label: 'Visuels',  desc: 'Génération images' },
+            ];
+            const activeStep = Math.min(buildStep, STEPS.length - 1);
+            return (
+              <div className="relative flex flex-col items-center justify-center overflow-hidden bg-[#080e18] min-h-[600px] w-full select-none">
+                <style dangerouslySetInnerHTML={{ __html: `
+                  @keyframes orb-float { 0%,100%{transform:translateY(0) scale(1)} 50%{transform:translateY(-18px) scale(1.06)} }
+                  @keyframes orb-float2 { 0%,100%{transform:translateY(0) scale(1)} 50%{transform:translateY(14px) scale(0.96)} }
+                  @keyframes shimmer { 0%{transform:translateX(-100%)} 100%{transform:translateX(200%)} }
+                  @keyframes ping-slow { 0%{transform:scale(1);opacity:.7} 100%{transform:scale(2.2);opacity:0} }
+                  @keyframes fade-up { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
+                  @keyframes confetti-fall { to{transform:translateY(700px) rotate(720deg);opacity:0} }
+                  @keyframes glow-pulse { 0%,100%{opacity:.5} 50%{opacity:1} }
+                ` }} />
 
-              {pageMode ? (
-                <div className="w-full max-w-xl rounded-2xl border border-gray-200 bg-white p-6">
-                  <div className="flex items-center gap-4">
-                    <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-[#0F6B4F]">
-                      <Sparkles className="h-7 w-7 text-white" />
-                    </div>
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-gray-500">Generation en cours</p>
-                      <h3 className="mt-1 text-xl font-black text-black">
-                        {[
-                          'Analyse du produit',
-                          'Generation du contenu',
-                          'Construction de la page',
-                          'Finalisation'
-                        ][Math.min(buildStep, 3)] || 'Finalisation'}
-                      </h3>
+                {/* Confetti */}
+                {showConfetti && (
+                  <div className="absolute inset-0 pointer-events-none z-50 overflow-hidden">
+                    {[...Array(60)].map((_, i) => (
+                      <div key={i} className="absolute" style={{
+                        left: `${Math.random() * 100}%`, top: -12,
+                        animation: `confetti-fall ${1.2 + Math.random() * 2}s linear forwards`,
+                        animationDelay: `${Math.random() * 0.6}s`,
+                      }}>
+                        <div style={{
+                          width: i % 3 === 0 ? 8 : 5, height: i % 3 === 0 ? 8 : 5,
+                          borderRadius: i % 2 === 0 ? '50%' : 2,
+                          background: ['#34d399','#a78bfa','#fbbf24','#60a5fa','#f472b6','#fb923c'][i % 6],
+                          transform: `rotate(${Math.random()*360}deg)`,
+                        }} />
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Background orbs */}
+                <div className="absolute inset-0 pointer-events-none overflow-hidden">
+                  <div style={{ position:'absolute', top:'8%', left:'12%', width:320, height:320, borderRadius:'50%', background:'radial-gradient(circle, rgba(15,107,79,0.22) 0%, transparent 70%)', animation:'orb-float 7s ease-in-out infinite' }} />
+                  <div style={{ position:'absolute', bottom:'10%', right:'10%', width:280, height:280, borderRadius:'50%', background:'radial-gradient(circle, rgba(99,102,241,0.18) 0%, transparent 70%)', animation:'orb-float2 9s ease-in-out infinite' }} />
+                  <div style={{ position:'absolute', top:'45%', right:'20%', width:180, height:180, borderRadius:'50%', background:'radial-gradient(circle, rgba(251,191,36,0.12) 0%, transparent 70%)', animation:'orb-float 11s ease-in-out infinite' }} />
+                  {/* Grid lines */}
+                  <svg className="absolute inset-0 w-full h-full opacity-[0.04]" xmlns="http://www.w3.org/2000/svg">
+                    <defs><pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M 40 0 L 0 0 0 40" fill="none" stroke="white" strokeWidth="0.5"/></pattern></defs>
+                    <rect width="100%" height="100%" fill="url(#grid)" />
+                  </svg>
+                </div>
+
+                {/* Central glow ring */}
+                <div className="relative z-10 mb-8">
+                  <div className="relative flex items-center justify-center" style={{ width:120, height:120 }}>
+                    <div style={{ position:'absolute', inset:0, borderRadius:'50%', background:'rgba(15,107,79,0.15)', animation:'ping-slow 2.4s ease-out infinite' }} />
+                    <div style={{ position:'absolute', inset:8, borderRadius:'50%', background:'rgba(15,107,79,0.12)', animation:'ping-slow 2.4s ease-out infinite', animationDelay:'0.8s' }} />
+                    <div style={{ position:'relative', width:80, height:80, borderRadius:'50%', background:'linear-gradient(135deg, #0F6B4F 0%, #14a373 100%)', boxShadow:'0 0 40px rgba(15,107,79,0.6), 0 0 80px rgba(15,107,79,0.2)', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                      <Sparkles style={{ width:36, height:36, color:'#fff' }} />
                     </div>
                   </div>
+                </div>
 
-                  <p className="mt-5 min-h-[20px] text-sm text-gray-600">
+                {/* Title + message */}
+                <div className="relative z-10 text-center px-8 mb-8" style={{ animation:'fade-up 0.5s ease forwards' }}>
+                  <div style={{ display:'inline-flex', alignItems:'center', gap:6, background:'rgba(15,107,79,0.15)', border:'1px solid rgba(15,107,79,0.3)', borderRadius:20, padding:'4px 14px', marginBottom:14 }}>
+                    <div style={{ width:6, height:6, borderRadius:'50%', background:'#34d399', animation:'glow-pulse 1.4s ease-in-out infinite' }} />
+                    <span style={{ fontSize:11, fontWeight:700, color:'#34d399', letterSpacing:'0.1em', textTransform:'uppercase' }}>IA en cours</span>
+                  </div>
+                  <h2 style={{ fontSize:26, fontWeight:900, color:'#fff', margin:'0 0 10px', letterSpacing:'-0.02em', lineHeight:1.2 }}>
+                    {['Analyse de votre produit','Génération du contenu','Construction de la page','Finalisation','Génération des visuels'][activeStep] || 'Génération des visuels'}
+                  </h2>
+                  <p style={{ fontSize:14, color:'rgba(255,255,255,0.55)', fontWeight:500, minHeight:22 }}>
                     <TypingText text={buildMessage} />
                   </p>
+                </div>
 
-                  <div className="mt-5">
-                    <div className="mb-2 flex items-center justify-between text-xs font-medium text-gray-500">
-                      <span>Etape {Math.min(buildStep + 1, 4)} sur 4</span>
-                      <span>{Math.round(buildProgress)}%</span>
-                    </div>
-                    <div className="h-2 overflow-hidden rounded-full bg-gray-200">
-                      <div
-                        className="h-full rounded-full bg-[#0F6B4F] transition-all duration-500 ease-out"
-                        style={{ width: `${buildProgress}%` }}
-                      />
-                    </div>
+                {/* Progress bar */}
+                <div className="relative z-10 w-full px-10 mb-8" style={{ maxWidth:480 }}>
+                  <div style={{ display:'flex', justifyContent:'space-between', marginBottom:8 }}>
+                    <span style={{ fontSize:12, fontWeight:600, color:'rgba(255,255,255,0.4)' }}>Progression</span>
+                    <span style={{ fontSize:12, fontWeight:800, color:'#34d399' }}>{Math.round(buildProgress)}%</span>
                   </div>
-
-                  <div className="mt-5 grid grid-cols-4 gap-2">
-                    {[0, 1, 2, 3].map((stepIndex) => (
-                      <div
-                        key={stepIndex}
-                        className={`rounded-lg px-3 py-2 text-center text-xs font-semibold ${
-                          stepIndex < buildStep
-                            ? 'bg-[#E6F2ED] text-[#0A5740]'
-                            : stepIndex === buildStep
-                            ? 'bg-[#0F6B4F] text-white'
-                            : 'bg-gray-100 text-gray-500'
-                        }`}
-                      >
-                        {stepIndex + 1}
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="mt-5 flex items-center justify-center gap-4">
-                    <button
-                      type="button"
-                      onClick={handleContinueInBackground}
-                      className="rounded-lg bg-[#0F6B4F] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#0A5740]"
-                    >
-                      Continuer en arrière-plan
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => { 
-                        abortRef.current?.abort(); 
-                        setPhase('input');
-                        setBuildStep(0);
-                        setBuildProgress(0);
-                        setBuildMessage('');
-                        setShowConfetti(false);
-                      }}
-                      className="text-sm text-gray-500 underline transition hover:text-gray-800"
-                    >
-                      Annuler
-                    </button>
+                  <div style={{ height:6, background:'rgba(255,255,255,0.08)', borderRadius:6, overflow:'hidden' }}>
+                    <div style={{ height:'100%', width:`${buildProgress}%`, borderRadius:6, background:'linear-gradient(90deg, #0F6B4F, #34d399)', transition:'width 0.6s ease', position:'relative', overflow:'hidden' }}>
+                      <div style={{ position:'absolute', inset:0, background:'linear-gradient(90deg, transparent, rgba(255,255,255,0.35), transparent)', animation:'shimmer 1.8s infinite' }} />
+                    </div>
                   </div>
                 </div>
-              ) : (
-                <>
-                  {/* Main icon animation */}
-                  <div className="relative z-10">
-                    <div className="w-24 h-24 rounded-full bg-[#E6F2ED] flex items-center justify-center relative">
-                      <Sparkles className="w-12 h-12 text-scalor-green animate-pulse" />
-                    </div>
-                  </div>
 
-                  <div className="text-center space-y-2 relative z-10">
-                    <h3 className="text-2xl font-black text-gray-900">
-                      {[
-                        'Analyse de votre produit',
-                        'Génération du contenu marketing',
-                        'Design de la page',
-                        'Finalisation'
-                      ][Math.min(buildStep, 3)] || 'Finalisation'}
-                    </h3>
-                    <p className="text-base text-gray-600 font-medium h-6">
-                      <TypingText text={buildMessage} />
-                    </p>
-                  </div>
-
-                  <div className="w-full max-w-md space-y-2">
-                    <div className="flex justify-between text-xs font-bold">
-                      <span className="text-scalor-green">Progression</span>
-                      <span className="text-scalor-green">{Math.round(buildProgress)}%</span>
-                    </div>
-                    <div className="h-3 bg-gradient-to-r from-gray-100 to-gray-200 rounded-full overflow-hidden shadow-inner">
-                      <div
-                        className="h-full bg-gradient-to-r from-[#0A5740] via-[#0F6B4F] to-[#14855F] rounded-full transition-all duration-500 ease-out relative overflow-hidden"
-                        style={{ width: `${buildProgress}%` }}
-                      >
-                        <div className="absolute inset-0 bg-white/30 animate-pulse" />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="relative z-10 flex items-center justify-center gap-3">
-                    {[0, 1, 2, 3].map((step) => (
-                      <div key={step} className={`flex items-center gap-2 transition-all duration-300 ${step === buildStep ? 'scale-110' : step < buildStep ? 'opacity-50' : 'opacity-30'}`}>
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm transition-all duration-300 ${step < buildStep ? 'bg-scalor-green text-white' : step === buildStep ? 'bg-scalor-copper text-white shadow-lg' : 'bg-gray-200 text-gray-400'}`}>
-                          {step < buildStep ? <CheckCircle className="w-5 h-5" /> : step + 1}
+                {/* Steps */}
+                <div className="relative z-10 flex items-center gap-0 mb-10" style={{ maxWidth:480, width:'100%', padding:'0 32px' }}>
+                  {STEPS.map((s, i) => {
+                    const Icon = s.icon;
+                    const done = i < activeStep;
+                    const active = i === activeStep;
+                    return (
+                      <React.Fragment key={i}>
+                        <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:6, flex: i < STEPS.length - 1 ? 'none' : undefined }}>
+                          <div style={{
+                            width:38, height:38, borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center',
+                            background: done ? 'linear-gradient(135deg,#0F6B4F,#34d399)' : active ? 'rgba(52,211,153,0.15)' : 'rgba(255,255,255,0.05)',
+                            border: active ? '2px solid #34d399' : done ? '2px solid #0F6B4F' : '2px solid rgba(255,255,255,0.1)',
+                            boxShadow: active ? '0 0 16px rgba(52,211,153,0.4)' : 'none',
+                            transition:'all 0.4s ease',
+                          }}>
+                            {done
+                              ? <CheckCircle style={{ width:16, height:16, color:'#fff' }} />
+                              : <Icon style={{ width:15, height:15, color: active ? '#34d399' : 'rgba(255,255,255,0.25)' }} />
+                            }
+                          </div>
+                          <span style={{ fontSize:9, fontWeight:700, color: active ? '#34d399' : done ? 'rgba(52,211,153,0.6)' : 'rgba(255,255,255,0.2)', letterSpacing:'0.05em', textTransform:'uppercase', whiteSpace:'nowrap' }}>{s.label}</span>
                         </div>
-                      </div>
-                    ))}
-                  </div>
+                        {i < STEPS.length - 1 && (
+                          <div style={{ flex:1, height:2, margin:'0 4px 20px', background: i < activeStep ? 'linear-gradient(90deg,#0F6B4F,#34d399)' : 'rgba(255,255,255,0.07)', borderRadius:2, transition:'background 0.4s ease' }} />
+                        )}
+                      </React.Fragment>
+                    );
+                  })}
+                </div>
 
-                  <div className="flex items-center justify-center gap-4 mt-4">
-                    <button
-                      type="button"
-                      onClick={handleContinueInBackground}
-                      className="rounded-lg bg-scalor-green px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90"
-                    >
-                      Continuer en arrière-plan
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => { 
-                        abortRef.current?.abort(); 
-                        setPhase('input');
-                        setBuildStep(0);
-                        setBuildProgress(0);
-                        setBuildMessage('');
-                        setShowConfetti(false);
-                      }}
-                      className="text-sm text-gray-400 hover:text-gray-600 underline transition"
-                    >
-                      Annuler
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
-          )}
+                {/* Actions */}
+                <div className="relative z-10 flex items-center gap-4">
+                  <button type="button" onClick={handleContinueInBackground}
+                    style={{ padding:'10px 22px', borderRadius:12, background:'rgba(15,107,79,0.2)', border:'1px solid rgba(15,107,79,0.4)', color:'#34d399', fontSize:13, fontWeight:700, cursor:'pointer', transition:'all 0.2s' }}
+                    onMouseEnter={e => e.currentTarget.style.background='rgba(15,107,79,0.35)'}
+                    onMouseLeave={e => e.currentTarget.style.background='rgba(15,107,79,0.2)'}
+                  >
+                    Continuer en arrière-plan
+                  </button>
+                  <button type="button" onClick={() => { abortRef.current?.abort(); setPhase('input'); setBuildStep(0); setBuildProgress(0); setBuildMessage(''); setShowConfetti(false); }}
+                    style={{ fontSize:13, color:'rgba(255,255,255,0.3)', background:'none', border:'none', cursor:'pointer', transition:'color 0.2s' }}
+                    onMouseEnter={e => e.currentTarget.style.color='rgba(255,255,255,0.6)'}
+                    onMouseLeave={e => e.currentTarget.style.color='rgba(255,255,255,0.3)'}
+                  >
+                    Annuler
+                  </button>
+                </div>
+              </div>
+            );
+          })()}
 
           {/* ─── PREVIEW PHASE ─── */}
           {phase === 'preview' && product && (

@@ -411,7 +411,7 @@ router.get('/pixels', requireEcomAuth, requireWorkspace, async (req, res) => {
 router.put('/pixels', requireEcomAuth, requireWorkspace, async (req, res) => {
   try {
     console.log('📊 PUT /store/pixels - workspaceId:', req.workspaceId);
-    
+
     // Sanitize: only allow known pixel keys, strip whitespace, validate format
     const ALLOWED_KEYS = ['metaPixelId', 'metaAccessToken', 'tiktokPixelId', 'googleTagId', 'googleAdsId', 'snapchatPixelId'];
     const sanitized = {};
@@ -423,9 +423,9 @@ router.put('/pixels', requireEcomAuth, requireWorkspace, async (req, res) => {
     // Format validation
     const PATTERNS = {
       metaPixelId: /^\d{10,20}$/,
-      tiktokPixelId: /^[A-Z0-9]{10,30}$/,
-      googleTagId: /^(G|GT|AW)-[A-Z0-9]+$/,
-      googleAdsId: /^AW-\d+$/,
+      tiktokPixelId: /^[A-Za-z0-9]{10,30}$/, // tolérant majuscules/minuscules
+      googleTagId: /^(G|GT|AW)-[A-Z0-9]+$/i,
+      googleAdsId: /^AW-\d+$/i,
       snapchatPixelId: /^[a-f0-9-]{20,}$/i,
     };
     for (const [key, pattern] of Object.entries(PATTERNS)) {
@@ -434,32 +434,66 @@ router.put('/pixels', requireEcomAuth, requireWorkspace, async (req, res) => {
       }
     }
 
-    // Save to Workspace
-    await Workspace.findByIdAndUpdate(
+    // Save to Workspace — timestamps:true bumps updatedAt automatiquement
+    // (cf. storeApi.js qui dérive configVersion depuis updatedAt → SPA invalide son cache)
+    const updatedWorkspace = await Workspace.findByIdAndUpdate(
       req.workspaceId,
       { $set: { storePixels: sanitized } },
       { new: true }
-    );
+    ).select('subdomain');
 
-    // Multi-store: also save to Store model if active store selected
+    // Collect ALL subdomains whose storefront cache must be busted
+    const affectedSubdomains = new Set();
+    if (updatedWorkspace?.subdomain) affectedSubdomains.add(updatedWorkspace.subdomain);
+
     if (req.activeStoreId) {
-      await Store.findByIdAndUpdate(
+      // Multi-store : on met à jour CE store précis
+      const store = await Store.findByIdAndUpdate(
         req.activeStoreId,
-        { $set: { storePixels: sanitized } }
-      );
+        { $set: { storePixels: sanitized } },
+        { new: true }
+      ).select('subdomain');
+      if (store?.subdomain) affectedSubdomains.add(store.subdomain);
       console.log('✅ Pixels updated on Store + Workspace');
     } else {
-      // No active store header — sync to all stores in workspace
+      // Pas de store actif → sync sur TOUS les stores du workspace
+      const stores = await Store.find({ workspaceId: req.workspaceId, isActive: true })
+        .select('subdomain')
+        .lean();
+      stores.forEach(s => { if (s.subdomain) affectedSubdomains.add(s.subdomain); });
+
       await Store.updateMany(
         { workspaceId: req.workspaceId, isActive: true },
         { $set: { storePixels: sanitized } }
       );
-      console.log('✅ Pixels synced to all stores in workspace');
+      console.log(`✅ Pixels synced to ${stores.length} store(s) in workspace`);
     }
+
+    // ── CRITIQUE ────────────────────────────────────────────────────────────────
+    // Sans ces 3 étapes, le nouveau pixel ne s'injecte PAS sur la boutique :
+    //   1. invalidateStoreCache       → vide le cache de /api/store/:subdomain (storeApi)
+    //   2. invalidateStorefrontCache  → vide le cache SSR (_sfStoreCache, 5 min TTL)
+    //                                   qui sert le <script>window.__SCALOR_INITIAL__</script>
+    //                                   inline au premier paint — sans ça, les visiteurs reçoivent
+    //                                   l'ancienne config (pixel vide) pendant 5 min.
+    //   3. emitStoreUpdate            → notifie les onglets boutique ouverts via socket
+    //                                   (useStoreUpdates) pour qu'ils refetch et réinjectent fbq.
+    // ───────────────────────────────────────────────────────────────────────────
+    for (const sub of affectedSubdomains) {
+      try {
+        invalidateStoreCache(sub);
+        invalidateStorefrontCache(sub);
+        emitStoreUpdate(sub);
+      } catch (cacheErr) {
+        console.warn(`⚠️ Cache/socket invalidation failed for "${sub}":`, cacheErr.message);
+      }
+    }
+    console.log(`📡 Pixel config broadcast → ${[...affectedSubdomains].join(', ') || '(no subdomain)'}`);
 
     res.json({
       success: true,
-      message: 'Pixels updated'
+      message: 'Pixels updated',
+      invalidated: [...affectedSubdomains],
     });
   } catch (error) {
     console.error('❌ Error PUT /store/pixels:', error);

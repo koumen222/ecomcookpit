@@ -17,16 +17,9 @@ import {
   resolveSelectedOrderCountry,
 } from '../utils/storeCountryConfig.js';
 
-const _CO_TTL = 2 * 60 * 1000;
-function _coRead(key) {
-  try {
-    const raw = sessionStorage.getItem(key);
-    if (!raw) return null;
-    const { d, t } = JSON.parse(raw);
-    if (Date.now() - t > _CO_TTL) { sessionStorage.removeItem(key); return null; }
-    return d;
-  } catch { return null; }
-}
+// Cache sessionStorage SUPPRIMÉ — checkout lit toujours frais depuis l'API.
+// (cf. useStoreData.js : on a eu trop de bugs "modif pas visible")
+function _coRead(_key) { return null; }
 
 const CO_SKEL_CSS = `
 @keyframes _coskel { 0%{background-position:-200% center} 100%{background-position:200% center} }

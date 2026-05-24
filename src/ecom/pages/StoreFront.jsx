@@ -7,19 +7,10 @@ import { injectStoreCssVars } from '../hooks/useStoreData.js';
 import { injectPixelScripts, firePixelEvent } from '../utils/pixelTracking.js';
 import { formatMoney } from '../utils/currency.js';
 
-const _SF_TTL = 2 * 60 * 1000;
-function _sfRead(key) {
-  try {
-    const raw = sessionStorage.getItem(key);
-    if (!raw) return null;
-    const { d, t } = JSON.parse(raw);
-    if (Date.now() - t > _SF_TTL) { sessionStorage.removeItem(key); return null; }
-    return d;
-  } catch { return null; }
-}
-function _sfWrite(key, data) {
-  try { sessionStorage.setItem(key, JSON.stringify({ d: data, t: Date.now() })); } catch {}
-}
+// Cache sessionStorage SUPPRIMÉ — on lit toujours frais depuis l'API.
+// (cf. useStoreData.js pour la justification : trop de bugs "modif pas visible")
+function _sfRead(_key) { return null; }
+function _sfWrite(_key, _data) { /* no-op */ }
 
 const SF_ANIM_CSS = `
 @keyframes _sfin { from { opacity:0; transform:translateY(6px) } to { opacity:1; transform:none } }

@@ -376,10 +376,16 @@ export default function DeveloperSection() {
     setProvLoading(true);
     try {
       const [meRes, instRes] = await Promise.all([getProviderMe(), listProviderInstances()]);
+      // Token may have been silently refreshed by the interceptor — keep React state in sync
+      const currentToken = providerStorage.getToken();
+      setProvToken(t => t !== currentToken ? currentToken : t);
       setProvProfile(meRes?.data || null);
       const rawInstances = instRes?.data?.instances || instRes?.instances || [];
       setProvInstances((rawInstances || []).map(normalizeProviderInstance).filter(Boolean));
-    } catch (err) { setProvError(err.message); }
+    } catch (err) {
+      if (!providerStorage.getToken()) setProvToken('');
+      setProvError(err.message);
+    }
     finally { setProvLoading(false); }
   }, []);
 

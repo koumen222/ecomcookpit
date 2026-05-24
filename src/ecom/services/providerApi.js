@@ -67,6 +67,59 @@ providerApi.interceptors.request.use((config) => {
   return config;
 });
 
+let _refreshingProviderToken = false;
+let _pendingProviderRequests = [];
+
+providerApi.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config;
+    if (error?.response?.status !== 401 || originalRequest._providerRetried) {
+      return Promise.reject(error);
+    }
+
+    originalRequest._providerRetried = true;
+
+    if (_refreshingProviderToken) {
+      return new Promise((resolve, reject) => {
+        _pendingProviderRequests.push({ resolve, reject, config: originalRequest });
+      });
+    }
+
+    _refreshingProviderToken = true;
+    try {
+      const ecomToken = localStorage.getItem('ecomToken') || '';
+      if (!ecomToken) throw new Error('no_ecom_token');
+
+      const { data } = await providerApi.post('/from-ecom', {}, {
+        headers: { Authorization: `Bearer ${ecomToken}` },
+        _providerRetried: true,
+      });
+
+      const newToken = data?.data?.token || '';
+      if (!newToken) throw new Error('no_token_in_response');
+
+      providerStorage.setToken(newToken);
+      if (data?.data?.provider) providerStorage.setProfile(data.data.provider);
+
+      originalRequest.headers.Authorization = `Bearer ${newToken}`;
+      _pendingProviderRequests.forEach(({ resolve, config }) => {
+        config.headers.Authorization = `Bearer ${newToken}`;
+        resolve(providerApi(config));
+      });
+
+      return providerApi(originalRequest);
+    } catch {
+      providerStorage.clear();
+      _pendingProviderRequests.forEach(({ reject }) => reject(error));
+      return Promise.reject(error);
+    } finally {
+      _pendingProviderRequests = [];
+      _refreshingProviderToken = false;
+    }
+  }
+);
+
 function errorMessage(error, fallback = 'Une erreur est survenue') {
   return (
     error?.response?.data?.message ||

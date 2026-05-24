@@ -1,10 +1,13 @@
 /**
- * useStoreData — Store data with stale-while-revalidate cache.
+ * useStoreData — Store data, always fresh from API.
  *
- * Performance strategy:
- * - Single API call: /api/store/:subdomain returns store + sections + products in one response
- * - sessionStorage cache (5min TTL): instant render on navigation within session
- * - CSS vars injected immediately from cache → no FOUC on subsequent visits
+ * Stratégie :
+ * - Premier paint instantané grâce à window.__SCALOR_INITIAL__ injecté en SSR
+ *   par publicStorefront.js (pas un cache : une nouvelle valeur à chaque requête HTML).
+ * - Refetch immédiat en arrière-plan pour avoir la donnée la plus fraîche.
+ * - Socket store:updated → refetch dès qu'un admin sauve.
+ * - AUCUN cache sessionStorage : on a eu trop de bugs "j'ai modifié, ça ne s'affiche pas".
+ *   Mongo + index sur subdomain répond en quelques ms — la cohérence vaut le coût.
  */
 import { useState, useEffect, useCallback } from 'react';
 import { publicStoreApi } from '../services/storeApi';
@@ -157,66 +160,17 @@ function consumeInitialData() {
   return data;
 }
 
-// ─── sessionStorage cache ─────────────────────────────────────────────────────
-const CACHE_TTL = 2 * 60 * 1000; // 2 min — short enough that admin changes show quickly
-
-function readCache(key) {
-  try {
-    const raw = sessionStorage.getItem(key);
-    if (!raw) return null;
-    const { d, t } = JSON.parse(raw);
-    if (Date.now() - t > CACHE_TTL) { sessionStorage.removeItem(key); return null; }
-    return d;
-  } catch { return null; }
-}
-
-function writeCache(key, data) {
-  try { sessionStorage.setItem(key, JSON.stringify({ d: data, t: Date.now() })); } catch {}
-}
-
-// If server returns a newer configVersion than what we cached, discard the cache
-function isCacheStale(cachedStore, freshStore) {
-  if (!cachedStore || !freshStore) return false;
-  const cachedV = cachedStore.configVersion;
-  const freshV = freshStore.configVersion;
-  if (!cachedV || !freshV) return false;
-  return freshV > cachedV;
-}
+// ─── sessionStorage cache : SUPPRIMÉ ─────────────────────────────────────────
+// Avant on cachait store/sections/products/pixels en sessionStorage pendant 2 min.
+// Conséquence : un marchand modifiait son pixel ou son thème → le visiteur déjà
+// présent gardait l'ancienne version, et même un nouveau visiteur dans la même
+// session restait sur du stale. On préfère taper l'API à chaque mount (rapide
+// avec Mongo + index) et garantir que ce qui s'affiche = ce qui est en DB.
+//
+// La seule "optim" de paint instantané qu'on garde, c'est `window.__SCALOR_INITIAL__`,
+// qui est *injecté à chaque requête HTML* par le serveur — donc toujours frais.
 
 const productPrefetchRequests = new Map();
-
-function getProductCacheKey(subdomain, slug) {
-  if (!subdomain || !slug) return null;
-  return `sfp_${subdomain}_${slug}`;
-}
-
-function toProductPreview(product, fallbackCurrency) {
-  if (!product) return null;
-
-  return {
-    _id: product._id,
-    name: product.name,
-    slug: product.slug,
-    description: product.description || '',
-    price: product.price,
-    compareAtPrice: product.compareAtPrice,
-    currency: product.currency || fallbackCurrency || 'XAF',
-    targetMarket: product.targetMarket || '',
-    country: product.country || '',
-    city: product.city || '',
-    locale: product.locale || '',
-    stock: product.stock,
-    images: product.images?.length
-      ? product.images
-      : (product.image ? [{ url: product.image, alt: product.name }] : []),
-    category: product.category,
-    tags: product.tags || [],
-    seoTitle: product.seoTitle || '',
-    seoDescription: product.seoDescription || '',
-    features: product.features || [],
-    faq: product.faq || []
-  };
-}
 
 export async function prefetchStoreProduct(subdomain, slug) {
   const requestKey = `${subdomain}:${slug}`;
@@ -237,28 +191,22 @@ export async function prefetchStoreProduct(subdomain, slug) {
 
 // ─── useStoreData ─────────────────────────────────────────────────────────────
 export function useStoreData(subdomain) {
-  const cacheKey = subdomain ? `sf_${subdomain}` : null;
-  const cached = cacheKey ? readCache(cacheKey) : null;
-
-  // Bootstrap from server-injected data on first load (SSR-style, zero API call)
-  const initial = !cached ? consumeInitialData() : null;
-  const bootstrap = cached || (initial ? {
+  // Bootstrap from server-injected data on first load (SSR, frais à chaque requête).
+  const initial = consumeInitialData();
+  const bootstrap = initial ? {
     store: initial.store,
     sections: initial.sections ?? null,
     products: initial.products || [],
     pixels: initial.store?.pixels || null,
     footer: initial.footer || null,
     legalPages: initial.legalPages || null,
-  } : null);
+  } : null;
 
-  // Write bootstrap into sessionStorage so navigating away and back is also instant
-  if (initial && cacheKey) writeCache(cacheKey, bootstrap);
+  const normalizedBootstrapSections = normalizeHomepageSections(bootstrap?.sections ?? null);
 
-  const normalizedCachedSections = normalizeHomepageSections(bootstrap?.sections ?? null);
-
-  // Initialise with cached/bootstrap data → instant render, no loading flash
+  // Initial state : SSR data si dispo, sinon null + loading (skeleton).
   const [store, setStore] = useState(bootstrap?.store || null);
-  const [sections, setSections] = useState(normalizedCachedSections ?? null);
+  const [sections, setSections] = useState(normalizedBootstrapSections ?? null);
   const [products, setProducts] = useState(bootstrap?.products || []);
   const [pixels, setPixels] = useState(bootstrap?.pixels || null);
   const [footer, setFooter] = useState(bootstrap?.footer || null);
@@ -269,41 +217,26 @@ export function useStoreData(subdomain) {
   useEffect(() => {
     if (!subdomain) { setLoading(false); return; }
 
-    // Inject CSS vars immediately from cache (no FOUC)
+    // Inject CSS vars immediately from bootstrap (no FOUC)
     if (bootstrap?.store) injectStoreCssVars(bootstrap.store);
 
     let cancelled = false;
 
     async function load() {
       try {
-        // Single request — returns store + sections + products + categories in one shot
+        // Toujours refetch depuis l'API pour avoir la donnée fraîche.
+        // Si bootstrap est dispo, on est déjà en train d'afficher quelque chose
+        // donc la latence ne se voit pas.
         const res = await publicStoreApi.getStore(subdomain);
         if (cancelled) return;
 
         const data = res.data?.data || {};
         const storeData = data.store || data;
         const sectionsData = normalizeHomepageSections(data.sections ?? null);
-        // products come from the combined endpoint — no second getProducts call needed
         const productsData = data.products || [];
-
         const pixelsData = data.pixels || null;
         const footerData = data.footer || null;
         const legalPagesData = data.legalPages || null;
-
-        // If configVersion changed (admin saved changes), purge all product caches for this store
-        if (cacheKey && isCacheStale(bootstrap?.store, storeData)) {
-          try {
-            const prefix = `sfp_${subdomain}_`;
-            const toRemove = [];
-            for (let i = 0; i < sessionStorage.length; i++) {
-              const k = sessionStorage.key(i);
-              if (k && k.startsWith(prefix)) toRemove.push(k);
-            }
-            toRemove.forEach(k => sessionStorage.removeItem(k));
-          } catch {}
-        }
-
-        if (cacheKey) writeCache(cacheKey, { store: storeData, sections: sectionsData, products: productsData, pixels: pixelsData, footer: footerData, legalPages: legalPagesData });
 
         injectStoreCssVars(storeData);
         setStore(storeData);
@@ -314,7 +247,7 @@ export function useStoreData(subdomain) {
         setLegalPages(legalPagesData);
       } catch (err) {
         if (cancelled) return;
-        // Only show error if there's nothing to show from cache/bootstrap
+        // Only show error if there's nothing to show from bootstrap
         if (!bootstrap) setError(err?.response?.data?.message || 'Boutique introuvable');
       } finally {
         if (!cancelled) setLoading(false);
@@ -325,7 +258,7 @@ export function useStoreData(subdomain) {
     return () => { cancelled = true; };
   }, [subdomain]);
 
-  // Refetch silently when admin saves any change
+  // Refetch silently when admin saves any change (socket store:updated)
   const refetchStore = useCallback(() => {
     if (!subdomain) return;
     publicStoreApi.getStore(subdomain)
@@ -341,7 +274,6 @@ export function useStoreData(subdomain) {
         if (data.pixels !== undefined) setPixels(data.pixels);
         if (data.footer !== undefined) setFooter(data.footer);
         if (data.legalPages !== undefined) setLegalPages(data.legalPages);
-        if (cacheKey) writeCache(cacheKey, { store: storeData, sections: sectionsData, products: productsData, pixels: data.pixels || null, footer: data.footer || null, legalPages: data.legalPages || null });
       })
       .catch(() => {});
   }, [subdomain]);
@@ -353,24 +285,10 @@ export function useStoreData(subdomain) {
 
 // ─── useStoreProduct ──────────────────────────────────────────────────────────
 export function useStoreProduct(subdomain, slug) {
-  const storeCacheKey = subdomain ? `sf_${subdomain}` : null;
-  const productCacheKey = getProductCacheKey(subdomain, slug);
-
   // Bootstrap only from server-injected data (SSR first load) — no sessionStorage cache reads
   const initial = consumeInitialData();
   const bootstrapProduct = initial?.product?.slug === slug ? initial.product : null;
   const bootstrapStore = initial?.store || null;
-
-  if (initial?.store && storeCacheKey) {
-    writeCache(storeCacheKey, {
-      store: initial.store,
-      sections: initial.sections ?? null,
-      products: initial.products || [],
-      pixels: initial.store?.pixels || null,
-      footer: initial.footer || null,
-      legalPages: initial.legalPages || null,
-    });
-  }
 
   const [store, setStore] = useState(bootstrapStore);
   const [pixels, setPixels] = useState(initial?.store?.pixels ?? null);

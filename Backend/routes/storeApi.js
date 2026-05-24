@@ -113,12 +113,17 @@ function buildDefaultLegalPages(settings, workspace) {
 
 
 // ─── Cache-Control helper ─────────────────────────────────────────────────────
-// public: Cloudflare (and any CDN) may cache
-// s-maxage: CDN cache TTL (5 min)
-// stale-while-revalidate: serve stale while fetching fresh (10 min)
-// max-age=0: browser always revalidates (CDN handles caching, not the browser)
-function setCacheHeaders(res, ttl = 300) {
-  res.set('Cache-Control', `public, s-maxage=${ttl}, stale-while-revalidate=${ttl * 2}, max-age=0`);
+// AUCUN cache — ni CDN ni navigateur. Avant on cachait jusqu'à 10 min côté CDN
+// (Cloudflare) avec stale-while-revalidate, ce qui faisait que les marchands
+// modifiaient leurs paramètres (pixel, thème, prix...) et ne voyaient le
+// changement qu'après plusieurs minutes. Maintenant chaque requête tape Mongo
+// directement (rapide grâce aux index). Cohérence > 50ms d'économie.
+//
+// L'argument `_ttl` est conservé pour ne pas casser les appels existants.
+function setCacheHeaders(res, _ttl = 0) {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+  res.set('Pragma', 'no-cache');
+  res.set('Expires', '0');
 }
 
 // ─── Helper: resolve workspace/store from subdomain param ────────────────────

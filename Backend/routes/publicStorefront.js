@@ -364,24 +364,23 @@ async function resolveRequestMeta(req) {
   return meta;
 }
 
-// ─── In-memory store resolver (same logic as storeApi.js, lightweight copy) ──
-const _sfStoreCache = new Map();
-const _SF_CACHE_TTL = 5 * 60 * 1000;
-
+// ─── Store resolver — DB-direct, AUCUN cache ────────────────────────────────
+// Anciennement on cachait 5 min en mémoire ce qui causait des bugs cauchemar :
+// quand un marchand modifiait son pixel, son thème, ses pages, il fallait attendre
+// l'expiration ou redémarrer le serveur pour voir l'effet. Mongo + index sur
+// `subdomain` répond en <5ms, donc le cache n'apporte rien d'utile et fait perdre
+// la cohérence. Si jamais on en a besoin plus tard, c'est mieux de mettre Redis
+// avec invalidation explicite sur chaque écriture admin.
 async function _resolveStoreFast(subdomain) {
   if (!subdomain) return null;
   const clean = subdomain.toLowerCase().trim();
-  const hit = _sfStoreCache.get(clean);
-  if (hit && Date.now() < hit.exp) return hit.data;
 
   const store = await Store.findOne({ subdomain: clean, isActive: true, 'storeSettings.isStoreEnabled': true })
     .select('_id workspaceId name subdomain storeSettings storeTheme storePixels storeFooter storeLegalPages storeDeliveryZones storePages')
     .lean();
 
   if (store) {
-    const result = { ...store, _storeId: store._id, _workspaceId: store.workspaceId };
-    _sfStoreCache.set(clean, { data: result, exp: Date.now() + _SF_CACHE_TTL });
-    return result;
+    return { ...store, _storeId: store._id, _workspaceId: store.workspaceId };
   }
 
   const ws = await EcomWorkspace.findOne({ subdomain: clean, isActive: true, 'storeSettings.isStoreEnabled': true })
@@ -389,9 +388,7 @@ async function _resolveStoreFast(subdomain) {
     .lean();
 
   if (ws) {
-    const result = { ...ws, _workspaceId: ws._id, _storeId: null };
-    _sfStoreCache.set(clean, { data: result, exp: Date.now() + _SF_CACHE_TTL });
-    return result;
+    return { ...ws, _workspaceId: ws._id, _storeId: null };
   }
   return null;
 }
@@ -668,8 +665,10 @@ router.get('*', async (req, res) => {
   }
 });
 
-export function invalidateStorefrontCache(subdomain) {
-  if (subdomain) _sfStoreCache.delete(subdomain.toLowerCase().trim());
+// No-op : le cache SSR a été supprimé. La fonction reste exportée pour ne pas
+// casser les imports existants dans storeAdmin.js / storeManagement.js / stores.js.
+export function invalidateStorefrontCache(_subdomain) {
+  // intentionally empty — DB-direct now
 }
 
 export default router;
