@@ -12,7 +12,8 @@
  */
 
 // Version du Service Worker (incrémenter pour forcer la mise à jour)
-const CACHE_VERSION = '2.1.0';
+// 2.2.0 : skip pixels/analytics, fallback Response sur fetch fonts échoués, CSP-friendly
+const CACHE_VERSION = '2.2.0';
 const CACHE_NAME = `scalor-v${CACHE_VERSION}`;
 const STATIC_CACHE = `scalor-static-v${CACHE_VERSION}`;
 const FONT_CACHE = `scalor-fonts-v${CACHE_VERSION}`;
@@ -314,12 +315,32 @@ self.addEventListener('fetch', (event) => {
           const freshFetch = fetch(req).then((res) => {
             if (res.ok) cache.put(req, res.clone());
             return res;
-          }).catch(() => cached);
-          return cached || freshFetch;
+          }).catch(() => null);
+          // Si pas de cache ET fetch échoue, on retourne quand même une Response
+          // valide (sinon le navigateur lève "Failed to convert value to 'Response'")
+          return cached || freshFetch.then((fresh) =>
+            fresh || new Response('', { status: 504, statusText: 'Font fetch failed' })
+          );
         })
       )
     );
     return;
+  }
+
+  // ── Skip pixels & analytics — toujours en network direct, jamais cache ──
+  // (Meta Pixel, TikTok, GA, Snapchat, PostHog, Doubleclick)
+  if (
+    url.hostname.includes('facebook.net') ||
+    url.hostname.includes('facebook.com') ||
+    url.hostname.includes('tiktok.com') ||
+    url.hostname.includes('google-analytics.com') ||
+    url.hostname.includes('googletagmanager.com') ||
+    url.hostname.includes('doubleclick.net') ||
+    url.hostname.includes('snapchat.com') ||
+    url.hostname.includes('sc-static.net') ||
+    url.hostname.includes('posthog.com')
+  ) {
+    return; // laisse passer au navigateur, sans interception
   }
 
   // ── Same-origin static files (icons, images, manifest) ──

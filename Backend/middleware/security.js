@@ -208,19 +208,89 @@ export function securityHeaders(req, res, next) {
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   // Permissions Policy
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
-  // Content Security Policy
+  // ── Content Security Policy ─────────────────────────────────────────────────
+  // IMPORTANT : tous les domaines des pixels publicitaires DOIVENT être whitelist
+  // ici, sinon le navigateur bloque silencieusement le chargement des scripts
+  // (fbevents.js, TikTok, GA, Snapchat) et Meta/TikTok/Google ne reçoit AUCUN
+  // event. Le marchand voit "Aucune action disponible" dans Events Manager.
+  //
+  // script-src   : les fichiers .js des pixels
+  // img-src      : les pixels HTTP (1x1 pings de fallback)
+  // connect-src  : les fetch/XHR/beacon que les pixels envoient
+  // frame-src    : iframes (Stripe checkout, certains tags Meta)
+  // style-src    : Google Fonts, Fontshare
+  // font-src     : fichiers de fonts
   res.setHeader(
     'Content-Security-Policy',
     [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' https://js.stripe.com https://checkout.stripe.com",
-      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-      "font-src 'self' https://fonts.gstatic.com",
-      "img-src 'self' data: blob: https://*.cloudinary.com https://*.r2.dev https://res.cloudinary.com",
-      "connect-src 'self' https://api.scalor.net https://*.railway.app https://us.i.posthog.com",
+      [
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+        // Paiements
+        "https://js.stripe.com https://checkout.stripe.com",
+        // Meta / Facebook
+        "https://connect.facebook.net https://*.facebook.net https://*.facebook.com",
+        // TikTok
+        "https://analytics.tiktok.com https://*.tiktok.com",
+        // Google Tag / Ads / GA4
+        "https://www.googletagmanager.com https://www.google-analytics.com https://*.googletagmanager.com https://*.google-analytics.com https://www.googleadservices.com https://googleads.g.doubleclick.net",
+        // Snapchat
+        "https://sc-static.net https://*.snapchat.com",
+        // PostHog (analytics interne)
+        "https://*.posthog.com",
+      ].join(' '),
+      [
+        "style-src 'self' 'unsafe-inline'",
+        "https://fonts.googleapis.com https://api.fontshare.com https://cdn.fontshare.com",
+      ].join(' '),
+      [
+        "font-src 'self' data:",
+        "https://fonts.gstatic.com https://api.fontshare.com https://cdn.fontshare.com",
+      ].join(' '),
+      [
+        "img-src 'self' data: blob:",
+        "https://*.cloudinary.com https://*.r2.dev https://res.cloudinary.com",
+        // Domaines Scalor (logos, icons, banners de fallback)
+        "https://scalor.net https://*.scalor.net",
+        // Pixel pings (1x1 image trackers)
+        "https://www.facebook.com https://*.facebook.com",
+        "https://analytics.tiktok.com https://*.tiktok.com",
+        "https://www.google-analytics.com https://www.googletagmanager.com https://*.google-analytics.com https://*.googletagmanager.com https://stats.g.doubleclick.net https://googleads.g.doubleclick.net",
+        "https://sc-static.net https://tr.snapchat.com https://*.snapchat.com",
+      ].join(' '),
+      [
+        "connect-src 'self'",
+        // API Scalor
+        "https://api.scalor.net https://*.scalor.net https://*.railway.app",
+        // Sockets (WebSocket pour store:updated)
+        "wss://api.scalor.net wss://*.scalor.net wss://*.railway.app",
+        // PostHog
+        "https://*.posthog.com https://us.i.posthog.com https://us-assets.i.posthog.com",
+        // Meta — events POST vers /tr/
+        "https://www.facebook.com https://*.facebook.com https://graph.facebook.com",
+        // TikTok events
+        "https://analytics.tiktok.com https://*.tiktok.com",
+        // Google Analytics / Ads
+        "https://www.google-analytics.com https://*.google-analytics.com https://www.googletagmanager.com https://*.googletagmanager.com https://stats.g.doubleclick.net https://googleads.g.doubleclick.net",
+        // Snapchat events
+        "https://tr.snapchat.com https://*.snapchat.com",
+        // Google Fonts (fetch CSS depuis service worker)
+        "https://fonts.googleapis.com https://fonts.gstatic.com",
+        // Fontshare (Satoshi font CSS)
+        "https://api.fontshare.com https://cdn.fontshare.com",
+      ].join(' '),
+      [
+        "frame-src 'self'",
+        "https://js.stripe.com https://checkout.stripe.com https://hooks.stripe.com",
+        // Certains tags Meta utilisent un iframe pour le tracking cross-domain
+        "https://www.facebook.com https://*.facebook.com",
+        "https://td.doubleclick.net",
+      ].join(' '),
       "frame-ancestors 'self'",
       "form-action 'self'",
-      "base-uri 'self'"
+      "base-uri 'self'",
+      // 'object-src none' bloque Flash/applets — recommandé Meta
+      "object-src 'none'",
     ].join('; ')
   );
   // Cache pour les API
