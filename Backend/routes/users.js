@@ -669,22 +669,27 @@ router.get('/team/performance', requireEcomAuth, async (req, res) => {
       }
     });
 
-    // Stats globales des commandes modifiées manuellement (closeuses)
+    // Stats par closeur (commandes modifiées manuellement avec closerId)
     const modifiedOrders = await Order.find({
       workspaceId,
       statusModifiedManually: true,
       updatedAt: { $gte: daysAgo }
-    }).select('status price quantity updatedAt').lean();
+    }).select('status price quantity updatedAt closerId').lean();
 
-    const closeuseGlobalStats = {
-      totalProcessed: modifiedOrders.length,
-      confirmed: modifiedOrders.filter(o => o.status === 'confirmed').length,
-      cancelled: modifiedOrders.filter(o => o.status === 'cancelled').length,
-      unreachable: modifiedOrders.filter(o => o.status === 'unreachable').length,
-      revenue: modifiedOrders
-        .filter(o => o.status === 'confirmed')
-        .reduce((sum, o) => sum + (o.price || 0) * (o.quantity || 1), 0)
-    };
+    const closeuseStats = {};
+    modifiedOrders.forEach(order => {
+      if (order.closerId) {
+        const id = order.closerId.toString();
+        if (!closeuseStats[id]) closeuseStats[id] = { totalProcessed: 0, confirmed: 0, cancelled: 0, unreachable: 0, revenue: 0 };
+        closeuseStats[id].totalProcessed++;
+        if (order.status === 'confirmed') {
+          closeuseStats[id].confirmed++;
+          closeuseStats[id].revenue += (order.price || 0) * (order.quantity || 1);
+        }
+        if (order.status === 'cancelled') closeuseStats[id].cancelled++;
+        if (order.status === 'unreachable') closeuseStats[id].unreachable++;
+      }
+    });
 
     // Stats des transactions (comptables)
     const allTransactions = await Transaction.find({
@@ -727,7 +732,11 @@ router.get('/team/performance', requireEcomAuth, async (req, res) => {
           deliveryRate: s.assigned > 0 ? Math.round((s.delivered / s.assigned) * 100) : 0
         };
       } else if (member.role === 'ecom_closeuse') {
-        stats = { ...closeuseGlobalStats };
+        const s = closeuseStats[id] || { totalProcessed: 0, confirmed: 0, cancelled: 0, unreachable: 0, revenue: 0 };
+        stats = {
+          ...s,
+          confirmationRate: s.totalProcessed > 0 ? Math.round((s.confirmed / s.totalProcessed) * 100) : 0
+        };
       } else if (member.role === 'ecom_compta') {
         const s = comptaStats[id] || { totalTransactions: 0, income: 0, expense: 0, totalIncome: 0, totalExpense: 0 };
         stats = {

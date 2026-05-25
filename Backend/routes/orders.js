@@ -3482,6 +3482,10 @@ router.put('/:id', requireEcomAuth, async (req, res) => {
     if (req.body.status !== undefined) {
       updateData.statusModifiedManually = true;
       updateData.lastManualStatusUpdate = new Date();
+      if (['ecom_closeuse'].includes(req.ecomUser.role)) {
+        updateData.closerId = req.ecomUser._id;
+        updateData.closerUpdatedAt = new Date();
+      }
     }
 
     // Auto-tagging basé sur le statut
@@ -3652,15 +3656,19 @@ router.patch('/:id/status', requireEcomAuth, async (req, res) => {
     order.statusModifiedManually = true;
     order.lastManualStatusUpdate = new Date();
     order.updatedAt = new Date();
+    if (['ecom_closeuse'].includes(req.ecomUser.role)) {
+      order.closerId = req.ecomUser._id;
+      order.closerUpdatedAt = new Date();
+    }
 
     // Auto-tagging basé sur le statut
-    const statusTags = { 
-      pending: 'En attente', confirmed: 'Confirmé', shipped: 'Expédié', 
-      delivered: 'Client', returned: 'Retour', cancelled: 'Annulé', 
-      unreachable: 'Injoignable', called: 'Appelé', postponed: 'Reporté' 
+    const statusTags = {
+      pending: 'En attente', confirmed: 'Confirmé', shipped: 'Expédié',
+      delivered: 'Client', returned: 'Retour', cancelled: 'Annulé',
+      unreachable: 'Injoignable', called: 'Appelé', postponed: 'Reporté'
     };
     const allStatusTags = Object.values(statusTags);
-    
+
     // Retirer les anciens tags de statut, garder les tags manuels
     order.tags = (order.tags || []).filter(t => !allStatusTags.includes(t));
     // Ajouter le nouveau tag

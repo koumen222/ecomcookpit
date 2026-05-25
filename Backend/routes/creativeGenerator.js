@@ -670,6 +670,9 @@ router.post('/', requireEcomAuth, upload.fields([
   { name: 'productImage', maxCount: 1 },
   { name: 'logoImage', maxCount: 1 },
 ]), async (req, res) => {
+  let heartbeat;
+  let clientDisconnected = false;
+  req.on('close', () => { clientDisconnected = true; });
   try {
     const { url, description, formats: formatsRaw, visualTemplate } = req.body;
     const formats = typeof formatsRaw === 'string' ? JSON.parse(formatsRaw) : formatsRaw;
@@ -744,6 +747,14 @@ router.post('/', requireEcomAuth, upload.fields([
     const creatives = [];
     const statsBefore = getImageGenerationStats();
 
+    // Send whitespace heartbeats every 15s to prevent proxy/load-balancer from
+    // dropping the connection during long image generation (Railway cuts idle at ~60s).
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    heartbeat = setInterval(() => {
+      if (!clientDisconnected && !res.writableEnded) res.write(' ');
+    }, 15000);
+
     for (const format of selectedFormats) {
       try {
         const imagePrompt = buildCreativePrompt(analysis, format, true, visualTemplate, !!logoBuffer);
@@ -815,12 +826,14 @@ router.post('/', requireEcomAuth, upload.fields([
       }
     }
 
-    // Deduct credits for successfully generated images
+    // Deduct credits only for successfully generated images AND if client is still connected
     const successCount = creatives.filter(c => c.imageUrl).length;
-    if (req.workspaceId && successCount > 0) {
+    if (req.workspaceId && successCount > 0 && !clientDisconnected) {
       await EcomWorkspace.findByIdAndUpdate(req.workspaceId, {
         $inc: { creativeCreditsRemaining: -successCount },
       });
+    } else if (successCount > 0 && clientDisconnected) {
+      console.warn(`⚠️ Client disconnected — skipping credit deduction for ${successCount} image(s)`);
     }
 
     // Calculate cost for this generation batch
@@ -850,7 +863,8 @@ router.post('/', requireEcomAuth, upload.fields([
       ? await EcomWorkspace.findById(req.workspaceId).select('creativeCreditsRemaining').lean()
       : null;
 
-    res.json({
+    clearInterval(heartbeat);
+    const responseBody = JSON.stringify({
       success: true,
       analysis,
       creatives,
@@ -859,9 +873,15 @@ router.post('/', requireEcomAuth, upload.fields([
       cost: batchCost,
       creditsRemaining: updatedWorkspace?.creativeCreditsRemaining ?? 0,
     });
+    if (!res.writableEnded) res.end(responseBody);
   } catch (err) {
     console.error('❌ Creative Generator error:', err);
-    res.status(500).json({ error: err.message || 'Erreur lors de la génération', message: err.message || 'Erreur lors de la génération' });
+    if (heartbeat) clearInterval(heartbeat);
+    if (!res.headersSent) {
+      res.status(500).json({ error: err.message || 'Erreur lors de la génération', message: err.message || 'Erreur lors de la génération' });
+    } else if (!res.writableEnded) {
+      res.end(JSON.stringify({ success: false, error: err.message || 'Erreur lors de la génération' }));
+    }
   }
 });
 
