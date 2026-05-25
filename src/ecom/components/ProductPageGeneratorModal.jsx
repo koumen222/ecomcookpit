@@ -805,6 +805,9 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
   const [showConfetti, setShowConfetti] = useState(false);
   const [imageJobId, setImageJobId] = useState(null);
   const [imagesLoading, setImagesLoading] = useState(false);
+  // État d'échec image — si la génération se termine sans aucune image, on
+  // affiche un message + retry au lieu d'aller en preview avec des placeholders.
+  const [imageGenerationFailed, setImageGenerationFailed] = useState(null);
   const [currentTaskId, setCurrentTaskId] = useState(null);
   const [infographicsTaskResult, setInfographicsTaskResult] = useState(null);
   const [backgroundTasks, setBackgroundTasks] = useState([]);
@@ -896,6 +899,24 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
     const finishPoll = (data) => {
       // Merge whatever images arrived (may be partial or empty on error/timeout)
       const imgs = (data && data.images) || {};
+
+      // ── Compte d'images réellement reçues — détecte "0 images générées"
+      const receivedCount = (data?.generatedImageCount ?? [
+        imgs.heroImage,
+        ...(imgs.beforeAfterImages || []),
+        ...(imgs.socialProofImages || []),
+        ...((imgs.angles || []).map((a) => a?.poster_url).filter(Boolean)),
+      ].filter(Boolean).length);
+
+      const missingCount = data?.missingImageCount ?? 0;
+
+      // Si AUCUNE image générée OU s'il manque des images attendues → on ne va PAS
+      // en preview avec des placeholders vides : on reste sur l'écran de chargement
+      // transformé en état d'échec, avec retry.
+      const generationCompletelyFailed =
+        (data?.status === 'partial_failure' || data?.status === 'error' || data?.status === 'not_found')
+        && (receivedCount === 0 || missingCount > 0);
+
       setProduct(prev => {
         if (!prev) return prev;
         const newAngles = prev.angles?.map((a, i) => {
@@ -931,9 +952,25 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
       });
       setImagesLoading(false);
       setImageJobId(null);
-      // Save final draft with whatever images we got
+      // Save draft with whatever images we got
       setProduct(prev2 => { if (prev2) saveDraft(prev2, visualTemplate); return prev2; });
-      // Now that images are ready, show the preview
+
+      // ── BUG FIX : si AUCUNE image n'a été générée, on reste sur l'écran loading
+      // avec un état d'erreur clair + retry. On NE célèbre PAS avec confettis,
+      // on NE va PAS en preview avec des placeholders vides.
+      if (generationCompletelyFailed) {
+        setBuildProgress(100);
+        setBuildMessage('');
+        setShowConfetti(false);
+        setImageGenerationFailed({
+          message: data?.errorMessage || "Aucune image n'a pu être générée. Les fournisseurs d'IA (Kie.ai / Gemini) sont peut-être indisponibles, ou la photo source ne permet pas la génération image-to-image.",
+          status: data?.status || 'error',
+        });
+        return; // ← important : on reste en phase 'loading' avec l'état d'échec
+      }
+
+      // Sinon, on continue normalement vers preview
+      setImageGenerationFailed(null);
       setBuildProgress(100);
       setBuildMessage('Votre page est prête.');
       setShowConfetti(true);
@@ -965,8 +1002,8 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
         const data = await resp.json();
         if (cancelled) return;
 
-        // Terminal statuses: done, error, or not_found (job lost after server restart)
-        if (data.status === 'done' || data.status === 'error' || data.status === 'not_found') {
+        // Terminal statuses: done, partial_failure (0 images), error, or not_found
+        if (data.status === 'done' || data.status === 'partial_failure' || data.status === 'error' || data.status === 'not_found') {
           finishPoll(data);
           return; // Stop polling
         }
@@ -1048,8 +1085,40 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
           setVisualTemplate(data.task.product.visualTemplate);
         }
         setShowTaskList(false);
-        setPhase('preview');
-        setActiveTab('page');
+        setCurrentTaskId(taskId);
+
+        // ── Décision : preview OU loading + polling ──
+        // Si la tâche est encore en cours OU s'il manque des images attendues, on
+        // reste sur l'écran de chargement et on reprend le polling au lieu de
+        // montrer un preview avec des placeholders "Affiche non générée".
+        const taskStatus = data.task.status;
+        const isStillGenerating = ['pending', 'generating_text', 'generating_images'].includes(taskStatus);
+        const imgs = data.task.images || {};
+        const generatedCount = [
+          imgs.heroImage,
+          ...(imgs.beforeAfterImages || []),
+          ...(imgs.socialProofImages || []),
+          ...((imgs.angles || []).map((a) => a?.poster_url).filter(Boolean)),
+        ].filter(Boolean).length;
+        const totalAngles = (data.task.product.angles || []).length;
+        const expectedMin = (data.task.product.heroImage ? 1 : 0) + totalAngles; // estimation
+        const hasMissingImages = generatedCount < expectedMin;
+
+        if (isStillGenerating || (data.task.imageJobId && hasMissingImages)) {
+          // Reprend le polling sur l'écran de chargement
+          setPhase('loading');
+          setBuildStep(4);
+          setBuildProgress(isStillGenerating ? 80 : 90);
+          setBuildMessage(isStillGenerating ? 'Génération en cours...' : 'Finalisation des visuels...');
+          setImageGenerationFailed(null);
+          if (data.task.imageJobId) {
+            setImageJobId(data.task.imageJobId);
+          }
+        } else {
+          // Task vraiment terminée → preview
+          setPhase('preview');
+          setActiveTab('page');
+        }
       }
     } catch (err) {
       setError(err.message);
@@ -3218,62 +3287,86 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
                 {/* Carte centrale — épurée, Material/Linear style */}
                 <div className="relative w-full max-w-[480px] text-center" style={{ animation: 'fade-up 0.4s ease forwards' }}>
 
-                  {/* Spinner circulaire propre */}
+                  {/* Spinner OU icône d'erreur selon l'état */}
                   <div className="relative inline-flex items-center justify-center mb-7" style={{ width: 80, height: 80 }}>
-                    <svg width="80" height="80" viewBox="0 0 80 80" style={{ animation: 'spin-slow 1.4s linear infinite' }}>
-                      <circle cx="40" cy="40" r="34" fill="none" stroke="#E5E7EB" strokeWidth="4" />
-                      <circle
-                        cx="40" cy="40" r="34"
-                        fill="none"
-                        stroke="#0F6B4F"
-                        strokeWidth="4"
-                        strokeLinecap="round"
-                        strokeDasharray="60 213"
-                      />
-                    </svg>
-                    <Sparkles
-                      className="absolute"
-                      style={{ width: 26, height: 26, color: '#0F6B4F' }}
-                    />
+                    {imageGenerationFailed ? (
+                      <div className="flex items-center justify-center w-full h-full rounded-full bg-red-50 border-2 border-red-200">
+                        <AlertCircle className="w-9 h-9 text-red-500" />
+                      </div>
+                    ) : (
+                      <>
+                        <svg width="80" height="80" viewBox="0 0 80 80" style={{ animation: 'spin-slow 1.4s linear infinite' }}>
+                          <circle cx="40" cy="40" r="34" fill="none" stroke="#E5E7EB" strokeWidth="4" />
+                          <circle
+                            cx="40" cy="40" r="34"
+                            fill="none"
+                            stroke="#0F6B4F"
+                            strokeWidth="4"
+                            strokeLinecap="round"
+                            strokeDasharray="60 213"
+                          />
+                        </svg>
+                        <Sparkles
+                          className="absolute"
+                          style={{ width: 26, height: 26, color: '#0F6B4F' }}
+                        />
+                      </>
+                    )}
                   </div>
 
-                  {/* Petit badge "IA en cours" */}
-                  <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 mb-4">
-                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" style={{ animation: 'pulse-dot 1.4s ease-in-out infinite' }} />
-                    <span className="text-[11px] font-semibold text-emerald-700 tracking-wide uppercase">IA en cours</span>
+                  {/* Badge état */}
+                  <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full mb-4 ${
+                    imageGenerationFailed ? 'bg-red-50' : 'bg-emerald-50'
+                  }`}>
+                    <div className={`w-1.5 h-1.5 rounded-full ${imageGenerationFailed ? 'bg-red-500' : 'bg-emerald-500'}`}
+                         style={imageGenerationFailed ? undefined : { animation: 'pulse-dot 1.4s ease-in-out infinite' }} />
+                    <span className={`text-[11px] font-semibold tracking-wide uppercase ${
+                      imageGenerationFailed ? 'text-red-700' : 'text-emerald-700'
+                    }`}>
+                      {imageGenerationFailed ? 'Échec génération images' : 'IA en cours'}
+                    </span>
                   </div>
 
-                  {/* Titre étape courante */}
+                  {/* Titre — soit étape en cours, soit message d'erreur */}
                   <h2 className="text-[22px] font-bold text-gray-900 mb-2 leading-tight tracking-tight">
-                    {['Analyse de votre produit','Génération du contenu','Construction de la page','Finalisation','Génération des visuels'][activeStep] || 'Préparation'}
+                    {imageGenerationFailed
+                      ? "Les images n'ont pas pu être générées"
+                      : (['Analyse de votre produit','Génération du contenu','Construction de la page','Finalisation','Génération des visuels'][activeStep] || 'Préparation')
+                    }
                   </h2>
 
-                  {/* Sous-titre dynamique */}
-                  <p className="text-sm text-gray-500 min-h-[22px] mb-7">
-                    <TypingText text={buildMessage} />
+                  {/* Sous-titre — soit message dynamique, soit détail erreur */}
+                  <p className={`text-sm min-h-[22px] mb-7 ${imageGenerationFailed ? 'text-red-700' : 'text-gray-500'}`}>
+                    {imageGenerationFailed
+                      ? imageGenerationFailed.message
+                      : <TypingText text={buildMessage} />
+                    }
                   </p>
 
-                  {/* Barre de progression — fine, Linear/Vercel style */}
-                  <div className="w-full mb-7">
-                    <div className="flex items-center justify-between text-[11px] font-medium text-gray-400 mb-1.5">
-                      <span>Progression</span>
-                      <span className="text-gray-900 font-semibold">{Math.round(buildProgress)}%</span>
-                    </div>
-                    <div className="relative h-1.5 w-full overflow-hidden rounded-full bg-gray-100">
-                      <div
-                        className="absolute inset-y-0 left-0 rounded-full"
-                        style={{
-                          width: `${buildProgress}%`,
-                          background: 'linear-gradient(90deg, #0F6B4F, #14a373)',
-                          transition: 'width 0.6s ease',
-                        }}
-                      >
-                        <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.5), transparent)', animation: 'shimmer-light 1.8s infinite' }} />
+                  {/* Barre de progression — masquée en cas d'échec */}
+                  {!imageGenerationFailed && (
+                    <div className="w-full mb-7">
+                      <div className="flex items-center justify-between text-[11px] font-medium text-gray-400 mb-1.5">
+                        <span>Progression</span>
+                        <span className="text-gray-900 font-semibold">{Math.round(buildProgress)}%</span>
+                      </div>
+                      <div className="relative h-1.5 w-full overflow-hidden rounded-full bg-gray-100">
+                        <div
+                          className="absolute inset-y-0 left-0 rounded-full"
+                          style={{
+                            width: `${buildProgress}%`,
+                            background: 'linear-gradient(90deg, #0F6B4F, #14a373)',
+                            transition: 'width 0.6s ease',
+                          }}
+                        >
+                          <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.5), transparent)', animation: 'shimmer-light 1.8s infinite' }} />
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  )}
 
-                  {/* Liste étapes — verticale, claire */}
+                  {/* Liste étapes — masquée en cas d'échec */}
+                  {!imageGenerationFailed && (
                   <div className="w-full text-left space-y-2 mb-8">
                     {STEPS.map((s, i) => {
                       const Icon = s.icon;
@@ -3309,24 +3402,100 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
                       );
                     })}
                   </div>
+                  )}
 
-                  {/* Actions — secondaire / texte */}
-                  <div className="flex items-center justify-center gap-3 pt-2">
-                    <button
-                      type="button"
-                      onClick={handleContinueInBackground}
-                      className="px-4 py-2 rounded-lg border border-gray-200 bg-white text-gray-700 text-xs font-semibold hover:bg-gray-50 hover:border-gray-300 transition"
-                    >
-                      Continuer en arrière-plan
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => { abortRef.current?.abort(); setPhase('input'); setBuildStep(0); setBuildProgress(0); setBuildMessage(''); setShowConfetti(false); }}
-                      className="text-xs text-gray-400 hover:text-gray-600 transition px-2 py-2"
-                    >
-                      Annuler
-                    </button>
-                  </div>
+                  {/* Actions — adapté selon l'état (génération en cours OU échec) */}
+                  {imageGenerationFailed ? (
+                    <div className="flex flex-col items-stretch gap-2 pt-2">
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          // Retry — relance la génération depuis le début, sans recharger texte
+                          setImageGenerationFailed(null);
+                          setBuildStep(4);
+                          setBuildProgress(80);
+                          setBuildMessage('Nouvelle tentative...');
+                          // Si on a un taskId, on retry juste les images via l'endpoint dédié
+                          if (currentTaskId) {
+                            try {
+                              const resp = await fetch(`${API_ORIGIN}/api/ai/product-generator/tasks/${currentTaskId}/retry`, {
+                                method: 'POST',
+                                headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+                              });
+                              const data = await resp.json();
+                              if (data.success && data.task?.imageJobId) {
+                                setImageJobId(data.task.imageJobId);
+                                return;
+                              }
+                              setImageGenerationFailed({
+                                message: data.message || 'Impossible de relancer la génération. Recommencez depuis le début.',
+                                status: 'error',
+                              });
+                            } catch {
+                              setImageGenerationFailed({
+                                message: 'Erreur réseau pendant la nouvelle tentative.',
+                                status: 'error',
+                              });
+                            }
+                          } else {
+                            // Pas de taskId → repart en mode input (l'utilisateur cliquera Générer)
+                            setPhase('input');
+                            setBuildStep(0);
+                            setBuildProgress(0);
+                            setBuildMessage('');
+                          }
+                        }}
+                        className="px-5 py-3 rounded-xl bg-[#0F6B4F] text-white text-sm font-bold hover:bg-[#0A5740] transition shadow-[0_4px_14px_rgba(15,107,79,0.25)] flex items-center justify-center gap-2"
+                      >
+                        <RefreshCw className="w-4 h-4" />
+                        Réessayer la génération d'images
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          // L'utilisateur veut quand même voir le contenu texte sans images
+                          setImageGenerationFailed(null);
+                          setPhase('preview');
+                          setActiveTab('page');
+                        }}
+                        className="px-4 py-2 rounded-lg border border-gray-200 bg-white text-gray-700 text-xs font-semibold hover:bg-gray-50 transition"
+                      >
+                        Voir quand même le contenu texte
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          abortRef.current?.abort();
+                          setImageGenerationFailed(null);
+                          setPhase('input');
+                          setBuildStep(0);
+                          setBuildProgress(0);
+                          setBuildMessage('');
+                          setShowConfetti(false);
+                        }}
+                        className="text-xs text-gray-400 hover:text-gray-600 transition px-2 py-2"
+                      >
+                        Annuler
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-center gap-3 pt-2">
+                      <button
+                        type="button"
+                        onClick={handleContinueInBackground}
+                        className="px-4 py-2 rounded-lg border border-gray-200 bg-white text-gray-700 text-xs font-semibold hover:bg-gray-50 hover:border-gray-300 transition"
+                      >
+                        Continuer en arrière-plan
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { abortRef.current?.abort(); setPhase('input'); setBuildStep(0); setBuildProgress(0); setBuildMessage(''); setShowConfetti(false); }}
+                        className="text-xs text-gray-400 hover:text-gray-600 transition px-2 py-2"
+                      >
+                        Annuler
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             );

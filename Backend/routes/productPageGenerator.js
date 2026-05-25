@@ -595,7 +595,6 @@ async function runBackgroundImageGeneration({
         }));
     }
 
-    jobData.status = 'done';
     const generatedImageCount = [
       jobData.heroImage,
       ...(jobData.beforeAfterImages || []),
@@ -604,13 +603,43 @@ async function runBackgroundImageGeneration({
     ].filter(Boolean).length;
     const generatedGifCount = (jobData.descriptionGifs || []).length;
 
+    // ── STATUT STRICT ─────────────────────────────────────────────────────────
+    // Le marchand voyait des placeholders "Affiche non générée" parce qu'on
+    // marquait 'done' dès qu'au moins UNE image réussissait. Maintenant :
+    //   - 'done'             → TOUTES les images attendues sont présentes
+    //   - 'partial_failure'  → au moins une image manque (avec ou sans succès partiels)
+    // Le frontend reste en écran de chargement / affiche un retry sur partial_failure
+    // au lieu d'aller en preview avec des placeholders vides.
+    // ─────────────────────────────────────────────────────────────────────────
+    const expectedImageCount = imageTasks.length;
+    const missingImageCount = Math.max(0, expectedImageCount - generatedImageCount);
+    const allImagesFailed = generatedImageCount === 0 && expectedImageCount > 0;
+    const someImagesMissing = missingImageCount > 0 && !allImagesFailed;
+
+    if (allImagesFailed) {
+      jobData.status = 'partial_failure';
+      jobData.errorMessage = 'Toutes les images ont échoué — les providers IA (Kie.ai / Gemini) sont indisponibles ou la photo source ne convient pas. Réessayez ou utilisez une photo plus nette.';
+    } else if (someImagesMissing) {
+      jobData.status = 'partial_failure';
+      jobData.errorMessage = `${missingImageCount} image${missingImageCount > 1 ? 's manquantes' : ' manquante'} sur ${expectedImageCount} — réessayez pour générer celles qui manquent.`;
+    } else {
+      jobData.status = 'done';
+    }
+    jobData.generatedImageCount = generatedImageCount;
+    jobData.expectedImageCount = expectedImageCount;
+    jobData.missingImageCount = missingImageCount;
+
     await updateTask(taskId, {
-      status: 'done',
+      status: jobData.status,
       progress: jobData.progress,
       totalImages: jobData.total,
       progressPercent: 100,
-      currentStep: 'Terminé',
-      errorMessage: null,
+      currentStep: jobData.status === 'done'
+        ? 'Terminé'
+        : (allImagesFailed
+          ? 'Échec de la génération des images'
+          : `${missingImageCount} image${missingImageCount > 1 ? 's manquantes' : ' manquante'} — retry conseillé`),
+      errorMessage: jobData.errorMessage || null,
       images: buildTaskImagesPayload(jobData),
     });
     await updateGenerationLog(generationLogId, {
@@ -1554,7 +1583,14 @@ router.get('/info', requireEcomAuth, async (req, res) => {
 // ── GET /images/:jobId — Poll async image generation status ───────────────────
 router.get('/images/:jobId', requireEcomAuth, (req, res) => {
   const job = imageJobs.get(req.params.jobId);
-  if (!job) return res.json({ success: true, status: 'not_found', images: {} });
+  if (!job) return res.json({
+    success: true,
+    status: 'not_found',
+    images: {},
+    generatedImageCount: 0,
+    expectedImageCount: 0,
+    missingImageCount: 0,
+  });
 
   const images = {};
   if (job.heroImage) images.heroImage = job.heroImage;
@@ -1565,11 +1601,23 @@ router.get('/images/:jobId', requireEcomAuth, (req, res) => {
   if (job.socialProofImages?.length) images.socialProofImages = job.socialProofImages;
   if (job.descriptionGifs?.length) images.descriptionGifs = job.descriptionGifs;
 
+  // Compte réel d'images générées — permet au frontend de détecter "0 images"
+  const generatedImageCount = job.generatedImageCount ?? [
+    job.heroImage,
+    ...(job.beforeAfterImages || []),
+    ...(job.socialProofImages || []),
+    ...((job.angles || []).map((a) => a?.poster_url).filter(Boolean)),
+  ].filter(Boolean).length;
+
   res.json({
     success: true,
-    status: job.status, // 'generating' | 'done' | 'error'
+    status: job.status, // 'generating' | 'done' | 'partial_failure' | 'error'
     progress: job.progress || 0,
     total: job.total || 0,
+    generatedImageCount,
+    expectedImageCount: job.expectedImageCount ?? 0,
+    missingImageCount: job.missingImageCount ?? 0,
+    errorMessage: job.errorMessage || null,
     images,
   });
 });

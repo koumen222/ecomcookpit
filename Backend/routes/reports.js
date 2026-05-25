@@ -11,6 +11,45 @@ import { notifyReportCreated } from '../services/notificationHelper.js';
 
 const router = express.Router();
 
+// ─── Stages d'agrégation partagés (deliveries[] aware) ───────────────────────
+// Priorité de deliveryCost : 1) Σ deliveries[].deliveryCost > 0
+//                            2) stored report.deliveryCost si > 0
+//                            3) product.deliveryCost × ordersDelivered (fallback)
+// _fCost et _fProfit sont TOUJOURS recomputés depuis les composantes (jamais
+// depuis report.cost stocké) pour ne pas propager un cost incorrect.
+const _addBaseFields = { $addFields: {
+  _qty: { $ifNull: ['$ordersDelivered', 0] },
+  _sp: { $ifNull: ['$_p.sellingPrice', 0] },
+  _pc: { $ifNull: ['$_p.productCost', 0] },
+  _dc: { $ifNull: ['$_p.deliveryCost', 0] },
+  _ad: { $ifNull: ['$adSpend', 0] },
+  _userDeliverySum: {
+    $reduce: {
+      input: { $ifNull: ['$deliveries', []] },
+      initialValue: 0,
+      in: { $add: ['$$value', { $ifNull: ['$$this.deliveryCost', 0] }] }
+    }
+  }
+}};
+const _addComputedDefaults = { $addFields: {
+  _cRev: { $multiply: ['$_sp', '$_qty'] },
+  _cPCost: { $multiply: ['$_pc', '$_qty'] },
+  _cDCost: { $multiply: ['$_dc', '$_qty'] }
+}};
+const _addFinalFields = { $addFields: {
+  _fRev: { $cond: [{ $gt: ['$revenue', 0] }, '$revenue', '$_cRev'] },
+  _fPCost: { $cond: [{ $gt: ['$productCost', 0] }, '$productCost', '$_cPCost'] },
+  _fDCost: { $cond: [
+    { $gt: ['$_userDeliverySum', 0] },
+    '$_userDeliverySum',
+    { $cond: [{ $gt: ['$deliveryCost', 0] }, '$deliveryCost', '$_cDCost'] }
+  ]}
+}};
+const _addCostAndProfit = { $addFields: {
+  _fCost: { $add: ['$_fPCost', '$_fDCost', '$_ad'] },
+  _fProfit: { $subtract: ['$_fRev', { $add: ['$_fPCost', '$_fDCost', '$_ad'] }] }
+}};
+
 function buildDateMatchFromQuery({ date, startDate, endDate }) {
   if (date) {
     const dayStart = new Date(date);
@@ -53,26 +92,10 @@ async function getGlobalOverview({ workspaceId, date, startDate, endDate }) {
       { $match: reportsFilter },
       { $lookup: { from: 'ecom_products', localField: 'productId', foreignField: '_id', as: '_p' } },
       { $unwind: { path: '$_p', preserveNullAndEmptyArrays: true } },
-      { $addFields: {
-        _qty: { $ifNull: ['$ordersDelivered', 0] },
-        _sp: { $ifNull: ['$_p.sellingPrice', 0] },
-        _pc: { $ifNull: ['$_p.productCost', 0] },
-        _dc: { $ifNull: ['$_p.deliveryCost', 0] },
-        _ad: { $ifNull: ['$adSpend', 0] }
-      }},
-      { $addFields: {
-        _cRev: { $multiply: ['$_sp', '$_qty'] },
-        _cCost: { $add: [{ $multiply: [{ $add: ['$_pc', '$_dc'] }, '$_qty'] }, '$_ad'] },
-        _cPCost: { $multiply: ['$_pc', '$_qty'] },
-        _cDCost: { $multiply: ['$_dc', '$_qty'] }
-      }},
-      { $addFields: {
-        _fRev: { $cond: [{ $gt: ['$revenue', 0] }, '$revenue', '$_cRev'] },
-        _fCost: { $cond: [{ $gt: ['$cost', 0] }, '$cost', '$_cCost'] },
-        _fPCost: { $cond: [{ $gt: ['$productCost', 0] }, '$productCost', '$_cPCost'] },
-        _fDCost: { $cond: [{ $gt: ['$deliveryCost', 0] }, '$deliveryCost', '$_cDCost'] }
-      }},
-      { $addFields: { _fProfit: { $subtract: ['$_fRev', '$_fCost'] } } },
+      _addBaseFields,
+      _addComputedDefaults,
+      _addFinalFields,
+      _addCostAndProfit,
       {
         $group: {
           _id: null,
@@ -114,26 +137,10 @@ async function getGlobalOverview({ workspaceId, date, startDate, endDate }) {
       { $match: reportsFilter },
       { $lookup: { from: 'ecom_products', localField: 'productId', foreignField: '_id', as: '_p' } },
       { $unwind: { path: '$_p', preserveNullAndEmptyArrays: true } },
-      { $addFields: {
-        _qty: { $ifNull: ['$ordersDelivered', 0] },
-        _sp: { $ifNull: ['$_p.sellingPrice', 0] },
-        _pc: { $ifNull: ['$_p.productCost', 0] },
-        _dc: { $ifNull: ['$_p.deliveryCost', 0] },
-        _ad: { $ifNull: ['$adSpend', 0] }
-      }},
-      { $addFields: {
-        _cRev: { $multiply: ['$_sp', '$_qty'] },
-        _cCost: { $add: [{ $multiply: [{ $add: ['$_pc', '$_dc'] }, '$_qty'] }, '$_ad'] },
-        _cPCost: { $multiply: ['$_pc', '$_qty'] },
-        _cDCost: { $multiply: ['$_dc', '$_qty'] }
-      }},
-      { $addFields: {
-        _fRev: { $cond: [{ $gt: ['$revenue', 0] }, '$revenue', '$_cRev'] },
-        _fCost: { $cond: [{ $gt: ['$cost', 0] }, '$cost', '$_cCost'] },
-        _fPCost: { $cond: [{ $gt: ['$productCost', 0] }, '$productCost', '$_cPCost'] },
-        _fDCost: { $cond: [{ $gt: ['$deliveryCost', 0] }, '$deliveryCost', '$_cDCost'] }
-      }},
-      { $addFields: { _fProfit: { $subtract: ['$_fRev', '$_fCost'] } } },
+      _addBaseFields,
+      _addComputedDefaults,
+      _addFinalFields,
+      _addCostAndProfit,
       {
         $group: {
           _id: '$productId',
@@ -175,26 +182,10 @@ async function getGlobalOverview({ workspaceId, date, startDate, endDate }) {
       { $match: reportsFilter },
       { $lookup: { from: 'ecom_products', localField: 'productId', foreignField: '_id', as: '_p' } },
       { $unwind: { path: '$_p', preserveNullAndEmptyArrays: true } },
-      { $addFields: {
-        _qty: { $ifNull: ['$ordersDelivered', 0] },
-        _sp: { $ifNull: ['$_p.sellingPrice', 0] },
-        _pc: { $ifNull: ['$_p.productCost', 0] },
-        _dc: { $ifNull: ['$_p.deliveryCost', 0] },
-        _ad: { $ifNull: ['$adSpend', 0] }
-      }},
-      { $addFields: {
-        _cRev: { $multiply: ['$_sp', '$_qty'] },
-        _cCost: { $add: [{ $multiply: [{ $add: ['$_pc', '$_dc'] }, '$_qty'] }, '$_ad'] },
-        _cPCost: { $multiply: ['$_pc', '$_qty'] },
-        _cDCost: { $multiply: ['$_dc', '$_qty'] }
-      }},
-      { $addFields: {
-        _fRev: { $cond: [{ $gt: ['$revenue', 0] }, '$revenue', '$_cRev'] },
-        _fCost: { $cond: [{ $gt: ['$cost', 0] }, '$cost', '$_cCost'] },
-        _fPCost: { $cond: [{ $gt: ['$productCost', 0] }, '$productCost', '$_cPCost'] },
-        _fDCost: { $cond: [{ $gt: ['$deliveryCost', 0] }, '$deliveryCost', '$_cDCost'] }
-      }},
-      { $addFields: { _fProfit: { $subtract: ['$_fRev', '$_fCost'] } } },
+      _addBaseFields,
+      _addComputedDefaults,
+      _addFinalFields,
+      _addCostAndProfit,
       {
         $group: {
           _id: { $dateToString: { format: '%Y-%m-%d', date: '$date' } },
@@ -293,7 +284,9 @@ router.get('/', requireEcomAuth, async (req, res) => {
 
     const total = await DailyReport.countDocuments(filter);
 
-    // Recalculer les champs financiers à la volée si manquants
+    // Recalculer les champs financiers à la volée si manquants,
+    // puis corriger deliveryCost/cost/profit depuis le tableau deliveries[]
+    // saisi par l'utilisateur (fix historique sans migration DB).
     const reports = rawReports.map(r => {
       const report = r.toObject();
       const qty = report.ordersDelivered || 0;
@@ -308,7 +301,7 @@ router.get('/', requireEcomAuth, async (req, res) => {
         report.cost = (pc + dc) * qty + ad;
         report.profit = report.revenue - report.cost;
       }
-      return report;
+      return applyUserDeliveriesOverride(report);
     });
 
     res.json({
@@ -423,22 +416,11 @@ router.get('/stats/products-ranking',
         { $match: matchStage },
         { $lookup: { from: 'ecom_products', localField: 'productId', foreignField: '_id', as: '_p' } },
         { $unwind: { path: '$_p', preserveNullAndEmptyArrays: true } },
-        { $addFields: {
-          _qty: { $ifNull: ['$ordersDelivered', 0] },
-          _sp: { $ifNull: ['$_p.sellingPrice', 0] },
-          _pc: { $ifNull: ['$_p.productCost', 0] },
-          _dc: { $ifNull: ['$_p.deliveryCost', 0] },
-          _ad: { $ifNull: ['$adSpend', 0] }
-        }},
-        { $addFields: {
-          _cRev: { $multiply: ['$_sp', '$_qty'] },
-          _cCost: { $add: [{ $multiply: [{ $add: ['$_pc', '$_dc'] }, '$_qty'] }, '$_ad'] },
-        }},
-        { $addFields: {
-          _fRev: { $cond: [{ $gt: ['$revenue', 0] }, '$revenue', '$_cRev'] },
-          _fCost: { $cond: [{ $gt: ['$cost', 0] }, '$cost', '$_cCost'] }
-        }},
-        { $addFields: { _fProfit: { $subtract: ['$_fRev', '$_fCost'] } } },
+        // Mêmes stages que getGlobalOverview pour prendre en compte deliveries[]
+        _addBaseFields,
+        _addComputedDefaults,
+        _addFinalFields,
+        _addCostAndProfit,
         {
           $group: {
             _id: '$productId',
@@ -499,47 +481,23 @@ router.get('/stats/financial',
       }
       if (productId) matchStage.productId = new mongoose.Types.ObjectId(productId);
 
+      // Renomme la collection lookup en '_p' pour réutiliser les stages partagés
       const financialStats = await DailyReport.aggregate([
         { $match: matchStage },
-        {
-          $lookup: {
-            from: 'ecom_products',
-            localField: 'productId',
-            foreignField: '_id',
-            as: '_product'
-          }
-        },
-        { $unwind: { path: '$_product', preserveNullAndEmptyArrays: true } },
-        {
-          $addFields: {
-            _qty: { $ifNull: ['$ordersDelivered', 0] },
-            _sp: { $ifNull: ['$_product.sellingPrice', 0] },
-            _pc: { $ifNull: ['$_product.productCost', 0] },
-            _dc: { $ifNull: ['$_product.deliveryCost', 0] },
-            _ad: { $ifNull: ['$adSpend', 0] }
-          }
-        },
-        {
-          $addFields: {
-            _computedRevenue: { $multiply: ['$_sp', '$_qty'] },
-            _computedProductCost: { $multiply: ['$_pc', '$_qty'] },
-            _computedDeliveryCost: { $multiply: ['$_dc', '$_qty'] },
-            _computedCost: { $add: [{ $multiply: [{ $add: ['$_pc', '$_dc'] }, '$_qty'] }, '$_ad'] }
-          }
-        },
-        {
-          $addFields: {
-            _finalRevenue: { $cond: [{ $gt: ['$revenue', 0] }, '$revenue', '$_computedRevenue'] },
-            _finalProductCost: { $cond: [{ $gt: ['$productCost', 0] }, '$productCost', '$_computedProductCost'] },
-            _finalDeliveryCost: { $cond: [{ $gt: ['$deliveryCost', 0] }, '$deliveryCost', '$_computedDeliveryCost'] },
-            _finalCost: { $cond: [{ $gt: ['$cost', 0] }, '$cost', '$_computedCost'] }
-          }
-        },
-        {
-          $addFields: {
-            _finalProfit: { $subtract: ['$_finalRevenue', '$_finalCost'] }
-          }
-        },
+        { $lookup: { from: 'ecom_products', localField: 'productId', foreignField: '_id', as: '_p' } },
+        { $unwind: { path: '$_p', preserveNullAndEmptyArrays: true } },
+        _addBaseFields,
+        _addComputedDefaults,
+        _addFinalFields,
+        _addCostAndProfit,
+        // Alias pour compatibilité avec les noms utilisés en aval
+        { $addFields: {
+          _finalRevenue: '$_fRev',
+          _finalProductCost: '$_fPCost',
+          _finalDeliveryCost: '$_fDCost',
+          _finalCost: '$_fCost',
+          _finalProfit: '$_fProfit'
+        }},
         {
           $group: {
             _id: null,
@@ -1087,6 +1045,37 @@ router.get('/dashboard/stats',
 );
 
 // GET /api/ecom/reports/:id - Détail d'un rapport
+// ── Helper : corrige deliveryCost / cost / profit à partir de deliveries[] ───
+// Utilisé en lecture pour réparer à la volée les rapports sauvés avant le fix
+// (où deliveryCost était calculé depuis product.deliveryCost × qty, ignorant
+// les agences saisies). Ne modifie PAS la DB.
+function applyUserDeliveriesOverride(reportObj) {
+  if (!reportObj || !Array.isArray(reportObj.deliveries) || reportObj.deliveries.length === 0) {
+    return reportObj;
+  }
+  const userDeliveryTotal = reportObj.deliveries.reduce(
+    (sum, d) => sum + (parseFloat(d?.deliveryCost) || 0),
+    0
+  );
+  if (userDeliveryTotal <= 0) return reportObj;
+
+  // Recompute en gardant productCost et adSpend tels quels
+  const productCostTotal = reportObj.productCost || 0;
+  const adSpend = reportObj.adSpend || 0;
+  const revenue = reportObj.revenue || 0;
+
+  reportObj.deliveryCost = userDeliveryTotal;
+  reportObj.cost = productCostTotal + userDeliveryTotal + adSpend;
+  reportObj.profit = revenue - reportObj.cost;
+  if (reportObj.ordersDelivered > 0) {
+    reportObj.unitBenefit = (revenue / reportObj.ordersDelivered)
+      - (productCostTotal / reportObj.ordersDelivered)
+      - (userDeliveryTotal / reportObj.ordersDelivered);
+  }
+  reportObj.totalBenefit = revenue - productCostTotal - userDeliveryTotal;
+  return reportObj;
+}
+
 router.get('/:id', requireEcomAuth, async (req, res) => {
   try {
     const report = await DailyReport.findOne({ _id: req.params.id, workspaceId: req.workspaceId })
@@ -1100,13 +1089,32 @@ router.get('/:id', requireEcomAuth, async (req, res) => {
       });
     }
 
-    // Calculer les métriques
-    const metrics = await report.calculateMetrics();
+    // Corrige à la volée à partir des deliveries[] saisies par l'utilisateur
+    // (répare l'historique sauvé avant le fix POST/PUT)
+    const reportObj = applyUserDeliveriesOverride(report.toObject());
+
+    // Recompute metrics en lisant les valeurs corrigées
+    const metrics = {
+      revenue: reportObj.revenue || 0,
+      productCostTotal: reportObj.productCost || 0,
+      deliveryCostTotal: reportObj.deliveryCost || 0,
+      totalCost: reportObj.cost || 0,
+      profit: reportObj.profit || 0,
+      deliveryRate: reportObj.ordersReceived > 0
+        ? reportObj.ordersDelivered / reportObj.ordersReceived
+        : 0,
+      profitPerOrder: reportObj.ordersDelivered > 0
+        ? (reportObj.profit || 0) / reportObj.ordersDelivered
+        : 0,
+      roas: (reportObj.adSpend || 0) > 0
+        ? (reportObj.revenue || 0) / reportObj.adSpend
+        : 0,
+    };
 
     res.json({
       success: true,
       data: {
-        ...report.toObject(),
+        ...reportObj,
         metrics
       }
     });
