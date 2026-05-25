@@ -110,6 +110,7 @@ const WorkspaceCard = ({
   const [editingGen, setEditingGen] = useState(false);
   const [freeGen, setFreeGen]       = useState(String(ws.freeGenerationsRemaining || 0));
   const [paidGen, setPaidGen]       = useState(String(ws.paidGenerationsRemaining || 0));
+  const [imgCredits, setImgCredits] = useState(String(ws.creativeCreditsRemaining || 0));
 
   const selectedPlan     = planDraft?.plan || ws.plan || 'free';
   const selectedDuration = Number(planDraft?.durationMonths || 1);
@@ -269,41 +270,55 @@ const WorkspaceCard = ({
             {/* Generations */}
             <div className="rounded-xl bg-violet-50 border border-violet-200 p-3">
               <p className="text-[11px] font-bold text-violet-600 uppercase tracking-wider mb-3 flex items-center gap-1.5">
-                <Zap className="w-3 h-3" /> Générations IA
+                <Zap className="w-3 h-3" /> Crédits IA
               </p>
               {editingGen ? (
                 <div className="space-y-2">
-                  <div className="flex gap-2">
-                    <div className="flex-1">
-                      <p className="text-[10px] text-violet-600 font-semibold mb-1">Gratuites</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <p className="text-[10px] text-violet-600 font-semibold mb-1">Pages gratuites</p>
                       <input type="number" min="0" value={freeGen} onChange={e => setFreeGen(e.target.value)}
                         className="w-full text-xs border border-violet-300 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-violet-500 bg-white" />
                     </div>
-                    <div className="flex-1">
-                      <p className="text-[10px] text-violet-600 font-semibold mb-1">Payées</p>
+                    <div>
+                      <p className="text-[10px] text-violet-600 font-semibold mb-1">Pages payées</p>
                       <input type="number" min="0" value={paidGen} onChange={e => setPaidGen(e.target.value)}
                         className="w-full text-xs border border-violet-300 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-violet-500 bg-white" />
                     </div>
+                    <div>
+                      <p className="text-[10px] text-pink-600 font-semibold mb-1">Images créatives</p>
+                      <input type="number" min="0" value={imgCredits} onChange={e => setImgCredits(e.target.value)}
+                        className="w-full text-xs border border-pink-300 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-pink-500 bg-white" />
+                    </div>
                   </div>
                   <div className="flex gap-2">
-                    <button onClick={() => { onUpdateGenerations(ws._id, freeGen, paidGen); setEditingGen(false); }}
+                    <button onClick={() => { onUpdateGenerations(ws._id, freeGen, paidGen, imgCredits); setEditingGen(false); }}
                       className="flex-1 py-1.5 bg-violet-600 text-white rounded-lg text-xs font-bold hover:bg-violet-700 transition">Valider</button>
-                    <button onClick={() => { setEditingGen(false); setFreeGen(String(ws.freeGenerationsRemaining||0)); setPaidGen(String(ws.paidGenerationsRemaining||0)); }}
+                    <button onClick={() => {
+                        setEditingGen(false);
+                        setFreeGen(String(ws.freeGenerationsRemaining||0));
+                        setPaidGen(String(ws.paidGenerationsRemaining||0));
+                        setImgCredits(String(ws.creativeCreditsRemaining||0));
+                      }}
                       className="flex-1 py-1.5 bg-white border border-violet-200 text-violet-600 rounded-lg text-xs font-bold hover:bg-violet-50 transition">Annuler</button>
                   </div>
                 </div>
               ) : (
                 <div>
                   <div className="flex justify-between text-xs mb-1.5">
-                    <span className="text-violet-500 font-medium">Gratuites restantes</span>
+                    <span className="text-violet-500 font-medium">Pages gratuites</span>
                     <span className="font-bold text-emerald-600">{ws.freeGenerationsRemaining || 0}</span>
                   </div>
                   <div className="flex justify-between text-xs mb-1.5">
-                    <span className="text-violet-500 font-medium">Payées restantes</span>
+                    <span className="text-violet-500 font-medium">Pages payées</span>
                     <span className="font-bold text-violet-700">{ws.paidGenerationsRemaining || 0}</span>
                   </div>
+                  <div className="flex justify-between text-xs mb-1.5">
+                    <span className="text-pink-500 font-medium">Images créatives</span>
+                    <span className="font-bold text-pink-700">{ws.creativeCreditsRemaining || 0}</span>
+                  </div>
                   <div className="flex justify-between text-xs mb-3">
-                    <span className="text-violet-500 font-medium">Total utilisées</span>
+                    <span className="text-violet-500 font-medium">Pages utilisées</span>
                     <span className="font-bold text-slate-600">{ws.totalGenerations || 0}</span>
                   </div>
                   <button onClick={() => setEditingGen(true)}
@@ -402,12 +417,14 @@ const SuperAdminWorkspaces = () => {
     finally { setSavingPlans(prev => ({ ...prev, [wsId]: false })); }
   };
 
-  const handleUpdateGenerations = async (wsId, free, paid) => {
+  const handleUpdateGenerations = async (wsId, free, paid, creative) => {
     try {
       const r = await ecomApi.patch(`/super-admin/workspaces/${wsId}/generations`, {
-        freeGenerations: parseInt(free) || 0, paidGenerations: parseInt(paid) || 0,
+        freeGenerations: parseInt(free) || 0,
+        paidGenerations: parseInt(paid) || 0,
+        creativeCredits: parseInt(creative) || 0,
       });
-      setSuccess(r.data.message || 'Générations mises à jour');
+      setSuccess(r.data.message || 'Crédits mis à jour');
       fetchWorkspaces(true);
     } catch (err) { setError(getContextualError(err, 'update_settings')); }
   };

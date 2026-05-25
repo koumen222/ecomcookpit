@@ -1214,7 +1214,7 @@ router.get('/workspaces', requireEcomAuth, requireSuperAdmin, async (req, res) =
     if (search) filter.name = { $regex: search, $options: 'i' };
 
     const workspaces = await Workspace.find(filter)
-      .select('name slug plan planExpiresAt trialStartedAt trialEndsAt trialUsed owner freeGenerationsRemaining paidGenerationsRemaining totalGenerations')
+      .select('name slug plan planExpiresAt trialStartedAt trialEndsAt trialUsed owner freeGenerationsRemaining paidGenerationsRemaining creativeCreditsRemaining totalGenerations')
       .populate('owner', 'email name')
       .sort({ createdAt: -1 })
       .limit(limit * 1)
@@ -1368,38 +1368,64 @@ router.patch('/generation-pricing', requireEcomAuth, requireSuperAdmin, async (r
 });
 
 // PATCH /api/ecom/super-admin/workspaces/:id/generations — manually update generations
+// Accepte aussi `creativeCredits` (crédits images génératives type Meta/Google Ads).
 router.patch('/workspaces/:id/generations', requireEcomAuth, requireSuperAdmin, async (req, res) => {
   try {
-    const { freeGenerations, paidGenerations } = req.body;
-    
-    if (typeof freeGenerations !== 'number' || typeof paidGenerations !== 'number') {
-      return res.status(400).json({ success: false, message: 'Les valeurs doivent être des nombres' });
-    }
+    const { freeGenerations, paidGenerations, creativeCredits } = req.body;
 
-    if (freeGenerations < 0 || paidGenerations < 0) {
-      return res.status(400).json({ success: false, message: 'Les valeurs doivent être positives' });
+    // Validation : au moins un des 3 champs doit être un nombre
+    const fields = { freeGenerations, paidGenerations, creativeCredits };
+    const provided = Object.entries(fields).filter(([, v]) => v !== undefined);
+    if (provided.length === 0) {
+      return res.status(400).json({ success: false, message: 'Aucun champ fourni (freeGenerations / paidGenerations / creativeCredits)' });
+    }
+    for (const [key, val] of provided) {
+      if (typeof val !== 'number' || !Number.isFinite(val)) {
+        return res.status(400).json({ success: false, message: `${key} doit être un nombre` });
+      }
+      if (val < 0) {
+        return res.status(400).json({ success: false, message: `${key} doit être positif` });
+      }
     }
 
     const workspace = await Workspace.findById(req.params.id);
     if (!workspace) return res.status(404).json({ success: false, message: 'Workspace introuvable' });
 
-    await logAudit(req, 'UPDATE_GENERATIONS', 
-      `Updated generations for workspace ${workspace.name}: free ${workspace.freeGenerationsRemaining || 0} → ${freeGenerations}, paid ${workspace.paidGenerationsRemaining || 0} → ${paidGenerations}`, 
-      'workspace', workspace._id);
+    // Construit le message d'audit avec les diffs (avant → après) pour chaque champ modifié
+    const changes = [];
+    if (typeof freeGenerations === 'number') {
+      changes.push(`free ${workspace.freeGenerationsRemaining || 0}→${freeGenerations}`);
+      workspace.freeGenerationsRemaining = freeGenerations;
+    }
+    if (typeof paidGenerations === 'number') {
+      changes.push(`paid ${workspace.paidGenerationsRemaining || 0}→${paidGenerations}`);
+      workspace.paidGenerationsRemaining = paidGenerations;
+    }
+    if (typeof creativeCredits === 'number') {
+      changes.push(`creative ${workspace.creativeCreditsRemaining || 0}→${creativeCredits}`);
+      workspace.creativeCreditsRemaining = creativeCredits;
+    }
 
-    workspace.freeGenerationsRemaining = freeGenerations;
-    workspace.paidGenerationsRemaining = paidGenerations;
+    await logAudit(
+      req,
+      'UPDATE_GENERATIONS',
+      `Updated credits for workspace ${workspace.name}: ${changes.join(', ')}`,
+      'workspace',
+      workspace._id
+    );
+
     await workspace.save();
 
-    res.json({ 
-      success: true, 
-      message: 'Générations mises à jour avec succès',
-      workspace: { 
-        _id: workspace._id, 
+    res.json({
+      success: true,
+      message: 'Crédits mis à jour avec succès',
+      workspace: {
+        _id: workspace._id,
         freeGenerationsRemaining: workspace.freeGenerationsRemaining,
         paidGenerationsRemaining: workspace.paidGenerationsRemaining,
-        totalGenerations: workspace.totalGenerations || 0
-      } 
+        creativeCreditsRemaining: workspace.creativeCreditsRemaining || 0,
+        totalGenerations: workspace.totalGenerations || 0,
+      }
     });
   } catch (err) {
     console.error('[SuperAdmin] PATCH /workspaces/:id/generations error:', err.message);
