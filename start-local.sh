@@ -22,9 +22,22 @@ npm run dev &
 BACKEND_PID=$!
 cd ..
 
-# Attendre que le backend démarre
-echo "⏳ Attente du démarrage du backend..."
-sleep 5
+# Attendre que le backend soit réellement prêt (health check)
+echo "⏳ Attente du backend (health check sur http://localhost:8080/health)..."
+MAX_RETRIES=30
+RETRY_COUNT=0
+while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+    if curl -s http://localhost:8080/health > /dev/null 2>&1; then
+        echo "✅ Backend prêt !"
+        break
+    fi
+    RETRY_COUNT=$((RETRY_COUNT + 1))
+    if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
+        echo "⚠️  Backend non disponible après ${MAX_RETRIES}s — le frontend démarrera quand même."
+        echo "   Les requêtes API seront retentées automatiquement."
+    fi
+    sleep 1
+done
 
 # Démarrer le frontend
 echo "🎨 Démarrage du frontend (port 5173)..."

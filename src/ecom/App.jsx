@@ -21,6 +21,7 @@ import {
 // Layout principal
 import EcomLayout from './components/EcomLayout.jsx';
 import PrivacyBanner from './components/PrivacyBanner.jsx';
+import VersionWatcher from './components/VersionWatcher.jsx';
 
 // Pages - Imports directs (pas de lazy loading)
 const Login = lazy(() => import('./pages/Login.jsx'));
@@ -617,6 +618,7 @@ const StoreApp = () => {
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Suspense>
+        <VersionWatcher />
       </div>
     </ThemeProvider>
   );
@@ -881,6 +883,7 @@ const EcomApp = () => {
           </Suspense>
 
           {/* <PrivacyBanner /> */}
+          <VersionWatcher />
         </div>
         </PlanGateProvider>
       </ThemeProvider>

@@ -343,7 +343,7 @@ export const EcomAuthProvider = ({ children }) => {
     } catch (error) {
       const errorMessage = error.response?.data?.message || 'Erreur d\'inscription';
       logUserAction('register_failure', { email: userData.email, message: errorMessage });
-      throw new Error(errorMessage);
+      throw error;
     }
   };
 
@@ -373,7 +373,7 @@ export const EcomAuthProvider = ({ children }) => {
       const errorMessage = error.response?.data?.message || 'Erreur de connexion Google';
       logAuthEvent('google_login_failure', { message: errorMessage });
       dispatch({ type: 'LOGIN_FAILURE', payload: errorMessage });
-      throw new Error(errorMessage);
+      throw error;
     }
   };
 

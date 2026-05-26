@@ -14,6 +14,17 @@ import { securityHeaders, authRateLimiter, forgotPasswordRateLimiter, apiRateLim
 const app = express();
 const PORT = process.env.PORT || 8080;
 
+// ─── Build version (used by frontend pour détecter un nouveau deploy) ────────
+// Priorité : env explicite > commit Railway/Vercel > timestamp de démarrage
+const BUILD_VERSION =
+  process.env.BUILD_VERSION ||
+  process.env.RAILWAY_GIT_COMMIT_SHA ||
+  process.env.VERCEL_GIT_COMMIT_SHA ||
+  process.env.GIT_COMMIT ||
+  String(Date.now());
+const BUILD_STARTED_AT = new Date().toISOString();
+console.log(`🏷️  Build version: ${BUILD_VERSION} (started ${BUILD_STARTED_AT})`);
+
 // ─── Trust proxy (Railway / Render / Cloudflare) ──────────────────────────────
 // Nécessaire pour que req.ip soit l'IP réelle et que express-rate-limit fonctionne
 app.set('trust proxy', 1);
@@ -121,6 +132,20 @@ app.options('*', cors(corsOptions));
 
 // ─── Security Headers ─────────────────────────────────────────────────────────
 app.use(securityHeaders);
+
+// ─── Version endpoint ─────────────────────────────────────────────────────────
+// Endpoint léger utilisé par le frontend pour détecter un nouveau deploy.
+// Si la version change pendant une session, le frontend affiche un banner
+// "Une nouvelle version est disponible → Recharger" plutôt que de planter
+// silencieusement avec un ChunkLoadError quand l'utilisateur navigue.
+app.get('/api/version', (_req, res) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+  res.json({
+    version: BUILD_VERSION,
+    startedAt: BUILD_STARTED_AT,
+    now: new Date().toISOString(),
+  });
+});
 
 // ─── Rate Limiters ────────────────────────────────────────────────────────────
 app.use('/api/ecom/auth/login', authRateLimiter);

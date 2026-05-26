@@ -2,8 +2,21 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import compression from 'vite-plugin-compression'
 
+// Version du build — injectée au build-time, lue côté client pour détecter
+// les deploys et éviter les ChunkLoadError qui suivent.
+const BUILD_VERSION =
+  process.env.BUILD_VERSION ||
+  process.env.RAILWAY_GIT_COMMIT_SHA ||
+  process.env.VERCEL_GIT_COMMIT_SHA ||
+  process.env.GIT_COMMIT ||
+  String(Date.now());
+
 // https://vitejs.dev/config/
 export default defineConfig({
+  define: {
+    __BUILD_VERSION__: JSON.stringify(BUILD_VERSION),
+    __BUILD_TIME__: JSON.stringify(new Date().toISOString()),
+  },
   plugins: [
     react({
       jsxRuntime: 'automatic',

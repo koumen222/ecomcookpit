@@ -98,8 +98,32 @@ const api = axios.create({
   headers: {
     "Content-Type": "application/json; charset=utf-8"
   },
-  // Timeout to avoid hanging requests
   timeout: 15000,
+});
+
+// ── Backend readiness retry ──
+// Retries on network errors (ECONNREFUSED) or 502/503 during initial load,
+// so the frontend doesn't crash if it starts before the backend is ready.
+const RETRY_STATUS_CODES = new Set([502, 503, 504]);
+const MAX_RETRIES = 3;
+const RETRY_DELAY_MS = 1500;
+
+api.interceptors.response.use(undefined, async (error) => {
+  const config = error.config;
+  if (!config) return Promise.reject(error);
+
+  config.__retryCount = config.__retryCount || 0;
+
+  const isNetworkError = !error.response && (error.code === 'ECONNREFUSED' || error.code === 'ERR_NETWORK' || error.message === 'Network Error');
+  const isServerUnavailable = error.response && RETRY_STATUS_CODES.has(error.response.status);
+
+  if ((isNetworkError || isServerUnavailable) && config.__retryCount < MAX_RETRIES) {
+    config.__retryCount += 1;
+    await new Promise(r => setTimeout(r, RETRY_DELAY_MS * config.__retryCount));
+    return api(config);
+  }
+
+  return Promise.reject(error);
 });
 
 console.log(`${DEBUG_TAG} initialized`, { baseURL: API_BASE_URL });

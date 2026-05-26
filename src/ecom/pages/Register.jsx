@@ -34,11 +34,10 @@ const Register = () => {
   const otpRefs = useRef([]);
 
   const pwChecks = [
-    { label: '8+ caracteres', ok: formData.password.length >= 8 },
+    { label: '12+ caracteres', ok: formData.password.length >= 12 },
     { label: 'Majuscule', ok: /[A-Z]/.test(formData.password) },
     { label: 'Minuscule', ok: /[a-z]/.test(formData.password) },
     { label: 'Chiffre', ok: /[0-9]/.test(formData.password) },
-    { label: 'Symbole', ok: /[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(formData.password) },
   ];
   const pwStrength = pwChecks.filter(c => c.ok).length;
 
@@ -162,7 +161,7 @@ const Register = () => {
     } finally { setLoading(false); }
   };
 
-  const canSubmit = formData.acceptPrivacy && pwStrength === 5 && formData.password === formData.confirmPassword && formData.name.trim().length >= 2;
+  const canSubmit = formData.acceptPrivacy && pwStrength === 4 && formData.password === formData.confirmPassword && formData.name.trim().length >= 2;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -319,8 +318,8 @@ const Register = () => {
                   </div>
                   {formData.password && (
                     <div className="mt-2 flex gap-1">
-                      {[1, 2, 3, 4, 5].map(i => (
-                        <div key={i} className={`h-1 flex-1 rounded-full transition ${i <= pwStrength ? (pwStrength <= 2 ? 'bg-red-500' : pwStrength <= 3 ? 'bg-yellow-500' : 'bg-primary-500') : 'bg-gray-200'}`} />
+                      {[1, 2, 3, 4].map(i => (
+                        <div key={i} className={`h-1 flex-1 rounded-full transition ${i <= pwStrength ? (pwStrength <= 1 ? 'bg-red-500' : pwStrength <= 2 ? 'bg-yellow-500' : 'bg-primary-500') : 'bg-gray-200'}`} />
                       ))}
                     </div>
                   )}
