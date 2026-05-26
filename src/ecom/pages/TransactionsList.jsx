@@ -159,7 +159,7 @@ const getPeriodDates = (preset, custom={}) => {
 const getMonthOptions = () => {
   const now = new Date();
   return Array.from({length:12},(_,i)=>{
-    const d = new Date(now.getFullYear(), now.getMonth()-i, 1);
+    const d = new Date(now.getFullYear(), now.getMonth()+i, 1);
     return { value:`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`, label:d.toLocaleDateString('fr-FR',{month:'long',year:'numeric'}) };
   });
 };
