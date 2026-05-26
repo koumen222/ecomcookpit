@@ -134,10 +134,13 @@ const CITIES_BY_COUNTRY = {
   ],
 };
 
+const isInstanceConnected = (status) => ['connected', 'active', 'open'].includes(status);
+
 const getInstanceStatusLabel = (status) => {
   switch (status) {
     case 'connected':
     case 'active':
+    case 'open':
       return 'Connectée';
     case 'configured':
       return 'Configurée';
@@ -939,8 +942,7 @@ export default function AgentConfig() {
   // Auto-sélectionner la première instance connectée si aucune n'est choisie
   useEffect(() => {
     if (instances.length === 0 || config.instanceId) return;
-    // Priorité : instance "open" (connectée), sinon la première disponible
-    const connected = instances.find(i => i.status === 'open') || instances[0];
+    const connected = instances.find(i => isInstanceConnected(i.status)) || instances[0];
     if (connected?._id) {
       set('instanceId', connected._id);
     }
@@ -1938,15 +1940,15 @@ export default function AgentConfig() {
                     </div>
                   ) : instances.length === 1 ? (
                     <div className="flex items-center gap-3 px-1">
-                      <div className={`w-3 h-3 rounded-full flex-shrink-0 ring-4 ${selectedInstance?.status === 'open' ? 'bg-primary-400 ring-primary-100' : 'bg-gray-300 ring-gray-100'}`} />
+                      <div className={`w-3 h-3 rounded-full flex-shrink-0 ring-4 ${isInstanceConnected(selectedInstance?.status) ? 'bg-primary-400 ring-primary-100' : 'bg-gray-300 ring-gray-100'}`} />
                       <div className="flex-1 min-w-0">
                         <p className="text-[14px] font-bold text-gray-800 truncate">
                           {selectedInstance?.customName || selectedInstance?.instanceName || 'Instance WhatsApp'}
                         </p>
-                        <p className="text-[11px] text-gray-400">{selectedInstance?.status === 'open' ? '● Connectée et prête' : '○ Hors ligne'}</p>
+                        <p className="text-[11px] text-gray-400">{isInstanceConnected(selectedInstance?.status) ? '● Connectée et prête' : '○ Hors ligne'}</p>
                       </div>
-                      <span className={`flex-shrink-0 text-[11px] font-bold px-2.5 py-1 rounded-full ${selectedInstance?.status === 'open' ? 'bg-primary-100 text-primary-700' : 'bg-gray-100 text-gray-500'}`}>
-                        {selectedInstance?.status === 'open' ? '✓ Prête' : 'Déconnectée'}
+                      <span className={`flex-shrink-0 text-[11px] font-bold px-2.5 py-1 rounded-full ${isInstanceConnected(selectedInstance?.status) ? 'bg-primary-100 text-primary-700' : 'bg-gray-100 text-gray-500'}`}>
+                        {isInstanceConnected(selectedInstance?.status) ? '✓ Prête' : 'Déconnectée'}
                       </span>
                     </div>
                   ) : (

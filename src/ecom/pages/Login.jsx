@@ -140,9 +140,10 @@ const Login = () => {
       setTimeout(() => {
         const buttonContainer = document.getElementById('google-login-btn');
         if (buttonContainer) {
+          const btnWidth = Math.min(buttonContainer.offsetWidth || 400, 400);
           window.google.accounts.id.renderButton(
             buttonContainer,
-            { theme: 'filled_black', size: 'large', width: '100%', text: 'signin_with', shape: 'pill', locale: 'fr' }
+            { theme: 'filled_black', size: 'large', width: btnWidth, text: 'signin_with', shape: 'pill', locale: 'fr' }
           );
           console.log('✅ [Google Auth] Bouton Google rendu');
         }

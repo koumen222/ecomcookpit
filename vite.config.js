@@ -42,6 +42,9 @@ export default defineConfig({
   server: {
     port: 5173,
     open: true,
+    headers: {
+      'Cross-Origin-Opener-Policy': 'same-origin-allow-popups',
+    },
     proxy: {
       '/api': {
         target: 'http://localhost:8080',
@@ -55,7 +58,6 @@ export default defineConfig({
         ws: true
       }
     },
-    // Speed up dev server
     middlewareMode: false,
     hmr: {
       protocol: 'ws',

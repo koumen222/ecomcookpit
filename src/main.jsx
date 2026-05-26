@@ -8,7 +8,7 @@ import './ecom/index.css';
 // Render first, analytics later (non-blocking)
 try {
   ReactDOM.createRoot(document.getElementById('root')).render(
-    <BrowserRouter>
+    <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <App />
     </BrowserRouter>
   );

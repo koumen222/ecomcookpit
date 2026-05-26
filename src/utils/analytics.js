@@ -6,8 +6,9 @@ class AnalyticsService {
     this.userId = null;
     this.queue = [];
     this.isOnline = navigator.onLine;
+    this.backendReady = false;
+    this._readyCheck = null;
 
-    // Listen for online/offline events
     window.addEventListener('online', () => {
       this.isOnline = true;
       this.flushQueue();
@@ -16,13 +17,39 @@ class AnalyticsService {
     window.addEventListener('offline', () => {
       this.isOnline = false;
     });
+
+    // Don't fire analytics until backend is confirmed reachable
+    this._checkBackendReady();
+  }
+
+  async _checkBackendReady() {
+    const healthUrl = this.endpoint.replace(/\/analytics\/track$/, '/auth/health');
+    for (let i = 0; i < 5; i++) {
+      try {
+        const res = await fetch(healthUrl, { method: 'GET', cache: 'no-store' });
+        if (res.ok) { this.backendReady = true; this.flushQueue(); return; }
+      } catch { /* backend not ready yet */ }
+      await new Promise(r => setTimeout(r, 3000 * (i + 1)));
+    }
+    // After retries, enable anyway to not lose events forever
+    this.backendReady = true;
+    this.flushQueue();
   }
 
   resolveEndpoint() {
     const configured = String(import.meta.env.VITE_CUSTOM_ANALYTICS_ENDPOINT || '').trim();
     if (configured) return configured;
 
-    // Use backend URL to avoid routing analytics through the frontend server
+    // In dev, use the Vite proxy (same-origin) to avoid CORS / connection issues
+    if (import.meta.env.DEV) {
+      return '/api/ecom/analytics/track';
+    }
+
+    // In production on scalor.net, use the public API
+    if (typeof window !== 'undefined' && window.location.hostname.endsWith('scalor.net')) {
+      return 'https://api.scalor.net/api/ecom/analytics/track';
+    }
+
     const backendUrl = (import.meta.env.VITE_BACKEND_URL || 'https://api.scalor.net').replace(/\/$/, '');
     return `${backendUrl}/api/ecom/analytics/track`;
   }
@@ -78,21 +105,22 @@ class AnalyticsService {
       });
     }
 
-    // Send to custom endpoint
-    if (this.isOnline) {
-      try {
-        await fetch(this.endpoint, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(payload)
-        });
-      } catch (error) {
-        console.warn('Analytics: Failed to send event', error);
+    // Queue until backend is confirmed reachable
+    if (!this.isOnline || !this.backendReady) {
+      this.queue.push(payload);
+      return;
+    }
+
+    try {
+      const res = await fetch(this.endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok && res.status >= 500) {
         this.queue.push(payload);
       }
-    } else {
+    } catch {
       this.queue.push(payload);
     }
   }
@@ -295,23 +323,9 @@ class AnalyticsService {
 // Create global instance
 const analytics = new AnalyticsService();
 
-// Auto-track page views on navigation
-let currentPath = window.location.pathname;
-const observer = new MutationObserver(() => {
-  if (window.location.pathname !== currentPath) {
-    currentPath = window.location.pathname;
-    analytics.trackPageView(currentPath);
-  }
-});
-
-observer.observe(document, { subtree: true, childList: true });
-
-// Track page load
-window.addEventListener('load', () => {
-  analytics.trackPageView(window.location.pathname, {
-    initial_load: true
-  });
-});
+// Page view tracking is handled by React components (App.jsx PageViewTracker
+// and main.jsx idle callbacks). No global MutationObserver needed — it caused
+// duplicate events and premature requests before backend readiness.
 
 
 export default analytics;

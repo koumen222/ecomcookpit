@@ -202,6 +202,8 @@ export function securityHeaders(req, res, next) {
   res.setHeader('X-XSS-Protection', '1; mode=block');
   // Empêcher le clickjacking (SAMEORIGIN permet l'iframe du builder)
   res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  // Allow Google Sign-In popup to communicate back without COOP warnings
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
   // Strict Transport Security — toujours envoyé (Cloudflare/Railway gère HTTPS)
   res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
   // Referrer Policy
@@ -228,6 +230,8 @@ export function securityHeaders(req, res, next) {
         "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
         // Paiements
         "https://js.stripe.com https://checkout.stripe.com",
+        // Google Sign-In (GSI)
+        "https://accounts.google.com https://apis.google.com",
         // Meta / Facebook
         "https://connect.facebook.net https://*.facebook.net https://*.facebook.com",
         // TikTok
@@ -282,6 +286,8 @@ export function securityHeaders(req, res, next) {
       [
         "frame-src 'self'",
         "https://js.stripe.com https://checkout.stripe.com https://hooks.stripe.com",
+        // Google Sign-In iframe
+        "https://accounts.google.com",
         // Certains tags Meta utilisent un iframe pour le tracking cross-domain
         "https://www.facebook.com https://*.facebook.com",
         "https://td.doubleclick.net",

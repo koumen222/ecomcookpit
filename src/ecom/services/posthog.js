@@ -57,15 +57,17 @@ export function initAnalytics() {
 
   posthog.init(POSTHOG_KEY, {
     api_host: POSTHOG_HOST,
-    // SPA: we capture pageviews manually via the hook
     capture_pageview: false,
-    capture_pageleave: true,
-    // Autocapture enabled for clicks / heatmaps
-    autocapture: !isDev, // Disable in dev to reduce noise
-    // Session recording (heatmaps, session replays)
-    // CRITICAL: Disable in dev to prevent request spam and loops
+    capture_pageleave: !isDev,
+    autocapture: !isDev,
     disable_session_recording: isDev,
     enable_recording_consent_check: true,
+    on_request_error: (err) => {
+      if (err?.statusCode === 401 || err?.status === 401) {
+        console.warn('[PostHog] API key unauthorized (401) — disabling analytics for this session.');
+        posthog.opt_out_capturing();
+      }
+    },
     // Privacy: mask sensitive inputs by default
     mask_all_text: false,
     mask_all_element_attributes: false,
