@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Loader2, Save, ChevronDown, Send, RotateCcw, Bell, Settings, Bot, MessageSquare, Sparkles, Package, BarChart3, Warehouse, UserCog, Headphones, Clock, Mail, Phone, Building2, MapPin, Zap, ShieldCheck, Globe2, Target, AlertTriangle, Users, MessageCircle, TrendingUp, Eye, Star, Trash2, Plus, Image, Video, X, Download, Upload, FileText, ToggleLeft, ToggleRight, Radio, PlayCircle, Truck, Megaphone } from 'lucide-react';
+import { Loader2, Save, ChevronDown, Send, RotateCcw, Bell, Settings, Bot, MessageSquare, Sparkles, Package, BarChart3, Warehouse, UserCog, Headphones, Clock, Mail, Phone, Building2, MapPin, Zap, ShieldCheck, Globe2, Target, AlertTriangle, Users, MessageCircle, TrendingUp, Eye, Star, Trash2, Plus, Image, Video, X, Download, Upload, FileText, ToggleLeft, ToggleRight, Radio, PlayCircle, Truck, Megaphone, Smile, Briefcase, Crown, Flame, Mic, Type, Volume2 } from 'lucide-react';
 import ecomApi from '../services/ecommApi.js';
 import { useEcomAuth } from '../hooks/useEcomAuth';
 import ProductImportLocal from '../components/ProductImportLocal.jsx';
@@ -27,11 +27,11 @@ const TABS = [
 ];
 
 const TONE_OPTIONS = [
-  { value: 'warm', label: '🤗 Tutoiement chaleureux', desc: 'Naturelle, humaine, proche du client' },
-  { value: 'professional', label: '💼 Tutoiement professionnel', desc: 'Sérieuse, crédible, claire' },
-  { value: 'formal', label: '🤝 Vouvoiement respectueux', desc: 'Polie, courtoise, relation premium' },
-  { value: 'humorous', label: '😄 Humoristique légère', desc: 'Ajoute des blagues courtes sans perdre le sérieux' },
-  { value: 'persuasive', label: '🔥 Persuasive', desc: 'Orientée closing, enthousiaste' },
+  { value: 'warm', label: 'Tutoiement chaleureux', desc: 'Naturelle, humaine, proche du client', Icon: Smile },
+  { value: 'professional', label: 'Tutoiement professionnel', desc: 'Sérieuse, crédible, claire', Icon: Briefcase },
+  { value: 'formal', label: 'Vouvoiement respectueux', desc: 'Polie, courtoise, relation premium', Icon: Crown },
+  { value: 'humorous', label: 'Humoristique légère', desc: 'Ajoute des blagues courtes sans perdre le sérieux', Icon: MessageCircle },
+  { value: 'persuasive', label: 'Persuasive', desc: 'Orientée closing, enthousiaste', Icon: Flame },
 ];
 
 const LANGUAGE_OPTIONS = [
@@ -82,7 +82,6 @@ const RESPONSE_MODE_OPTIONS = [
 ];
 
 const TTS_PROVIDER_OPTIONS = [
-  { value: 'elevenlabs', label: 'Voix réaliste' },
   { value: 'fishaudio', label: 'Voix ultra réaliste' },
 ];
 
@@ -1965,12 +1964,12 @@ export default function AgentConfig() {
                               : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
                           }`}
                         >
-                          <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${inst.status === 'open' ? 'bg-primary-400' : 'bg-gray-300'}`} />
+                          <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${isInstanceConnected(inst.status) ? 'bg-primary-400' : 'bg-gray-300'}`} />
                           <div className="flex-1 min-w-0">
                             <p className="text-[13px] font-semibold text-gray-800 truncate">
                               {inst.customName || inst.instanceName || 'Instance WhatsApp'}
                             </p>
-                            <p className="text-[11px] text-gray-400">{inst.status === 'open' ? 'Connectée' : 'Déconnectée'}</p>
+                            <p className="text-[11px] text-gray-400">{isInstanceConnected(inst.status) ? 'Connectée' : 'Déconnectée'}</p>
                           </div>
                           {config.instanceId === inst._id && (
                             <span className="text-[11px] font-bold text-primary-600 bg-primary-100 px-2 py-0.5 rounded-full flex-shrink-0">✓ Sélectionnée</span>
@@ -2026,7 +2025,7 @@ export default function AgentConfig() {
               {/* ── Comportement ── */}
               <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
                 <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-2">
-                  <span className="w-6 h-6 rounded-md bg-gray-100 flex items-center justify-center text-[13px]">⚙️</span>
+                  <span className="w-6 h-6 rounded-md bg-gray-100 flex items-center justify-center"><Settings size={14} className="text-gray-600" /></span>
                   <h2 className="text-[13px] font-bold text-gray-900">Comportement</h2>
                 </div>
                 <div className="p-4 space-y-4">
@@ -2039,11 +2038,12 @@ export default function AgentConfig() {
                         const active = config.toneStyle === t.value;
                         return (
                           <button key={t.value} type="button" onClick={() => set('toneStyle', t.value)}
-                            className={`text-left px-2.5 py-2 rounded-lg border text-[11px] transition-all leading-tight ${
+                            className={`flex items-center gap-1.5 text-left px-2.5 py-2 rounded-lg border text-[11px] transition-all leading-tight ${
                               active
                                 ? 'border-primary-400 bg-primary-50 text-primary-800 font-semibold'
                                 : 'border-gray-200 text-gray-500 hover:border-gray-300 hover:bg-gray-50'
                             }`}>
+                            <t.Icon size={13} className="flex-shrink-0" />
                             {t.label}
                           </button>
                         );
@@ -2072,12 +2072,12 @@ export default function AgentConfig() {
                   {/* Toggles compacts */}
                   <div className="space-y-0 divide-y divide-gray-100 border border-gray-100 rounded-xl overflow-hidden">
                     {[
-                      { key: 'useEmojis', emoji: '😊', label: 'Emojis dans les réponses' },
-                      { key: 'signMessages', emoji: '🤖', label: 'Mentionner que c\'est une IA' },
-                    ].map(({ key, emoji, label }) => (
+                      { key: 'useEmojis', Icon: Smile, label: 'Emojis dans les réponses' },
+                      { key: 'signMessages', Icon: Bot, label: 'Mentionner que c\'est une IA' },
+                    ].map(({ key, Icon: ToggleIcon, label }) => (
                       <div key={key} className="flex items-center justify-between px-3 py-2.5 bg-white">
                         <span className="text-[12px] text-gray-600 flex items-center gap-2">
-                          <span>{emoji}</span>{label}
+                          <ToggleIcon size={14} className="text-gray-400" />{label}
                         </span>
                         <button type="button" onClick={() => set(key, !config[key])}
                           className={`relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors ${config[key] ? 'bg-primary-500' : 'bg-gray-200'}`}>
@@ -2092,16 +2092,16 @@ export default function AgentConfig() {
               {/* ── Voix ── */}
               <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
                 <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-2">
-                  <span className="w-6 h-6 rounded-md bg-purple-50 flex items-center justify-center text-[13px]">🎙️</span>
+                  <span className="w-6 h-6 rounded-md bg-purple-50 flex items-center justify-center"><Mic size={14} className="text-purple-600" /></span>
                   <h2 className="text-[13px] font-bold text-gray-900">Voix</h2>
                 </div>
                 <div className="p-4 space-y-4">
                   {/* Mode selector — 3 pills */}
                   <div className="grid grid-cols-3 gap-1.5 bg-gray-100 p-1 rounded-xl">
                     {[
-                      { value: 'text', icon: '💬', label: 'Texte' },
-                      { value: 'voice', icon: '🎙️', label: 'Vocal' },
-                      { value: 'both', icon: '⚡', label: 'Mixte' },
+                      { value: 'text', Icon: Type, label: 'Texte' },
+                      { value: 'voice', Icon: Mic, label: 'Vocal' },
+                      { value: 'both', Icon: Volume2, label: 'Mixte' },
                     ].map(m => {
                       const isActive = (config.responseMode || 'text') === m.value;
                       return (
@@ -2109,7 +2109,7 @@ export default function AgentConfig() {
                           className={`flex flex-col items-center gap-0.5 py-2 rounded-lg text-[11px] font-semibold transition-all ${
                             isActive ? 'bg-white shadow-sm text-primary-700' : 'text-gray-400 hover:text-gray-600'
                           }`}>
-                          <span className="text-base leading-none">{m.icon}</span>
+                          <m.Icon size={16} />
                           {m.label}
                         </button>
                       );
