@@ -12,7 +12,7 @@ const fmt = (n) => (n || 0).toLocaleString('fr-FR');
 const statusLabels = { pending: 'En attente', approved: 'Approuvée', paid: 'Payée', rejected: 'Rejetée' };
 const statusColors = {
   pending: 'bg-amber-100 text-amber-800',
-  approved: 'bg-emerald-100 text-emerald-800',
+  approved: 'bg-primary-100 text-primary-800',
   paid: 'bg-blue-100 text-blue-800',
   rejected: 'bg-red-100 text-red-800',
 };
@@ -113,11 +113,11 @@ export default function AffiliateCommissions() {
           </div>
           <div className="bg-white border border-gray-200 rounded-xl p-4">
             <div className="flex items-center gap-2 mb-2">
-              <div className="w-8 h-8 bg-emerald-50 text-emerald-600 rounded-lg flex items-center justify-center">
+              <div className="w-8 h-8 bg-primary-50 text-primary-600 rounded-lg flex items-center justify-center">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
               </div>
             </div>
-            <p className="text-xl font-bold text-emerald-700">{fmt(kpis?.approvedCommissions)} <span className="text-sm font-medium">F</span></p>
+            <p className="text-xl font-bold text-primary-700">{fmt(kpis?.approvedCommissions)} <span className="text-sm font-medium">F</span></p>
             <p className="text-[11px] uppercase tracking-wide text-gray-500 mt-0.5">Approuvées</p>
           </div>
           <div className="bg-white border border-gray-200 rounded-xl p-4">

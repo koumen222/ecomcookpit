@@ -63,7 +63,7 @@ export default function Formation() {
             </span>
           </div>
           <p className="text-sm font-semibold text-gray-600 whitespace-nowrap">
-            Incluse <span className="text-emerald-600 font-bold">gratuitement</span> dans votre compte Scalor
+            Incluse <span className="text-primary-600 font-bold">gratuitement</span> dans votre compte Scalor
           </p>
         </div>
       </div>
@@ -80,17 +80,17 @@ export default function Formation() {
               <div
                 key={ch.id}
                 className={`rounded-xl border overflow-hidden transition-all ${
-                  isOpen ? 'border-emerald-400' : 'border-gray-100'
+                  isOpen ? 'border-primary-400' : 'border-gray-100'
                 }`}
               >
                 {/* Ligne chapitre */}
                 <button
                   onClick={() => toggle(ch.id)}
                   className={`w-full flex items-center gap-4 px-4 py-3 text-left transition cursor-pointer ${
-                    isOpen ? 'bg-emerald-50' : 'bg-white hover:bg-emerald-50/30'
+                    isOpen ? 'bg-primary-50' : 'bg-white hover:bg-primary-50/30'
                   }`}
                 >
-                  <span className={`w-8 flex items-center justify-center flex-shrink-0 ${isOpen ? 'text-emerald-600' : 'text-emerald-500'}`}>
+                  <span className={`w-8 flex items-center justify-center flex-shrink-0 ${isOpen ? 'text-primary-600' : 'text-primary-500'}`}>
                     {icons[ch.icon]}
                   </span>
                   <div className="flex-1 min-w-0">
@@ -98,7 +98,7 @@ export default function Formation() {
                     <span className="text-sm font-semibold text-gray-800">{ch.title}</span>
                   </div>
                   <span className="text-xs text-gray-400 flex-shrink-0">{ch.duration}</span>
-                  <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 transition-transform ${isOpen ? 'bg-emerald-500 rotate-90' : 'bg-gray-100'}`}>
+                  <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 transition-transform ${isOpen ? 'bg-primary-500 rotate-90' : 'bg-gray-100'}`}>
                     <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={isOpen ? '#fff' : '#9ca3af'} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                       <polygon points="5 3 19 12 5 21 5 3"/>
                     </svg>

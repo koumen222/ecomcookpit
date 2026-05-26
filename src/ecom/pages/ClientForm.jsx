@@ -90,12 +90,12 @@ const ClientForm = () => {
   if (fetchLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
       </div>
     );
   }
 
-  const inputClass = "block w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:border-transparent text-sm";
+  const inputClass = "block w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-transparent text-sm";
   const labelClass = "block text-sm font-medium text-gray-700 mb-1";
 
   return (
@@ -203,7 +203,7 @@ const ClientForm = () => {
           <button
             type="submit"
             disabled={loading}
-            className="flex-1 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition text-sm font-medium disabled:opacity-50"
+            className="flex-1 py-2.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition text-sm font-medium disabled:opacity-50"
           >
             {loading ? (isEdit ? 'Modification...' : 'Création...') : (isEdit ? 'Enregistrer les modifications' : 'Créer le client')}
           </button>

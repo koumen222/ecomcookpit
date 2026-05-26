@@ -14,12 +14,12 @@ const fmtF = (n) => `${fmt(n)} F`;
 const STATUS = {
   research:  { label: 'Recherche', cls: 'bg-sky-100 text-sky-700' },
   testing:   { label: 'Test',      cls: 'bg-amber-100 text-amber-700' },
-  validated: { label: 'Validé',    cls: 'bg-emerald-100 text-emerald-700' },
+  validated: { label: 'Validé',    cls: 'bg-primary-100 text-primary-700' },
   rejected:  { label: 'Rejeté',    cls: 'bg-red-100 text-red-600' },
 };
 
 const marginColor = (m) =>
-  m >= 60 ? 'text-emerald-600' : m >= 40 ? 'text-amber-500' : 'text-red-500';
+  m >= 60 ? 'text-primary-600' : m >= 40 ? 'text-amber-500' : 'text-red-500';
 
 const Badge = ({ status }) => {
   const s = STATUS[status] || STATUS.research;
@@ -29,7 +29,7 @@ const Badge = ({ status }) => {
 const LinkPill = ({ href, label }) =>
   href ? (
     <a href={href} target="_blank" rel="noopener noreferrer"
-      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#E6F2ED] text-[#0F6B4F] text-[11px] font-semibold hover:bg-emerald-100 transition">
+      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#E6F2ED] text-[#0F6B4F] text-[11px] font-semibold hover:bg-primary-100 transition">
       {label} <ExternalLink className="w-2.5 h-2.5" />
     </a>
   ) : null;
@@ -72,7 +72,7 @@ const DetailPanel = ({ product, onClose, onEdit, onDelete, onPassToTest }) => {
             </div>
             <div className="bg-gray-50 rounded-xl p-3 text-center">
               <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Bénéfice</p>
-              <p className="text-lg font-bold mt-0.5 text-emerald-600">{fmtF(product.profit)}</p>
+              <p className="text-lg font-bold mt-0.5 text-primary-600">{fmtF(product.profit)}</p>
             </div>
             <div className="bg-gray-50 rounded-xl p-3 text-center">
               <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Score</p>
@@ -141,11 +141,11 @@ const DetailPanel = ({ product, onClose, onEdit, onDelete, onPassToTest }) => {
             <div className="grid grid-cols-2 gap-3">
               {product.pros?.filter(p=>p).length > 0 && (
                 <div>
-                  <p className="text-[11px] font-bold text-emerald-600 uppercase tracking-widest mb-1.5">✓ Forces</p>
+                  <p className="text-[11px] font-bold text-primary-600 uppercase tracking-widest mb-1.5">✓ Forces</p>
                   <ul className="space-y-1">
                     {product.pros.filter(p=>p).map((p,i) => (
                       <li key={i} className="text-xs text-gray-600 flex items-start gap-1.5">
-                        <span className="text-emerald-400 mt-0.5">•</span>{p}
+                        <span className="text-primary-400 mt-0.5">•</span>{p}
                       </li>
                     ))}
                   </ul>
@@ -320,7 +320,7 @@ const ProductResearchList = () => {
           {[
             { label: 'Total', value: products.length, color: 'text-gray-900' },
             { label: 'En test', value: testingCount, color: 'text-amber-600' },
-            { label: 'Validés', value: validatedCount, color: 'text-emerald-600' },
+            { label: 'Validés', value: validatedCount, color: 'text-primary-600' },
             { label: 'Marge moy.', value: `${avgMargin.toFixed(0)}%`, color: marginColor(avgMargin) },
           ].map(({ label, value, color }) => (
             <div key={label} className="bg-white rounded-2xl border border-gray-100 p-3 text-center">

@@ -15,8 +15,8 @@ const I = {
   truck: 'M8 14H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v6a2 2 0 01-2 2h-3m-4 0v3a2 2 0 01-2 2H8a2 2 0 01-2-2v-3m4 0h-4'
 };
 
-const Ico = ({d, className="w-5 h-5"}) => (
-  <svg className={className} fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+const Ico = ({d, className="w-5 h-5", ...props}) => (
+  <svg className={className} fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24" {...props}>
     <path strokeLinecap="round" strokeLinejoin="round" d={d}/>
   </svg>
 );
@@ -49,7 +49,7 @@ export default function SourcingStats() {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="w-16 h-16 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <div className="w-16 h-16 border-4 border-primary-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-gray-600 font-medium">Chargement des statistiques...</p>
         </div>
       </div>
@@ -83,12 +83,12 @@ export default function SourcingStats() {
       <div className="bg-white border-b border-gray-100 sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-5">
           <div className="flex items-center gap-4">
-            <button onClick={() => navigate('/ecom/sourcing')} className="p-2 -ml-2 rounded-lg hover:bg-gray-50 text-gray-400 hover:text-gray-900 transition">
-              <Ico d={I.back} className="w-5 h-5"/>
+            <button onClick={() => navigate('/ecom/sourcing')} aria-label="Retour au sourcing" className="p-2 -ml-2 rounded-lg hover:bg-gray-100 active:scale-95 text-gray-400 hover:text-gray-900 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:ring-offset-1">
+              <Ico d={I.back} className="w-5 h-5" aria-hidden="true" />
             </button>
             <div>
               <h1 className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight flex items-center gap-2">
-                <Ico d={I.chart} className="w-6 h-6 text-emerald-600" />
+                <Ico d={I.chart} className="w-6 h-6 text-primary-600" />
                 Statistiques Sourcing
               </h1>
               <p className="text-sm text-gray-500 mt-1 font-medium">Vue d'ensemble complète des commandes et paiements</p>
@@ -100,222 +100,167 @@ export default function SourcingStats() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
         
         {/* Vue d'ensemble commandes */}
-        <div className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
-          <h2 className="text-sm font-semibold text-gray-700 mb-3">📦 Vue d'ensemble</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        <section aria-labelledby="overview-title">
+          <h2 id="overview-title" className="text-base font-bold text-gray-900 mb-3 flex items-center gap-2">
+            <Ico d={I.package} className="w-5 h-5 text-gray-400" aria-hidden="true" />
+            Vue d'ensemble
+          </h2>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <StatCard icon={I.package} label="Total" value={orders.total} color="blue" />
             <StatCard icon={I.truck} label="En transit" value={orders.inTransit} color="orange" />
             <StatCard icon={I.check} label="Reçues" value={orders.received} color="emerald" />
             <StatCard icon={I.x} label="Annulées" value={orders.cancelled} color="red" />
           </div>
-        </div>
+        </section>
 
         {/* Montant à prévoir */}
-        <div className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
-          <h2 className="text-sm font-semibold text-gray-700 mb-3">💰 Montant à prévoir (En transit)</h2>
+        <section aria-labelledby="toplan-title">
+          <h2 id="toplan-title" className="text-base font-bold text-gray-900 mb-3 flex items-center gap-2">
+            <Ico d={I.alert} className="w-5 h-5 text-orange-500" aria-hidden="true" />
+            Montant à prévoir
+            <span className="text-sm font-medium text-gray-400">(commandes en transit, impayées)</span>
+          </h2>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="bg-orange-50 rounded-lg p-3 border border-orange-100">
-              <div className="flex items-center gap-2 mb-2">
-                <div className="w-8 h-8 bg-orange-100 rounded-md flex items-center justify-center">
+            <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Chine</p>
+                <div className="w-7 h-7 rounded-lg bg-orange-100 flex items-center justify-center" aria-hidden="true">
                   <Ico d={I.cash} className="w-4 h-4 text-orange-600" />
                 </div>
-                <div>
-                  <p className="text-xs font-medium text-orange-700">Chine</p>
-                  <p className="text-lg font-bold text-orange-800">{formatMoney(toPlan.china.total)}</p>
-                </div>
               </div>
-              <div className="space-y-1 text-xs">
-                <div className="flex justify-between">
-                  <span className="text-orange-600">Achat:</span>
-                  <span className="font-medium text-orange-800">{formatMoney(toPlan.china.purchase)}</span>
+              <p className="text-2xl font-black text-gray-900 tabular-nums mb-3">{formatMoney(toPlan.china.total)}</p>
+              <div className="space-y-1.5 pt-3 border-t border-gray-100">
+                <div className="flex justify-between text-xs font-medium">
+                  <span className="text-gray-500">Achat</span>
+                  <span className="text-gray-900 tabular-nums">{formatMoney(toPlan.china.purchase)}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-orange-600">Transport:</span>
-                  <span className="font-medium text-orange-800">{formatMoney(toPlan.china.transport)}</span>
+                <div className="flex justify-between text-xs font-medium">
+                  <span className="text-gray-500">Transport</span>
+                  <span className="text-gray-900 tabular-nums">{formatMoney(toPlan.china.transport)}</span>
                 </div>
-                <div className="flex justify-between pt-1 border-t border-orange-200">
-                  <span className="text-orange-600">Commandes:</span>
-                  <span className="font-medium text-orange-800">{toPlan.china.orders}</span>
+                <div className="flex justify-between text-xs font-medium pt-1 border-t border-gray-100">
+                  <span className="text-gray-400">{toPlan.china.orders} commande{toPlan.china.orders > 1 ? 's' : ''}</span>
                 </div>
               </div>
             </div>
 
-            <div className="bg-blue-50 rounded-lg p-3 border border-blue-100">
-              <div className="flex items-center gap-2 mb-2">
-                <div className="w-8 h-8 bg-blue-100 rounded-md flex items-center justify-center">
+            <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Local</p>
+                <div className="w-7 h-7 rounded-lg bg-blue-100 flex items-center justify-center" aria-hidden="true">
                   <Ico d={I.cash} className="w-4 h-4 text-blue-600" />
                 </div>
-                <div>
-                  <p className="text-xs font-medium text-blue-700">Local</p>
-                  <p className="text-lg font-bold text-blue-800">{formatMoney(toPlan.local.total)}</p>
-                </div>
               </div>
-              <div className="space-y-1 text-xs">
-                <div className="flex justify-between pt-1 border-t border-blue-200">
-                  <span className="text-blue-600">Commandes:</span>
-                  <span className="font-medium text-blue-800">{toPlan.local.orders}</span>
-                </div>
+              <p className="text-2xl font-black text-gray-900 tabular-nums mb-3">{formatMoney(toPlan.local.total)}</p>
+              <div className="pt-3 border-t border-gray-100">
+                <span className="text-xs font-medium text-gray-400">{toPlan.local.orders} commande{toPlan.local.orders > 1 ? 's' : ''}</span>
               </div>
             </div>
 
-            <div className="bg-purple-50 rounded-lg p-3 border border-purple-100">
-              <div className="flex items-center gap-2 mb-2">
-                <div className="w-8 h-8 bg-purple-100 rounded-md flex items-center justify-center">
-                  <Ico d={I.chart} className="w-4 h-4 text-purple-600" />
-                </div>
-                <div>
-                  <p className="text-xs font-medium text-purple-700">Total</p>
-                  <p className="text-lg font-bold text-purple-800">{formatMoney(toPlan.grandTotal)}</p>
+            <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl p-5 shadow-sm">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-xs font-semibold text-purple-100 uppercase tracking-wide">Total à prévoir</p>
+                <div className="w-7 h-7 rounded-lg bg-white/20 flex items-center justify-center" aria-hidden="true">
+                  <Ico d={I.chart} className="w-4 h-4 text-white" />
                 </div>
               </div>
-              <div className="space-y-1 text-xs">
-                <div className="flex justify-between pt-1 border-t border-purple-200">
-                  <span className="text-purple-600">Total commandes:</span>
-                  <span className="font-medium text-purple-800">{toPlan.china.orders + toPlan.local.orders}</span>
-                </div>
+              <p className="text-2xl font-black text-white tabular-nums mb-3">{formatMoney(toPlan.grandTotal)}</p>
+              <div className="pt-3 border-t border-white/20">
+                <span className="text-xs font-medium text-purple-100">{toPlan.china.orders + toPlan.local.orders} commande{(toPlan.china.orders + toPlan.local.orders) > 1 ? 's' : ''} en attente</span>
               </div>
             </div>
           </div>
+        </section>
+
+        {/* Paiements Chine + Local — côte à côte */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Chine */}
+          <section aria-labelledby="china-title" className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm space-y-5">
+            <h2 id="china-title" className="text-base font-bold text-gray-900 flex items-center gap-2">
+              Paiements Chine
+              <span className="ml-auto text-xs font-semibold text-gray-400 bg-gray-100 px-2 py-1 rounded-full">{payment.china.total} commandes</span>
+            </h2>
+            <div className="space-y-2">
+              <PaymentStatusRow label="Entièrement payé" value={payment.china.fullyPaid} total={payment.china.total} color="emerald" />
+              <PaymentStatusRow label="Partiellement payé" value={payment.china.partiallyPaid} total={payment.china.total} color="yellow" />
+              <PaymentStatusRow label="Non payé" value={payment.china.unpaid} total={payment.china.total} color="red" />
+            </div>
+            <div className="space-y-3 pt-4 border-t border-gray-100">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Achat Chine</p>
+              <AmountRow label="Total" value={formatMoney(payment.china.amounts.totalPurchase)} />
+              <AmountRow label="Payé" value={formatMoney(payment.china.amounts.paidPurchase)} color="emerald" />
+              <AmountRow label="Impayé" value={formatMoney(payment.china.amounts.unpaidPurchase)} color="red" />
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide pt-2">Transport</p>
+              <AmountRow label="Total" value={formatMoney(payment.china.amounts.totalTransport)} />
+              <AmountRow label="Payé" value={formatMoney(payment.china.amounts.paidTransport)} color="emerald" />
+              <AmountRow label="Impayé" value={formatMoney(payment.china.amounts.unpaidTransport)} color="red" />
+            </div>
+          </section>
+
+          {/* Local */}
+          <section aria-labelledby="local-title" className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm space-y-5">
+            <h2 id="local-title" className="text-base font-bold text-gray-900 flex items-center gap-2">
+              Paiements Local
+              <span className="ml-auto text-xs font-semibold text-gray-400 bg-gray-100 px-2 py-1 rounded-full">{payment.local.total} commandes</span>
+            </h2>
+            <div className="space-y-2">
+              <PaymentStatusRow label="Payé" value={payment.local.paid} total={payment.local.total} color="emerald" />
+              <PaymentStatusRow label="Non payé" value={payment.local.unpaid} total={payment.local.total} color="red" />
+            </div>
+            <div className="space-y-3 pt-4 border-t border-gray-100">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Montants</p>
+              <AmountRow label="Total" value={formatMoney(payment.local.amounts.total)} />
+              <AmountRow label="Payé" value={formatMoney(payment.local.amounts.paid)} color="emerald" />
+              <AmountRow label="Impayé" value={formatMoney(payment.local.amounts.unpaid)} color="red" />
+            </div>
+          </section>
         </div>
 
-        {/* Statuts de paiement - Chine */}
-        <div>
-          <h2 className="text-lg font-bold text-gray-900 mb-4">🇨🇳 Paiements Chine ({payment.china.total} commandes)</h2>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Statuts */}
-            <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
-              <h3 className="font-bold text-gray-900 mb-4">Statuts de paiement</h3>
-              <div className="space-y-3">
-                <PaymentStatusRow label="Entièrement payé" value={payment.china.fullyPaid} total={payment.china.total} color="emerald" />
-                <PaymentStatusRow label="Partiellement payé" value={payment.china.partiallyPaid} total={payment.china.total} color="yellow" />
-                <PaymentStatusRow label="Non payé" value={payment.china.unpaid} total={payment.china.total} color="red" />
-              </div>
-              <div className="mt-4 pt-4 border-t border-gray-100 space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Achat payé:</span>
-                  <span className="font-bold text-gray-900">{payment.china.paidPurchase} commandes</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Transport payé:</span>
-                  <span className="font-bold text-gray-900">{payment.china.paidTransport} commandes</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Montants */}
-            <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
-              <h3 className="font-bold text-gray-900 mb-4">Montants détaillés</h3>
-              <div className="space-y-4">
-                <div>
-                  <p className="text-sm text-gray-600 mb-2">Achat Chine</p>
-                  <div className="space-y-1">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-500">Total:</span>
-                      <span className="font-bold text-gray-900">{formatMoney(payment.china.amounts.totalPurchase)}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-emerald-600">Payé:</span>
-                      <span className="font-bold text-emerald-600">{formatMoney(payment.china.amounts.paidPurchase)}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-red-600">Impayé:</span>
-                      <span className="font-bold text-red-600">{formatMoney(payment.china.amounts.unpaidPurchase)}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="pt-4 border-t border-gray-100">
-                  <p className="text-sm text-gray-600 mb-2">Transport</p>
-                  <div className="space-y-1">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-500">Total:</span>
-                      <span className="font-bold text-gray-900">{formatMoney(payment.china.amounts.totalTransport)}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-emerald-600">Payé:</span>
-                      <span className="font-bold text-emerald-600">{formatMoney(payment.china.amounts.paidTransport)}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-red-600">Impayé:</span>
-                      <span className="font-bold text-red-600">{formatMoney(payment.china.amounts.unpaidTransport)}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Statuts de paiement - Local */}
-        <div>
-          <h2 className="text-lg font-bold text-gray-900 mb-4">🇨🇲 Paiements Local ({payment.local.total} commandes)</h2>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
-              <h3 className="font-bold text-gray-900 mb-4">Statuts de paiement</h3>
-              <div className="space-y-3">
-                <PaymentStatusRow label="Payé" value={payment.local.paid} total={payment.local.total} color="emerald" />
-                <PaymentStatusRow label="Non payé" value={payment.local.unpaid} total={payment.local.total} color="red" />
-              </div>
-            </div>
-
-            <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
-              <h3 className="font-bold text-gray-900 mb-4">Montants</h3>
-              <div className="space-y-2">
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Total:</span>
-                  <span className="font-bold text-gray-900">{formatMoney(payment.local.amounts.total)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-emerald-600">Payé:</span>
-                  <span className="font-bold text-emerald-600">{formatMoney(payment.local.amounts.paid)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-red-600">Impayé:</span>
-                  <span className="font-bold text-red-600">{formatMoney(payment.local.amounts.unpaid)}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Statistiques produits */}
-        <div>
-          <h2 className="text-lg font-bold text-gray-900 mb-4">📦 Statistiques Produits</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Produits */}
+        <section aria-labelledby="products-title">
+          <h2 id="products-title" className="text-base font-bold text-gray-900 mb-3 flex items-center gap-2">
+            <Ico d={I.package} className="w-5 h-5 text-gray-400" aria-hidden="true" />
+            Statistiques Produits
+          </h2>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <StatCard icon={I.package} label="Total produits" value={products.total} color="blue" />
             <StatCard icon={I.package} label="Stock total" value={products.totalStock} color="purple" />
-            <StatCard icon={I.cash} label="Valeur stock" value={formatMoney(products.totalStockValue)} color="emerald" isAmount />
+            <StatCard icon={I.cash} label="Valeur stock" value={formatMoney(products.totalStockValue)} color="emerald" />
             <StatCard icon={I.alert} label="Stock faible" value={products.lowStock} color="orange" />
           </div>
-
           {products.lowStockProducts && products.lowStockProducts.length > 0 && (
-            <div className="mt-4 bg-orange-50 border border-orange-200 rounded-xl p-4">
-              <h3 className="font-bold text-orange-900 mb-3 flex items-center gap-2">
-                <Ico d={I.alert} className="w-5 h-5" />
+            <div className="mt-4 bg-orange-50 border border-orange-200 rounded-2xl p-4">
+              <h3 className="font-bold text-orange-900 mb-3 flex items-center gap-2 text-sm">
+                <Ico d={I.alert} className="w-4 h-4" aria-hidden="true" />
                 Produits en stock faible
               </h3>
               <div className="space-y-2">
                 {products.lowStockProducts.map(p => (
-                  <div key={p._id} className="flex justify-between items-center text-sm bg-white rounded-lg p-3">
-                    <span className="font-medium text-gray-900">{p.name}</span>
-                    <span className="text-orange-600 font-bold">Stock: {p.stock} / Seuil: {p.reorderThreshold}</span>
+                  <div key={p._id} className="flex justify-between items-center text-sm bg-white rounded-xl p-3 border border-orange-100">
+                    <span className="font-semibold text-gray-900">{p.name}</span>
+                    <span className="text-xs font-bold text-orange-700 bg-orange-100 px-2 py-1 rounded-full tabular-nums">
+                      {p.stock} / {p.reorderThreshold}
+                    </span>
                   </div>
                 ))}
               </div>
             </div>
           )}
-        </div>
+        </section>
 
         {/* Résumé financier */}
-        <div>
-          <h2 className="text-lg font-bold text-gray-900 mb-4">💵 Résumé Financier</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <StatCard icon={I.cash} label="Total investi" value={formatMoney(financial.totalInvested)} color="blue" isAmount />
-            <StatCard icon={I.check} label="Total payé" value={formatMoney(financial.totalPaid)} color="emerald" isAmount />
-            <StatCard icon={I.alert} label="Total impayé" value={formatMoney(financial.totalUnpaid)} color="red" isAmount />
-            <StatCard icon={I.chart} label="Profit potentiel" value={formatMoney(financial.totalPotentialProfit)} color="purple" isAmount />
+        <section aria-labelledby="financial-title">
+          <h2 id="financial-title" className="text-base font-bold text-gray-900 mb-3 flex items-center gap-2">
+            <Ico d={I.cash} className="w-5 h-5 text-gray-400" aria-hidden="true" />
+            Résumé Financier
+          </h2>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <StatCard icon={I.cash} label="Total investi" value={formatMoney(financial.totalInvested)} color="blue" />
+            <StatCard icon={I.check} label="Total payé" value={formatMoney(financial.totalPaid)} color="emerald" />
+            <StatCard icon={I.alert} label="Total impayé" value={formatMoney(financial.totalUnpaid)} color="red" />
+            <StatCard icon={I.chart} label="Profit potentiel" value={formatMoney(financial.totalPotentialProfit)} color="purple" />
           </div>
-        </div>
+        </section>
 
       </div>
     </div>
@@ -323,55 +268,59 @@ export default function SourcingStats() {
 }
 
 function StatCard({ icon, label, value, color }) {
-  const colors = {
-    blue: 'bg-blue-50 text-blue-600 border-blue-100',
-    emerald: 'bg-emerald-50 text-emerald-600 border-emerald-100',
-    orange: 'bg-orange-50 text-orange-600 border-orange-100',
-    red: 'bg-red-50 text-red-600 border-red-100',
-    purple: 'bg-purple-50 text-purple-600 border-purple-100',
-    yellow: 'bg-yellow-50 text-yellow-600 border-yellow-100'
+  const cfg = {
+    blue:    { bg: 'bg-white border-gray-100', badge: 'bg-blue-100', icon: 'text-blue-600' },
+    emerald: { bg: 'bg-white border-gray-100', badge: 'bg-primary-100', icon: 'text-primary-600' },
+    orange:  { bg: 'bg-white border-gray-100', badge: 'bg-orange-100', icon: 'text-orange-600' },
+    red:     { bg: 'bg-white border-gray-100', badge: 'bg-red-100', icon: 'text-red-600' },
+    purple:  { bg: 'bg-white border-gray-100', badge: 'bg-purple-100', icon: 'text-purple-600' },
+    yellow:  { bg: 'bg-white border-gray-100', badge: 'bg-yellow-100', icon: 'text-yellow-600' },
   };
+  const c = cfg[color] || cfg.blue;
 
   return (
-    <div className={`p-3 rounded-lg border ${colors[color]} shadow-xs`}>
-      <div className="flex items-center gap-2">
-        <div className={`w-8 h-8 rounded-md flex items-center justify-center ${colors[color].split(' ')[0]} ${colors[color].split(' ')[1]}`}>
-          <Ico d={icon} className="w-4 h-4" />
-        </div>
-        <div className="flex-1">
-          <p className="text-xs font-medium text-gray-500">{label}</p>
-          <p className="text-lg font-bold text-gray-900">{value}</p>
+    <div className={`${c.bg} border rounded-2xl p-4 shadow-sm flex flex-col gap-2`}>
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{label}</p>
+        <div className={`w-7 h-7 rounded-lg ${c.badge} flex items-center justify-center`} aria-hidden="true">
+          <Ico d={icon} className={`w-4 h-4 ${c.icon}`} />
         </div>
       </div>
+      <p className="text-2xl font-black text-gray-900 tabular-nums leading-tight">{value}</p>
+    </div>
+  );
+}
+
+function AmountRow({ label, value, color }) {
+  const textColor = color === 'emerald' ? 'text-primary-700' : color === 'red' ? 'text-red-600' : 'text-gray-900';
+  return (
+    <div className="flex justify-between items-center text-sm">
+      <span className="text-gray-500 font-medium">{label}</span>
+      <span className={`font-bold tabular-nums ${textColor}`}>{value}</span>
     </div>
   );
 }
 
 function PaymentStatusRow({ label, value, total, color }) {
   const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : '0.0';
-  
-  const colors = {
-    emerald: 'bg-emerald-400',
-    yellow: 'bg-amber-400',
-    red: 'bg-rose-400'
-  };
-
-  const textColors = {
-    emerald: 'text-emerald-700',
-    yellow: 'text-amber-700',
-    red: 'text-rose-700'
-  };
+  const barColor = { emerald: 'bg-primary-400', yellow: 'bg-amber-400', red: 'bg-rose-400' };
+  const textColor = { emerald: 'text-primary-700', yellow: 'text-amber-700', red: 'text-rose-700' };
 
   return (
-    <div className="flex items-center gap-3 py-2">
-      <div className="flex-1">
-        <div className="flex justify-between items-center mb-1">
-          <span className="text-xs font-medium text-gray-600">{label}</span>
-          <span className={`text-xs font-bold ${textColors[color]}`}>{value} ({percentage}%)</span>
-        </div>
-        <div className="w-full bg-gray-50 rounded-full h-1.5">
-          <div className={`h-1.5 rounded-full ${colors[color]} transition-all duration-300`} style={{ width: `${percentage}%` }}></div>
-        </div>
+    <div className="py-1.5">
+      <div className="flex justify-between items-center mb-1.5">
+        <span className="text-sm font-medium text-gray-700">{label}</span>
+        <span className={`text-xs font-bold tabular-nums ${textColor[color]}`}>{value} <span className="text-gray-400 font-normal">({percentage}%)</span></span>
+      </div>
+      <div
+        className="w-full bg-gray-100 rounded-full h-2"
+        role="progressbar"
+        aria-valuenow={parseFloat(percentage)}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-label={label}
+      >
+        <div className={`h-2 rounded-full ${barColor[color]} transition-all duration-500`} style={{ width: `${percentage}%` }} />
       </div>
     </div>
   );

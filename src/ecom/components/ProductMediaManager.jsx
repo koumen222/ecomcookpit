@@ -107,7 +107,7 @@ export default function ProductMediaManager({
           onClick={() => setActiveTab('images')}
           className={`px-4 py-2 font-medium transition ${
             activeTab === 'images'
-              ? 'text-emerald-600 border-b-2 border-emerald-600'
+              ? 'text-primary-600 border-b-2 border-primary-600'
               : 'text-gray-600 hover:text-gray-900'
           }`}
         >
@@ -118,7 +118,7 @@ export default function ProductMediaManager({
           onClick={() => setActiveTab('videos')}
           className={`px-4 py-2 font-medium transition ${
             activeTab === 'videos'
-              ? 'text-emerald-600 border-b-2 border-emerald-600'
+              ? 'text-primary-600 border-b-2 border-primary-600'
               : 'text-gray-600 hover:text-gray-900'
           }`}
         >
@@ -131,7 +131,7 @@ export default function ProductMediaManager({
       {activeTab === 'images' && (
         <div className="space-y-4">
           {/* Upload Zone */}
-          <div className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-emerald-500 transition">
+          <div className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-primary-500 transition">
             <input
               type="file"
               accept="image/*"
@@ -145,11 +145,11 @@ export default function ProductMediaManager({
               htmlFor="image-upload"
               className="cursor-pointer flex flex-col items-center gap-3"
             >
-              <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center">
+              <div className="w-16 h-16 bg-primary-50 rounded-full flex items-center justify-center">
                 {uploadingImages ? (
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600" />
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600" />
                 ) : (
-                  <Upload className="text-emerald-600" size={32} />
+                  <Upload className="text-primary-600" size={32} />
                 )}
               </div>
               <div>
@@ -203,7 +203,7 @@ export default function ProductMediaManager({
 
                             {/* Badge première image */}
                             {index === 0 && (
-                              <div className="absolute top-2 right-2 bg-emerald-500 text-white text-xs font-bold px-2 py-1 rounded">
+                              <div className="absolute top-2 right-2 bg-primary-500 text-white text-xs font-bold px-2 py-1 rounded">
                                 Principal
                               </div>
                             )}
@@ -222,7 +222,7 @@ export default function ProductMediaManager({
                               value={image.alt || ''}
                               onChange={(e) => updateImageAlt(index, e.target.value)}
                               placeholder="Texte alternatif..."
-                              className="mt-2 w-full text-xs border border-gray-300 rounded px-2 py-1 focus:ring-1 focus:ring-emerald-500 focus:border-transparent"
+                              className="mt-2 w-full text-xs border border-gray-300 rounded px-2 py-1 focus:ring-1 focus:ring-primary-500 focus:border-transparent"
                             />
                           </div>
                         )}
@@ -250,11 +250,11 @@ export default function ProductMediaManager({
           {!showVideoForm && (
             <button
               onClick={() => setShowVideoForm(true)}
-              className="w-full border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-emerald-500 transition"
+              className="w-full border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-primary-500 transition"
             >
               <div className="flex flex-col items-center gap-3">
-                <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center">
-                  <Plus className="text-emerald-600" size={32} />
+                <div className="w-16 h-16 bg-primary-50 rounded-full flex items-center justify-center">
+                  <Plus className="text-primary-600" size={32} />
                 </div>
                 <div>
                   <p className="text-lg font-medium text-gray-900">Ajouter une vidéo</p>
@@ -315,7 +315,7 @@ export default function ProductMediaManager({
               <div className="flex gap-2">
                 <button
                   onClick={addVideo}
-                  className="flex-1 bg-emerald-500 text-white px-4 py-2 rounded-lg hover:bg-emerald-600 transition"
+                  className="flex-1 bg-primary-500 text-white px-4 py-2 rounded-lg hover:bg-primary-600 transition"
                 >
                   Ajouter
                 </button>

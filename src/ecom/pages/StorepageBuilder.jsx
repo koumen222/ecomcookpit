@@ -390,7 +390,7 @@ function HeroBgUploader({ value, onChange }) {
               <X className="w-3.5 h-3.5" />Supprimer
             </button>
           </div>
-          <div className="absolute top-2 left-2 bg-emerald-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+          <div className="absolute top-2 left-2 bg-primary-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
             Image chargée
           </div>
         </div>
@@ -1551,7 +1551,7 @@ const StorepageBuilder = () => {
           <button
             onClick={handleSave}
             disabled={saving}
-            className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white rounded-lg transition shadow-sm ${saved ? 'bg-emerald-500' : 'bg-indigo-600 hover:bg-indigo-700'} disabled:opacity-50`}
+            className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white rounded-lg transition shadow-sm ${saved ? 'bg-primary-500' : 'bg-indigo-600 hover:bg-indigo-700'} disabled:opacity-50`}
           >
             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : saved ? <Check className="w-4 h-4" /> : <Save className="w-4 h-4" />}
             {saved ? 'Publié !' : 'Publier'}
@@ -1652,7 +1652,7 @@ const StorepageBuilder = () => {
                 <div className="flex-1 bg-white border border-gray-100 rounded px-2 py-0.5 text-[11px] text-gray-400 font-mono truncate">
                   {window.location.origin}/store/{subdomain}
                 </div>
-                <span className="text-[10px] text-emerald-600 font-semibold bg-emerald-50 px-2 py-0.5 rounded-full flex-shrink-0">● Live</span>
+                <span className="text-[10px] text-primary-600 font-semibold bg-primary-50 px-2 py-0.5 rounded-full flex-shrink-0">● Live</span>
               </div>
 
               <iframe

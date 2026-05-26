@@ -202,20 +202,20 @@ const GenerationOverlay = ({ currentStep, storeName, logoUrl, includeLogoStep = 
     <div className="fixed inset-0 z-[100] bg-[linear-gradient(180deg,#ffffff_0%,#f7fbf9_100%)] flex items-center justify-center px-6 py-10">
       <div className="w-full max-w-2xl rounded-[32px] border border-slate-200/90 bg-white shadow-[0_1px_3px_rgba(60,64,67,0.16),0_12px_36px_rgba(60,64,67,0.12)] overflow-hidden">
         <div className="relative border-b border-slate-100 px-8 py-10 sm:px-10">
-          <div className="absolute -right-16 -top-16 h-48 w-48 rounded-full bg-emerald-50 blur-3xl" />
-          <div className="absolute bottom-8 right-10 h-3 w-3 rounded-full bg-emerald-500/70" />
+          <div className="absolute -right-16 -top-16 h-48 w-48 rounded-full bg-primary-50 blur-3xl" />
+          <div className="absolute bottom-8 right-10 h-3 w-3 rounded-full bg-primary-500/70" />
           <div className="relative text-center">
           {/* Show logo preview during logo step */}
           {isLogoStep && logoUrl ? (
-            <div className="w-24 h-24 mx-auto mb-6 rounded-3xl overflow-hidden bg-white shadow-[0_12px_30px_rgba(15,107,79,0.14)] flex items-center justify-center p-3 border border-emerald-100">
+            <div className="w-24 h-24 mx-auto mb-6 rounded-3xl overflow-hidden bg-white shadow-[0_12px_30px_rgba(15,107,79,0.14)] flex items-center justify-center p-3 border border-primary-100">
               <img src={logoUrl} alt="Logo" className="max-h-full max-w-full object-contain" />
             </div>
           ) : isLogoStep && !logoUrl ? (
-            <div className="w-24 h-24 mx-auto mb-6 rounded-3xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-[0_14px_30px_rgba(15,107,79,0.22)]">
+            <div className="w-24 h-24 mx-auto mb-6 rounded-3xl bg-gradient-to-br from-primary-500 to-teal-600 flex items-center justify-center shadow-[0_14px_30px_rgba(15,107,79,0.22)]">
               <Wand2 className="w-10 h-10 text-white animate-pulse" />
             </div>
           ) : (
-            <div className="w-20 h-20 mx-auto mb-6 rounded-3xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-[0_14px_30px_rgba(15,107,79,0.22)]">
+            <div className="w-20 h-20 mx-auto mb-6 rounded-3xl bg-gradient-to-br from-primary-500 to-teal-600 flex items-center justify-center shadow-[0_14px_30px_rgba(15,107,79,0.22)]">
               <Sparkles className="w-10 h-10 text-white" />
             </div>
           )}
@@ -239,7 +239,7 @@ const GenerationOverlay = ({ currentStep, storeName, logoUrl, includeLogoStep = 
                 key={step.key}
                 className={`flex items-center gap-3 px-4 py-3 rounded-2xl border transition-all duration-500 ${
                   isDone
-                    ? 'border-emerald-100 bg-emerald-50'
+                    ? 'border-primary-100 bg-primary-50'
                     : isActive
                       ? 'border-slate-200 bg-slate-50 shadow-[0_8px_22px_rgba(15,23,42,0.05)]'
                       : 'border-slate-100 bg-white'
@@ -247,21 +247,21 @@ const GenerationOverlay = ({ currentStep, storeName, logoUrl, includeLogoStep = 
               >
                 <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-all duration-500 ${
                   isDone
-                    ? 'bg-emerald-500 text-white'
+                    ? 'bg-primary-500 text-white'
                     : isActive
-                      ? 'bg-emerald-50 border-2 border-emerald-400'
+                      ? 'bg-primary-50 border-2 border-primary-400'
                       : 'bg-slate-100 text-slate-400'
                 }`}>
                   {isDone ? (
                     <Check className="w-4 h-4" />
                   ) : isActive ? (
-                    <Loader2 className="w-4 h-4 text-emerald-400 animate-spin" />
+                    <Loader2 className="w-4 h-4 text-primary-400 animate-spin" />
                   ) : (
                     <span className="w-2 h-2 rounded-full bg-slate-400" />
                   )}
                 </div>
                 <span className={`text-sm font-semibold transition-colors duration-300 ${
-                  isDone ? 'text-emerald-700' : isActive ? 'text-slate-900' : 'text-slate-500'
+                  isDone ? 'text-primary-700' : isActive ? 'text-slate-900' : 'text-slate-500'
                 }`}>
                   {step.label}
                 </span>
@@ -274,7 +274,7 @@ const GenerationOverlay = ({ currentStep, storeName, logoUrl, includeLogoStep = 
             <div className="mt-8">
               <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
               <div
-                className="h-full bg-gradient-to-r from-emerald-500 to-teal-500 transition-all duration-700 ease-out"
+                className="h-full bg-gradient-to-r from-primary-500 to-teal-500 transition-all duration-700 ease-out"
                 style={{ width: `${Math.max(5, ((safeCurrentIdx + 0.5) / generationSteps.length) * 100)}%` }}
               />
               </div>
@@ -293,7 +293,7 @@ const GenerationOverlay = ({ currentStep, storeName, logoUrl, includeLogoStep = 
 const ProgressBar = ({ current, total }) => (
   <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
     <div
-      className="h-full bg-gradient-to-r from-emerald-500 to-teal-500 transition-all duration-700 ease-out"
+      className="h-full bg-gradient-to-r from-primary-500 to-teal-500 transition-all duration-700 ease-out"
       style={{ width: `${(current / total) * 100}%` }}
     />
   </div>
@@ -305,14 +305,14 @@ const StepIndicator = ({ steps, current }) => (
       <div key={s.num} className="flex items-center">
         <div className={`
           w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-all duration-300
-          ${current > s.num ? 'bg-emerald-500 text-white scale-90' : ''}
+          ${current > s.num ? 'bg-primary-500 text-white scale-90' : ''}
           ${current === s.num ? 'bg-gray-900 text-white ring-4 ring-gray-900/20 scale-110' : ''}
           ${current < s.num ? 'bg-gray-100 text-gray-400' : ''}
         `}>
           {current > s.num ? <Check className="w-4 h-4" /> : s.num}
         </div>
         {i < steps.length - 1 && (
-          <div className={`w-8 h-0.5 mx-1 transition-colors duration-300 ${current > s.num ? 'bg-emerald-500' : 'bg-gray-200'}`} />
+          <div className={`w-8 h-0.5 mx-1 transition-colors duration-300 ${current > s.num ? 'bg-primary-500' : 'bg-gray-200'}`} />
         )}
       </div>
     ))}
@@ -862,11 +862,11 @@ const StoreCreationWizard = ({ onComplete }) => {
         <div className="mx-auto flex min-h-[calc(100vh-5rem)] max-w-4xl items-center">
           <div className="w-full">
             <div className="relative overflow-hidden rounded-[32px] border border-slate-200/90 bg-white shadow-[0_1px_3px_rgba(60,64,67,0.16),0_8px_24px_rgba(60,64,67,0.10)]">
-              <div className="absolute -right-16 -top-16 h-48 w-48 rounded-full bg-emerald-50 blur-3xl" />
+              <div className="absolute -right-16 -top-16 h-48 w-48 rounded-full bg-primary-50 blur-3xl" />
               <div className="absolute bottom-8 right-8 h-3 w-3 rounded-full bg-scalor-green" />
               <div className="relative p-8 sm:p-10 lg:p-12">
                 <div className="inline-flex items-center gap-3 rounded-full border border-slate-200 bg-white px-4 py-2 shadow-[0_1px_2px_rgba(60,64,67,0.08)]">
-                  <div className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-50 text-scalor-green">
+                  <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary-50 text-scalor-green">
                     <Wand2 className="h-4 w-4" />
                   </div>
                   <span className="text-sm font-medium text-slate-600">Assistant boutique</span>
@@ -899,7 +899,7 @@ const StoreCreationWizard = ({ onComplete }) => {
                     },
                   ].map((item) => (
                     <div key={item.label} className="rounded-[24px] border border-slate-200 bg-[#fbfcfe] p-4">
-                      <span className="inline-flex rounded-full bg-emerald-50 px-3 py-1 text-[11px] font-semibold text-scalor-green">
+                      <span className="inline-flex rounded-full bg-primary-50 px-3 py-1 text-[11px] font-semibold text-scalor-green">
                         {item.label}
                       </span>
                       <p className="mt-3 text-sm font-semibold leading-6 text-slate-900">{item.value}</p>
@@ -950,7 +950,7 @@ const StoreCreationWizard = ({ onComplete }) => {
   // ═══════════════════════════════════════════════════════════════════════════════
 
   return (
-    <div ref={containerRef} className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-emerald-50/30 overflow-auto">
+    <div ref={containerRef} className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-primary-50/30 overflow-auto">
       {/* Overlay plein écran pendant la génération */}
       {generationStep && (
         <GenerationOverlay
@@ -973,7 +973,7 @@ const StoreCreationWizard = ({ onComplete }) => {
               <span className="hidden sm:inline">Quitter</span>
             </button>
             <div className="text-center">
-              <p className="text-xs font-bold text-emerald-600 uppercase tracking-wider">
+              <p className="text-xs font-bold text-primary-600 uppercase tracking-wider">
                 {isEditMode ? 'Modification' : `Étape ${step}/${STEPS.length}`}
               </p>
               <h2 className="text-sm font-bold text-gray-900">{STEPS[step - 1].title}</h2>
@@ -1002,7 +1002,7 @@ const StoreCreationWizard = ({ onComplete }) => {
         {step === 1 && (
           <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-300">
             <div className="text-center space-y-2">
-              <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl shadow-lg shadow-emerald-500/30 mb-2">
+              <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-primary-500 to-teal-600 rounded-2xl shadow-lg shadow-primary-500/30 mb-2">
                 <Store className="w-8 h-8 text-white" />
               </div>
               <h1 className="text-2xl font-black text-gray-900">Comment s'appelle votre boutique ?</h1>
@@ -1035,13 +1035,13 @@ const StoreCreationWizard = ({ onComplete }) => {
                   </span>
                   <span className="flex items-center px-4">
                     {subdomainStatus === 'checking' && <Loader2 className="w-5 h-5 animate-spin text-gray-400" />}
-                    {subdomainStatus === 'available' && <Check className="w-5 h-5 text-emerald-500" />}
+                    {subdomainStatus === 'available' && <Check className="w-5 h-5 text-primary-500" />}
                     {subdomainStatus === 'taken' && <X className="w-5 h-5 text-red-500" />}
                   </span>
                 </div>
                 {errors.subdomain && <p className="text-xs text-red-600 font-medium">{errors.subdomain}</p>}
                 {subdomainStatus === 'available' && !errors.subdomain && (
-                  <p className="text-xs text-emerald-600 font-medium flex items-center gap-1">
+                  <p className="text-xs text-primary-600 font-medium flex items-center gap-1">
                     <Check className="w-3 h-3" /> Disponible !
                   </p>
                 )}
@@ -1120,9 +1120,9 @@ const StoreCreationWizard = ({ onComplete }) => {
                 onToggle={() => set('logoFlowChoice', 'generate')}
               >
                 <div className="space-y-6">
-                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-                    <p className="text-sm font-semibold text-emerald-900">Direction adaptée à votre activité</p>
-                    <p className="mt-1 text-xs text-emerald-700 leading-5">
+                  <div className="rounded-2xl border border-primary-200 bg-primary-50 p-4">
+                    <p className="text-sm font-semibold text-primary-900">Direction adaptée à votre activité</p>
+                    <p className="mt-1 text-xs text-primary-700 leading-5">
                       {selectedProductType
                         ? `Pour ${selectedProductType.label}, l'IA privilégiera ${sectorPreset.focus}. ${sectorPreset.avoid}`
                         : `Choisissez une catégorie à l'étape précédente pour guider encore mieux le logo. Sans secteur renseigné, la génération restera plus générique.`}
@@ -1269,7 +1269,7 @@ const StoreCreationWizard = ({ onComplete }) => {
                     </span>
                   ))}
                   {selectedProductType && (
-                    <span className="inline-flex items-center rounded-full bg-emerald-100 px-3 py-1 text-[11px] font-semibold text-emerald-700">
+                    <span className="inline-flex items-center rounded-full bg-primary-100 px-3 py-1 text-[11px] font-semibold text-primary-700">
                       {selectedProductType.label}
                     </span>
                   )}
@@ -1286,9 +1286,9 @@ const StoreCreationWizard = ({ onComplete }) => {
 
             </Card>
 
-            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-              <p className="text-sm font-semibold text-emerald-900">La création du logo est maintenant une étape séparée.</p>
-              <p className="mt-1 text-xs text-emerald-700">Vous définissez ici la direction créative et la couleur principale. À l'étape suivante, vous pourrez générer une proposition IA ou importer votre propre logo.</p>
+            <div className="rounded-2xl border border-primary-200 bg-primary-50 p-4">
+              <p className="text-sm font-semibold text-primary-900">La création du logo est maintenant une étape séparée.</p>
+              <p className="mt-1 text-xs text-primary-700">Vous définissez ici la direction créative et la couleur principale. À l'étape suivante, vous pourrez générer une proposition IA ou importer votre propre logo.</p>
             </div>
           </div>
         )}
@@ -1299,7 +1299,7 @@ const StoreCreationWizard = ({ onComplete }) => {
         {step === 3 && (
           <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-300">
             <div className="text-center space-y-2">
-              <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-gray-900 to-emerald-700 rounded-2xl shadow-lg shadow-gray-900/20 mb-2">
+              <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-gray-900 to-primary-700 rounded-2xl shadow-lg shadow-gray-900/20 mb-2">
                 <Wand2 className="w-8 h-8 text-white" />
               </div>
               <h1 className="text-2xl font-black text-gray-900">
@@ -1319,23 +1319,23 @@ const StoreCreationWizard = ({ onComplete }) => {
             </div>
 
             <Card className="p-6 space-y-6">
-              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-                <p className="text-sm font-semibold text-emerald-900">Direction active pour le logo</p>
+              <div className="rounded-2xl border border-primary-200 bg-primary-50 p-4">
+                <p className="text-sm font-semibold text-primary-900">Direction active pour le logo</p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {[selectedLogoVariant.label, selectedTone.label, selectedLogoSymbolStyle.label].map((badge) => (
-                    <span key={badge} className="inline-flex items-center rounded-full bg-white px-3 py-1 text-[11px] font-semibold text-gray-700 border border-emerald-100">
+                    <span key={badge} className="inline-flex items-center rounded-full bg-white px-3 py-1 text-[11px] font-semibold text-gray-700 border border-primary-100">
                       {badge}
                     </span>
                   ))}
                   {selectedProductType && (
-                    <span className="inline-flex items-center rounded-full bg-emerald-100 px-3 py-1 text-[11px] font-semibold text-emerald-700">
+                    <span className="inline-flex items-center rounded-full bg-primary-100 px-3 py-1 text-[11px] font-semibold text-primary-700">
                       {selectedProductType.label}
                     </span>
                   )}
                 </div>
                 {form.logoConcept.trim() && (
-                  <p className="mt-3 text-xs text-emerald-700">
-                    Idée à intégrer: <span className="font-semibold text-emerald-900">{form.logoConcept.trim()}</span>
+                  <p className="mt-3 text-xs text-primary-700">
+                    Idée à intégrer: <span className="font-semibold text-primary-900">{form.logoConcept.trim()}</span>
                   </p>
                 )}
               </div>
@@ -1391,18 +1391,18 @@ const StoreCreationWizard = ({ onComplete }) => {
                 )}
 
                 {logoGenerating && (
-                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4">
+                  <div className="rounded-2xl border border-primary-200 bg-primary-50/60 p-4">
                     <div className="flex items-start gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center flex-shrink-0">
+                      <div className="w-10 h-10 rounded-xl bg-primary-100 text-primary-700 flex items-center justify-center flex-shrink-0">
                         <Wand2 className="w-5 h-5 animate-pulse" />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm font-bold text-emerald-900">Creation du logo IA</p>
-                        <p className="text-xs text-emerald-700 mt-1">{LOGO_GENERATION_MESSAGES[logoGenerationMessageIdx]}</p>
-                        <div className="mt-3 h-1.5 w-full rounded-full bg-emerald-100 overflow-hidden">
-                          <div className="h-full bg-emerald-500 animate-pulse" style={{ width: '65%' }} />
+                        <p className="text-sm font-bold text-primary-900">Creation du logo IA</p>
+                        <p className="text-xs text-primary-700 mt-1">{LOGO_GENERATION_MESSAGES[logoGenerationMessageIdx]}</p>
+                        <div className="mt-3 h-1.5 w-full rounded-full bg-primary-100 overflow-hidden">
+                          <div className="h-full bg-primary-500 animate-pulse" style={{ width: '65%' }} />
                         </div>
-                        <p className="text-[11px] text-emerald-700 mt-2">
+                        <p className="text-[11px] text-primary-700 mt-2">
                           Temps ecoule: {logoGenerationElapsedSec}s. Le resultat sera affiche automatiquement des qu'il est pret.
                         </p>
                       </div>
@@ -1551,9 +1551,9 @@ const StoreCreationWizard = ({ onComplete }) => {
               />
             </Card>
 
-            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-              <p className="text-sm font-semibold text-emerald-900">L'étape suivante est dédiée à la vérification.</p>
-              <p className="mt-1 text-xs text-emerald-700">Vous pourrez relire l'aperçu de la boutique, le récapitulatif et lancer ensuite la création IA.</p>
+            <div className="rounded-2xl border border-primary-200 bg-primary-50 p-4">
+              <p className="text-sm font-semibold text-primary-900">L'étape suivante est dédiée à la vérification.</p>
+              <p className="mt-1 text-xs text-primary-700">Vous pourrez relire l'aperçu de la boutique, le récapitulatif et lancer ensuite la création IA.</p>
             </div>
           </div>
         )}
@@ -1611,12 +1611,12 @@ const StoreCreationWizard = ({ onComplete }) => {
               {/* URL Preview */}
               <div className="bg-gray-50 px-6 py-4 flex items-center justify-between border-t">
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center">
-                    <Globe2 className="w-4 h-4 text-emerald-600" />
+                  <div className="w-8 h-8 rounded-lg bg-primary-100 flex items-center justify-center">
+                    <Globe2 className="w-4 h-4 text-primary-600" />
                   </div>
                   <div>
                     <p className="text-xs text-gray-500">Votre boutique sera accessible sur</p>
-                    <p className="font-mono text-sm font-bold text-emerald-600">
+                    <p className="font-mono text-sm font-bold text-primary-600">
                       https://{form.subdomain || 'maboutique'}.scalor.net
                     </p>
                   </div>
@@ -1647,20 +1647,20 @@ const StoreCreationWizard = ({ onComplete }) => {
                 </div>
                 <div>
                   <p className="text-gray-400 uppercase tracking-wider mb-1">Contact</p>
-                  <p className="font-semibold text-emerald-400">{form.storeWhatsApp || '—'}</p>
+                  <p className="font-semibold text-primary-400">{form.storeWhatsApp || '—'}</p>
                 </div>
               </div>
             </Card>
 
             {/* Message de ce qui va se passer */}
-            <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4">
+            <div className="bg-primary-50 border border-primary-200 rounded-xl p-4">
               <div className="flex items-start gap-3">
-                <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center flex-shrink-0">
-                  <Zap className="w-4 h-4 text-emerald-600" />
+                <div className="w-8 h-8 rounded-lg bg-primary-100 flex items-center justify-center flex-shrink-0">
+                  <Zap className="w-4 h-4 text-primary-600" />
                 </div>
                 <div>
-                  <p className="text-sm font-bold text-emerald-900">L'IA va créer votre boutique</p>
-                  <p className="text-xs text-emerald-700 mt-1">
+                  <p className="text-sm font-bold text-primary-900">L'IA va créer votre boutique</p>
+                  <p className="text-xs text-primary-700 mt-1">
                     En cliquant sur "Créer ma boutique", notre IA génère automatiquement une page d'accueil professionnelle adaptée à votre activité. Un message de confirmation s'affichera à la fin avec un bouton pour voir la boutique.
                   </p>
                 </div>
@@ -1719,7 +1719,7 @@ const StoreCreationWizard = ({ onComplete }) => {
             <button
               onClick={handleSubmit}
               disabled={saving}
-              className="flex items-center gap-2 px-8 py-3.5 text-sm font-bold text-white bg-gradient-to-r from-emerald-500 to-teal-600 rounded-xl hover:from-emerald-600 hover:to-teal-700 transition shadow-lg shadow-emerald-500/30 disabled:opacity-60"
+              className="flex items-center gap-2 px-8 py-3.5 text-sm font-bold text-white bg-gradient-to-r from-primary-500 to-teal-600 rounded-xl hover:from-primary-600 hover:to-teal-700 transition shadow-lg shadow-primary-500/30 disabled:opacity-60"
             >
               {saving ? (
                 <>

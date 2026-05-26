@@ -18,7 +18,7 @@ const ColorField = ({ label, value, onChange }) => (
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="flex-1 px-3 py-2 rounded-xl border border-gray-200 text-xs font-mono focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-200"
+        className="flex-1 px-3 py-2 rounded-xl border border-gray-200 text-xs font-mono focus:outline-none focus:border-primary-400 focus:ring-1 focus:ring-primary-200"
       />
     </div>
   </div>
@@ -34,7 +34,7 @@ const DesignSettings = ({ config, onChange }) => {
       {/* Colors */}
       <div>
         <div className="text-xs font-bold text-gray-700 mb-3 flex items-center gap-2">
-          <Palette size={14} className="text-emerald-600" />
+          <Palette size={14} className="text-primary-600" />
           Couleurs
         </div>
         <div className="grid grid-cols-2 gap-3">
@@ -56,7 +56,7 @@ const DesignSettings = ({ config, onChange }) => {
                 type="range" min="12" max="18"
                 value={config.fontBase || 14}
                 onChange={(e) => update('fontBase', parseInt(e.target.value))}
-                className="flex-1 accent-emerald-500"
+                className="flex-1 accent-primary-500"
               />
               <span className="text-xs font-mono text-gray-500 w-8 text-right">{config.fontBase || 14}px</span>
             </div>
@@ -66,7 +66,7 @@ const DesignSettings = ({ config, onChange }) => {
             <select
               value={config.fontWeight || '600'}
               onChange={(e) => update('fontWeight', e.target.value)}
-              className="w-full px-3 py-2 rounded-xl border border-gray-200 text-xs focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-200"
+              className="w-full px-3 py-2 rounded-xl border border-gray-200 text-xs focus:outline-none focus:border-primary-400 focus:ring-1 focus:ring-primary-200"
             >
               <option value="400">Normal</option>
               <option value="500">Medium</option>
@@ -88,11 +88,11 @@ const DesignSettings = ({ config, onChange }) => {
               type="range" min="0" max="24"
               value={parseInt(config.borderRadius, 10) || 0}
               onChange={(e) => update('borderRadius', `${e.target.value}px`)}
-              className="flex-1 accent-emerald-500"
+              className="flex-1 accent-primary-500"
             />
             <div className="flex items-center gap-2">
               <div
-                className="w-7 h-7 border-2 border-emerald-300 bg-emerald-50"
+                className="w-7 h-7 border-2 border-primary-300 bg-primary-50"
                 style={{ borderRadius: config.borderRadius }}
               />
               <span className="text-xs font-mono text-gray-500 w-10 text-right">{config.borderRadius}</span>

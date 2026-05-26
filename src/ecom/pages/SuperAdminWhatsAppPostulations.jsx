@@ -19,11 +19,11 @@ const STATUS_CONFIG = {
     },
     active: {
         label: 'Approuvée',
-        bg: 'bg-emerald-50',
-        text: 'text-emerald-700',
-        ring: 'ring-emerald-500/20',
+        bg: 'bg-primary-50',
+        text: 'text-primary-700',
+        ring: 'ring-primary-500/20',
         icon: CheckCircle2,
-        dot: 'bg-emerald-500'
+        dot: 'bg-primary-500'
     },
     rejected: {
         label: 'Rejetée',
@@ -131,7 +131,7 @@ const SuperAdminWhatsAppPostulations = () => {
             {/* Flash toast */}
             {flash && (
                 <div className={`fixed top-4 right-4 z-50 px-5 py-3 rounded-xl shadow-2xl text-sm font-medium ${
-                    flash.type === 'ok' ? 'bg-emerald-500 text-white' :
+                    flash.type === 'ok' ? 'bg-primary-500 text-white' :
                     flash.type === 'error' ? 'bg-red-500 text-white' :
                     'bg-amber-500 text-white'
                 }`}>
@@ -144,7 +144,7 @@ const SuperAdminWhatsAppPostulations = () => {
                 {[
                     { label: 'Total', value: stats.total, icon: MessageSquare, color: 'text-slate-600', bg: 'bg-slate-100' },
                     { label: 'En attente', value: stats.pending, icon: Clock, color: 'text-amber-600', bg: 'bg-amber-50' },
-                    { label: 'Approuvées', value: stats.active, icon: CheckCircle2, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+                    { label: 'Approuvées', value: stats.active, icon: CheckCircle2, color: 'text-primary-600', bg: 'bg-primary-50' },
                     { label: 'Rejetées', value: stats.rejected, icon: XCircle, color: 'text-red-600', bg: 'bg-red-50' },
                 ].map(s => (
                     <div key={s.label} className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 flex items-center gap-3">
@@ -168,7 +168,7 @@ const SuperAdminWhatsAppPostulations = () => {
                         placeholder="Rechercher par nom, email, téléphone..."
                         value={search}
                         onChange={e => setSearch(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-400 transition"
+                        className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-400 transition"
                     />
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
@@ -179,7 +179,7 @@ const SuperAdminWhatsAppPostulations = () => {
                             onClick={() => setFilterStatus(s)}
                             className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                                 filterStatus === s
-                                    ? 'bg-emerald-600 text-white shadow-sm'
+                                    ? 'bg-primary-600 text-white shadow-sm'
                                     : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                             }`}
                         >
@@ -192,7 +192,7 @@ const SuperAdminWhatsAppPostulations = () => {
             {/* Loading */}
             {loading && (
                 <div className="flex items-center justify-center py-20">
-                    <div className="w-8 h-8 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" />
+                    <div className="w-8 h-8 border-2 border-primary-500/30 border-t-primary-500 rounded-full animate-spin" />
                 </div>
             )}
 
@@ -220,7 +220,7 @@ const SuperAdminWhatsAppPostulations = () => {
                                 key={p._id}
                                 className={`bg-white rounded-2xl shadow-sm border overflow-hidden transition-all duration-200 ${
                                     isExpanded
-                                        ? 'border-emerald-300 shadow-md'
+                                        ? 'border-primary-300 shadow-md'
                                         : 'border-slate-200 hover:border-slate-300 hover:shadow'
                                 }`}
                             >
@@ -230,7 +230,7 @@ const SuperAdminWhatsAppPostulations = () => {
                                     className="w-full flex items-center gap-4 p-4 text-left hover:bg-slate-50 transition-colors"
                                 >
                                     {/* WhatsApp icon */}
-                                    <div className="w-11 h-11 rounded-xl bg-emerald-500 flex items-center justify-center flex-shrink-0 shadow-sm">
+                                    <div className="w-11 h-11 rounded-xl bg-primary-500 flex items-center justify-center flex-shrink-0 shadow-sm">
                                         <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
                                             <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
                                         </svg>
@@ -285,7 +285,7 @@ const SuperAdminWhatsAppPostulations = () => {
                                                     </div>
                                                     <div>
                                                         <p className="text-xs text-slate-400">Workspace</p>
-                                                        <p className="text-sm text-emerald-600 font-medium">{p.workspaceName}</p>
+                                                        <p className="text-sm text-primary-600 font-medium">{p.workspaceName}</p>
                                                     </div>
                                                 </div>
                                             </div>
@@ -319,7 +319,7 @@ const SuperAdminWhatsAppPostulations = () => {
                                                 <div className="space-y-1.5">
                                                     <div>
                                                         <p className="text-xs text-slate-400">Numero à configurer</p>
-                                                        <p className="text-sm text-emerald-600 font-mono font-medium">{fmtPhone(p.phoneNumber)}</p>
+                                                        <p className="text-sm text-primary-600 font-mono font-medium">{fmtPhone(p.phoneNumber)}</p>
                                                     </div>
                                                     <div>
                                                         <p className="text-xs text-slate-400">Numéro actuel</p>
@@ -356,7 +356,7 @@ const SuperAdminWhatsAppPostulations = () => {
                                                 {p.activatedAt && (
                                                     <div>
                                                         <p className="text-xs text-slate-400">Activé le</p>
-                                                        <p className="text-emerald-600">{fmtDate(p.activatedAt)}</p>
+                                                        <p className="text-primary-600">{fmtDate(p.activatedAt)}</p>
                                                     </div>
                                                 )}
                                                 {p.note && (
@@ -379,14 +379,14 @@ const SuperAdminWhatsAppPostulations = () => {
                                                     placeholder="Note optionnelle..."
                                                     value={noteInput[p._id] || ''}
                                                     onChange={e => setNoteInput(prev => ({ ...prev, [p._id]: e.target.value }))}
-                                                    className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-400 transition"
+                                                    className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-400 transition"
                                                 />
                                                 <div className="flex gap-2 flex-wrap">
                                                     {p.status !== 'active' && (
                                                         <button
                                                             onClick={() => handleAction(p._id, 'active')}
                                                             disabled={actionLoading === p._id}
-                                                            className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded-lg transition shadow-sm disabled:opacity-50"
+                                                            className="flex items-center gap-1.5 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium rounded-lg transition shadow-sm disabled:opacity-50"
                                                         >
                                                             <CheckCircle2 className="w-4 h-4" />
                                                             Approuver

@@ -402,7 +402,7 @@ const Settings = () => {
                 onClick={() => setActiveTab(tab.id)}
                 className={`flex items-center gap-2 px-4 py-2.5 text-sm font-semibold whitespace-nowrap rounded-lg transition-all flex-shrink-0 ${
                   activeTab === tab.id
-                    ? 'bg-emerald-600 text-white shadow-sm'
+                    ? 'bg-primary-600 text-white shadow-sm'
                     : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                 }`}
               >
@@ -427,18 +427,18 @@ const Settings = () => {
                 </div>
                 <div className="p-6">
                   <div className="flex items-start gap-5 mb-6">
-                    <div className="w-18 h-18 bg-gradient-to-br from-emerald-600 to-emerald-700 rounded-full flex items-center justify-center shadow-lg flex-shrink-0">
+                    <div className="w-18 h-18 bg-gradient-to-br from-primary-600 to-primary-700 rounded-full flex items-center justify-center shadow-lg flex-shrink-0">
                       <span className="text-white text-3xl font-bold">{user?.email?.charAt(0).toUpperCase() || 'U'}</span>
                     </div>
                     <div className="flex-1 min-w-0">
                       <h3 className="text-xl font-bold text-gray-900">{user?.name || user?.email?.split('@')[0]}</h3>
                       <p className="text-sm text-gray-500 mt-0.5">{user?.email}</p>
                       <div className="flex items-center gap-2 mt-2">
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 uppercase tracking-wide">
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-primary-50 text-primary-700 border border-primary-200 uppercase tracking-wide">
                           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
                           {roleLabels[user?.role] || user?.role}
                         </span>
-                        <Link to="/ecom/profile" className="px-4 py-1.5 text-sm font-semibold text-emerald-600 bg-emerald-50 rounded-lg hover:bg-emerald-100 transition-colors">
+                        <Link to="/ecom/profile" className="px-4 py-1.5 text-sm font-semibold text-primary-600 bg-primary-50 rounded-lg hover:bg-primary-100 transition-colors">
                           Mon compte
                         </Link>
                       </div>
@@ -451,7 +451,7 @@ const Settings = () => {
                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                           <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
                         </div>
-                        <input type="text" value={profileName} onChange={e => setProfileName(e.target.value)} placeholder="Votre nom" className="w-full pl-10 pr-3 py-2.5 text-sm text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-colors" />
+                        <input type="text" value={profileName} onChange={e => setProfileName(e.target.value)} placeholder="Votre nom" className="w-full pl-10 pr-3 py-2.5 text-sm text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors" />
                       </div>
                     </div>
                     <div>
@@ -469,7 +469,7 @@ const Settings = () => {
                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                           <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
                         </div>
-                        <input type="tel" value={profilePhone} onChange={e => setProfilePhone(e.target.value)} placeholder="+225 07 00 00 00 00" className="w-full pl-10 pr-3 py-2.5 text-sm text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-colors" />
+                        <input type="tel" value={profilePhone} onChange={e => setProfilePhone(e.target.value)} placeholder="+225 07 00 00 00 00" className="w-full pl-10 pr-3 py-2.5 text-sm text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors" />
                       </div>
                     </div>
                     <div>
@@ -484,12 +484,12 @@ const Settings = () => {
                     <div className="sm:col-span-2 flex items-center justify-between gap-3 pt-1">
                       <div className="flex-1">
                         {profileError && <p className="text-sm text-red-600">{profileError}</p>}
-                        {profileSaved && <p className="text-sm text-emerald-600 flex items-center gap-1"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>Profil mis à jour</p>}
+                        {profileSaved && <p className="text-sm text-primary-600 flex items-center gap-1"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>Profil mis à jour</p>}
                       </div>
                       <button
                         onClick={saveProfile}
                         disabled={profileSaving}
-                        className="px-5 py-2.5 bg-emerald-600 text-white text-sm font-semibold rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
+                        className="px-5 py-2.5 bg-primary-600 text-white text-sm font-semibold rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
                       >
                         {profileSaving ? <><svg className="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>Sauvegarde...</> : 'Sauvegarder'}
                       </button>
@@ -522,7 +522,7 @@ const Settings = () => {
                             <p className="flex-1 text-sm text-gray-900 bg-gray-50 rounded-lg px-3 py-2.5 border border-gray-200 font-mono tracking-widest">{workspace.inviteCode}</p>
                             <button
                               onClick={() => { navigator.clipboard.writeText(workspace.inviteCode); }}
-                              className="px-3 py-2.5 bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-100 transition text-sm font-medium"
+                              className="px-3 py-2.5 bg-primary-50 text-primary-600 rounded-lg hover:bg-primary-100 transition text-sm font-medium"
                             >
                               Copier
                             </button>
@@ -552,7 +552,7 @@ const Settings = () => {
                   <div className="mt-6 bg-gray-50 rounded-xl p-5 border border-gray-200">
                     <div className="flex items-center justify-between mb-4">
                       <h3 className="text-sm font-semibold text-gray-700">Aperçu de conversion</h3>
-                      <span className="text-xs font-medium px-2.5 py-1 bg-emerald-100 text-emerald-700 rounded-full">{currency} {symbol}</span>
+                      <span className="text-xs font-medium px-2.5 py-1 bg-primary-100 text-primary-700 rounded-full">{currency} {symbol}</span>
                     </div>
                     <div className="space-y-0 divide-y divide-gray-200">
                       {examples.map((ex, i) => (
@@ -569,13 +569,13 @@ const Settings = () => {
                 </div>
               </div>
 
-              <div className="bg-emerald-50 rounded-xl p-4 border border-emerald-200 flex items-start gap-3">
-                <svg className="w-5 h-5 text-emerald-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="bg-primary-50 rounded-xl p-4 border border-primary-200 flex items-start gap-3">
+                <svg className="w-5 h-5 text-primary-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
                 <div>
-                  <h4 className="text-sm font-medium text-emerald-900">Comment ça marche ?</h4>
-                  <p className="text-sm text-emerald-700 mt-1">
+                  <h4 className="text-sm font-medium text-primary-900">Comment ça marche ?</h4>
+                  <p className="text-sm text-primary-700 mt-1">
                     Les taux de conversion sont basés sur le FCFA (XAF). Quand vous changez de devise,
                     tous les montants dans l'application sont automatiquement convertis.
                   </p>
@@ -588,12 +588,12 @@ const Settings = () => {
           {activeTab === 'notifications' && (
             <div className="space-y-6">
               {/* Activation Push Notifications */}
-              <div className="bg-gradient-to-br from-emerald-50 to-emerald-50 rounded-xl shadow-sm border border-emerald-200 overflow-hidden">
+              <div className="bg-gradient-to-br from-primary-50 to-primary-50 rounded-xl shadow-sm border border-primary-200 overflow-hidden">
                 <div className="px-6 py-5">
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-2">
-                        <svg className="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
+                        <svg className="w-5 h-5 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
                         <h3 className="text-lg font-bold text-gray-900">Activer les notifications push</h3>
                       </div>
                       <p className="text-sm text-gray-600 mb-3">Recevez des notifications en temps réel sur votre appareil, même quand l'application est fermée.</p>
@@ -612,7 +612,7 @@ const Settings = () => {
                     <button
                       onClick={handlePushToggle}
                       disabled={pushLoading || !pushSupported || pushPermission === 'denied'}
-                      className={`px-5 py-2.5 text-white font-semibold rounded-lg transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0 ${isSubscribed ? 'bg-gray-700 hover:bg-gray-800' : 'bg-emerald-600 hover:bg-emerald-700'}`}
+                      className={`px-5 py-2.5 text-white font-semibold rounded-lg transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0 ${isSubscribed ? 'bg-gray-700 hover:bg-gray-800' : 'bg-primary-600 hover:bg-primary-700'}`}
                     >
                       {pushLoading ? 'Chargement...' : isSubscribed ? 'Désactiver' : 'Activer'}
                     </button>
@@ -663,7 +663,7 @@ const Settings = () => {
                           <button
                             onClick={() => saveEmailPreferences(item.key, !notifications[item.key])}
                             className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                              notifications[item.key] ? 'bg-emerald-600' : 'bg-gray-300'
+                              notifications[item.key] ? 'bg-primary-600' : 'bg-gray-300'
                             }`}
                           >
                             <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow-sm ${
@@ -701,7 +701,7 @@ const Settings = () => {
                             onClick={() => savePushPreferences(item.key, !notifications[item.key])}
                             disabled={!isSubscribed}
                             className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors flex-shrink-0 ${
-                              notifications[item.key] ? 'bg-emerald-600' : 'bg-gray-300'
+                              notifications[item.key] ? 'bg-primary-600' : 'bg-gray-300'
                             } disabled:opacity-50 disabled:cursor-not-allowed`}
                           >
                             <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow-sm ${
@@ -763,7 +763,7 @@ const Settings = () => {
                     <button
                       onClick={handleAddSource}
                       disabled={!newSource.name || !newSource.spreadsheetId}
-                      className="mt-3 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 disabled:opacity-50"
+                      className="mt-3 px-4 py-2 bg-primary-600 text-white rounded-lg text-sm font-medium hover:bg-primary-700 disabled:opacity-50"
                     >
                       Ajouter la source
                     </button>
@@ -779,7 +779,7 @@ const Settings = () => {
                       </div>
                     ) : (
                       sources.map(source => (
-                        <div key={source._id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-white border rounded-lg hover:border-emerald-200 transition-colors gap-4">
+                        <div key={source._id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-white border rounded-lg hover:border-primary-200 transition-colors gap-4">
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">
                               <span className={`w-2 h-2 rounded-full ${source.isActive ? 'bg-green-500' : 'bg-gray-300'}`}></span>
@@ -819,8 +819,8 @@ const Settings = () => {
         {/* ── Numéro rapport ── */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
           <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center">
-              <svg className="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+            <div className="w-10 h-10 bg-primary-100 rounded-xl flex items-center justify-center">
+              <svg className="w-5 h-5 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
             </div>
             <div>
               <h2 className="text-base font-bold text-gray-900">Numéro WhatsApp — Rapports</h2>
@@ -833,13 +833,13 @@ const Settings = () => {
               value={reportWANumber}
               onChange={e => setReportWANumber(e.target.value)}
               placeholder="ex : 237699887766"
-              className="flex-1 px-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-gray-50 focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400 focus:bg-white focus:outline-none transition placeholder:text-gray-400"
+              className="flex-1 px-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-gray-50 focus:ring-2 focus:ring-primary-400 focus:border-primary-400 focus:bg-white focus:outline-none transition placeholder:text-gray-400"
             />
             <button
               type="button"
               onClick={saveReportWANumber}
               disabled={savingReportWA}
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-semibold hover:bg-emerald-700 disabled:opacity-50 transition"
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-xl text-sm font-semibold hover:bg-primary-700 disabled:opacity-50 transition"
             >
               {savingReportWA
                 ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"/>
@@ -848,7 +848,7 @@ const Settings = () => {
               {savingReportWA ? 'Enregistrement…' : 'Enregistrer'}
             </button>
           </div>
-          {reportWASaved && <p className="mt-2 text-sm text-emerald-600 font-medium">✅ Numéro enregistré</p>}
+          {reportWASaved && <p className="mt-2 text-sm text-primary-600 font-medium">✅ Numéro enregistré</p>}
           {reportWAError && <p className="mt-2 text-sm text-red-500">❌ {reportWAError}</p>}
         </div>
 
@@ -932,7 +932,7 @@ const Settings = () => {
                     className="w-full px-3 py-2 border border-orange-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-orange-400 focus:outline-none"
                   />
                   {item.phoneNumber && item.phoneNumber.includes('@g.us') && (
-                    <p className="text-xs text-emerald-600 font-mono">✅ {item.label || item.phoneNumber}</p>
+                    <p className="text-xs text-primary-600 font-mono">✅ {item.label || item.phoneNumber}</p>
                   )}
                 </div>
               ))}
@@ -952,7 +952,7 @@ const Settings = () => {
               type="button"
               onClick={saveDeliveryGroups}
               disabled={savingGroups}
-              className="inline-flex items-center gap-2 px-5 py-2 bg-emerald-600 text-white rounded-xl text-sm font-medium hover:bg-emerald-700 disabled:opacity-50 transition"
+              className="inline-flex items-center gap-2 px-5 py-2 bg-primary-600 text-white rounded-xl text-sm font-medium hover:bg-primary-700 disabled:opacity-50 transition"
             >
               {savingGroups
                 ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"/>
@@ -960,7 +960,7 @@ const Settings = () => {
               }
               {savingGroups ? 'Enregistrement...' : 'Enregistrer'}
             </button>
-            {groupsSaved && <span className="text-sm text-emerald-600 font-medium">✅ Groupes enregistrés</span>}
+            {groupsSaved && <span className="text-sm text-primary-600 font-medium">✅ Groupes enregistrés</span>}
             {groupsError && <span className="text-sm text-red-500">❌ {groupsError}</span>}
           </div>
         </div>
@@ -1046,7 +1046,7 @@ const Settings = () => {
                       <p className="text-sm font-medium text-gray-900">Mot de passe</p>
                       <p className="text-xs text-gray-500">Dernière modification : inconnue</p>
                     </div>
-                    <button className="px-4 py-2 text-sm font-medium text-emerald-600 bg-emerald-50 rounded-lg hover:bg-emerald-100 transition">
+                    <button className="px-4 py-2 text-sm font-medium text-primary-600 bg-primary-50 rounded-lg hover:bg-primary-100 transition">
                       Modifier
                     </button>
                   </div>
@@ -1211,18 +1211,18 @@ const Settings = () => {
                 <div className="p-6">
                   <Link
                     to="/ecom/security"
-                    className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-200 hover:border-emerald-400 hover:bg-emerald-50 transition-colors group"
+                    className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-200 hover:border-primary-400 hover:bg-primary-50 transition-colors group"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center">
-                        <svg className="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
+                      <div className="w-10 h-10 bg-primary-100 rounded-xl flex items-center justify-center">
+                        <svg className="w-5 h-5 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
                       </div>
                       <div>
                         <p className="text-sm font-semibold text-gray-900">Ouvrir le tableau de bord sécurité</p>
                         <p className="text-xs text-gray-500">Journaux d'accès, alertes et activité suspecte</p>
                       </div>
                     </div>
-                    <svg className="w-5 h-5 text-gray-400 group-hover:text-emerald-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                    <svg className="w-5 h-5 text-gray-400 group-hover:text-primary-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                   </Link>
                 </div>
               </div>
@@ -1254,7 +1254,7 @@ const Settings = () => {
                 <button
                   onClick={handleSaveChanges}
                   disabled={isSaving}
-                  className="px-4 py-2 text-sm font-semibold text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  className="px-4 py-2 text-sm font-semibold text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
                   {isSaving ? (
                     <>

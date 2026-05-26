@@ -28,25 +28,25 @@ const roleConfig = {
     gradient: 'from-amber-500 to-amber-500'
   },
   ecom_admin: {
-    bg: 'bg-emerald-50',
-    text: 'text-emerald-800',
-    ring: 'ring-emerald-700/20',
+    bg: 'bg-primary-50',
+    text: 'text-primary-800',
+    ring: 'ring-primary-700/20',
     icon: Briefcase,
-    gradient: 'from-emerald-600 to-emerald-600'
+    gradient: 'from-primary-600 to-primary-600'
   },
   ecom_closeuse: {
     bg: 'bg-sky-50',
     text: 'text-sky-700',
     ring: 'ring-teal-600/20',
     icon: Package,
-    gradient: 'from-teal-500 to-emerald-600'
+    gradient: 'from-teal-500 to-primary-600'
   },
   ecom_compta: {
-    bg: 'bg-emerald-50',
-    text: 'text-emerald-700',
-    ring: 'ring-emerald-600/20',
+    bg: 'bg-primary-50',
+    text: 'text-primary-700',
+    ring: 'ring-primary-600/20',
     icon: Calculator,
-    gradient: 'from-emerald-500 to-teal-500'
+    gradient: 'from-primary-500 to-teal-500'
   },
   ecom_livreur: {
     bg: 'bg-amber-50',
@@ -122,7 +122,7 @@ const SuperAdminUserDetail = () => {
         <p className="text-lg font-black text-slate-900">Utilisateur introuvable</p>
         <button
           onClick={() => navigate('/ecom/super-admin/users')}
-          className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-emerald-700 text-white rounded-xl font-bold hover:bg-emerald-800 transition-colors"
+          className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-primary-700 text-white rounded-xl font-bold hover:bg-primary-800 transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
           Retour à la liste
@@ -139,8 +139,8 @@ const SuperAdminUserDetail = () => {
       <div className="p-4 sm:p-6 lg:p-8 max-w-[1400px] mx-auto space-y-6">
         {/* Toasts */}
         {success && (
-          <div className="flex items-center gap-3 p-4 bg-emerald-50 border-2 border-emerald-200 rounded-xl text-sm text-emerald-800 shadow-lg">
-            <CheckCircle2 className="w-5 h-5 flex-shrink-0 text-emerald-600" />
+          <div className="flex items-center gap-3 p-4 bg-primary-50 border-2 border-primary-200 rounded-xl text-sm text-primary-800 shadow-lg">
+            <CheckCircle2 className="w-5 h-5 flex-shrink-0 text-primary-600" />
             <span className="font-semibold">{success}</span>
           </div>
         )}
@@ -169,7 +169,7 @@ const SuperAdminUserDetail = () => {
               {/* Avatar */}
               <div className={`relative w-16 h-16 sm:w-24 sm:h-24 rounded-2xl flex items-center justify-center text-2xl sm:text-4xl font-black ring-4 ring-inset ${user.isActive ? `${config.bg} ${config.text} ${config.ring}` : 'bg-amber-50 text-amber-600 ring-amber-200'}`}>
                 {user.email?.charAt(0).toUpperCase()}
-                <div className={`absolute -bottom-2 -right-2 w-8 h-8 rounded-full ${user.isActive ? 'bg-emerald-500' : 'bg-amber-500'} ring-4 ring-white flex items-center justify-center shadow-lg`}>
+                <div className={`absolute -bottom-2 -right-2 w-8 h-8 rounded-full ${user.isActive ? 'bg-primary-500' : 'bg-amber-500'} ring-4 ring-white flex items-center justify-center shadow-lg`}>
                   {user.isActive ? <CheckCircle2 className="w-5 h-5 text-white" /> : <XCircle className="w-5 h-5 text-white" />}
                 </div>
               </div>
@@ -207,7 +207,7 @@ const SuperAdminUserDetail = () => {
                   disabled={user._id === currentUser?.id}
                   className={`inline-flex items-center gap-2 px-4 py-2.5 text-sm rounded-xl font-bold transition-all duration-300 disabled:opacity-30 disabled:cursor-not-allowed ring-2 ring-inset ${user.isActive
                       ? 'text-amber-700 bg-amber-50 hover:bg-amber-100 hover:shadow-md ring-amber-600/20'
-                      : 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100 hover:shadow-md ring-emerald-600/20'
+                      : 'text-primary-700 bg-primary-50 hover:bg-primary-100 hover:shadow-md ring-primary-600/20'
                     }`}
                 >
                   {user.isActive ? <><XCircle className="w-4 h-4" /> Bloquer</> : <><CheckCircle2 className="w-4 h-4" /> Activer</>}
@@ -230,7 +230,7 @@ const SuperAdminUserDetail = () => {
           {/* Account Info */}
           <div className="bg-white rounded-2xl border-2 border-slate-200 p-6 shadow-lg">
             <div className="flex items-center gap-3 mb-5">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-700 to-emerald-700 flex items-center justify-center shadow-md">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-700 to-primary-700 flex items-center justify-center shadow-md">
                 <Shield className="w-5 h-5 text-white" />
               </div>
               <h2 className="text-lg font-black text-slate-900">Informations du compte</h2>
@@ -263,7 +263,7 @@ const SuperAdminUserDetail = () => {
                     value={user.role}
                     onChange={(e) => handleChangeRole(e.target.value)}
                     disabled={user._id === currentUser?.id}
-                    className="w-full text-sm font-bold px-3 py-2 bg-white border-2 border-slate-200 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:border-emerald-600 transition-all"
+                    className="w-full text-sm font-bold px-3 py-2 bg-white border-2 border-slate-200 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-all"
                   >
                     <option value="super_admin">Super Admin</option>
                     <option value="ecom_admin">Admin</option>
@@ -290,7 +290,7 @@ const SuperAdminUserDetail = () => {
                 <div className="flex-1">
                   <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Statut</p>
                   <span className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full ${user.isActive
-                      ? 'bg-emerald-100 text-emerald-700'
+                      ? 'bg-primary-100 text-primary-700'
                       : 'bg-amber-100 text-amber-700'
                     }`}>
                     {user.isActive ? <CheckCircle2 className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
@@ -304,7 +304,7 @@ const SuperAdminUserDetail = () => {
           {/* Activity Info */}
           <div className="bg-white rounded-2xl border-2 border-slate-200 p-6 shadow-lg">
             <div className="flex items-center gap-3 mb-5">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-teal-600 to-emerald-600 flex items-center justify-center shadow-md">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-teal-600 to-primary-600 flex items-center justify-center shadow-md">
                 <Clock className="w-5 h-5 text-white" />
               </div>
               <h2 className="text-lg font-black text-slate-900">Activité</h2>
@@ -385,7 +385,7 @@ const SuperAdminUserDetail = () => {
         {user.workspaces && user.workspaces.length > 0 && (
           <div className="bg-white rounded-2xl border-2 border-slate-200 p-6 shadow-lg">
             <div className="flex items-center gap-3 mb-5">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-600 to-teal-600 flex items-center justify-center shadow-md">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-600 to-teal-600 flex items-center justify-center shadow-md">
                 <Building2 className="w-5 h-5 text-white" />
               </div>
               <h2 className="text-lg font-black text-slate-900">Workspaces ({user.workspaces.length})</h2>
@@ -400,7 +400,7 @@ const SuperAdminUserDetail = () => {
                   </div>
                   <p className="text-xs text-slate-500 mb-1">Rôle: <span className="font-bold text-slate-700">{roleLabels[ws.role] || ws.role}</span></p>
                   <p className="text-xs text-slate-500">Rejoint: <span className="font-bold text-slate-700">{new Date(ws.joinedAt).toLocaleDateString('fr-FR')}</span></p>
-                  <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full mt-2 ${ws.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
+                  <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full mt-2 ${ws.status === 'active' ? 'bg-primary-100 text-primary-700' : 'bg-amber-100 text-amber-700'
                     }`}>
                     {ws.status}
                   </span>

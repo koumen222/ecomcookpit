@@ -14,8 +14,8 @@ import { getContextualError } from '../utils/errorMessages';
 const SL = { pending: 'En attente', confirmed: 'Confirmé', shipped: 'Expédié', delivered: 'Livré', returned: 'Retour', cancelled: 'Annulé', unreachable: 'Injoignable', called: 'Appelé', postponed: 'Reporté', reported: 'Reporté' };
 const SC = {
   pending: 'bg-yellow-50 text-yellow-700 border-yellow-100',
-  confirmed: 'bg-emerald-50 text-emerald-700 border-emerald-100',
-  shipped: 'bg-emerald-50 text-emerald-800 border-emerald-100',
+  confirmed: 'bg-primary-50 text-primary-700 border-primary-100',
+  shipped: 'bg-primary-50 text-primary-800 border-primary-100',
   delivered: 'bg-green-50 text-green-700 border-green-100',
   returned: 'bg-orange-50 text-orange-700 border-orange-100',
   cancelled: 'bg-red-50 text-red-700 border-red-100',
@@ -26,8 +26,8 @@ const SC = {
 };
 const STATUS_FILTER_META = [
   { key: 'pending', label: 'En attente', color: 'bg-amber-100 text-amber-700 hover:bg-amber-200 border border-amber-200' },
-  { key: 'confirmed', label: 'Confirmé', color: 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border border-emerald-200' },
-  { key: 'shipped', label: 'Expédié', color: 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200 border border-emerald-200' },
+  { key: 'confirmed', label: 'Confirmé', color: 'bg-primary-100 text-primary-700 hover:bg-primary-200 border border-primary-200' },
+  { key: 'shipped', label: 'Expédié', color: 'bg-primary-100 text-primary-800 hover:bg-primary-200 border border-primary-200' },
   { key: 'delivered', label: 'Livré', color: 'bg-green-100 text-green-700 hover:bg-green-200 border border-green-200' },
   { key: 'returned', label: 'Retour', color: 'bg-orange-100 text-orange-700 hover:bg-orange-200 border border-orange-200' },
   { key: 'cancelled', label: 'Annulé', color: 'bg-red-100 text-red-700 hover:bg-red-200 border border-red-200' },
@@ -42,8 +42,8 @@ const SD = {
   unreachable: '', called: '', postponed: '', reported: ''
 };
 const getStatusLabel = (s) => SL[s] || s;
-const getStatusColor = (s) => SC[s] || 'bg-emerald-100 text-emerald-900 border-emerald-200';
-const getStatusDot = (s) => SD[s] || 'border-l-emerald-500';
+const getStatusColor = (s) => SC[s] || 'bg-primary-100 text-primary-900 border-primary-200';
+const getStatusDot = (s) => SD[s] || 'border-l-primary-500';
 
 const toDateInputValue = (date) => {
   const y = date.getFullYear();
@@ -339,7 +339,7 @@ const OrdersList = () => {
     if (parsed && !isNaN(parsed.getTime())) {
       const parsedDay = new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
       if (parsedDay < today) return 'bg-red-50 text-red-700 border-red-300';
-      if (parsedDay.getTime() === today.getTime()) return 'bg-emerald-50 text-emerald-700 border-emerald-300';
+      if (parsedDay.getTime() === today.getTime()) return 'bg-primary-50 text-primary-700 border-primary-300';
       if (parsedDay.getTime() === tomorrow.getTime()) return 'bg-blue-50 text-blue-700 border-blue-300';
     }
     return 'bg-amber-50 text-amber-700 border-amber-200';
@@ -1966,8 +1966,8 @@ const OrdersList = () => {
     <div className="p-3 sm:p-4 lg:p-6 max-w-[1400px] mx-auto">
       {/* Barre de chargement fluide */}
       {refreshing && (
-        <div className="fixed top-0 left-0 right-0 z-[9999] h-0.5 bg-emerald-100 overflow-hidden">
-          <div className="h-full bg-emerald-600" style={{animation: 'loading-bar 1s ease-in-out infinite', width: '60%'}}></div>
+        <div className="fixed top-0 left-0 right-0 z-[9999] h-0.5 bg-primary-100 overflow-hidden">
+          <div className="h-full bg-primary-600" style={{animation: 'loading-bar 1s ease-in-out infinite', width: '60%'}}></div>
         </div>
       )}
       {success && <div className="mb-3 p-2.5 bg-green-50 text-green-800 rounded-lg text-sm border border-green-200 flex items-center gap-2"><svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/></svg>{success}</div>}
@@ -1981,7 +1981,7 @@ const OrdersList = () => {
         const pct = Math.min(100, Math.round((used / maxOrders) * 100));
         const isOver = used >= maxOrders;
         const isWarning = pct >= 80;
-        const barColor = isOver ? 'bg-red-500' : isWarning ? 'bg-amber-500' : 'bg-emerald-500';
+        const barColor = isOver ? 'bg-red-500' : isWarning ? 'bg-amber-500' : 'bg-primary-500';
         const bgStyle = isOver
           ? 'bg-red-50 border-red-200 text-red-800'
           : isWarning
@@ -2010,7 +2010,7 @@ const OrdersList = () => {
                 </span>
               </div>
               <a href="/ecom/billing" className={`font-semibold underline underline-offset-2 whitespace-nowrap text-xs ${
-                isOver ? 'text-red-700 hover:text-red-900' : isWarning ? 'text-amber-700 hover:text-amber-900' : 'text-emerald-700 hover:text-emerald-900'
+                isOver ? 'text-red-700 hover:text-red-900' : isWarning ? 'text-amber-700 hover:text-amber-900' : 'text-primary-700 hover:text-primary-900'
               }`}>Passer à Scalor →</a>
             </div>
             <div className="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
@@ -2030,8 +2030,8 @@ const OrdersList = () => {
             {hasActiveFilters ? (
               <>
                 {filteredStats.total} commande{filteredStats.total > 1 ? 's' : ''} filtrée{filteredStats.total > 1 ? 's' : ''}
-                {filterStatus && <> • <span className="text-emerald-600 font-medium">{getStatusLabel(filterStatus)}</span></>}
-                {filterCity && <> • <span className="text-emerald-700 font-medium">{filterCity}</span></>}
+                {filterStatus && <> • <span className="text-primary-600 font-medium">{getStatusLabel(filterStatus)}</span></>}
+                {filterCity && <> • <span className="text-primary-700 font-medium">{filterCity}</span></>}
                 {filterProduct && <> • <span className="text-green-600 font-medium">{filterProduct}</span></>}
               </>
             ) : (
@@ -2046,7 +2046,7 @@ const OrdersList = () => {
               onClick={() => setViewAllWorkspaces(!viewAllWorkspaces)}
               className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition text-xs font-medium ${
                 viewAllWorkspaces
-                  ? 'bg-emerald-700 text-white hover:bg-emerald-800'
+                  ? 'bg-primary-700 text-white hover:bg-primary-800'
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
               title={viewAllWorkspaces ? 'Voir toutes les commandes de tous les espaces' : 'Voir uniquement les commandes de mon espace'}
@@ -2098,7 +2098,7 @@ const OrdersList = () => {
               </button>
               <button
                 onClick={openCreateOrder}
-                className="inline-flex items-center gap-1 px-2.5 sm:px-3 py-1.5 sm:py-2 bg-emerald-600 text-white rounded-xl active:scale-95 transition text-[11px] sm:text-xs font-semibold"
+                className="inline-flex items-center gap-1 px-2.5 sm:px-3 py-1.5 sm:py-2 bg-primary-600 text-white rounded-xl active:scale-95 transition text-[11px] sm:text-xs font-semibold"
                 title="Ajouter une commande"
               >
                 <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
@@ -2107,7 +2107,7 @@ const OrdersList = () => {
               <div className="relative" ref={importMenuRef}>
                 <button
                   onClick={() => setShowImportMenu(!showImportMenu)}
-                  className="inline-flex items-center gap-1 px-2.5 sm:px-3 py-1.5 sm:py-2 bg-emerald-600 text-white rounded-xl active:scale-95 transition text-[11px] sm:text-xs font-semibold"
+                  className="inline-flex items-center gap-1 px-2.5 sm:px-3 py-1.5 sm:py-2 bg-primary-600 text-white rounded-xl active:scale-95 transition text-[11px] sm:text-xs font-semibold"
                 >
                   <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 013 3h10a3 3 0 013-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
                   <span className="hidden sm:inline">Importer</span>
@@ -2120,9 +2120,9 @@ const OrdersList = () => {
                         setShowImportMenu(false);
                         navigate('/ecom/import');
                       }}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-emerald-50 transition"
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-primary-50 transition"
                     >
-                      <svg className="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                      <svg className="w-5 h-5 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                       <div className="flex-1 text-left">
                         <div className="font-medium text-gray-900">Google Sheets</div>
                         <div className="text-xs text-gray-500">Importer depuis un tableur</div>
@@ -2133,9 +2133,9 @@ const OrdersList = () => {
                         setShowImportMenu(false);
                         navigate('/ecom/integrations/shopify');
                       }}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-emerald-50 transition"
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-primary-50 transition"
                     >
-                      <svg className="w-5 h-5 text-emerald-600" fill="currentColor" viewBox="0 0 24 24"><path d="M15.337 2.136c-.012-.012-.025-.012-.037-.024-.012-.013-.025-.013-.037-.025l-.427-.214c-.287-.15-.65-.1-.888.125l-.325.3c-.1.088-.225.163-.35.238-.538-.163-1.15-.238-1.825-.125-1.05.175-2.037.713-2.787 1.525-.537.575-.925 1.275-1.137 2.038-.688.2-1.175.35-1.2.363-.362.112-.375.125-.425.475-.037.262-1.05 8.1-1.05 8.1l10.562 2.025 5.1-1.188S15.35 2.148 15.337 2.136zm-2.7.938c-.175.05-.375.113-.6.175v-.15c0-.525-.075-1-.2-1.438.375.088.65.725.8 1.413zm-1.4-.363c-.125.038-.25.075-.4.125V1.723c0-.45-.088-.875-.238-1.25.538.2.888.863 1.013 1.638-.125.037-.25.075-.375.1zm-.95-1.788c.15.375.225.813.225 1.313v.088c-.4.125-.838.25-1.288.388.25-.963.725-1.438 1.063-1.788zm-.538 10.325l-.875-2.913c.4-.15.913-.325 1.013-.363.125-.037.15.05.15.1 0 .063-.025 1.663-.288 3.176zm3.338-8.738c-.012-.537-.1-1.025-.237-1.45.537.175.875.8 1.05 1.438-.188.062-.513.15-.813.237v-.225z"/></svg>
+                      <svg className="w-5 h-5 text-primary-600" fill="currentColor" viewBox="0 0 24 24"><path d="M15.337 2.136c-.012-.012-.025-.012-.037-.024-.012-.013-.025-.013-.037-.025l-.427-.214c-.287-.15-.65-.1-.888.125l-.325.3c-.1.088-.225.163-.35.238-.538-.163-1.15-.238-1.825-.125-1.05.175-2.037.713-2.787 1.525-.537.575-.925 1.275-1.137 2.038-.688.2-1.175.35-1.2.363-.362.112-.375.125-.425.475-.037.262-1.05 8.1-1.05 8.1l10.562 2.025 5.1-1.188S15.35 2.148 15.337 2.136zm-2.7.938c-.175.05-.375.113-.6.175v-.15c0-.525-.075-1-.2-1.438.375.088.65.725.8 1.413zm-1.4-.363c-.125.038-.25.075-.4.125V1.723c0-.45-.088-.875-.238-1.25.538.2.888.863 1.013 1.638-.125.037-.25.075-.375.1zm-.95-1.788c.15.375.225.813.225 1.313v.088c-.4.125-.838.25-1.288.388.25-.963.725-1.438 1.063-1.788zm-.538 10.325l-.875-2.913c.4-.15.913-.325 1.013-.363.125-.037.15.05.15.1 0 .063-.025 1.663-.288 3.176zm3.338-8.738c-.012-.537-.1-1.025-.237-1.45.537.175.875.8 1.05 1.438-.188.062-.513.15-.813.237v-.225z"/></svg>
                       <div className="flex-1 text-left">
                         <div className="font-medium text-gray-900">Shopify</div>
                         <div className="text-xs text-gray-500">Importer depuis Shopify</div>
@@ -2155,7 +2155,7 @@ const OrdersList = () => {
               </button>
               <button
                 onClick={() => navigate('/ecom/stats')}
-                className="hidden sm:inline-flex items-center gap-1.5 px-3 py-2 bg-emerald-700 text-white rounded-xl transition text-xs font-semibold"
+                className="hidden sm:inline-flex items-center gap-1.5 px-3 py-2 bg-primary-700 text-white rounded-xl transition text-xs font-semibold"
                 title="Voir les statistiques globales"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
@@ -2164,7 +2164,7 @@ const OrdersList = () => {
               {orders.length > 0 && (
                 <button
                   onClick={toggleSelectionMode}
-                  className={`inline-flex items-center gap-1 px-2.5 py-2 rounded-lg transition text-xs font-medium ${selectionMode ? 'bg-emerald-100 text-emerald-700 border border-emerald-300' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'}`}
+                  className={`inline-flex items-center gap-1 px-2.5 py-2 rounded-lg transition text-xs font-medium ${selectionMode ? 'bg-primary-100 text-primary-700 border border-primary-300' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'}`}
                   title="Sélection multiple"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>
@@ -2212,14 +2212,14 @@ const OrdersList = () => {
 
           {/* Information d'adaptation au Google Sheet */}
           {selectedSourceId && sourcesConfig[selectedSourceId] && (
-            <div className="mb-2 sm:mb-3 p-1.5 sm:p-2 bg-emerald-50 border border-emerald-200 rounded-lg">
+            <div className="mb-2 sm:mb-3 p-1.5 sm:p-2 bg-primary-50 border border-primary-200 rounded-lg">
               <div className="flex items-center gap-1 sm:gap-2 text-[10px] sm:text-xs">
-                <svg className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-emerald-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                <span className="text-emerald-700 font-medium truncate">
+                <svg className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-primary-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                <span className="text-primary-700 font-medium truncate">
                   {sourcesConfig[selectedSourceId].name}
                 </span>
                 {sourcesConfig[selectedSourceId].detectedHeaders.length > 0 && (
-                  <span className="text-emerald-600 flex-shrink-0">
+                  <span className="text-primary-600 flex-shrink-0">
                     ({sourcesConfig[selectedSourceId].detectedHeaders.length})
                   </span>
                 )}
@@ -2231,7 +2231,7 @@ const OrdersList = () => {
               onClick={() => { setSelectedSourceId(''); setPage(1); }}
               className={`inline-flex items-center gap-0.5 sm:gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg text-[10px] sm:text-xs font-medium transition-all ${
                 !selectedSourceId
-                  ? 'bg-emerald-600 text-white shadow-sm'
+                  ? 'bg-primary-600 text-white shadow-sm'
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
             >
@@ -2245,7 +2245,7 @@ const OrdersList = () => {
                   onClick={() => { setSelectedSourceId(s._id); setPage(1); }}
                   className={`inline-flex items-center gap-0.5 sm:gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg text-[10px] sm:text-xs font-medium transition-all ${
                     selectedSourceId === s._id
-                      ? 'bg-emerald-600 text-white shadow-sm'
+                      ? 'bg-primary-600 text-white shadow-sm'
                       : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                   }`}
                 >
@@ -2284,7 +2284,7 @@ const OrdersList = () => {
             )}
             {/* Source enum filters: Scalor (skelor+boutique) / Shopify */}
             {(isAdmin || isSuperAdmin) && [
-              { id: 'scalor', label: 'Scalor', color: 'bg-emerald-600 text-white', inactive: 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200', deleteIds: ['skelor', 'boutique'] },
+              { id: 'scalor', label: 'Scalor', color: 'bg-primary-600 text-white', inactive: 'bg-primary-50 text-primary-700 hover:bg-primary-100 border border-primary-200', deleteIds: ['skelor', 'boutique'] },
               { id: 'shopify', label: 'Shopify', color: 'bg-green-700 text-white', inactive: 'bg-green-50 text-green-700 hover:bg-green-100 border border-green-200', deleteIds: ['shopify'] },
             ].map(src => (
               <div key={src.id} className="flex items-center gap-0.5">
@@ -2313,14 +2313,14 @@ const OrdersList = () => {
       {/* Barre de filtres compacte */}
       <div className="bg-white rounded-lg border border-gray-200 overflow-hidden mb-3">
         {/* En-tête des filtres */}
-        <div className="bg-emerald-50 px-3 py-2 border-b border-emerald-100">
+        <div className="bg-primary-50 px-3 py-2 border-b border-primary-100">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <h3 className="text-xs font-bold text-gray-900">Filtres</h3>
               <p className="text-[11px] text-gray-500">
                 {hasActiveFilters ? (
                   <>
-                    <span className="font-semibold text-emerald-600">{filteredStats.total}</span> / {stats.total || 0}
+                    <span className="font-semibold text-primary-600">{filteredStats.total}</span> / {stats.total || 0}
                   </>
                 ) : (
                   <>{stats.total || 0} commandes</>
@@ -2332,7 +2332,7 @@ const OrdersList = () => {
               <select 
                 value={sortOrder} 
                 onChange={(e) => { setSortOrder(e.target.value); setPage(1); }}
-                className="text-[10px] border border-gray-300 rounded-lg px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-emerald-600"
+                className="text-[10px] border border-gray-300 rounded-lg px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-primary-600"
                 title="Ordre d'affichage"
               >
                 <option value="newest_first">Plus récentes</option>
@@ -2353,17 +2353,17 @@ const OrdersList = () => {
           <div className="px-3 py-2 bg-gray-50 border-b border-gray-100">
             <div className="flex flex-wrap gap-1.5">
               {filterStatus && (
-                <div className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full text-[10px] font-semibold border border-emerald-200">
+                <div className="inline-flex items-center gap-1 px-2 py-0.5 bg-primary-100 text-primary-700 rounded-full text-[10px] font-semibold border border-primary-200">
                   {getStatusLabel(filterStatus)}
-                  <button onClick={() => { setFilterStatus(''); setPage(1); }} className="hover:text-emerald-900">
+                  <button onClick={() => { setFilterStatus(''); setPage(1); }} className="hover:text-primary-900">
                     <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                   </button>
                 </div>
               )}
               {filterCity && (
-                <div className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-full text-[10px] font-semibold border border-emerald-200">
+                <div className="inline-flex items-center gap-1 px-2 py-0.5 bg-primary-100 text-primary-800 rounded-full text-[10px] font-semibold border border-primary-200">
                   {filterCity}
-                  <button onClick={() => { setFilterCity(''); setPage(1); }} className="hover:text-emerald-900">
+                  <button onClick={() => { setFilterCity(''); setPage(1); }} className="hover:text-primary-900">
                     <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                   </button>
                 </div>
@@ -2414,7 +2414,7 @@ const OrdersList = () => {
                 placeholder="Rechercher..." 
                 value={search} 
                 onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-                className="w-full pl-8 pr-4 py-1.5 border border-gray-300 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-emerald-600 focus:border-transparent"
+                className="w-full pl-8 pr-4 py-1.5 border border-gray-300 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-primary-600 focus:border-transparent"
               />
               {search && (
                 <button 
@@ -2467,7 +2467,7 @@ const OrdersList = () => {
 
           <button 
             onClick={() => setShowFilters(!showFilters)} 
-            className={`w-full px-3 py-1.5 rounded-lg text-[10px] font-semibold flex items-center justify-center gap-1.5 transition-all ${showFilters ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+            className={`w-full px-3 py-1.5 rounded-lg text-[10px] font-semibold flex items-center justify-center gap-1.5 transition-all ${showFilters ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
           >
             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v2m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/></svg>
             {showFilters ? 'Masquer avancés' : 'Filtres avancés'}
@@ -2479,29 +2479,29 @@ const OrdersList = () => {
               <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5">
                 <div>
                   <label className="block text-[9px] font-medium text-gray-500 mb-0.5">Début</label>
-                  <input type="date" value={filterStartDate} onChange={e => { setFilterStartDate(e.target.value); setPage(1); }} className="w-full px-2 py-1 border border-gray-200 rounded text-[10px] focus:outline-none focus:ring-1 focus:ring-emerald-600 focus:border-transparent" />
+                  <input type="date" value={filterStartDate} onChange={e => { setFilterStartDate(e.target.value); setPage(1); }} className="w-full px-2 py-1 border border-gray-200 rounded text-[10px] focus:outline-none focus:ring-1 focus:ring-primary-600 focus:border-transparent" />
                 </div>
                 <div>
                   <label className="block text-[9px] font-medium text-gray-500 mb-0.5">Fin</label>
-                  <input type="date" value={filterEndDate} onChange={e => { setFilterEndDate(e.target.value); setPage(1); }} className="w-full px-2 py-1 border border-gray-200 rounded text-[10px] focus:outline-none focus:ring-1 focus:ring-emerald-600 focus:border-transparent" />
+                  <input type="date" value={filterEndDate} onChange={e => { setFilterEndDate(e.target.value); setPage(1); }} className="w-full px-2 py-1 border border-gray-200 rounded text-[10px] focus:outline-none focus:ring-1 focus:ring-primary-600 focus:border-transparent" />
                 </div>
                 <div>
                   <label className="block text-[9px] font-medium text-gray-500 mb-0.5">Ville</label>
-                  <select value={filterCity} onChange={e => { setFilterCity(e.target.value); setPage(1); }} className="w-full px-2 py-1 border border-gray-200 rounded text-[10px] focus:outline-none focus:ring-1 focus:ring-emerald-600 focus:border-transparent">
+                  <select value={filterCity} onChange={e => { setFilterCity(e.target.value); setPage(1); }} className="w-full px-2 py-1 border border-gray-200 rounded text-[10px] focus:outline-none focus:ring-1 focus:ring-primary-600 focus:border-transparent">
                     <option value="">Toutes les villes</option>
                     {uniqueCities.map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
                 </div>
                 <div>
                   <label className="block text-[9px] font-medium text-gray-500 mb-0.5">Produit</label>
-                  <select value={filterProduct} onChange={e => { setFilterProduct(e.target.value); setPage(1); }} className="w-full px-2 py-1 border border-gray-200 rounded text-[10px] focus:outline-none focus:ring-1 focus:ring-emerald-600 focus:border-transparent">
+                  <select value={filterProduct} onChange={e => { setFilterProduct(e.target.value); setPage(1); }} className="w-full px-2 py-1 border border-gray-200 rounded text-[10px] focus:outline-none focus:ring-1 focus:ring-primary-600 focus:border-transparent">
                     <option value="">Tous</option>
                     {uniqueProducts.map(p => <option key={p} value={p}>{p}</option>)}
                   </select>
                 </div>
                 <div>
                   <label className="block text-[9px] font-medium text-gray-500 mb-0.5">Tag</label>
-                  <select value={filterTag} onChange={e => { setFilterTag(e.target.value); setPage(1); }} className="w-full px-2 py-1 border border-gray-200 rounded text-[10px] focus:outline-none focus:ring-1 focus:ring-emerald-600 focus:border-transparent">
+                  <select value={filterTag} onChange={e => { setFilterTag(e.target.value); setPage(1); }} className="w-full px-2 py-1 border border-gray-200 rounded text-[10px] focus:outline-none focus:ring-1 focus:ring-primary-600 focus:border-transparent">
                     <option value="">Tous</option>
                     {uniqueTags.map(t => <option key={t} value={t}>{t}</option>)}
                   </select>
@@ -2510,9 +2510,9 @@ const OrdersList = () => {
               {activeFiltersCount > 0 && (
                 <div className="flex items-center justify-between mt-2.5">
                   <div className="flex flex-wrap gap-1.5">
-                    {filterStartDate && <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded-full text-[10px] font-medium">{filterStartDate} <button onClick={() => { setFilterStartDate(''); setPage(1); }} className="hover:text-emerald-900">&times;</button></span>}
-                    {filterEndDate && <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded-full text-[10px] font-medium">{filterEndDate} <button onClick={() => { setFilterEndDate(''); setPage(1); }} className="hover:text-emerald-900">&times;</button></span>}
-                    {filterCity && <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-50 text-emerald-800 rounded-full text-[10px] font-medium">{filterCity} <button onClick={() => { setFilterCity(''); setPage(1); }} className="hover:text-emerald-900">&times;</button></span>}
+                    {filterStartDate && <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-primary-50 text-primary-700 rounded-full text-[10px] font-medium">{filterStartDate} <button onClick={() => { setFilterStartDate(''); setPage(1); }} className="hover:text-primary-900">&times;</button></span>}
+                    {filterEndDate && <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-primary-50 text-primary-700 rounded-full text-[10px] font-medium">{filterEndDate} <button onClick={() => { setFilterEndDate(''); setPage(1); }} className="hover:text-primary-900">&times;</button></span>}
+                    {filterCity && <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-primary-50 text-primary-800 rounded-full text-[10px] font-medium">{filterCity} <button onClick={() => { setFilterCity(''); setPage(1); }} className="hover:text-primary-900">&times;</button></span>}
                     {filterProduct && <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-50 text-green-700 rounded-full text-[10px] font-medium">{filterProduct} <button onClick={() => { setFilterProduct(''); setPage(1); }} className="hover:text-green-900">&times;</button></span>}
                     {filterTag && <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-orange-50 text-orange-700 rounded-full text-[10px] font-medium">{filterTag} <button onClick={() => { setFilterTag(''); setPage(1); }} className="hover:text-orange-900">&times;</button></span>}
                   </div>
@@ -2528,17 +2528,17 @@ const OrdersList = () => {
 
       {/* KPI Cards - Design compact */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
-        <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg border border-green-200 p-3">
+        <div className="bg-gradient-to-br from-green-50 to-primary-50 rounded-lg border border-green-200 p-3">
           <p className="text-[10px] font-bold text-green-700 uppercase tracking-wide mb-1">Revenu livré</p>
           <p className="text-xl font-extrabold text-gray-900 mb-1">{fmtRaw(filteredStats.deliveredRevenue || 0) || `0 ${symbol}`}</p>
           <p className="text-[10px] text-green-600 font-semibold">{filteredStats.delivered || 0} livrés · +{Math.round((filteredStats.delivered || 0) / (filteredStats.total || 1) * 100)}%</p>
         </div>
         
-        <div className="bg-gradient-to-br from-emerald-50 to-emerald-50 rounded-lg border border-emerald-200 p-3">
-          <p className="text-[10px] font-bold text-emerald-700 uppercase tracking-wide mb-1">Taux livraison</p>
+        <div className="bg-gradient-to-br from-primary-50 to-primary-50 rounded-lg border border-primary-200 p-3">
+          <p className="text-[10px] font-bold text-primary-700 uppercase tracking-wide mb-1">Taux livraison</p>
           <p className="text-xl font-extrabold text-gray-900 mb-1.5">{deliveryRate}%</p>
-          <div className="w-full bg-emerald-100 rounded-full h-1.5">
-            <div className="bg-emerald-600 h-1.5 rounded-full" style={{ width: `${Math.min(deliveryRate, 100)}%` }}></div>
+          <div className="w-full bg-primary-100 rounded-full h-1.5">
+            <div className="bg-primary-600 h-1.5 rounded-full" style={{ width: `${Math.min(deliveryRate, 100)}%` }}></div>
           </div>
         </div>
         
@@ -2550,8 +2550,8 @@ const OrdersList = () => {
           </div>
         </div>
         
-        <div className="bg-gradient-to-br from-emerald-50 to-emerald-50 rounded-lg border border-emerald-200 p-3">
-          <p className="text-[10px] font-bold text-emerald-800 uppercase tracking-wide mb-1">En cours</p>
+        <div className="bg-gradient-to-br from-primary-50 to-primary-50 rounded-lg border border-primary-200 p-3">
+          <p className="text-[10px] font-bold text-primary-800 uppercase tracking-wide mb-1">En cours</p>
           <p className="text-xl font-extrabold text-gray-900 mb-1">{filteredStats.delivered || 0}</p>
           <p className="text-[10px] text-gray-600">{filteredStats.delivered || 0} livrées · {(filteredStats.pending || 0) + (filteredStats.confirmed || 0) + (filteredStats.shipped || 0)} en cours</p>
         </div>
@@ -2592,7 +2592,7 @@ const OrdersList = () => {
           <p className="text-xs text-gray-400 mt-1">
             {search || filterStatus || filterCity || filterProduct || filterTag || filterStartDate || filterEndDate
               ? 'Essayez de modifier vos filtres ou votre recherche.'
-              : isAdmin ? <>Importez vos commandes depuis la page <a href="/ecom/import" className="text-emerald-600 hover:underline">Import</a></> : 'Aucune commande disponible.'
+              : isAdmin ? <>Importez vos commandes depuis la page <a href="/ecom/import" className="text-primary-600 hover:underline">Import</a></> : 'Aucune commande disponible.'
             }
           </p>
         </div>
@@ -2602,14 +2602,14 @@ const OrdersList = () => {
           <div className="hidden md:block space-y-2">
             {/* Select-all bar (desktop) */}
             {selectionMode && (
-              <div className="flex items-center gap-3 px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-xl">
+              <div className="flex items-center gap-3 px-3 py-2 bg-primary-50 border border-primary-200 rounded-xl">
                 <input
                   type="checkbox"
                   checked={selectedOrders.size === orders.length && orders.length > 0}
                   onChange={toggleSelectAll}
-                  className="w-4 h-4 rounded accent-emerald-600 cursor-pointer"
+                  className="w-4 h-4 rounded accent-primary-600 cursor-pointer"
                 />
-                <span className="text-xs font-semibold text-emerald-700">
+                <span className="text-xs font-semibold text-primary-700">
                   {selectedOrders.size === 0 ? 'Tout sélectionner' : `${selectedOrders.size} / ${orders.length} sélectionnée(s)`}
                 </span>
               </div>
@@ -2623,7 +2623,7 @@ const OrdersList = () => {
               const isSelected = selectedOrders.has(o._id);
 
               return (
-                <div key={o._id} className={`bg-white rounded-xl border transition-all duration-200 group ${selectionMode ? 'cursor-default' : 'cursor-pointer hover:border-emerald-400 hover:shadow-md'} ${isSelected ? 'border-emerald-500 ring-1 ring-emerald-400' : 'border-gray-200'}`} onClick={() => selectionMode ? toggleOrderSelection(o._id) : navigateToOrder(o._id)}>
+                <div key={o._id} className={`bg-white rounded-xl border transition-all duration-200 group ${selectionMode ? 'cursor-default' : 'cursor-pointer hover:border-primary-400 hover:shadow-md'} ${isSelected ? 'border-primary-500 ring-1 ring-primary-400' : 'border-gray-200'}`} onClick={() => selectionMode ? toggleOrderSelection(o._id) : navigateToOrder(o._id)}>
                   <div className="p-3">
                     <div className="flex items-center justify-between gap-4">
                       {/* Checkbox (selection mode) */}
@@ -2633,12 +2633,12 @@ const OrdersList = () => {
                             type="checkbox"
                             checked={isSelected}
                             onChange={() => toggleOrderSelection(o._id)}
-                            className="w-4 h-4 rounded accent-emerald-600 cursor-pointer"
+                            className="w-4 h-4 rounded accent-primary-600 cursor-pointer"
                           />
                         </div>
                       )}
                       <div className="flex items-center gap-3 flex-1 min-w-0">
-                        <div className="w-9 h-9 bg-gradient-to-br from-emerald-600 to-emerald-700 rounded-lg flex items-center justify-center text-white font-bold text-sm shadow-sm flex-shrink-0">
+                        <div className="w-9 h-9 bg-gradient-to-br from-primary-600 to-primary-700 rounded-lg flex items-center justify-center text-white font-bold text-sm shadow-sm flex-shrink-0">
                           {clientName ? clientName.charAt(0).toUpperCase() : '?'}
                         </div>
                         <div className="flex-1 min-w-0">
@@ -2693,7 +2693,7 @@ const OrdersList = () => {
                       {/* Source badge */}
                       {(o.source === 'skelor' || o.source === 'boutique') && (
                         <div className="flex-shrink-0">
-                          <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200 uppercase tracking-wide">Scalor</span>
+                          <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-primary-100 text-primary-700 border border-primary-200 uppercase tracking-wide">Scalor</span>
                         </div>
                       )}
                       {o.source === 'shopify' && (
@@ -2718,7 +2718,7 @@ const OrdersList = () => {
                               if (c && c.trim()) handleStatusChange(o._id, c.trim()); 
                             } else handleStatusChange(o._id, e.target.value); 
                           }}
-                          className={`text-xs px-2.5 py-1.5 rounded-lg font-semibold border cursor-pointer focus:ring-2 focus:ring-emerald-600 focus:outline-none transition-all ${getStatusColor(o.status)}`}
+                          className={`text-xs px-2.5 py-1.5 rounded-lg font-semibold border cursor-pointer focus:ring-2 focus:ring-primary-600 focus:outline-none transition-all ${getStatusColor(o.status)}`}
                         >
                           {Object.entries(SL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                           {!SL[o.status] && <option value={o.status}>{o.status}</option>}
@@ -2729,7 +2729,7 @@ const OrdersList = () => {
                       {/* Copy Button */}
                       <button
                         onClick={(e) => { e.stopPropagation(); handleCopyOrder(o); }}
-                        className="flex-shrink-0 w-8 h-8 text-emerald-600 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-all hover:scale-110 flex items-center justify-center"
+                        className="flex-shrink-0 w-8 h-8 text-primary-600 bg-primary-50 hover:bg-primary-100 border border-primary-200 rounded-lg transition-all hover:scale-110 flex items-center justify-center"
                         title="Copier la commande"
                       >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2747,14 +2747,14 @@ const OrdersList = () => {
           <div className="md:hidden space-y-3">
             {/* Select-all bar (mobile) */}
             {selectionMode && (
-              <div className="flex items-center gap-3 px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-xl">
+              <div className="flex items-center gap-3 px-3 py-2 bg-primary-50 border border-primary-200 rounded-xl">
                 <input
                   type="checkbox"
                   checked={selectedOrders.size === orders.length && orders.length > 0}
                   onChange={toggleSelectAll}
-                  className="w-4 h-4 rounded accent-emerald-600 cursor-pointer"
+                  className="w-4 h-4 rounded accent-primary-600 cursor-pointer"
                 />
-                <span className="text-xs font-semibold text-emerald-700">
+                <span className="text-xs font-semibold text-primary-700">
                   {selectedOrders.size === 0 ? 'Tout sélectionner' : `${selectedOrders.size} / ${orders.length} sélectionnée(s)`}
                 </span>
               </div>
@@ -2768,7 +2768,7 @@ const OrdersList = () => {
               const isSelected = selectedOrders.has(o._id);
 
               return (
-                <div key={o._id} className={`bg-white rounded-xl border transition-all ${selectionMode ? 'cursor-default' : 'hover:border-emerald-400 hover:shadow-md'} ${isSelected ? 'border-emerald-500 ring-1 ring-emerald-400' : 'border-gray-200'}`} onClick={() => selectionMode ? toggleOrderSelection(o._id) : navigateToOrder(o._id)}>
+                <div key={o._id} className={`bg-white rounded-xl border transition-all ${selectionMode ? 'cursor-default' : 'hover:border-primary-400 hover:shadow-md'} ${isSelected ? 'border-primary-500 ring-1 ring-primary-400' : 'border-gray-200'}`} onClick={() => selectionMode ? toggleOrderSelection(o._id) : navigateToOrder(o._id)}>
                   <div className="p-2.5">
                     {/* En-tête: Nom + Prix */}
                     <div className="flex items-start justify-between mb-2">
@@ -2779,11 +2779,11 @@ const OrdersList = () => {
                               type="checkbox"
                               checked={isSelected}
                               onChange={() => toggleOrderSelection(o._id)}
-                              className="w-4 h-4 rounded accent-emerald-600 cursor-pointer"
+                              className="w-4 h-4 rounded accent-primary-600 cursor-pointer"
                             />
                           </div>
                         )}
-                        <div className="w-8 h-8 bg-gradient-to-br from-emerald-600 to-emerald-700 rounded-md flex items-center justify-center text-white font-bold text-xs flex-shrink-0">
+                        <div className="w-8 h-8 bg-gradient-to-br from-primary-600 to-primary-700 rounded-md flex items-center justify-center text-white font-bold text-xs flex-shrink-0">
                           {clientName ? clientName.charAt(0).toUpperCase() : '?'}
                         </div>
                         <div className="flex-1 min-w-0">
@@ -2835,7 +2835,7 @@ const OrdersList = () => {
                     {o.readyForDelivery && !o.assignedLivreur && (
                       <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-300">🚚 Pool</span>
                     )}
-                    {(o.source === 'skelor' || o.source === 'boutique') && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200 uppercase">Scalor</span>}
+                    {(o.source === 'skelor' || o.source === 'boutique') && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-primary-100 text-primary-700 border border-primary-200 uppercase">Scalor</span>}
                     {o.source === 'shopify' && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 border border-green-200 uppercase">Shopify</span>}
                     {o.sourceName && !['skelor','shopify','boutique'].includes(o.source) && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700 border border-indigo-200 truncate max-w-[70px]">{o.sourceName}</span>}
                     <select 
@@ -2848,7 +2848,7 @@ const OrdersList = () => {
                         } else handleStatusChange(o._id, e.target.value); 
                       }}
                       onClick={(e) => e.stopPropagation()}
-                      className={`text-[9px] font-medium px-1.5 py-0.5 rounded border cursor-pointer focus:ring-2 focus:ring-emerald-600 focus:outline-none ${getStatusColor(o.status)}`}
+                      className={`text-[9px] font-medium px-1.5 py-0.5 rounded border cursor-pointer focus:ring-2 focus:ring-primary-600 focus:outline-none ${getStatusColor(o.status)}`}
                     >
                       {Object.entries(SL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                       {!SL[o.status] && <option value={o.status}>{o.status}</option>}
@@ -2857,7 +2857,7 @@ const OrdersList = () => {
                     </div>
                     <div className="flex items-center gap-1.5">
                       {/* Bouton principal */}
-                      <button onClick={(e) => { e.stopPropagation(); navigateToOrder(o._id); }} className="px-2.5 py-1 text-[11px] font-semibold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition">
+                      <button onClick={(e) => { e.stopPropagation(); navigateToOrder(o._id); }} className="px-2.5 py-1 text-[11px] font-semibold text-primary-600 bg-primary-50 hover:bg-primary-100 border border-primary-200 rounded-lg transition">
                         Voir
                       </button>
                       {/* Menu ⋯ */}
@@ -2917,7 +2917,7 @@ const OrdersList = () => {
             <select 
               value={itemsPerPage} 
               onChange={(e) => { setItemsPerPage(Number(e.target.value)); setPage(1); }}
-              className="text-[11px] px-2 py-1 border border-gray-200 rounded-md bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-emerald-600"
+              className="text-[11px] px-2 py-1 border border-gray-200 rounded-md bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-600"
             >
               <option value={50}>50</option>
               <option value={100}>100</option>
@@ -3142,24 +3142,24 @@ const OrdersList = () => {
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Nom client *</label>
                   <input type="text" value={orderForm.clientName} onChange={e => setOrderForm({...orderForm, clientName: e.target.value})}
-                    placeholder="Nom complet" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-600 focus:border-emerald-600" />
+                    placeholder="Nom complet" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-600 focus:border-primary-600" />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Telephone *</label>
                   <input type="text" value={orderForm.clientPhone} onChange={e => setOrderForm({...orderForm, clientPhone: e.target.value})}
-                    placeholder="06..." className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-600 focus:border-emerald-600" />
+                    placeholder="06..." className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-600 focus:border-primary-600" />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Ville</label>
                   <input type="text" value={orderForm.city} onChange={e => setOrderForm({...orderForm, city: e.target.value})}
-                    placeholder="Ville" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-600 focus:border-emerald-600" />
+                    placeholder="Ville" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-600 focus:border-primary-600" />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Adresse</label>
                   <input type="text" value={orderForm.address} onChange={e => setOrderForm({...orderForm, address: e.target.value})}
-                    placeholder="Adresse de livraison" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-600 focus:border-emerald-600" />
+                    placeholder="Adresse de livraison" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-600 focus:border-primary-600" />
                 </div>
               </div>
               <div>
@@ -3180,7 +3180,7 @@ const OrdersList = () => {
                         price: selectedProduct?.sellingPrice || orderForm.price
                       });
                     }}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-600 focus:border-emerald-600"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-600 focus:border-primary-600"
                   >
                     <option value="">Sélectionner un produit</option>
                     {availableProducts.map(product => (
@@ -3195,7 +3195,7 @@ const OrdersList = () => {
                     value={orderForm.product}
                     onChange={e => setOrderForm({...orderForm, product: e.target.value})}
                     placeholder="Nom du produit (aucun produit en stock)"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-600 focus:border-emerald-600"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-600 focus:border-primary-600"
                   />
                 )}
               </div>
@@ -3203,17 +3203,17 @@ const OrdersList = () => {
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Prix</label>
                   <input type="number" value={orderForm.price} onChange={e => setOrderForm({...orderForm, price: parseFloat(e.target.value) || 0})}
-                    min="0" step="0.01" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-600 focus:border-emerald-600" />
+                    min="0" step="0.01" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-600 focus:border-primary-600" />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Quantite</label>
                   <input type="number" value={orderForm.quantity} onChange={e => setOrderForm({...orderForm, quantity: parseInt(e.target.value) || 1})}
-                    min="1" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-600 focus:border-emerald-600" />
+                    min="1" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-600 focus:border-primary-600" />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Statut</label>
                   <select value={orderForm.status} onChange={e => { if (e.target.value === '__custom') { const c = prompt('Entrez le statut personnalisé :'); if (c && c.trim()) setOrderForm({...orderForm, status: c.trim()}); } else setOrderForm({...orderForm, status: e.target.value}); }}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-600 focus:border-emerald-600">
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-600 focus:border-primary-600">
                     {Object.entries(SL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                     {!SL[orderForm.status] && <option value={orderForm.status}>{orderForm.status}</option>}
                     <option value="__custom">+ Personnalisé...</option>
@@ -3223,7 +3223,7 @@ const OrdersList = () => {
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Notes</label>
                 <textarea value={orderForm.notes} onChange={e => setOrderForm({...orderForm, notes: e.target.value})}
-                  rows={2} placeholder="Notes, remarques..." className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-600 focus:border-emerald-600 resize-none" />
+                  rows={2} placeholder="Notes, remarques..." className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-600 focus:border-primary-600 resize-none" />
               </div>
             </div>
             <div className="sticky bottom-0 bg-white border-t border-gray-100 px-5 py-4 flex gap-3">
@@ -3231,7 +3231,7 @@ const OrdersList = () => {
                 Annuler
               </button>
               <button onClick={handleSaveOrder} disabled={savingOrder}
-                className="flex-1 px-4 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 text-sm font-medium flex items-center justify-center gap-2">
+                className="flex-1 px-4 py-2.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 text-sm font-medium flex items-center justify-center gap-2">
                 {savingOrder ? (
                   <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div> Enregistrement...</>
                 ) : editingOrder ? 'Modifier' : 'Creer'}
@@ -3254,7 +3254,7 @@ const OrdersList = () => {
             {/* ── Section Notifications Closeuses ── */}
             <div className="mb-6">
               <div className="flex items-center gap-2 mb-3">
-                <svg className="w-4 h-4 text-emerald-600" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/></svg>
+                <svg className="w-4 h-4 text-primary-600" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/></svg>
                 <h4 className="text-sm font-bold text-gray-900">Notifications Closeuses</h4>
               </div>
               <p className="text-xs text-gray-500 mb-3">Numéros WhatsApp qui reçoivent un message à chaque nouvelle commande.</p>
@@ -3266,19 +3266,19 @@ const OrdersList = () => {
                       placeholder="Label (ex: Closeuse 1)"
                       value={item.label}
                       onChange={e => setCloseuseNotifNumbers(prev => prev.map((n, i) => i === idx ? { ...n, label: e.target.value } : n))}
-                      className="flex-1 min-w-0 px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs focus:ring-1 focus:ring-emerald-500"
+                      className="flex-1 min-w-0 px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs focus:ring-1 focus:ring-primary-500"
                     />
                     <input
                       type="text"
                       placeholder="+237..."
                       value={item.phoneNumber}
                       onChange={e => setCloseuseNotifNumbers(prev => prev.map((n, i) => i === idx ? { ...n, phoneNumber: e.target.value } : n))}
-                      className="flex-1 min-w-0 px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs font-mono focus:ring-1 focus:ring-emerald-500"
+                      className="flex-1 min-w-0 px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs font-mono focus:ring-1 focus:ring-primary-500"
                     />
                     <button
                       type="button"
                       onClick={() => setCloseuseNotifNumbers(prev => prev.map((n, i) => i === idx ? { ...n, isActive: !n.isActive } : n))}
-                      className={`p-1.5 rounded-lg border transition ${item.isActive ? 'bg-emerald-50 border-emerald-300 text-emerald-600' : 'bg-gray-50 border-gray-200 text-gray-400'}`}
+                      className={`p-1.5 rounded-lg border transition ${item.isActive ? 'bg-primary-50 border-primary-300 text-primary-600' : 'bg-gray-50 border-gray-200 text-gray-400'}`}
                       title={item.isActive ? 'Actif — cliquer pour désactiver' : 'Inactif — cliquer pour activer'}
                     >
                       <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/></svg>
@@ -3296,7 +3296,7 @@ const OrdersList = () => {
               <button
                 type="button"
                 onClick={() => setCloseuseNotifNumbers(prev => [...prev, { label: '', phoneNumber: '', isActive: true }])}
-                className="inline-flex items-center gap-1 px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-medium hover:bg-emerald-100 transition"
+                className="inline-flex items-center gap-1 px-3 py-1.5 bg-primary-50 text-primary-700 border border-primary-200 rounded-lg text-xs font-medium hover:bg-primary-100 transition"
               >
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
                 Ajouter une closeuse
@@ -3353,7 +3353,7 @@ const OrdersList = () => {
 
             {/* Bouton de sauvegarde notifs */}
             {testNotifResult && (
-              <div className={`mt-4 p-3 rounded-lg text-xs ${testNotifResult.success ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-red-50 text-red-800 border border-red-200'}`}>
+              <div className={`mt-4 p-3 rounded-lg text-xs ${testNotifResult.success ? 'bg-primary-50 text-primary-800 border border-primary-200' : 'bg-red-50 text-red-800 border border-red-200'}`}>
                 <p className="font-semibold mb-1">{testNotifResult.success ? '✅' : '❌'} {testNotifResult.message}</p>
                 {testNotifResult.results?.map((r, i) => (
                   <p key={i} className="font-mono text-[11px] mt-0.5">
@@ -3390,7 +3390,7 @@ const OrdersList = () => {
                 type="button"
                 onClick={saveNotifConfig}
                 disabled={savingNotifConfig}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 disabled:opacity-50 text-sm font-semibold transition"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-xl hover:bg-primary-700 disabled:opacity-50 text-sm font-semibold transition"
               >
                 {savingNotifConfig ? (
                   <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"/><span>Sauvegarde...</span></>
@@ -3522,8 +3522,8 @@ const OrdersList = () => {
             <div className="space-y-2 mb-6 max-h-64 overflow-y-auto">
               {[
                 { key: 'delivered', label: 'Livré', color: 'bg-green-500' },
-                { key: 'confirmed', label: 'Confirmé', color: 'bg-emerald-600' },
-                { key: 'shipped', label: 'Expédié', color: 'bg-emerald-600' },
+                { key: 'confirmed', label: 'Confirmé', color: 'bg-primary-600' },
+                { key: 'shipped', label: 'Expédié', color: 'bg-primary-600' },
                 { key: 'pending', label: 'En attente', color: 'bg-yellow-500' },
                 { key: 'returned', label: 'Retour', color: 'bg-orange-500' },
                 { key: 'cancelled', label: 'Annulé', color: 'bg-red-500' },

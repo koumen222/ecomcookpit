@@ -1068,7 +1068,7 @@ const LandingPage = () => {
               ].map((c) => (
                 <div
                   key={c.name}
-                  className="flex flex-col items-center gap-2 p-3 rounded-xl border border-gray-100 bg-white hover:border-emerald-200 hover:shadow-sm transition-all"
+                  className="flex flex-col items-center gap-2 p-3 rounded-xl border border-gray-100 bg-white hover:border-primary-200 hover:shadow-sm transition-all"
                 >
                   <span style={{ fontSize: '32px', lineHeight: 1 }}>{c.flag}</span>
                   <span className="text-xs font-medium text-gray-600 text-center leading-tight">{c.name}</span>

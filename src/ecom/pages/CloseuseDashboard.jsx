@@ -69,7 +69,7 @@ export default function CloseuseDashboard() {
       <div className="text-center">
         <div className="text-4xl mb-4">🏢</div>
         <h2 className="text-lg font-bold text-gray-900 mb-2">Aucun espace configuré</h2>
-        <Link to="/ecom/workspace-setup" className="inline-block px-5 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-semibold">Créer un espace</Link>
+        <Link to="/ecom/workspace-setup" className="inline-block px-5 py-2.5 bg-primary-600 text-white rounded-xl text-sm font-semibold">Créer un espace</Link>
       </div>
     </div>
   );
@@ -116,7 +116,7 @@ export default function CloseuseDashboard() {
   if(loading) return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center">
       <div className="flex flex-col items-center gap-3">
-        <div className="w-10 h-10 rounded-full border-4 border-gray-200 border-t-emerald-500 animate-spin"/>
+        <div className="w-10 h-10 rounded-full border-4 border-gray-200 border-t-primary-500 animate-spin"/>
         <p className="text-sm text-gray-400">Chargement…</p>
       </div>
     </div>
@@ -188,7 +188,7 @@ export default function CloseuseDashboard() {
         <div className="flex bg-white border border-gray-200 rounded-xl p-1 mb-5 shadow-sm w-fit">
           {PERIODS.map(p=>(
             <button key={p.k} onClick={()=>setPeriod(p.k)}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${period===p.k?'bg-emerald-600 text-white shadow':'text-gray-500 hover:text-gray-700'}`}>
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${period===p.k?'bg-primary-600 text-white shadow':'text-gray-500 hover:text-gray-700'}`}>
               {p.l}
             </button>
           ))}
@@ -227,7 +227,7 @@ export default function CloseuseDashboard() {
           {/* Commission */}
           <div className="col-span-2 sm:col-span-1 rounded-2xl border shadow-sm p-4 relative overflow-hidden" style={{background:'linear-gradient(135deg,#065f46 0%,#047857 100%)',borderColor:'#047857'}}>
             <div className="flex items-center justify-between mb-2">
-              <span className="text-[10px] font-bold text-emerald-200 uppercase tracking-wide">Commission</span>
+              <span className="text-[10px] font-bold text-primary-200 uppercase tracking-wide">Commission</span>
               <div className="w-7 h-7 rounded-lg bg-white/10 flex items-center justify-center">
                 <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
@@ -235,7 +235,7 @@ export default function CloseuseDashboard() {
               </div>
             </div>
             <p className="text-2xl font-black text-white leading-none">{fmt(totalComm)}</p>
-            <p className="text-xs text-emerald-300 mt-1">{commLabel}</p>
+            <p className="text-xs text-primary-300 mt-1">{commLabel}</p>
             <div className="absolute -right-4 -bottom-4 w-20 h-20 rounded-full bg-white/5"/>
           </div>
 
@@ -264,7 +264,7 @@ export default function CloseuseDashboard() {
             <div className="text-right">
               <p className="text-2xl font-black leading-none" style={{color:rateColor}}>{stats.deliveryRate}%</p>
               {delta!==0&&(
-                <p className={`text-[11px] font-semibold mt-0.5 ${delta>0?'text-emerald-600':'text-red-400'}`}>
+                <p className={`text-[11px] font-semibold mt-0.5 ${delta>0?'text-primary-600':'text-red-400'}`}>
                   {delta>0?'↑':'↓'} {Math.abs(delta)}% vs sem. passée
                 </p>
               )}
@@ -292,8 +292,8 @@ export default function CloseuseDashboard() {
           <div className="flex justify-between mt-1.5">
             {trend.map((d,i)=>(
               <div key={i} className="flex flex-col items-center flex-1">
-                <span className={`text-[10px] font-medium capitalize ${d.isToday?'text-emerald-600 font-bold':'text-gray-400'}`}>{d.label}</span>
-                <span className={`text-[10px] font-black ${d.isToday?'text-emerald-600':'text-gray-500'}`}>{d.total}</span>
+                <span className={`text-[10px] font-medium capitalize ${d.isToday?'text-primary-600 font-bold':'text-gray-400'}`}>{d.label}</span>
+                <span className={`text-[10px] font-black ${d.isToday?'text-primary-600':'text-gray-500'}`}>{d.total}</span>
               </div>
             ))}
           </div>
@@ -342,10 +342,10 @@ export default function CloseuseDashboard() {
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-semibold text-gray-700 truncate mb-1">{name}</p>
                         <div className="h-1 bg-gray-100 rounded-full overflow-hidden">
-                          <div className="h-full rounded-full bg-emerald-500" style={{width:`${(count/max)*100}%`}}/>
+                          <div className="h-full rounded-full bg-primary-500" style={{width:`${(count/max)*100}%`}}/>
                         </div>
                       </div>
-                      <span className="text-xs font-black text-emerald-600 flex-shrink-0">{count}</span>
+                      <span className="text-xs font-black text-primary-600 flex-shrink-0">{count}</span>
                     </div>
                   );
                 })}
@@ -358,7 +358,7 @@ export default function CloseuseDashboard() {
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mb-4">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-bold text-gray-800">Commandes récentes</h3>
-            <Link to="/ecom/orders" className="text-xs text-emerald-600 font-semibold hover:text-emerald-700">Voir tout →</Link>
+            <Link to="/ecom/orders" className="text-xs text-primary-600 font-semibold hover:text-primary-700">Voir tout →</Link>
           </div>
           {recentOrders.length===0?(
             <p className="text-sm text-gray-400 text-center py-6">Aucune commande</p>

@@ -2,11 +2,11 @@
 import { useAudioPlayer } from '../hooks/useAudioRecorder';
 
 const ROLE_COLORS = { 
-  ecom_admin: 'bg-emerald-600', 
+  ecom_admin: 'bg-primary-600', 
   ecom_closeuse: 'bg-amber-500', 
-  ecom_compta: 'bg-emerald-500', 
+  ecom_compta: 'bg-primary-500', 
   ecom_livreur: 'bg-orange-500', 
-  super_admin: 'bg-emerald-700' 
+  super_admin: 'bg-primary-700' 
 };
 
 /**
@@ -163,7 +163,7 @@ export function ReplyPreview({ replyTo, onClear, isOwn }) {
   };
 
   return (
-    <div className={`flex items-center gap-2 px-3 py-2 rounded-t-lg border-l-2 ${isOwn ? 'bg-emerald-600/20 border-emerald-500' : 'bg-gray-100 border-gray-400'}`}>
+    <div className={`flex items-center gap-2 px-3 py-2 rounded-t-lg border-l-2 ${isOwn ? 'bg-primary-600/20 border-primary-500' : 'bg-gray-100 border-gray-400'}`}>
       <div className="flex-1 min-w-0">
         <p className="text-xs font-semibold">{replyTo.senderName}</p>
         <p className="text-xs opacity-70 truncate">{getPreviewText()}</p>
@@ -209,7 +209,7 @@ export function MessageStatus({ status }) {
   
   if (status === 'read') {
     return (
-      <svg className="w-3 h-3 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <svg className="w-3 h-3 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7M5 19l4 4L19 13" />
       </svg>
     );
@@ -233,7 +233,7 @@ export function MessageReactions({ reactions, onReact, userId }) {
             key={emoji}
             onClick={() => onReact(emoji, hasReacted ? 'remove' : 'add')}
             className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full text-xs transition-colors ${
-              hasReacted ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 hover:bg-gray-200'
+              hasReacted ? 'bg-primary-100 text-primary-700' : 'bg-gray-100 hover:bg-gray-200'
             }`}
           >
             <span>{emoji}</span>
@@ -297,7 +297,7 @@ export function RecordingIndicator({ duration, onCancel, onStop }) {
  */
 export function UploadProgress({ progress, fileName, onCancel }) {
   return (
-    <div className="flex items-center gap-3 px-4 py-2 bg-emerald-50 border border-emerald-200 rounded-xl">
+    <div className="flex items-center gap-3 px-4 py-2 bg-primary-50 border border-primary-200 rounded-xl">
       <div className="w-8 h-8 relative">
         <svg className="w-8 h-8 transform -rotate-90">
           <circle
@@ -307,7 +307,7 @@ export function UploadProgress({ progress, fileName, onCancel }) {
             stroke="currentColor"
             strokeWidth="3"
             fill="none"
-            className="text-emerald-200"
+            className="text-primary-200"
           />
           <circle
             cx="16"
@@ -318,21 +318,21 @@ export function UploadProgress({ progress, fileName, onCancel }) {
             fill="none"
             strokeDasharray={88}
             strokeDashoffset={88 - (88 * progress) / 100}
-            className="text-emerald-600 transition-all"
+            className="text-primary-600 transition-all"
           />
         </svg>
-        <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-emerald-600">
+        <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-primary-600">
           {progress}%
         </span>
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-emerald-700 truncate">{fileName}</p>
-        <p className="text-xs text-emerald-600">Envoi en cours...</p>
+        <p className="text-sm font-medium text-primary-700 truncate">{fileName}</p>
+        <p className="text-xs text-primary-600">Envoi en cours...</p>
       </div>
       {onCancel && (
         <button
           onClick={onCancel}
-          className="p-1 text-emerald-500 hover:text-emerald-600"
+          className="p-1 text-primary-500 hover:text-primary-600"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />

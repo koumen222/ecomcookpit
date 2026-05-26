@@ -187,7 +187,7 @@ const GlobalSearch = ({ isSuperAdmin = false, isMobile = false }) => {
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     placeholder="Rechercher tout..."
-                    className="w-full pl-10 pr-4 py-2.5 bg-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                    className="w-full pl-10 pr-4 py-2.5 bg-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-600"
                   />
                 </div>
               </div>
@@ -196,7 +196,7 @@ const GlobalSearch = ({ isSuperAdmin = false, isMobile = false }) => {
                 <div className="max-h-[70vh] overflow-y-auto">
                   {loading ? (
                     <div className="flex items-center justify-center py-8">
-                      <div className="w-6 h-6 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
+                      <div className="w-6 h-6 border-2 border-primary-600 border-t-transparent rounded-full animate-spin" />
                     </div>
                   ) : totalResults === 0 ? (
                     <div className="text-center py-8 text-gray-500 text-sm">
@@ -297,8 +297,8 @@ const GlobalSearch = ({ isSuperAdmin = false, isMobile = false }) => {
           placeholder="Rechercher tout..."
           className={`block w-full pl-9 pr-3 py-1.5 rounded-lg leading-5 text-sm focus:outline-none focus:ring-1 ${
             isSuperAdmin
-              ? 'bg-gray-800 border border-gray-700 text-gray-200 placeholder-gray-500 focus:border-emerald-600 focus:ring-emerald-600'
-              : 'bg-white border border-gray-300 text-gray-900 placeholder-gray-400 focus:border-emerald-600 focus:ring-emerald-600'
+              ? 'bg-gray-800 border border-gray-700 text-gray-200 placeholder-gray-500 focus:border-primary-600 focus:ring-primary-600'
+              : 'bg-white border border-gray-300 text-gray-900 placeholder-gray-400 focus:border-primary-600 focus:ring-primary-600'
           }`}
         />
       </div>
@@ -309,7 +309,7 @@ const GlobalSearch = ({ isSuperAdmin = false, isMobile = false }) => {
         }`}>
           {loading ? (
             <div className="flex items-center justify-center py-8">
-              <div className="w-6 h-6 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
+              <div className="w-6 h-6 border-2 border-primary-600 border-t-transparent rounded-full animate-spin" />
             </div>
           ) : totalResults === 0 ? (
             <div className={`text-center py-8 text-sm ${isSuperAdmin ? 'text-gray-400' : 'text-gray-500'}`}>

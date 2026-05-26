@@ -52,7 +52,7 @@ export default function TestimonialsCarousel({ testimonials = [], autoPlay = tru
   const currentTestimonial = testimonials[currentIndex];
 
   return (
-    <div className="w-full bg-gradient-to-br from-emerald-50 to-teal-50 rounded-2xl relative overflow-hidden"
+    <div className="w-full bg-gradient-to-br from-primary-50 to-teal-50 rounded-2xl relative overflow-hidden"
       style={{ padding: 'clamp(20px, 4vw, 32px)' }}
     >
       <style>{`
@@ -63,7 +63,7 @@ export default function TestimonialsCarousel({ testimonials = [], autoPlay = tru
       `}</style>
 
       {/* Décoration de fond */}
-      <div className="absolute top-0 left-0 w-32 h-32 bg-emerald-200/30 rounded-full blur-3xl"></div>
+      <div className="absolute top-0 left-0 w-32 h-32 bg-primary-200/30 rounded-full blur-3xl"></div>
       <div className="absolute bottom-0 right-0 w-40 h-40 bg-teal-200/30 rounded-full blur-3xl"></div>
 
       {/* Titre */}
@@ -93,7 +93,7 @@ export default function TestimonialsCarousel({ testimonials = [], autoPlay = tru
           <div className="flex-1" style={{ maxWidth: 720, minWidth: 0 }}>
             <div className="bg-white rounded-xl shadow-lg relative" style={{ padding: 'clamp(16px, 3vw, 32px)' }}>
               {/* Icône citation */}
-              <div className="absolute top-3 left-3 sm:top-4 sm:left-4 text-emerald-500 opacity-20">
+              <div className="absolute top-3 left-3 sm:top-4 sm:left-4 text-primary-500 opacity-20">
                 <Quote size={32} fill="currentColor" className="sm:hidden" />
                 <Quote size={48} fill="currentColor" className="hidden sm:block" />
               </div>
@@ -105,7 +105,7 @@ export default function TestimonialsCarousel({ testimonials = [], autoPlay = tru
                     <img
                       src={currentTestimonial.image}
                       alt={currentTestimonial.name}
-                      className="rounded-full object-cover border-4 border-emerald-100"
+                      className="rounded-full object-cover border-4 border-primary-100"
                       style={{ width: 'clamp(48px, 10vw, 80px)', height: 'clamp(48px, 10vw, 80px)' }}
                     />
                   </div>
@@ -145,7 +145,7 @@ export default function TestimonialsCarousel({ testimonials = [], autoPlay = tru
                     </p>
                   )}
                   {currentTestimonial.verified && (
-                    <span className="inline-flex items-center gap-1 mt-2 text-xs text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full">
+                    <span className="inline-flex items-center gap-1 mt-2 text-xs text-primary-600 bg-primary-50 px-3 py-1 rounded-full">
                       ✓ Achat vérifié
                     </span>
                   )}
@@ -173,7 +173,7 @@ export default function TestimonialsCarousel({ testimonials = [], autoPlay = tru
                 onClick={() => goToSlide(index)}
                 className={`h-2 sm:h-2.5 rounded-full transition-all ${
                   index === currentIndex
-                    ? 'bg-emerald-500 w-6 sm:w-8'
+                    ? 'bg-primary-500 w-6 sm:w-8'
                     : 'bg-gray-300 hover:bg-gray-400 w-2 sm:w-2.5'
                 }`}
               />
@@ -184,10 +184,10 @@ export default function TestimonialsCarousel({ testimonials = [], autoPlay = tru
 
       {/* Badge "Témoignages authentiques" */}
       <div className="text-center mt-4 sm:mt-6 relative z-10">
-        <span className="inline-flex items-center gap-2 text-emerald-700 bg-emerald-100 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full font-medium"
+        <span className="inline-flex items-center gap-2 text-primary-700 bg-primary-100 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full font-medium"
           style={{ fontSize: 'clamp(11px, 1.8vw, 14px)' }}
         >
-          <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
+          <span className="w-2 h-2 bg-primary-500 rounded-full animate-pulse"></span>
           Témoignages 100% authentiques
         </span>
       </div>
@@ -234,7 +234,7 @@ export function TestimonialsCarouselCompact({ testimonials = [] }) {
             <div
               key={idx}
               className={`h-1 flex-1 rounded-full ${
-                idx === currentIndex ? 'bg-emerald-500' : 'bg-gray-200'
+                idx === currentIndex ? 'bg-primary-500' : 'bg-gray-200'
               }`}
             />
           ))}

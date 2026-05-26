@@ -36,7 +36,7 @@ const ProductDetail = () => {
   const getStatusColor = (status) => {
     const colors = {
       test: 'bg-yellow-100 text-yellow-800',
-      stable: 'bg-emerald-100 text-emerald-800',
+      stable: 'bg-primary-100 text-primary-800',
       winner: 'bg-green-100 text-green-800',
       pause: 'bg-orange-100 text-orange-800',
       stop: 'bg-red-100 text-red-800'
@@ -63,7 +63,7 @@ const ProductDetail = () => {
         <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded">
           {error || 'Produit non trouvé'}
         </div>
-        <button onClick={() => navigate(-1)} className="mt-4 text-emerald-600 hover:text-emerald-800 text-sm font-medium">
+        <button onClick={() => navigate(-1)} className="mt-4 text-primary-600 hover:text-primary-800 text-sm font-medium">
           ← Retour
         </button>
       </div>
@@ -93,7 +93,7 @@ const ProductDetail = () => {
         </div>
         {user?.role === 'ecom_admin' && (
           <Link to={`/ecom/products/${id}/edit`}
-            className="ecom-mobile-button px-4 py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 text-sm font-medium transition-colors">
+            className="ecom-mobile-button px-4 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm font-medium transition-colors">
             Modifier
           </Link>
         )}
@@ -192,7 +192,7 @@ const ProductDetail = () => {
                 title={`Produit: ${fmt(product?.productCost || 0)}`}></div>
               <div className="bg-yellow-400" style={{ width: `${(product?.deliveryCost || 0) / (product?.sellingPrice || 1) * 100}%` }}
                 title={`Livraison: ${fmt(product?.deliveryCost || 0)}`}></div>
-              <div className="bg-emerald-500" style={{ width: `${(product?.avgAdsCost || 0) / (product?.sellingPrice || 1) * 100}%` }}
+              <div className="bg-primary-500" style={{ width: `${(product?.avgAdsCost || 0) / (product?.sellingPrice || 1) * 100}%` }}
                 title={`Pub: ${fmt(product?.avgAdsCost || 0)}`}></div>
               <div className={`${margin >= 0 ? 'bg-green-400' : 'bg-red-600'}`}
                 style={{ width: `${Math.max(0, margin / (product?.sellingPrice || 1) * 100)}%` }}
@@ -201,7 +201,7 @@ const ProductDetail = () => {
             <div className="flex flex-wrap gap-3 text-xs text-gray-600">
               <span className="flex items-center"><span className="w-2.5 h-2.5 bg-red-400 rounded-full mr-1.5"></span>Produit</span>
               <span className="flex items-center"><span className="w-2.5 h-2.5 bg-yellow-400 rounded-full mr-1.5"></span>Livraison</span>
-              <span className="flex items-center"><span className="w-2.5 h-2.5 bg-emerald-500 rounded-full mr-1.5"></span>Pub</span>
+              <span className="flex items-center"><span className="w-2.5 h-2.5 bg-primary-500 rounded-full mr-1.5"></span>Pub</span>
               <span className="flex items-center"><span className="w-2.5 h-2.5 bg-green-400 rounded-full mr-1.5"></span>Marge</span>
             </div>
           </>

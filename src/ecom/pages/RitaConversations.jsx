@@ -96,17 +96,17 @@ export default function RitaConversations() {
         <div className="p-4 border-b border-gray-100">
           <div className="flex items-center justify-between mb-1">
             <h1 className="font-semibold text-gray-900 flex items-center gap-2">
-              <MessageCircle className="w-5 h-5 text-emerald-500" />
+              <MessageCircle className="w-5 h-5 text-primary-500" />
               {agentName ? (
                 <span className="flex items-center gap-1.5">
-                  <Bot className="w-4 h-4 text-emerald-400" />
+                  <Bot className="w-4 h-4 text-primary-400" />
                   {agentName}
                 </span>
               ) : 'Conversations Rita'}
             </h1>
             <div className="flex items-center gap-2">
               {isConnected
-                ? <Wifi className="w-4 h-4 text-emerald-500" title="Connecté" />
+                ? <Wifi className="w-4 h-4 text-primary-500" title="Connecté" />
                 : <WifiOff className="w-4 h-4 text-gray-400" title="Déconnecté" />
               }
               <button onClick={fetchConversations} className="text-gray-400 hover:text-gray-600">
@@ -138,7 +138,7 @@ export default function RitaConversations() {
               <button
                 key={conv.key}
                 onClick={() => setSelected(conv)}
-                className={`w-full text-left px-4 py-3 border-b border-gray-50 hover:bg-gray-50 transition-colors ${isActive ? 'bg-emerald-50 border-l-2 border-l-emerald-500' : ''}`}
+                className={`w-full text-left px-4 py-3 border-b border-gray-50 hover:bg-gray-50 transition-colors ${isActive ? 'bg-primary-50 border-l-2 border-l-primary-500' : ''}`}
               >
                 <div className="flex items-center justify-between mb-1">
                   <span className="font-medium text-sm text-gray-900 truncate">
@@ -150,7 +150,7 @@ export default function RitaConversations() {
                 </div>
                 <p className="text-xs text-gray-500 truncate">{conv.phone}</p>
                 {conv.state?.produit && (
-                  <p className="text-xs text-emerald-600 truncate mt-0.5">{conv.state.produit}</p>
+                  <p className="text-xs text-primary-600 truncate mt-0.5">{conv.state.produit}</p>
                 )}
                 {lastMsg && (
                   <p className="text-xs text-gray-400 truncate mt-1">
@@ -242,7 +242,7 @@ export default function RitaConversations() {
                   <div className={`max-w-[70%] rounded-2xl px-4 py-2 text-sm shadow-sm ${
                     isRita
                       ? 'bg-white text-gray-800 rounded-bl-sm border border-gray-100'
-                      : 'bg-emerald-500 text-white rounded-br-sm'
+                      : 'bg-primary-500 text-white rounded-br-sm'
                   }`}>
                     {!isRita && (
                       <p className="text-xs font-medium mb-0.5 opacity-75">

@@ -246,7 +246,7 @@ const BoutiqueDeliveryZones = () => {
               </div>
             </div>
 
-            <div className={`flex items-start gap-2.5 p-3 rounded-xl text-xs ${flatShippingFee > 0 ? 'bg-emerald-50 border border-emerald-200 text-emerald-700' : 'bg-amber-50 border border-amber-200 text-amber-700'}`}>
+            <div className={`flex items-start gap-2.5 p-3 rounded-xl text-xs ${flatShippingFee > 0 ? 'bg-primary-50 border border-primary-200 text-primary-700' : 'bg-amber-50 border border-amber-200 text-amber-700'}`}>
               <svg className="w-4 h-4 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
@@ -275,11 +275,11 @@ const BoutiqueDeliveryZones = () => {
         {/* Country tags */}
         <div className="flex flex-wrap gap-2">
           {countries.map(c => (
-            <span key={c} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-full text-sm font-medium">
+            <span key={c} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary-50 text-primary-700 rounded-full text-sm font-medium">
               {c}
               <button
                 onClick={() => removeCountry(c)}
-                className="w-4 h-4 rounded-full hover:bg-emerald-200 flex items-center justify-center transition"
+                className="w-4 h-4 rounded-full hover:bg-primary-200 flex items-center justify-center transition"
               >
                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
@@ -363,7 +363,7 @@ const BoutiqueDeliveryZones = () => {
             )}
 
             {countryZones.map(zone => (
-              <div key={zone.id} className={`border rounded-xl p-4 space-y-3 transition ${zone.enabled ? 'border-emerald-200 bg-emerald-50/30' : 'border-gray-200 bg-gray-50 opacity-60'}`}>
+              <div key={zone.id} className={`border rounded-xl p-4 space-y-3 transition ${zone.enabled ? 'border-primary-200 bg-primary-50/30' : 'border-gray-200 bg-gray-50 opacity-60'}`}>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3 flex-1">
                     <input
@@ -428,11 +428,11 @@ const BoutiqueDeliveryZones = () => {
         <h3 className="text-sm font-bold text-gray-900">Comment ça fonctionne</h3>
         <div className="space-y-2 text-xs text-gray-600">
           <div className="flex items-start gap-2">
-            <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-[10px] font-bold flex-shrink-0">1</span>
+            <span className="w-5 h-5 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center text-[10px] font-bold flex-shrink-0">1</span>
             <p><strong>Pays définis</strong> — Seuls les clients dans ces pays peuvent commander. Message d'erreur sinon.</p>
           </div>
           <div className="flex items-start gap-2">
-            <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-[10px] font-bold flex-shrink-0">2</span>
+            <span className="w-5 h-5 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center text-[10px] font-bold flex-shrink-0">2</span>
             <p><strong>Zone de livraison</strong> — Si la ville du client correspond à une zone, la livraison est proposée avec paiement à la réception + frais de livraison définis.</p>
           </div>
           <div className="flex items-start gap-2">

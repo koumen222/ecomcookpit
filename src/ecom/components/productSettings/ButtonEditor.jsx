@@ -110,7 +110,7 @@ const ColorRow = ({ label, value, onChange }) => (
       <input type="color" value={value || '#ffffff'} onChange={e => onChange(e.target.value)}
         className="w-9 h-9 rounded-xl border border-gray-200 cursor-pointer p-0.5" />
       <input type="text" value={value || ''} onChange={e => onChange(e.target.value)}
-        className="flex-1 px-3 py-2 rounded-xl border border-gray-200 text-xs font-mono focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-200" />
+        className="flex-1 px-3 py-2 rounded-xl border border-gray-200 text-xs font-mono focus:outline-none focus:border-primary-400 focus:ring-1 focus:ring-primary-200" />
     </div>
   </div>
 );
@@ -177,13 +177,13 @@ const ButtonEditor = ({ config, designConfig, onChange }) => {
           <label className="block text-xs font-semibold text-gray-700 mb-1.5">Texte principal</label>
           <input type="text" value={config.text} onChange={e => update('text', e.target.value)}
             placeholder="Ex: Commander maintenant"
-            className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm font-medium focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-200" />
+            className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm font-medium focus:outline-none focus:border-primary-400 focus:ring-1 focus:ring-primary-200" />
         </div>
         <div>
           <label className="block text-xs font-semibold text-gray-700 mb-1.5">Sous-titre</label>
           <input type="text" value={config.subtext} onChange={e => update('subtext', e.target.value)}
             placeholder="Ex: Paiement à la livraison"
-            className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-500 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-200" />
+            className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-500 focus:outline-none focus:border-primary-400 focus:ring-1 focus:ring-primary-200" />
         </div>
       </div>
 
@@ -205,7 +205,7 @@ const ButtonEditor = ({ config, designConfig, onChange }) => {
               <input type="number" min="10" max="30"
                 value={fontSize}
                 onChange={e => update('fontSize', parseInt(e.target.value) || 16)}
-                className="w-14 px-2 py-2 rounded-xl border border-gray-200 text-center text-sm focus:outline-none focus:border-emerald-400" />
+                className="w-14 px-2 py-2 rounded-xl border border-gray-200 text-center text-sm focus:outline-none focus:border-primary-400" />
               <span className="text-xs text-gray-400">px</span>
             </div>
           </div>
@@ -226,7 +226,7 @@ const ButtonEditor = ({ config, designConfig, onChange }) => {
             </label>
             <input type="range" min="0" max="40" value={borderRadius}
               onChange={e => update('borderRadius', parseInt(e.target.value))}
-              className="w-full accent-emerald-500 mt-1" />
+              className="w-full accent-primary-500 mt-1" />
           </div>
         </div>
 
@@ -238,7 +238,7 @@ const ButtonEditor = ({ config, designConfig, onChange }) => {
             </label>
             <input type="range" min="0" max="6" value={borderWidth}
               onChange={e => update('borderWidth', parseInt(e.target.value))}
-              className="w-full accent-emerald-500 mt-2" />
+              className="w-full accent-primary-500 mt-2" />
           </div>
         </div>
 
@@ -248,7 +248,7 @@ const ButtonEditor = ({ config, designConfig, onChange }) => {
           </label>
           <input type="range" min="0" max="30" value={shadowVal}
             onChange={e => update('shadow', parseInt(e.target.value))}
-            className="w-full accent-emerald-500" />
+            className="w-full accent-primary-500" />
         </div>
       </div>
 
@@ -260,7 +260,7 @@ const ButtonEditor = ({ config, designConfig, onChange }) => {
             <button key={id} onClick={() => update('icon', id)} title={label}
               className={`flex flex-col items-center gap-1 p-2 rounded-xl border-2 transition-all ${
                 config.icon === id
-                  ? 'border-emerald-400 bg-emerald-50 text-emerald-700'
+                  ? 'border-primary-400 bg-primary-50 text-primary-700'
                   : 'border-transparent bg-gray-50 text-gray-400 hover:bg-gray-100 hover:text-gray-600'
               }`}>
               <Icon size={16} />
@@ -278,7 +278,7 @@ const ButtonEditor = ({ config, designConfig, onChange }) => {
             <button key={id} onClick={() => update('animation', id)}
               className={`px-3 py-2.5 rounded-xl text-xs font-semibold border-2 transition-all ${
                 config.animation === id
-                  ? 'border-emerald-400 bg-emerald-50 text-emerald-700'
+                  ? 'border-primary-400 bg-primary-50 text-primary-700'
                   : 'border-transparent bg-gray-50 text-gray-500 hover:bg-gray-100'
               }`}>
               {label}

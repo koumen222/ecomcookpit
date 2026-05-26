@@ -6,8 +6,8 @@ import ecomApi from '../services/ecommApi.js';
 const STATUSES = [
   { value: 'test',   label: 'Test',   color: 'text-amber-600'   },
   { value: 'scale',  label: 'Scale',  color: 'text-orange-600'  },
-  { value: 'stable', label: 'Stable', color: 'text-emerald-700' },
-  { value: 'winner', label: 'Winner', color: 'text-emerald-700' },
+  { value: 'stable', label: 'Stable', color: 'text-primary-700' },
+  { value: 'winner', label: 'Winner', color: 'text-primary-700' },
   { value: 'pause',  label: 'Pause',  color: 'text-gray-500'    },
   { value: 'stop',   label: 'Stop',   color: 'text-red-600'     },
 ];
@@ -24,7 +24,7 @@ const Field = ({ label, hint, required, children }) => (
   </div>
 );
 
-const inputCls = 'w-full px-3 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400 focus:bg-white transition placeholder:text-gray-400';
+const inputCls = 'w-full px-3 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-primary-400 focus:bg-white transition placeholder:text-gray-400';
 
 const Skeleton = () => (
   <div className="flex flex-col min-h-full bg-[#f8f9fb] animate-pulse">
@@ -184,7 +184,7 @@ export default function ProductForm() {
                         onClick={() => setForm(p => ({ ...p, status: s.value }))}
                         className={`py-2 rounded-lg text-[12px] font-semibold border transition-all ${
                           form.status === s.value
-                            ? 'border-emerald-500 bg-emerald-50 text-emerald-700 ring-2 ring-emerald-200'
+                            ? 'border-primary-500 bg-primary-50 text-primary-700 ring-2 ring-primary-200'
                             : 'border-gray-200 bg-gray-50 text-gray-500 hover:border-gray-300 hover:bg-gray-100'
                         }`}
                       >
@@ -200,7 +200,7 @@ export default function ProductForm() {
                     role="switch"
                     aria-checked={form.isActive}
                     onClick={() => setForm(p => ({ ...p, isActive: !p.isActive }))}
-                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${form.isActive ? 'bg-emerald-500' : 'bg-gray-300'}`}
+                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${form.isActive ? 'bg-primary-500' : 'bg-gray-300'}`}
                   >
                     <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform ${form.isActive ? 'translate-x-[18px]' : 'translate-x-[3px]'}`} />
                   </button>
@@ -248,7 +248,7 @@ export default function ProductForm() {
                       <button
                         type="button"
                         onClick={applySuggested}
-                        className="shrink-0 px-3 py-2.5 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-700 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap"
+                        className="shrink-0 px-3 py-2.5 bg-primary-50 hover:bg-primary-100 border border-primary-200 text-primary-700 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap"
                         title="Appliquer le prix suggéré"
                       >
                         {fmt(suggested)} →
@@ -265,20 +265,20 @@ export default function ProductForm() {
                 {/* Aperçu financier */}
                 {price > 0 && cost > 0 && (
                   <div className={`rounded-xl px-4 py-3.5 mt-1 flex items-center gap-4 ${
-                    (benefit ?? 0) > 0 ? 'bg-emerald-50 border border-emerald-100' : 'bg-red-50 border border-red-100'
+                    (benefit ?? 0) > 0 ? 'bg-primary-50 border border-primary-100' : 'bg-red-50 border border-red-100'
                   }`}>
                     <div className="flex-1 min-w-0">
-                      <p className={`text-[11px] font-semibold uppercase tracking-wide ${(benefit ?? 0) > 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                      <p className={`text-[11px] font-semibold uppercase tracking-wide ${(benefit ?? 0) > 0 ? 'text-primary-600' : 'text-red-500'}`}>
                         Bénéfice estimé
                       </p>
-                      <p className={`text-2xl font-bold tabular-nums leading-tight ${(benefit ?? 0) > 0 ? 'text-emerald-700' : 'text-red-600'}`}>
+                      <p className={`text-2xl font-bold tabular-nums leading-tight ${(benefit ?? 0) > 0 ? 'text-primary-700' : 'text-red-600'}`}>
                         {benefit !== null ? `${(benefit > 0 ? '+' : '')}${fmt(benefit)}` : '—'}
                       </p>
                     </div>
                     {margin !== null && (
                       <div className="text-right shrink-0">
                         <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Marge</p>
-                        <p className={`text-2xl font-bold tabular-nums ${(benefit ?? 0) > 0 ? 'text-emerald-700' : 'text-red-600'}`}>
+                        <p className={`text-2xl font-bold tabular-nums ${(benefit ?? 0) > 0 ? 'text-primary-700' : 'text-red-600'}`}>
                           {margin}%
                         </p>
                       </div>
@@ -333,7 +333,7 @@ export default function ProductForm() {
               <button
                 type="submit"
                 disabled={loading}
-                className="flex-1 py-2.5 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl shadow-sm shadow-emerald-200 transition-all active:scale-95"
+                className="flex-1 py-2.5 text-sm font-semibold text-white bg-primary-600 hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl shadow-sm shadow-primary-200 transition-all active:scale-95"
               >
                 {loading
                   ? (isEditing ? 'Enregistrement…' : 'Création…')

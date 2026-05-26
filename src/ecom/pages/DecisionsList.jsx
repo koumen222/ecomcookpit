@@ -62,7 +62,7 @@ const DecisionsList = () => {
         <h1 className="text-xl sm:text-3xl font-bold text-gray-900">Décisions</h1>
         <Link
           to="/ecom/decisions/new"
-          className="bg-emerald-600 text-white px-3 py-2 sm:px-4 rounded-lg hover:bg-emerald-700 text-sm"
+          className="bg-primary-600 text-white px-3 py-2 sm:px-4 rounded-lg hover:bg-primary-700 text-sm"
         >
           + Décision
         </Link>
@@ -118,7 +118,7 @@ const DecisionsList = () => {
                   </td>
                   <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap">
                     {decision.productId?._id ? (
-                      <Link to={`/products/${decision.productId._id}`} className="text-xs sm:text-sm text-emerald-600 hover:text-emerald-800 hover:underline">{decision.productId.name}</Link>
+                      <Link to={`/products/${decision.productId._id}`} className="text-xs sm:text-sm text-primary-600 hover:text-primary-800 hover:underline">{decision.productId.name}</Link>
                     ) : (
                       <span className="text-xs sm:text-sm text-gray-900">N/A</span>
                     )}
@@ -129,7 +129,7 @@ const DecisionsList = () => {
                         ? 'bg-green-100 text-green-800'
                         : decision.type === 'stop'
                         ? 'bg-red-100 text-red-800'
-                        : 'bg-emerald-100 text-emerald-800'
+                        : 'bg-primary-100 text-primary-800'
                     }`}>
                       {decision.type === 'scale' ? 'Scaler' : 
                        decision.type === 'stop' ? 'Arrêter' : 'Continuer'}
@@ -167,7 +167,7 @@ const DecisionsList = () => {
                   <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm font-medium">
                     <Link
                       to={`/decisions/${decision._id}`}
-                      className="text-emerald-700 hover:text-emerald-900 mr-4"
+                      className="text-primary-700 hover:text-primary-900 mr-4"
                     >
                       Voir
                     </Link>

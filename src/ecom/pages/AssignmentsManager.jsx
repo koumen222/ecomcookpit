@@ -400,7 +400,7 @@ const AssignmentsManager = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
       </div>
     );
   }
@@ -419,7 +419,7 @@ const AssignmentsManager = () => {
               setFormData({ closeuseId: '', orderSources: [], productAssignments: [], notes: '' });
               setShowForm(true);
             }}
-            className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium active:bg-emerald-700"
+            className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 bg-primary-600 text-white rounded-lg text-sm font-medium active:bg-primary-700"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
             <span className="hidden sm:inline">Nouvelle </span>Affectation
@@ -523,7 +523,7 @@ const AssignmentsManager = () => {
                     <div className="mt-3 pt-3 border-t border-gray-100">
                       <button
                         onClick={() => handlePreviewSheetsData(source)}
-                        className="w-full px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded text-xs font-medium hover:bg-emerald-100 transition"
+                        className="w-full px-3 py-1.5 bg-primary-50 text-primary-700 rounded text-xs font-medium hover:bg-primary-100 transition"
                       >
                         Aperçu des données
                       </button>
@@ -611,7 +611,7 @@ const AssignmentsManager = () => {
                           <div key={index} className={`p-3 rounded-lg text-sm ${
                             rec.type === 'error' ? 'bg-red-50 text-red-800' :
                             rec.type === 'warning' ? 'bg-yellow-50 text-yellow-800' :
-                            'bg-emerald-50 text-emerald-800'
+                            'bg-primary-50 text-primary-800'
                           }`}>
                             <div className="font-medium">{rec.message}</div>
                             {rec.action && <div className="text-xs mt-1 opacity-75">{rec.action}</div>}
@@ -623,7 +623,7 @@ const AssignmentsManager = () => {
                 </div>
               ) : (
                 <div className="flex items-center justify-center h-32">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600"></div>
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
                 </div>
               )}
             </div>
@@ -647,7 +647,7 @@ const AssignmentsManager = () => {
               {/* Closeuse */}
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 min-w-0">
-                  <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 font-bold text-sm flex-shrink-0">
+                  <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center text-primary-700 font-bold text-sm flex-shrink-0">
                     {assignment.closeuseId?.name?.charAt(0)?.toUpperCase() || '?'}
                   </div>
                   <div className="min-w-0">
@@ -658,7 +658,7 @@ const AssignmentsManager = () => {
                 <div className="flex gap-2 flex-shrink-0">
                   <button
                     onClick={() => handleEdit(assignment)}
-                    className="p-2 rounded-lg bg-emerald-50 text-emerald-600 active:bg-emerald-100"
+                    className="p-2 rounded-lg bg-primary-50 text-primary-600 active:bg-primary-100"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                   </button>
@@ -788,7 +788,7 @@ const AssignmentsManager = () => {
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-500">{assignment.notes || '-'}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <button onClick={() => handleEdit(assignment)} className="text-emerald-600 hover:text-emerald-900 mr-3">Modifier</button>
+                    <button onClick={() => handleEdit(assignment)} className="text-primary-600 hover:text-primary-900 mr-3">Modifier</button>
                     <button onClick={() => handleDelete(assignment._id)} className="text-red-600 hover:text-red-900">Supprimer</button>
                   </td>
                 </tr>
@@ -834,7 +834,7 @@ const AssignmentsManager = () => {
                 {/* ÉTAPE 1 — Closeuse */}
                 <div>
                   <div className="flex items-center gap-2 mb-3">
-                    <span className="flex items-center justify-center w-6 h-6 rounded-full bg-emerald-600 text-white text-xs font-bold">1</span>
+                    <span className="flex items-center justify-center w-6 h-6 rounded-full bg-primary-600 text-white text-xs font-bold">1</span>
                     <h3 className="text-sm font-semibold text-gray-800">Choisir la closeuse</h3>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -843,7 +843,7 @@ const AssignmentsManager = () => {
                         key={closeuse._id}
                         className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all ${
                           formData.closeuseId === closeuse._id
-                            ? 'border-emerald-600 bg-emerald-50'
+                            ? 'border-primary-600 bg-primary-50'
                             : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
                         }`}
                       >
@@ -855,7 +855,7 @@ const AssignmentsManager = () => {
                           onChange={(e) => setFormData(prev => ({ ...prev, closeuseId: e.target.value }))}
                           className="sr-only"
                         />
-                        <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 font-bold text-sm flex-shrink-0">
+                        <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center text-primary-700 font-bold text-sm flex-shrink-0">
                           {closeuse.name?.charAt(0)?.toUpperCase() || '?'}
                         </div>
                         <div className="min-w-0">
@@ -863,7 +863,7 @@ const AssignmentsManager = () => {
                           <div className="text-xs text-gray-500 truncate">{closeuse.email}</div>
                         </div>
                         {formData.closeuseId === closeuse._id && (
-                          <svg className="w-4 h-4 text-emerald-600 ml-auto flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                          <svg className="w-4 h-4 text-primary-600 ml-auto flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                             <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                           </svg>
                         )}
@@ -878,7 +878,7 @@ const AssignmentsManager = () => {
                 {/* ÉTAPE 2 — Sources + Produits par source */}
                 <div>
                   <div className="flex items-center gap-2 mb-3">
-                    <span className="flex items-center justify-center w-6 h-6 rounded-full bg-emerald-600 text-white text-xs font-bold">2</span>
+                    <span className="flex items-center justify-center w-6 h-6 rounded-full bg-primary-600 text-white text-xs font-bold">2</span>
                     <h3 className="text-sm font-semibold text-gray-800">Sources & Produits assignés</h3>
                     <span className="text-xs text-gray-400">— Cochez les sources puis sélectionnez les produits</span>
                   </div>
@@ -904,7 +904,7 @@ const AssignmentsManager = () => {
                         <div
                           key={source._id}
                           className={`rounded-lg border-2 transition-all ${
-                            isSourceChecked ? 'border-emerald-500 bg-emerald-50/40' : 'border-gray-200 bg-white'
+                            isSourceChecked ? 'border-primary-500 bg-primary-50/40' : 'border-gray-200 bg-white'
                           }`}
                         >
                           {/* Header source */}
@@ -913,7 +913,7 @@ const AssignmentsManager = () => {
                               type="checkbox"
                               checked={isSourceChecked}
                               onChange={() => toggleSource(sid, isSheetSource)}
-                              className="w-4 h-4 rounded border-gray-300 text-emerald-600 cursor-pointer"
+                              className="w-4 h-4 rounded border-gray-300 text-primary-600 cursor-pointer"
                             />
                             <span className="text-base">{source.icon}</span>
                             <span className="text-sm font-medium text-gray-800 flex-1">{source.name}</span>
@@ -921,14 +921,14 @@ const AssignmentsManager = () => {
                               <span className="text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded-full">Google Sheets</span>
                             )}
                             {source.sourceType === 'scalor_store' || source.metadata?.type === 'scalor_store' ? (
-                              <span className="text-xs px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full font-semibold">Scalor</span>
+                              <span className="text-xs px-2 py-0.5 bg-primary-100 text-primary-700 rounded-full font-semibold">Scalor</span>
                             ) : source.sourceType === 'webhook' && !isSheetSource ? (
                               <span className="text-xs px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-full">Webhook</span>
                             ) : source.sourceType === 'shopify' ? (
                               <span className="text-xs px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full">Shopify</span>
                             ) : null}
                             {isSourceChecked && selectedProductIds.length > 0 && (
-                              <span className="text-xs px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full font-medium">
+                              <span className="text-xs px-2 py-0.5 bg-primary-100 text-primary-700 rounded-full font-medium">
                                 {selectedProductIds.length} produit{selectedProductIds.length > 1 ? 's' : ''}
                               </span>
                             )}
@@ -936,10 +936,10 @@ const AssignmentsManager = () => {
 
                           {/* Produits (visible si source cochée) */}
                           {isSourceChecked && (
-                            <div className="px-4 pb-4 border-t border-emerald-100">
+                            <div className="px-4 pb-4 border-t border-primary-100">
                               {isLoadingProds ? (
                                 <div className="flex items-center gap-2 py-3 text-sm text-gray-500">
-                                  <div className="w-4 h-4 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin"></div>
+                                  <div className="w-4 h-4 border-2 border-primary-600 border-t-transparent rounded-full animate-spin"></div>
                                   Chargement des produits...
                                 </div>
                               ) : srcProducts?.error ? (
@@ -958,7 +958,7 @@ const AssignmentsManager = () => {
                                           : availableProducts.map(p => String(p._id));
                                         selectAllProducts(sid, allIds);
                                       }}
-                                      className="text-xs px-2 py-1 bg-emerald-100 text-emerald-700 rounded hover:bg-emerald-200"
+                                      className="text-xs px-2 py-1 bg-primary-100 text-primary-700 rounded hover:bg-primary-200"
                                     >
                                       Tout sélectionner ({availableProducts.length})
                                     </button>
@@ -981,13 +981,13 @@ const AssignmentsManager = () => {
                                       {isSheetSource
                                         ? availableProducts.map((productName, idx) => (
                                             <label key={idx} className={`flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer text-sm transition-colors ${
-                                              selectedProductIds.includes(String(productName)) ? 'bg-emerald-100 text-emerald-800' : 'hover:bg-gray-100 text-gray-700'
+                                              selectedProductIds.includes(String(productName)) ? 'bg-primary-100 text-primary-800' : 'hover:bg-gray-100 text-gray-700'
                                             }`}>
                                               <input
                                                 type="checkbox"
                                                 checked={selectedProductIds.includes(String(productName))}
                                                 onChange={() => toggleProduct(sid, String(productName))}
-                                                className="w-3.5 h-3.5 rounded border-gray-300 text-emerald-600"
+                                                className="w-3.5 h-3.5 rounded border-gray-300 text-primary-600"
                                               />
                                               <span className="truncate">{productName}</span>
                                             </label>
@@ -997,13 +997,13 @@ const AssignmentsManager = () => {
                                             const isChecked = selectedProductIds.includes(pid);
                                             return (
                                               <label key={pid} className={`flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer text-sm transition-colors ${
-                                                isChecked ? 'bg-emerald-100 text-emerald-800' : 'hover:bg-gray-100 text-gray-700'
+                                                isChecked ? 'bg-primary-100 text-primary-800' : 'hover:bg-gray-100 text-gray-700'
                                               }`}>
                                                 <input
                                                   type="checkbox"
                                                   checked={isChecked}
                                                   onChange={() => toggleProduct(sid, pid)}
-                                                  className="w-3.5 h-3.5 rounded border-gray-300 text-emerald-600"
+                                                  className="w-3.5 h-3.5 rounded border-gray-300 text-primary-600"
                                                 />
                                                 <span className="truncate">{product.name}</span>
                                               </label>
@@ -1032,15 +1032,15 @@ const AssignmentsManager = () => {
                     value={formData.notes}
                     onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
                     rows={2}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-600 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-600 focus:border-transparent"
                     placeholder="Notes optionnelles..."
                   />
                 </div>
 
                 {/* 🆕 Commission */}
-                <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
+                <div className="bg-primary-50 border border-primary-200 rounded-lg p-4">
                   <div className="flex items-center gap-2 mb-3">
-                    <span className="flex items-center justify-center w-6 h-6 rounded-full bg-emerald-600 text-white text-xs font-bold">3</span>
+                    <span className="flex items-center justify-center w-6 h-6 rounded-full bg-primary-600 text-white text-xs font-bold">3</span>
                     <h3 className="text-sm font-semibold text-gray-800">Commission de la closeuse</h3>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
@@ -1051,7 +1051,7 @@ const AssignmentsManager = () => {
                         min="0"
                         value={formData.commission}
                         onChange={(e) => setFormData(prev => ({ ...prev, commission: parseFloat(e.target.value) || 0 }))}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-600 focus:border-transparent"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-600 focus:border-transparent"
                         placeholder="Ex: 10"
                       />
                     </div>
@@ -1060,14 +1060,14 @@ const AssignmentsManager = () => {
                       <select
                         value={formData.commissionType}
                         onChange={(e) => setFormData(prev => ({ ...prev, commissionType: e.target.value }))}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-600 focus:border-transparent bg-white"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-600 focus:border-transparent bg-white"
                       >
                         <option value="percentage">% (pourcentage)</option>
                         <option value="fixed">{symbol} (montant fixe)</option>
                       </select>
                     </div>
                   </div>
-                  <p className="text-xs text-emerald-700 mt-2">
+                  <p className="text-xs text-primary-700 mt-2">
                     La closeuse verra sa commission sur chaque commande traitée.
                   </p>
                 </div>
@@ -1091,7 +1091,7 @@ const AssignmentsManager = () => {
                   <button
                     type="submit"
                     disabled={!formData.closeuseId}
-                    className="flex-1 sm:flex-none px-5 py-2.5 text-sm bg-emerald-600 text-white rounded-lg active:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
+                    className="flex-1 sm:flex-none px-5 py-2.5 text-sm bg-primary-600 text-white rounded-lg active:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
                   >
                     {editingAssignment ? 'Mettre à jour' : 'Créer'}
                   </button>

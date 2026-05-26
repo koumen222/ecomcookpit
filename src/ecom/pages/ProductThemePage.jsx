@@ -508,8 +508,8 @@ const ProductThemePage = () => {
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3 min-w-0">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-emerald-100 bg-emerald-50">
-                <Paintbrush size={18} className="text-emerald-700" />
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-primary-100 bg-primary-50">
+                <Paintbrush size={18} className="text-primary-700" />
               </div>
               <div>
                 <h1 className="text-lg sm:text-xl font-bold text-gray-900 tracking-tight">Thème Page Produit</h1>
@@ -533,7 +533,7 @@ const ProductThemePage = () => {
               )}
               <button onClick={handleSave} disabled={saving || !hasChanges}
                 className={`flex items-center gap-1.5 rounded-xl px-5 py-2.5 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-50 ${
-                  saved ? 'bg-emerald-600' : hasChanges ? 'bg-emerald-700 hover:bg-emerald-800' : 'bg-gray-300'
+                  saved ? 'bg-primary-600' : hasChanges ? 'bg-primary-700 hover:bg-primary-800' : 'bg-gray-300'
                 }`}>
                 {saving ? <Loader2 size={15} className="animate-spin" /> : saved ? <Check size={15} /> : <Save size={15} />}
                 {saving ? 'Sauvegarde…' : saved ? 'Enregistré' : 'Enregistrer'}
@@ -551,7 +551,7 @@ const ProductThemePage = () => {
               return (
                 <button key={s.id} onClick={() => { setActiveSection(s.id); setSearchParams({ tab: s.id }); }}
                   className={`flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-2 text-xs font-medium transition ${
-                    isActive ? 'bg-emerald-50 text-emerald-700' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+                    isActive ? 'bg-primary-50 text-primary-700' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
                   }`}>
                   <Icon size={14} /> {s.label}
                 </button>
@@ -578,26 +578,26 @@ const ProductThemePage = () => {
                 return (
                   <button key={theme.id} type="button" onClick={() => handleSelect(theme.id)}
                     className={`group overflow-hidden rounded-[22px] border text-left transition-all duration-200 ${
-                      isSelected ? 'border-emerald-500 bg-white shadow-[0_22px_44px_-26px_rgba(16,24,40,0.24)] ring-1 ring-emerald-100' : 'border-gray-200 bg-white hover:-translate-y-0.5 hover:border-gray-300 hover:shadow-[0_18px_34px_-26px_rgba(16,24,40,0.2)]'
+                      isSelected ? 'border-primary-500 bg-white shadow-[0_22px_44px_-26px_rgba(16,24,40,0.24)] ring-1 ring-primary-100' : 'border-gray-200 bg-white hover:-translate-y-0.5 hover:border-gray-300 hover:shadow-[0_18px_34px_-26px_rgba(16,24,40,0.2)]'
                     }`}>
-                    <div className={`relative px-2 pt-2 ${isSelected ? 'bg-gradient-to-b from-emerald-50/70 to-white' : 'bg-gradient-to-b from-gray-50 to-white'}`}>
+                    <div className={`relative px-2 pt-2 ${isSelected ? 'bg-gradient-to-b from-primary-50/70 to-white' : 'bg-gradient-to-b from-gray-50 to-white'}`}>
                       {isSelected && (
-                        <div className="absolute right-3 top-3 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-emerald-600 shadow-[0_10px_18px_-10px_rgba(5,150,105,0.7)]">
+                        <div className="absolute right-3 top-3 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-primary-600 shadow-[0_10px_18px_-10px_rgba(5,150,105,0.7)]">
                           <Check size={14} color="#fff" strokeWidth={3} />
                         </div>
                       )}
-                      <div className={`overflow-hidden rounded-2xl border ${isSelected ? 'border-emerald-100 bg-white shadow-sm' : 'border-gray-100 bg-white'}`}>
+                      <div className={`overflow-hidden rounded-2xl border ${isSelected ? 'border-primary-100 bg-white shadow-sm' : 'border-gray-100 bg-white'}`}>
                         <Preview />
                       </div>
                     </div>
                     <div className="bg-white px-4 pb-4 pt-3">
                       <div className="mb-1 flex items-center gap-2">
-                        <span className={`flex h-7 w-7 items-center justify-center rounded-full ${isSelected ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-50 text-gray-600'}`}>
+                        <span className={`flex h-7 w-7 items-center justify-center rounded-full ${isSelected ? 'bg-primary-50 text-primary-700' : 'bg-gray-50 text-gray-600'}`}>
                           <ThemeIcon size={14} />
                         </span>
-                        <span className={`text-[15px] font-semibold tracking-tight ${isSelected ? 'text-emerald-700' : 'text-gray-900'}`}>{theme.name}</span>
+                        <span className={`text-[15px] font-semibold tracking-tight ${isSelected ? 'text-primary-700' : 'text-gray-900'}`}>{theme.name}</span>
                       </div>
-                      <span className={`inline-flex rounded-full px-2 py-1 text-[9px] font-semibold uppercase tracking-wide ${isSelected ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>{theme.badge}</span>
+                      <span className={`inline-flex rounded-full px-2 py-1 text-[9px] font-semibold uppercase tracking-wide ${isSelected ? 'bg-primary-50 text-primary-700' : 'bg-gray-100 text-gray-500'}`}>{theme.badge}</span>
                       <p className="mt-2 text-[12px] leading-5 text-gray-500">{theme.desc}</p>
                     </div>
                   </button>
@@ -608,11 +608,11 @@ const ProductThemePage = () => {
             {/* Image & Spacing */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-                <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-900"><Image size={15} className="text-emerald-600" /> Ratio des images</h3>
+                <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-900"><Image size={15} className="text-primary-600" /> Ratio des images</h3>
                 <div className="grid grid-cols-2 gap-2">
                   {IMAGE_RATIOS.map(r => (
                     <button key={r.id} onClick={() => updateDesign('imageRatio', r.id)}
-                      className={`rounded-xl border p-3 text-left transition ${design.imageRatio === r.id ? 'border-emerald-500 bg-emerald-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                      className={`rounded-xl border p-3 text-left transition ${design.imageRatio === r.id ? 'border-primary-500 bg-primary-50' : 'border-gray-200 hover:border-gray-300'}`}>
                       <span className="text-xs font-semibold text-gray-800">{r.name}</span>
                       <span className="block text-[10px] text-gray-400 mt-0.5">{r.ratio}</span>
                     </button>
@@ -620,11 +620,11 @@ const ProductThemePage = () => {
                 </div>
               </div>
               <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-                <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-900"><Rows3 size={15} className="text-emerald-600" /> Espacement</h3>
+                <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-900"><Rows3 size={15} className="text-primary-600" /> Espacement</h3>
                 <div className="grid grid-cols-3 gap-2">
                   {SPACING_OPTIONS.map(s => (
                     <button key={s.id} onClick={() => updateDesign('spacing', s.value)}
-                      className={`rounded-xl border p-3 text-center transition ${design.spacing === s.value ? 'border-emerald-500 bg-emerald-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                      className={`rounded-xl border p-3 text-center transition ${design.spacing === s.value ? 'border-primary-500 bg-primary-50' : 'border-gray-200 hover:border-gray-300'}`}>
                       <span className="text-xs font-semibold text-gray-800">{s.name}</span>
                     </button>
                   ))}
@@ -897,7 +897,7 @@ const ProductThemePage = () => {
                   {[{ id: 'small', label: 'Petit' }, { id: 'medium', label: 'Moyen' }, { id: 'large', label: 'Grand' }].map(opt => (
                     <button key={opt.id} type="button"
                       onClick={() => { setInfographicsForm(p => ({ ...p, buttonSize: opt.id })); setSaved(false); }}
-                      className={`flex-1 py-2.5 rounded-xl border-2 text-xs font-bold transition ${infographicsForm.buttonSize === opt.id ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-gray-200 text-gray-600 hover:border-gray-300'}`}>
+                      className={`flex-1 py-2.5 rounded-xl border-2 text-xs font-bold transition ${infographicsForm.buttonSize === opt.id ? 'border-primary-500 bg-primary-50 text-primary-700' : 'border-gray-200 text-gray-600 hover:border-gray-300'}`}>
                       {opt.label}
                     </button>
                   ))}
@@ -920,7 +920,7 @@ const ProductThemePage = () => {
                     value={infographicsForm[field.key] || ''}
                     placeholder={field.placeholder}
                     onChange={e => { setInfographicsForm(p => ({ ...p, [field.key]: e.target.value })); setSaved(false); }}
-                    className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-200"
+                    className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary-400 focus:ring-1 focus:ring-primary-200"
                   />
                 </div>
               ))}

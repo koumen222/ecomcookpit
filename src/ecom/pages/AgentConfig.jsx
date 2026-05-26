@@ -64,13 +64,13 @@ const SPECIAL_CASES_DEFAULT = [
 const AUTONOMY_LEVELS = [
   { level: 1, label: 'Assistante', desc: 'Répond aux questions simples uniquement', color: 'bg-blue-100 text-blue-700' },
   { level: 2, label: 'Conseillère', desc: 'Recommande des produits et qualifie les leads', color: 'bg-cyan-100 text-cyan-700' },
-  { level: 3, label: 'Commerciale', desc: "Gère les objections et pousse à l'achat", color: 'bg-emerald-100 text-emerald-700' },
+  { level: 3, label: 'Commerciale', desc: "Gère les objections et pousse à l'achat", color: 'bg-primary-100 text-primary-700' },
   { level: 4, label: 'Négociatrice', desc: 'Conclut des ventes de façon autonome', color: 'bg-amber-100 text-amber-700' },
   { level: 5, label: 'Chasseuse', desc: 'Mode offensif : closing agressif, upsell', color: 'bg-red-100 text-red-700' },
 ];
 
 const MODES_CONFIG = [
-  { id: 'client', label: '👤 Mode Client', subtitle: 'Vente & Support', desc: 'Rita parle au client : chaleureuse, naturelle, persuasive. Suit la logique Comprendre → Répondre → Valeur → Question.', color: 'border-emerald-400 bg-emerald-50/60', iconBg: 'bg-emerald-100', iconColor: 'text-emerald-700' },
+  { id: 'client', label: '👤 Mode Client', subtitle: 'Vente & Support', desc: 'Rita parle au client : chaleureuse, naturelle, persuasive. Suit la logique Comprendre → Répondre → Valeur → Question.', color: 'border-primary-400 bg-primary-50/60', iconBg: 'bg-primary-100', iconColor: 'text-primary-700' },
   { id: 'boss', label: '🧑‍💼 Mode Boss', subtitle: 'Analyse & Rapports', desc: 'Rita parle au boss : professionnelle, analytique, directe. Analyse les conversations, explique les erreurs, propose des améliorations.', color: 'border-blue-400 bg-blue-50/60', iconBg: 'bg-blue-100', iconColor: 'text-blue-700' },
   { id: 'execution', label: '⚙️ Mode Exécution', subtitle: 'Actions Boss', desc: 'Le boss donne une instruction, Rita comprend, adapte et exécute intelligemment. Elle ne copie jamais le message du boss.', color: 'border-amber-400 bg-amber-50/60', iconBg: 'bg-amber-100', iconColor: 'text-amber-700' },
 ];
@@ -167,7 +167,7 @@ const Toggle = ({ enabled, onChange, label, description }) => (
       {description && <p className="text-[11px] text-gray-400 mt-0.5">{description}</p>}
     </div>
     <button type="button" onClick={() => onChange(!enabled)}
-      className={`relative self-end sm:self-auto w-[44px] h-[26px] rounded-full transition-all duration-200 flex-shrink-0 ${enabled ? 'bg-emerald-500' : 'bg-gray-200 hover:bg-gray-300'}`}>
+      className={`relative self-end sm:self-auto w-[44px] h-[26px] rounded-full transition-all duration-200 flex-shrink-0 ${enabled ? 'bg-primary-500' : 'bg-gray-200 hover:bg-gray-300'}`}>
       <span className={`absolute top-[3px] w-5 h-5 bg-white rounded-full shadow-md transition-all duration-200 ${enabled ? 'left-[21px]' : 'left-[3px]'}`} />
     </button>
   </div>
@@ -196,7 +196,7 @@ const SelectDropdown = ({ value, onChange, options, placeholder = 'Sélectionner
           {options.map(opt => (
             <button key={opt.value} type="button"
               onClick={() => { onChange(opt.value); setOpen(false); }}
-              className={`w-full text-left px-3.5 py-2 text-[13px] hover:bg-gray-50 transition-colors ${opt.value === value ? 'text-emerald-700 font-semibold bg-emerald-50/50' : 'text-gray-600'}`}>
+              className={`w-full text-left px-3.5 py-2 text-[13px] hover:bg-gray-50 transition-colors ${opt.value === value ? 'text-primary-700 font-semibold bg-primary-50/50' : 'text-gray-600'}`}>
               {opt.label}
             </button>
           ))}
@@ -233,7 +233,7 @@ const AccordionField = ({ icon, label, badge, badgeColor = 'emerald', value, onC
           </div>
           {badge && (
             <span className={`flex-shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full ${
-              badgeColor === 'emerald' ? 'bg-emerald-100 text-emerald-700'
+              badgeColor === 'emerald' ? 'bg-primary-100 text-primary-700'
               : badgeColor === 'gray' ? 'bg-gray-100 text-gray-500'
               : 'bg-amber-100 text-amber-700'
             }`}>{badge}</span>
@@ -313,7 +313,7 @@ const TextEditModal = ({ open, title, value, placeholder, rows = 6, onClose, onC
               placeholder={placeholder}
               rows={rows}
               onKeyDown={handleKeyDown}
-              className="w-full px-4 py-3 text-[13px] text-gray-800 bg-gray-50 border border-gray-200 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-emerald-300 focus:border-transparent leading-relaxed"
+              className="w-full px-4 py-3 text-[13px] text-gray-800 bg-gray-50 border border-gray-200 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-transparent leading-relaxed"
             />
           ) : (
             <input
@@ -322,7 +322,7 @@ const TextEditModal = ({ open, title, value, placeholder, rows = 6, onClose, onC
               onChange={e => setDraft(e.target.value)}
               placeholder={placeholder}
               onKeyDown={handleKeyDown}
-              className="w-full px-4 py-3 text-[13px] text-gray-800 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-300 focus:border-transparent"
+              className="w-full px-4 py-3 text-[13px] text-gray-800 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-transparent"
             />
           )}
         </div>
@@ -1761,7 +1761,7 @@ export default function AgentConfig() {
   if (loading) return (
     <div className="flex items-center justify-center min-h-[60vh]">
       <div className="text-center">
-        <div className="w-14 h-14 mx-auto rounded-2xl bg-emerald-600 flex items-center justify-center mb-4 shadow-lg animate-pulse">
+        <div className="w-14 h-14 mx-auto rounded-2xl bg-primary-600 flex items-center justify-center mb-4 shadow-lg animate-pulse">
           <Bot className="w-7 h-7 text-white" />
         </div>
         <p className="text-sm text-gray-400">Chargement de la configuration...</p>
@@ -1816,7 +1816,7 @@ export default function AgentConfig() {
                 <button key={tab.id} onClick={() => setActiveTab(tab.id)}
                   className={`flex items-center gap-1.5 px-3 sm:px-4 py-2.5 text-[12px] sm:text-[13px] font-medium border-b-2 transition-all flex-shrink-0 ${
                     isActive
-                      ? 'border-emerald-600 text-emerald-700'
+                      ? 'border-primary-600 text-primary-700'
                       : 'border-transparent text-gray-400 hover:text-gray-600 hover:border-gray-200'
                   }`}>
                   {tab.label}
@@ -1866,9 +1866,9 @@ export default function AgentConfig() {
                         : 'bg-black/20 text-white/60 border border-white/10'
                     }`}
                   >
-                    <span className={`w-1.5 h-1.5 rounded-full ${config.enabled ? 'bg-emerald-400' : 'bg-white/30'}`} />
+                    <span className={`w-1.5 h-1.5 rounded-full ${config.enabled ? 'bg-primary-400' : 'bg-white/30'}`} />
                     {config.enabled ? 'Actif' : 'Inactif'}
-                    <span className={`relative inline-flex h-4 w-7 items-center rounded-full transition-colors ${config.enabled ? 'bg-emerald-500' : 'bg-white/20'}`}>
+                    <span className={`relative inline-flex h-4 w-7 items-center rounded-full transition-colors ${config.enabled ? 'bg-primary-500' : 'bg-white/20'}`}>
                       <span className={`inline-block h-3 w-3 transform rounded-full bg-white shadow transition-transform ${config.enabled ? 'translate-x-3.5' : 'translate-x-0.5'}`} />
                     </span>
                   </button>
@@ -1906,15 +1906,15 @@ export default function AgentConfig() {
               <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
                 <div className="px-5 py-3.5 border-b border-gray-100 flex items-center justify-between">
                   <span className="text-[13px] font-bold text-gray-900 flex items-center gap-2.5">
-                    <span className="w-7 h-7 rounded-lg bg-emerald-50 flex items-center justify-center">
-                      <svg className="w-4 h-4 text-emerald-600" viewBox="0 0 24 24" fill="currentColor">
+                    <span className="w-7 h-7 rounded-lg bg-primary-50 flex items-center justify-center">
+                      <svg className="w-4 h-4 text-primary-600" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/>
                       </svg>
                     </span>
                     WhatsApp
                   </span>
                   <div className="flex items-center gap-2">
-                    <span className={`text-[11px] font-semibold ${config.enabled ? 'text-emerald-600' : 'text-gray-400'}`}>
+                    <span className={`text-[11px] font-semibold ${config.enabled ? 'text-primary-600' : 'text-gray-400'}`}>
                       {config.enabled ? 'Agent actif' : 'Agent inactif'}
                     </span>
                   </div>
@@ -1932,20 +1932,20 @@ export default function AgentConfig() {
                       <p className="text-[12px] text-gray-400 text-center max-w-[260px]">
                         Connectez un numéro WhatsApp dans l'onglet <strong>Service WhatsApp</strong> pour activer l'agent.
                       </p>
-                      <button type="button" onClick={loadInstances} className="mt-2 text-[12px] font-bold text-emerald-600 hover:text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-4 py-1.5 rounded-full transition-colors">
+                      <button type="button" onClick={loadInstances} className="mt-2 text-[12px] font-bold text-primary-600 hover:text-primary-700 bg-primary-50 hover:bg-primary-100 px-4 py-1.5 rounded-full transition-colors">
                         ↻ Recharger
                       </button>
                     </div>
                   ) : instances.length === 1 ? (
                     <div className="flex items-center gap-3 px-1">
-                      <div className={`w-3 h-3 rounded-full flex-shrink-0 ring-4 ${selectedInstance?.status === 'open' ? 'bg-emerald-400 ring-emerald-100' : 'bg-gray-300 ring-gray-100'}`} />
+                      <div className={`w-3 h-3 rounded-full flex-shrink-0 ring-4 ${selectedInstance?.status === 'open' ? 'bg-primary-400 ring-primary-100' : 'bg-gray-300 ring-gray-100'}`} />
                       <div className="flex-1 min-w-0">
                         <p className="text-[14px] font-bold text-gray-800 truncate">
                           {selectedInstance?.customName || selectedInstance?.instanceName || 'Instance WhatsApp'}
                         </p>
                         <p className="text-[11px] text-gray-400">{selectedInstance?.status === 'open' ? '● Connectée et prête' : '○ Hors ligne'}</p>
                       </div>
-                      <span className={`flex-shrink-0 text-[11px] font-bold px-2.5 py-1 rounded-full ${selectedInstance?.status === 'open' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>
+                      <span className={`flex-shrink-0 text-[11px] font-bold px-2.5 py-1 rounded-full ${selectedInstance?.status === 'open' ? 'bg-primary-100 text-primary-700' : 'bg-gray-100 text-gray-500'}`}>
                         {selectedInstance?.status === 'open' ? '✓ Prête' : 'Déconnectée'}
                       </span>
                     </div>
@@ -1959,11 +1959,11 @@ export default function AgentConfig() {
                           onClick={() => handleInstanceChange(inst._id)}
                           className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition-all ${
                             config.instanceId === inst._id
-                              ? 'border-emerald-400 bg-emerald-50 shadow-sm'
+                              ? 'border-primary-400 bg-primary-50 shadow-sm'
                               : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
                           }`}
                         >
-                          <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${inst.status === 'open' ? 'bg-emerald-400' : 'bg-gray-300'}`} />
+                          <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${inst.status === 'open' ? 'bg-primary-400' : 'bg-gray-300'}`} />
                           <div className="flex-1 min-w-0">
                             <p className="text-[13px] font-semibold text-gray-800 truncate">
                               {inst.customName || inst.instanceName || 'Instance WhatsApp'}
@@ -1971,14 +1971,14 @@ export default function AgentConfig() {
                             <p className="text-[11px] text-gray-400">{inst.status === 'open' ? 'Connectée' : 'Déconnectée'}</p>
                           </div>
                           {config.instanceId === inst._id && (
-                            <span className="text-[11px] font-bold text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full flex-shrink-0">✓ Sélectionnée</span>
+                            <span className="text-[11px] font-bold text-primary-600 bg-primary-100 px-2 py-0.5 rounded-full flex-shrink-0">✓ Sélectionnée</span>
                           )}
                         </button>
                       ))}
                     </div>
                   )}
                   {instanceSwitching && <p className="mt-3 text-[12px] text-blue-600 text-center">Changement en cours…</p>}
-                  {instanceSwitchStatus === 'success' && <p className="mt-3 text-[12px] text-emerald-600 text-center">Instance changée ✓</p>}
+                  {instanceSwitchStatus === 'success' && <p className="mt-3 text-[12px] text-primary-600 text-center">Instance changée ✓</p>}
                   {instanceSwitchStatus === 'error' && <p className="mt-3 text-[12px] text-red-500 text-center">Impossible de changer l'instance.</p>}
                 </div>
               </div>
@@ -2039,7 +2039,7 @@ export default function AgentConfig() {
                           <button key={t.value} type="button" onClick={() => set('toneStyle', t.value)}
                             className={`text-left px-2.5 py-2 rounded-lg border text-[11px] transition-all leading-tight ${
                               active
-                                ? 'border-emerald-400 bg-emerald-50 text-emerald-800 font-semibold'
+                                ? 'border-primary-400 bg-primary-50 text-primary-800 font-semibold'
                                 : 'border-gray-200 text-gray-500 hover:border-gray-300 hover:bg-gray-50'
                             }`}>
                             {t.label}
@@ -2053,7 +2053,7 @@ export default function AgentConfig() {
                   <div>
                     <div className="flex items-center justify-between mb-1.5">
                       <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Délai de réponse</p>
-                      <span className="text-[13px] font-bold text-emerald-700 tabular-nums">{config.responseDelay}s</span>
+                      <span className="text-[13px] font-bold text-primary-700 tabular-nums">{config.responseDelay}s</span>
                     </div>
                     <div className="relative">
                       <input type="range" min="0" max="15" value={config.responseDelay}
@@ -2078,7 +2078,7 @@ export default function AgentConfig() {
                           <span>{emoji}</span>{label}
                         </span>
                         <button type="button" onClick={() => set(key, !config[key])}
-                          className={`relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors ${config[key] ? 'bg-emerald-500' : 'bg-gray-200'}`}>
+                          className={`relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors ${config[key] ? 'bg-primary-500' : 'bg-gray-200'}`}>
                           <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${config[key] ? 'translate-x-4' : 'translate-x-0.5'}`} />
                         </button>
                       </div>
@@ -2105,7 +2105,7 @@ export default function AgentConfig() {
                       return (
                         <button key={m.value} type="button" onClick={() => set('responseMode', m.value)}
                           className={`flex flex-col items-center gap-0.5 py-2 rounded-lg text-[11px] font-semibold transition-all ${
-                            isActive ? 'bg-white shadow-sm text-emerald-700' : 'text-gray-400 hover:text-gray-600'
+                            isActive ? 'bg-white shadow-sm text-primary-700' : 'text-gray-400 hover:text-gray-600'
                           }`}>
                           <span className="text-base leading-none">{m.icon}</span>
                           {m.label}
@@ -2122,7 +2122,7 @@ export default function AgentConfig() {
                           <button key={p.value} type="button" onClick={() => set('ttsProvider', p.value)}
                             className={`flex-1 py-1.5 rounded-lg text-[11px] font-bold border transition-all ${
                               (config.ttsProvider || 'elevenlabs') === p.value
-                                ? 'border-emerald-400 bg-emerald-50 text-emerald-700'
+                                ? 'border-primary-400 bg-primary-50 text-primary-700'
                                 : 'border-gray-200 text-gray-500 hover:border-gray-300'
                             }`}>
                             {p.label}
@@ -2141,10 +2141,10 @@ export default function AgentConfig() {
                               onClick={() => set(isEL ? 'elevenlabsVoiceId' : 'fishAudioReferenceId', voice.id)}
                               className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl border cursor-pointer transition-all ${
                                 isSelected
-                                  ? 'border-emerald-400 bg-emerald-50'
+                                  ? 'border-primary-400 bg-primary-50'
                                   : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
                               }`}>
-                              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[13px] flex-shrink-0 ${isSelected ? 'bg-emerald-100' : 'bg-gray-100'}`}>
+                              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[13px] flex-shrink-0 ${isSelected ? 'bg-primary-100' : 'bg-gray-100'}`}>
                                 {voice.gender}
                               </div>
                               <div className="flex-1 min-w-0">
@@ -2154,7 +2154,7 @@ export default function AgentConfig() {
                               <button type="button"
                                 onClick={e => { e.stopPropagation(); isEL ? previewElevenLabsVoice(voice.id) : previewVoice(voice.id); }}
                                 className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 transition-all ${
-                                  isPlaying ? 'bg-emerald-500 text-white' : 'bg-gray-100 text-gray-500 hover:bg-emerald-100 hover:text-emerald-600'
+                                  isPlaying ? 'bg-primary-500 text-white' : 'bg-gray-100 text-gray-500 hover:bg-primary-100 hover:text-primary-600'
                                 }`}>
                                 {isPlaying
                                   ? <span className="text-[8px] font-bold">■</span>
@@ -2170,7 +2170,7 @@ export default function AgentConfig() {
                         <div>
                           <div className="flex justify-between mb-1">
                             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Fréquence vocale</p>
-                            <span className="text-[11px] font-bold text-emerald-700">{config.mixedVoiceReplyChance || 0}%</span>
+                            <span className="text-[11px] font-bold text-primary-700">{config.mixedVoiceReplyChance || 0}%</span>
                           </div>
                           <input type="range" min="0" max="100" value={config.mixedVoiceReplyChance || 0}
                             onChange={e => set('mixedVoiceReplyChance', parseInt(e.target.value) || 0)}
@@ -2184,16 +2184,16 @@ export default function AgentConfig() {
               </div>
 
               {/* ── Chat preview ── */}
-              <div className="rounded-2xl overflow-hidden border border-emerald-900/20" style={{ background: 'linear-gradient(160deg, #0a3528 0%, #0f5c42 50%, #147a58 100%)' }}>
+              <div className="rounded-2xl overflow-hidden border border-primary-900/20" style={{ background: 'linear-gradient(160deg, #0a3528 0%, #0f5c42 50%, #147a58 100%)' }}>
                 {/* Header */}
                 <div className="px-4 py-3 flex items-center gap-2.5 border-b border-white/10">
-                  <div className="w-8 h-8 rounded-full bg-emerald-400/20 flex items-center justify-center text-[13px] font-black text-white">
+                  <div className="w-8 h-8 rounded-full bg-primary-400/20 flex items-center justify-center text-[13px] font-black text-white">
                     {(config.agentName || 'R').charAt(0)}
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-[12px] font-bold text-white leading-none">{config.agentName || 'Rita'}</p>
                     <div className="flex items-center gap-1 mt-0.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                      <span className="w-1.5 h-1.5 rounded-full bg-primary-400" />
                       <span className="text-[10px] text-white/50">En ligne</span>
                     </div>
                   </div>
@@ -2206,7 +2206,7 @@ export default function AgentConfig() {
                     <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                       <div className={`max-w-[84%] px-3 py-2 rounded-2xl text-[12px] leading-relaxed ${
                         msg.role === 'user'
-                          ? 'bg-emerald-500 text-white rounded-br-sm'
+                          ? 'bg-primary-500 text-white rounded-br-sm'
                           : 'bg-white/12 text-white/90 rounded-bl-sm'
                       }`}>
                         {msg.text}
@@ -2234,7 +2234,7 @@ export default function AgentConfig() {
                       placeholder="Testez une question…"
                       className="flex-1 bg-transparent text-[12px] text-white placeholder-white/30 outline-none" />
                     <button onClick={handleSimSend} disabled={simTyping}
-                      className="w-7 h-7 flex items-center justify-center bg-emerald-500 hover:bg-emerald-400 rounded-lg transition-colors disabled:opacity-40 flex-shrink-0">
+                      className="w-7 h-7 flex items-center justify-center bg-primary-500 hover:bg-primary-400 rounded-lg transition-colors disabled:opacity-40 flex-shrink-0">
                       <Send className="w-3 h-3 text-white" />
                     </button>
                   </div>
@@ -2268,7 +2268,7 @@ export default function AgentConfig() {
                 </div>
                 <div className="px-4 pb-5 grid grid-cols-1 sm:grid-cols-3 gap-3">
                   {[
-                    { id: 'client',    Icon: Users,    label: 'Mode Client',    subtitle: 'Vente & Support',    desc: 'Chaleureuse, naturelle, persuasive. Logique Comprendre → Valeur → Question.', accent: '#05976D', bg: '#f0fdf8', pill: 'bg-emerald-100 text-emerald-700' },
+                    { id: 'client',    Icon: Users,    label: 'Mode Client',    subtitle: 'Vente & Support',    desc: 'Chaleureuse, naturelle, persuasive. Logique Comprendre → Valeur → Question.', accent: '#05976D', bg: '#f0fdf8', pill: 'bg-primary-100 text-primary-700' },
                     { id: 'boss',      Icon: BarChart3, label: 'Mode Boss',      subtitle: 'Analyse & Rapports', desc: 'Professionnelle, analytique, directe. Analyse les conversations et propose des améliorations.', accent: '#2563eb', bg: '#eff6ff', pill: 'bg-blue-100 text-blue-700' },
                     { id: 'execution', Icon: Settings,  label: 'Mode Exécution', subtitle: 'Actions Boss',        desc: 'Comprend, adapte et exécute les instructions intelligemment sans copier.', accent: '#d97706', bg: '#fffbeb', pill: 'bg-amber-100 text-amber-700' },
                   ].map(mode => {
@@ -2534,8 +2534,8 @@ export default function AgentConfig() {
               <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
                 <div className="px-6 py-4 border-b border-gray-100">
                   <h2 className="text-[15px] font-bold text-gray-900 flex items-center gap-2">
-                    <span className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center">
-                      <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                    <span className="w-8 h-8 rounded-lg bg-primary-50 flex items-center justify-center">
+                      <ShieldCheck className="w-4 h-4 text-primary-600" />
                     </span>
                     Règles de Vente Intelligente
                   </h2>
@@ -2721,7 +2721,7 @@ export default function AgentConfig() {
                   </div>
                   <button type="button"
                     onClick={() => set('pricingNegotiation', { ...(config.pricingNegotiation || {}), enabled: !config.pricingNegotiation?.enabled })}
-                    className={`relative w-[44px] h-[26px] rounded-full transition-all duration-200 flex-shrink-0 ${config.pricingNegotiation?.enabled ? 'bg-emerald-500' : 'bg-gray-200 hover:bg-gray-300'}`}>
+                    className={`relative w-[44px] h-[26px] rounded-full transition-all duration-200 flex-shrink-0 ${config.pricingNegotiation?.enabled ? 'bg-primary-500' : 'bg-gray-200 hover:bg-gray-300'}`}>
                     <span className={`absolute top-[3px] w-5 h-5 bg-white rounded-full shadow-md transition-all duration-200 ${config.pricingNegotiation?.enabled ? 'left-[21px]' : 'left-[3px]'}`} />
                   </button>
                 </div>
@@ -3255,9 +3255,9 @@ export default function AgentConfig() {
                   <span className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #0F6B4F, #10b981)' }}>
                     <Sparkles className="w-3.5 h-3.5 text-white" />
                   </span>
-                  <p className="text-[13px] font-bold text-emerald-800">Conseil</p>
+                  <p className="text-[13px] font-bold text-primary-800">Conseil</p>
                 </div>
-                <p className="text-[11px] text-emerald-700 leading-relaxed">
+                <p className="text-[11px] text-primary-700 leading-relaxed">
                   Configurez les zones de livraison locale pour Douala/Yaoundé, et activez les expéditions pour les autres villes du Cameroun.
                 </p>
               </div>
@@ -3349,8 +3349,8 @@ export default function AgentConfig() {
                       onClick={() => { setEditingProduct(editingProduct === idx ? null : idx); setProductFormTab('info'); }}
                       className={`group relative flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all duration-150 ${
                         editingProduct === idx
-                          ? 'bg-emerald-600 shadow-md'
-                          : 'bg-white border border-gray-100 hover:border-emerald-200 hover:bg-emerald-50/40 hover:shadow-sm'
+                          ? 'bg-primary-600 shadow-md'
+                          : 'bg-white border border-gray-100 hover:border-primary-200 hover:bg-primary-50/40 hover:shadow-sm'
                       }`}>
 
                       {/* Checkbox */}
@@ -3364,7 +3364,7 @@ export default function AgentConfig() {
 
                       {/* Thumbnail */}
                       <div className={`w-9 h-9 rounded-lg overflow-hidden flex-shrink-0 flex items-center justify-center text-[12px] font-bold transition-all ${
-                        editingProduct === idx ? 'bg-white/20 text-white' : 'bg-emerald-50 text-emerald-700'
+                        editingProduct === idx ? 'bg-white/20 text-white' : 'bg-primary-50 text-primary-700'
                       }`}>
                         {product.images?.[0]
                           ? <img src={product.images[0]} alt="" className="w-full h-full object-cover" />
@@ -3376,7 +3376,7 @@ export default function AgentConfig() {
                         <p className={`text-[12px] font-semibold truncate leading-tight ${editingProduct === idx ? 'text-white' : 'text-gray-800'}`}>
                           {product.name || <span className="italic opacity-60">Sans nom</span>}
                         </p>
-                        <p className={`text-[11px] truncate mt-0.5 ${editingProduct === idx ? 'text-emerald-100' : 'text-gray-400'}`}>
+                        <p className={`text-[11px] truncate mt-0.5 ${editingProduct === idx ? 'text-primary-100' : 'text-gray-400'}`}>
                           {product.price || '—'}
                           {product.inStock === false && <span className="ml-1">· 🔴</span>}
                         </p>
@@ -3394,7 +3394,7 @@ export default function AgentConfig() {
 
                   {/* Bottom add */}
                   <button onClick={addProduct}
-                    className="w-full flex items-center justify-center gap-1.5 py-2.5 mt-1 rounded-xl border-2 border-dashed border-gray-200 text-[12px] font-semibold text-gray-400 hover:border-emerald-300 hover:text-emerald-600 hover:bg-emerald-50 transition-all">
+                    className="w-full flex items-center justify-center gap-1.5 py-2.5 mt-1 rounded-xl border-2 border-dashed border-gray-200 text-[12px] font-semibold text-gray-400 hover:border-primary-300 hover:text-primary-600 hover:bg-primary-50 transition-all">
                     <Plus className="w-3.5 h-3.5" /> Ajouter un produit
                   </button>
                 </div>
@@ -3414,7 +3414,7 @@ export default function AgentConfig() {
                       <div className="min-w-0">
                         <p className="text-[15px] font-bold text-gray-900 truncate">{product.name || 'Nouveau produit'}</p>
                         <p className="text-[11px] text-gray-400 mt-0.5">
-                          {product.price && <span className="font-semibold text-emerald-600">{product.price}</span>}
+                          {product.price && <span className="font-semibold text-primary-600">{product.price}</span>}
                           {product.category && <span> · {product.category}</span>}
                         </p>
                       </div>
@@ -3422,7 +3422,7 @@ export default function AgentConfig() {
                         <button type="button" onClick={() => updateProduct(idx, 'inStock', !(product.inStock !== false))}
                           className={`text-[10px] font-bold px-2.5 py-1 rounded-full border transition-all ${
                             product.inStock !== false
-                              ? 'text-emerald-700 bg-emerald-50 border-emerald-200 hover:bg-emerald-100'
+                              ? 'text-primary-700 bg-primary-50 border-primary-200 hover:bg-primary-100'
                               : 'text-red-600 bg-red-50 border-red-200 hover:bg-red-100'
                           }`}>
                           {product.inStock !== false ? '🟢 En stock' : '🔴 Rupture'}
@@ -3446,7 +3446,7 @@ export default function AgentConfig() {
                           onClick={() => setProductFormTab(tab.id)}
                           className={`px-3.5 py-2 text-[12px] font-semibold rounded-t-lg border-b-2 transition-all ${
                             productFormTab === tab.id
-                              ? 'text-emerald-700 border-emerald-500 bg-emerald-50/50'
+                              ? 'text-primary-700 border-primary-500 bg-primary-50/50'
                               : 'text-gray-400 border-transparent hover:text-gray-600 hover:bg-gray-50'
                           }`}>
                           <span className="mr-1">{tab.emoji}</span>{tab.label}
@@ -3489,9 +3489,9 @@ export default function AgentConfig() {
                           <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-2">Caractéristiques clés</p>
                           <div className="flex flex-wrap gap-1.5 mb-2 min-h-[28px]">
                             {(product.features || []).map((f, fIdx) => (
-                              <span key={fIdx} className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 text-emerald-700 rounded-lg text-[11px] font-medium border border-emerald-100">
+                              <span key={fIdx} className="inline-flex items-center gap-1 px-2.5 py-1 bg-primary-50 text-primary-700 rounded-lg text-[11px] font-medium border border-primary-100">
                                 {f}
-                                <button type="button" onClick={() => removeProductFeature(idx, fIdx)} className="text-emerald-400 hover:text-red-500 leading-none text-base">×</button>
+                                <button type="button" onClick={() => removeProductFeature(idx, fIdx)} className="text-primary-400 hover:text-red-500 leading-none text-base">×</button>
                               </span>
                             ))}
                           </div>
@@ -3515,7 +3515,7 @@ export default function AgentConfig() {
                         <div>
                           <div className="flex items-center justify-between mb-3">
                             <p className="text-[13px] font-bold text-gray-800">Photos du produit</p>
-                            <label className="flex items-center gap-1.5 text-[11px] font-semibold px-3 py-1.5 rounded-lg text-emerald-700 bg-emerald-50 hover:bg-emerald-100 cursor-pointer transition-colors border border-emerald-100">
+                            <label className="flex items-center gap-1.5 text-[11px] font-semibold px-3 py-1.5 rounded-lg text-primary-700 bg-primary-50 hover:bg-primary-100 cursor-pointer transition-colors border border-primary-100">
                               <input type="file" accept="image/*" multiple className="hidden"
                                 onChange={async (e) => { await handleProductMediaUpload(idx, 'images', e.target.files); e.target.value = ''; }} />
                               {mediaUploadingByProduct[`${idx}:images`]
@@ -3524,7 +3524,7 @@ export default function AgentConfig() {
                             </label>
                           </div>
                           {(product.images || []).length === 0 ? (
-                            <label className="flex flex-col items-center justify-center h-24 border-2 border-dashed border-gray-200 rounded-xl text-gray-400 hover:border-emerald-300 hover:text-emerald-500 hover:bg-emerald-50 transition-all cursor-pointer">
+                            <label className="flex flex-col items-center justify-center h-24 border-2 border-dashed border-gray-200 rounded-xl text-gray-400 hover:border-primary-300 hover:text-primary-500 hover:bg-primary-50 transition-all cursor-pointer">
                               <input type="file" accept="image/*" multiple className="hidden"
                                 onChange={async (e) => { await handleProductMediaUpload(idx, 'images', e.target.files); e.target.value = ''; }} />
                               <Image className="w-5 h-5 mb-1" />
@@ -3542,7 +3542,7 @@ export default function AgentConfig() {
                                   </button>
                                 </div>
                               ))}
-                              <label className="aspect-square rounded-xl border-2 border-dashed border-gray-200 flex items-center justify-center text-gray-300 hover:border-emerald-300 hover:text-emerald-500 hover:bg-emerald-50 transition-all cursor-pointer">
+                              <label className="aspect-square rounded-xl border-2 border-dashed border-gray-200 flex items-center justify-center text-gray-300 hover:border-primary-300 hover:text-primary-500 hover:bg-primary-50 transition-all cursor-pointer">
                                 <input type="file" accept="image/*" multiple className="hidden"
                                   onChange={async (e) => { await handleProductMediaUpload(idx, 'images', e.target.files); e.target.value = ''; }} />
                                 <Plus className="w-5 h-5" />
@@ -3709,7 +3709,7 @@ export default function AgentConfig() {
                                     <button type="button" onClick={() => removeProductFaq(idx, fIdx)} className="text-gray-300 hover:text-red-500 flex-shrink-0"><X className="w-3.5 h-3.5" /></button>
                                   </div>
                                   <div className="flex items-start gap-2 px-3 py-2">
-                                    <span className="w-5 h-5 rounded-md bg-emerald-100 text-emerald-700 text-[10px] font-bold flex items-center justify-center flex-shrink-0 mt-0.5">R</span>
+                                    <span className="w-5 h-5 rounded-md bg-primary-100 text-primary-700 text-[10px] font-bold flex items-center justify-center flex-shrink-0 mt-0.5">R</span>
                                     <ModalTextarea value={f.answer} onChange={e => updateProductFaq(idx, fIdx, 'answer', e.target.value)}
                                       placeholder="Réponse de Rita…" rows={4} label="Réponse FAQ"
                                       className="ac-textarea flex-1 text-xs" />
@@ -3745,7 +3745,7 @@ export default function AgentConfig() {
                                     <button type="button" onClick={() => removeProductObjection(idx, oIdx)} className="text-gray-300 hover:text-red-500 flex-shrink-0"><X className="w-3.5 h-3.5" /></button>
                                   </div>
                                   <div className="flex items-start gap-2 px-3 py-2">
-                                    <span className="w-5 h-5 rounded-md bg-emerald-100 text-emerald-700 text-[10px] font-bold flex items-center justify-center flex-shrink-0 mt-0.5">→</span>
+                                    <span className="w-5 h-5 rounded-md bg-primary-100 text-primary-700 text-[10px] font-bold flex items-center justify-center flex-shrink-0 mt-0.5">→</span>
                                     <ModalTextarea value={o.response} onChange={e => updateProductObjection(idx, oIdx, 'response', e.target.value)}
                                       placeholder="Réponse de Rita…" rows={4} label="Réponse à l'objection"
                                       className="ac-textarea flex-1 text-xs" />
@@ -4018,13 +4018,13 @@ export default function AgentConfig() {
 
                         {/* Product Preview */}
                         {selectedProduct && (
-                          <div className="bg-white rounded-lg border border-emerald-200 p-3 flex flex-col sm:flex-row gap-3">
+                          <div className="bg-white rounded-lg border border-primary-200 p-3 flex flex-col sm:flex-row gap-3">
                             {selectedProduct.images?.[0] && (
                               <img src={selectedProduct.images[0]} alt="" className="w-20 h-20 rounded-lg object-cover" />
                             )}
                             <div className="flex-1 text-[11px]">
                               <p className="font-bold text-gray-900">{selectedProduct.name}</p>
-                              {selectedProduct.price && <p className="text-emerald-600 font-semibold">{selectedProduct.price}</p>}
+                              {selectedProduct.price && <p className="text-primary-600 font-semibold">{selectedProduct.price}</p>}
                               {selectedProduct.description && <p className="text-gray-500 line-clamp-2 mt-1">{selectedProduct.description}</p>}
                             </div>
                           </div>
@@ -4075,12 +4075,12 @@ export default function AgentConfig() {
                               </div>
                             ))}
                           </div>
-                          <label className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg cursor-pointer hover:bg-emerald-100 transition-colors">
+                          <label className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold text-primary-700 bg-primary-50 border border-primary-200 rounded-lg cursor-pointer hover:bg-primary-100 transition-colors">
                             <input type="file" accept="image/*" multiple className="hidden"
                               onChange={async (e) => { await handleTestimonialMediaUpload(idx, 'images', e.target.files); e.target.value = ''; }} />
                             <Plus className="w-3 h-3" /> Ajouter photos
                           </label>
-                          {testimonialUploading[`${idx}:images`] && <span className="text-[11px] text-emerald-600 ml-2">Upload en cours...</span>}
+                          {testimonialUploading[`${idx}:images`] && <span className="text-[11px] text-primary-600 ml-2">Upload en cours...</span>}
                         </div>
 
                         {/* Videos */}
@@ -4112,7 +4112,7 @@ export default function AgentConfig() {
                   })}
 
                   <button onClick={addTestimonial}
-                    className="w-full py-2.5 border-2 border-dashed border-gray-300 rounded-xl text-[13px] font-semibold text-gray-500 hover:border-emerald-400 hover:text-emerald-600 hover:bg-emerald-50/30 transition-all flex items-center justify-center gap-2">
+                    className="w-full py-2.5 border-2 border-dashed border-gray-300 rounded-xl text-[13px] font-semibold text-gray-500 hover:border-primary-400 hover:text-primary-600 hover:bg-primary-50/30 transition-all flex items-center justify-center gap-2">
                     <Plus className="w-4 h-4" /> Ajouter un témoignage
                   </button>
                 </div>
@@ -4241,8 +4241,8 @@ export default function AgentConfig() {
               <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
                 <div className="px-6 py-4 border-b border-gray-100">
                   <h2 className="text-[15px] font-bold text-gray-900 flex items-center gap-2">
-                    <span className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center">
-                      <BarChart3 className="w-4 h-4 text-emerald-600" />
+                    <span className="w-8 h-8 rounded-lg bg-primary-50 flex items-center justify-center">
+                      <BarChart3 className="w-4 h-4 text-primary-600" />
                     </span>
                     Résumé Quotidien
                   </h2>
@@ -4311,7 +4311,7 @@ export default function AgentConfig() {
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                   {[
                     { label: 'Messages reçus', value: activityData.stats?.messagesReceived || 0, color: '#3b82f6', bg: 'bg-blue-50' },
-                    { label: 'Réponses', value: activityData.stats?.messagesReplied || 0, color: ACCENT, bg: 'bg-emerald-50' },
+                    { label: 'Réponses', value: activityData.stats?.messagesReplied || 0, color: ACCENT, bg: 'bg-primary-50' },
                     { label: 'Commandes', value: activityData.stats?.ordersConfirmed || 0, color: '#8b5cf6', bg: 'bg-purple-50' },
                     { label: 'Clients uniques', value: activityData.stats?.uniqueClients || 0, color: '#f59e0b', bg: 'bg-amber-50' },
                   ].map(s => (
@@ -4335,7 +4335,7 @@ export default function AgentConfig() {
                         {(activityData.recent || []).map((a, i) => {
                           const LABELS = {
                             message_received: { label: 'Message reçu', emoji: '💬', bg: 'bg-blue-50 text-blue-700' },
-                            message_replied: { label: 'Réponse', emoji: '📤', bg: 'bg-emerald-50 text-emerald-700' },
+                            message_replied: { label: 'Réponse', emoji: '📤', bg: 'bg-primary-50 text-primary-700' },
                             order_confirmed: { label: 'Commande', emoji: '📦', bg: 'bg-purple-50 text-purple-700' },
                             vocal_transcribed: { label: 'Vocal', emoji: '🎤', bg: 'bg-amber-50 text-amber-700' },
                           };
@@ -4415,7 +4415,7 @@ export default function AgentConfig() {
                           <td className="px-4 py-3 text-gray-600">{c.messageCount}</td>
                           <td className="px-4 py-3">
                             {c.hasOrdered
-                              ? <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-semibold text-[11px]">✓ Oui</span>
+                              ? <span className="px-2 py-0.5 rounded-full bg-primary-50 text-primary-700 font-semibold text-[11px]">✓ Oui</span>
                               : <span className="px-2 py-0.5 rounded-full bg-gray-100 text-gray-400 text-[11px]">Non</span>}
                           </td>
                           <td className="px-4 py-3 text-gray-400">
@@ -4476,7 +4476,7 @@ export default function AgentConfig() {
               <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-4">
                 <h3 className="text-[14px] font-bold text-gray-900">{editingStatut ? 'Modifier le statut' : 'Nouveau statut'}</h3>
 
-                <div className={`rounded-xl border p-3 text-[12px] ${config.instanceId ? 'border-emerald-100 bg-emerald-50 text-emerald-700' : 'border-amber-100 bg-amber-50 text-amber-700'}`}>
+                <div className={`rounded-xl border p-3 text-[12px] ${config.instanceId ? 'border-primary-100 bg-primary-50 text-primary-700' : 'border-amber-100 bg-amber-50 text-amber-700'}`}>
                   {config.instanceId
                     ? `Ce statut sera publié avec l'instance WhatsApp actuellement sélectionnée pour Rita : ${selectedInstance?.customName || selectedInstance?.instanceName || 'Instance configurée'}.`
                     : 'Aucune instance WhatsApp Rita n\'est sélectionnée. Vous pouvez créer le statut maintenant, mais il faudra configurer une instance pour pouvoir le publier.'}
@@ -4488,7 +4488,7 @@ export default function AgentConfig() {
                     <ModalInput type="text" value={statutForm.name} onChange={e => setStatutForm(p => ({ ...p, name: e.target.value }))}
                       placeholder="Ex: Statut produit phare du lundi"
                       label="Nom du statut"
-                      className="w-full px-3 py-2 text-[13px] border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-200" />
+                      className="w-full px-3 py-2 text-[13px] border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-200" />
                   </div>
                   <div className="space-y-1.5">
                     <label className="text-[12px] font-semibold text-gray-600">Type de contenu</label>
@@ -4520,7 +4520,7 @@ export default function AgentConfig() {
                           <button
                             type="button"
                             onClick={() => setStatutForm(p => ({ ...p, mediaUrl: '' }))}
-                            className={`rounded-xl border px-3 py-3 text-left transition-colors ${!statutForm.mediaUrl ? 'border-emerald-500 bg-emerald-50' : 'border-gray-200 hover:border-emerald-300'}`}
+                            className={`rounded-xl border px-3 py-3 text-left transition-colors ${!statutForm.mediaUrl ? 'border-primary-500 bg-primary-50' : 'border-gray-200 hover:border-primary-300'}`}
                           >
                             <p className="text-[12px] font-semibold text-gray-700">Automatique</p>
                             <p className="text-[11px] text-gray-400 mt-1">Utiliser le premier média disponible du produit</p>
@@ -4531,7 +4531,7 @@ export default function AgentConfig() {
                               key={media.key}
                               type="button"
                               onClick={() => setStatutForm(p => ({ ...p, mediaUrl: media.url }))}
-                              className={`rounded-xl border overflow-hidden text-left transition-colors ${statutForm.mediaUrl === media.url ? 'border-emerald-500 bg-emerald-50' : 'border-gray-200 hover:border-emerald-300'}`}
+                              className={`rounded-xl border overflow-hidden text-left transition-colors ${statutForm.mediaUrl === media.url ? 'border-primary-500 bg-primary-50' : 'border-gray-200 hover:border-primary-300'}`}
                             >
                               <div className="aspect-[4/3] bg-gray-100 flex items-center justify-center overflow-hidden">
                                 {media.type === 'video' ? (
@@ -4565,7 +4565,7 @@ export default function AgentConfig() {
                     <ModalInput type="text" value={statutForm.mediaUrl} onChange={e => setStatutForm(p => ({ ...p, mediaUrl: e.target.value }))}
                       placeholder="https://..."
                       label="URL de l'image"
-                      className="w-full px-3 py-2 text-[13px] border border-gray-200 rounded-xl font-mono focus:outline-none focus:ring-2 focus:ring-emerald-200" />
+                      className="w-full px-3 py-2 text-[13px] border border-gray-200 rounded-xl font-mono focus:outline-none focus:ring-2 focus:ring-primary-200" />
                   </div>
                 )}
 
@@ -4575,7 +4575,7 @@ export default function AgentConfig() {
                     <ModalTextarea rows={4} value={statutForm.caption} onChange={e => setStatutForm(p => ({ ...p, caption: e.target.value }))}
                       placeholder="Ex: 🔥 Notre produit phare en stock ! Contactez-nous pour commander."
                       label="Texte / Légende"
-                      className="w-full px-3 py-2 text-[13px] border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-200" />
+                      className="w-full px-3 py-2 text-[13px] border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-200" />
                   </div>
                 )}
 
@@ -4585,7 +4585,7 @@ export default function AgentConfig() {
                     <ModalTextarea rows={3} value={statutForm.caption} onChange={e => setStatutForm(p => ({ ...p, caption: e.target.value }))}
                       placeholder="Laissez vide pour générer automatiquement depuis le produit"
                       label="Texte personnalisé du statut"
-                      className="w-full px-3 py-2 text-[13px] border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-200" />
+                      className="w-full px-3 py-2 text-[13px] border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-200" />
                   </div>
                 )}
 
@@ -4601,7 +4601,7 @@ export default function AgentConfig() {
                   <div className="space-y-1.5">
                     <label className="text-[12px] font-semibold text-gray-600">Heure d'envoi</label>
                     <input type="time" value={statutForm.sendTime} onChange={e => setStatutForm(p => ({ ...p, sendTime: e.target.value }))}
-                      className="w-full px-3 py-2 text-[13px] border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-200" />
+                      className="w-full px-3 py-2 text-[13px] border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-200" />
                   </div>
                   {statutForm.type === 'text' && (
                     <div className="space-y-1.5">
@@ -4624,8 +4624,8 @@ export default function AgentConfig() {
                           }))}
                           className={`px-3 py-1.5 text-[12px] font-semibold rounded-lg border transition-colors ${
                             statutForm.weekDays.includes(i)
-                              ? 'text-white border-emerald-600'
-                              : 'text-gray-500 border-gray-200 hover:border-emerald-300'
+                              ? 'text-white border-primary-600'
+                              : 'text-gray-500 border-gray-200 hover:border-primary-300'
                           }`}
                           style={statutForm.weekDays.includes(i) ? { background: ACCENT } : {}}
                         >{d}</button>
@@ -4665,8 +4665,8 @@ export default function AgentConfig() {
                 {statuts.map(s => (
                   <div key={s._id} className={`bg-white rounded-2xl border p-4 flex flex-col sm:flex-row sm:items-center gap-4 ${s.enabled ? 'border-gray-200' : 'border-gray-100 opacity-60'}`}>
                     {/* Icône type */}
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${s.type === 'product' ? 'bg-emerald-50' : s.type === 'image' ? 'bg-blue-50' : 'bg-amber-50'}`}>
-                      {s.type === 'product' ? <Package className="w-5 h-5 text-emerald-600" />
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${s.type === 'product' ? 'bg-primary-50' : s.type === 'image' ? 'bg-blue-50' : 'bg-amber-50'}`}>
+                      {s.type === 'product' ? <Package className="w-5 h-5 text-primary-600" />
                         : s.type === 'image' ? <Image className="w-5 h-5 text-blue-600" />
                         : <MessageCircle className="w-5 h-5 text-amber-600" />}
                     </div>
@@ -4679,7 +4679,7 @@ export default function AgentConfig() {
                           {s.scheduleType === 'daily' ? 'Tous les jours' : 'Certains jours'} à {s.sendTime}
                         </span>
                         {s.type === 'product' && s.productName && (
-                          <span className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600 font-medium">{s.productName}</span>
+                          <span className="text-[11px] px-2 py-0.5 rounded-full bg-primary-50 text-primary-600 font-medium">{s.productName}</span>
                         )}
                         {s.sentCount > 0 && (
                           <span className="text-[11px] text-gray-400">{s.sentCount} envois</span>
@@ -4691,14 +4691,14 @@ export default function AgentConfig() {
                     <div className="flex items-center justify-end gap-2 flex-shrink-0 w-full sm:w-auto">
                       {/* Toggle */}
                       <button onClick={() => toggleStatut(s)}
-                        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${s.enabled ? 'bg-emerald-600' : 'bg-gray-300'}`}
+                        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${s.enabled ? 'bg-primary-600' : 'bg-gray-300'}`}
                       >
                         <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-transform ${s.enabled ? 'translate-x-4' : 'translate-x-1'}`} />
                       </button>
                       {/* Envoyer maintenant */}
                       <button onClick={() => sendNow(s)} disabled={statutSending === s._id}
                         title="Publier maintenant"
-                        className="p-1.5 text-gray-400 hover:text-emerald-600 transition-colors">
+                        className="p-1.5 text-gray-400 hover:text-primary-600 transition-colors">
                         {statutSending === s._id ? <Loader2 className="w-4 h-4 animate-spin" /> : <PlayCircle className="w-4 h-4" />}
                       </button>
                       {/* Modifier */}
@@ -4756,7 +4756,7 @@ export default function AgentConfig() {
                   </div>
                   <button
                     onClick={() => set('firstMessageRulesEnabled', !config.firstMessageRulesEnabled)}
-                    className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${config.firstMessageRulesEnabled ? 'bg-emerald-600' : 'bg-gray-300'}`}
+                    className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${config.firstMessageRulesEnabled ? 'bg-primary-600' : 'bg-gray-300'}`}
                   >
                     <span className={`inline-block h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${config.firstMessageRulesEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
                   </button>
@@ -4774,7 +4774,7 @@ export default function AgentConfig() {
                                 const updated = (config.firstMessageRules || []).map((r, i) => i === idx ? { ...r, enabled: !r.enabled } : r);
                                 set('firstMessageRules', updated);
                               }}
-                              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${rule.enabled ? 'bg-emerald-600' : 'bg-gray-300'}`}
+                              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${rule.enabled ? 'bg-primary-600' : 'bg-gray-300'}`}
                             >
                               <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-transform ${rule.enabled ? 'translate-x-4' : 'translate-x-1'}`} />
                             </button>
@@ -4810,7 +4810,7 @@ export default function AgentConfig() {
                                 set('firstMessageRules', updated);
                               }}
                               placeholder="Description courte (ex: Vidéo de présentation)"
-                              className="w-full px-3 py-2 text-[12px] border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-emerald-200"
+                              className="w-full px-3 py-2 text-[12px] border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-primary-200"
                             />
                             <input
                               type="text"
@@ -4824,7 +4824,7 @@ export default function AgentConfig() {
                                 rule.type === 'image' ? 'URL de l\'image (ex: https://...)' :
                                 'Message à envoyer au client'
                               }
-                              className="w-full px-3 py-2 text-[12px] border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-emerald-200 font-mono"
+                              className="w-full px-3 py-2 text-[12px] border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-primary-200 font-mono"
                             />
                           </div>
                         )}
@@ -4836,14 +4836,14 @@ export default function AgentConfig() {
 
                     <button
                       onClick={() => set('firstMessageRules', [...(config.firstMessageRules || []), { type: 'text', content: '', label: '', enabled: true }])}
-                      className="w-full py-2.5 border-2 border-dashed border-gray-300 rounded-xl text-[12px] font-semibold text-gray-500 hover:border-emerald-400 hover:text-emerald-600 transition-colors flex items-center justify-center gap-2"
+                      className="w-full py-2.5 border-2 border-dashed border-gray-300 rounded-xl text-[12px] font-semibold text-gray-500 hover:border-primary-400 hover:text-primary-600 transition-colors flex items-center justify-center gap-2"
                     >
                       <Plus className="w-4 h-4" /> Ajouter une règle
                     </button>
                   </div>
                 )}
 
-                <div className={`p-3 rounded-xl border text-[11px] space-y-1 ${config.firstMessageRulesEnabled ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-gray-50 border-gray-200 text-gray-400'}`}>
+                <div className={`p-3 rounded-xl border text-[11px] space-y-1 ${config.firstMessageRulesEnabled ? 'bg-primary-50 border-primary-200 text-primary-700' : 'bg-gray-50 border-gray-200 text-gray-400'}`}>
                   <p className="font-bold">Exemples de règles :</p>
                   <p>• Vidéo : envoyer une vidéo de présentation du produit phare dès le premier message</p>
                   <p>• Image : envoyer une photo du catalogue ou d'une promo en cours</p>
@@ -4878,7 +4878,7 @@ export default function AgentConfig() {
                   </div>
                   <button
                     onClick={() => set('customInstructionsEnabled', !config.customInstructionsEnabled)}
-                    className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${config.customInstructionsEnabled ? 'bg-emerald-600' : 'bg-gray-300'}`}
+                    className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${config.customInstructionsEnabled ? 'bg-primary-600' : 'bg-gray-300'}`}
                   >
                     <span className={`inline-block h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${config.customInstructionsEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
                   </button>
@@ -4895,7 +4895,7 @@ export default function AgentConfig() {
                     label="Instructions personnalisées"
                     className={`w-full px-4 py-3 rounded-xl border text-[13px] font-mono focus:outline-none focus:ring-2 transition-all ${
                       config.customInstructionsEnabled
-                        ? 'border-emerald-300 bg-white focus:ring-emerald-200'
+                        ? 'border-primary-300 bg-white focus:ring-primary-200'
                         : 'border-gray-200 bg-gray-50 text-gray-400 focus:ring-gray-200'
                     }`}
                   />
@@ -4905,7 +4905,7 @@ export default function AgentConfig() {
                 </div>
 
                 {/* Info box */}
-                <div className={`p-4 rounded-xl border text-[12px] space-y-1.5 ${config.customInstructionsEnabled ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-gray-50 border-gray-200 text-gray-500'}`}>
+                <div className={`p-4 rounded-xl border text-[12px] space-y-1.5 ${config.customInstructionsEnabled ? 'bg-primary-50 border-primary-200 text-primary-800' : 'bg-gray-50 border-gray-200 text-gray-500'}`}>
                   <p className="font-bold">Comment ça fonctionne :</p>
                   <p>• Quand <strong>activé</strong> : vos instructions ont la priorité maximale sur toutes les règles par défaut</p>
                   <p>• Quand <strong>désactivé</strong> : l'agent ignore ces instructions et applique le comportement standard</p>
@@ -4923,7 +4923,7 @@ export default function AgentConfig() {
 
             {/* Flash */}
             {groupMsg && (
-              <div className={`text-[13px] px-4 py-2.5 rounded-xl font-medium ${groupMsg.ok ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
+              <div className={`text-[13px] px-4 py-2.5 rounded-xl font-medium ${groupMsg.ok ? 'bg-primary-50 text-primary-700' : 'bg-red-50 text-red-700'}`}>
                 {groupMsg.text}
               </div>
             )}
@@ -5032,13 +5032,13 @@ export default function AgentConfig() {
                                   return (
                                     <button key={d} type="button"
                                       onClick={() => setCampaignForm(f => ({ ...f, repeatDays: active ? f.repeatDays.filter(x => x !== d) : [...f.repeatDays, d] }))}
-                                      className={`text-[11px] px-2.5 py-1 rounded-full border transition font-medium ${active ? 'bg-emerald-50 border-emerald-400 text-emerald-700' : 'bg-white border-gray-200 text-gray-400'}`}>
+                                      className={`text-[11px] px-2.5 py-1 rounded-full border transition font-medium ${active ? 'bg-primary-50 border-primary-400 text-primary-700' : 'bg-white border-gray-200 text-gray-400'}`}>
                                       {d.slice(0,2)}
                                     </button>
                                   );
                                 })}
                                 <button type="button" onClick={() => setCampaignForm(f => ({ ...f, repeatDays: ['lundi','mardi','mercredi','jeudi','vendredi','samedi','dimanche'] }))}
-                                  className="text-[10px] px-2 text-emerald-600 hover:underline">Tous</button>
+                                  className="text-[10px] px-2 text-primary-600 hover:underline">Tous</button>
                               </div>
                               <div className="flex items-center gap-2">
                                 <p className="text-[11px] text-gray-500 flex-shrink-0">Heure</p>
@@ -5058,13 +5058,13 @@ export default function AgentConfig() {
                               {whatsappGroups.map(wg => {
                                 const sel = campaignForm.groupJids.includes(wg.id);
                                 return (
-                                  <label key={wg.id} className={`flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition ${sel ? 'bg-emerald-50' : 'hover:bg-gray-50'}`}>
+                                  <label key={wg.id} className={`flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition ${sel ? 'bg-primary-50' : 'hover:bg-gray-50'}`}>
                                     <input type="checkbox" checked={sel}
                                       onChange={() => setCampaignForm(f => ({
                                         ...f,
                                         groupJids: sel ? f.groupJids.filter(id => id !== wg.id) : [...f.groupJids, wg.id]
                                       }))}
-                                      className="w-4 h-4 rounded border-gray-300 text-emerald-600" />
+                                      className="w-4 h-4 rounded border-gray-300 text-primary-600" />
                                     <span className="text-[13px] font-medium text-gray-800 truncate flex-1">{wg.name}</span>
                                     <span className="text-[10px] text-gray-400">{wg.participants} membres</span>
                                   </label>
@@ -5240,15 +5240,15 @@ export default function AgentConfig() {
                         {whatsappGroups.filter(wg => wg.name.toLowerCase().includes(groupSearch.toLowerCase())).map(wg => (
                           <button key={wg.id} type="button"
                             onClick={() => setOpenedGroup(wg)}
-                            className="w-full flex items-center gap-3 px-5 py-3.5 text-left hover:bg-emerald-50/50 transition group">
-                            <div className="w-9 h-9 rounded-full bg-emerald-100 flex items-center justify-center text-[14px] flex-shrink-0">
+                            className="w-full flex items-center gap-3 px-5 py-3.5 text-left hover:bg-primary-50/50 transition group">
+                            <div className="w-9 h-9 rounded-full bg-primary-100 flex items-center justify-center text-[14px] flex-shrink-0">
                               👥
                             </div>
                             <div className="flex-1 min-w-0">
                               <p className="text-[13px] font-semibold text-gray-900 truncate">{wg.name}</p>
                               <p className="text-[11px] text-gray-400">{wg.participants} membre{wg.participants !== 1 ? 's' : ''}</p>
                             </div>
-                            <ChevronDown className="w-4 h-4 text-gray-300 -rotate-90 group-hover:text-emerald-500 transition" />
+                            <ChevronDown className="w-4 h-4 text-gray-300 -rotate-90 group-hover:text-primary-500 transition" />
                           </button>
                         ))}
                       </div>
@@ -5294,7 +5294,7 @@ export default function AgentConfig() {
                           <div key={gi}>
                             <button type="button" onClick={() => setGroupExpandedIdx(isExpanded ? null : gi)}
                               className="w-full px-5 py-3.5 flex items-center gap-3 text-left hover:bg-gray-50 transition">
-                              <div className="w-8 h-8 rounded-full bg-emerald-50 flex items-center justify-center text-[14px] flex-shrink-0">
+                              <div className="w-8 h-8 rounded-full bg-primary-50 flex items-center justify-center text-[14px] flex-shrink-0">
                                 {group.role === 'clients' ? '🛒' : group.role === 'prospects' ? '🎯' : group.role === 'vip' ? '⭐' : '👥'}
                               </div>
                               <div className="flex-1 min-w-0">
@@ -5337,7 +5337,7 @@ export default function AgentConfig() {
                                         const ps = [...group.scheduledPosts]; ps[pi] = { ...ps[pi], hour: e.target.value };
                                         updateManagedGroup(gi, { ...group, scheduledPosts: ps });
                                       }} className="text-[12px] border rounded-lg px-2 py-1.5" />
-                                      <div className={`relative w-8 h-4 rounded-full cursor-pointer transition ml-auto ${post.enabled !== false ? 'bg-emerald-500' : 'bg-gray-300'}`}
+                                      <div className={`relative w-8 h-4 rounded-full cursor-pointer transition ml-auto ${post.enabled !== false ? 'bg-primary-500' : 'bg-gray-300'}`}
                                         onClick={() => {
                                           const ps = [...group.scheduledPosts]; ps[pi] = { ...ps[pi], enabled: !(post.enabled !== false) };
                                           updateManagedGroup(gi, { ...group, scheduledPosts: ps });
@@ -5381,14 +5381,14 @@ export default function AgentConfig() {
                                           const ps = [...group.scheduledPosts]; ps[pi] = { ...ps[pi], days };
                                           updateManagedGroup(gi, { ...group, scheduledPosts: ps });
                                         }}
-                                          className={`text-[10px] px-1.5 py-0.5 rounded-full border transition ${(post.days || []).includes(d) ? 'bg-emerald-50 border-emerald-400 text-emerald-700' : 'bg-white border-gray-200 text-gray-400'}`}>
+                                          className={`text-[10px] px-1.5 py-0.5 rounded-full border transition ${(post.days || []).includes(d) ? 'bg-primary-50 border-primary-400 text-primary-700' : 'bg-white border-gray-200 text-gray-400'}`}>
                                           {d.slice(0, 2)}
                                         </button>
                                       ))}
                                       <button onClick={() => {
                                         const ps = [...group.scheduledPosts]; ps[pi] = { ...ps[pi], days: GA_DAYS.slice() };
                                         updateManagedGroup(gi, { ...group, scheduledPosts: ps });
-                                      }} className="text-[10px] px-1.5 text-emerald-600 hover:underline">Tous</button>
+                                      }} className="text-[10px] px-1.5 text-primary-600 hover:underline">Tous</button>
                                     </div>
                                   </div>
                                 ))}
@@ -5466,8 +5466,8 @@ export default function AgentConfig() {
             <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
               <div className="px-6 py-4 border-b border-gray-100">
                 <h2 className="text-[15px] font-bold text-gray-900 flex items-center gap-2">
-                  <span className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center">
-                    <Send className="w-4 h-4 text-emerald-600" />
+                  <span className="w-8 h-8 rounded-lg bg-primary-50 flex items-center justify-center">
+                    <Send className="w-4 h-4 text-primary-600" />
                   </span>
                   Relances Automatiques par Produit
                 </h2>
@@ -5497,7 +5497,7 @@ export default function AgentConfig() {
                 </Field>
 
                 {rpStatus && (
-                  <div className={`text-[13px] px-4 py-3 rounded-xl font-medium ${rpStatus.type === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-red-50 text-red-700 border border-red-100'}`}>
+                  <div className={`text-[13px] px-4 py-3 rounded-xl font-medium ${rpStatus.type === 'success' ? 'bg-primary-50 text-primary-700 border border-primary-100' : 'bg-red-50 text-red-700 border border-red-100'}`}>
                     {rpStatus.type === 'success' ? '✅ ' : '❌ '}{rpStatus.text}
                   </div>
                 )}
@@ -5548,7 +5548,7 @@ export default function AgentConfig() {
       {/* Save status toast */}
       {saveStatus && (
         <div className={`fixed top-4 left-4 right-4 sm:left-auto sm:right-4 z-50 px-4 py-2.5 rounded-xl text-[13px] font-semibold shadow-lg transition-all animate-in fade-in slide-in-from-top-2 ${
-          saveStatus === 'success' ? 'bg-emerald-600 text-white' : 'bg-red-600 text-white'
+          saveStatus === 'success' ? 'bg-primary-600 text-white' : 'bg-red-600 text-white'
         }`}>
           {saveStatus === 'success' ? '✅ Configuration enregistrée' : '❌ Erreur lors de la sauvegarde'}
         </div>

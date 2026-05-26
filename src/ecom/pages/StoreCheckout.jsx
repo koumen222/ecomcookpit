@@ -620,7 +620,7 @@ const StoreCheckout = () => {
                 {deliveryStatus.type === 'livraison' && (
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-500">Livraison</span>
-                    <span className="text-emerald-600 font-medium">Paiement à la réception</span>
+                    <span className="text-primary-600 font-medium">Paiement à la réception</span>
                   </div>
                 )}
                 {deliveryStatus.type === 'expedition' && (
@@ -768,7 +768,7 @@ const StoreCheckout = () => {
                     <Truck className="w-3 h-3" />
                     Frais de livraison
                   </span>
-                  <span className="font-medium text-emerald-600">{formatPrice(deliveryCost, currency)}</span>
+                  <span className="font-medium text-primary-600">{formatPrice(deliveryCost, currency)}</span>
                 </div>
               )}
               {/* Free shipping indicator */}
@@ -965,7 +965,7 @@ const StoreCheckout = () => {
             {hasDeliveryConfig && form.country && form.city && deliveryStatus.type !== 'blocked' && deliveryStatus.type !== 'pending' && (
               <div className={`flex items-start gap-2.5 p-3 rounded-xl text-sm ${
                 deliveryStatus.type === 'livraison'
-                  ? 'bg-emerald-50 border border-emerald-200 text-emerald-700'
+                  ? 'bg-primary-50 border border-primary-200 text-primary-700'
                   : 'bg-amber-50 border border-amber-200 text-amber-700'
               }`}>
                 {deliveryStatus.type === 'livraison' ? (

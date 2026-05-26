@@ -77,7 +77,7 @@ const PlanBadge = ({ plan }) => {
 
 const StatusBadge = ({ active }) => (
   <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full border ${
-    active ? 'text-emerald-700 bg-emerald-50 border-emerald-200' : 'text-amber-700 bg-amber-50 border-amber-200'
+    active ? 'text-primary-700 bg-primary-50 border-primary-200' : 'text-amber-700 bg-amber-50 border-amber-200'
   }`}>
     {active ? <CheckCircle2 className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
     {active ? 'Actif' : 'Inactif'}
@@ -127,7 +127,7 @@ const WorkspaceCard = ({
   return (
     <div className={`bg-white rounded-2xl border overflow-hidden hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200 ${ws.isActive ? 'border-slate-200' : 'border-amber-200'}`}>
       {/* top stripe */}
-      <div className={`h-1 ${ws.isActive ? 'bg-gradient-to-r from-emerald-500 to-teal-400' : 'bg-gradient-to-r from-amber-400 to-red-400'}`} />
+      <div className={`h-1 ${ws.isActive ? 'bg-gradient-to-r from-primary-500 to-teal-400' : 'bg-gradient-to-r from-amber-400 to-red-400'}`} />
 
       <div className="p-5">
         {/* ── Row 1: identity ── */}
@@ -183,7 +183,7 @@ const WorkspaceCard = ({
           )}
           <button
             onClick={() => onCopy(ws.inviteCode)}
-            className="flex items-center gap-1.5 text-[11px] font-bold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2.5 py-1 rounded-lg transition"
+            className="flex items-center gap-1.5 text-[11px] font-bold text-primary-600 bg-primary-50 hover:bg-primary-100 border border-primary-200 px-2.5 py-1 rounded-lg transition"
           >
             <Copy className="w-3 h-3" />
             {ws.inviteCode}
@@ -197,7 +197,7 @@ const WorkspaceCard = ({
             className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-bold rounded-xl border transition-all ${
               ws.isActive
                 ? 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'
-                : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                : 'bg-primary-50 text-primary-700 border-primary-200 hover:bg-primary-100'
             }`}
           >
             {ws.isActive ? <><PowerOff className="w-3.5 h-3.5" /> Désactiver</> : <><Power className="w-3.5 h-3.5" /> Réactiver</>}
@@ -236,7 +236,7 @@ const WorkspaceCard = ({
                 <select
                   value={selectedPlan}
                   onChange={(e) => onUpdatePlanDraft(ws._id, 'plan', e.target.value)}
-                  className="flex-1 text-xs font-bold border border-slate-200 rounded-lg px-2 py-2 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  className="flex-1 text-xs font-bold border border-slate-200 rounded-lg px-2 py-2 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-primary-500"
                 >
                   {availablePlans.map(p => (
                     <option key={p.key} value={p.key}>{planLabel(p)}</option>
@@ -246,7 +246,7 @@ const WorkspaceCard = ({
                   value={String(selectedDuration)}
                   onChange={(e) => onUpdatePlanDraft(ws._id, 'durationMonths', Number(e.target.value))}
                   disabled={selectedPlan === 'free'}
-                  className="w-24 text-xs font-bold border border-slate-200 rounded-lg px-2 py-2 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-40"
+                  className="w-24 text-xs font-bold border border-slate-200 rounded-lg px-2 py-2 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:opacity-40"
                 >
                   <option value="1">1 mois</option>
                   <option value="3">3 mois</option>
@@ -307,7 +307,7 @@ const WorkspaceCard = ({
                 <div>
                   <div className="flex justify-between text-xs mb-1.5">
                     <span className="text-violet-500 font-medium">Pages gratuites</span>
-                    <span className="font-bold text-emerald-600">{ws.freeGenerationsRemaining || 0}</span>
+                    <span className="font-bold text-primary-600">{ws.freeGenerationsRemaining || 0}</span>
                   </div>
                   <div className="flex justify-between text-xs mb-1.5">
                     <span className="text-violet-500 font-medium">Pages payées</span>
@@ -487,7 +487,7 @@ const SuperAdminWorkspaces = () => {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Rechercher par nom, slug ou email propriétaire…"
-              className="w-full pl-10 pr-10 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent shadow-sm transition-all"
+              className="w-full pl-10 pr-10 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent shadow-sm transition-all"
             />
             {searchTerm && (
               <button onClick={() => setSearchTerm('')}
@@ -524,7 +524,7 @@ const SuperAdminWorkspaces = () => {
             <span><strong className="text-slate-700">{filtered.length}</strong> espace{filtered.length !== 1 ? 's' : ''} affiché{filtered.length !== 1 ? 's' : ''}</span>
             {(searchTerm || filterTab !== 'all') && (
               <button onClick={() => { setSearchTerm(''); setFilterTab('all'); }}
-                className="text-emerald-600 font-bold hover:underline ml-1">Réinitialiser</button>
+                className="text-primary-600 font-bold hover:underline ml-1">Réinitialiser</button>
             )}
           </div>
         )}
@@ -538,7 +538,7 @@ const SuperAdminWorkspaces = () => {
             </p>
             {searchTerm && (
               <button onClick={() => setSearchTerm('')}
-                className="mt-4 px-4 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold hover:bg-emerald-700 transition">
+                className="mt-4 px-4 py-2 bg-primary-600 text-white rounded-xl text-xs font-bold hover:bg-primary-700 transition">
                 Réinitialiser
               </button>
             )}

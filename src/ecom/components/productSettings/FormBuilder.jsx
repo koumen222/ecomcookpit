@@ -28,7 +28,7 @@ const FieldEditor = ({ field, onChange }) => {
           value={field.label || ''}
           onChange={e => update('label', e.target.value)}
           placeholder={isCta ? 'ACHETER MAINTENANT - {total}' : field.name === 'address' ? 'Lieu de livraison' : 'Label'}
-          className="w-full px-3 py-2 rounded-xl border border-gray-200 text-[12px] font-medium focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-200"
+          className="w-full px-3 py-2 rounded-xl border border-gray-200 text-[12px] font-medium focus:outline-none focus:border-primary-400 focus:ring-1 focus:ring-primary-200"
         />
       </div>
 
@@ -41,7 +41,7 @@ const FieldEditor = ({ field, onChange }) => {
             value={field.placeholder || ''}
             onChange={e => update('placeholder', e.target.value)}
             placeholder="Ex: Votre quartier, rue..."
-            className="w-full px-3 py-2 rounded-xl border border-gray-200 text-[12px] text-gray-500 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-200"
+            className="w-full px-3 py-2 rounded-xl border border-gray-200 text-[12px] text-gray-500 focus:outline-none focus:border-primary-400 focus:ring-1 focus:ring-primary-200"
           />
         </div>
       )}
@@ -58,7 +58,7 @@ const FieldEditor = ({ field, onChange }) => {
               title={label}
               className={`flex flex-col items-center gap-0.5 p-1.5 rounded-lg border-2 transition-all ${
                 currentIcon === id
-                  ? 'border-emerald-400 bg-emerald-50 text-emerald-700'
+                  ? 'border-primary-400 bg-primary-50 text-primary-700'
                   : 'border-transparent bg-gray-50 text-gray-400 hover:bg-gray-100 hover:text-gray-600'
               }`}
             >
@@ -82,7 +82,7 @@ const FieldEditor = ({ field, onChange }) => {
                   onClick={() => update('animation', id)}
                   className={`px-2 py-2 rounded-lg text-[11px] font-semibold border-2 transition-all ${
                     (field.animation || 'none') === id
-                      ? 'border-emerald-400 bg-emerald-50 text-emerald-700'
+                      ? 'border-primary-400 bg-primary-50 text-primary-700'
                       : 'border-transparent bg-gray-50 text-gray-500 hover:bg-gray-100'
                   }`}
                 >
@@ -178,7 +178,7 @@ const FormBuilder = ({ config, onChange }) => {
                         title="Personnaliser"
                         className={`p-1.5 rounded-lg transition-colors ${
                           isExpanded
-                            ? 'bg-emerald-100 text-emerald-600'
+                            ? 'bg-primary-100 text-primary-600'
                             : 'hover:bg-white text-gray-400 hover:text-gray-600'
                         }`}
                       >

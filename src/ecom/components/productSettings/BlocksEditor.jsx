@@ -62,7 +62,7 @@ const EDITABLE_SECTIONS = {
 };
 
 // ── Inline content editor for a section ───────────────────────────────────────
-const inputCls = "w-full px-3 py-2 rounded-lg border border-gray-200 text-[13px] outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-200 transition-all bg-white";
+const inputCls = "w-full px-3 py-2 rounded-lg border border-gray-200 text-[13px] outline-none focus:border-primary-400 focus:ring-1 focus:ring-primary-200 transition-all bg-white";
 
 const EMPTY_TESTIMONIAL = { name: '', location: '', rating: 5, text: '', verified: true, date: '', image: '' };
 
@@ -205,7 +205,7 @@ const SectionContentEditor = ({ section, onChange }) => {
             )}
           </div>
         ))}
-        <button onClick={addItem} className="flex items-center gap-1 text-[11px] text-emerald-600 font-medium hover:text-emerald-700 mt-1">
+        <button onClick={addItem} className="flex items-center gap-1 text-[11px] text-primary-600 font-medium hover:text-primary-700 mt-1">
           <Plus size={12} /> Ajouter
         </button>
         <div className="text-[10px] text-gray-400">Laissez vide pour utiliser les données IA</div>
@@ -235,7 +235,7 @@ const SectionContentEditor = ({ section, onChange }) => {
               placeholder="Réponse…" />
           </div>
         ))}
-        <button onClick={addFaq} className="flex items-center gap-1 text-[11px] text-emerald-600 font-medium hover:text-emerald-700 mt-1">
+        <button onClick={addFaq} className="flex items-center gap-1 text-[11px] text-primary-600 font-medium hover:text-primary-700 mt-1">
           <Plus size={12} /> Ajouter une question
         </button>
         <div className="text-[10px] text-gray-400">Laissez vide pour utiliser les données IA / produit</div>
@@ -263,7 +263,7 @@ const SectionContentEditor = ({ section, onChange }) => {
         {items.map((t, i) => (
           <BlocksTestimonialCard key={i} t={t} i={i} updateT={updateT} removeT={removeT} />
         ))}
-        <button onClick={addT} className="flex items-center gap-1 text-[11px] text-emerald-600 font-medium hover:text-emerald-700 mt-1">
+        <button onClick={addT} className="flex items-center gap-1 text-[11px] text-primary-600 font-medium hover:text-primary-700 mt-1">
           <Plus size={12} /> Ajouter un témoignage
         </button>
       </div>
@@ -323,7 +323,7 @@ const SectionContentEditor = ({ section, onChange }) => {
     return (
       <div className="space-y-3">
         <label className="flex items-center gap-2 cursor-pointer">
-          <input type="checkbox" checked={gallery.showHeader !== false} onChange={e => update('showHeader', e.target.checked)} className="w-4 h-4 accent-emerald-500" />
+          <input type="checkbox" checked={gallery.showHeader !== false} onChange={e => update('showHeader', e.target.checked)} className="w-4 h-4 accent-primary-500" />
           <span className="text-[12px] text-gray-600">Afficher le titre de la section</span>
         </label>
         <div className="grid grid-cols-2 gap-2">
@@ -355,14 +355,14 @@ const SectionContentEditor = ({ section, onChange }) => {
           </div>
         </div>
         <label className="flex items-center gap-2 cursor-pointer">
-          <input type="checkbox" checked={gallery.useProductImages !== false} onChange={e => update('useProductImages', e.target.checked)} className="w-4 h-4 accent-emerald-500" />
+          <input type="checkbox" checked={gallery.useProductImages !== false} onChange={e => update('useProductImages', e.target.checked)} className="w-4 h-4 accent-primary-500" />
           <span className="text-[12px] text-gray-600">Utiliser aussi les photos natives du produit</span>
         </label>
         <div className="space-y-2 rounded-xl border border-gray-200 bg-gray-50/60 p-3">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-semibold text-gray-700">Photos personnalisées</span>
             <div className="flex items-center gap-2">
-              <label className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-emerald-200 bg-emerald-50 text-[11px] font-semibold text-emerald-700 cursor-pointer hover:bg-emerald-100 transition">
+              <label className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-primary-200 bg-primary-50 text-[11px] font-semibold text-primary-700 cursor-pointer hover:bg-primary-100 transition">
                 {galleryUploading ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
                 Uploader
                 <input
@@ -377,7 +377,7 @@ const SectionContentEditor = ({ section, onChange }) => {
                   }}
                 />
               </label>
-              <button onClick={addImage} className="flex items-center gap-1 text-[11px] text-emerald-600 font-medium hover:text-emerald-700">
+              <button onClick={addImage} className="flex items-center gap-1 text-[11px] text-primary-600 font-medium hover:text-primary-700">
                 <Plus size={12} /> Ajouter
               </button>
             </div>
@@ -452,7 +452,7 @@ const SectionContentEditor = ({ section, onChange }) => {
             {items.length > 1 && <button onClick={() => removeItem(i)} className="p-1 text-gray-300 hover:text-red-400 transition-colors shrink-0"><Trash2 size={12} /></button>}
           </div>
         ))}
-        <button onClick={addItem} className="flex items-center gap-1 text-[11px] text-emerald-600 font-medium hover:text-emerald-700 mt-1"><Plus size={12} /> Ajouter</button>
+        <button onClick={addItem} className="flex items-center gap-1 text-[11px] text-primary-600 font-medium hover:text-primary-700 mt-1"><Plus size={12} /> Ajouter</button>
         <div className="text-[10px] text-gray-400">Laissez vide pour utiliser les données IA</div>
       </div>
     );
@@ -464,7 +464,7 @@ const SectionContentEditor = ({ section, onChange }) => {
         if (field.type === 'checkbox') {
           return (
             <label key={field.key} className="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" checked={!!content[field.key]} onChange={e => update(field.key, e.target.checked)} className="w-4 h-4 accent-emerald-500" />
+              <input type="checkbox" checked={!!content[field.key]} onChange={e => update(field.key, e.target.checked)} className="w-4 h-4 accent-primary-500" />
               <span className="text-[12px] text-gray-600">{field.label}</span>
             </label>
           );
@@ -494,7 +494,7 @@ const SectionContentEditor = ({ section, onChange }) => {
                   )}
                 </div>
               ))}
-              <button onClick={addItem} className="flex items-center gap-1 text-[11px] text-emerald-600 font-medium hover:text-emerald-700">
+              <button onClick={addItem} className="flex items-center gap-1 text-[11px] text-primary-600 font-medium hover:text-primary-700">
                 <Plus size={12} /> Ajouter
               </button>
             </div>
@@ -545,7 +545,7 @@ const SortableBlock = ({ section, index, onToggle, isExpanded, onExpand, onConte
         isDragging ? 'shadow-lg ring-2 ring-indigo-300/40' : ''
       } ${
         section.enabled
-          ? 'border-emerald-200/60 bg-emerald-50/40 hover:bg-emerald-50/70'
+          ? 'border-primary-200/60 bg-primary-50/40 hover:bg-primary-50/70'
           : 'border-gray-100 bg-gray-50/50 hover:bg-gray-50'
       }`}
     >
@@ -585,7 +585,7 @@ const SortableBlock = ({ section, index, onToggle, isExpanded, onExpand, onConte
 
         {/* Expand indicator */}
         {hasEditor && section.enabled && (
-          <button onClick={() => onExpand(section.id)} className="p-1 shrink-0 text-gray-300 hover:text-emerald-500 transition-colors">
+          <button onClick={() => onExpand(section.id)} className="p-1 shrink-0 text-gray-300 hover:text-primary-500 transition-colors">
             <ChevronDown size={13} className={`transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
           </button>
         )}
@@ -594,7 +594,7 @@ const SortableBlock = ({ section, index, onToggle, isExpanded, onExpand, onConte
         <button
           onClick={() => onToggle(section.id)}
           className={`relative inline-flex h-[22px] w-10 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ${
-            section.enabled ? 'bg-emerald-500' : 'bg-gray-200'
+            section.enabled ? 'bg-primary-500' : 'bg-gray-200'
           }`}
         >
           <span className={`inline-block h-[18px] w-[18px] rounded-full bg-white shadow-sm transition duration-200 ${
@@ -655,7 +655,7 @@ const BlocksEditor = ({ sections, onChange }) => {
         <div className="flex gap-1.5">
           <button
             onClick={() => onChange(sections.map(s => ({ ...s, enabled: true })))}
-            className="text-[10px] font-medium text-emerald-600 hover:text-emerald-700 px-2 py-1 rounded-lg hover:bg-emerald-50 transition-colors"
+            className="text-[10px] font-medium text-primary-600 hover:text-primary-700 px-2 py-1 rounded-lg hover:bg-primary-50 transition-colors"
           >
             <Eye size={11} className="inline mr-1" />Tout activer
           </button>

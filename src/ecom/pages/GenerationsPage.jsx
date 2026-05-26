@@ -23,7 +23,7 @@ const statusConfig = {
   pending: { label: 'En attente', color: 'bg-amber-100 text-amber-700', icon: Clock },
   generating_text: { label: 'Texte en cours', color: 'bg-blue-100 text-blue-700', icon: Loader2, animate: true },
   generating_images: { label: 'Images en cours', color: 'bg-purple-100 text-purple-700', icon: Loader2, animate: true },
-  done: { label: 'Terminee', color: 'bg-emerald-100 text-emerald-700', icon: CheckCircle },
+  done: { label: 'Terminee', color: 'bg-primary-100 text-primary-700', icon: CheckCircle },
   error: { label: 'Echec partiel', color: 'bg-red-100 text-red-700', icon: XCircle },
 };
 
@@ -236,7 +236,7 @@ export default function GenerationsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-[60vh]">
-        <Loader2 className="w-6 h-6 animate-spin text-emerald-600" />
+        <Loader2 className="w-6 h-6 animate-spin text-primary-600" />
       </div>
     );
   }
@@ -245,7 +245,7 @@ export default function GenerationsPage() {
     <div className="max-w-6xl mx-auto space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <div className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 border border-emerald-100">
+          <div className="inline-flex items-center gap-2 rounded-full bg-primary-50 px-3 py-1 text-xs font-semibold text-primary-700 border border-primary-100">
             <Layers3 className="w-3.5 h-3.5" />
             Product Page Studio
           </div>
@@ -271,7 +271,7 @@ export default function GenerationsPage() {
           </button>
           <button
             onClick={() => navigate('/ecom/boutique/products/generator', { state: { from: location.pathname } })}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl transition"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white text-sm font-semibold rounded-xl transition"
           >
             <Plus className="w-4 h-4" />
             Nouvelle generation
@@ -301,7 +301,7 @@ export default function GenerationsPage() {
             {syncing ? 'Sync…' : 'Sync crédits'}
           </button>
           {syncResult && (
-            <div className={`absolute -bottom-8 left-0 right-0 text-center text-[11px] font-semibold px-2 py-1 rounded-lg ${syncResult.startsWith('✓') ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'}`}>
+            <div className={`absolute -bottom-8 left-0 right-0 text-center text-[11px] font-semibold px-2 py-1 rounded-lg ${syncResult.startsWith('✓') ? 'bg-primary-50 text-primary-700' : 'bg-red-50 text-red-600'}`}>
               {syncResult}
             </div>
           )}
@@ -332,14 +332,14 @@ export default function GenerationsPage() {
 
         {visibleTasks.length === 0 ? (
           <div className="text-center py-16">
-            <div className="w-16 h-16 mx-auto mb-4 bg-emerald-50 rounded-2xl flex items-center justify-center">
-              <Sparkles className="w-8 h-8 text-emerald-500" />
+            <div className="w-16 h-16 mx-auto mb-4 bg-primary-50 rounded-2xl flex items-center justify-center">
+              <Sparkles className="w-8 h-8 text-primary-500" />
             </div>
             <h3 className="text-lg font-semibold text-gray-900 mb-1">{pageMeta.emptyTitle}</h3>
             <p className="text-sm text-gray-500 mb-6">{pageMeta.emptyDescription}</p>
             <button
               onClick={() => navigate('/ecom/boutique/products/generator', { state: { from: location.pathname } })}
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl transition"
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary-600 hover:bg-primary-700 text-white text-sm font-semibold rounded-xl transition"
             >
               <Sparkles className="w-4 h-4" />
               Lancer une generation
@@ -369,7 +369,7 @@ export default function GenerationsPage() {
 function StudioCard({ label, value, hint, tone, icon }) {
   const toneClass = {
     blue: 'bg-blue-50 text-blue-700 border-blue-100',
-    emerald: 'bg-emerald-50 text-emerald-700 border-emerald-100',
+    emerald: 'bg-primary-50 text-primary-700 border-primary-100',
     red: 'bg-red-50 text-red-700 border-red-100',
     amber: 'bg-amber-50 text-amber-700 border-amber-100',
   }[tone] || 'bg-gray-50 text-gray-700 border-gray-100';
@@ -435,7 +435,7 @@ function TaskCard({ task, deleting, retrying, onDelete, onOpen, onApply, onRetry
               </div>
               <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
                 <div
-                  className="h-full bg-emerald-500 rounded-full transition-all duration-500"
+                  className="h-full bg-primary-500 rounded-full transition-all duration-500"
                   style={{ width: `${task.progressPercent || 0}%` }}
                 />
               </div>
@@ -477,7 +477,7 @@ function TaskCard({ task, deleting, retrying, onDelete, onOpen, onApply, onRetry
           {isDone && (
             <button
               onClick={() => onApply(task._id)}
-              className="inline-flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-xl transition"
+              className="inline-flex items-center gap-1.5 px-3 py-2 bg-primary-600 hover:bg-primary-700 text-white text-xs font-semibold rounded-xl transition"
               title="Utiliser cette generation"
             >
               <ArrowRight className="w-3.5 h-3.5" />

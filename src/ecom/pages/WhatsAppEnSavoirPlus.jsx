@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 
 const WhatsAppEnSavoirPlus = () => {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50 py-8 px-4">
+    <div className="min-h-screen bg-gradient-to-br from-green-50 via-primary-50 to-teal-50 py-8 px-4">
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="text-center mb-8">
@@ -60,7 +60,7 @@ const WhatsAppEnSavoirPlus = () => {
               </div>
             </div>
 
-            <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-6">
+            <div className="bg-gradient-to-br from-green-50 to-primary-50 rounded-xl p-6">
               <div className="text-center">
                 <div className="text-3xl font-bold text-green-600 mb-2">+40%</div>
                 <div className="text-sm text-gray-600">Taux de réponse moyen</div>
@@ -81,8 +81,8 @@ const WhatsAppEnSavoirPlus = () => {
 
           <div className="grid md:grid-cols-3 gap-6">
             <div className="text-center">
-              <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <svg className="w-8 h-8 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="w-16 h-16 bg-primary-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg className="w-8 h-8 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
                 </svg>
               </div>
@@ -93,8 +93,8 @@ const WhatsAppEnSavoirPlus = () => {
             </div>
 
             <div className="text-center">
-              <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <svg className="w-8 h-8 text-emerald-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="w-16 h-16 bg-primary-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg className="w-8 h-8 text-primary-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                 </svg>
               </div>
@@ -201,7 +201,7 @@ const WhatsAppEnSavoirPlus = () => {
         </div>
 
         {/* CTA */}
-        <div className="bg-gradient-to-r from-green-600 to-emerald-600 rounded-2xl shadow-xl p-8 text-white text-center">
+        <div className="bg-gradient-to-r from-green-600 to-primary-600 rounded-2xl shadow-xl p-8 text-white text-center">
           <h2 className="text-xl sm:text-3xl font-bold mb-4">Prêt ù  transformer votre communication ?</h2>
           <p className="text-white/90 mb-6 max-w-2xl mx-auto">
             Rejoignez les entreprises qui utilisent déjù  WhatsApp Pro pour améliorer leur relation client et augmenter leurs ventes.

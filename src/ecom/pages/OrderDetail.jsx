@@ -8,8 +8,8 @@ import ecomApi from '../services/ecommApi.js';
 const SL = { pending: 'En attente', confirmed: 'Confirmé', shipped: 'Expédié', delivered: 'Livré', returned: 'Retour', cancelled: 'Annulé', reported: 'Reporté' };
 const SC = {
   pending: 'bg-yellow-50 text-yellow-700 border-yellow-100',
-  confirmed: 'bg-emerald-50 text-emerald-700 border-emerald-100',
-  shipped: 'bg-emerald-50 text-emerald-800 border-emerald-100',
+  confirmed: 'bg-primary-50 text-primary-700 border-primary-100',
+  shipped: 'bg-primary-50 text-primary-800 border-primary-100',
   delivered: 'bg-green-50 text-green-700 border-green-100',
   returned: 'bg-orange-50 text-orange-700 border-orange-100',
   cancelled: 'bg-red-50 text-red-700 border-red-100',
@@ -462,7 +462,7 @@ const OrderDetail = () => {
           {/* Passer au livreur */}
           {(isAdmin || user?.role === 'super_admin') && (
             order.assignedLivreur ? (
-              <span className="px-3 py-2 bg-emerald-50 text-emerald-700 rounded-lg text-xs font-medium flex items-center gap-1.5 border border-emerald-200 cursor-default">
+              <span className="px-3 py-2 bg-primary-50 text-primary-700 rounded-lg text-xs font-medium flex items-center gap-1.5 border border-primary-200 cursor-default">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg>
                 <span className="hidden sm:inline">Livreur assigné</span>
               </span>
@@ -483,7 +483,7 @@ const OrderDetail = () => {
                         onClick={() => { setShowLivreurMenu(false); openDeliveryModal(); }}
                         className="w-full text-left px-4 py-2.5 text-xs text-gray-700 hover:bg-gray-50 flex items-center gap-2"
                       >
-                        <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+                        <svg className="w-4 h-4 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
                         Livreur spécifique
                       </button>
                     )}
@@ -517,7 +517,7 @@ const OrderDetail = () => {
 
           {/* Modifier */}
           {isAdmin && !editing && (
-            <button onClick={() => setEditing(true)} className="px-3 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition text-xs font-medium flex items-center gap-1.5">
+            <button onClick={() => setEditing(true)} className="px-3 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition text-xs font-medium flex items-center gap-1.5">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
               <span className="hidden sm:inline">Modifier</span>
             </button>
@@ -576,7 +576,7 @@ const OrderDetail = () => {
         <div className="flex flex-wrap gap-2">
           {Object.entries(SL).map(([key, label]) => (
             <button key={key} onClick={() => handleStatusChange(key)} disabled={order.status === key}
-              className={`px-4 py-2 rounded-lg text-sm font-semibold transition border-2 ${order.status === key ? `${SC[key]} ring-2 ring-emerald-600` : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50'}`}>
+              className={`px-4 py-2 rounded-lg text-sm font-semibold transition border-2 ${order.status === key ? `${SC[key]} ring-2 ring-primary-600` : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50'}`}>
               {label}
             </button>
           ))}
@@ -587,11 +587,11 @@ const OrderDetail = () => {
             <div className="flex flex-wrap gap-1.5">
               {order.tags.map(tag => (
                 <span key={tag} className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${
-                  tag === 'Client' ? 'bg-emerald-100 text-emerald-700' :
+                  tag === 'Client' ? 'bg-primary-100 text-primary-700' :
                   tag === 'En attente' ? 'bg-amber-100 text-amber-700' :
                   tag === 'Annulé' ? 'bg-red-100 text-red-700' :
-                  tag === 'Confirmé' ? 'bg-emerald-100 text-emerald-700' :
-                  tag === 'Expédié' ? 'bg-emerald-100 text-emerald-800' :
+                  tag === 'Confirmé' ? 'bg-primary-100 text-primary-700' :
+                  tag === 'Expédié' ? 'bg-primary-100 text-primary-800' :
                   tag === 'Retour' ? 'bg-orange-100 text-orange-700' :
                   'bg-gray-100 text-gray-600'
                 }`}>{tag}</span>
@@ -612,54 +612,54 @@ const OrderDetail = () => {
               <div className="grid sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[10px] font-medium text-gray-500 mb-1">Nom</label>
-                  <input type="text" value={editData.clientName || ''} onChange={e => setEditData(p => ({ ...p, clientName: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600" />
+                  <input type="text" value={editData.clientName || ''} onChange={e => setEditData(p => ({ ...p, clientName: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-600" />
                 </div>
                 <div>
                   <label className="block text-[10px] font-medium text-gray-500 mb-1">Téléphone</label>
-                  <input type="text" value={editData.clientPhone || ''} onChange={e => setEditData(p => ({ ...p, clientPhone: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600" />
+                  <input type="text" value={editData.clientPhone || ''} onChange={e => setEditData(p => ({ ...p, clientPhone: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-600" />
                 </div>
                 <div>
                   <label className="block text-[10px] font-medium text-gray-500 mb-1">Ville</label>
-                  <input type="text" value={editData.city || ''} onChange={e => setEditData(p => ({ ...p, city: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600" />
+                  <input type="text" value={editData.city || ''} onChange={e => setEditData(p => ({ ...p, city: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-600" />
                 </div>
                 <div>
                   <label className="block text-[10px] font-medium text-gray-500 mb-1">Adresse</label>
-                  <input type="text" value={editData.address || ''} onChange={e => setEditData(p => ({ ...p, address: e.target.value }))} placeholder="Ex: 123 rue des Exemples" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600" />
+                  <input type="text" value={editData.address || ''} onChange={e => setEditData(p => ({ ...p, address: e.target.value }))} placeholder="Ex: 123 rue des Exemples" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-600" />
                 </div>
                 <div>
                   <label className="block text-[10px] font-medium text-gray-500 mb-1">Produit</label>
-                  <input type="text" value={editData.product || ''} onChange={e => setEditData(p => ({ ...p, product: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600" />
+                  <input type="text" value={editData.product || ''} onChange={e => setEditData(p => ({ ...p, product: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-600" />
                 </div>
                 <div>
                   <label className="block text-[10px] font-medium text-gray-500 mb-1">Prix</label>
-                  <input type="number" value={editData.price || 0} onChange={e => setEditData(p => ({ ...p, price: parseFloat(e.target.value) || 0 }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600" />
+                  <input type="number" value={editData.price || 0} onChange={e => setEditData(p => ({ ...p, price: parseFloat(e.target.value) || 0 }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-600" />
                 </div>
                 <div>
                   <label className="block text-[10px] font-medium text-gray-500 mb-1">Quantité</label>
-                  <input type="number" value={editData.quantity || 1} onChange={e => setEditData(p => ({ ...p, quantity: parseInt(e.target.value) || 1 }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600" />
+                  <input type="number" value={editData.quantity || 1} onChange={e => setEditData(p => ({ ...p, quantity: parseInt(e.target.value) || 1 }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-600" />
                 </div>
                 <div>
                   <label className="block text-[10px] font-medium text-gray-500 mb-1">Lieu de livraison</label>
-                  <input type="text" value={editData.deliveryLocation || ''} onChange={e => setEditData(p => ({ ...p, deliveryLocation: e.target.value }))} placeholder="Ex: Neptune Mbalgong" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600" />
+                  <input type="text" value={editData.deliveryLocation || ''} onChange={e => setEditData(p => ({ ...p, deliveryLocation: e.target.value }))} placeholder="Ex: Neptune Mbalgong" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-600" />
                 </div>
                 <div>
                   <label className="block text-[10px] font-medium text-gray-500 mb-1">Heure de livraison</label>
-                  <input type="text" value={editData.deliveryTime || ''} onChange={e => setEditData(p => ({ ...p, deliveryTime: e.target.value }))} placeholder="Ex: Disponible maintenant" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600" />
+                  <input type="text" value={editData.deliveryTime || ''} onChange={e => setEditData(p => ({ ...p, deliveryTime: e.target.value }))} placeholder="Ex: Disponible maintenant" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-600" />
                 </div>
                 <div className="sm:col-span-2">
                   <label className="block text-[10px] font-medium text-gray-500 mb-1">Notes</label>
-                  <textarea value={editData.notes || ''} onChange={e => setEditData(p => ({ ...p, notes: e.target.value }))} rows={2} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600" />
+                  <textarea value={editData.notes || ''} onChange={e => setEditData(p => ({ ...p, notes: e.target.value }))} rows={2} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-600" />
                 </div>
                 <div className="sm:col-span-2 flex gap-2">
-                  <button onClick={handleSave} disabled={saving} className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 text-xs font-medium disabled:opacity-50">{saving ? 'Sauvegarde...' : 'Sauvegarder'}</button>
+                  <button onClick={handleSave} disabled={saving} className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-xs font-medium disabled:opacity-50">{saving ? 'Sauvegarde...' : 'Sauvegarder'}</button>
                   <button onClick={() => { setEditing(false); setEditData(order); }} className="px-4 py-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 text-xs font-medium">Annuler</button>
                 </div>
               </div>
             ) : (
               <div className="grid sm:grid-cols-2 gap-3">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-9 h-9 bg-emerald-50 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+                  <div className="w-9 h-9 bg-primary-50 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <svg className="w-4 h-4 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
                   </div>
                   <div>
                     <p className="text-[9px] text-gray-400 uppercase font-medium">Client</p>
@@ -718,8 +718,8 @@ const OrderDetail = () => {
                   </div>
                 )}
                 <div className="flex items-center gap-2.5">
-                  <div className="w-9 h-9 bg-emerald-50 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <svg className="w-4 h-4 text-emerald-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                  <div className="w-9 h-9 bg-primary-50 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <svg className="w-4 h-4 text-primary-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
                   </div>
                   <div>
                     <p className="text-[9px] text-gray-400 uppercase font-medium">Ville</p>
@@ -769,8 +769,8 @@ const OrderDetail = () => {
                 </div>
                 {order.deliveryLocation && (
                   <div className="flex items-center gap-2.5">
-                    <div className="w-9 h-9 bg-emerald-50 rounded-lg flex items-center justify-center flex-shrink-0">
-                      <svg className="w-4 h-4 text-emerald-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                    <div className="w-9 h-9 bg-primary-50 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <svg className="w-4 h-4 text-primary-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
                     </div>
                     <div>
                       <p className="text-[9px] text-gray-400 uppercase font-medium">Lieu de livraison</p>
@@ -863,7 +863,7 @@ const OrderDetail = () => {
               </div>
               {order.updatedAt !== order.createdAt && (
                 <div className="flex items-start gap-2.5">
-                  <div className="w-2 h-2 rounded-full bg-emerald-600 mt-1.5 flex-shrink-0"></div>
+                  <div className="w-2 h-2 rounded-full bg-primary-600 mt-1.5 flex-shrink-0"></div>
                   <div>
                     <p className="text-xs font-medium text-gray-900">Dernière modification</p>
                     <p className="text-[10px] text-gray-400">{fmtDateTime(order.updatedAt)}</p>
@@ -892,14 +892,14 @@ const OrderDetail = () => {
               </button>
               {(isAdmin || user?.role === 'super_admin') && (
                 order.assignedLivreur ? (
-                  <div className="w-full px-3 py-2.5 bg-emerald-50 text-emerald-700 rounded-lg text-xs font-medium flex items-center gap-2 border border-emerald-200">
+                  <div className="w-full px-3 py-2.5 bg-primary-50 text-primary-700 rounded-lg text-xs font-medium flex items-center gap-2 border border-primary-200">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg>
                     Livreur déjà assigné
                   </div>
                 ) : (
                   <>
                     {(order.status === 'pending' || order.status === 'confirmed') && (
-                      <button onClick={openDeliveryModal} className="w-full px-3 py-2.5 bg-emerald-50 text-emerald-800 rounded-lg hover:bg-emerald-100 transition text-xs font-medium flex items-center gap-2">
+                      <button onClick={openDeliveryModal} className="w-full px-3 py-2.5 bg-primary-50 text-primary-800 rounded-lg hover:bg-primary-100 transition text-xs font-medium flex items-center gap-2">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
                         Livreur spécifique
                       </button>
@@ -994,8 +994,8 @@ const OrderDetail = () => {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowDeliveryModal(false)}>
           <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full p-5 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center">
-                <svg className="w-5 h-5 text-emerald-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0"/></svg>
+              <div className="w-10 h-10 bg-primary-100 rounded-xl flex items-center justify-center">
+                <svg className="w-5 h-5 text-primary-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0"/></svg>
               </div>
               <div>
                 <h3 className="text-sm font-bold text-gray-900">Envoyer au livreur</h3>
@@ -1010,7 +1010,7 @@ const OrderDetail = () => {
                 <select
                   value={selectedLivreur}
                   onChange={e => setSelectedLivreur(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-600"
                 >
                   <option value="">-- Choisir un livreur --</option>
                   {livreurs.map(l => (
@@ -1027,31 +1027,31 @@ const OrderDetail = () => {
             <div className="grid sm:grid-cols-2 gap-3 mb-3">
               <div>
                 <label className="block text-[10px] font-medium text-gray-500 mb-1">Lieu de livraison</label>
-                <input type="text" value={editData.deliveryLocation || ''} onChange={e => { setEditData(p => ({ ...p, deliveryLocation: e.target.value })); }} placeholder="Ex: Neptune Mbalgong" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600" />
+                <input type="text" value={editData.deliveryLocation || ''} onChange={e => { setEditData(p => ({ ...p, deliveryLocation: e.target.value })); }} placeholder="Ex: Neptune Mbalgong" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-600" />
               </div>
               <div>
                 <label className="block text-[10px] font-medium text-gray-500 mb-1">Heure de livraison</label>
-                <input type="text" value={editData.deliveryTime || ''} onChange={e => { setEditData(p => ({ ...p, deliveryTime: e.target.value })); }} placeholder="Ex: Disponible maintenant" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600" />
+                <input type="text" value={editData.deliveryTime || ''} onChange={e => { setEditData(p => ({ ...p, deliveryTime: e.target.value })); }} placeholder="Ex: Disponible maintenant" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-600" />
               </div>
               <div>
                 <label className="block text-[10px] font-medium text-gray-500 mb-1">Jour de livraison</label>
-                <input type="text" value={editData.deliveryDay || ''} onChange={e => { setEditData(p => ({ ...p, deliveryDay: e.target.value })); }} placeholder={`Ex: aujourd'hui lundi`} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600" />
+                <input type="text" value={editData.deliveryDay || ''} onChange={e => { setEditData(p => ({ ...p, deliveryDay: e.target.value })); }} placeholder={`Ex: aujourd'hui lundi`} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-600" />
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="block text-[10px] font-medium text-gray-500 mb-1">Quantité</label>
-                  <input type="number" min="1" value={editData.quantity ?? order?.quantity ?? 1} onChange={e => { setEditData(p => ({ ...p, quantity: parseInt(e.target.value) || 1 })); }} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600" />
+                  <input type="number" min="1" value={editData.quantity ?? order?.quantity ?? 1} onChange={e => { setEditData(p => ({ ...p, quantity: parseInt(e.target.value) || 1 })); }} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-600" />
                 </div>
                 <div>
                   <label className="block text-[10px] font-medium text-gray-500 mb-1">Prix unitaire</label>
-                  <input type="number" min="0" value={editData.price ?? order?.price ?? 0} onChange={e => { setEditData(p => ({ ...p, price: parseFloat(e.target.value) || 0 })); }} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600" />
+                  <input type="number" min="0" value={editData.price ?? order?.price ?? 0} onChange={e => { setEditData(p => ({ ...p, price: parseFloat(e.target.value) || 0 })); }} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-600" />
                 </div>
               </div>
             </div>
 
             <div className="mb-3">
               <label className="block text-[10px] font-medium text-gray-500 mb-1">Instructions supplémentaires (optionnel)</label>
-              <textarea value={deliveryNote} onChange={e => setDeliveryNote(e.target.value)} rows={2} placeholder="Ex: Appeler avant livraison, fragile..." className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600" />
+              <textarea value={deliveryNote} onChange={e => setDeliveryNote(e.target.value)} rows={2} placeholder="Ex: Appeler avant livraison, fragile..." className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-600" />
             </div>
 
             <div className="mb-4">
@@ -1061,11 +1061,11 @@ const OrderDetail = () => {
                   {copied ? 'Copié !' : 'Copier'}
                 </button>
               </div>
-              <textarea value={deliveryMessage} onChange={e => setDeliveryMessage(e.target.value)} rows={12} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs font-mono focus:outline-none focus:ring-2 focus:ring-emerald-600 bg-gray-50" />
+              <textarea value={deliveryMessage} onChange={e => setDeliveryMessage(e.target.value)} rows={12} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs font-mono focus:outline-none focus:ring-2 focus:ring-primary-600 bg-gray-50" />
             </div>
 
             <div className="flex flex-col sm:flex-row gap-2">
-              <button onClick={() => handleSendToDelivery(false)} className="w-full sm:flex-1 px-4 py-2.5 bg-emerald-700 text-white rounded-lg hover:bg-emerald-800 text-xs font-medium flex items-center justify-center gap-1.5">
+              <button onClick={() => handleSendToDelivery(false)} className="w-full sm:flex-1 px-4 py-2.5 bg-primary-700 text-white rounded-lg hover:bg-primary-800 text-xs font-medium flex items-center justify-center gap-1.5">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0"/></svg>
                 Envoyer sur l'application
               </button>

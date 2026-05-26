@@ -82,10 +82,10 @@ export default function LivreurEarnings() {
               />
               <PeriodCard
                 title="Cette semaine"
-                icon={<CheckCircle2 size={20} className="text-emerald-500" />}
+                icon={<CheckCircle2 size={20} className="text-primary-500" />}
                 amount={fmt(stats.thisWeek?.collected)}
                 deliveries={stats.thisWeek?.delivered || 0}
-                bg="bg-emerald-50"
+                bg="bg-primary-50"
               />
             </div>
 

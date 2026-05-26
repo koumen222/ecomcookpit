@@ -3,7 +3,7 @@ import { useWorkspaceSwitch, SwitchOverlay } from '../hooks/useWorkspaceSwitch';
 import ecomApi from '../services/ecommApi';
 
 const PALETTE = [
-  'bg-emerald-500', 'bg-violet-500', 'bg-blue-500',
+  'bg-primary-500', 'bg-violet-500', 'bg-blue-500',
   'bg-orange-500', 'bg-rose-500', 'bg-cyan-500', 'bg-amber-500'
 ];
 
@@ -59,13 +59,13 @@ const WorkspaceSwitcherMenu = ({ isSuperAdmin, onWorkspaceSwitch }) => {
               {currentWorkspace?.name}
             </p>
             <div className="flex items-center gap-1.5 mt-0.5">
-              <span className="text-[10px] font-medium text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-full">
+              <span className="text-[10px] font-medium text-primary-600 bg-primary-50 px-1.5 py-0.5 rounded-full">
                 {roleLabels[currentWorkspace?.role] || currentWorkspace?.role}
               </span>
               {currentWorkspace?.isOwner && <span className="text-[10px] text-gray-400">Propriétaire</span>}
             </div>
           </div>
-          <div className="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0" />
+          <div className="w-2 h-2 rounded-full bg-primary-500 flex-shrink-0" />
         </div>
       </div>
 

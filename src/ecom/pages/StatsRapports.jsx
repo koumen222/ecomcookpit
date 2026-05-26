@@ -108,24 +108,24 @@ const StatsRapports = () => {
 
   const getBarColor = (tab) => {
     const colors = {
-      sold: 'bg-emerald-600',
+      sold: 'bg-primary-600',
       delivery: 'bg-green-500',
-      revenue: 'bg-emerald-500',
-      profit: 'bg-emerald-600',
+      revenue: 'bg-primary-500',
+      profit: 'bg-primary-600',
       profitability: 'bg-amber-500',
     };
-    return colors[tab] || 'bg-emerald-600';
+    return colors[tab] || 'bg-primary-600';
   };
 
   const getBarBg = (tab) => {
     const colors = {
-      sold: 'bg-emerald-100',
+      sold: 'bg-primary-100',
       delivery: 'bg-green-100',
-      revenue: 'bg-emerald-100',
-      profit: 'bg-emerald-100',
+      revenue: 'bg-primary-100',
+      profit: 'bg-primary-100',
       profitability: 'bg-amber-100',
     };
-    return colors[tab] || 'bg-emerald-100';
+    return colors[tab] || 'bg-primary-100';
   };
 
   const formatValue = (product) => {
@@ -180,7 +180,7 @@ const StatsRapports = () => {
 
         <div className="flex items-center gap-2 flex-wrap">
           <select value={dateRange} onChange={(e) => setDateRange(e.target.value)}
-            className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-600 focus:border-transparent">
+            className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-primary-600 focus:border-transparent">
             <option value="all">Tout le temps</option>
             <option value="7d">7 derniers jours</option>
             <option value="30d">30 derniers jours</option>
@@ -196,7 +196,7 @@ const StatsRapports = () => {
                 className="px-1.5 sm:px-3 py-1 sm:py-2 border border-gray-200 rounded-lg text-[10px] sm:text-sm w-[110px] sm:w-auto" />
             </>
           )}
-          <button onClick={fetchData} className="p-2.5 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition shadow-sm">
+          <button onClick={fetchData} className="p-2.5 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition shadow-sm">
             <RefreshCw size={20} />
           </button>
         </div>
@@ -333,17 +333,17 @@ const StatsRapports = () => {
                 if (!best) return null;
                 const Icon = tab.icon;
                 const colorMap = {
-                  blue: 'from-emerald-50 to-emerald-100 border-emerald-200',
+                  blue: 'from-primary-50 to-primary-100 border-primary-200',
                   green: 'from-green-50 to-green-100 border-green-200',
-                  emerald: 'from-emerald-50 to-emerald-100 border-emerald-200',
-                  purple: 'from-emerald-50 to-emerald-100 border-emerald-200',
+                  emerald: 'from-primary-50 to-primary-100 border-primary-200',
+                  purple: 'from-primary-50 to-primary-100 border-primary-200',
                   amber: 'from-amber-50 to-amber-100 border-amber-200',
                 };
                 const textColorMap = {
-                  blue: 'text-emerald-600',
+                  blue: 'text-primary-600',
                   green: 'text-green-600',
-                  emerald: 'text-emerald-600',
-                  purple: 'text-emerald-700',
+                  emerald: 'text-primary-600',
+                  purple: 'text-primary-700',
                   amber: 'text-amber-600',
                 };
                 return (

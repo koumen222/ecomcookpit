@@ -167,7 +167,7 @@ const CampaignCountryModal = ({ campaign, isOpen, onClose, onSend }) => {
               onClick={() => setActiveTab('analyze')}
               className={`py-3 px-1 border-b-2 font-medium text-sm ${
                 activeTab === 'analyze'
-                  ? 'border-emerald-500 text-emerald-600'
+                  ? 'border-primary-500 text-primary-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700'
               }`}
             >
@@ -177,7 +177,7 @@ const CampaignCountryModal = ({ campaign, isOpen, onClose, onSend }) => {
               onClick={() => setActiveTab('configure')}
               className={`py-3 px-1 border-b-2 font-medium text-sm ${
                 activeTab === 'configure'
-                  ? 'border-emerald-500 text-emerald-600'
+                  ? 'border-primary-500 text-primary-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700'
               }`}
             >
@@ -187,7 +187,7 @@ const CampaignCountryModal = ({ campaign, isOpen, onClose, onSend }) => {
               onClick={() => setActiveTab('send')}
               className={`py-3 px-1 border-b-2 font-medium text-sm ${
                 activeTab === 'send'
-                  ? 'border-emerald-500 text-emerald-600'
+                  ? 'border-primary-500 text-primary-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700'
               }`}
             >
@@ -200,7 +200,7 @@ const CampaignCountryModal = ({ campaign, isOpen, onClose, onSend }) => {
         <div className="px-6 py-4 overflow-y-auto" style={{ maxHeight: 'calc(90vh - 200px)' }}>
           {loading ? (
             <div className="flex items-center justify-center h-64">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div>
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
             </div>
           ) : (
             <>
@@ -208,32 +208,32 @@ const CampaignCountryModal = ({ campaign, isOpen, onClose, onSend }) => {
                 <div className="space-y-6">
                   {/* Résumé */}
                   {countryAnalysis?.overview && (
-                    <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
-                      <h3 className="font-medium text-emerald-900 mb-3">Résumé de l'analyse</h3>
+                    <div className="bg-primary-50 border border-primary-200 rounded-lg p-4">
+                      <h3 className="font-medium text-primary-900 mb-3">Résumé de l'analyse</h3>
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         <div>
-                          <div className="text-2xl font-bold text-emerald-600">
+                          <div className="text-2xl font-bold text-primary-600">
                             {countryAnalysis.overview.totalRecipients}
                           </div>
-                          <div className="text-sm text-emerald-700">Total destinataires</div>
+                          <div className="text-sm text-primary-700">Total destinataires</div>
                         </div>
                         <div>
-                          <div className="text-2xl font-bold text-emerald-600">
+                          <div className="text-2xl font-bold text-primary-600">
                             {countryAnalysis.overview.validRecipients}
                           </div>
-                          <div className="text-sm text-emerald-700">Numéros valides</div>
+                          <div className="text-sm text-primary-700">Numéros valides</div>
                         </div>
                         <div>
-                          <div className="text-2xl font-bold text-emerald-600">
+                          <div className="text-2xl font-bold text-primary-600">
                             {countryAnalysis.overview.countryCount}
                           </div>
-                          <div className="text-sm text-emerald-700">Pays concernés</div>
+                          <div className="text-sm text-primary-700">Pays concernés</div>
                         </div>
                         <div>
-                          <div className="text-2xl font-bold text-emerald-600">
+                          <div className="text-2xl font-bold text-primary-600">
                             {Math.round((countryAnalysis.overview.validRecipients / countryAnalysis.overview.totalRecipients) * 100)}%
                           </div>
-                          <div className="text-sm text-emerald-700">Taux de validité</div>
+                          <div className="text-sm text-primary-700">Taux de validité</div>
                         </div>
                       </div>
                     </div>
@@ -274,7 +274,7 @@ const CampaignCountryModal = ({ campaign, isOpen, onClose, onSend }) => {
                                     type="checkbox"
                                     checked={country.included}
                                     onChange={() => handleCountryToggle(country.code, 'include')}
-                                    className="h-4 w-4 text-emerald-600 focus:ring-emerald-500 border-gray-300 rounded"
+                                    className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
                                   />
                                 </td>
                                 <td className="px-4 py-3 whitespace-nowrap">
@@ -319,7 +319,7 @@ const CampaignCountryModal = ({ campaign, isOpen, onClose, onSend }) => {
                     <select
                       value={selectedInstance}
                       onChange={(e) => setSelectedInstance(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                     >
                       <option value="">Sélectionner une instance</option>
                       {whatsappInstances.map((instance) => (
@@ -382,7 +382,7 @@ const CampaignCountryModal = ({ campaign, isOpen, onClose, onSend }) => {
                               type="checkbox"
                               checked={priorityCountries.includes(country.code)}
                               onChange={() => handlePriorityToggle(country.code)}
-                              className="mr-2 h-4 w-4 text-emerald-600 focus:ring-emerald-500 border-gray-300 rounded"
+                              className="mr-2 h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
                             />
                             <span className="text-sm">
                               {country.name} ({country.prefix})
@@ -404,7 +404,7 @@ const CampaignCountryModal = ({ campaign, isOpen, onClose, onSend }) => {
                       max="60"
                       value={delayBetweenCountries}
                       onChange={(e) => setDelayBetweenCountries(parseInt(e.target.value) || 0)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                     />
                     <p className="text-xs text-gray-500 mt-1">
                       Pause recommandée pour éviter les limitations anti-spam (5-30s)
@@ -417,12 +417,12 @@ const CampaignCountryModal = ({ campaign, isOpen, onClose, onSend }) => {
                       <h4 className="font-medium text-gray-900 mb-2">Filtres actifs</h4>
                       {includeCountries.length > 0 && (
                         <div className="mb-2">
-                          <span className="text-sm font-medium text-emerald-600">Pays inclus ({includeCountries.length}):</span>
+                          <span className="text-sm font-medium text-primary-600">Pays inclus ({includeCountries.length}):</span>
                           <div className="flex flex-wrap gap-1 mt-1">
                             {includeCountries.map(code => {
                               const country = priorityCountryOptions.find(c => c.code === code);
                               return (
-                                <span key={code} className="px-2 py-1 bg-emerald-100 text-emerald-800 text-xs rounded">
+                                <span key={code} className="px-2 py-1 bg-primary-100 text-primary-800 text-xs rounded">
                                   {country?.name || code}
                                 </span>
                               );
@@ -511,7 +511,7 @@ const CampaignCountryModal = ({ campaign, isOpen, onClose, onSend }) => {
                     <button
                       onClick={handleSendByCountry}
                       disabled={sending || !selectedInstance}
-                      className="px-6 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {sending ? (
                         <>

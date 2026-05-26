@@ -18,7 +18,7 @@ import {
 /* ─────────────────────────── tiny helpers ─────────────────────────── */
 const Badge = ({ color = 'gray', children }) => {
   const cls = {
-    green: 'bg-emerald-100 text-emerald-700',
+    green: 'bg-primary-100 text-primary-700',
     red:   'bg-red-100 text-red-700',
     yellow:'bg-yellow-100 text-yellow-700',
     gray:  'bg-gray-100 text-gray-600',
@@ -85,7 +85,7 @@ const Alert = ({ type = 'error', msg, onClose }) => {
   if (!msg) return null;
   const cls = type === 'error'
     ? 'bg-red-50 border-red-200 text-red-700'
-    : 'bg-emerald-50 border-emerald-200 text-emerald-700';
+    : 'bg-primary-50 border-primary-200 text-primary-700';
   return (
     <div className={`flex items-start justify-between gap-3 px-4 py-3 rounded-xl border text-sm ${cls}`}>
       <span>{msg}</span>
@@ -636,13 +636,13 @@ export default function DeveloperSection() {
 
           {/* Newly created key banner — show full raw key for copy */}
           {newRawKey && (
-            <Card className="p-4 border-emerald-200 bg-emerald-50">
+            <Card className="p-4 border-primary-200 bg-primary-50">
               <div className="flex items-start gap-3">
-                <span className="text-emerald-600 text-lg mt-0.5">🔑</span>
+                <span className="text-primary-600 text-lg mt-0.5">🔑</span>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-semibold text-emerald-700 mb-1.5">Votre nouvelle clé API (copiez-la maintenant, elle ne sera plus visible) :</p>
+                  <p className="text-xs font-semibold text-primary-700 mb-1.5">Votre nouvelle clé API (copiez-la maintenant, elle ne sera plus visible) :</p>
                   <div className="flex items-center gap-2">
-                    <code className="flex-1 font-mono text-sm break-all bg-white rounded-lg px-3 py-2 border border-emerald-200 select-all">
+                    <code className="flex-1 font-mono text-sm break-all bg-white rounded-lg px-3 py-2 border border-primary-200 select-all">
                       {newRawKey}
                     </code>
                     <Btn variant="primary" size="sm"
@@ -961,7 +961,7 @@ export default function DeveloperSection() {
                 { plan: 'Business', price: '25 000 FCFA', instances: '20', daily: '50 000', monthly: '500 000', rate: '300 req/min', highlight: true },
                 { plan: 'Enterprise', price: '50 000 FCFA', instances: 'Illimité', daily: 'Illimité', monthly: 'Illimité', rate: '600 req/min', highlight: false },
               ].map(p => (
-                <div key={p.plan} className={`rounded-xl border p-4 space-y-2 ${p.highlight ? 'border-[#0F6B4F] bg-emerald-50/50 ring-1 ring-[#0F6B4F]/20' : 'border-gray-100'}`}>
+                <div key={p.plan} className={`rounded-xl border p-4 space-y-2 ${p.highlight ? 'border-[#0F6B4F] bg-primary-50/50 ring-1 ring-[#0F6B4F]/20' : 'border-gray-100'}`}>
                   <p className="font-semibold text-gray-900">{p.plan}</p>
                   <p className="text-lg font-bold text-[#0F6B4F]">{p.price}</p>
                   <div className="text-xs text-gray-500 space-y-1">

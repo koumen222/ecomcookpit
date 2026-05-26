@@ -67,7 +67,7 @@ const EcomLayoutComponent = ({ children }) => {
       const notif = event.detail;
       if (!notif) return;
       showToast({
-        title: notif.title || '🔔 Nouvelle notification',
+        title: notif.title || 'Nouvelle notification',
         body: notif.message || '',
         type: notif.type || 'info',
       });
@@ -87,8 +87,8 @@ const EcomLayoutComponent = ({ children }) => {
     const preview = lastMessage.content.length > 60 ? lastMessage.content.slice(0, 60) + '…' : lastMessage.content;
     showToast({
       title: lastMessage.channel
-        ? `💬 #${lastMessage.channel} — ${lastMessage.senderName}`
-        : `💬 Message de ${lastMessage.senderName}`,
+        ? `#${lastMessage.channel} — ${lastMessage.senderName}`
+        : `Message de ${lastMessage.senderName}`,
       body: preview,
       type: 'new_message',
     });
@@ -154,10 +154,10 @@ const EcomLayoutComponent = ({ children }) => {
   };
 
   const roleColors = {
-    'super_admin': 'bg-gradient-to-br from-emerald-700 to-emerald-900',
+    'super_admin': 'bg-gradient-to-br from-primary-700 to-primary-900',
     'ecom_admin': 'bg-scalor-green',
     'ecom_closeuse': 'bg-scalor-copper',
-    'ecom_compta': 'bg-emerald-600',
+    'ecom_compta': 'bg-primary-600',
     'ecom_livreur': 'bg-amber-600'
   };
 
@@ -170,7 +170,7 @@ const EcomLayoutComponent = ({ children }) => {
   const planLabels = { free: 'Gratuit', starter: 'Scalor', pro: 'Scalor + IA', ultra: 'Scalor IA Pro' };
   const planColors = {
     free: 'bg-gray-100 text-gray-600',
-    starter: 'bg-emerald-50 text-emerald-700',
+    starter: 'bg-primary-50 text-primary-700',
     pro: 'bg-blue-50 text-blue-700',
     ultra: 'bg-slate-100 text-slate-800',
     trial: 'bg-amber-50 text-amber-700',
@@ -764,7 +764,7 @@ const EcomLayoutComponent = ({ children }) => {
               <div className="flex-1 min-w-0 text-left">
                 <p className="text-sm font-semibold text-gray-900 truncate">{toast.title}</p>
                 {toast.body && <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{toast.body}</p>}
-                <p className="text-[11px] text-emerald-600 font-medium mt-1">Voir les notifications →</p>
+                <p className="text-[11px] text-primary-600 font-medium mt-1">Voir les notifications →</p>
               </div>
               <button
                 onClick={(e) => { e.stopPropagation(); setToast(null); }}
@@ -822,12 +822,33 @@ const EcomLayoutComponent = ({ children }) => {
               </p>
               <div className="space-y-3 text-left mb-6">
                 {[
-                  { icon: '💬', text: 'Support rapide de notre équipe' },
-                  { icon: '🚀', text: 'Astuces pour booster vos ventes' },
-                  { icon: '🔔', text: 'Nouvelles fonctionnalités en avant-première' },
+                  {
+                    icon: (
+                      <svg className="w-4 h-4 text-primary-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-3 3-3-3z" />
+                      </svg>
+                    ),
+                    text: 'Support rapide de notre équipe',
+                  },
+                  {
+                    icon: (
+                      <svg className="w-4 h-4 text-primary-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                      </svg>
+                    ),
+                    text: 'Astuces pour booster vos ventes',
+                  },
+                  {
+                    icon: (
+                      <svg className="w-4 h-4 text-primary-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                      </svg>
+                    ),
+                    text: 'Nouvelles fonctionnalités en avant-première',
+                  },
                 ].map((item, i) => (
                   <div key={i} className="flex items-center gap-3 text-sm text-gray-700">
-                    <span>{item.icon}</span>
+                    {item.icon}
                     <span>{item.text}</span>
                   </div>
                 ))}

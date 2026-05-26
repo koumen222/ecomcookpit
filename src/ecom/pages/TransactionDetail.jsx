@@ -48,7 +48,7 @@ const TransactionDetail = () => {
         <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded">
           {error || 'Transaction non trouvée'}
         </div>
-        <button onClick={() => navigate(-1)} className="mt-4 text-emerald-600 hover:text-emerald-800 text-sm font-medium">
+        <button onClick={() => navigate(-1)} className="mt-4 text-primary-600 hover:text-primary-800 text-sm font-medium">
           ← Retour
         </button>
       </div>
@@ -77,7 +77,7 @@ const TransactionDetail = () => {
           </div>
         </div>
         <Link to={`/ecom/transactions/${id}/edit`}
-          className="px-3 py-2 bg-emerald-700 text-white rounded-lg hover:bg-emerald-800 text-sm font-medium">
+          className="px-3 py-2 bg-primary-700 text-white rounded-lg hover:bg-primary-800 text-sm font-medium">
           Modifier
         </Link>
       </div>
@@ -120,7 +120,7 @@ const TransactionDetail = () => {
             <div className="flex justify-between items-center py-2 border-b border-gray-100">
               <span className="text-sm text-gray-600">Produit lié</span>
               <Link to={`/products/${tx.productId._id || tx.productId}`}
-                className="text-sm font-medium text-emerald-600 hover:text-emerald-800">
+                className="text-sm font-medium text-primary-600 hover:text-primary-800">
                 {tx.productId.name || 'Voir le produit'}
               </Link>
             </div>

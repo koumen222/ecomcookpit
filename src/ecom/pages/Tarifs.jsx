@@ -132,7 +132,7 @@ function PublicCheckoutModal({ plan, onClose }) {
               />
             </div>
             {fullPhone ? (
-              <p className="mt-2 flex items-center gap-1.5 text-xs font-semibold text-emerald-700">
+              <p className="mt-2 flex items-center gap-1.5 text-xs font-semibold text-primary-700">
                 <CheckCircle2 className="h-3.5 w-3.5" />
                 {fullPhone}
               </p>
@@ -149,7 +149,7 @@ function PublicCheckoutModal({ plan, onClose }) {
         <button
           type="submit"
           disabled={loading}
-          className="w-full rounded-[18px] bg-emerald-600 py-4 text-sm font-black text-white shadow-[0_20px_45px_rgba(15,107,79,0.18)] transition hover:bg-emerald-700 disabled:opacity-60"
+          className="w-full rounded-[18px] bg-primary-600 py-4 text-sm font-black text-white shadow-[0_20px_45px_rgba(15,107,79,0.18)] transition hover:bg-primary-700 disabled:opacity-60"
         >
           {loading ? 'Redirection…' : `Payer ${new Intl.NumberFormat('fr-FR').format(amount)} FCFA`}
         </button>
@@ -271,7 +271,7 @@ const Tarifs = () => {
               </button>
               <button 
                 onClick={() => navigate('/ecom/tarifs')}
-                className="px-4 py-2 text-sm font-medium text-gray-900 hover:text-emerald-600 transition"
+                className="px-4 py-2 text-sm font-medium text-gray-900 hover:text-primary-600 transition"
               >
                 Tarifs
               </button>
@@ -287,7 +287,7 @@ const Tarifs = () => {
               </button>
               <button 
                 onClick={() => navigate('/ecom/register')}
-                className="px-6 py-2.5 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition shadow-sm"
+                className="px-6 py-2.5 text-sm font-semibold text-white bg-primary-600 hover:bg-primary-700 rounded-lg transition shadow-sm"
               >
                 Commencer
               </button>
@@ -297,10 +297,10 @@ const Tarifs = () => {
       </nav>
 
       {/* HERO SECTION */}
-      <section className="py-16 sm:py-24 px-4 bg-gradient-to-b from-emerald-50 to-white">
+      <section className="py-16 sm:py-24 px-4 bg-gradient-to-b from-primary-50 to-white">
         <div className="max-w-4xl mx-auto text-center">
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black text-gray-900 mb-6">
-            Tarifs <span className="text-emerald-600">simples</span> et transparents
+            Tarifs <span className="text-primary-600">simples</span> et transparents
           </h1>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed">
             Commencez gratuitement et évoluez selon vos besoins. 
@@ -319,7 +319,7 @@ const Tarifs = () => {
                 onClick={() => setIsAnnual(true)}
                 className={`px-5 py-2 rounded-full text-sm font-bold transition-all flex items-center gap-2 ${isAnnual ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
                 Annuel
-                <span className="text-[10px] font-black bg-emerald-500 text-white px-1.5 py-0.5 rounded-full">-25%</span>
+                <span className="text-[10px] font-black bg-primary-500 text-white px-1.5 py-0.5 rounded-full">-25%</span>
               </button>
             </div>
 
@@ -349,7 +349,7 @@ const Tarifs = () => {
               )}
             </form>
             {promoError && <p className="text-red-500 text-[11px] font-bold">{promoError}</p>}
-            {promoData && <p className="text-emerald-600 text-[11px] font-bold">✓ Code {promoData.code} appliqué</p>}
+            {promoData && <p className="text-primary-600 text-[11px] font-bold">✓ Code {promoData.code} appliqué</p>}
           </div>
         </div>
       </section>
@@ -366,15 +366,15 @@ const Tarifs = () => {
                 key={index}
                 className={`relative flex flex-col rounded-2xl overflow-hidden transition-all duration-200
                   ${plan.highlighted
-                    ? 'bg-[#1a1a2e] shadow-2xl ring-2 ring-emerald-500/40'
-                    : 'bg-white border border-gray-200 hover:border-emerald-300 hover:shadow-lg'
+                    ? 'bg-[#1a1a2e] shadow-2xl ring-2 ring-primary-500/40'
+                    : 'bg-white border border-gray-200 hover:border-primary-300 hover:shadow-lg'
                   }`}
               >
                 {/* Promo banner */}
                 <div className={`text-center py-2.5 text-[11px] font-black tracking-wide
                   ${plan.highlighted
-                    ? 'bg-emerald-500 text-white'
-                    : plan.isFree ? 'bg-gray-100 text-gray-400' : 'bg-emerald-50 text-emerald-700'
+                    ? 'bg-primary-500 text-white'
+                    : plan.isFree ? 'bg-gray-100 text-gray-400' : 'bg-primary-50 text-primary-700'
                   }`}>
                   {plan.isFree ? 'Gratuit pour toujours' : plan.highlighted ? '⭐ Le plus populaire' : '1 mois offert sur 12 mois'}
                 </div>
@@ -401,7 +401,7 @@ const Tarifs = () => {
                         <>
                           <div className="flex items-end gap-2">
                             {originalPerMonth && (
-                              <span className={`text-xl font-bold line-through mb-0.5 ${plan.highlighted ? 'text-emerald-300' : 'text-gray-300'}`}>
+                              <span className={`text-xl font-bold line-through mb-0.5 ${plan.highlighted ? 'text-primary-300' : 'text-gray-300'}`}>
                                 {fmtFCFA(originalPerMonth)}
                               </span>
                             )}
@@ -413,12 +413,12 @@ const Tarifs = () => {
                             </span>
                           </div>
                           {promoApplied && (
-                            <p className={`text-xs font-bold mt-1.5 ${plan.highlighted ? 'text-white' : 'text-emerald-600'}`}>
+                            <p className={`text-xs font-bold mt-1.5 ${plan.highlighted ? 'text-white' : 'text-primary-600'}`}>
                               ✨ Code {promoData.code} appliqué
                             </p>
                           )}
                           {isAnnual && !plan.isFree && !promoApplied && (
-                            <p className={`text-xs font-semibold mt-1.5 ${plan.highlighted ? 'text-emerald-200' : 'text-emerald-600'}`}>
+                            <p className={`text-xs font-semibold mt-1.5 ${plan.highlighted ? 'text-primary-200' : 'text-primary-600'}`}>
                               {fmtFCFA(displayTotal)} FCFA facturé annuellement
                             </p>
                           )}
@@ -441,7 +441,7 @@ const Tarifs = () => {
                     <ul className="space-y-3 flex-1">
                       {plan.features.map((feature, i) => (
                         <li key={i} className="flex items-start gap-2.5">
-                          <svg className={`w-4 h-4 flex-shrink-0 mt-0.5 ${plan.highlighted ? 'text-emerald-400' : 'text-emerald-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className={`w-4 h-4 flex-shrink-0 mt-0.5 ${plan.highlighted ? 'text-primary-400' : 'text-primary-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
                           </svg>
                           <span className={`text-[13px] leading-snug ${plan.highlighted ? 'text-gray-300' : 'text-gray-600'}`}>
@@ -481,7 +481,7 @@ const Tarifs = () => {
                     }}
                     className={`w-full py-3.5 rounded-xl font-bold text-sm transition-all active:scale-[0.98]
                       ${plan.highlighted
-                        ? 'bg-emerald-500 text-white hover:bg-emerald-400'
+                        ? 'bg-primary-500 text-white hover:bg-primary-400'
                         : plan.isFree
                           ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                           : 'bg-gray-900 text-white hover:bg-gray-800'
@@ -536,19 +536,19 @@ const Tarifs = () => {
       </section>
 
       {/* CTA SECTION */}
-      <section className="py-16 sm:py-20 px-4 bg-gradient-to-br from-emerald-600 to-emerald-700">
+      <section className="py-16 sm:py-20 px-4 bg-gradient-to-br from-primary-600 to-primary-700">
         <div className="max-w-4xl mx-auto text-center">
           <h2 className="text-3xl sm:text-4xl font-black text-white mb-6">
             Prêt à commencer ?
           </h2>
-          <p className="text-xl text-emerald-100 mb-8 max-w-2xl mx-auto">
+          <p className="text-xl text-primary-100 mb-8 max-w-2xl mx-auto">
             Créez votre compte gratuitement en 30 secondes. 
             Aucune carte bancaire requise.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <button 
               onClick={() => navigate('/ecom/register')}
-              className="w-full sm:w-auto px-8 py-4 bg-white text-emerald-700 hover:bg-emerald-50 rounded-xl font-bold text-lg transition shadow-xl"
+              className="w-full sm:w-auto px-8 py-4 bg-white text-primary-700 hover:bg-primary-50 rounded-xl font-bold text-lg transition shadow-xl"
             >
               Créer mon espace gratuit
             </button>

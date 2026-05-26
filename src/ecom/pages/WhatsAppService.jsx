@@ -91,10 +91,10 @@ const RelancesTab = ({ instances, userId }) => {
   return (
     <div className="space-y-5">
       {/* Header */}
-      <div className="relative overflow-hidden rounded-[24px] border border-emerald-100 bg-white p-5 shadow-sm">
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-20 bg-gradient-to-r from-emerald-50 via-white to-white" />
+      <div className="relative overflow-hidden rounded-[24px] border border-primary-100 bg-white p-5 shadow-sm">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-20 bg-gradient-to-r from-primary-50 via-white to-white" />
         <div className="relative flex items-start gap-4">
-          <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700">
+          <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl bg-primary-100 text-primary-700">
             <Megaphone className="h-5 w-5" />
           </div>
           <div>
@@ -123,7 +123,7 @@ const RelancesTab = ({ instances, userId }) => {
               <select
                 value={selectedProduct}
                 onChange={e => { setSelectedProduct(e.target.value); setResult(null); setError(''); }}
-                className="w-full appearance-none rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 pr-10 text-[13px] font-medium text-gray-800 focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 transition"
+                className="w-full appearance-none rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 pr-10 text-[13px] font-medium text-gray-800 focus:outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100 transition"
               >
                 <option value="">-- Choisir un produit du catalogue --</option>
                 {products.map(p => (
@@ -139,7 +139,7 @@ const RelancesTab = ({ instances, userId }) => {
               {previewLoading ? (
                 <span className="flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" /> Calcul...</span>
               ) : previewCount !== null ? (
-                <span><strong className="text-emerald-700">{previewCount}</strong> client{previewCount !== 1 ? 's' : ''} ciblé{previewCount !== 1 ? 's' : ''}</span>
+                <span><strong className="text-primary-700">{previewCount}</strong> client{previewCount !== 1 ? 's' : ''} ciblé{previewCount !== 1 ? 's' : ''}</span>
               ) : null}
             </div>
           )}
@@ -155,7 +155,7 @@ const RelancesTab = ({ instances, userId }) => {
               <select
                 value={selectedInstance}
                 onChange={e => setSelectedInstance(e.target.value)}
-                className="w-full appearance-none rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 pr-10 text-[13px] font-medium text-gray-800 focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 transition"
+                className="w-full appearance-none rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 pr-10 text-[13px] font-medium text-gray-800 focus:outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100 transition"
               >
                 <option value="">-- Instance connectée automatique --</option>
                 {connectedInstances.map(i => (
@@ -178,7 +178,7 @@ const RelancesTab = ({ instances, userId }) => {
             onChange={e => { setMessage(e.target.value); setResult(null); setError(''); }}
             rows={4}
             placeholder="Bonjour, suite à votre achat, nous avons une offre..."
-            className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-[13px] text-gray-800 placeholder-gray-400 focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 transition resize-none"
+            className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-[13px] text-gray-800 placeholder-gray-400 focus:outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100 transition resize-none"
           />
           <p className="text-[11px] text-gray-400 mt-1">{message.length} caractère{message.length !== 1 ? 's' : ''}</p>
         </div>
@@ -195,11 +195,11 @@ const RelancesTab = ({ instances, userId }) => {
 
         {/* Success result */}
         {result && (
-          <div className="flex items-center gap-3 rounded-xl bg-emerald-50 border border-emerald-200 px-4 py-3">
-            <CheckCircle className="w-5 h-5 flex-shrink-0 text-emerald-600" />
+          <div className="flex items-center gap-3 rounded-xl bg-primary-50 border border-primary-200 px-4 py-3">
+            <CheckCircle className="w-5 h-5 flex-shrink-0 text-primary-600" />
             <div>
-              <p className="text-[13px] font-semibold text-emerald-800">Campagne lancée avec succès</p>
-              <p className="text-[12px] text-emerald-700 mt-0.5">
+              <p className="text-[13px] font-semibold text-primary-800">Campagne lancée avec succès</p>
+              <p className="text-[12px] text-primary-700 mt-0.5">
                 {result.total} message{result.total !== 1 ? 's' : ''} en cours d'envoi de façon progressive. Vous pouvez fermer cette page.
               </p>
             </div>
@@ -210,7 +210,7 @@ const RelancesTab = ({ instances, userId }) => {
         <button
           onClick={handleLaunch}
           disabled={!selectedProduct || !message.trim() || launching || !!result}
-          className="w-full flex items-center justify-center gap-2 rounded-2xl px-5 py-3.5 text-[14px] font-semibold text-white shadow-sm shadow-emerald-200 transition hover:brightness-95 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full flex items-center justify-center gap-2 rounded-2xl px-5 py-3.5 text-[14px] font-semibold text-white shadow-sm shadow-primary-200 transition hover:brightness-95 disabled:opacity-50 disabled:cursor-not-allowed"
           style={{ background: ACCENT }}
         >
           {launching ? (
@@ -360,8 +360,8 @@ const WhatsAppService = () => {
   };
 
   const STATUS_MAP = {
-    connected:    { label: 'Connecté',   dot: 'bg-emerald-500', text: 'text-emerald-700', bg: 'bg-emerald-50', ring: 'ring-emerald-200' },
-    active:       { label: 'Actif',      dot: 'bg-emerald-500', text: 'text-emerald-700', bg: 'bg-emerald-50', ring: 'ring-emerald-200' },
+    connected:    { label: 'Connecté',   dot: 'bg-primary-500', text: 'text-primary-700', bg: 'bg-primary-50', ring: 'ring-primary-200' },
+    active:       { label: 'Actif',      dot: 'bg-primary-500', text: 'text-primary-700', bg: 'bg-primary-50', ring: 'ring-primary-200' },
     configured:   { label: 'Configuré',  dot: 'bg-blue-500',    text: 'text-blue-700',    bg: 'bg-blue-50',    ring: 'ring-blue-200'    },
     disconnected: { label: 'Déconnecté', dot: 'bg-red-500',     text: 'text-red-700',     bg: 'bg-red-50',     ring: 'ring-red-200'     },
   };
@@ -554,12 +554,12 @@ const WhatsAppService = () => {
     <div className="px-4 sm:px-6 py-5 sm:py-6 space-y-5">
 
       {/* Page Header */}
-      <div className="relative overflow-hidden rounded-[30px] border border-emerald-100 bg-white p-4 shadow-sm shadow-emerald-100/60 sm:p-6">
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-r from-emerald-50 via-white to-white" />
+      <div className="relative overflow-hidden rounded-[30px] border border-primary-100 bg-white p-4 shadow-sm shadow-primary-100/60 sm:p-6">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-r from-primary-50 via-white to-white" />
         <div className="relative flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
           <div className="min-w-0 flex-1">
             <div className="flex items-start gap-3 sm:gap-4">
-              <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700 shadow-sm shadow-emerald-100">
+              <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-primary-100 text-primary-700 shadow-sm shadow-primary-100">
                 <MessageSquare className="h-6 w-6" />
               </div>
               <div className="min-w-0 flex-1">
@@ -583,7 +583,7 @@ const WhatsAppService = () => {
               Synchroniser
             </button>
             <button onClick={openCreateModal}
-              className="inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold text-white shadow-sm shadow-emerald-200 transition hover:brightness-95"
+              className="inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold text-white shadow-sm shadow-primary-200 transition hover:brightness-95"
               style={{ background: ACCENT }}>
               <Plus className="h-4 w-4" />
               Créer une instance
@@ -601,11 +601,11 @@ const WhatsAppService = () => {
             const active = activeTab === tab.id;
             return (
               <button key={tab.id} onClick={() => setTab(tab.id)}
-                className={`relative flex items-center gap-2 rounded-2xl px-4 py-2.5 text-[13px] font-semibold transition whitespace-nowrap ${active ? 'bg-emerald-50 text-emerald-700 shadow-sm shadow-emerald-100' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'}`}>
+                className={`relative flex items-center gap-2 rounded-2xl px-4 py-2.5 text-[13px] font-semibold transition whitespace-nowrap ${active ? 'bg-primary-50 text-primary-700 shadow-sm shadow-primary-100' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'}`}>
                 <Icon className="w-4 h-4" />
                 {tab.label}
                 {tab.count !== undefined && (
-                  <span className={`text-[11px] font-semibold px-1.5 py-0.5 rounded-full ${active ? 'bg-white text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>
+                  <span className={`text-[11px] font-semibold px-1.5 py-0.5 rounded-full ${active ? 'bg-white text-primary-700' : 'bg-gray-100 text-gray-500'}`}>
                     {tab.count}
                   </span>
                 )}
@@ -639,7 +639,7 @@ const WhatsAppService = () => {
             <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: ACCENT_LIGHT }}>
-                  {createStep === 'success' ? <CheckCircle className="w-5 h-5 text-emerald-500" /> :
+                  {createStep === 'success' ? <CheckCircle className="w-5 h-5 text-primary-500" /> :
                    createStep === 'scanning' ? <QrCode className="w-5 h-5" style={{ color: ACCENT }} /> :
                    <Plus className="w-5 h-5" style={{ color: ACCENT }} />}
                 </div>
@@ -759,19 +759,19 @@ const WhatsAppService = () => {
                             </code>
                             <button onClick={() => copyToClipboard(pairingCode, 'pairing')}
                               className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100">
-                              {copiedId === 'pairing' ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
+                              {copiedId === 'pairing' ? <Check className="w-4 h-4 text-primary-500" /> : <Copy className="w-4 h-4" />}
                             </button>
                           </div>
                         </div>
                       )}
 
                       {qrPolling && (
-                        <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 border border-emerald-100 rounded-full">
+                        <div className="flex items-center gap-2 px-4 py-2 bg-primary-50 border border-primary-100 rounded-full">
                           <span className="relative flex h-2.5 w-2.5">
-                            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
-                            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500"></span>
+                            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary-400 opacity-75"></span>
+                            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-primary-500"></span>
                           </span>
-                          <span className="text-[12px] font-medium text-emerald-700">En attente de la connexion...</span>
+                          <span className="text-[12px] font-medium text-primary-700">En attente de la connexion...</span>
                         </div>
                       )}
 
@@ -827,8 +827,8 @@ const WhatsAppService = () => {
             {/* Step: Success */}
             {createStep === 'success' && (
               <div className="p-6 flex flex-col items-center text-center gap-4">
-                <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center">
-                  <CheckCircle className="w-8 h-8 text-emerald-500" />
+                <div className="w-16 h-16 rounded-full bg-primary-100 flex items-center justify-center">
+                  <CheckCircle className="w-8 h-8 text-primary-500" />
                 </div>
                 <div>
                   <h4 className="text-lg font-bold text-gray-900">Connexion réussie ! 🎉</h4>
@@ -926,9 +926,9 @@ const WhatsAppService = () => {
           {!loading && instances.length === 0 && (
             <div className="overflow-hidden rounded-[30px] border border-gray-100 bg-white shadow-sm">
               <div className="relative overflow-hidden px-6 py-12 text-center sm:px-8 sm:py-14">
-                <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-emerald-50 via-white to-white" />
+                <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-primary-50 via-white to-white" />
                 <div className="relative mx-auto max-w-lg">
-                  <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-3xl bg-emerald-100 text-emerald-700 shadow-sm shadow-emerald-100">
+                  <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-3xl bg-primary-100 text-primary-700 shadow-sm shadow-primary-100">
                     <Smartphone className="h-8 w-8" />
                   </div>
                   <h2 className="mt-5 text-2xl font-bold tracking-tight text-gray-900 sm:text-3xl">Aucune instance WhatsApp</h2>
@@ -938,7 +938,7 @@ const WhatsAppService = () => {
 
                   <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">
                     <button onClick={openCreateModal}
-                      className="inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-3 text-sm font-semibold text-white shadow-sm shadow-emerald-200 transition hover:brightness-95"
+                      className="inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-3 text-sm font-semibold text-white shadow-sm shadow-primary-200 transition hover:brightness-95"
                       style={{ background: ACCENT }}>
                       <Plus className="h-4 w-4" />
                       Créer une instance
@@ -967,7 +967,7 @@ const WhatsAppService = () => {
                 const isConnected = inst.status === 'connected' || inst.status === 'active';
                 return (
                   <div key={inst._id} className="bg-white border border-gray-200 rounded-xl overflow-hidden hover:shadow-md hover:border-gray-300 transition-all group">
-                    <div className={`h-[3px] ${isConnected ? 'bg-emerald-500' : inst.status === 'configured' ? 'bg-blue-400' : 'bg-red-400'}`} />
+                    <div className={`h-[3px] ${isConnected ? 'bg-primary-500' : inst.status === 'configured' ? 'bg-blue-400' : 'bg-red-400'}`} />
                     <div className="p-5 space-y-4">
 
                       {/* Header */}
@@ -1015,7 +1015,7 @@ const WhatsAppService = () => {
                             <div className="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
                               <div className={`h-full rounded-full transition-all duration-500 ${
                                 stats.messagesSentToday >= stats.dailyLimit ? 'bg-red-500' :
-                                stats.messagesSentToday / stats.dailyLimit > 0.8 ? 'bg-orange-500' : 'bg-emerald-500'
+                                stats.messagesSentToday / stats.dailyLimit > 0.8 ? 'bg-orange-500' : 'bg-primary-500'
                               }`} style={{ width: `${Math.min(100, (stats.messagesSentToday / stats.dailyLimit) * 100)}%` }} />
                             </div>
                           </div>
@@ -1029,7 +1029,7 @@ const WhatsAppService = () => {
                             <div className="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
                               <div className={`h-full rounded-full transition-all duration-500 ${
                                 stats.messagesSentThisMonth >= stats.monthlyLimit ? 'bg-red-500' :
-                                stats.messagesSentThisMonth / stats.monthlyLimit > 0.8 ? 'bg-orange-500' : 'bg-emerald-500'
+                                stats.messagesSentThisMonth / stats.monthlyLimit > 0.8 ? 'bg-orange-500' : 'bg-primary-500'
                               }`} style={{ width: `${Math.min(100, (stats.messagesSentThisMonth / stats.monthlyLimit) * 100)}%` }} />
                             </div>
                           </div>
@@ -1145,14 +1145,14 @@ const WhatsAppService = () => {
                           </button>
                           <button onClick={() => copyToClipboard(inst.instanceToken, inst._id + 't')}
                             className="text-gray-400 hover:text-gray-600 p-0.5 rounded">
-                            {copiedId === inst._id + 't' ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                            {copiedId === inst._id + 't' ? <Check className="w-3.5 h-3.5 text-primary-500" /> : <Copy className="w-3.5 h-3.5" />}
                           </button>
                         </div>
                       </div>
 
                       {/* Test result */}
                       {test && !test.loading && test.message && (
-                        <div className={`text-[11px] font-medium px-3 py-2 rounded-lg ${test.success ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'}`}>
+                        <div className={`text-[11px] font-medium px-3 py-2 rounded-lg ${test.success ? 'bg-primary-50 text-primary-700' : 'bg-red-50 text-red-600'}`}>
                           {test.success ? '✓ ' : '✗ '}{test.message}
                         </div>
                       )}
@@ -1178,7 +1178,7 @@ const WhatsAppService = () => {
                               <div className="flex items-center justify-between">
                                 <span className="text-[12px] text-gray-600">Activer</span>
                                 <button onClick={() => updateWh(inst._id, { config: { ...wh.config, enabled: !wh.config?.enabled } })} type="button"
-                                  className={`relative w-9 h-5 rounded-full transition-colors flex-shrink-0 ${wh.config?.enabled ? 'bg-emerald-500' : 'bg-gray-200'}`}>
+                                  className={`relative w-9 h-5 rounded-full transition-colors flex-shrink-0 ${wh.config?.enabled ? 'bg-primary-500' : 'bg-gray-200'}`}>
                                   <span className={`absolute top-[3px] w-3.5 h-3.5 bg-white rounded-full shadow-sm transition-all ${wh.config?.enabled ? 'left-[19px]' : 'left-[3px]'}`} />
                                 </button>
                               </div>
@@ -1196,7 +1196,7 @@ const WhatsAppService = () => {
                                         onChange={e => {
                                           const evts = e.target.checked ? [...(wh.config?.events || []), ev.id] : (wh.config?.events || []).filter(x => x !== ev.id);
                                           updateWh(inst._id, { config: { ...wh.config, events: evts } });
-                                        }} className="w-3 h-3 cursor-pointer accent-emerald-500" />
+                                        }} className="w-3 h-3 cursor-pointer accent-primary-500" />
                                       {ev.label}
                                     </label>
                                   ))}
@@ -1207,7 +1207,7 @@ const WhatsAppService = () => {
                                 {wh.saving ? 'Sauvegarde...' : 'Enregistrer'}
                               </button>
                               {wh.error && <p className="text-[11px] text-red-600">{wh.error}</p>}
-                              {wh.saved && <p className="text-[11px] text-emerald-600 font-medium">✓ Webhook configuré</p>}
+                              {wh.saved && <p className="text-[11px] text-primary-600 font-medium">✓ Webhook configuré</p>}
                             </>
                           )}
                         </div>
@@ -1221,7 +1221,7 @@ const WhatsAppService = () => {
                         <div className="flex items-center gap-1">
                           <button onClick={() => testConnection(inst)} disabled={test?.loading}
                             className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[12px] font-medium transition-colors ${
-                              test?.success === true ? 'bg-emerald-50 text-emerald-700' :
+                              test?.success === true ? 'bg-primary-50 text-primary-700' :
                               test?.success === false ? 'bg-red-50 text-red-600' :
                               'bg-gray-100 text-gray-600 hover:bg-gray-200'
                             } disabled:opacity-50`}>
@@ -1372,7 +1372,7 @@ const WhatsAppService = () => {
 const Alert = ({ type, message, onClose }) => {
   const styles = {
     error:   'bg-red-50 border-red-200 text-red-700',
-    success: 'bg-emerald-50 border-emerald-200 text-emerald-700',
+    success: 'bg-primary-50 border-primary-200 text-primary-700',
     warning: 'bg-amber-50 border-amber-200 text-amber-700',
   };
   const icons = {
@@ -1407,7 +1407,7 @@ const ToggleRow = ({ enabled, onChange, label, desc }) => (
     </div>
     <button onClick={() => onChange(!enabled)} type="button"
       role="switch" aria-checked={enabled} aria-label={label}
-      className={`relative w-[44px] h-[26px] rounded-full transition-all duration-200 flex-shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 focus-visible:ring-offset-2 ${enabled ? 'bg-emerald-500' : 'bg-gray-200 hover:bg-gray-300'}`}>
+      className={`relative w-[44px] h-[26px] rounded-full transition-all duration-200 flex-shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 focus-visible:ring-offset-2 ${enabled ? 'bg-primary-500' : 'bg-gray-200 hover:bg-gray-300'}`}>
       <span className={`absolute top-[3px] w-5 h-5 bg-white rounded-full shadow-md transition-all duration-200 ${enabled ? 'left-[21px]' : 'left-[3px]'}`} />
     </button>
   </div>
@@ -1527,7 +1527,7 @@ const CustomSelect = ({ value, onChange, options, placeholder = 'Sélectionner..
 /* ── Rita Rapport Section ── */
 const ACTIVITY_LABELS = {
   message_received: { label: 'Message reçu', emoji: '💬', color: 'text-blue-600 bg-blue-50' },
-  message_replied: { label: 'Réponse envoyée', emoji: '📤', color: 'text-emerald-600 bg-emerald-50' },
+  message_replied: { label: 'Réponse envoyée', emoji: '📤', color: 'text-primary-600 bg-primary-50' },
   order_confirmed: { label: 'Commande confirmée', emoji: '📦', color: 'text-purple-600 bg-purple-50' },
   vocal_transcribed: { label: 'Vocal transcrit', emoji: '🎤', color: 'text-amber-600 bg-amber-50' },
   vocal_sent: { label: 'Note vocale', emoji: '🔊', color: 'text-pink-600 bg-pink-50' },
@@ -1572,7 +1572,7 @@ const RitaRapportSection = ({ userId }) => {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
           { label: 'Messages reçus', value: stats.messagesReceived, color: 'text-blue-600', bg: 'bg-blue-50' },
-          { label: 'Réponses', value: stats.messagesReplied, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+          { label: 'Réponses', value: stats.messagesReplied, color: 'text-primary-600', bg: 'bg-primary-50' },
           { label: 'Commandes', value: stats.ordersConfirmed, color: 'text-purple-600', bg: 'bg-purple-50' },
           { label: 'Clients uniques', value: stats.uniqueClients, color: 'text-amber-600', bg: 'bg-amber-50' },
         ].map(s => (
@@ -1645,7 +1645,7 @@ const RITA_SECTIONS = [
 const AUTONOMY_LEVELS = [
   { level: 1, label: 'Assistante',   desc: "Répond aux questions simples uniquement",                    color: 'bg-blue-100 text-blue-700' },
   { level: 2, label: 'Conseillère',  desc: 'Recommande des produits et qualifie les leads',              color: 'bg-cyan-100 text-cyan-700' },
-  { level: 3, label: 'Commerciale',  desc: "Gère les objections et pousse à l'achat",                   color: 'bg-emerald-100 text-emerald-700' },
+  { level: 3, label: 'Commerciale',  desc: "Gère les objections et pousse à l'achat",                   color: 'bg-primary-100 text-primary-700' },
   { level: 4, label: 'Négociatrice', desc: 'Conclut des ventes de façon autonome et gère les relances', color: 'bg-amber-100 text-amber-700' },
   { level: 5, label: 'Chasseuse',    desc: 'Mode offensif : qualification, closing agressif, upsell',   color: 'bg-red-100 text-red-700' },
 ];
@@ -2261,18 +2261,18 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
     <div className="space-y-4">
 
       {/* ═══════════ AGENT STATUS BANNER ═══════════ */}
-      <div className={`relative overflow-hidden rounded-2xl border transition-all duration-300 ${configSaved && config.enabled ? 'border-emerald-200/80 bg-gradient-to-r from-emerald-50/80 via-white to-emerald-50/50' : configSaved ? 'border-gray-200/80 bg-white' : 'border-purple-200/80 bg-gradient-to-r from-purple-50/60 via-white to-indigo-50/40'}`}>
-        {configSaved && config.enabled && <div className="absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-emerald-400 via-emerald-500 to-teal-400" />}
+      <div className={`relative overflow-hidden rounded-2xl border transition-all duration-300 ${configSaved && config.enabled ? 'border-primary-200/80 bg-gradient-to-r from-primary-50/80 via-white to-primary-50/50' : configSaved ? 'border-gray-200/80 bg-white' : 'border-purple-200/80 bg-gradient-to-r from-purple-50/60 via-white to-indigo-50/40'}`}>
+        {configSaved && config.enabled && <div className="absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-primary-400 via-primary-500 to-teal-400" />}
         {!configSaved && <div className="absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-purple-400 via-indigo-500 to-purple-400" />}
 
         <div className="px-5 py-4">
           <div className="flex flex-col sm:flex-row sm:items-center gap-4">
             {/* Agent avatar + info */}
             <div className="flex items-center gap-3.5 flex-1 min-w-0">
-              <div className={`relative w-12 h-12 rounded-2xl flex items-center justify-center text-white text-lg font-bold flex-shrink-0 shadow-lg ${configSaved && config.enabled ? 'bg-gradient-to-br from-emerald-500 to-teal-600 shadow-emerald-200/60' : 'bg-gradient-to-br from-purple-500 to-indigo-600 shadow-purple-200/60'}`}>
+              <div className={`relative w-12 h-12 rounded-2xl flex items-center justify-center text-white text-lg font-bold flex-shrink-0 shadow-lg ${configSaved && config.enabled ? 'bg-gradient-to-br from-primary-500 to-teal-600 shadow-primary-200/60' : 'bg-gradient-to-br from-purple-500 to-indigo-600 shadow-purple-200/60'}`}>
                 {config.agentName?.[0]?.toUpperCase() || 'R'}
                 {configSaved && config.enabled && (
-                  <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-emerald-500 border-2 border-white rounded-full flex items-center justify-center">
+                  <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-primary-500 border-2 border-white rounded-full flex items-center justify-center">
                     <CheckCircle className="w-2.5 h-2.5 text-white" />
                   </span>
                 )}
@@ -2282,8 +2282,8 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
                   <h2 className="text-[16px] font-bold text-gray-900">{config.agentName || 'Rita'}</h2>
                   <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full ${autonomyInfo.color}`}>{autonomyInfo.label}</span>
                   {configSaved && config.enabled ? (
-                    <span className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    <span className="flex items-center gap-1.5 text-[10px] font-bold text-primary-600 bg-primary-100 px-2 py-0.5 rounded-full">
+                      <span className="w-1.5 h-1.5 rounded-full bg-primary-500 animate-pulse" />
                       Actif
                     </span>
                   ) : configSaved ? (
@@ -2306,7 +2306,7 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
                   <span className="text-[11px] font-medium">{config.enabled ? 'On' : 'Off'}</span>
                   <button onClick={toggleEnabled} disabled={saving} type="button"
                     role="switch" aria-checked={config.enabled} aria-label={config.enabled ? 'Désactiver' : 'Activer'}
-                    className={`relative w-[48px] h-[28px] rounded-full transition-all duration-200 disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 focus-visible:ring-offset-2 ${config.enabled ? 'bg-emerald-500' : 'bg-gray-200 hover:bg-gray-300'}`}>
+                    className={`relative w-[48px] h-[28px] rounded-full transition-all duration-200 disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 focus-visible:ring-offset-2 ${config.enabled ? 'bg-primary-500' : 'bg-gray-200 hover:bg-gray-300'}`}>
                     <span className={`absolute top-[3px] w-[22px] h-[22px] bg-white rounded-full shadow-md transition-all duration-200 ${config.enabled ? 'left-[23px]' : 'left-[3px]'}`} />
                   </button>
                 </div>
@@ -2314,7 +2314,7 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
               {/* Save status */}
               <div className="flex items-center gap-2">
                 {saveStatus?.type === 'success' && (
-                  <span className="text-[11px] font-semibold text-emerald-600 flex items-center gap-1">
+                  <span className="text-[11px] font-semibold text-primary-600 flex items-center gap-1">
                     <CheckCircle className="w-3 h-3" /> Enregistré
                   </span>
                 )}
@@ -2367,7 +2367,7 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
                     </button>
                   </div>
                   {testBossResult && (
-                    <p className={`mt-1.5 text-[11.5px] font-medium ${testBossResult.ok ? 'text-emerald-600' : 'text-red-500'}`}>
+                    <p className={`mt-1.5 text-[11.5px] font-medium ${testBossResult.ok ? 'text-primary-600' : 'text-red-500'}`}>
                       {testBossResult.msg}
                     </p>
                   )}
@@ -2494,7 +2494,7 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
                     <label className="flex items-center gap-2.5 cursor-pointer">
                       <button type="button" onClick={() => set('autoLanguageDetection', !config.autoLanguageDetection)}
                         role="switch" aria-checked={config.autoLanguageDetection !== false}
-                        className={`relative w-[44px] h-[26px] rounded-full transition-all duration-200 ${config.autoLanguageDetection !== false ? 'bg-emerald-500' : 'bg-gray-200 hover:bg-gray-300'}`}>
+                        className={`relative w-[44px] h-[26px] rounded-full transition-all duration-200 ${config.autoLanguageDetection !== false ? 'bg-primary-500' : 'bg-gray-200 hover:bg-gray-300'}`}>
                         <span className={`absolute top-[3px] w-5 h-5 bg-white rounded-full shadow-md transition-all duration-200 ${config.autoLanguageDetection !== false ? 'left-[21px]' : 'left-[3px]'}`} />
                       </button>
                       <div>
@@ -2712,7 +2712,7 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
                             <label className="flex items-center gap-2.5 cursor-pointer">
                               <button type="button" onClick={() => updateProduct(pIdx, 'inStock', !product.inStock)}
                                 role="switch" aria-checked={product.inStock} aria-label="En stock"
-                                className={`relative w-[44px] h-[26px] rounded-full transition-all duration-200 ${product.inStock ? 'bg-emerald-500' : 'bg-gray-200 hover:bg-gray-300'}`}>
+                                className={`relative w-[44px] h-[26px] rounded-full transition-all duration-200 ${product.inStock ? 'bg-primary-500' : 'bg-gray-200 hover:bg-gray-300'}`}>
                                 <span className={`absolute top-[3px] w-5 h-5 bg-white rounded-full shadow-md transition-all duration-200 ${product.inStock ? 'left-[21px]' : 'left-[3px]'}`} />
                               </button>
                               <span className="text-[12px] text-gray-600 font-medium">{product.inStock ? '🟢 En stock' : '🔴 Rupture'}</span>
@@ -2753,9 +2753,9 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
                           <p className="text-[12px] font-semibold text-gray-700 mb-2">Caractéristiques</p>
                           <div className="flex flex-wrap gap-1.5 mb-2">
                             {(product.features || []).map((f, fIdx) => (
-                              <span key={fIdx} className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 text-emerald-700 rounded-lg text-[11px] font-medium border border-emerald-100">
+                              <span key={fIdx} className="inline-flex items-center gap-1 px-2.5 py-1 bg-primary-50 text-primary-700 rounded-lg text-[11px] font-medium border border-primary-100">
                                 {f}
-                                <button onClick={() => removeProductFeature(pIdx, fIdx)} className="text-emerald-400 hover:text-red-500 ml-0.5">×</button>
+                                <button onClick={() => removeProductFeature(pIdx, fIdx)} className="text-primary-400 hover:text-red-500 ml-0.5">×</button>
                               </span>
                             ))}
                           </div>
@@ -2785,7 +2785,7 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
                             <button onClick={() => addProductImage(pIdx)}
                               className="text-[11px] font-medium text-purple-600 hover:text-purple-800">+ URL</button>
                             <span className="text-gray-300 text-[11px]">|</span>
-                            <label className="text-[11px] font-medium text-emerald-600 hover:text-emerald-800 cursor-pointer flex items-center gap-1">
+                            <label className="text-[11px] font-medium text-primary-600 hover:text-primary-800 cursor-pointer flex items-center gap-1">
                               <input type="file" accept="image/*" className="hidden"
                                 onChange={async (e) => {
                                   const file = e.target.files?.[0];
@@ -2865,7 +2865,7 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
                                 <button onClick={() => removeProductFaq(pIdx, fIdx)} className="text-gray-300 hover:text-red-500">×</button>
                               </div>
                               <div className="flex items-start gap-2 pl-8">
-                                <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded mt-1">R</span>
+                                <span className="text-[10px] font-bold text-primary-600 bg-primary-50 px-2 py-0.5 rounded mt-1">R</span>
                                 <textarea value={f.answer} onChange={e => updateProductFaq(pIdx, fIdx, 'answer', e.target.value)}
                                   placeholder="Réponse que Rita doit donner..."
                                   rows={2} className="field-input flex-1 text-xs" style={{ resize: 'none' }} />
@@ -2889,7 +2889,7 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
                                 <button onClick={() => removeProductObjection(pIdx, oIdx)} className="text-gray-300 hover:text-red-500">×</button>
                               </div>
                               <div className="flex items-start gap-2 pl-8">
-                                <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded mt-1">→</span>
+                                <span className="text-[10px] font-bold text-primary-600 bg-primary-50 px-2 py-0.5 rounded mt-1">→</span>
                                 <textarea value={o.response} onChange={e => updateProductObjection(pIdx, oIdx, 'response', e.target.value)}
                                   placeholder="Réponse pour contrer cette objection..."
                                   rows={2} className="field-input flex-1 text-xs" style={{ resize: 'none' }} />
@@ -2906,21 +2906,21 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
 
                 {/* ── Import en masse ── */}
                 {showBulkImport && (
-                  <div className="border-2 border-dashed border-emerald-300 rounded-xl p-4 bg-emerald-50 space-y-3">
+                  <div className="border-2 border-dashed border-primary-300 rounded-xl p-4 bg-primary-50 space-y-3">
                     <div className="flex items-start justify-between gap-2">
                       <div>
-                        <p className="text-[13px] font-bold text-emerald-800">📋 Import en masse</p>
-                        <p className="text-[11px] text-emerald-600 mt-0.5">Une ligne = un produit. Format : <strong>Nom | Prix | Catégorie | Description</strong></p>
-                        <p className="text-[10px] text-emerald-500 mt-0.5">Séparateurs acceptés : | ; , ou tabulation. Seul le Nom est obligatoire.</p>
+                        <p className="text-[13px] font-bold text-primary-800">📋 Import en masse</p>
+                        <p className="text-[11px] text-primary-600 mt-0.5">Une ligne = un produit. Format : <strong>Nom | Prix | Catégorie | Description</strong></p>
+                        <p className="text-[10px] text-primary-500 mt-0.5">Séparateurs acceptés : | ; , ou tabulation. Seul le Nom est obligatoire.</p>
                       </div>
-                      <button onClick={() => setShowBulkImport(false)} className="text-emerald-400 hover:text-emerald-700 text-lg leading-none flex-shrink-0">×</button>
+                      <button onClick={() => setShowBulkImport(false)} className="text-primary-400 hover:text-primary-700 text-lg leading-none flex-shrink-0">×</button>
                     </div>
                     <textarea
                       value={bulkText}
                       onChange={e => setBulkText(e.target.value)}
                       rows={8}
                       placeholder={`Sérum Éclat | 15000 FCFA | Soins visage | Anti-taches, résultats en 2 semaines\nCrème Hydratante | 8000 FCFA | Soins corps | Hydratation 24h\nHuile de Baobab | 12000 FCFA | Cheveux\nSavon Karité | 3500 FCFA | Savons\n...`}
-                      className="w-full text-[12px] font-mono border border-emerald-200 rounded-lg p-3 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-300"
+                      className="w-full text-[12px] font-mono border border-primary-200 rounded-lg p-3 bg-white focus:outline-none focus:ring-2 focus:ring-primary-300"
                       style={{ resize: 'vertical' }}
                     />
                     <div className="flex items-center gap-3">
@@ -2942,7 +2942,7 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
                   </button>
                   <button onClick={() => setShowBulkImport(v => !v)}
                     className={`px-4 py-3 border-2 border-dashed rounded-xl text-[13px] font-semibold transition-all flex items-center gap-2 flex-shrink-0 ${
-                      showBulkImport ? 'border-emerald-400 bg-emerald-50 text-emerald-700' : 'border-gray-200 text-gray-500 hover:border-emerald-300 hover:text-emerald-600'
+                      showBulkImport ? 'border-primary-400 bg-primary-50 text-primary-700' : 'border-gray-200 text-gray-500 hover:border-primary-300 hover:text-primary-600'
                     }`}>
                     📋 Import liste
                   </button>
@@ -3047,7 +3047,7 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
                                     <div className="flex items-center gap-3 flex-1 min-w-0">
                                       <span className="text-[12px] font-medium text-gray-700 min-w-[100px]">📍 {entry.city}</span>
                                       <span className={`text-[12px] font-bold px-2 py-0.5 rounded-md ${
-                                        entry.quantity > 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'
+                                        entry.quantity > 0 ? 'bg-primary-50 text-primary-700' : 'bg-red-50 text-red-600'
                                       }`}>
                                         {entry.quantity > 0 ? `${entry.quantity} unité${entry.quantity > 1 ? 's' : ''}` : 'Rupture'}
                                       </span>
@@ -3287,7 +3287,7 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
                           className="field-input flex-1 text-xs" />
                       </div>
                       <div className="flex gap-2 items-start">
-                        <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded mt-1 flex-shrink-0">Agent</span>
+                        <span className="text-[10px] font-bold text-primary-600 bg-primary-50 px-2 py-0.5 rounded mt-1 flex-shrink-0">Agent</span>
                         <input value={ex.agent} onChange={e => updateConvExample(i, 'agent', e.target.value)}
                           placeholder="Le Sérum Éclat c'est 15 000 FCFA ma chérie 👍 Tu veux seulement ça ?"
                           className="field-input flex-1 text-xs" />
@@ -3317,7 +3317,7 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
                           className="field-input flex-1 text-xs" />
                       </div>
                       <div className="flex gap-2 items-start">
-                        <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded mt-1 flex-shrink-0">→</span>
+                        <span className="text-[10px] font-bold text-primary-600 bg-primary-50 px-2 py-0.5 rounded mt-1 flex-shrink-0">→</span>
                         <input value={rule.reaction} onChange={e => updateBehaviorRule(i, 'reaction', e.target.value)}
                           placeholder="proposer les produits similaires disponibles et demander une précision"
                           className="field-input flex-1 text-xs" />
@@ -3489,7 +3489,7 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
             {/* Disponibilité */}
             {activeSection === 'offers' && (
               <div className="space-y-5">
-                <div className="px-4 py-3 bg-emerald-50/80 border border-emerald-100 rounded-2xl text-[12px] text-emerald-800 flex gap-2.5 items-start">
+                <div className="px-4 py-3 bg-primary-50/80 border border-primary-100 rounded-2xl text-[12px] text-primary-800 flex gap-2.5 items-start">
                   <span className="flex-shrink-0 text-sm mt-0.5">🎁</span>
                   <span>Créez ici les offres commerciales que Rita a le droit d'utiliser. Elle ne proposera que les offres actives et respectera vos conditions.</span>
                 </div>
@@ -3539,7 +3539,7 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
                             </p>
                           </div>
                           <div className="flex items-center gap-2">
-                            <span className={`text-[10px] font-bold px-2 py-1 rounded-full ${offer.active ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>
+                            <span className={`text-[10px] font-bold px-2 py-1 rounded-full ${offer.active ? 'bg-primary-100 text-primary-700' : 'bg-gray-100 text-gray-500'}`}>
                               {offer.active ? 'Active' : 'Inactive'}
                             </span>
                             <button
@@ -3655,9 +3655,9 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
                   </div>
                   {(config.responseMode === 'both') && (
                     <div className="space-y-3 mt-2">
-                      <div className="flex items-center gap-2 px-3 py-2 bg-emerald-50 border border-emerald-100 rounded-lg">
-                        <span className="text-emerald-500 text-sm">✅</span>
-                        <p className="text-[11px] text-emerald-700">Rita envoie plus souvent un <strong>vocal</strong> pour les réponses longues, explications, mise en confiance et confirmations importantes, puis garde le <strong>texte</strong> pour les réponses plus rapides.</p>
+                      <div className="flex items-center gap-2 px-3 py-2 bg-primary-50 border border-primary-100 rounded-lg">
+                        <span className="text-primary-500 text-sm">✅</span>
+                        <p className="text-[11px] text-primary-700">Rita envoie plus souvent un <strong>vocal</strong> pour les réponses longues, explications, mise en confiance et confirmations importantes, puis garde le <strong>texte</strong> pour les réponses plus rapides.</p>
                       </div>
 
                       <div className="p-4 bg-white border border-purple-100 rounded-xl space-y-3">
@@ -3811,7 +3811,7 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
                           {fishVoiceStatus && (
                             <div className={`px-3 py-2 rounded-lg text-[11px] border ${
                               fishVoiceStatus.type === 'success'
-                                ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                                ? 'bg-primary-50 border-primary-200 text-primary-700'
                                 : 'bg-red-50 border-red-200 text-red-700'
                             }`}>
                               {fishVoiceStatus.msg}
@@ -3822,9 +3822,9 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
 
                       <div className="space-y-3">
                         <div>
-                          <div className="px-3 py-2.5 bg-emerald-50 border border-emerald-200 rounded-lg">
-                            <p className="text-[12px] font-medium text-emerald-800">API Fish.audio intégrée directement</p>
-                            <p className="text-[10px] text-emerald-700 mt-1">Aucune clé à saisir ici. Rita utilise automatiquement l'API Fish.audio configurée côté serveur.</p>
+                          <div className="px-3 py-2.5 bg-primary-50 border border-primary-200 rounded-lg">
+                            <p className="text-[12px] font-medium text-primary-800">API Fish.audio intégrée directement</p>
+                            <p className="text-[10px] text-primary-700 mt-1">Aucune clé à saisir ici. Rita utilise automatiquement l'API Fish.audio configurée côté serveur.</p>
                           </div>
                         </div>
 
@@ -3948,9 +3948,9 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
 
                   {/* ── ElevenLabs config (affiché seulement si ElevenLabs sélectionné) ── */}
                   {(config.ttsProvider || 'elevenlabs') === 'elevenlabs' && (<>
-                  <div className="flex items-center gap-2 px-3 py-2 bg-emerald-50 border border-emerald-100 rounded-lg">
-                    <span className="text-emerald-500 text-sm">&#10003;</span>
-                    <p className="text-xs text-emerald-700">
+                  <div className="flex items-center gap-2 px-3 py-2 bg-primary-50 border border-primary-100 rounded-lg">
+                    <span className="text-primary-500 text-sm">&#10003;</span>
+                    <p className="text-xs text-primary-700">
                       <strong>ElevenLabs pré-configuré</strong> &mdash; le mode vocal fonctionne directement. Vous pouvez personnaliser la voix et le modèle ci-dessous.
                     </p>
                   </div>
@@ -3993,9 +3993,9 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
                       ))}
                     </div>
                     {(config.voiceStylePreset || 'balanced') === 'natural' && (
-                      <div className="flex items-center gap-2 px-3 py-2 bg-emerald-50 border border-emerald-100 rounded-lg">
-                        <span className="text-emerald-500 text-sm">🎧</span>
-                        <p className="text-[11px] text-emerald-700">Le preset <strong>Voix plus réelle</strong> augmente le réalisme et la proximité de Rita pour les réponses vocales WhatsApp.</p>
+                      <div className="flex items-center gap-2 px-3 py-2 bg-primary-50 border border-primary-100 rounded-lg">
+                        <span className="text-primary-500 text-sm">🎧</span>
+                        <p className="text-[11px] text-primary-700">Le preset <strong>Voix plus réelle</strong> augmente le réalisme et la proximité de Rita pour les réponses vocales WhatsApp.</p>
                       </div>
                     )}
                   </div>
@@ -4223,7 +4223,7 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
           {/* Stats cards */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {[
-              { label: 'Statut', value: config.enabled ? 'Actif' : 'En pause', color: config.enabled ? 'text-emerald-600' : 'text-gray-400', icon: config.enabled ? '🟢' : '⏸️' },
+              { label: 'Statut', value: config.enabled ? 'Actif' : 'En pause', color: config.enabled ? 'text-primary-600' : 'text-gray-400', icon: config.enabled ? '🟢' : '⏸️' },
               { label: 'Autonomie', value: autonomyInfo.label, color: 'text-purple-600', icon: '🧠' },
               { label: 'Instances', value: `${instances.length}`, color: 'text-blue-600', icon: '📱' },
               { label: 'Technique', value: config.closingTechnique === 'soft' ? 'Douce' : config.closingTechnique === 'urgency' ? 'Urgence' : config.closingTechnique === 'social-proof' ? 'Sociale' : 'Valeur', color: 'text-amber-600', icon: '🎯' },
@@ -4295,8 +4295,8 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
 
               {/* Left: Agent info panel */}
               <div className="bg-[radial-gradient(circle_at_top,_rgba(236,253,245,0.9),_rgba(249,250,251,0.95)_45%,_rgba(255,255,255,1)_100%)] p-5 space-y-4 lg:order-1">
-                <div className="rounded-2xl border border-emerald-100 bg-white/90 p-4 shadow-sm">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-600">Style conversation</p>
+                <div className="rounded-2xl border border-primary-100 bg-white/90 p-4 shadow-sm">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-primary-600">Style conversation</p>
                   <p className="mt-2 text-[13px] leading-6 text-gray-700">Rita doit répondre comme une vendeuse camerounaise: simple, rassurante, sans blabla, sans signature à la fin.</p>
                 </div>
 
@@ -4328,12 +4328,12 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
               <div className="lg:order-2">
                 {/* WhatsApp header */}
                 <div className="px-4 py-3 bg-[linear-gradient(135deg,#075E54_0%,#0b7a6d_100%)] flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-emerald-300 to-teal-500 flex items-center justify-center text-white text-sm font-bold flex-shrink-0 shadow-sm">
+                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-primary-300 to-teal-500 flex items-center justify-center text-white text-sm font-bold flex-shrink-0 shadow-sm">
                     {config.agentName?.[0]?.toUpperCase() || 'R'}
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-white text-[14px] font-semibold">{config.agentName || 'Rita'}</p>
-                    <p className="text-emerald-200 text-[11px]">{simTyping ? 'en train d\'écrire...' : 'vendeuse en ligne'}</p>
+                    <p className="text-primary-200 text-[11px]">{simTyping ? 'en train d\'écrire...' : 'vendeuse en ligne'}</p>
                   </div>
                   <span className="text-[10px] font-semibold px-2.5 py-1 rounded-full flex-shrink-0 bg-white/15 text-white border border-white/10">Chat test</span>
                 </div>
@@ -4346,9 +4346,9 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
                   </div>
                   {simMessages.map((msg, i) => (
                     <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} flex-shrink-0 relative z-10`}>
-                      <div className={`max-w-[82%] rounded-2xl px-3.5 py-2.5 shadow-sm border ${msg.role === 'user' ? 'bg-[#dcf8c6] border-emerald-100 rounded-tr-sm' : 'bg-white border-white/70 rounded-tl-sm'}`}>
+                      <div className={`max-w-[82%] rounded-2xl px-3.5 py-2.5 shadow-sm border ${msg.role === 'user' ? 'bg-[#dcf8c6] border-primary-100 rounded-tr-sm' : 'bg-white border-white/70 rounded-tl-sm'}`}>
                         {msg.role === 'agent' && (
-                          <p className="text-[10px] font-semibold text-emerald-700 mb-1">
+                          <p className="text-[10px] font-semibold text-primary-700 mb-1">
                             {config.agentName || 'Rita'}
                           </p>
                         )}
@@ -4360,7 +4360,7 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
                   {simTyping && (
                     <div className="flex justify-start flex-shrink-0 relative z-10">
                       <div className="bg-white rounded-2xl rounded-tl-sm px-3.5 py-2.5 shadow-sm border border-white/70">
-                        <p className="text-[10px] font-semibold text-emerald-700 mb-1">{config.agentName || 'Rita'}</p>
+                        <p className="text-[10px] font-semibold text-primary-700 mb-1">{config.agentName || 'Rita'}</p>
                         <div className="flex items-center gap-1">
                           <span className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '0ms' }} />
                           <span className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '180ms' }} />

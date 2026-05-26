@@ -396,7 +396,7 @@ const ProductResearch = () => {
                 </div>
                 <div className="bg-gray-50 p-4 rounded-lg">
                   <p className="text-sm text-gray-500 mb-1">Bénéfice/unité</p>
-                  <p className="text-lg font-semibold text-emerald-600">
+                  <p className="text-lg font-semibold text-primary-600">
                     {(selectedProduct.sellPrice - selectedProduct.buyPrice).toLocaleString()} FCFA
                   </p>
                 </div>
@@ -538,13 +538,13 @@ const ProductResearch = () => {
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && searchProducts()}
-                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-600 focus:border-transparent"
+                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-600 focus:border-transparent"
               />
             </div>
             <button
               onClick={searchProducts}
               disabled={loading}
-              className="px-6 py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 flex items-center"
+              className="px-6 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 flex items-center"
             >
               {loading ? (
                 <>
@@ -654,7 +654,7 @@ const ProductResearch = () => {
                   onClick={() => setSortBy(sort.key)}
                   className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
                     sortBy === sort.key
-                      ? 'bg-emerald-600 text-white'
+                      ? 'bg-primary-600 text-white'
                       : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
                 >

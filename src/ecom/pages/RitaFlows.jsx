@@ -95,8 +95,8 @@ function ActionEditor({ action, onChange, groups }) {
   const needsWait = action.type === 'WAIT';
 
   return (
-    <div className="flex flex-wrap items-center gap-2 pl-6 border-l-2 border-emerald-200">
-      <span className="text-xs font-semibold text-emerald-600 uppercase">ALORS</span>
+    <div className="flex flex-wrap items-center gap-2 pl-6 border-l-2 border-primary-200">
+      <span className="text-xs font-semibold text-primary-600 uppercase">ALORS</span>
       <select value={action.type} onChange={e => onChange({ ...action, type: e.target.value })}
         className="text-sm border rounded-lg px-2 py-1.5 bg-white">
         {ACTION_TYPES.map(a => <option key={a.value} value={a.value}>{a.label}</option>)}
@@ -154,7 +154,7 @@ function RuleEditor({ rule, index, onChange, onRemove, groups }) {
           {rule.actions.length > 1 && <button onClick={() => removeAction(i)} className="text-xs text-red-400 mt-2">✕</button>}
         </div>
       ))}
-      <button onClick={addAction} className="text-xs text-emerald-600 font-medium hover:underline">+ Ajouter une action</button>
+      <button onClick={addAction} className="text-xs text-primary-600 font-medium hover:underline">+ Ajouter une action</button>
     </div>
   );
 }
@@ -175,10 +175,10 @@ function FlowEditor({ flow, index, onChange, onRemove, groups }) {
     <div className="bg-white border border-gray-200 rounded-2xl p-5 space-y-4 shadow-sm">
       <div className="flex items-center gap-3">
         <input type="text" value={flow.name} onChange={e => update('name', e.target.value)}
-          className="text-lg font-bold border-b border-transparent hover:border-gray-300 focus:border-emerald-500 outline-none flex-1 bg-transparent" />
+          className="text-lg font-bold border-b border-transparent hover:border-gray-300 focus:border-primary-500 outline-none flex-1 bg-transparent" />
         <label className="flex items-center gap-1.5 text-sm">
           <input type="checkbox" checked={flow.enabled} onChange={e => update('enabled', e.target.checked)}
-            className="w-4 h-4 rounded text-emerald-600" />
+            className="w-4 h-4 rounded text-primary-600" />
           Actif
         </label>
         <button onClick={onRemove} className="text-xs text-red-500 hover:text-red-700 font-medium">Supprimer</button>
@@ -191,7 +191,7 @@ function FlowEditor({ flow, index, onChange, onRemove, groups }) {
           {TRIGGER_TYPES.map(t => (
             <button key={t.value} onClick={() => toggleTrigger(t.value)}
               className={`text-xs px-3 py-1.5 rounded-full border transition ${flow.triggers.includes(t.value)
-                ? 'bg-emerald-50 border-emerald-300 text-emerald-700 font-semibold'
+                ? 'bg-primary-50 border-primary-300 text-primary-700 font-semibold'
                 : 'bg-white border-gray-200 text-gray-500'}`}>
               {t.label}
             </button>
@@ -205,7 +205,7 @@ function FlowEditor({ flow, index, onChange, onRemove, groups }) {
         {flow.rules.map((rule, i) => (
           <RuleEditor key={i} rule={rule} index={i} onChange={r => updateRule(i, r)} onRemove={() => removeRule(i)} groups={groups} />
         ))}
-        <button onClick={addRule} className="text-sm text-emerald-600 font-medium hover:underline">+ Ajouter une règle</button>
+        <button onClick={addRule} className="text-sm text-primary-600 font-medium hover:underline">+ Ajouter une règle</button>
       </div>
     </div>
   );
@@ -257,7 +257,7 @@ function ScheduledPostRow({ post, index, onChange, onRemove, products }) {
       <div className="flex flex-wrap gap-1">
         {DAYS.map(d => (
           <button key={d} onClick={() => toggleDay(d)}
-            className={`text-[11px] px-2 py-0.5 rounded-full border transition ${(post.days || []).includes(d) ? 'bg-emerald-50 border-emerald-300 text-emerald-700 font-semibold' : 'bg-white border-gray-200 text-gray-400'}`}>
+            className={`text-[11px] px-2 py-0.5 rounded-full border transition ${(post.days || []).includes(d) ? 'bg-primary-50 border-primary-300 text-primary-700 font-semibold' : 'bg-white border-gray-200 text-gray-400'}`}>
             {d.slice(0, 3)}
           </button>
         ))}
@@ -366,7 +366,7 @@ export default function RitaFlows() {
   if (loading || !config) {
     return (
       <div className="flex items-center justify-center min-h-[50vh]">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600" />
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600" />
       </div>
     );
   }
@@ -382,18 +382,18 @@ export default function RitaFlows() {
         <div className="flex items-center gap-3">
           <label className="flex items-center gap-2 bg-gray-100 rounded-xl px-4 py-2">
             <input type="checkbox" checked={config.enabled} onChange={e => updateConfig('enabled', e.target.checked)}
-              className="w-4 h-4 rounded text-emerald-600" />
+              className="w-4 h-4 rounded text-primary-600" />
             <span className="text-sm font-semibold">{config.enabled ? 'Activé' : 'Désactivé'}</span>
           </label>
           <button onClick={save} disabled={saving}
-            className="px-5 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 disabled:opacity-50 transition">
+            className="px-5 py-2.5 rounded-xl bg-primary-600 text-white text-sm font-semibold hover:bg-primary-700 disabled:opacity-50 transition">
             {saving ? 'Enregistrement...' : '💾 Sauvegarder'}
           </button>
         </div>
       </div>
 
       {saveMsg && (
-        <div className={`text-sm px-4 py-2 rounded-xl ${saveMsg.ok ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
+        <div className={`text-sm px-4 py-2 rounded-xl ${saveMsg.ok ? 'bg-primary-50 text-primary-700' : 'bg-red-50 text-red-700'}`}>
           {saveMsg.text}
         </div>
       )}
@@ -426,7 +426,7 @@ export default function RitaFlows() {
               onChange={f => updateFlow(i, f)} onRemove={() => removeFlow(i)} groups={whatsappGroups} />
           ))}
           <button onClick={addFlow}
-            className="w-full py-3 rounded-xl border-2 border-dashed border-gray-300 text-sm font-semibold text-gray-500 hover:border-emerald-400 hover:text-emerald-600 transition">
+            className="w-full py-3 rounded-xl border-2 border-dashed border-gray-300 text-sm font-semibold text-gray-500 hover:border-primary-400 hover:text-primary-600 transition">
             + Nouveau flow
           </button>
         </div>
@@ -443,7 +443,7 @@ export default function RitaFlows() {
                 placeholder="Nom du groupe (ex: 🛒 Clients VIP)"
                 className="flex-1 text-sm border rounded-lg px-3 py-2" />
               <button onClick={createGroup} disabled={creatingGroup || !newGroupName.trim()}
-                className="px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 disabled:opacity-50 transition whitespace-nowrap">
+                className="px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-semibold hover:bg-primary-700 disabled:opacity-50 transition whitespace-nowrap">
                 {creatingGroup ? 'Création...' : 'Créer'}
               </button>
             </div>
@@ -480,7 +480,7 @@ export default function RitaFlows() {
                   <div>
                     <h4 className="text-sm font-bold">{group.name || group.groupJid}</h4>
                     {group.inviteUrl && (
-                      <a href={group.inviteUrl} target="_blank" rel="noreferrer" className="text-xs text-emerald-600 hover:underline">
+                      <a href={group.inviteUrl} target="_blank" rel="noreferrer" className="text-xs text-primary-600 hover:underline">
                         🔗 {group.inviteUrl}
                       </a>
                     )}
@@ -495,7 +495,7 @@ export default function RitaFlows() {
                       onChange={p => updateScheduledPost(gi, pi, p)} onRemove={() => removeScheduledPost(gi, pi)} />
                   ))}
                   <button onClick={() => addScheduledPost(gi)}
-                    className="text-xs text-emerald-600 font-medium hover:underline">
+                    className="text-xs text-primary-600 font-medium hover:underline">
                     + Ajouter un post planifié
                   </button>
                 </div>
@@ -522,7 +522,7 @@ export default function RitaFlows() {
             <div className="flex items-center gap-3">
               <input type="checkbox" checked={config.settings?.autoCreateGroupPerProduct || false}
                 onChange={e => updateSettings('autoCreateGroupPerProduct', e.target.checked)}
-                className="w-4 h-4 rounded text-emerald-600" />
+                className="w-4 h-4 rounded text-primary-600" />
               <div>
                 <span className="text-sm font-medium text-gray-700">Créer un groupe automatiquement par produit</span>
                 <p className="text-xs text-gray-400">Quand une commande est confirmée, Rita crée un groupe pour ce produit</p>

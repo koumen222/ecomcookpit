@@ -50,19 +50,19 @@ const DemoPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-emerald-50 to-blue-50 py-12 px-4">
+    <div className="min-h-screen bg-gradient-to-br from-primary-50 to-blue-50 py-12 px-4">
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="text-center mb-12">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-emerald-100 rounded-full mb-4">
-            <Globe className="w-8 h-8 text-emerald-600" />
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-primary-100 rounded-full mb-4">
+            <Globe className="w-8 h-8 text-primary-600" />
           </div>
           <h1 className="text-4xl font-bold text-gray-900 mb-4">
             Générateur de Noms de Domaine
           </h1>
           <p className="text-xl text-gray-600 max-w-2xl mx-auto">
             Transformez automatiquement le nom de votre boutique en un domaine web professionnel au format 
-            <span className="font-semibold text-emerald-600"> nom-boutique.scalor.net</span>
+            <span className="font-semibold text-primary-600"> nom-boutique.scalor.net</span>
           </p>
         </div>
 
@@ -78,13 +78,13 @@ const DemoPage = () => {
                 value={storeName}
                 onChange={(e) => setStoreName(e.target.value)}
                 placeholder="Ex: Ma Belle Boutique"
-                className="flex-1 px-4 py-3 border border-gray-300 rounded-xl text-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                className="flex-1 px-4 py-3 border border-gray-300 rounded-xl text-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 onKeyPress={(e) => e.key === 'Enter' && generateDomain(storeName)}
               />
               <button
                 onClick={() => generateDomain(storeName)}
                 disabled={loading || !storeName.trim()}
-                className="px-6 py-3 bg-emerald-600 text-white rounded-xl font-semibold hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"
+                className="px-6 py-3 bg-primary-600 text-white rounded-xl font-semibold hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"
               >
                 {loading ? (
                   <>
@@ -111,10 +111,10 @@ const DemoPage = () => {
 
           {/* Result Display */}
           {generatedDomain && (
-            <div className="p-6 bg-emerald-50 border border-emerald-200 rounded-xl">
+            <div className="p-6 bg-primary-50 border border-primary-200 rounded-xl">
               <div className="flex items-center gap-3 mb-4">
-                <CheckCircle className="w-6 h-6 text-emerald-600" />
-                <h3 className="text-lg font-semibold text-emerald-900">Domaine généré avec succès!</h3>
+                <CheckCircle className="w-6 h-6 text-primary-600" />
+                <h3 className="text-lg font-semibold text-primary-900">Domaine généré avec succès!</h3>
               </div>
               
               <div className="space-y-3">
@@ -132,7 +132,7 @@ const DemoPage = () => {
                     href={generatedDomain.storeUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="font-mono font-semibold text-emerald-600 hover:text-emerald-700 hover:underline"
+                    className="font-mono font-semibold text-primary-600 hover:text-primary-700 hover:underline"
                   >
                     {generatedDomain.storeUrl}
                   </a>
@@ -154,7 +154,7 @@ const DemoPage = () => {
               <button
                 key={index}
                 onClick={() => handleExampleClick(example)}
-                className="p-3 text-left border border-gray-200 rounded-lg hover:border-emerald-300 hover:bg-emerald-50 transition-colors"
+                className="p-3 text-left border border-gray-200 rounded-lg hover:border-primary-300 hover:bg-primary-50 transition-colors"
               >
                 <div className="font-medium text-gray-900">{example}</div>
                 <div className="text-sm text-gray-500 mt-1">

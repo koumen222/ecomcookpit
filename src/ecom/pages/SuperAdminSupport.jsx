@@ -7,7 +7,7 @@ import { playNewOrderSound } from '../services/soundService.js';
 const WORKFLOW_CFG = {
   ai: { label: 'IA', bg: 'bg-sky-50', text: 'text-sky-700', dot: 'bg-sky-500' },
   pending_admin: { label: 'En attente', bg: 'bg-amber-50', text: 'text-amber-700', dot: 'bg-amber-500' },
-  resolved: { label: 'Résolu', bg: 'bg-emerald-50', text: 'text-emerald-700', dot: 'bg-emerald-500' },
+  resolved: { label: 'Résolu', bg: 'bg-primary-50', text: 'text-primary-700', dot: 'bg-primary-500' },
 };
 
 const PRIORITY_CFG = {
@@ -319,7 +319,7 @@ const SuperAdminSupport = () => {
 
       {/* ── Toast ───────────────────────────────────────────── */}
       {toast && (
-        <div className={`fixed top-4 right-4 z-50 flex items-center gap-2.5 px-4 py-3 rounded-xl shadow-lg text-sm font-medium transition-all ${toast.type === 'error' ? 'bg-red-50 border border-red-200 text-red-700' : 'bg-emerald-50 border border-emerald-200 text-emerald-800'}`}>
+        <div className={`fixed top-4 right-4 z-50 flex items-center gap-2.5 px-4 py-3 rounded-xl shadow-lg text-sm font-medium transition-all ${toast.type === 'error' ? 'bg-red-50 border border-red-200 text-red-700' : 'bg-primary-50 border border-primary-200 text-primary-800'}`}>
           {toast.type === 'error'
             ? <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path strokeLinecap="round" d="M12 8v4m0 4h.01"/></svg>
             : <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg>
@@ -363,10 +363,10 @@ const SuperAdminSupport = () => {
                       value={userSearch}
                       onChange={e => onUserSearchChange(e.target.value)}
                       placeholder="Rechercher par nom ou email..."
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                     />
                     {userSearching && (
-                      <div className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 border-2 border-emerald-200 border-t-emerald-600 rounded-full animate-spin" />
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 border-2 border-primary-200 border-t-primary-600 rounded-full animate-spin" />
                     )}
                   </div>
                   {userResults.length > 0 && !newMsgUserId && (
@@ -378,7 +378,7 @@ const SuperAdminSupport = () => {
                           onClick={() => { setNewMsgUserId(u._id); setUserSearch(u.name || u.email); setUserResults([]); }}
                           className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center gap-2 border-b border-gray-50 last:border-0"
                         >
-                          <div className="w-7 h-7 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-xs font-bold">
+                          <div className="w-7 h-7 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center text-xs font-bold">
                             {(u.name || u.email || '?').charAt(0).toUpperCase()}
                           </div>
                           <div>
@@ -390,8 +390,8 @@ const SuperAdminSupport = () => {
                     </div>
                   )}
                   {newMsgUserId && (
-                    <div className="mt-1 flex items-center gap-2 px-3 py-1.5 bg-emerald-50 rounded-lg text-sm">
-                      <span className="text-emerald-700 font-medium flex-1">{userSearch}</span>
+                    <div className="mt-1 flex items-center gap-2 px-3 py-1.5 bg-primary-50 rounded-lg text-sm">
+                      <span className="text-primary-700 font-medium flex-1">{userSearch}</span>
                       <button type="button" onClick={() => { setNewMsgUserId(''); setUserSearch(''); }} className="text-gray-400 hover:text-gray-600">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                       </button>
@@ -414,7 +414,7 @@ const SuperAdminSupport = () => {
                   value={newMsgSubject}
                   onChange={e => setNewMsgSubject(e.target.value)}
                   placeholder="Ex: Mise à jour importante..."
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                   maxLength={200}
                 />
               </div>
@@ -426,7 +426,7 @@ const SuperAdminSupport = () => {
                   onChange={e => setNewMsgText(e.target.value)}
                   placeholder="Votre message..."
                   rows={5}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 resize-none"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 resize-none"
                   maxLength={2000}
                   required
                 />
@@ -440,7 +440,7 @@ const SuperAdminSupport = () => {
                 <button
                   type="submit"
                   disabled={newMsgSending || !newMsgText.trim() || (newMsgMode === 'user' && !newMsgUserId)}
-                  className="px-5 py-2 text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 rounded-lg transition-colors"
+                  className="px-5 py-2 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 disabled:opacity-50 rounded-lg transition-colors"
                 >
                   {newMsgSending ? 'Envoi...' : newMsgMode === 'broadcast' ? 'Envoyer à tous' : 'Envoyer'}
                 </button>
@@ -454,7 +454,7 @@ const SuperAdminSupport = () => {
         <div className="px-4 py-4 border-b border-gray-100">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-600 to-teal-600 flex items-center justify-center shadow-sm">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary-600 to-teal-600 flex items-center justify-center shadow-sm">
                 <svg className="w-4.5 h-4.5 w-5 h-5 text-white" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/>
                 </svg>
@@ -472,7 +472,7 @@ const SuperAdminSupport = () => {
           {/* New message button */}
           <button
             onClick={() => setShowNewMsg(true)}
-            className="w-full mb-3 flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors"
+            className="w-full mb-3 flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-lg transition-colors"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
             Nouveau message
@@ -485,7 +485,7 @@ const SuperAdminSupport = () => {
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Rechercher…"
-              className="w-full pl-8 pr-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-emerald-400 focus:bg-white transition"
+              className="w-full pl-8 pr-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-primary-400 focus:bg-white transition"
             />
           </div>
 
@@ -494,7 +494,7 @@ const SuperAdminSupport = () => {
               <button
                 key={value}
                 onClick={() => setFilterWorkflow(value)}
-                className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition ${filterWorkflow === value ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition ${filterWorkflow === value ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
               >
                 {value === 'all' ? 'Tous' : WORKFLOW_CFG[value]?.label}
               </button>
@@ -505,7 +505,7 @@ const SuperAdminSupport = () => {
             <select
               value={filterPriority}
               onChange={(e) => setFilterPriority(e.target.value)}
-              className="px-3 py-2 text-xs bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-emerald-400"
+              className="px-3 py-2 text-xs bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-primary-400"
             >
               <option value="all">Toutes priorités</option>
               {Object.entries(PRIORITY_CFG).map(([value, cfg]) => (
@@ -516,7 +516,7 @@ const SuperAdminSupport = () => {
             <select
               value={filterWorkspace}
               onChange={(e) => setFilterWorkspace(e.target.value)}
-              className="px-3 py-2 text-xs bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-emerald-400"
+              className="px-3 py-2 text-xs bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-primary-400"
             >
               <option value="all">Tous workspaces</option>
               {workspaceOptions.map((workspace) => (
@@ -529,7 +529,7 @@ const SuperAdminSupport = () => {
         <div className="flex-1 overflow-y-auto">
           {loading ? (
             <div className="flex flex-col items-center justify-center h-40 gap-3">
-              <div className="w-8 h-8 rounded-full border-2 border-gray-200 border-t-emerald-600 animate-spin" />
+              <div className="w-8 h-8 rounded-full border-2 border-gray-200 border-t-primary-600 animate-spin" />
               <p className="text-xs text-gray-400">Chargement…</p>
             </div>
           ) : conversations.length === 0 ? (
@@ -552,11 +552,11 @@ const SuperAdminSupport = () => {
                   <button
                     key={conv.sessionId}
                     onClick={() => selectConv(conv)}
-                    className={`w-full text-left px-4 py-3.5 transition-colors hover:bg-gray-50 ${isActive ? 'bg-emerald-50 border-l-2 border-emerald-500' : ''}`}
+                    className={`w-full text-left px-4 py-3.5 transition-colors hover:bg-gray-50 ${isActive ? 'bg-primary-50 border-l-2 border-primary-500' : ''}`}
                   >
                     <div className="flex items-start gap-3">
                       {/* Avatar */}
-                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-sm font-bold flex-shrink-0 mt-0.5 ${isAuthUser ? 'bg-indigo-600 text-white' : isActive ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-500'}`}>
+                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-sm font-bold flex-shrink-0 mt-0.5 ${isAuthUser ? 'bg-indigo-600 text-white' : isActive ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-500'}`}>
                         {displayName.charAt(0).toUpperCase()}
                       </div>
                       <div className="flex-1 min-w-0">
@@ -604,8 +604,8 @@ const SuperAdminSupport = () => {
       <div className="flex-1 flex flex-col overflow-hidden">
         {!selected ? (
           <div className="flex flex-col items-center justify-center h-full gap-4 text-center px-6">
-            <div className="w-16 h-16 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center">
-              <svg className="w-8 h-8 text-emerald-500" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+            <div className="w-16 h-16 rounded-2xl bg-primary-50 border border-primary-100 flex items-center justify-center">
+              <svg className="w-8 h-8 text-primary-500" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/>
               </svg>
             </div>
@@ -616,13 +616,13 @@ const SuperAdminSupport = () => {
           </div>
         ) : detailLoading && !detail ? (
           <div className="flex flex-col items-center justify-center h-full gap-3">
-            <div className="w-8 h-8 rounded-full border-2 border-gray-200 border-t-emerald-600 animate-spin" />
+            <div className="w-8 h-8 rounded-full border-2 border-gray-200 border-t-primary-600 animate-spin" />
           </div>
         ) : detail ? (
           <>
             <div className="flex items-center justify-between px-5 py-3.5 bg-white border-b border-gray-100">
               <div className="flex items-center gap-3">
-                <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-white font-bold text-sm ${detail.userId ? 'bg-indigo-600' : 'bg-emerald-600'}`}>
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-white font-bold text-sm ${detail.userId ? 'bg-indigo-600' : 'bg-primary-600'}`}>
                   {getDisplayName(detail).charAt(0).toUpperCase()}
                 </div>
                 <div>
@@ -651,7 +651,7 @@ const SuperAdminSupport = () => {
                 <select
                   value={detail.workflowStatus || 'pending_admin'}
                   onChange={e => changeWorkflowStatus(detail.sessionId, e.target.value)}
-                  className="text-xs font-semibold border border-gray-200 rounded-lg px-2 py-1.5 bg-white outline-none focus:border-emerald-400 cursor-pointer"
+                  className="text-xs font-semibold border border-gray-200 rounded-lg px-2 py-1.5 bg-white outline-none focus:border-primary-400 cursor-pointer"
                 >
                   <option value="pending_admin">En attente</option>
                   <option value="ai">IA</option>
@@ -721,13 +721,13 @@ const SuperAdminSupport = () => {
                       onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendReply(e); } }}
                       placeholder="Répondre en tant que support humain…"
                       rows={2}
-                      className="w-full resize-none text-sm text-gray-800 placeholder-gray-400 bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 outline-none focus:border-emerald-400 focus:bg-white transition leading-relaxed"
+                      className="w-full resize-none text-sm text-gray-800 placeholder-gray-400 bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 outline-none focus:border-primary-400 focus:bg-white transition leading-relaxed"
                     />
                   </div>
                   <button
                     type="submit"
                     disabled={!reply.trim() || sending}
-                    className="w-10 h-10 mb-0.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-white flex items-center justify-center transition flex-shrink-0"
+                    className="w-10 h-10 mb-0.5 rounded-xl bg-primary-600 hover:bg-primary-500 disabled:opacity-40 disabled:cursor-not-allowed text-white flex items-center justify-center transition flex-shrink-0"
                   >
                     {sending ? (
                       <div className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
@@ -743,7 +743,7 @@ const SuperAdminSupport = () => {
             ) : (
               <div className="px-5 py-3 bg-gray-50 border-t border-gray-100 text-center">
                 <p className="text-xs text-gray-400 font-medium">Cette conversation est fermée.</p>
-                <button onClick={() => changeWorkflowStatus(detail.sessionId, 'pending_admin')} className="mt-1 text-xs text-emerald-600 font-semibold hover:underline">Rouvrir</button>
+                <button onClick={() => changeWorkflowStatus(detail.sessionId, 'pending_admin')} className="mt-1 text-xs text-primary-600 font-semibold hover:underline">Rouvrir</button>
               </div>
             )}
           </>

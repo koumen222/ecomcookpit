@@ -72,7 +72,7 @@ const EDITOR_SECTIONS = [
 // Fields that can be expanded for inline editing
 const EDITABLE_FIELD_NAMES = new Set(['address', 'fullname', 'city', 'cta_button']);
 
-const inputCls = 'w-full px-2.5 py-2 rounded-xl border border-gray-200 text-[12px] focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-200';
+const inputCls = 'w-full px-2.5 py-2 rounded-xl border border-gray-200 text-[12px] focus:outline-none focus:border-primary-400 focus:ring-1 focus:ring-primary-200';
 
 const ColorRow = ({ label, value, onChange }) => (
   <div>
@@ -147,7 +147,7 @@ const FieldInlineEditor = ({ field, onFieldChange }) => {
             <button key={id} type="button" onClick={() => update('icon', id)} title={label}
               className={`flex flex-col items-center gap-0.5 p-1.5 rounded-lg border-2 transition-all ${
                 currentIcon === id
-                  ? 'border-emerald-400 bg-emerald-50 text-emerald-700'
+                  ? 'border-primary-400 bg-primary-50 text-primary-700'
                   : 'border-transparent bg-gray-50 text-gray-400 hover:bg-gray-100 hover:text-gray-600'
               }`}>
               <Icon size={13} />
@@ -201,7 +201,7 @@ const FieldInlineEditor = ({ field, onFieldChange }) => {
             <div className="text-[11px] font-semibold text-gray-500 mb-1">
               Épaisseur bordure — {borderW}px
             </div>
-            <input type="range" min="0" max="6" className="w-full mt-2 accent-emerald-500"
+            <input type="range" min="0" max="6" className="w-full mt-2 accent-primary-500"
               value={borderW} onChange={e => update('borderWidth', parseInt(e.target.value))} />
           </div>
         </div>
@@ -212,14 +212,14 @@ const FieldInlineEditor = ({ field, onFieldChange }) => {
             <div className="text-[11px] font-semibold text-gray-500 mb-1">
               Coins arrondis — {radius}px
             </div>
-            <input type="range" min="0" max="40" className="w-full mt-2 accent-emerald-500"
+            <input type="range" min="0" max="40" className="w-full mt-2 accent-primary-500"
               value={radius} onChange={e => update('borderRadius', parseInt(e.target.value))} />
           </div>
           <div>
             <div className="text-[11px] font-semibold text-gray-500 mb-1">
               Ombre — {shadowVal}
             </div>
-            <input type="range" min="0" max="30" className="w-full mt-2 accent-emerald-500"
+            <input type="range" min="0" max="30" className="w-full mt-2 accent-primary-500"
               value={shadowVal} onChange={e => update('shadow', parseInt(e.target.value))} />
           </div>
         </div>
@@ -310,7 +310,7 @@ const FormFieldsEditor = ({ config, onChange }) => {
             <button key={id} onClick={() => updateGeneral('formType', id)}
               className={`flex-1 flex items-center gap-2.5 px-4 py-3 rounded-xl text-sm font-medium border-2 transition-all ${
                 config.general.formType === id
-                  ? 'border-emerald-400 bg-emerald-50 text-emerald-700 shadow-sm'
+                  ? 'border-primary-400 bg-primary-50 text-primary-700 shadow-sm'
                   : 'border-gray-150 bg-white text-gray-500 hover:border-gray-200'
               }`}>
               <span className="text-base">{icon}</span>
@@ -337,7 +337,7 @@ const FormFieldsEditor = ({ config, onChange }) => {
             return (
               <div key={field.name}
                 className={`rounded-xl border transition-all overflow-hidden ${
-                  field.enabled ? 'border-emerald-200/60 bg-emerald-50/40' : 'border-gray-100 bg-gray-50/50'
+                  field.enabled ? 'border-primary-200/60 bg-primary-50/40' : 'border-gray-100 bg-gray-50/50'
                 }`}>
                 <div className="flex items-center gap-2.5 px-3.5 py-2.5">
                   <GripVertical size={14} className="text-gray-300 shrink-0" />
@@ -352,7 +352,7 @@ const FormFieldsEditor = ({ config, onChange }) => {
                       <button type="button"
                         onClick={() => setExpandedField(isExpanded ? null : index)}
                         className={`p-1.5 rounded-lg transition-colors ${
-                          isExpanded ? 'bg-emerald-200 text-emerald-700' : 'hover:bg-white text-gray-400 hover:text-gray-600'
+                          isExpanded ? 'bg-primary-200 text-primary-700' : 'hover:bg-white text-gray-400 hover:text-gray-600'
                         }`}>
                         <Settings2 size={13} />
                       </button>
@@ -368,7 +368,7 @@ const FormFieldsEditor = ({ config, onChange }) => {
                   </div>
                   <button onClick={() => toggleField(index)}
                     className={`relative inline-flex h-[22px] w-10 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ${
-                      field.enabled ? 'bg-emerald-500' : 'bg-gray-200'
+                      field.enabled ? 'bg-primary-500' : 'bg-gray-200'
                     }`}>
                     <span className={`inline-block h-[18px] w-[18px] rounded-full bg-white shadow-sm transition duration-200 ${
                       field.enabled ? 'translate-x-[18px]' : 'translate-x-0'
@@ -386,12 +386,12 @@ const FormFieldsEditor = ({ config, onChange }) => {
 
       {/* ── CTA button editor — always visible, dedicated section ── */}
       {ctaField && (
-        <div className="rounded-2xl border-2 border-emerald-200 bg-white overflow-hidden">
+        <div className="rounded-2xl border-2 border-primary-200 bg-white overflow-hidden">
           {/* Section header */}
-          <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-emerald-50 to-emerald-50/30 border-b border-emerald-100">
+          <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-primary-50 to-primary-50/30 border-b border-primary-100">
             <div className="flex items-center gap-2.5">
-              <div className="w-7 h-7 rounded-lg bg-emerald-100 flex items-center justify-center">
-                <MousePointerClick size={14} className="text-emerald-600" />
+              <div className="w-7 h-7 rounded-lg bg-primary-100 flex items-center justify-center">
+                <MousePointerClick size={14} className="text-primary-600" />
               </div>
               <div>
                 <div className="text-[13px] font-bold text-gray-800">Bouton du formulaire</div>
@@ -401,7 +401,7 @@ const FormFieldsEditor = ({ config, onChange }) => {
             {/* Enable/disable toggle */}
             <button onClick={() => toggleField(ctaIndex)}
               className={`relative inline-flex h-[22px] w-10 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ${
-                ctaField.enabled ? 'bg-emerald-500' : 'bg-gray-200'
+                ctaField.enabled ? 'bg-primary-500' : 'bg-gray-200'
               }`}>
               <span className={`inline-block h-[18px] w-[18px] rounded-full bg-white shadow-sm transition duration-200 ${
                 ctaField.enabled ? 'translate-x-[18px]' : 'translate-x-0'
@@ -437,7 +437,7 @@ const ProductSelector = ({ products, selected, onSelect, storeSubdomain }) => {
         <div className="relative flex-1 min-w-0">
           <button
             onClick={() => setOpen(o => !o)}
-            className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 bg-white hover:border-emerald-300 transition-colors text-left"
+            className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 bg-white hover:border-primary-300 transition-colors text-left"
           >
             {product?.images?.[0]?.url && (
               <img src={product.images[0].url} alt="" className="w-5 h-5 rounded object-cover shrink-0" />
@@ -453,7 +453,7 @@ const ProductSelector = ({ products, selected, onSelect, storeSubdomain }) => {
                 <button
                   key={p._id}
                   onClick={() => { onSelect(p); setOpen(false); }}
-                  className={`w-full flex items-center gap-2.5 px-3 py-2 hover:bg-gray-50 transition-colors text-left ${p._id === product?._id ? 'bg-emerald-50' : ''}`}
+                  className={`w-full flex items-center gap-2.5 px-3 py-2 hover:bg-gray-50 transition-colors text-left ${p._id === product?._id ? 'bg-primary-50' : ''}`}
                 >
                   {p.images?.[0]?.url && (
                     <img src={p.images[0].url} alt="" className="w-7 h-7 rounded object-cover shrink-0" />
@@ -462,7 +462,7 @@ const ProductSelector = ({ products, selected, onSelect, storeSubdomain }) => {
                     <div className="text-[12px] font-semibold text-gray-800 truncate">{p.name}</div>
                     <div className="text-[10px] text-gray-400 font-mono truncate">/product/{p.slug}</div>
                   </div>
-                  {p._id === product?._id && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />}
+                  {p._id === product?._id && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-primary-500 shrink-0" />}
                 </button>
               ))}
             </div>
@@ -472,14 +472,14 @@ const ProductSelector = ({ products, selected, onSelect, storeSubdomain }) => {
 
       {/* URL stable info */}
       {productUrl && (
-        <div className="mt-2 flex items-center gap-2 px-2 py-1.5 bg-emerald-50 rounded-lg border border-emerald-100">
-          <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
-          <span className="text-[10px] text-emerald-700 font-medium truncate flex-1">{productUrl}</span>
+        <div className="mt-2 flex items-center gap-2 px-2 py-1.5 bg-primary-50 rounded-lg border border-primary-100">
+          <div className="w-1.5 h-1.5 rounded-full bg-primary-500 shrink-0" />
+          <span className="text-[10px] text-primary-700 font-medium truncate flex-1">{productUrl}</span>
           <a
             href={productUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="shrink-0 text-emerald-600 hover:text-emerald-800 transition-colors"
+            className="shrink-0 text-primary-600 hover:text-primary-800 transition-colors"
             title="Voir la page produit"
           >
             <ExternalLink size={11} />
@@ -566,8 +566,8 @@ const ProductSettingsPage = () => {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <div className="flex flex-col items-center gap-3">
-          <div className="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center">
-            <Loader2 size={24} className="animate-spin text-emerald-500" />
+          <div className="w-12 h-12 rounded-2xl bg-primary-50 flex items-center justify-center">
+            <Loader2 size={24} className="animate-spin text-primary-500" />
           </div>
           <span className="text-sm font-medium text-gray-500">Chargement du builder…</span>
         </div>
@@ -631,7 +631,7 @@ const ProductSettingsPage = () => {
       <div className="flex-none bg-white border-b border-gray-200 px-4 sm:px-6">
         <div className="flex items-center justify-between h-14">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center shrink-0 shadow-sm">
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center shrink-0 shadow-sm">
               <Sparkles size={16} className="text-white" />
             </div>
             <div className="min-w-0">
@@ -653,7 +653,7 @@ const ProductSettingsPage = () => {
               onClick={() => setShowMobilePreview(!showMobilePreview)}
               className={`lg:hidden flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
                 showMobilePreview
-                  ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
+                  ? 'border-primary-300 bg-primary-50 text-primary-700'
                   : 'border-gray-200 bg-white text-gray-500 hover:bg-gray-50'
               }`}
             >
@@ -686,7 +686,7 @@ const ProductSettingsPage = () => {
               className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold text-white transition-all shadow-sm disabled:opacity-70 ${
                 saved
                   ? 'bg-green-500 shadow-green-200'
-                  : 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-200'
+                  : 'bg-primary-600 hover:bg-primary-700 shadow-primary-200'
               }`}
             >
               {saving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
@@ -725,20 +725,20 @@ const ProductSettingsPage = () => {
                       onClick={() => toggleSection(id)}
                       className={`w-full flex items-center gap-3 px-4 py-3.5 text-left transition-all ${
                         isOpen
-                          ? 'bg-gradient-to-r from-emerald-50/80 to-white'
+                          ? 'bg-gradient-to-r from-primary-50/80 to-white'
                           : 'hover:bg-gray-50/70'
                       }`}
                     >
                       <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-colors ${
                         isOpen
-                          ? 'bg-emerald-100 text-emerald-600'
+                          ? 'bg-primary-100 text-primary-600'
                           : 'bg-gray-100 text-gray-400'
                       }`}>
                         <Icon size={16} />
                       </div>
                       <div className="flex-1 min-w-0">
                         <span className={`text-[13px] font-bold block leading-tight ${
-                          isOpen ? 'text-emerald-800' : 'text-gray-700'
+                          isOpen ? 'text-primary-800' : 'text-gray-700'
                         }`}>
                           {label}
                         </span>
@@ -749,7 +749,7 @@ const ProductSettingsPage = () => {
                       <ChevronRight
                         size={16}
                         className={`text-gray-300 transition-transform duration-200 shrink-0 ${
-                          isOpen ? 'rotate-90 text-emerald-400' : ''
+                          isOpen ? 'rotate-90 text-primary-400' : ''
                         }`}
                       />
                     </button>

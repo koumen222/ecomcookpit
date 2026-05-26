@@ -533,10 +533,10 @@ export default function StoreDashboard() {
       )}
 
       {/* Metrics */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-px bg-emerald-100 rounded-xl shadow-[0_14px_30px_-20px_rgba(16,24,40,0.28)] overflow-hidden">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-px bg-primary-100 rounded-xl shadow-[0_14px_30px_-20px_rgba(16,24,40,0.28)] overflow-hidden">
         {metrics.map((m, i) => (
           <button key={i} onClick={() => setChartMetric(m.key)}
-            className={`bg-white px-4 sm:px-5 py-3.5 sm:py-4 text-left shadow-[0_8px_18px_-14px_rgba(16,24,40,0.28)] transition-all hover:bg-gray-50 hover:shadow-[0_16px_30px_-18px_rgba(16,24,40,0.34)] ${chartMetric === m.key ? 'ring-inset ring-1 ring-emerald-500' : ''}`}>
+            className={`bg-white px-4 sm:px-5 py-3.5 sm:py-4 text-left shadow-[0_8px_18px_-14px_rgba(16,24,40,0.28)] transition-all hover:bg-gray-50 hover:shadow-[0_16px_30px_-18px_rgba(16,24,40,0.34)] ${chartMetric === m.key ? 'ring-inset ring-1 ring-primary-500' : ''}`}>
             <p className="text-[10px] sm:text-[11px] font-medium text-gray-400 uppercase tracking-wider">{m.label}</p>
             <p className="text-lg sm:text-xl font-semibold text-gray-900 mt-1 tabular-nums truncate">{m.value}</p>
             {m.sub && <p className="text-[10px] sm:text-[11px] text-gray-400 mt-0.5 truncate">{m.sub}</p>}
@@ -545,13 +545,13 @@ export default function StoreDashboard() {
       </div>
 
       {/* Chart */}
-      <div className="bg-white rounded-xl border border-emerald-100 shadow-[0_18px_36px_-24px_rgba(16,24,40,0.3)] overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-3 border-b border-emerald-50">
+      <div className="bg-white rounded-xl border border-primary-100 shadow-[0_18px_36px_-24px_rgba(16,24,40,0.3)] overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-3 border-b border-primary-50">
           <div className="relative">
             <select
               value={chartMetric}
               onChange={(e) => setChartMetric(e.target.value)}
-              className="appearance-none rounded-lg border border-emerald-100 bg-white py-1.5 pl-3 pr-8 text-[12px] font-medium text-gray-700 outline-none transition hover:bg-gray-50"
+              className="appearance-none rounded-lg border border-primary-100 bg-white py-1.5 pl-3 pr-8 text-[12px] font-medium text-gray-700 outline-none transition hover:bg-gray-50"
             >
               {Object.entries(chartMetricLabel).map(([key, label]) => (
                 <option key={key} value={key}>{label}</option>
@@ -587,7 +587,7 @@ export default function StoreDashboard() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {actions.map((a, i) => (
           <Link key={i} to={a.to}
-            className="group flex items-center gap-3 bg-white border border-emerald-100 rounded-xl px-4 py-3.5 shadow-[0_12px_24px_-18px_rgba(16,24,40,0.26)] hover:border-emerald-300 hover:shadow-[0_18px_32px_-20px_rgba(16,24,40,0.3)] transition">
+            className="group flex items-center gap-3 bg-white border border-primary-100 rounded-xl px-4 py-3.5 shadow-[0_12px_24px_-18px_rgba(16,24,40,0.26)] hover:border-primary-300 hover:shadow-[0_18px_32px_-20px_rgba(16,24,40,0.3)] transition">
             <a.icon size={16} className="text-gray-400 group-hover:text-gray-600 transition" />
             <span className="text-[13px] font-medium text-gray-700 group-hover:text-gray-900 transition">{a.label}</span>
             {a.count !== undefined && <span className="ml-auto text-[11px] font-semibold text-gray-400 tabular-nums">{a.count}</span>}
@@ -625,7 +625,7 @@ export default function StoreDashboard() {
         const maxV = items[0]?.[cfg.valueKey] || 1;
 
         return (
-          <div className="bg-white rounded-xl border border-emerald-100 shadow-[0_16px_34px_-24px_rgba(16,24,40,0.28)]">
+          <div className="bg-white rounded-xl border border-primary-100 shadow-[0_16px_34px_-24px_rgba(16,24,40,0.28)]">
             <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
               <p className="text-[13px] font-semibold text-gray-900">{cfg.title}</p>
               <Link to="/ecom/boutique/products" className="text-[12px] text-gray-400 hover:text-gray-600 transition">Voir tout</Link>
@@ -638,7 +638,7 @@ export default function StoreDashboard() {
                     <div className="flex-1 min-w-0">
                       <p className="text-[13px] font-medium text-gray-800 truncate">{p.name || 'Sans nom'}</p>
                       <div className="mt-1.5 h-1 bg-gray-100 rounded-full overflow-hidden">
-                        <div className="h-full bg-emerald-400 rounded-full" style={{ width: `${(p[cfg.valueKey] / maxV) * 100}%` }} />
+                        <div className="h-full bg-primary-400 rounded-full" style={{ width: `${(p[cfg.valueKey] / maxV) * 100}%` }} />
                       </div>
                     </div>
                     <div className="text-right flex-shrink-0">
@@ -656,7 +656,7 @@ export default function StoreDashboard() {
       })()}
 
       {/* Communauté */}
-      <div className="bg-white rounded-xl border border-emerald-100 shadow-[0_16px_34px_-24px_rgba(16,24,40,0.28)] overflow-hidden">
+      <div className="bg-white rounded-xl border border-primary-100 shadow-[0_16px_34px_-24px_rgba(16,24,40,0.28)] overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-100">
           <p className="text-[13px] font-semibold text-gray-900">Communauté</p>
           <p className="text-[11px] text-gray-400 mt-0.5">Connectez-vous avec des créateurs, apprenez de nouvelles compétences et aidez à façonner l'avenir de Chariow.</p>
@@ -666,7 +666,7 @@ export default function StoreDashboard() {
             { icon: Youtube, label: 'Rejoignez-nous sur Youtube', desc: 'Découvrez des vidéos pratiques pour apprendre à utiliser Chariow', href: 'https://youtube.com/@chariow', color: 'text-red-500' },
             { icon: Users, label: 'Rejoignez notre Hub', desc: "Rejoignez la communauté d'entraide des créateurs Chariow", href: '#', color: 'text-indigo-500' },
             { icon: Lightbulb, label: 'Partagez vos suggestions', desc: 'Vos suggestions nous aident à améliorer Chariow', href: '#', color: 'text-amber-500' },
-            { icon: MessageCircle, label: 'Rejoignez-nous sur WhatsApp', desc: 'Rejoignez notre canal WhatsApp', href: '#', color: 'text-emerald-500' },
+            { icon: MessageCircle, label: 'Rejoignez-nous sur WhatsApp', desc: 'Rejoignez notre canal WhatsApp', href: '#', color: 'text-primary-500' },
           ].map((c, i) => (
             <a key={i} href={c.href} target="_blank" rel="noopener noreferrer"
               className="flex items-start gap-3 px-5 py-4 hover:bg-gray-50 transition">

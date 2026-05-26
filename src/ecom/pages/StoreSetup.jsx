@@ -158,7 +158,7 @@ const StoreSetup = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <Loader2 className="w-8 h-8 animate-spin text-emerald-600" />
+        <Loader2 className="w-8 h-8 animate-spin text-primary-600" />
       </div>
     );
   }
@@ -171,7 +171,7 @@ const StoreSetup = () => {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-            <Store className="w-6 h-6 text-emerald-600" />
+            <Store className="w-6 h-6 text-primary-600" />
             Ma Boutique en Ligne
           </h1>
           <p className="text-sm text-gray-500 mt-1">
@@ -183,7 +183,7 @@ const StoreSetup = () => {
             href={storeUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-emerald-700 bg-emerald-50 rounded-lg hover:bg-emerald-100 transition"
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-primary-700 bg-primary-50 rounded-lg hover:bg-primary-100 transition"
           >
             <ExternalLink className="w-4 h-4" />
             Voir la boutique
@@ -199,7 +199,7 @@ const StoreSetup = () => {
         </div>
       )}
       {success && (
-        <div className="flex items-center gap-2 p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-700 text-sm">
+        <div className="flex items-center gap-2 p-3 bg-primary-50 border border-primary-200 rounded-lg text-primary-700 text-sm">
           <CheckCircle className="w-4 h-4 flex-shrink-0" />
           {success}
         </div>
@@ -217,7 +217,7 @@ const StoreSetup = () => {
           <button
             onClick={() => handleChange('isStoreEnabled', !config.isStoreEnabled)}
             className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-              config.isStoreEnabled ? 'bg-emerald-600' : 'bg-gray-300'
+              config.isStoreEnabled ? 'bg-primary-600' : 'bg-gray-300'
             }`}
           >
             <span
@@ -232,7 +232,7 @@ const StoreSetup = () => {
       {/* Subdomain */}
       <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-4">
         <div className="flex items-center gap-2">
-          <Globe className="w-5 h-5 text-emerald-600" />
+          <Globe className="w-5 h-5 text-primary-600" />
           <h2 className="text-base font-semibold text-gray-900">Adresse de la boutique</h2>
         </div>
 
@@ -248,7 +248,7 @@ const StoreSetup = () => {
                   setSubdomainInput(val);
                 }}
                 placeholder="ma-boutique"
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-l-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-l-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 maxLength={30}
               />
               <span className="px-3 py-2 bg-gray-100 border border-l-0 border-gray-300 rounded-r-lg text-sm text-gray-500">
@@ -259,7 +259,7 @@ const StoreSetup = () => {
             <button
               onClick={generateSubdomainFromStoreName}
               disabled={generatingSubdomain || !config.storeName?.trim()}
-              className="w-full px-3 py-2 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-sm font-medium hover:bg-emerald-100 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-colors"
+              className="w-full px-3 py-2 bg-primary-50 text-primary-700 border border-primary-200 rounded-lg text-sm font-medium hover:bg-primary-100 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-colors"
             >
               {generatingSubdomain ? (
                 <>
@@ -280,7 +280,7 @@ const StoreSetup = () => {
               <span className="text-xs text-gray-400">Vérification...</span>
             )}
             {!checkingSubdomain && subdomainAvailable === true && (
-              <span className="text-xs text-emerald-600 flex items-center gap-1">
+              <span className="text-xs text-primary-600 flex items-center gap-1">
                 <CheckCircle className="w-3 h-3" /> Disponible
               </span>
             )}
@@ -299,7 +299,7 @@ const StoreSetup = () => {
       {/* Store Identity */}
       <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-4">
         <div className="flex items-center gap-2">
-          <Palette className="w-5 h-5 text-emerald-600" />
+          <Palette className="w-5 h-5 text-primary-600" />
           <h2 className="text-base font-semibold text-gray-900">Identité de la boutique</h2>
         </div>
 
@@ -311,7 +311,7 @@ const StoreSetup = () => {
               value={config.storeName}
               onChange={(e) => handleChange('storeName', e.target.value)}
               placeholder="Ma Super Boutique"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
           </div>
           <div>
@@ -319,7 +319,7 @@ const StoreSetup = () => {
             <select
               value={config.storeCurrency}
               onChange={(e) => handleChange('storeCurrency', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
             >
               <option value="XAF">XAF (Franc CFA - CEMAC)</option>
               <option value="XOF">XOF (Franc CFA - UEMOA)</option>
@@ -341,7 +341,7 @@ const StoreSetup = () => {
             onChange={(e) => handleChange('storeDescription', e.target.value)}
             placeholder="Décrivez votre boutique en quelques mots..."
             rows={3}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none"
           />
         </div>
 
@@ -353,7 +353,7 @@ const StoreSetup = () => {
               value={config.storeLogo}
               onChange={(e) => handleChange('storeLogo', e.target.value)}
               placeholder="https://..."
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
           </div>
           <div>
@@ -363,7 +363,7 @@ const StoreSetup = () => {
               value={config.storeBanner}
               onChange={(e) => handleChange('storeBanner', e.target.value)}
               placeholder="https://..."
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
           </div>
         </div>
@@ -385,7 +385,7 @@ const StoreSetup = () => {
       {/* Contact */}
       <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-4">
         <div className="flex items-center gap-2">
-          <Phone className="w-5 h-5 text-emerald-600" />
+          <Phone className="w-5 h-5 text-primary-600" />
           <h2 className="text-base font-semibold text-gray-900">Contact</h2>
         </div>
 
@@ -397,7 +397,7 @@ const StoreSetup = () => {
               value={config.storePhone}
               onChange={(e) => handleChange('storePhone', e.target.value)}
               placeholder="+237 6XX XXX XXX"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
           </div>
           <div>
@@ -407,7 +407,7 @@ const StoreSetup = () => {
               value={config.storeWhatsApp}
               onChange={(e) => handleChange('storeWhatsApp', e.target.value)}
               placeholder="+237 6XX XXX XXX"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
           </div>
         </div>
@@ -418,7 +418,7 @@ const StoreSetup = () => {
         <button
           onClick={handleSaveConfig}
           disabled={saving}
-          className="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-600 text-white rounded-lg font-medium text-sm hover:bg-emerald-700 disabled:opacity-50 transition"
+          className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-lg font-medium text-sm hover:bg-primary-700 disabled:opacity-50 transition"
         >
           {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
           {saving ? 'Sauvegarde...' : 'Sauvegarder'}

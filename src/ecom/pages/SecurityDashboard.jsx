@@ -58,20 +58,20 @@ const SecurityDashboard = () => {
     LOGIN: 'bg-green-100 text-green-800',
     LOGOUT: 'bg-gray-100 text-gray-800',
     LOGIN_FAILED: 'bg-red-100 text-red-800',
-    VIEW_USERS: 'bg-emerald-100 text-emerald-800',
-    VIEW_ORDERS: 'bg-emerald-100 text-emerald-800',
-    CREATE_ORDER: 'bg-emerald-100 text-emerald-800',
+    VIEW_USERS: 'bg-primary-100 text-primary-800',
+    VIEW_ORDERS: 'bg-primary-100 text-primary-800',
+    CREATE_ORDER: 'bg-primary-100 text-primary-800',
     UPDATE_ORDER: 'bg-yellow-100 text-yellow-800',
     DELETE_ORDER: 'bg-red-100 text-red-800',
     DELETE_USER: 'bg-red-100 text-red-800',
-    CHANGE_ROLE: 'bg-emerald-100 text-emerald-900',
+    CHANGE_ROLE: 'bg-primary-100 text-primary-900',
     TOGGLE_USER: 'bg-orange-100 text-orange-800',
     TOGGLE_WORKSPACE: 'bg-orange-100 text-orange-800',
     IMPERSONATE_USER: 'bg-red-100 text-red-800',
     VIEW_SENSITIVE_DATA: 'bg-red-100 text-red-800',
     SECURITY_EVENT: 'bg-red-100 text-red-800',
     EXPORT_DATA: 'bg-yellow-100 text-yellow-800',
-    SETTINGS_CHANGE: 'bg-emerald-100 text-emerald-900',
+    SETTINGS_CHANGE: 'bg-primary-100 text-primary-900',
   };
 
   const actionIcons = {
@@ -98,8 +98,8 @@ const SecurityDashboard = () => {
       {/* Header */}
       <div className="mb-6">
         <div className="flex items-center gap-3 mb-2">
-          <div className="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center">
-            <svg className="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className="w-10 h-10 bg-primary-100 rounded-xl flex items-center justify-center">
+            <svg className="w-5 h-5 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
             </svg>
           </div>
@@ -114,11 +114,11 @@ const SecurityDashboard = () => {
       {securityInfo?.stats && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 text-center">
-            <p className="text-2xl font-bold text-emerald-600">{securityInfo.stats.totalAuditLogs}</p>
+            <p className="text-2xl font-bold text-primary-600">{securityInfo.stats.totalAuditLogs}</p>
             <p className="text-xs text-gray-500 mt-1">Actions tracées</p>
           </div>
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 text-center">
-            <p className="text-2xl font-bold text-emerald-600">{securityInfo.stats.last24hActions}</p>
+            <p className="text-2xl font-bold text-primary-600">{securityInfo.stats.last24hActions}</p>
             <p className="text-xs text-gray-500 mt-1">Actions (24h)</p>
           </div>
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 text-center">
@@ -136,7 +136,7 @@ const SecurityDashboard = () => {
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 mb-6">
         <div className="px-4 py-3 border-b border-gray-100">
           <h2 className="text-base font-semibold text-gray-900 flex items-center gap-2">
-            <svg className="w-5 h-5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-5 h-5 text-primary-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
             </svg>
             Mesures de sécurité en place
@@ -145,23 +145,23 @@ const SecurityDashboard = () => {
         <div className="divide-y divide-gray-50">
           {securityInfo?.measures?.map((measure) => (
             <div key={measure.id} className="px-4 py-3 flex items-center gap-3 hover:bg-gray-50 transition">
-              <div className="flex-shrink-0 w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center">
-                <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="flex-shrink-0 w-8 h-8 bg-primary-100 rounded-lg flex items-center justify-center">
+                <svg className="w-4 h-4 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
                 </svg>
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <p className="text-sm font-medium text-gray-900">{measure.name}</p>
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-emerald-800">
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-primary-100 text-primary-800">
                     {measure.type}
                   </span>
                 </div>
                 <p className="text-xs text-gray-500 mt-0.5">{measure.desc}</p>
               </div>
               <div className="flex-shrink-0">
-                <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600">
-                  <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
+                <span className="inline-flex items-center gap-1 text-xs font-medium text-primary-600">
+                  <span className="w-2 h-2 bg-primary-500 rounded-full animate-pulse"></span>
                   Actif
                 </span>
               </div>
@@ -171,8 +171,8 @@ const SecurityDashboard = () => {
       </div>
 
       {/* Ce que cela signifie pour vous */}
-      <div className="bg-gradient-to-br from-emerald-50 to-cyan-50 rounded-xl border border-emerald-200 p-5 mb-6">
-        <h3 className="text-base font-semibold text-emerald-900 mb-3">Ce que cela signifie concrètement pour vous :</h3>
+      <div className="bg-gradient-to-br from-primary-50 to-cyan-50 rounded-xl border border-primary-200 p-5 mb-6">
+        <h3 className="text-base font-semibold text-primary-900 mb-3">Ce que cela signifie concrètement pour vous :</h3>
         <div className="grid sm:grid-cols-2 gap-3">
           {[
             { icon: '🔒', text: 'Personne ne peut lire votre mot de passe — ni l\'admin, ni le propriétaire, ni les développeurs' },
@@ -184,14 +184,14 @@ const SecurityDashboard = () => {
           ].map((item, i) => (
             <div key={i} className="flex items-start gap-2.5 bg-white/60 rounded-lg p-3">
               <span className="text-lg flex-shrink-0">{item.icon}</span>
-              <p className="text-sm text-emerald-800">{item.text}</p>
+              <p className="text-sm text-primary-800">{item.text}</p>
             </div>
           ))}
         </div>
         <div className="mt-4 text-center">
           <button
             onClick={() => navigate('/ecom/privacy')}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium transition"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg text-sm font-medium transition"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
             Politique de confidentialité complète
@@ -214,7 +214,7 @@ const SecurityDashboard = () => {
               <select
                 value={filterAction}
                 onChange={(e) => setFilterAction(e.target.value)}
-                className="text-xs px-2 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                className="text-xs px-2 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
               >
                 <option value="">Toutes les actions</option>
                 <option value="LOGIN">Connexions</option>
@@ -227,7 +227,7 @@ const SecurityDashboard = () => {
               </select>
               <button
                 onClick={() => fetchAuditLogs(logsPage)}
-                className="p-1.5 text-gray-400 hover:text-emerald-600 transition"
+                className="p-1.5 text-gray-400 hover:text-primary-600 transition"
                 title="Rafraîchir"
               >
                 <svg className={`w-4 h-4 ${logsLoading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">

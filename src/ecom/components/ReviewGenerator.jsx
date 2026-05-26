@@ -137,7 +137,7 @@ const ReviewGenerator = ({ productDescription = '', existingTestimonials = [], o
                       <span className="text-sm font-medium text-gray-900">{t.name}</span>
                       {renderStars(t.rating)}
                       {t.verified && (
-                        <span className="text-[10px] text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded font-medium">Vérifié</span>
+                        <span className="text-[10px] text-primary-600 bg-primary-50 px-1.5 py-0.5 rounded font-medium">Vérifié</span>
                       )}
                     </div>
                     <p className="text-sm text-gray-600 line-clamp-2">{t.text}</p>
@@ -277,7 +277,7 @@ const ReviewGenerator = ({ productDescription = '', existingTestimonials = [], o
                       <span className="text-sm font-medium text-gray-900">{review.name}</span>
                       {renderStars(review.rating)}
                       {review.verified && (
-                        <span className="text-[10px] text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded font-medium">Vérifié</span>
+                        <span className="text-[10px] text-primary-600 bg-primary-50 px-1.5 py-0.5 rounded font-medium">Vérifié</span>
                       )}
                     </div>
                     <p className="text-sm text-gray-600">{review.text}</p>
@@ -294,7 +294,7 @@ const ReviewGenerator = ({ productDescription = '', existingTestimonials = [], o
               <button
                 onClick={handleSaveSelected}
                 disabled={selectedReviews.size === 0}
-                className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-colors"
+                className="flex items-center gap-2 px-4 py-2 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-colors"
               >
                 <Plus className="w-4 h-4" />
                 Ajouter {selectedReviews.size} avis sélectionné{selectedReviews.size > 1 ? 's' : ''}

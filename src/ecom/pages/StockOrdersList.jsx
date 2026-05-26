@@ -170,7 +170,7 @@ const StockOrdersList = () => {
   const totalSelling = sp * qty;
   const estProfit = totalSelling - totalCostCalcForm;
 
-  const iCls = 'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:border-transparent';
+  const iCls = 'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-transparent';
 
   const [activeStockTab, setActiveStockTab] = useState(isAdmin ? 'fournisseurs' : 'gestion');
 
@@ -181,7 +181,7 @@ const StockOrdersList = () => {
       <div className="flex justify-between items-center mb-4 sm:mb-6">
         <h1 className="text-xl sm:text-3xl font-bold text-gray-900">Stock</h1>
         {activeStockTab === 'fournisseurs' && (
-          <button onClick={openNewModal} className="bg-emerald-600 text-white px-3 py-2 sm:px-4 rounded-lg hover:bg-emerald-700 text-sm font-medium">
+          <button onClick={openNewModal} className="bg-primary-600 text-white px-3 py-2 sm:px-4 rounded-lg hover:bg-primary-700 text-sm font-medium">
             + Commande fournisseur
           </button>
         )}
@@ -194,7 +194,7 @@ const StockOrdersList = () => {
             onClick={() => setActiveStockTab('fournisseurs')}
             className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-all ${
               activeStockTab === 'fournisseurs'
-                ? 'border-emerald-600 text-emerald-600'
+                ? 'border-primary-600 text-primary-600'
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
             }`}
           >
@@ -205,7 +205,7 @@ const StockOrdersList = () => {
           onClick={() => setActiveStockTab('gestion')}
           className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-all ${
             activeStockTab === 'gestion'
-              ? 'border-emerald-600 text-emerald-600'
+              ? 'border-primary-600 text-primary-600'
               : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
           }`}
         >
@@ -243,11 +243,11 @@ const StockOrdersList = () => {
               return (
                 <tr key={order._id} className="hover:bg-gray-50">
                   <td className="px-3 sm:px-4 py-3 sm:py-4 whitespace-nowrap">
-                    <button onClick={() => openEditModal(order._id)} className="text-xs sm:text-sm font-medium text-emerald-600 hover:text-emerald-800 hover:underline text-left">{order.productName || 'N/A'}</button>
+                    <button onClick={() => openEditModal(order._id)} className="text-xs sm:text-sm font-medium text-primary-600 hover:text-primary-800 hover:underline text-left">{order.productName || 'N/A'}</button>
                     {order.supplierName && <div className="text-[10px] sm:text-xs text-gray-500">{order.supplierName}</div>}
                   </td>
                   <td className="px-3 sm:px-4 py-3 sm:py-4 whitespace-nowrap hidden sm:table-cell">
-                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${order.sourcing === 'chine' ? 'bg-red-100 text-red-800' : 'bg-emerald-100 text-emerald-800'}`}>
+                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${order.sourcing === 'chine' ? 'bg-red-100 text-red-800' : 'bg-primary-100 text-primary-800'}`}>
                       {order.sourcing === 'chine' ? 'Chine' : 'Local'}
                     </span>
                   </td>
@@ -265,7 +265,7 @@ const StockOrdersList = () => {
                     </span>
                   </td>
                   <td className="px-4 py-4 whitespace-nowrap text-sm font-medium">
-                    <button onClick={() => openEditModal(order._id)} className="text-emerald-600 hover:text-emerald-900 mr-3">Modifier</button>
+                    <button onClick={() => openEditModal(order._id)} className="text-primary-600 hover:text-primary-900 mr-3">Modifier</button>
                     {order.status === 'in_transit' && (
                       <>
                         <button onClick={() => updateOrderStatus(order._id, 'receive')} className="text-green-600 hover:text-green-900 mr-3">Recevoir</button>
@@ -335,19 +335,19 @@ const StockOrdersList = () => {
                           return (
                             <div className="mt-2 flex flex-wrap gap-2">
                               <span className="inline-flex items-center gap-1 text-[11px] bg-gray-100 text-gray-600 px-2 py-1 rounded-md">
-                                Stock actuel: <strong className={sel.stock <= (sel.reorderThreshold || 10) ? 'text-red-600' : 'text-emerald-600'}>{sel.stock} unités</strong>
+                                Stock actuel: <strong className={sel.stock <= (sel.reorderThreshold || 10) ? 'text-red-600' : 'text-primary-600'}>{sel.stock} unités</strong>
                               </span>
-                              <span className="inline-flex items-center gap-1 text-[11px] bg-emerald-50 text-emerald-700 px-2 py-1 rounded-md">
+                              <span className="inline-flex items-center gap-1 text-[11px] bg-primary-50 text-primary-700 px-2 py-1 rounded-md">
                                 Coût achat: <strong>{fmt(sel.productCost)}</strong>
                               </span>
-                              <span className="inline-flex items-center gap-1 text-[11px] bg-emerald-50 text-emerald-700 px-2 py-1 rounded-md">
+                              <span className="inline-flex items-center gap-1 text-[11px] bg-primary-50 text-primary-700 px-2 py-1 rounded-md">
                                 Prix vente: <strong>{fmt(sel.sellingPrice)}</strong>
                               </span>
                               <span className="inline-flex items-center gap-1 text-[11px] bg-orange-50 text-orange-700 px-2 py-1 rounded-md">
                                 Livraison: <strong>{fmt(sel.deliveryCost)}</strong>
                               </span>
                               {sel.avgAdsCost > 0 && (
-                                <span className="inline-flex items-center gap-1 text-[11px] bg-emerald-50 text-emerald-800 px-2 py-1 rounded-md">
+                                <span className="inline-flex items-center gap-1 text-[11px] bg-primary-50 text-primary-800 px-2 py-1 rounded-md">
                                   Moy. pub: <strong>{fmt(sel.avgAdsCost)}</strong>
                                 </span>
                               )}
@@ -389,7 +389,7 @@ const StockOrdersList = () => {
                         <label className="block text-xs font-medium text-gray-600 mb-1">
                           Prix d'achat unitaire ({symbol}) *
                           {formData.productId && products.find(p => p._id === formData.productId)?.productCost > 0 && (
-                            <span className="ml-1 text-[10px] font-normal text-emerald-600">auto-rempli depuis le produit</span>
+                            <span className="ml-1 text-[10px] font-normal text-primary-600">auto-rempli depuis le produit</span>
                           )}
                         </label>
                         <input type="number" name="purchasePrice" required min="0" step="0.01" value={formData.purchasePrice} onChange={handleChange} className={iCls} placeholder="0" />
@@ -398,7 +398,7 @@ const StockOrdersList = () => {
                         <label className="block text-xs font-medium text-gray-600 mb-1">
                           Prix de vente unitaire ({symbol}) *
                           {formData.productId && products.find(p => p._id === formData.productId)?.sellingPrice > 0 && (
-                            <span className="ml-1 text-[10px] font-normal text-emerald-600">auto-rempli depuis le produit</span>
+                            <span className="ml-1 text-[10px] font-normal text-primary-600">auto-rempli depuis le produit</span>
                           )}
                         </label>
                         <input type="number" name="sellingPrice" required min="0" step="0.01" value={formData.sellingPrice} onChange={handleChange} className={iCls} placeholder="0" />
@@ -441,8 +441,8 @@ const StockOrdersList = () => {
                         <p className="text-xs font-semibold text-gray-600 uppercase mb-3">Aperçu financier</p>
                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
                           <div><span className="text-gray-500 text-xs">Coût achat total</span><p className="font-bold text-red-600">{fmt(totalCostCalcForm)}</p></div>
-                          <div><span className="text-gray-500 text-xs">Valeur vente totale</span><p className="font-bold text-emerald-600">{fmt(totalSelling)}</p></div>
-                          <div><span className="text-gray-500 text-xs">Marge brute</span><p className={`font-bold ${estProfit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{fmt(estProfit)}</p></div>
+                          <div><span className="text-gray-500 text-xs">Valeur vente totale</span><p className="font-bold text-primary-600">{fmt(totalSelling)}</p></div>
+                          <div><span className="text-gray-500 text-xs">Marge brute</span><p className={`font-bold ${estProfit >= 0 ? 'text-primary-600' : 'text-red-600'}`}>{fmt(estProfit)}</p></div>
                           {delivCost > 0 && (
                             <div><span className="text-gray-500 text-xs">Livraison ({fmt(delivCost)}/u)</span><p className="font-semibold text-orange-600">−{fmt(delivCost * qty)}</p></div>
                           )}
@@ -460,7 +460,7 @@ const StockOrdersList = () => {
             <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-100 flex-shrink-0">
               <button type="button" onClick={closeModal} className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition">Annuler</button>
               <button type="submit" form="stock-order-form" disabled={formLoading || formInitLoading}
-                className="px-5 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold hover:bg-emerald-700 disabled:opacity-50 transition">
+                className="px-5 py-2 bg-primary-600 text-white rounded-lg text-sm font-semibold hover:bg-primary-700 disabled:opacity-50 transition">
                 {formLoading ? (editingId ? 'Modification…' : 'Création…') : (editingId ? 'Modifier' : 'Créer la commande')}
               </button>
             </div>

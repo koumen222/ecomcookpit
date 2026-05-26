@@ -96,7 +96,7 @@ export default function AffiliatesAdmin() {
                 <input value={config?.baseCommissionValue ?? 500} onChange={(e) => setConfig((p) => ({ ...p, baseCommissionValue: Number(e.target.value || 0) }))} type="number" className="px-3 py-2 border rounded-lg" />
                 <input value={config?.defaultLandingUrl || ''} onChange={(e) => setConfig((p) => ({ ...p, defaultLandingUrl: e.target.value }))} placeholder="URL destination par défaut" className="px-3 py-2 border rounded-lg" />
               </div>
-              <button onClick={saveConfig} className="px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700">Sauvegarder config</button>
+              <button onClick={saveConfig} className="px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-medium hover:bg-primary-700">Sauvegarder config</button>
               <p className="text-xs text-gray-500">Commission de base actuelle: {fmt(config?.baseCommissionValue)} {config?.baseCommissionType === 'fixed' ? 'FCFA' : '%'}</p>
             </div>
 
@@ -128,7 +128,7 @@ export default function AffiliatesAdmin() {
                             <p className="text-xs text-gray-500">{a.email}</p>
                           </div>
                           <div className="flex items-center gap-2">
-                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${a.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${a.isActive ? 'bg-primary-100 text-primary-700' : 'bg-red-100 text-red-700'}`}>
                               {a.isActive ? 'Actif' : 'Inactif'}
                             </span>
                             <button onClick={() => updateAffiliate(a, { isActive: !a.isActive })} className="px-2 py-1 text-xs rounded border hover:bg-gray-50">
@@ -150,9 +150,9 @@ export default function AffiliatesAdmin() {
                             <p className="text-lg font-bold text-amber-700">{fmt(s.totalSales)}</p>
                             <p className="text-[10px] text-amber-600">Ventes (FCFA)</p>
                           </div>
-                          <div className="bg-emerald-50 rounded-lg p-2 text-center">
-                            <p className="text-lg font-bold text-emerald-700">{fmt(s.totalCommissions)}</p>
-                            <p className="text-[10px] text-emerald-600">Commissions (FCFA)</p>
+                          <div className="bg-primary-50 rounded-lg p-2 text-center">
+                            <p className="text-lg font-bold text-primary-700">{fmt(s.totalCommissions)}</p>
+                            <p className="text-[10px] text-primary-600">Commissions (FCFA)</p>
                           </div>
                         </div>
 
@@ -172,7 +172,7 @@ export default function AffiliatesAdmin() {
                           <div className="flex items-center gap-3 mt-1 text-[10px]">
                             {s.pendingCommissions > 0 && <span className="text-yellow-600">En attente: {fmt(s.pendingCommissions)}</span>}
                             {s.approvedCommissions > 0 && <span className="text-blue-600">Approuvées: {fmt(s.approvedCommissions)}</span>}
-                            {s.paidCommissions > 0 && <span className="text-emerald-600">Payées: {fmt(s.paidCommissions)}</span>}
+                            {s.paidCommissions > 0 && <span className="text-primary-600">Payées: {fmt(s.paidCommissions)}</span>}
                           </div>
                         )}
                       </div>
@@ -201,7 +201,7 @@ export default function AffiliatesAdmin() {
                         <td className="px-2 py-2">{c.affiliateId?.name || c.affiliateCode}</td>
                         <td className="px-2 py-2">{c.orderNumber || '—'}</td>
                         <td className="px-2 py-2 text-right">{fmt(c.orderAmount)}</td>
-                        <td className="px-2 py-2 text-right text-emerald-700 font-semibold">{fmt(c.commissionAmount)}</td>
+                        <td className="px-2 py-2 text-right text-primary-700 font-semibold">{fmt(c.commissionAmount)}</td>
                         <td className="px-2 py-2">{c.status}</td>
                         <td className="px-2 py-2">
                           <div className="flex gap-1">

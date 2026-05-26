@@ -8,7 +8,7 @@ import ecomApi from '../services/ecommApi.js';
 
 const waStatus = (status) => {
   if (status === 'connected' || status === 'active')
-    return { label: 'Connecté', dot: 'bg-emerald-500', badge: 'bg-emerald-100 text-emerald-700' };
+    return { label: 'Connecté', dot: 'bg-primary-500', badge: 'bg-primary-100 text-primary-700' };
   if (status === 'configured')
     return { label: 'Configuré', dot: 'bg-sky-400', badge: 'bg-sky-100 text-sky-700' };
   if (status === 'disconnected')
@@ -18,7 +18,7 @@ const waStatus = (status) => {
 
 const UsageBar = ({ used, limit, label }) => {
   const pct = limit > 0 ? Math.min(100, (used / limit) * 100) : 0;
-  const color = pct >= 100 ? 'bg-red-500' : pct >= 80 ? 'bg-amber-400' : 'bg-emerald-500';
+  const color = pct >= 100 ? 'bg-red-500' : pct >= 80 ? 'bg-amber-400' : 'bg-primary-500';
   return (
     <div className="space-y-1">
       <div className="flex items-center justify-between text-[11px]">
@@ -134,7 +134,7 @@ const WhatsAppConnexion = () => {
         {/* Header */}
         <div className="bg-white rounded-2xl border border-gray-100 px-5 py-4 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-emerald-600 flex items-center justify-center flex-shrink-0">
+            <div className="w-9 h-9 rounded-xl bg-primary-600 flex items-center justify-center flex-shrink-0">
               <MessageCircle className="w-5 h-5 text-white" />
             </div>
             <div>
@@ -148,7 +148,7 @@ const WhatsAppConnexion = () => {
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             </button>
             <button onClick={() => setShowAddForm(v => !v)}
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 text-white text-sm font-bold rounded-xl hover:bg-emerald-700 transition shadow-sm">
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-primary-600 text-white text-sm font-bold rounded-xl hover:bg-primary-700 transition shadow-sm">
               {showAddForm ? <X className="w-4 h-4" /> : <><Plus className="w-4 h-4" /><span>Lier</span></>}
             </button>
           </div>
@@ -162,7 +162,7 @@ const WhatsAppConnexion = () => {
           </div>
           <div className="bg-white rounded-2xl border border-gray-100 p-3 text-center">
             <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Connectées</p>
-            <p className={`text-xl font-bold mt-0.5 ${connected > 0 ? 'text-emerald-600' : 'text-gray-400'}`}>{connected}</p>
+            <p className={`text-xl font-bold mt-0.5 ${connected > 0 ? 'text-primary-600' : 'text-gray-400'}`}>{connected}</p>
           </div>
           <div className="bg-white rounded-2xl border border-gray-100 p-3 text-center">
             <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Hors ligne</p>
@@ -205,7 +205,7 @@ const WhatsAppConnexion = () => {
                   <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-widest mb-1.5">{f.label}</label>
                   <input type={f.type} name={f.name} value={formData[f.name]} onChange={e => setFormData(p => ({ ...p, [f.name]: e.target.value }))}
                     placeholder={f.placeholder} required={f.required} min={f.name === 'defaultPart' ? 0 : undefined} max={f.name === 'defaultPart' ? 100 : undefined}
-                    className="w-full px-3.5 py-2.5 text-sm border border-gray-200 rounded-xl bg-gray-50 focus:bg-white focus:ring-2 focus:ring-emerald-600/20 focus:border-emerald-500 outline-none transition"
+                    className="w-full px-3.5 py-2.5 text-sm border border-gray-200 rounded-xl bg-gray-50 focus:bg-white focus:ring-2 focus:ring-primary-600/20 focus:border-primary-500 outline-none transition"
                   />
                 </div>
               ))}
@@ -215,7 +215,7 @@ const WhatsAppConnexion = () => {
                   Annuler
                 </button>
                 <button type="submit" disabled={submitting}
-                  className="px-5 py-2.5 text-sm font-bold bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 disabled:opacity-50 transition flex items-center gap-2">
+                  className="px-5 py-2.5 text-sm font-bold bg-primary-600 text-white rounded-xl hover:bg-primary-700 disabled:opacity-50 transition flex items-center gap-2">
                   {submitting ? <><Loader2 className="w-4 h-4 animate-spin" />Liaison…</> : 'Enregistrer'}
                 </button>
               </div>
@@ -234,7 +234,7 @@ const WhatsAppConnexion = () => {
         {linkResult && (
           <div className={`px-4 py-3 rounded-xl flex items-start gap-2 text-sm border ${
             linkResult.verified && linkResult.status === 'connected'
-              ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+              ? 'bg-primary-50 border-primary-200 text-primary-700'
               : 'bg-amber-50 border-amber-200 text-amber-700'
           }`}>
             {linkResult.verified && linkResult.status === 'connected'
@@ -251,7 +251,7 @@ const WhatsAppConnexion = () => {
         {/* Instances */}
         {loading ? (
           <div className="bg-white rounded-2xl border border-gray-100 py-16 flex flex-col items-center gap-3">
-            <Loader2 className="w-8 h-8 text-emerald-600 animate-spin" />
+            <Loader2 className="w-8 h-8 text-primary-600 animate-spin" />
             <p className="text-sm text-gray-500">Chargement…</p>
           </div>
         ) : instances.length === 0 ? (
@@ -262,7 +262,7 @@ const WhatsAppConnexion = () => {
             <p className="text-sm font-semibold text-gray-900">Aucune instance connectée</p>
             <p className="text-xs text-gray-400 mt-1 mb-5">Liez votre compte WhatsApp via ZenChat pour commencer</p>
             <button onClick={() => setShowAddForm(true)}
-              className="px-5 py-2.5 bg-emerald-600 text-white text-sm font-bold rounded-xl hover:bg-emerald-700 transition">
+              className="px-5 py-2.5 bg-primary-600 text-white text-sm font-bold rounded-xl hover:bg-primary-700 transition">
               Lier ma première instance
             </button>
           </div>
@@ -279,10 +279,10 @@ const WhatsAppConnexion = () => {
 
                   {/* Card header */}
                   <div className="flex items-center gap-3 px-4 py-3.5 border-b border-gray-50">
-                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 ${isOff ? 'bg-red-50' : 'bg-emerald-50'}`}>
+                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 ${isOff ? 'bg-red-50' : 'bg-primary-50'}`}>
                       {isOff
                         ? <WifiOff className="w-4 h-4 text-red-400" />
-                        : <Wifi className="w-4 h-4 text-emerald-600" />}
+                        : <Wifi className="w-4 h-4 text-primary-600" />}
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-bold text-gray-900 truncate">{inst.customName || inst.instanceName}</p>
@@ -312,7 +312,7 @@ const WhatsAppConnexion = () => {
                       </div>
                       <button onClick={() => copy(inst.instanceToken, inst._id+'tok')}
                         className="p-1.5 rounded-lg hover:bg-gray-200 text-gray-400 transition">
-                        {copiedId === inst._id+'tok' ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                        {copiedId === inst._id+'tok' ? <Check className="w-3.5 h-3.5 text-primary-500" /> : <Copy className="w-3.5 h-3.5" />}
                       </button>
                     </div>
 
@@ -324,7 +324,7 @@ const WhatsAppConnexion = () => {
                           <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                             usage.plan === 'free' ? 'bg-gray-100 text-gray-500'
                             : usage.plan === 'premium' ? 'bg-amber-100 text-amber-700'
-                            : 'bg-emerald-100 text-emerald-700'
+                            : 'bg-primary-100 text-primary-700'
                           }`}>
                             {usage.plan === 'free' ? 'Gratuit' : usage.plan === 'premium' ? 'Premium' : 'Illimité'}
                           </span>
@@ -367,7 +367,7 @@ const WhatsAppConnexion = () => {
                     {test && !test.loading && (
                       <div className={`flex items-start gap-2 px-3 py-2.5 rounded-xl text-xs border ${
                         test.success
-                          ? 'bg-emerald-50 border-emerald-100 text-emerald-700'
+                          ? 'bg-primary-50 border-primary-100 text-primary-700'
                           : 'bg-red-50 border-red-100 text-red-700'
                       }`}>
                         {test.success

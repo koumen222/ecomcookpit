@@ -20,10 +20,10 @@ const fmtDate = (v) => {
 };
 
 const STATUS_COLORS = {
-  livré: 'bg-emerald-100 text-emerald-700',
-  livrée: 'bg-emerald-100 text-emerald-700',
-  livree: 'bg-emerald-100 text-emerald-700',
-  delivered: 'bg-emerald-100 text-emerald-700',
+  livré: 'bg-primary-100 text-primary-700',
+  livrée: 'bg-primary-100 text-primary-700',
+  livree: 'bg-primary-100 text-primary-700',
+  delivered: 'bg-primary-100 text-primary-700',
   confirmé: 'bg-sky-100 text-sky-700',
   confirmed: 'bg-sky-100 text-sky-700',
   annulé: 'bg-red-100 text-red-700',
@@ -120,7 +120,7 @@ function PeriodSection({ label, stats, top, icon: Icon }) {
                       <p className="text-[10px] text-slate-400 truncate">{v.role || 'vendeur'}</p>
                     </div>
                     <div className="text-right flex-shrink-0">
-                      <p className="text-xs font-black text-emerald-600">{nFmt.format(v.sold || 0)} ventes</p>
+                      <p className="text-xs font-black text-primary-600">{nFmt.format(v.sold || 0)} ventes</p>
                       <p className="text-[10px] text-slate-400">{nFmt.format(v.orders || 0)} cmdes</p>
                     </div>
                   </div>
@@ -206,7 +206,7 @@ const SuperAdminBoutiqueStats = () => {
           <select
             value={selectedWorkspace}
             onChange={e => { setSelectedWorkspace(e.target.value); setSelectedStore(''); setStatsData(null); }}
-            className="appearance-none pl-4 pr-8 py-2.5 rounded-xl text-sm font-semibold text-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-400"
+            className="appearance-none pl-4 pr-8 py-2.5 rounded-xl text-sm font-semibold text-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary-400"
             style={{ background: '#fff', border: '1px solid #d1d9e0', minWidth: 220 }}
             disabled={listLoading}
           >
@@ -224,7 +224,7 @@ const SuperAdminBoutiqueStats = () => {
             <select
               value={selectedStore}
               onChange={e => { setSelectedStore(e.target.value); setStatsData(null); }}
-              className="appearance-none pl-4 pr-8 py-2.5 rounded-xl text-sm font-semibold text-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-400"
+              className="appearance-none pl-4 pr-8 py-2.5 rounded-xl text-sm font-semibold text-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary-400"
               style={{ background: '#fff', border: '1px solid #d1d9e0', minWidth: 180 }}
             >
               <option value="">Toutes les stores</option>
@@ -244,7 +244,7 @@ const SuperAdminBoutiqueStats = () => {
         <div className="flex flex-col items-center justify-center gap-4 py-24 text-center">
           <div className="w-16 h-16 rounded-3xl flex items-center justify-center"
                style={{ background: 'linear-gradient(135deg, rgba(16,185,129,0.12), rgba(5,150,105,0.08))' }}>
-            <Store className="w-8 h-8 text-emerald-400" />
+            <Store className="w-8 h-8 text-primary-400" />
           </div>
           <div>
             <p className="font-bold text-slate-700">Sélectionnez une boutique</p>
@@ -262,7 +262,7 @@ const SuperAdminBoutiqueStats = () => {
                style={{ background: 'linear-gradient(135deg, #0c1425, #162032)', border: '1px solid rgba(255,255,255,0.06)' }}>
             <div className="w-9 h-9 rounded-xl flex items-center justify-center"
                  style={{ background: 'rgba(16,185,129,0.2)', border: '1px solid rgba(16,185,129,0.3)' }}>
-              <Store className="w-4.5 h-4.5 text-emerald-400" />
+              <Store className="w-4.5 h-4.5 text-primary-400" />
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-black text-white truncate">{statsData.workspace?.name || wsName}</p>
@@ -271,7 +271,7 @@ const SuperAdminBoutiqueStats = () => {
               )}
             </div>
             <div className="flex items-center gap-1.5">
-              <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${statsData.workspace?.isActive ? 'bg-emerald-500/20 text-emerald-300' : 'bg-red-500/20 text-red-300'}`}>
+              <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${statsData.workspace?.isActive ? 'bg-primary-500/20 text-primary-300' : 'bg-red-500/20 text-red-300'}`}>
                 {statsData.workspace?.isActive ? 'Active' : 'Inactive'}
               </span>
             </div>

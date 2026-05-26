@@ -36,7 +36,7 @@ const FULFILLMENT_STATUS = {
   confirmed: { label: 'Non traité', color: 'bg-yellow-100 text-yellow-700', dot: 'bg-yellow-400' },
   processing: { label: 'En cours', color: 'bg-blue-100 text-blue-700', dot: 'bg-blue-400' },
   shipped: { label: 'Expédié', color: 'bg-purple-100 text-purple-700', dot: 'bg-purple-400' },
-  delivered: { label: 'Livré', color: 'bg-emerald-100 text-emerald-700', dot: 'bg-emerald-500' },
+  delivered: { label: 'Livré', color: 'bg-primary-100 text-primary-700', dot: 'bg-primary-500' },
   cancelled: { label: 'Annulé', color: 'bg-red-100 text-red-700', dot: 'bg-red-400' },
 };
 
@@ -322,7 +322,7 @@ const StoreOrdersDashboard = () => {
                       </td>
                       <td className="px-2 py-2.5 text-gray-500 whitespace-nowrap">{items} article{items > 1 ? 's' : ''}</td>
                       <td className="px-2 py-2.5 whitespace-nowrap">
-                        {order.status === 'delivered' ? <StatusBadge label="Livré" color="bg-emerald-100 text-emerald-700" dot="bg-emerald-500" />
+                        {order.status === 'delivered' ? <StatusBadge label="Livré" color="bg-primary-100 text-primary-700" dot="bg-primary-500" />
                           : order.status === 'shipped' ? <StatusBadge label="En transit" color="bg-purple-100 text-purple-700" dot="bg-purple-500" />
                           : <span className="text-gray-400 text-xs">—</span>}
                       </td>
@@ -398,7 +398,7 @@ const StoreOrdersDashboard = () => {
                 {selectedOrder.phone && (
                   <p className="text-sm text-gray-600 flex items-center gap-1.5">
                     <Phone size={13} />
-                    <a href={'tel:' + selectedOrder.phone} className="text-emerald-600 hover:underline">{selectedOrder.phone}</a>
+                    <a href={'tel:' + selectedOrder.phone} className="text-primary-600 hover:underline">{selectedOrder.phone}</a>
                   </p>
                 )}
                 {selectedOrder.email && <p className="text-sm text-gray-600">{selectedOrder.email}</p>}

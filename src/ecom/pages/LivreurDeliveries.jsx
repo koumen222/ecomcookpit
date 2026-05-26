@@ -358,9 +358,9 @@ const LivreurDeliveries = () => {
                   <p className="text-xl font-black text-amber-600">{remaining.toFixed(1)}</p>
                   <p className="text-[9px] text-amber-400 font-semibold uppercase">KM RESTANT</p>
                 </div>
-                <div className="bg-emerald-50 rounded-xl p-3 text-center">
-                  <p className="text-xl font-black text-emerald-600">{cost.toLocaleString('fr-FR')}</p>
-                  <p className="text-[9px] text-emerald-400 font-semibold uppercase">{symbol}</p>
+                <div className="bg-primary-50 rounded-xl p-3 text-center">
+                  <p className="text-xl font-black text-primary-600">{cost.toLocaleString('fr-FR')}</p>
+                  <p className="text-[9px] text-primary-400 font-semibold uppercase">{symbol}</p>
                 </div>
               </div>
               <div>
@@ -368,7 +368,7 @@ const LivreurDeliveries = () => {
                   <span>Progression</span><span className="font-bold">{pct}%</span>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-2.5">
-                  <div className="bg-gradient-to-r from-amber-400 to-emerald-500 h-2.5 rounded-full transition-all duration-1000" style={{ width: `${pct}%` }} />
+                  <div className="bg-gradient-to-r from-amber-400 to-primary-500 h-2.5 rounded-full transition-all duration-1000" style={{ width: `${pct}%` }} />
                 </div>
               </div>
               {gps && (
@@ -408,7 +408,7 @@ const LivreurDeliveries = () => {
                   🗺️ Naviguer
                 </a>
                 {trackOrder?.clientPhone && (
-                  <a href={`tel:${trackOrder.clientPhone}`} className="px-4 py-3 bg-emerald-50 text-emerald-700 rounded-xl font-bold text-sm hover:bg-emerald-100 transition flex items-center gap-1">
+                  <a href={`tel:${trackOrder.clientPhone}`} className="px-4 py-3 bg-primary-50 text-primary-700 rounded-xl font-bold text-sm hover:bg-primary-100 transition flex items-center gap-1">
                     📞
                   </a>
                 )}
@@ -458,7 +458,7 @@ const LivreurDeliveries = () => {
                   <button
                     onClick={submitDelivery}
                     disabled={assigning[deliveryModal.orderId]}
-                    className="w-full py-3.5 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-bold text-sm hover:from-green-600 hover:to-emerald-700 transition disabled:opacity-50 flex items-center justify-center gap-2"
+                    className="w-full py-3.5 bg-gradient-to-r from-green-500 to-primary-600 text-white rounded-xl font-bold text-sm hover:from-green-600 hover:to-primary-700 transition disabled:opacity-50 flex items-center justify-center gap-2"
                   >
                     {assigning[deliveryModal.orderId] ? (
                       <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Enregistrement…</>
@@ -706,13 +706,13 @@ const LivreurDeliveries = () => {
                           <p className="text-base font-black text-amber-600">{remaining.toFixed(1)}</p>
                           <p className="text-[9px] text-amber-400 font-semibold uppercase">KM RESTANT</p>
                         </div>
-                        <div className="bg-emerald-50 rounded-xl p-2.5 text-center">
-                          <p className="text-base font-black text-emerald-600">{cost.toLocaleString('fr-FR')}</p>
-                          <p className="text-[9px] text-emerald-400 font-semibold uppercase">{symbol}</p>
+                        <div className="bg-primary-50 rounded-xl p-2.5 text-center">
+                          <p className="text-base font-black text-primary-600">{cost.toLocaleString('fr-FR')}</p>
+                          <p className="text-[9px] text-primary-400 font-semibold uppercase">{symbol}</p>
                         </div>
                       </div>
                       <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div className="bg-gradient-to-r from-amber-400 to-emerald-500 h-2 rounded-full transition-all duration-1000" style={{ width: `${pct}%` }} />
+                        <div className="bg-gradient-to-r from-amber-400 to-primary-500 h-2 rounded-full transition-all duration-1000" style={{ width: `${pct}%` }} />
                       </div>
                       {order.deliveryEndAddress && (
                         <p className="text-[10px] text-indigo-600 truncate">📍 {order.deliveryEndAddress}</p>

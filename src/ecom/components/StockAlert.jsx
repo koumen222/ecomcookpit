@@ -116,7 +116,7 @@ const StockAlert = ({ alerts, onDismiss }) => {
                   <div className="flex space-x-2">
                     <Link
                       to={`/stock/orders/new?productId=${alert.product?._id || alert.productId}`}
-                      className="inline-flex items-center px-3 py-1 bg-emerald-600 text-white text-xs font-medium rounded hover:bg-emerald-700 transition"
+                      className="inline-flex items-center px-3 py-1 bg-primary-600 text-white text-xs font-medium rounded hover:bg-primary-700 transition"
                     >
                       <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
                         <path d="M8 9a3 3 0 100-6 3 3 0 000 6zM8 11a6 6 0 016 6H2a6 6 0 016-6z" />

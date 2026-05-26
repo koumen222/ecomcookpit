@@ -30,7 +30,7 @@ const SECTION_META = {
   offerBlock:       { label: 'Bloc garantie / offre',     desc: 'Garantie / offre spéciale',           icon: Gift,         color: 'bg-pink-100 text-pink-700 border-pink-200' },
   description:      { label: 'Description produit',       desc: 'Description complète',                icon: FileText,     color: 'bg-gray-100 text-gray-700 border-gray-200' },
   problemSection:   { label: 'Section Problème',          desc: 'Points de douleur client',            icon: Frown,        color: 'bg-rose-100 text-rose-700 border-rose-200' },
-  solutionSection:  { label: 'Section Solution',          desc: 'Solution persuasive',                 icon: Lightbulb,    color: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
+  solutionSection:  { label: 'Section Solution',          desc: 'Solution persuasive',                 icon: Lightbulb,    color: 'bg-primary-100 text-primary-700 border-primary-200' },
   faq:              { label: 'Section FAQ',               desc: 'Questions fréquentes',                icon: HelpCircle,   color: 'bg-orange-100 text-orange-700 border-orange-200' },
   testimonials:     { label: 'Témoignages clients',       desc: 'Témoignages clients',                 icon: MessageSquare,color: 'bg-pink-100 text-pink-700 border-pink-200' },
   relatedProducts:  { label: 'Produits similaires',       desc: 'Produits similaires',                 icon: Link2,        color: 'bg-blue-100 text-blue-700 border-blue-200' },
@@ -97,7 +97,7 @@ const EDITABLE_SECTIONS = {
   stockCounter:    { fields: [{ key: 'text', label: 'Texte stock', placeholder: 'Ex: ⚡ Plus que 5 en stock !', type: 'text' }] },
 };
 
-const inputCls = "w-full px-3 py-2 rounded-lg border border-gray-200 text-[13px] outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-200 transition-all bg-white";
+const inputCls = "w-full px-3 py-2 rounded-lg border border-gray-200 text-[13px] outline-none focus:border-primary-400 focus:ring-1 focus:ring-primary-200 transition-all bg-white";
 
 const DEFAULT_TESTIMONIALS = [
   { name: 'Thierry M.', location: 'Douala', rating: 5, text: 'Produit vraiment excellent ! J\'ai vu des résultats en moins d\'une semaine. Je recommande à 100%.', verified: true, date: 'Il y a 3 jours' },
@@ -339,7 +339,7 @@ const SectionContentEditor = ({ section, onChange, product }) => {
             {items.length > 1 && <button onClick={() => removeItem(i)} className="p-1 text-gray-300 hover:text-red-400"><Trash2 size={12} /></button>}
           </div>
         ))}
-        <button onClick={addItem} className="flex items-center gap-1 text-[11px] text-emerald-600 font-medium hover:text-emerald-700 mt-1">
+        <button onClick={addItem} className="flex items-center gap-1 text-[11px] text-primary-600 font-medium hover:text-primary-700 mt-1">
           <Plus size={12} /> Ajouter
         </button>
       </div>
@@ -363,7 +363,7 @@ const SectionContentEditor = ({ section, onChange, product }) => {
             <textarea className={inputCls + " resize-none"} rows={2} value={item.answer} onChange={e => updateFaq(i, 'answer', e.target.value)} placeholder="Réponse…" />
           </div>
         ))}
-        <button onClick={addFaq} className="flex items-center gap-1 text-[11px] text-emerald-600 font-medium hover:text-emerald-700 mt-1">
+        <button onClick={addFaq} className="flex items-center gap-1 text-[11px] text-primary-600 font-medium hover:text-primary-700 mt-1">
           <Plus size={12} /> Ajouter une question
         </button>
       </div>
@@ -385,7 +385,7 @@ const SectionContentEditor = ({ section, onChange, product }) => {
               type="checkbox"
               checked={content.showEyebrowLine !== false}
               onChange={e => update('showEyebrowLine', e.target.checked)}
-              className="w-3.5 h-3.5 accent-emerald-500"
+              className="w-3.5 h-3.5 accent-primary-500"
             />
             Afficher la ligne avant "Avis clients"
           </label>
@@ -394,7 +394,7 @@ const SectionContentEditor = ({ section, onChange, product }) => {
               type="checkbox"
               checked={content.showSocialProofImage !== false}
               onChange={e => update('showSocialProofImage', e.target.checked)}
-              className="w-3.5 h-3.5 accent-emerald-500"
+              className="w-3.5 h-3.5 accent-primary-500"
             />
             Afficher l'image témoignages
           </label>
@@ -410,7 +410,7 @@ const SectionContentEditor = ({ section, onChange, product }) => {
         </div>
         <div className="flex items-center justify-between mb-2">
           <span className="text-[11px] font-semibold text-gray-700">{items.length} avis client{items.length !== 1 ? 's' : ''}</span>
-          <button onClick={addT} className="flex items-center gap-1 text-[11px] text-emerald-600 font-semibold hover:text-emerald-700 bg-emerald-50 px-2 py-1 rounded-lg">
+          <button onClick={addT} className="flex items-center gap-1 text-[11px] text-primary-600 font-semibold hover:text-primary-700 bg-primary-50 px-2 py-1 rounded-lg">
             <Plus size={11} /> Ajouter
           </button>
         </div>
@@ -419,7 +419,7 @@ const SectionContentEditor = ({ section, onChange, product }) => {
             {/* Avis header */}
             <div className="flex items-center justify-between px-3 py-2 bg-gray-50 border-b border-gray-100">
               <div className="flex items-center gap-1.5">
-                <div className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-bold flex items-center justify-center uppercase">
+                <div className="w-5 h-5 rounded-full bg-primary-100 text-primary-700 text-[10px] font-bold flex items-center justify-center uppercase">
                   {(t.name || '?')[0]}
                 </div>
                 <span className="text-[11px] font-semibold text-gray-700">Avis #{i + 1}</span>
@@ -442,7 +442,7 @@ const SectionContentEditor = ({ section, onChange, product }) => {
                 </div>
                 <label className="flex items-center gap-1.5 cursor-pointer ml-auto">
                   <input type="checkbox" checked={!!t.verified} onChange={e => updateT(i, 'verified', e.target.checked)}
-                    className="w-3.5 h-3.5 accent-emerald-500" />
+                    className="w-3.5 h-3.5 accent-primary-500" />
                   <span className="text-[10px] text-gray-500">Achat vérifié ✓</span>
                 </label>
               </div>
@@ -459,7 +459,7 @@ const SectionContentEditor = ({ section, onChange, product }) => {
           </div>
         ))}
         {items.length === 0 && (
-          <button onClick={addT} className="w-full py-6 border-2 border-dashed border-gray-200 rounded-xl text-[12px] text-gray-400 hover:border-emerald-300 hover:text-emerald-600 transition">
+          <button onClick={addT} className="w-full py-6 border-2 border-dashed border-gray-200 rounded-xl text-[12px] text-gray-400 hover:border-primary-300 hover:text-primary-600 transition">
             + Ajouter un premier avis
           </button>
         )}
@@ -483,7 +483,7 @@ const SectionContentEditor = ({ section, onChange, product }) => {
             {items.length > 1 && <button onClick={() => removeItem(i)} className="p-1 text-gray-300 hover:text-red-400"><Trash2 size={12} /></button>}
           </div>
         ))}
-        <button onClick={addItem} className="flex items-center gap-1 text-[11px] text-emerald-600 font-medium hover:text-emerald-700 mt-1"><Plus size={12} /> Ajouter</button>
+        <button onClick={addItem} className="flex items-center gap-1 text-[11px] text-primary-600 font-medium hover:text-primary-700 mt-1"><Plus size={12} /> Ajouter</button>
         <div className="text-[10px] text-gray-400">Laissez vide pour utiliser les données IA</div>
       </div>
     );
@@ -496,7 +496,7 @@ const SectionContentEditor = ({ section, onChange, product }) => {
         if (field.type === 'checkbox') {
           return (
             <label key={field.key} className="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" checked={!!content[field.key]} onChange={e => update(field.key, e.target.checked)} className="w-4 h-4 accent-emerald-500" />
+              <input type="checkbox" checked={!!content[field.key]} onChange={e => update(field.key, e.target.checked)} className="w-4 h-4 accent-primary-500" />
               <span className="text-[12px] text-gray-600">{field.label}</span>
             </label>
           );
@@ -523,7 +523,7 @@ const SectionContentEditor = ({ section, onChange, product }) => {
                   {items.length > 1 && <button onClick={() => removeItem(i)} className="p-1 text-gray-300 hover:text-red-400"><Trash2 size={12} /></button>}
                 </div>
               ))}
-              <button onClick={addItem} className="flex items-center gap-1 text-[11px] text-emerald-600 font-medium hover:text-emerald-700">
+              <button onClick={addItem} className="flex items-center gap-1 text-[11px] text-primary-600 font-medium hover:text-primary-700">
                 <Plus size={12} /> Ajouter
               </button>
             </div>
@@ -1242,7 +1242,7 @@ const TestimonialsPreview = ({ config }) => (
           <div className="flex items-center gap-2">
             <div className="w-7 h-7 rounded-full bg-gray-200 flex items-center justify-center text-xs font-bold text-gray-500">{(item.name || '?')[0]}</div>
             <div>
-              <p className="text-xs font-semibold text-gray-900">{item.name}{config.showVerified !== false && item.verified && <span className="text-emerald-500 ml-1">✓</span>}</p>
+              <p className="text-xs font-semibold text-gray-900">{item.name}{config.showVerified !== false && item.verified && <span className="text-primary-500 ml-1">✓</span>}</p>
               {item.location && <p className="text-[10px] text-gray-400">{item.location}{item.date ? ` · ${item.date}` : ''}</p>}
             </div>
           </div>
@@ -2033,7 +2033,7 @@ const ProductPageBuilder = () => {
 
                         {/* Preview banner */}
                         {deliveryConfig.flatShippingFee && Number(deliveryConfig.flatShippingFee) > 0 && (
-                          <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-[11px] text-emerald-800">
+                          <div className="bg-primary-50 border border-primary-200 rounded-lg p-3 text-[11px] text-primary-800">
                             <p className="font-semibold">Aperçu :</p>
                             <p className="mt-0.5">
                               Livraison : <strong>{Number(deliveryConfig.flatShippingFee).toLocaleString('fr-FR')} FCFA</strong>

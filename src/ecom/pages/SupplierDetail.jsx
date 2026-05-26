@@ -17,15 +17,15 @@ const I = {
   truck: 'M8 14H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v6a2 2 0 01-2 2h-3m-4 0v3a2 2 0 01-2 2H8a2 2 0 01-2-2v-3m4 0h-4'
 };
 
-const Ico = ({d, className="w-5 h-5"}) => (
-  <svg className={className} fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d={d}/></svg>
+const Ico = ({d, className="w-5 h-5", ...props}) => (
+  <svg className={className} fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24" {...props}><path strokeLinecap="round" strokeLinejoin="round" d={d}/></svg>
 );
 
 const STATUS_CONFIG = {
   pending: { label: 'En attente', color: 'bg-yellow-100 text-yellow-800' },
   paid: { label: 'Payé', color: 'bg-blue-100 text-blue-800' },
   shipped: { label: 'Expédié', color: 'bg-purple-100 text-purple-800' },
-  received: { label: 'Reçu', color: 'bg-emerald-100 text-emerald-800' },
+  received: { label: 'Reçu', color: 'bg-primary-100 text-primary-800' },
   cancelled: { label: 'Annulé', color: 'bg-red-100 text-red-800' }
 };
 
@@ -158,8 +158,8 @@ export default function SupplierDetail() {
       <div className="bg-white border-b border-gray-100 sticky top-0 z-10">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-5">
           <div className="flex items-center gap-4 mb-4">
-            <button onClick={() => navigate('/ecom/sourcing')} className="p-2 -ml-2 rounded-lg hover:bg-gray-50 text-gray-400 hover:text-gray-900 transition">
-              <Ico d={I.back} className="w-5 h-5"/>
+            <button onClick={() => navigate('/ecom/sourcing')} aria-label="Retour aux fournisseurs" className="p-2 -ml-2 rounded-lg hover:bg-gray-100 active:scale-95 text-gray-400 hover:text-gray-900 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:ring-offset-1">
+              <Ico d={I.back} className="w-5 h-5" aria-hidden="true" />
             </button>
             <div className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center font-black text-xl text-gray-600">
               {supplier.name.charAt(0).toUpperCase()}
@@ -220,12 +220,12 @@ export default function SupplierDetail() {
                     <div className="flex items-center gap-4 sm:justify-end">
                       <div className="text-right">
                         <p className="text-lg font-black text-gray-900">{formatMoney(order.totalAmount)}</p>
-                        <span className={`inline-block px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wide mt-1 ${STATUS_CONFIG[order.status]?.color}`}>
+                        <span className={`inline-block px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wide mt-1 ${STATUS_CONFIG[order.status]?.color}`}>
                           {STATUS_CONFIG[order.status]?.label}
                         </span>
                       </div>
-                      <button onClick={() => handleDeleteOrder(order._id)} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition">
-                        <Ico d={I.trash} className="w-5 h-5"/>
+                      <button onClick={() => handleDeleteOrder(order._id)} aria-label="Supprimer la commande" className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg active:scale-95 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400 focus-visible:ring-offset-1">
+                        <Ico d={I.trash} className="w-5 h-5" aria-hidden="true" />
                       </button>
                     </div>
                   </div>
@@ -248,17 +248,17 @@ export default function SupplierDetail() {
                   {/* Actions Rapides Statut */}
                   <div className="flex flex-wrap gap-2 pt-4 border-t border-gray-50">
                     {order.status !== 'paid' && order.status !== 'received' && (
-                      <button onClick={() => handleUpdateOrderStatus(order._id, 'paid')} className="px-3 py-1.5 bg-blue-50 text-blue-700 rounded-lg text-xs font-bold hover:bg-blue-100 transition">
+                      <button onClick={() => handleUpdateOrderStatus(order._id, 'paid')} className="px-3 py-1.5 bg-blue-50 text-blue-700 rounded-lg text-xs font-bold hover:bg-blue-100 active:scale-95 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-1">
                         Marquer Payé
                       </button>
                     )}
                     {order.status === 'paid' && (
-                      <button onClick={() => handleUpdateOrderStatus(order._id, 'shipped')} className="px-3 py-1.5 bg-purple-50 text-purple-700 rounded-lg text-xs font-bold hover:bg-purple-100 transition">
+                      <button onClick={() => handleUpdateOrderStatus(order._id, 'shipped')} className="px-3 py-1.5 bg-purple-50 text-purple-700 rounded-lg text-xs font-bold hover:bg-purple-100 active:scale-95 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 focus-visible:ring-offset-1">
                         Marquer Expédié
                       </button>
                     )}
                     {order.status === 'shipped' && (
-                      <button onClick={() => handleUpdateOrderStatus(order._id, 'received')} className="px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-lg text-xs font-bold hover:bg-emerald-100 transition">
+                      <button onClick={() => handleUpdateOrderStatus(order._id, 'received')} className="px-3 py-1.5 bg-primary-50 text-primary-700 rounded-lg text-xs font-bold hover:bg-primary-100 active:scale-95 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-1">
                         Marquer Reçu
                       </button>
                     )}
@@ -363,38 +363,46 @@ export default function SupplierDetail() {
 
         {/* TAB: STATS */}
         {activeTab === 'stats' && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
-              <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center mb-4">
-                <Ico d={I.box} className="w-6 h-6"/>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Total commandes</p>
+                <div className="w-7 h-7 rounded-lg bg-blue-100 flex items-center justify-center" aria-hidden="true">
+                  <Ico d={I.box} className="w-4 h-4 text-blue-600" />
+                </div>
               </div>
-              <p className="text-sm font-medium text-gray-500 mb-1">Total Commandes</p>
-              <p className="text-3xl font-black text-gray-900">{stats?.totalOrders || 0}</p>
-            </div>
-            
-            <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
-              <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center mb-4 text-xl font-black">
-                XAF
-              </div>
-              <p className="text-sm font-medium text-gray-500 mb-1">Total Dépensé</p>
-              <p className="text-3xl font-black text-gray-900">{formatMoney(stats?.totalSpent || 0)}</p>
+              <p className="text-2xl font-black text-gray-900 tabular-nums">{stats?.totalOrders || 0}</p>
             </div>
 
-            <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
-              <div className="w-12 h-12 bg-purple-50 text-purple-600 rounded-xl flex items-center justify-center mb-4">
-                <Ico d={I.chart} className="w-6 h-6"/>
+            <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Total dépensé</p>
+                <div className="w-7 h-7 rounded-lg bg-primary-100 flex items-center justify-center" aria-hidden="true">
+                  <Ico d={I.chart} className="w-4 h-4 text-primary-600" />
+                </div>
               </div>
-              <p className="text-sm font-medium text-gray-500 mb-1">Panier Moyen</p>
-              <p className="text-3xl font-black text-gray-900">{formatMoney(stats?.avgOrderValue || 0)}</p>
+              <p className="text-xl font-black text-gray-900 tabular-nums leading-tight">{formatMoney(stats?.totalSpent || 0)}</p>
             </div>
 
-            <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
-              <div className="w-12 h-12 bg-orange-50 text-orange-600 rounded-xl flex items-center justify-center mb-4">
-                <Ico d={I.clock} className="w-6 h-6"/>
+            <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Panier moyen</p>
+                <div className="w-7 h-7 rounded-lg bg-purple-100 flex items-center justify-center" aria-hidden="true">
+                  <Ico d={I.chart} className="w-4 h-4 text-purple-600" />
+                </div>
               </div>
-              <p className="text-sm font-medium text-gray-500 mb-1">Dernière commande</p>
-              <p className="text-xl sm:text-2xl font-black text-gray-900 mt-2">
-                {stats?.lastOrderDate ? new Date(stats.lastOrderDate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) : 'Aucune'}
+              <p className="text-xl font-black text-gray-900 tabular-nums leading-tight">{formatMoney(stats?.avgOrderValue || 0)}</p>
+            </div>
+
+            <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Dernière commande</p>
+                <div className="w-7 h-7 rounded-lg bg-orange-100 flex items-center justify-center" aria-hidden="true">
+                  <Ico d={I.clock} className="w-4 h-4 text-orange-600" />
+                </div>
+              </div>
+              <p className="text-2xl font-black text-gray-900">
+                {stats?.lastOrderDate ? new Date(stats.lastOrderDate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) : '—'}
               </p>
             </div>
           </div>

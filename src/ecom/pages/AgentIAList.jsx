@@ -23,7 +23,7 @@ function getSteps(agent) {
 function getAgentStatus(agent) {
   const steps = getSteps(agent);
   const done = steps.filter(s => s.done).length;
-  if (done === 4) return { label: 'Actif', color: 'emerald', bg: 'bg-emerald-500' };
+  if (done === 4) return { label: 'Actif', color: 'emerald', bg: 'bg-primary-500' };
   if (done >= 2)  return { label: 'En cours', color: 'amber',   bg: 'bg-amber-400' };
   return           { label: 'À configurer', color: 'gray',    bg: 'bg-gray-400' };
 }
@@ -37,7 +37,7 @@ function daysLeft(dateStr) {
 // ─── StatCard ─────────────────────────────────────────────────────────────────
 function StatCard({ icon: Icon, label, value, sub, loading, accent }) {
   const accents = {
-    green:  { ring: 'ring-emerald-100', icon: 'bg-emerald-100 text-emerald-600', val: 'text-emerald-700' },
+    green:  { ring: 'ring-primary-100', icon: 'bg-primary-100 text-primary-600', val: 'text-primary-700' },
     amber:  { ring: 'ring-amber-100',   icon: 'bg-amber-100  text-amber-600',   val: 'text-amber-700' },
     blue:   { ring: 'ring-blue-100',    icon: 'bg-blue-100   text-blue-600',    val: 'text-blue-700' },
   }[accent] || { ring: 'ring-gray-100', icon: 'bg-gray-100 text-gray-500', val: 'text-gray-900' };
@@ -67,7 +67,7 @@ function AgentCard({ agent, onConfigure, onDelete, deleting, onViewConversations
   const pct    = Math.round((doneCt / steps.length) * 100);
 
   const statusStyles = {
-    emerald: { badge: 'bg-emerald-100 text-emerald-700', bar: 'from-emerald-400 to-emerald-600', ring: 'ring-emerald-200' },
+    emerald: { badge: 'bg-primary-100 text-primary-700', bar: 'from-primary-400 to-primary-600', ring: 'ring-primary-200' },
     amber:   { badge: 'bg-amber-100  text-amber-700',   bar: 'from-amber-400  to-amber-500',    ring: 'ring-amber-200' },
     gray:    { badge: 'bg-gray-100   text-gray-600',    bar: 'from-gray-300   to-gray-400',     ring: 'ring-gray-200' },
   }[status.color];
@@ -101,7 +101,7 @@ function AgentCard({ agent, onConfigure, onDelete, deleting, onViewConversations
       {/* Top row */}
       <div className="flex items-start gap-4 mb-5 pr-8">
         <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-xl flex-shrink-0 ${
-          status.color === 'emerald' ? 'bg-emerald-100' : status.color === 'amber' ? 'bg-amber-100' : 'bg-gray-100'
+          status.color === 'emerald' ? 'bg-primary-100' : status.color === 'amber' ? 'bg-amber-100' : 'bg-gray-100'
         }`}>
           🤖
         </div>
@@ -123,7 +123,7 @@ function AgentCard({ agent, onConfigure, onDelete, deleting, onViewConversations
       <div className="grid grid-cols-2 gap-1.5 mb-4">
         {steps.map((step, i) => (
           <div key={i} className={`flex items-center gap-1.5 text-xs rounded-lg px-2.5 py-1.5 ${
-            step.done ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-50 text-gray-400'
+            step.done ? 'bg-primary-50 text-primary-700' : 'bg-gray-50 text-gray-400'
           }`}>
             {step.done
               ? <CheckCircle className="w-3.5 h-3.5 flex-shrink-0" />
@@ -147,7 +147,7 @@ function AgentCard({ agent, onConfigure, onDelete, deleting, onViewConversations
 
       {/* CTA */}
       <div className={`mt-4 pt-4 border-t border-gray-100 flex items-center justify-between text-xs font-bold ${
-        status.color === 'emerald' ? 'text-emerald-600' : 'text-gray-500'
+        status.color === 'emerald' ? 'text-primary-600' : 'text-gray-500'
       }`}>
         <span>{pct === 100 ? 'Voir les stats' : 'Continuer la configuration'}</span>
         <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
@@ -156,7 +156,7 @@ function AgentCard({ agent, onConfigure, onDelete, deleting, onViewConversations
       {/* Conversations button */}
       <button
         onClick={e => { e.stopPropagation(); onViewConversations(agent); }}
-        className="mt-3 w-full flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-xl transition-colors"
+        className="mt-3 w-full flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold text-primary-700 bg-primary-50 hover:bg-primary-100 rounded-xl transition-colors"
       >
         <MessageSquare className="w-3.5 h-3.5" />
         Conversations
@@ -178,7 +178,7 @@ function EmptyState({ onCreateClick }) {
       </p>
       <button
         onClick={onCreateClick}
-        className="inline-flex items-center gap-2 px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-emerald-200"
+        className="inline-flex items-center gap-2 px-6 py-3 bg-primary-600 hover:bg-primary-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-primary-200"
       >
         <Plus className="w-4 h-4" />
         Créer mon premier agent
@@ -209,7 +209,7 @@ function PlanBar({ planInfo, agentCount, agentLimit, onUpgrade, onBilling }) {
             <p className="text-slate-500 text-xs">Passez à Scalor + IA pour activer vos agents commerciaux IA.</p>
           </div>
         </div>
-        <button onClick={onUpgrade} className="text-xs font-bold px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition">
+        <button onClick={onUpgrade} className="text-xs font-bold px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-xl transition">
           Passer à Scalor + IA →
         </button>
       </div>
@@ -393,7 +393,7 @@ export default function AgentIAList() {
           </div>
           <button
             onClick={handleCreate}
-            className="inline-flex items-center gap-2 px-5 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-emerald-200 text-sm"
+            className="inline-flex items-center gap-2 px-5 py-3 bg-primary-600 hover:bg-primary-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-primary-200 text-sm"
           >
             <Plus className="w-4 h-4" />
             Nouvel agent
@@ -415,7 +415,7 @@ export default function AgentIAList() {
           <button
             onClick={loadStats}
             disabled={kpisLoading}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${kpisLoading ? 'animate-spin' : ''}`} />
             {kpisLoading ? 'Chargement...' : 'Actualiser'}
@@ -468,7 +468,7 @@ export default function AgentIAList() {
               <button
                 onClick={handleCreate}
                 disabled={atLimit || isPlanExpired}
-                className="text-sm font-bold text-emerald-600 hover:text-emerald-700 disabled:text-gray-300 flex items-center gap-1 transition-colors"
+                className="text-sm font-bold text-primary-600 hover:text-primary-700 disabled:text-gray-300 flex items-center gap-1 transition-colors"
               >
                 <Plus className="w-4 h-4" />
                 Ajouter
@@ -516,7 +516,7 @@ export default function AgentIAList() {
 
         {/* ── ONBOARDING GUIDE (si aucun agent actif) ─────────────────────── */}
         {!loading && agents.length > 0 && activeAgents === 0 && (
-          <div className="bg-white rounded-2xl ring-2 ring-emerald-100 p-6 sm:p-8">
+          <div className="bg-white rounded-2xl ring-2 ring-primary-100 p-6 sm:p-8">
             <h3 className="font-black text-gray-900 mb-1">3 étapes pour commencer à vendre</h3>
             <p className="text-gray-500 text-sm mb-6">Suivez ces étapes pour activer votre commercial IA</p>
             <div className="grid sm:grid-cols-3 gap-4">
@@ -526,7 +526,7 @@ export default function AgentIAList() {
                 { icon: Zap,        num: 3, title: 'Activez l\'agent',     desc: 'Basculez le switch ON et votre commercial répond automatiquement.' },
               ].map(step => (
                 <div key={step.num} className="flex gap-4">
-                  <div className="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center text-emerald-700 font-black text-lg flex-shrink-0">
+                  <div className="w-10 h-10 bg-primary-100 rounded-xl flex items-center justify-center text-primary-700 font-black text-lg flex-shrink-0">
                     {step.num}
                   </div>
                   <div>

@@ -294,7 +294,7 @@ const StoreProductsList = () => {
     if (stock <= 5) {
       return { label: 'Faible', className: 'bg-amber-50 text-amber-700 ring-amber-100' };
     }
-    return { label: 'Disponible', className: 'bg-emerald-50 text-emerald-700 ring-emerald-100' };
+    return { label: 'Disponible', className: 'bg-primary-50 text-primary-700 ring-primary-100' };
   };
 
   const normalizedSearch = search.trim().toLowerCase();
@@ -686,9 +686,9 @@ const StoreProductsList = () => {
               <p className="text-xs font-semibold uppercase tracking-[0.12em] text-amber-600">Stock faible</p>
               <p className="mt-2 text-2xl font-bold text-amber-700">{stockSummary.lowStock}</p>
             </div>
-            <div className="min-w-[170px] flex-1 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-4 shadow-sm">
-              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-emerald-600">Disponibles</p>
-              <p className="mt-2 text-2xl font-bold text-emerald-700">{stockSummary.available}</p>
+            <div className="min-w-[170px] flex-1 rounded-2xl border border-primary-100 bg-primary-50 px-4 py-4 shadow-sm">
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-primary-600">Disponibles</p>
+              <p className="mt-2 text-2xl font-bold text-primary-700">{stockSummary.available}</p>
             </div>
           </div>
           <div className="rounded-2xl border border-gray-200 bg-white px-4 py-4 shadow-sm">
@@ -705,7 +705,7 @@ const StoreProductsList = () => {
                       key={filter.key}
                       type="button"
                       onClick={() => setStockFilter(filter.key)}
-                      className={`rounded-full px-3 py-2 text-sm font-medium transition ${active ? 'bg-emerald-600 text-white shadow-sm' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                      className={`rounded-full px-3 py-2 text-sm font-medium transition ${active ? 'bg-primary-600 text-white shadow-sm' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
                     >
                       {filter.label}
                     </button>
@@ -728,8 +728,8 @@ const StoreProductsList = () => {
       <div className="rounded-[28px] border border-gray-200 bg-white px-5 py-5 shadow-[0_24px_50px_-32px_rgba(15,23,42,0.2)] sm:px-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-start gap-3">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-emerald-100 bg-emerald-50">
-              <Package className="h-6 w-6 text-emerald-600" />
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-primary-100 bg-primary-50">
+              <Package className="h-6 w-6 text-primary-600" />
             </div>
             <div>
               <h1 className="text-xl font-bold tracking-tight text-gray-900">{currentView.title}</h1>
@@ -771,7 +771,7 @@ const StoreProductsList = () => {
                 {/* Gratuit — hero_page mode */}
                 <button
                   onClick={() => handleOpenPageGenerator('hero_page')}
-                  className="inline-flex items-center justify-center gap-1.5 bg-emerald-500 hover:bg-emerald-600 px-3 py-2.5 text-sm font-semibold text-white transition border-r border-emerald-400"
+                  className="inline-flex items-center justify-center gap-1.5 bg-primary-500 hover:bg-primary-600 px-3 py-2.5 text-sm font-semibold text-white transition border-r border-primary-400"
                   title="Page complète + hero IA — gratuit, sans images d'angles"
                 >
                   <Sparkles className="h-4 w-4" />
@@ -815,7 +815,7 @@ const StoreProductsList = () => {
             )}
             <button
               onClick={() => navigate(`${basePath}/products/new`)}
-              className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-emerald-700 shadow-sm"
+              className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-primary-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-primary-700 shadow-sm"
             >
               <Plus className="h-4 w-4" />
               Ajouter un produit
@@ -831,7 +831,7 @@ const StoreProductsList = () => {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder={currentView.searchPlaceholder}
-              className="w-full rounded-2xl border border-gray-200 bg-gray-50/80 py-3 pl-11 pr-4 text-sm text-gray-700 transition placeholder:text-gray-400 focus:border-emerald-300 focus:bg-white focus:outline-none focus:ring-4 focus:ring-emerald-100"
+              className="w-full rounded-2xl border border-gray-200 bg-gray-50/80 py-3 pl-11 pr-4 text-sm text-gray-700 transition placeholder:text-gray-400 focus:border-primary-300 focus:bg-white focus:outline-none focus:ring-4 focus:ring-primary-100"
             />
           </div>
           <div className="flex items-center gap-2 text-xs text-gray-500">
@@ -839,7 +839,7 @@ const StoreProductsList = () => {
               {(viewMode === 'stock' ? stockFilteredProducts.length : filteredProducts.length)} affiché{(viewMode === 'stock' ? stockFilteredProducts.length : filteredProducts.length) > 1 ? 's' : ''}
             </span>
             {search && (
-              <span className="rounded-full bg-emerald-50 px-3 py-1.5 font-medium text-emerald-700">
+              <span className="rounded-full bg-primary-50 px-3 py-1.5 font-medium text-primary-700">
                 Filtre actif
               </span>
             )}
@@ -901,7 +901,7 @@ const StoreProductsList = () => {
                         <button
                           type="button"
                           onClick={() => openRenameCategoryDialog(category.name)}
-                          className="rounded-xl border border-transparent p-2 text-gray-400 transition hover:border-emerald-100 hover:bg-emerald-50 hover:text-emerald-600"
+                          className="rounded-xl border border-transparent p-2 text-gray-400 transition hover:border-primary-100 hover:bg-primary-50 hover:text-primary-600"
                           title="Modifier"
                         >
                           <Edit className="h-4 w-4" />
@@ -944,7 +944,7 @@ const StoreProductsList = () => {
                   <button
                     type="button"
                     onClick={() => openRenameCategoryDialog(category.name)}
-                    className="rounded-xl bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-700"
+                    className="rounded-xl bg-primary-50 px-3 py-2 text-xs font-medium text-primary-700"
                   >
                     Modifier
                   </button>
@@ -992,7 +992,7 @@ const StoreProductsList = () => {
                   value={categoryDialog.name}
                   onChange={(event) => setCategoryDialog((previous) => ({ ...previous, name: event.target.value }))}
                   placeholder="Ex: Nouveautés"
-                  className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none transition focus:border-emerald-300 focus:bg-white focus:ring-4 focus:ring-emerald-100"
+                  className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none transition focus:border-primary-300 focus:bg-white focus:ring-4 focus:ring-primary-100"
                 />
               </div>
               <div className="rounded-3xl border border-gray-200 bg-gray-50/70 p-4">
@@ -1013,7 +1013,7 @@ const StoreProductsList = () => {
                     value={categoryDialog.productSearch}
                     onChange={(event) => setCategoryDialog((previous) => ({ ...previous, productSearch: event.target.value }))}
                     placeholder="Rechercher un produit existant..."
-                    className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 outline-none transition focus:border-emerald-300 focus:ring-4 focus:ring-emerald-100"
+                    className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 outline-none transition focus:border-primary-300 focus:ring-4 focus:ring-primary-100"
                   />
                 </div>
                 <div className="mt-4 max-h-80 space-y-2 overflow-y-auto pr-1">
@@ -1029,13 +1029,13 @@ const StoreProductsList = () => {
                     return (
                       <label
                         key={product._id}
-                        className={`flex cursor-pointer items-start gap-3 rounded-2xl border px-4 py-3 transition ${selected ? 'border-emerald-200 bg-emerald-50/70' : 'border-gray-200 bg-white hover:border-gray-300'}`}
+                        className={`flex cursor-pointer items-start gap-3 rounded-2xl border px-4 py-3 transition ${selected ? 'border-primary-200 bg-primary-50/70' : 'border-gray-200 bg-white hover:border-gray-300'}`}
                       >
                         <input
                           type="checkbox"
                           checked={selected}
                           onChange={() => toggleCategoryProductSelection(product._id)}
-                          className="mt-0.5 h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                          className="mt-0.5 h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
                         />
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-2">
@@ -1094,7 +1094,7 @@ const StoreProductsList = () => {
                 <tr className="border-b border-gray-100 bg-gray-50/70">
                   <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-500">
                     <label className="inline-flex items-center gap-2">
-                      <input type="checkbox" checked={stockFilteredProducts.length > 0 && stockFilteredProducts.every((product) => selectedStockIds.includes(product._id))} onChange={toggleSelectAllStock} className="h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500" />
+                      <input type="checkbox" checked={stockFilteredProducts.length > 0 && stockFilteredProducts.every((product) => selectedStockIds.includes(product._id))} onChange={toggleSelectAllStock} className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500" />
                       <span>Sélectionner la totalité des stock</span>
                     </label>
                   </th>
@@ -1115,7 +1115,7 @@ const StoreProductsList = () => {
                   return (
                     <tr key={product._id} className="transition hover:bg-gray-50/70">
                       <td className="px-5 py-4">
-                        <input type="checkbox" checked={selectedStockIds.includes(product._id)} onChange={() => toggleStockSelection(product._id)} className="h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500" />
+                        <input type="checkbox" checked={selectedStockIds.includes(product._id)} onChange={() => toggleStockSelection(product._id)} className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500" />
                       </td>
                       <td className="px-4 py-4">
                         {product.images?.[0]?.url ? (
@@ -1142,7 +1142,7 @@ const StoreProductsList = () => {
                           min="0"
                           value={draftStock}
                           onChange={(event) => handleStockDraftChange(product._id, event.target.value)}
-                          className="mt-2 w-28 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-emerald-300 focus:ring-4 focus:ring-emerald-100"
+                          className="mt-2 w-28 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-primary-300 focus:ring-4 focus:ring-primary-100"
                         />
                       </td>
                       <td className="px-4 py-4">
@@ -1152,7 +1152,7 @@ const StoreProductsList = () => {
                           min="0"
                           value={draftStock}
                           onChange={(event) => handleStockDraftChange(product._id, event.target.value)}
-                          className="mt-2 w-28 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-emerald-300 focus:ring-4 focus:ring-emerald-100"
+                          className="mt-2 w-28 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-primary-300 focus:ring-4 focus:ring-primary-100"
                         />
                         <div className="mt-2">
                           <span className={`inline-flex rounded-full px-2 py-1 text-[11px] font-medium ring-1 ${stockBadge.className}`}>{stockBadge.label}</span>
@@ -1163,7 +1163,7 @@ const StoreProductsList = () => {
                           <button
                             type="button"
                             onClick={() => navigate(`${basePath}/products/${product._id}/edit`)}
-                            className="rounded-xl border border-transparent p-2 text-gray-400 transition hover:border-emerald-100 hover:bg-emerald-50 hover:text-emerald-600"
+                            className="rounded-xl border border-transparent p-2 text-gray-400 transition hover:border-primary-100 hover:bg-primary-50 hover:text-primary-600"
                             title="Modifier"
                           >
                             <Edit className="h-4 w-4" />
@@ -1187,7 +1187,7 @@ const StoreProductsList = () => {
                       <p className="text-sm font-semibold text-gray-900">{product.name}</p>
                       <p className="mt-1 text-xs text-gray-500">Aucun SKU</p>
                     </div>
-                    <input type="checkbox" checked={selectedStockIds.includes(product._id)} onChange={() => toggleStockSelection(product._id)} className="mt-1 h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500" />
+                    <input type="checkbox" checked={selectedStockIds.includes(product._id)} onChange={() => toggleStockSelection(product._id)} className="mt-1 h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500" />
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
@@ -1201,7 +1201,7 @@ const StoreProductsList = () => {
                   </div>
                   <div className="flex items-center justify-between">
                     <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-medium ring-1 ${stockBadge.className}`}>{stockBadge.label}</span>
-                    <button type="button" onClick={() => navigate(`${basePath}/products/${product._id}/edit`)} className="rounded-xl bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-700">Modifier</button>
+                    <button type="button" onClick={() => navigate(`${basePath}/products/${product._id}/edit`)} className="rounded-xl bg-primary-50 px-3 py-2 text-xs font-medium text-primary-700">Modifier</button>
                   </div>
                 </div>
               );
@@ -1219,7 +1219,7 @@ const StoreProductsList = () => {
       {/* Products Table / List */}
       {loading ? (
         <div className="flex justify-center py-16">
-          <Loader2 className="w-7 h-7 animate-spin text-emerald-600" />
+          <Loader2 className="w-7 h-7 animate-spin text-primary-600" />
         </div>
       ) : viewMode === 'categories' ? null : (viewMode === 'stock' ? stockFilteredProducts.length === 0 : filteredProducts.length === 0) ? (
         <div className="text-center py-16">
@@ -1227,7 +1227,7 @@ const StoreProductsList = () => {
           <p className="text-gray-500 mt-3 text-sm">Aucun résultat pour cette vue</p>
           <button
             onClick={() => navigate(`${basePath}/products/new`)}
-            className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition"
+            className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 bg-primary-600 text-white rounded-lg text-sm font-medium hover:bg-primary-700 transition"
           >
             <Plus className="w-4 h-4" />
             Créer le premier produit
@@ -1248,7 +1248,7 @@ const StoreProductsList = () => {
                 <tr className="border-b border-gray-100 bg-gray-50/70">
                   <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-500">
                     <label className="inline-flex items-center gap-2">
-                      <input type="checkbox" checked={stockFilteredProducts.length > 0 && stockFilteredProducts.every((product) => selectedStockIds.includes(product._id))} onChange={toggleSelectAllStock} className="h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500" />
+                      <input type="checkbox" checked={stockFilteredProducts.length > 0 && stockFilteredProducts.every((product) => selectedStockIds.includes(product._id))} onChange={toggleSelectAllStock} className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500" />
                       <span>Sélectionner la totalité des stock</span>
                     </label>
                   </th>
@@ -1269,7 +1269,7 @@ const StoreProductsList = () => {
                   return (
                     <tr key={product._id} className="transition hover:bg-gray-50/70">
                       <td className="px-5 py-4">
-                        <input type="checkbox" checked={selectedStockIds.includes(product._id)} onChange={() => toggleStockSelection(product._id)} className="h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500" />
+                        <input type="checkbox" checked={selectedStockIds.includes(product._id)} onChange={() => toggleStockSelection(product._id)} className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500" />
                       </td>
                       <td className="px-4 py-4">
                         {product.images?.[0]?.url ? (
@@ -1291,11 +1291,11 @@ const StoreProductsList = () => {
                       <td className="px-4 py-4 text-sm text-gray-700">0</td>
                       <td className="px-4 py-4">
                         <label className="block text-xs text-gray-500">Quantité Disponible</label>
-                        <input type="number" min="0" value={draftStock} onChange={(event) => handleStockDraftChange(product._id, event.target.value)} className="mt-2 w-28 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-emerald-300 focus:ring-4 focus:ring-emerald-100" />
+                        <input type="number" min="0" value={draftStock} onChange={(event) => handleStockDraftChange(product._id, event.target.value)} className="mt-2 w-28 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-primary-300 focus:ring-4 focus:ring-primary-100" />
                       </td>
                       <td className="px-4 py-4">
                         <label className="block text-xs text-gray-500">Quantité En stock</label>
-                        <input type="number" min="0" value={draftStock} onChange={(event) => handleStockDraftChange(product._id, event.target.value)} className="mt-2 w-28 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-emerald-300 focus:ring-4 focus:ring-emerald-100" />
+                        <input type="number" min="0" value={draftStock} onChange={(event) => handleStockDraftChange(product._id, event.target.value)} className="mt-2 w-28 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-primary-300 focus:ring-4 focus:ring-primary-100" />
                         <div className="mt-2 flex items-center gap-2">
                           <span className={`inline-flex rounded-full px-2 py-1 text-[11px] font-medium ring-1 ${stockBadge.className}`}>{stockBadge.label}</span>
                           {hasStockDraft(product) && <span className="text-xs font-medium text-amber-600">Modifié</span>}
@@ -1307,7 +1307,7 @@ const StoreProductsList = () => {
                           <button
                             type="button"
                             onClick={() => navigate(`${basePath}/products/${product._id}/edit`)}
-                            className="rounded-xl border border-transparent p-2 text-gray-400 transition hover:border-emerald-100 hover:bg-emerald-50 hover:text-emerald-600"
+                            className="rounded-xl border border-transparent p-2 text-gray-400 transition hover:border-primary-100 hover:bg-primary-50 hover:text-primary-600"
                             title="Modifier"
                           >
                             <Edit className="h-4 w-4" />
@@ -1342,7 +1342,7 @@ const StoreProductsList = () => {
                         {hasStockDraft(product) && <span className="inline-flex rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-medium text-amber-700">Modifié</span>}
                       </div>
                     </div>
-                    <input type="checkbox" checked={selectedStockIds.includes(product._id)} onChange={() => toggleStockSelection(product._id)} className="mt-1 h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500" />
+                    <input type="checkbox" checked={selectedStockIds.includes(product._id)} onChange={() => toggleStockSelection(product._id)} className="mt-1 h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500" />
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
@@ -1356,7 +1356,7 @@ const StoreProductsList = () => {
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <button type="button" onClick={() => handleTogglePublish(product)} className="rounded-xl bg-gray-100 px-3 py-2 text-xs font-medium text-gray-700">{product.isPublished ? 'Masquer' : 'Publier'}</button>
-                    <button type="button" onClick={() => navigate(`${basePath}/products/${product._id}/edit`)} className="rounded-xl bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-700">Modifier</button>
+                    <button type="button" onClick={() => navigate(`${basePath}/products/${product._id}/edit`)} className="rounded-xl bg-primary-50 px-3 py-2 text-xs font-medium text-primary-700">Modifier</button>
                   </div>
                 </div>
               );
@@ -1435,7 +1435,7 @@ const StoreProductsList = () => {
                         onClick={() => handleTogglePublish(product)}
                         className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-xs font-medium transition ${
                           product.isPublished
-                            ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                            ? 'bg-primary-50 text-primary-700 hover:bg-primary-100'
                             : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                         }`}
                       >
@@ -1477,7 +1477,7 @@ const StoreProductsList = () => {
                         </button>
                         <button
                           onClick={() => navigate(`${basePath}/products/${product._id}/edit`)}
-                          className="rounded-xl border border-transparent p-2 text-gray-400 transition hover:border-emerald-100 hover:bg-emerald-50 hover:text-emerald-600"
+                          className="rounded-xl border border-transparent p-2 text-gray-400 transition hover:border-primary-100 hover:bg-primary-50 hover:text-primary-600"
                           title="Modifier"
                         >
                           <Edit className="w-4 h-4" />
@@ -1518,7 +1518,7 @@ const StoreProductsList = () => {
                       <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-medium ring-1 ${stockBadge.className}`}>
                         Stock: {product.stock ?? 0}
                       </span>
-                      <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium ${product.isPublished ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-600'}`}>
+                      <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium ${product.isPublished ? 'bg-primary-50 text-primary-700' : 'bg-gray-100 text-gray-600'}`}>
                         {product.isPublished ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
                         {product.isPublished ? 'Publié' : 'Brouillon'}
                       </span>
@@ -1528,7 +1528,7 @@ const StoreProductsList = () => {
                 <div className="flex flex-wrap items-center gap-2">
                   <button
                     onClick={() => handleTogglePublish(product)}
-                    className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-medium ${product.isPublished ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-600'}`}
+                    className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-medium ${product.isPublished ? 'bg-primary-50 text-primary-700' : 'bg-gray-100 text-gray-600'}`}
                   >
                     {product.isPublished ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
                     {product.isPublished ? 'Dépublier' : 'Publier'}
@@ -1543,7 +1543,7 @@ const StoreProductsList = () => {
                   <button onClick={() => navigate(`${basePath}/products/${product._id}/builder`)} className={`rounded-xl px-3 py-2 text-xs font-medium ${product.pageBuilder?.enabled ? 'bg-indigo-50 text-indigo-700' : 'bg-gray-100 text-gray-600'}`}>Builder</button>
                   <button onClick={() => handleDuplicate(product)} className="rounded-xl bg-amber-50 px-3 py-2 text-xs font-medium text-amber-700">Copier</button>
                   <button onClick={() => handleExportSingleProductCsv(product)} className="rounded-xl bg-gray-100 px-3 py-2 text-xs font-medium text-gray-700">Exporter CSV</button>
-                  <button onClick={() => navigate(`${basePath}/products/${product._id}/edit`)} className="rounded-xl bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-700">Modifier</button>
+                  <button onClick={() => navigate(`${basePath}/products/${product._id}/edit`)} className="rounded-xl bg-primary-50 px-3 py-2 text-xs font-medium text-primary-700">Modifier</button>
                   <button onClick={() => handleDelete(product._id)} className="rounded-xl bg-red-50 px-3 py-2 text-xs font-medium text-red-600">Supprimer</button>
                 </div>
               </div>

@@ -13,7 +13,7 @@ const fmt = (n) => (n || 0).toLocaleString('fr-FR');
 
 const statusColors = {
   pending: 'bg-amber-100 text-amber-800',
-  approved: 'bg-emerald-100 text-emerald-800',
+  approved: 'bg-primary-100 text-primary-800',
   paid: 'bg-blue-100 text-blue-800',
   rejected: 'bg-red-100 text-red-800',
 };
@@ -117,7 +117,7 @@ export default function AffiliateDashboard() {
             </div>
             <p className="text-xs text-gray-500 mb-3">Partagez ce lien — vous gagnez <b>500 FCFA</b> par inscription et <b>50%</b> sur chaque paiement du filleul.</p>
             <div className="flex items-center gap-2">
-              <code className="flex-1 text-xs bg-gray-900 text-emerald-300 rounded-lg p-3 break-all font-mono">{referralUrl}</code>
+              <code className="flex-1 text-xs bg-gray-900 text-primary-300 rounded-lg p-3 break-all font-mono">{referralUrl}</code>
               <button
                 onClick={() => copyToClipboard(referralUrl, 'primary')}
                 className="flex-shrink-0 px-3 py-3 bg-[#0F6B4F] hover:bg-[#0a5040] text-white rounded-lg transition-colors"
@@ -160,8 +160,8 @@ export default function AffiliateDashboard() {
                 <h3 className="text-sm font-semibold text-gray-900">Comment ça marche</h3>
               </div>
               <div className="p-4 space-y-3">
-                <div className="flex items-start gap-3 p-3 rounded-lg bg-emerald-50 border border-emerald-100">
-                  <div className="w-8 h-8 bg-emerald-100 text-emerald-700 rounded-lg flex items-center justify-center flex-shrink-0 text-sm font-bold">1</div>
+                <div className="flex items-start gap-3 p-3 rounded-lg bg-primary-50 border border-primary-100">
+                  <div className="w-8 h-8 bg-primary-100 text-primary-700 rounded-lg flex items-center justify-center flex-shrink-0 text-sm font-bold">1</div>
                   <div>
                     <p className="text-sm font-semibold text-gray-900">Inscription via votre lien</p>
                     <p className="text-xs text-gray-600 mt-0.5">Vous gagnez <b>500 FCFA</b> pour chaque personne qui s'inscrit avec votre lien de parrainage.</p>

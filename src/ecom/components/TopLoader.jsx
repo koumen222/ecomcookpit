@@ -63,7 +63,7 @@ const TopLoader = () => {
       style={{ opacity: fading ? 0 : 1, transition: 'opacity 0.3s ease' }}
     >
       <div
-        className="h-full bg-emerald-600 rounded-r-full shadow-[0_0_8px_rgba(15,107,79,0.7)]"
+        className="h-full bg-primary-600 rounded-r-full shadow-[0_0_8px_rgba(15,107,79,0.7)]"
         style={{
           width: `${progress}%`,
           transition: progress === 100 ? 'width 0.15s ease-out' : 'width 0.35s ease-out',

@@ -244,7 +244,7 @@ const ProviderService = () => {
     <div className="min-h-screen bg-gradient-to-br from-amber-50 via-lime-50 to-cyan-100">
       <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
         <div className="mb-8 rounded-3xl border border-white/70 bg-white/80 p-6 shadow-xl backdrop-blur">
-          <p className="text-xs font-semibold uppercase tracking-[0.25em] text-emerald-700">Provider Console</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.25em] text-primary-700">Provider Console</p>
           <h1 className="mt-2 text-3xl font-black text-slate-900 sm:text-4xl">Interface Provider As A Service</h1>
           <p className="mt-3 max-w-3xl text-sm text-slate-600 sm:text-base">
             Creez vos instances, gerez vos boutiques et pilotez votre service avec un Bearer token dedie.
@@ -259,7 +259,7 @@ const ProviderService = () => {
         )}
 
         {message && (
-          <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+          <div className="mb-4 rounded-xl border border-primary-200 bg-primary-50 px-4 py-3 text-sm text-primary-700">
             {message}
           </div>
         )}
@@ -300,7 +300,7 @@ const ProviderService = () => {
                       type="email"
                       value={loginForm.email}
                       onChange={(e) => setLoginForm((prev) => ({ ...prev, email: e.target.value }))}
-                      className="w-full rounded-xl border border-slate-200 px-3 py-2 outline-none ring-emerald-200 focus:ring"
+                      className="w-full rounded-xl border border-slate-200 px-3 py-2 outline-none ring-primary-200 focus:ring"
                     />
                   </div>
                   <div>
@@ -310,7 +310,7 @@ const ProviderService = () => {
                       type="password"
                       value={loginForm.password}
                       onChange={(e) => setLoginForm((prev) => ({ ...prev, password: e.target.value }))}
-                      className="w-full rounded-xl border border-slate-200 px-3 py-2 outline-none ring-emerald-200 focus:ring"
+                      className="w-full rounded-xl border border-slate-200 px-3 py-2 outline-none ring-primary-200 focus:ring"
                     />
                   </div>
                   <button
@@ -331,7 +331,7 @@ const ProviderService = () => {
                       required
                       value={registerForm.company}
                       onChange={(e) => setRegisterForm((prev) => ({ ...prev, company: e.target.value }))}
-                      className="w-full rounded-xl border border-slate-200 px-3 py-2 outline-none ring-emerald-200 focus:ring"
+                      className="w-full rounded-xl border border-slate-200 px-3 py-2 outline-none ring-primary-200 focus:ring"
                     />
                   </div>
                   <div>
@@ -340,7 +340,7 @@ const ProviderService = () => {
                       required
                       value={registerForm.name}
                       onChange={(e) => setRegisterForm((prev) => ({ ...prev, name: e.target.value }))}
-                      className="w-full rounded-xl border border-slate-200 px-3 py-2 outline-none ring-emerald-200 focus:ring"
+                      className="w-full rounded-xl border border-slate-200 px-3 py-2 outline-none ring-primary-200 focus:ring"
                     />
                   </div>
                   <div>
@@ -350,7 +350,7 @@ const ProviderService = () => {
                       type="email"
                       value={registerForm.email}
                       onChange={(e) => setRegisterForm((prev) => ({ ...prev, email: e.target.value }))}
-                      className="w-full rounded-xl border border-slate-200 px-3 py-2 outline-none ring-emerald-200 focus:ring"
+                      className="w-full rounded-xl border border-slate-200 px-3 py-2 outline-none ring-primary-200 focus:ring"
                     />
                   </div>
                   <div>
@@ -358,7 +358,7 @@ const ProviderService = () => {
                     <input
                       value={registerForm.phone}
                       onChange={(e) => setRegisterForm((prev) => ({ ...prev, phone: e.target.value }))}
-                      className="w-full rounded-xl border border-slate-200 px-3 py-2 outline-none ring-emerald-200 focus:ring"
+                      className="w-full rounded-xl border border-slate-200 px-3 py-2 outline-none ring-primary-200 focus:ring"
                     />
                   </div>
                   <div>
@@ -369,13 +369,13 @@ const ProviderService = () => {
                       type="password"
                       value={registerForm.password}
                       onChange={(e) => setRegisterForm((prev) => ({ ...prev, password: e.target.value }))}
-                      className="w-full rounded-xl border border-slate-200 px-3 py-2 outline-none ring-emerald-200 focus:ring"
+                      className="w-full rounded-xl border border-slate-200 px-3 py-2 outline-none ring-primary-200 focus:ring"
                     />
                   </div>
                   <button
                     disabled={loading}
                     type="submit"
-                    className="w-full rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="w-full rounded-xl bg-primary-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-primary-500 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {loading ? 'Creation...' : 'Creer mon compte Provider'}
                   </button>
@@ -390,7 +390,7 @@ const ProviderService = () => {
                       required
                       value={verifyToken}
                       onChange={(e) => setVerifyToken(e.target.value)}
-                      className="w-full rounded-xl border border-slate-200 px-3 py-2 outline-none ring-emerald-200 focus:ring"
+                      className="w-full rounded-xl border border-slate-200 px-3 py-2 outline-none ring-primary-200 focus:ring"
                       placeholder="Collez le token recu par email"
                     />
                   </div>
@@ -470,18 +470,18 @@ const ProviderService = () => {
                   placeholder="Nom instance"
                   value={instanceForm.name}
                   onChange={(e) => setInstanceForm((prev) => ({ ...prev, name: e.target.value }))}
-                  className="rounded-xl border border-slate-200 px-3 py-2 outline-none ring-emerald-200 focus:ring"
+                  className="rounded-xl border border-slate-200 px-3 py-2 outline-none ring-primary-200 focus:ring"
                 />
                 <input
                   placeholder="Subdomain (optionnel)"
                   value={instanceForm.subdomain}
                   onChange={(e) => setInstanceForm((prev) => ({ ...prev, subdomain: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') }))}
-                  className="rounded-xl border border-slate-200 px-3 py-2 outline-none ring-emerald-200 focus:ring"
+                  className="rounded-xl border border-slate-200 px-3 py-2 outline-none ring-primary-200 focus:ring"
                 />
                 <select
                   value={instanceForm.currency}
                   onChange={(e) => setInstanceForm((prev) => ({ ...prev, currency: e.target.value }))}
-                  className="rounded-xl border border-slate-200 px-3 py-2 outline-none ring-emerald-200 focus:ring"
+                  className="rounded-xl border border-slate-200 px-3 py-2 outline-none ring-primary-200 focus:ring"
                 >
                   <option value="XAF">XAF</option>
                   <option value="XOF">XOF</option>
@@ -490,7 +490,7 @@ const ProviderService = () => {
                 </select>
                 <button
                   disabled={loading}
-                  className="rounded-xl bg-emerald-600 px-4 py-2 font-semibold text-white hover:bg-emerald-500 disabled:opacity-60"
+                  className="rounded-xl bg-primary-600 px-4 py-2 font-semibold text-white hover:bg-primary-500 disabled:opacity-60"
                   type="submit"
                 >
                   {loading ? 'Creation...' : 'Creer instance'}

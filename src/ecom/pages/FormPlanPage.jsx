@@ -5,7 +5,7 @@ const FormPlanPage = () => (
   <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8">
     <div className="mb-6">
       <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-        <CreditCard className="w-5 h-5 text-emerald-600" />
+        <CreditCard className="w-5 h-5 text-primary-600" />
         Forfait
       </h1>
       <p className="text-sm text-gray-500 mt-1">Gérez votre abonnement et votre forfait EasySell</p>

@@ -55,13 +55,13 @@ const SL = { pending: 'En attente', confirmed: 'Confirmé', shipped: 'Expédié'
 
 const SC = {
   pending: { bg: 'bg-yellow-500', light: 'bg-yellow-100', text: 'text-yellow-600', icon: Package },
-  confirmed: { bg: 'bg-emerald-600', light: 'bg-emerald-100', text: 'text-emerald-600', icon: CheckCircle },
-  shipped: { bg: 'bg-emerald-600', light: 'bg-emerald-100', text: 'text-emerald-700', icon: Truck },
+  confirmed: { bg: 'bg-primary-600', light: 'bg-primary-100', text: 'text-primary-600', icon: CheckCircle },
+  shipped: { bg: 'bg-primary-600', light: 'bg-primary-100', text: 'text-primary-700', icon: Truck },
   delivered: { bg: 'bg-green-500', light: 'bg-green-100', text: 'text-green-600', icon: CheckCircle },
   returned: { bg: 'bg-orange-500', light: 'bg-orange-100', text: 'text-orange-600', icon: RotateCcw },
   cancelled: { bg: 'bg-red-500', light: 'bg-red-100', text: 'text-red-600', icon: RotateCcw },
   unreachable: { bg: 'bg-gray-500', light: 'bg-gray-100', text: 'text-gray-600', icon: Users },
-  called: { bg: 'bg-emerald-600', light: 'bg-emerald-100', text: 'text-emerald-700', icon: Users },
+  called: { bg: 'bg-primary-600', light: 'bg-primary-100', text: 'text-primary-700', icon: Users },
   postponed: { bg: 'bg-amber-500', light: 'bg-amber-100', text: 'text-amber-600', icon: Calendar }
 };
 
@@ -149,12 +149,12 @@ const StatsPage = () => {
         {/* Date Range Filter */}
         <div className="flex items-center gap-2">
           <button onClick={() => navigate('/ecom/reports')}
-            className="flex items-center gap-2 px-4 py-2 bg-emerald-700 text-white rounded-xl hover:bg-emerald-800 transition shadow-sm text-sm font-medium">
+            className="flex items-center gap-2 px-4 py-2 bg-primary-700 text-white rounded-xl hover:bg-primary-800 transition shadow-sm text-sm font-medium">
             <BarChart3 size={16} />
             Stats Rapports
           </button>
           <select value={dateRange} onChange={(e) => setDateRange(e.target.value)}
-            className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-600 focus:border-transparent">
+            className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-primary-600 focus:border-transparent">
             <option value="all">Tout le temps</option>
             <option value="7d">7 derniers jours</option>
             <option value="30d">30 derniers jours</option>
@@ -170,7 +170,7 @@ const StatsPage = () => {
                 className="px-1.5 sm:px-3 py-1 sm:py-2 border border-gray-200 rounded-lg text-[10px] sm:text-sm w-[110px] sm:w-auto" />
             </>
           )}
-          <button onClick={fetchStats} className="p-2.5 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition shadow-sm">
+          <button onClick={fetchStats} className="p-2.5 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition shadow-sm">
             <RefreshCw size={20} />
           </button>
         </div>
@@ -189,25 +189,25 @@ const StatsPage = () => {
           </p>
         </div>
 
-        <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-xl border border-emerald-200 p-4 hover:shadow-md transition-shadow">
+        <div className="bg-gradient-to-br from-primary-50 to-primary-100 rounded-xl border border-primary-200 p-4 hover:shadow-md transition-shadow">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-semibold text-emerald-700 uppercase tracking-wide">Commandes</span>
-            <IconCard icon={ShoppingCart} color="text-emerald-600" bgColor="bg-white" />
+            <span className="text-xs font-semibold text-primary-700 uppercase tracking-wide">Commandes</span>
+            <IconCard icon={ShoppingCart} color="text-primary-600" bgColor="bg-white" />
           </div>
           <p className="text-2xl font-bold text-gray-900">{stats?.orderStats?.total || 0}</p>
-          <p className="text-xs text-emerald-600 flex items-center gap-1 mt-1">
+          <p className="text-xs text-primary-600 flex items-center gap-1 mt-1">
             <Package size={12} /> {stats?.orderStats?.pending || 0} en attente
           </p>
         </div>
 
-        <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-xl border border-emerald-200 p-4 hover:shadow-md transition-shadow">
+        <div className="bg-gradient-to-br from-primary-50 to-primary-100 rounded-xl border border-primary-200 p-4 hover:shadow-md transition-shadow">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-semibold text-emerald-800 uppercase tracking-wide">Taux livraison</span>
-            <IconCard icon={TrendingUp} color="text-emerald-700" bgColor="bg-white" />
+            <span className="text-xs font-semibold text-primary-800 uppercase tracking-wide">Taux livraison</span>
+            <IconCard icon={TrendingUp} color="text-primary-700" bgColor="bg-white" />
           </div>
           <p className="text-2xl font-bold text-gray-900">{deliveryRate}%</p>
-          <div className="w-full bg-emerald-100 rounded-full h-2 mt-2">
-            <div className="bg-emerald-600 h-2 rounded-full" style={{ width: `${Math.min(deliveryRate, 100)}%` }}></div>
+          <div className="w-full bg-primary-100 rounded-full h-2 mt-2">
+            <div className="bg-primary-600 h-2 rounded-full" style={{ width: `${Math.min(deliveryRate, 100)}%` }}></div>
           </div>
         </div>
 
@@ -222,24 +222,24 @@ const StatsPage = () => {
           </div>
         </div>
 
-        <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-xl border border-emerald-200 p-4 hover:shadow-md transition-shadow">
+        <div className="bg-gradient-to-br from-primary-50 to-primary-100 rounded-xl border border-primary-200 p-4 hover:shadow-md transition-shadow">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-semibold text-emerald-800 uppercase tracking-wide">Clients</span>
-            <IconCard icon={Users} color="text-emerald-700" bgColor="bg-white" />
+            <span className="text-xs font-semibold text-primary-800 uppercase tracking-wide">Clients</span>
+            <IconCard icon={Users} color="text-primary-700" bgColor="bg-white" />
           </div>
           <p className="text-2xl font-bold text-gray-900">{stats?.clientStats?.total || 0}</p>
-          <p className="text-xs text-emerald-700 flex items-center gap-1 mt-1">
+          <p className="text-xs text-primary-700 flex items-center gap-1 mt-1">
             <CheckCircle size={12} /> {stats?.clientStats?.delivered || 0} livrés
           </p>
         </div>
 
-        <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-xl border border-emerald-200 p-4 hover:shadow-md transition-shadow">
+        <div className="bg-gradient-to-br from-primary-50 to-primary-100 rounded-xl border border-primary-200 p-4 hover:shadow-md transition-shadow">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-semibold text-emerald-700 uppercase tracking-wide">Panier moyen</span>
-            <IconCard icon={CreditCard} color="text-emerald-600" bgColor="bg-white" />
+            <span className="text-xs font-semibold text-primary-700 uppercase tracking-wide">Panier moyen</span>
+            <IconCard icon={CreditCard} color="text-primary-600" bgColor="bg-white" />
           </div>
           <p className="text-2xl font-bold text-gray-900">{fmt(stats?.orderStats?.avgOrderValue || 0)}</p>
-          <p className="text-xs text-emerald-600 flex items-center gap-1 mt-1">
+          <p className="text-xs text-primary-600 flex items-center gap-1 mt-1">
             <DollarSign size={12} /> par cmd livrée
           </p>
         </div>
@@ -313,7 +313,7 @@ const StatsPage = () => {
                   <span className="text-sm font-semibold text-gray-900">{c.count}</span>
                   <span className="text-xs text-gray-400 w-12 text-right">{percent}%</span>
                   <div className="w-20 bg-gray-100 rounded-full h-2">
-                    <div className="bg-emerald-600 h-2 rounded-full" style={{ width: `${percent}%` }}></div>
+                    <div className="bg-primary-600 h-2 rounded-full" style={{ width: `${percent}%` }}></div>
                   </div>
                 </div>
               );
@@ -423,8 +423,8 @@ const StatsPage = () => {
                 return (
                   <div key={i} className="flex-1 flex flex-col items-center gap-1">
                     <span className="text-[9px] text-gray-400">{d.count}</span>
-                    <div className="w-full bg-emerald-100 rounded-t" style={{ height: `${Math.max(height, 4)}%` }}>
-                      <div className="w-full h-full bg-emerald-600 rounded-t hover:bg-emerald-600 transition" title={`${d._id}: ${d.count} commandes - ${fmt(d.revenue)}`}></div>
+                    <div className="w-full bg-primary-100 rounded-t" style={{ height: `${Math.max(height, 4)}%` }}>
+                      <div className="w-full h-full bg-primary-600 rounded-t hover:bg-primary-600 transition" title={`${d._id}: ${d.count} commandes - ${fmt(d.revenue)}`}></div>
                     </div>
                     <span className="text-[8px] text-gray-400 -rotate-45 origin-top-left whitespace-nowrap">{new Date(d._id).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })}</span>
                   </div>

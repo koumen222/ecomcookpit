@@ -93,7 +93,7 @@ const ReportDetail = () => {
           <div className="flex space-x-4">
             <button
               onClick={() => navigate(`/ecom/reports/${id}/edit`)}
-              className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700"
+              className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
             >
               Modifier
             </button>
@@ -170,7 +170,7 @@ const ReportDetail = () => {
               <div>
                 <label className="block text-sm font-medium text-gray-500">Produit</label>
                 {report.productId?._id ? (
-                  <Link to={`/products/${report.productId._id}`} className="text-lg text-emerald-600 hover:text-emerald-800 hover:underline">{report.productId.name}</Link>
+                  <Link to={`/products/${report.productId._id}`} className="text-lg text-primary-600 hover:text-primary-800 hover:underline">{report.productId.name}</Link>
                 ) : (
                   <p className="text-lg text-gray-900">N/A</p>
                 )}
@@ -196,7 +196,7 @@ const ReportDetail = () => {
             <div className="grid grid-cols-2 gap-3 sm:gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-500">Commandes reçues</label>
-                <p className="text-2xl font-bold text-emerald-600">{report.ordersReceived || 0}</p>
+                <p className="text-2xl font-bold text-primary-600">{report.ordersReceived || 0}</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-500">Commandes livrées</label>
@@ -327,7 +327,7 @@ const ReportDetail = () => {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-500">ROAS</label>
-                <p className="text-lg font-semibold text-emerald-600">
+                <p className="text-lg font-semibold text-primary-600">
                   {report.metrics?.roas ? report.metrics.roas.toFixed(2) : 'N/A'}
                 </p>
               </div>

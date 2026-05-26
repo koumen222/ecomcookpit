@@ -72,7 +72,7 @@ const WhyScalor = () => {
             <div className="hidden md:flex items-center gap-1">
               <button 
                 onClick={() => navigate('/ecom/why-scalor')}
-                className="px-4 py-2 text-sm font-medium text-gray-900 hover:text-emerald-600 transition"
+                className="px-4 py-2 text-sm font-medium text-gray-900 hover:text-primary-600 transition"
               >
                 Pourquoi choisir Scalor ?
               </button>
@@ -100,7 +100,7 @@ const WhyScalor = () => {
               </button>
               <button 
                 onClick={() => navigate('/ecom/register')}
-                className="px-6 py-2.5 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition shadow-sm"
+                className="px-6 py-2.5 text-sm font-semibold text-white bg-primary-600 hover:bg-primary-700 rounded-lg transition shadow-sm"
               >
                 Commencer
               </button>
@@ -110,10 +110,10 @@ const WhyScalor = () => {
       </nav>
 
       {/* HERO SECTION */}
-      <section className="py-16 sm:py-24 px-4 bg-gradient-to-b from-emerald-50 to-white">
+      <section className="py-16 sm:py-24 px-4 bg-gradient-to-b from-primary-50 to-white">
         <div className="max-w-4xl mx-auto text-center">
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black text-gray-900 mb-6">
-            Pourquoi choisir <span className="text-emerald-600">Scalor</span> ?
+            Pourquoi choisir <span className="text-primary-600">Scalor</span> ?
           </h1>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed">
             La plateforme tout-en-un conçue spécialement pour le e-commerce COD en Afrique. 
@@ -134,7 +134,7 @@ const WhyScalor = () => {
                 {/* Icon & Title Column */}
                 <div className="flex-1">
                   <div className="flex items-start gap-4">
-                    <div className="flex-shrink-0 w-16 h-16 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-600">
+                    <div className="flex-shrink-0 w-16 h-16 bg-primary-50 rounded-2xl flex items-center justify-center text-primary-600">
                       {advantage.icon}
                     </div>
                     <div className="flex-1">
@@ -163,8 +163,8 @@ const WhyScalor = () => {
 
                 {/* Visual Placeholder */}
                 <div className="flex-1 flex items-center justify-center">
-                  <div className="w-full h-48 bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-2xl flex items-center justify-center">
-                    <div className="text-emerald-600 opacity-20">
+                  <div className="w-full h-48 bg-gradient-to-br from-primary-50 to-primary-100 rounded-2xl flex items-center justify-center">
+                    <div className="text-primary-600 opacity-20">
                       {advantage.icon}
                     </div>
                   </div>
@@ -176,19 +176,19 @@ const WhyScalor = () => {
       </section>
 
       {/* CTA SECTION */}
-      <section className="py-16 sm:py-20 px-4 bg-gradient-to-br from-emerald-600 to-emerald-700">
+      <section className="py-16 sm:py-20 px-4 bg-gradient-to-br from-primary-600 to-primary-700">
         <div className="max-w-4xl mx-auto text-center">
           <h2 className="text-3xl sm:text-4xl font-black text-white mb-6">
             Prêt à transformer votre business ?
           </h2>
-          <p className="text-xl text-emerald-100 mb-8 max-w-2xl mx-auto">
+          <p className="text-xl text-primary-100 mb-8 max-w-2xl mx-auto">
             Rejoignez les e-commerçants qui utilisent Scalor pour gérer leur activité. 
             Créez votre espace en 30 secondes.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <button 
               onClick={() => navigate('/ecom/register')}
-              className="w-full sm:w-auto px-8 py-4 bg-white text-emerald-700 hover:bg-emerald-50 rounded-xl font-bold text-lg transition shadow-xl"
+              className="w-full sm:w-auto px-8 py-4 bg-white text-primary-700 hover:bg-primary-50 rounded-xl font-bold text-lg transition shadow-xl"
             >
               Créer mon espace gratuit
             </button>

@@ -52,7 +52,7 @@ function formatNumber(n) {
 }
 
 // ─── Mini bar chart (pure CSS) ───
-const MiniBar = ({ value, max, color = 'bg-emerald-600' }) => {
+const MiniBar = ({ value, max, color = 'bg-primary-600' }) => {
   const pct = max > 0 ? Math.round((value / max) * 100) : 0;
   return (
     <div className="w-full bg-slate-100 rounded-full h-2.5 shadow-inner">
@@ -66,7 +66,7 @@ const KpiCard = ({ label, value, sub, color = 'text-slate-900', icon: Icon }) =>
   <div className="group bg-white rounded-2xl border-2 border-slate-200 p-4 sm:p-6 flex flex-col gap-1.5 sm:gap-2 transition-all duration-300 hover:shadow-xl hover:shadow-slate-900/5 hover:-translate-y-1 overflow-hidden">
     <div className="flex items-center justify-between mb-0.5 sm:mb-1 gap-1">
       <span className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider truncate">{label}</span>
-      {Icon && typeof Icon === 'string' ? <span className="text-sm flex-shrink-0">{Icon}</span> : Icon && <Icon className="w-4 h-4 text-slate-400 group-hover:text-emerald-600 transition-colors flex-shrink-0" />}
+      {Icon && typeof Icon === 'string' ? <span className="text-sm flex-shrink-0">{Icon}</span> : Icon && <Icon className="w-4 h-4 text-slate-400 group-hover:text-primary-600 transition-colors flex-shrink-0" />}
     </div>
     <p className={`text-xl sm:text-3xl font-black tracking-tight ${color} truncate`}>{value}</p>
     {sub && <p className="text-[10px] sm:text-xs text-slate-500 font-medium truncate">{sub}</p>}
@@ -79,7 +79,7 @@ const FunnelStep = ({ step, count, rate, isLast, dropRate, lost }) => (
     <div className="bg-white border border-gray-200/80 rounded-2xl p-5 w-full text-center shadow-sm transition-all duration-200 hover:shadow-lg hover:shadow-gray-200/50">
       <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider mb-2">{step}</p>
       <p className="text-2xl font-semibold text-gray-900 tracking-tight">{formatNumber(count)}</p>
-      <p className="text-xs text-emerald-700 font-semibold mt-1.5">{rate}%</p>
+      <p className="text-xs text-primary-700 font-semibold mt-1.5">{rate}%</p>
     </div>
     {!isLast && (
       <div className="flex flex-col items-center my-2.5">
@@ -120,7 +120,7 @@ const SectionCard = ({ title, children, className = '', icon: Icon }) => (
 );
 
 // ─── Bar chart avec labels dates réels ───
-const DailyBarChart = ({ data, valueKey = 'sessions', color = 'bg-emerald-600', hoverColor = 'bg-emerald-700', height = 'h-36' }) => {
+const DailyBarChart = ({ data, valueKey = 'sessions', color = 'bg-primary-600', hoverColor = 'bg-primary-700', height = 'h-36' }) => {
   if (!data || data.length === 0) return <p className="text-xs text-gray-400 text-center py-8">Aucune donnée</p>;
   const maxVal = Math.max(...data.map(d => d[valueKey] || 0), 1);
   // Afficher au max 15 labels sur l'axe X
@@ -238,12 +238,12 @@ const SuperAdminAnalytics = () => {
           <KpiCard label="Visiteurs uniques" value={formatNumber(k.uniqueVisitors)} icon={Users} />
           <KpiCard label="Pages vues" value={formatNumber(k.totalPageViews)} icon={Eye} />
           <KpiCard label="Durée moy." value={formatDuration(k.avgSessionDuration)} icon={Clock} />
-          <KpiCard label="Taux de rebond" value={`${k.bounceRate}%`} icon={TrendingDown} color={k.bounceRate > 60 ? 'text-amber-600' : 'text-emerald-600'} />
+          <KpiCard label="Taux de rebond" value={`${k.bounceRate}%`} icon={TrendingDown} color={k.bounceRate > 60 ? 'text-amber-600' : 'text-primary-600'} />
           <KpiCard label="Inscriptions" value={formatNumber(k.signups)} icon={Users} color="text-teal-600" />
-          <KpiCard label="Activés" value={formatNumber(k.activatedUsers)} sub={`${k.conversionActivation}% des inscrits`} icon={CheckCircle2} color="text-emerald-600" />
-          <KpiCard label="Workspaces créés" value={formatNumber(k.workspacesCreated)} icon={Package} color="text-emerald-700" />
+          <KpiCard label="Activés" value={formatNumber(k.activatedUsers)} sub={`${k.conversionActivation}% des inscrits`} icon={CheckCircle2} color="text-primary-600" />
+          <KpiCard label="Workspaces créés" value={formatNumber(k.workspacesCreated)} icon={Package} color="text-primary-700" />
           <KpiCard label="Conv. inscription" value={`${k.conversionSignup}%`} sub="visiteur → compte" icon={TrendingUp} color="text-teal-600" />
-          <KpiCard label="Rétention 7j" value={`${k.retention7d}%`} icon={RotateCcw} color={k.retention7d > 30 ? 'text-emerald-600' : 'text-amber-600'} />
+          <KpiCard label="Rétention 7j" value={`${k.retention7d}%`} icon={RotateCcw} color={k.retention7d > 30 ? 'text-primary-600' : 'text-amber-600'} />
         </div>
 
         {/* DAU / WAU / MAU */}
@@ -254,11 +254,11 @@ const SuperAdminAnalytics = () => {
               <p className="text-[10px] sm:text-[11px] text-gray-400 font-medium mt-1">DAU (24h)</p>
             </div>
             <div className="text-center">
-              <p className="text-xl sm:text-3xl font-semibold text-emerald-700 tracking-tight">{formatNumber(k.wau)}</p>
+              <p className="text-xl sm:text-3xl font-semibold text-primary-700 tracking-tight">{formatNumber(k.wau)}</p>
               <p className="text-[10px] sm:text-[11px] text-gray-400 font-medium mt-1">WAU (7j)</p>
             </div>
             <div className="text-center">
-              <p className="text-xl sm:text-3xl font-semibold text-emerald-700 tracking-tight">{formatNumber(k.mau)}</p>
+              <p className="text-xl sm:text-3xl font-semibold text-primary-700 tracking-tight">{formatNumber(k.mau)}</p>
               <p className="text-[10px] sm:text-[11px] text-gray-400 font-medium mt-1">MAU (30j)</p>
             </div>
           </div>
@@ -267,7 +267,7 @@ const SuperAdminAnalytics = () => {
         {/* Daily sessions */}
         <SectionCard title="Sessions par jour" icon={Activity}>
           {overview.trends?.dailySessions?.length > 0
-            ? <DailyBarChart data={overview.trends.dailySessions} valueKey="sessions" color="bg-emerald-600" hoverColor="bg-emerald-700" height="h-36" />
+            ? <DailyBarChart data={overview.trends.dailySessions} valueKey="sessions" color="bg-primary-600" hoverColor="bg-primary-700" height="h-36" />
             : <EmptyState message="Aucune session enregistrée" />}
         </SectionCard>
 
@@ -328,11 +328,11 @@ const SuperAdminAnalytics = () => {
                   <div className="flex-1">
                     <div className="flex justify-between text-xs mb-1.5">
                       <span className="text-gray-600 font-medium">{d.from} → {d.to}</span>
-                      <span className={`font-semibold ${d.dropRate > 50 ? 'text-amber-600' : d.dropRate > 30 ? 'text-amber-500' : 'text-emerald-600'}`}>
+                      <span className={`font-semibold ${d.dropRate > 50 ? 'text-amber-600' : d.dropRate > 30 ? 'text-amber-500' : 'text-primary-600'}`}>
                         -{d.dropRate}%
                       </span>
                     </div>
-                    <MiniBar value={d.dropRate} max={100} color={d.dropRate > 50 ? 'bg-amber-500' : d.dropRate > 30 ? 'bg-amber-400' : 'bg-emerald-500'} />
+                    <MiniBar value={d.dropRate} max={100} color={d.dropRate > 50 ? 'bg-amber-500' : d.dropRate > 30 ? 'bg-amber-400' : 'bg-primary-500'} />
                   </div>
                   <span className="text-xs text-gray-400 w-16 text-right">-{formatNumber(d.lost)}</span>
                 </div>
@@ -351,15 +351,15 @@ const SuperAdminAnalytics = () => {
                   {steps[0].count > 0 ? Math.round((steps[1].count / steps[0].count) * 100) : 0}%
                 </p>
               </div>
-              <div className="bg-emerald-50/60 border border-emerald-200/60 rounded-2xl p-5 text-center transition-all duration-200 hover:shadow-lg hover:shadow-emerald-100/50">
-                <p className="text-[11px] text-emerald-600 font-medium uppercase tracking-wider">Inscription → Activation</p>
-                <p className="text-xl sm:text-3xl font-semibold text-emerald-700 mt-2 tracking-tight">
+              <div className="bg-primary-50/60 border border-primary-200/60 rounded-2xl p-5 text-center transition-all duration-200 hover:shadow-lg hover:shadow-primary-100/50">
+                <p className="text-[11px] text-primary-600 font-medium uppercase tracking-wider">Inscription → Activation</p>
+                <p className="text-xl sm:text-3xl font-semibold text-primary-700 mt-2 tracking-tight">
                   {steps[1].count > 0 ? Math.round((steps[3].count / steps[1].count) * 100) : 0}%
                 </p>
               </div>
-              <div className="bg-emerald-50/60 border border-emerald-200/60 rounded-2xl p-5 text-center transition-all duration-200 hover:shadow-lg hover:shadow-emerald-100/50">
-                <p className="text-[11px] text-emerald-700 font-medium uppercase tracking-wider">Activation → Actif</p>
-                <p className="text-xl sm:text-3xl font-semibold text-emerald-800 mt-2 tracking-tight">
+              <div className="bg-primary-50/60 border border-primary-200/60 rounded-2xl p-5 text-center transition-all duration-200 hover:shadow-lg hover:shadow-primary-100/50">
+                <p className="text-[11px] text-primary-700 font-medium uppercase tracking-wider">Activation → Actif</p>
+                <p className="text-xl sm:text-3xl font-semibold text-primary-800 mt-2 tracking-tight">
                   {steps[3].count > 0 ? Math.round((steps[4].count / steps[3].count) * 100) : 0}%
                 </p>
               </div>
@@ -435,7 +435,7 @@ const SuperAdminAnalytics = () => {
                         <span className="font-medium text-gray-700">{o._id || 'Unknown'}</span>
                         <span className="text-gray-500">{o.sessions}</span>
                       </div>
-                      <MiniBar value={o.sessions} max={byOS[0]?.sessions || 1} color="bg-emerald-500" />
+                      <MiniBar value={o.sessions} max={byOS[0]?.sessions || 1} color="bg-primary-500" />
                     </div>
                   </div>
                 ))}
@@ -494,7 +494,7 @@ const SuperAdminAnalytics = () => {
                       <span className="font-medium text-gray-700 truncate max-w-[250px]">{r._id}</span>
                       <span className="text-gray-500">{r.sessions}</span>
                     </div>
-                    <MiniBar value={r.sessions} max={byReferrer[0]?.sessions || 1} color="bg-emerald-600" />
+                    <MiniBar value={r.sessions} max={byReferrer[0]?.sessions || 1} color="bg-primary-600" />
                   </div>
                 </div>
               ))}
@@ -552,7 +552,7 @@ const SuperAdminAnalytics = () => {
                   <td className="px-5 py-3.5 text-right text-gray-700">{formatNumber(c.uniqueUsers)}</td>
                   <td className="px-5 py-3.5 text-right text-gray-700">{formatNumber(c.signups)}</td>
                   <td className="px-5 py-3.5 text-right">
-                    <span className={`font-semibold ${c.conversionRate > 5 ? 'text-emerald-600' : c.conversionRate > 0 ? 'text-amber-500' : 'text-gray-400'}`}>
+                    <span className={`font-semibold ${c.conversionRate > 5 ? 'text-primary-600' : c.conversionRate > 0 ? 'text-amber-500' : 'text-gray-400'}`}>
                       {c.conversionRate}%
                     </span>
                   </td>
@@ -647,9 +647,9 @@ const SuperAdminAnalytics = () => {
     };
     const roleBadge = {
       super_admin: 'bg-amber-50 text-amber-700 ring-amber-600/10',
-      ecom_admin: 'bg-emerald-50 text-emerald-800 ring-emerald-700/10',
+      ecom_admin: 'bg-primary-50 text-primary-800 ring-primary-700/10',
       ecom_closeuse: 'bg-sky-50 text-sky-700 ring-teal-600/10',
-      ecom_compta: 'bg-emerald-50 text-emerald-700 ring-emerald-600/10',
+      ecom_compta: 'bg-primary-50 text-primary-700 ring-primary-600/10',
       ecom_livreur: 'bg-amber-50 text-amber-700 ring-amber-600/10',
       null: 'bg-gray-50 text-gray-600 ring-gray-200'
     };
@@ -701,7 +701,7 @@ const SuperAdminAnalytics = () => {
                 </thead>
                 <tbody>
                   {recentLogins.map((l, i) => (
-                    <tr key={i} className={`border-b border-gray-50 transition-colors hover:bg-emerald-50/30 ${i % 2 === 1 ? 'bg-gray-50/30' : ''}`}>
+                    <tr key={i} className={`border-b border-gray-50 transition-colors hover:bg-primary-50/30 ${i % 2 === 1 ? 'bg-gray-50/30' : ''}`}>
                       <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
                         {new Date(l.date).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
                       </td>
@@ -799,15 +799,15 @@ const SuperAdminAnalytics = () => {
       {range === 'custom' && (
         <div className="flex items-center gap-1.5">
           <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)}
-            className="text-xs border border-white/20 rounded-lg px-2 py-1.5 font-medium focus:outline-none focus:border-emerald-400"
+            className="text-xs border border-white/20 rounded-lg px-2 py-1.5 font-medium focus:outline-none focus:border-primary-400"
             style={{ background: 'rgba(255,255,255,0.08)', color: '#fff' }} />
           <span className="text-xs" style={{ color: 'rgba(148,163,184,0.7)' }}>→</span>
           <input type="date" value={endDate} min={startDate} onChange={e => setEndDate(e.target.value)}
-            className="text-xs border border-white/20 rounded-lg px-2 py-1.5 font-medium focus:outline-none focus:border-emerald-400"
+            className="text-xs border border-white/20 rounded-lg px-2 py-1.5 font-medium focus:outline-none focus:border-primary-400"
             style={{ background: 'rgba(255,255,255,0.08)', color: '#fff' }} />
           {startDate && (
             <button onClick={() => loadTab(tab, buildParams(activityPage))}
-              className="px-3 py-1.5 text-xs font-bold bg-emerald-500 text-white rounded-lg hover:bg-emerald-400 transition-colors">
+              className="px-3 py-1.5 text-xs font-bold bg-primary-500 text-white rounded-lg hover:bg-primary-400 transition-colors">
               Appliquer
             </button>
           )}

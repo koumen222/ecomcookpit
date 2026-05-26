@@ -894,7 +894,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
     let cancelled = false;
     const authHeaders = getAuthHeaders();
     const pollStart = Date.now();
-    const MAX_POLL_MS = 5 * 60 * 1000; // 5 minutes max — never get stuck forever
+    const MAX_POLL_MS = 8 * 60 * 1000; // 8 minutes max — GPT Image 2 can take 2+ min per image
 
     const finishPoll = (data) => {
       // Merge whatever images arrived (may be partial or empty on error/timeout)
@@ -913,9 +913,11 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
       // Si AUCUNE image générée OU s'il manque des images attendues → on ne va PAS
       // en preview avec des placeholders vides : on reste sur l'écran de chargement
       // transformé en état d'échec, avec retry.
+      // Also treat timeout (data === null) with no images as a failure.
       const generationCompletelyFailed =
-        (data?.status === 'partial_failure' || data?.status === 'error' || data?.status === 'not_found')
-        && (receivedCount === 0 || missingCount > 0);
+        (!data && receivedCount === 0) ||
+        ((data?.status === 'partial_failure' || data?.status === 'error' || data?.status === 'not_found')
+        && (receivedCount === 0 || missingCount > 0));
 
       setProduct(prev => {
         if (!prev) return prev;
@@ -963,8 +965,10 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
         setBuildMessage('');
         setShowConfetti(false);
         setImageGenerationFailed({
-          message: data?.errorMessage || "Aucune image n'a pu être générée. Les fournisseurs d'IA (Kie.ai / Gemini) sont peut-être indisponibles, ou la photo source ne permet pas la génération image-to-image.",
-          status: data?.status || 'error',
+          message: data?.errorMessage || (!data
+            ? "La génération d'images prend plus de temps que prévu. Vous pouvez réessayer ou revenir plus tard — le contenu texte est sauvegardé."
+            : "Aucune image n'a pu être générée. Les fournisseurs d'IA (Kie.ai / Gemini) sont peut-être indisponibles, ou la photo source ne permet pas la génération image-to-image."),
+          status: data?.status || 'timeout',
         });
         return; // ← important : on reste en phase 'loading' avec l'état d'échec
       }
@@ -2145,7 +2149,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
                   Générateur de page produit
                 </span>
                 {pageStyle === 'hero_page' ? (
-                  <span className="inline-flex items-center gap-2 rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700">
+                  <span className="inline-flex items-center gap-2 rounded-full border border-primary-300 bg-primary-50 px-3 py-1.5 text-xs font-semibold text-primary-700">
                     <CheckCircle className="h-3.5 w-3.5" />
                     Gratuit
                   </span>
@@ -2256,9 +2260,9 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
                   <button
                     type="button"
                     onClick={() => { setPageStyle('hero_page'); setInfographicsTaskResult(null); }}
-                    className={`relative text-left rounded-xl border-2 px-4 py-3 transition ${pageStyle === 'hero_page' ? 'border-emerald-500 bg-emerald-50' : 'border-gray-200 bg-white hover:border-gray-300'}`}
+                    className={`relative text-left rounded-xl border-2 px-4 py-3 transition ${pageStyle === 'hero_page' ? 'border-primary-500 bg-primary-50' : 'border-gray-200 bg-white hover:border-gray-300'}`}
                   >
-                    <span className="absolute -top-2 -right-2 text-[10px] font-black bg-emerald-500 text-white px-2 py-0.5 rounded-full uppercase tracking-wide">Gratuit</span>
+                    <span className="absolute -top-2 -right-2 text-[10px] font-black bg-primary-500 text-white px-2 py-0.5 rounded-full uppercase tracking-wide">Gratuit</span>
                     <p className="text-sm font-bold text-gray-900">Page Complète — Image réduite</p>
                     <p className="text-xs text-gray-500 mt-0.5">Page IA complète + hero généré par IA — sans images d'angles ni GIFs</p>
                   </button>
@@ -2267,15 +2271,15 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
 
               {/* ── Hero Image Builder (gratuit, canvas) ────────────────────────────── */}
               {pageStyle === 'hero' && (
-                <div className="rounded-2xl border border-emerald-200 bg-white overflow-hidden">
+                <div className="rounded-2xl border border-primary-200 bg-white overflow-hidden">
                   {/* Header */}
-                  <div className="flex items-center gap-3 px-5 py-4 bg-emerald-50 border-b border-emerald-100">
-                    <div className="w-8 h-8 rounded-xl bg-emerald-500 flex items-center justify-center flex-shrink-0">
+                  <div className="flex items-center gap-3 px-5 py-4 bg-primary-50 border-b border-primary-100">
+                    <div className="w-8 h-8 rounded-xl bg-primary-500 flex items-center justify-center flex-shrink-0">
                       <ImageIcon className="w-4 h-4 text-white" />
                     </div>
                     <div>
                       <p className="text-sm font-bold text-gray-900">Image Hero — Gratuit</p>
-                      <p className="text-xs text-emerald-700">Compose une image 1080×1080 avec ta photo + texte. Aucun crédit requis.</p>
+                      <p className="text-xs text-primary-700">Compose une image 1080×1080 avec ta photo + texte. Aucun crédit requis.</p>
                     </div>
                   </div>
 
@@ -2290,7 +2294,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
                           onDragOver={(e) => { e.preventDefault(); setHeroDragOver(true); }}
                           onDragLeave={() => setHeroDragOver(false)}
                           onDrop={(e) => { e.preventDefault(); setHeroDragOver(false); const f = e.dataTransfer.files[0]; if (f) handleHeroFile(f); }}
-                          className={`relative flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed cursor-pointer transition p-4 ${heroDragOver ? 'border-emerald-500 bg-emerald-50' : heroImg ? 'border-emerald-300 bg-emerald-50' : 'border-gray-200 hover:border-gray-300'}`}
+                          className={`relative flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed cursor-pointer transition p-4 ${heroDragOver ? 'border-primary-500 bg-primary-50' : heroImg ? 'border-primary-300 bg-primary-50' : 'border-gray-200 hover:border-gray-300'}`}
                           style={{ minHeight: 120 }}
                           onClick={() => { const inp = document.createElement('input'); inp.type='file'; inp.accept='image/*'; inp.onchange=(e)=>{ if(e.target.files[0]) handleHeroFile(e.target.files[0]); }; inp.click(); }}
                         >
@@ -2299,13 +2303,13 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
                               <img src={heroImg.src} alt="preview" className="w-16 h-16 object-cover rounded-lg border border-gray-200 flex-shrink-0" />
                               <div className="min-w-0">
                                 <p className="text-xs font-semibold text-gray-800 truncate">{heroFile?.name || 'Image chargée'}</p>
-                                <button type="button" className="text-[11px] text-emerald-600 font-semibold mt-0.5" onClick={(e)=>{ e.stopPropagation(); setHeroFile(null); setHeroImg(null); }}>Changer d'image</button>
+                                <button type="button" className="text-[11px] text-primary-600 font-semibold mt-0.5" onClick={(e)=>{ e.stopPropagation(); setHeroFile(null); setHeroImg(null); }}>Changer d'image</button>
                               </div>
                             </div>
                           ) : (
                             <>
                               <Upload className="w-6 h-6 text-gray-400" />
-                              <p className="text-xs text-gray-500 text-center">Glisse ta photo ici ou <span className="text-emerald-600 font-semibold">clique pour choisir</span></p>
+                              <p className="text-xs text-gray-500 text-center">Glisse ta photo ici ou <span className="text-primary-600 font-semibold">clique pour choisir</span></p>
                             </>
                           )}
                         </div>
@@ -2327,7 +2331,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
                               value={val}
                               onChange={(e) => set(e.target.value.slice(0, max))}
                               placeholder={ph}
-                              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl bg-gray-50 focus:bg-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition"
+                              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl bg-gray-50 focus:bg-white focus:ring-2 focus:ring-primary-500 focus:border-transparent transition"
                             />
                           </div>
                         ))}
@@ -3316,12 +3320,12 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
 
                   {/* Badge état */}
                   <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full mb-4 ${
-                    imageGenerationFailed ? 'bg-red-50' : 'bg-emerald-50'
+                    imageGenerationFailed ? 'bg-red-50' : 'bg-primary-50'
                   }`}>
-                    <div className={`w-1.5 h-1.5 rounded-full ${imageGenerationFailed ? 'bg-red-500' : 'bg-emerald-500'}`}
+                    <div className={`w-1.5 h-1.5 rounded-full ${imageGenerationFailed ? 'bg-red-500' : 'bg-primary-500'}`}
                          style={imageGenerationFailed ? undefined : { animation: 'pulse-dot 1.4s ease-in-out infinite' }} />
                     <span className={`text-[11px] font-semibold tracking-wide uppercase ${
-                      imageGenerationFailed ? 'text-red-700' : 'text-emerald-700'
+                      imageGenerationFailed ? 'text-red-700' : 'text-primary-700'
                     }`}>
                       {imageGenerationFailed ? 'Échec génération images' : 'IA en cours'}
                     </span>
@@ -3376,27 +3380,27 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
                         <div
                           key={i}
                           className={`flex items-center gap-3 px-3 py-2 rounded-lg transition ${
-                            active ? 'bg-emerald-50/70' : done ? 'opacity-100' : 'opacity-50'
+                            active ? 'bg-primary-50/70' : done ? 'opacity-100' : 'opacity-50'
                           }`}
                         >
                           <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${
-                            done ? 'bg-emerald-600' : active ? 'bg-white ring-2 ring-emerald-600' : 'bg-gray-100'
+                            done ? 'bg-primary-600' : active ? 'bg-white ring-2 ring-primary-600' : 'bg-gray-100'
                           }`}>
                             {done
                               ? <CheckCircle className="w-4 h-4 text-white" />
                               : active
-                                ? <Icon className="w-3.5 h-3.5 text-emerald-600" />
+                                ? <Icon className="w-3.5 h-3.5 text-primary-600" />
                                 : <Icon className="w-3.5 h-3.5 text-gray-400" />
                             }
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className={`text-[13px] font-semibold ${done ? 'text-gray-900' : active ? 'text-emerald-700' : 'text-gray-500'}`}>
+                            <p className={`text-[13px] font-semibold ${done ? 'text-gray-900' : active ? 'text-primary-700' : 'text-gray-500'}`}>
                               {s.label}
                             </p>
                             <p className="text-[11px] text-gray-400 truncate">{s.desc}</p>
                           </div>
                           {active && (
-                            <Loader2 className="w-3.5 h-3.5 text-emerald-600 animate-spin shrink-0" />
+                            <Loader2 className="w-3.5 h-3.5 text-primary-600 animate-spin shrink-0" />
                           )}
                         </div>
                       );
@@ -4025,10 +4029,10 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
             <>
               {/* Info générations restantes / mode gratuit */}
               {pageStyle === 'hero_page' && !pageMode && (
-                <div className="mb-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3">
+                <div className="mb-3 rounded-lg border border-primary-200 bg-primary-50 p-3">
                   <div className="flex items-center gap-2 text-sm">
-                    <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
-                    <span className="font-medium text-emerald-800">Mode gratuit — page complète + hero IA, sans images d'angles ni GIFs</span>
+                    <CheckCircle className="w-4 h-4 text-primary-600 shrink-0" />
+                    <span className="font-medium text-primary-800">Mode gratuit — page complète + hero IA, sans images d'angles ni GIFs</span>
                   </div>
                 </div>
               )}
@@ -4110,7 +4114,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
               {/* Info message — clean, neutre */}
               <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5">
                 <p className="text-xs text-gray-700 text-center">
-                  Aperçu ci-dessus. Cliquez sur <strong className="text-emerald-700">"Utiliser cette page"</strong> pour l'appliquer à votre produit.
+                  Aperçu ci-dessus. Cliquez sur <strong className="text-primary-700">"Utiliser cette page"</strong> pour l'appliquer à votre produit.
                 </p>
               </div>
 

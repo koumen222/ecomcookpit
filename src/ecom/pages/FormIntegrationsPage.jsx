@@ -5,7 +5,7 @@ const FormIntegrationsPage = () => (
   <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8">
     <div className="mb-6">
       <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-        <MessageSquare className="w-5 h-5 text-emerald-600" />
+        <MessageSquare className="w-5 h-5 text-primary-600" />
         Intégrations et messagerie
       </h1>
       <p className="text-sm text-gray-500 mt-1">Connectez vos outils de messagerie et intégrations tierces</p>

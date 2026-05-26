@@ -134,16 +134,16 @@ const Commissions = () => {
                 style={{ background: 'linear-gradient(135deg,#065f46 0%,#047857 100%)', borderColor: '#047857' }}
               >
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-[10px] font-bold text-emerald-200 uppercase tracking-wide">Gains Totaux</span>
+                  <span className="text-[10px] font-bold text-primary-200 uppercase tracking-wide">Gains Totaux</span>
                   <span className="relative flex h-2.5 w-2.5">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-300 opacity-75" />
-                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-200" />
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary-300 opacity-75" />
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-primary-200" />
                   </span>
                 </div>
                 <p className="text-3xl sm:text-4xl font-black text-white leading-none">
                   {data?.totalCommission > 0 ? fmt(data.totalCommission) : `0 ${symbol}`}
                 </p>
-                <p className="text-xs text-emerald-300 mt-1.5">{commLabel}</p>
+                <p className="text-xs text-primary-300 mt-1.5">{commLabel}</p>
                 <div className="absolute -right-4 -bottom-4 w-24 h-24 rounded-full bg-white/5" />
                 <div className="absolute -right-8 -top-8 w-28 h-28 rounded-full bg-white/3" />
               </div>
@@ -152,8 +152,8 @@ const Commissions = () => {
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Livrées</span>
-                  <div className="w-7 h-7 rounded-lg bg-emerald-50 flex items-center justify-center">
-                    <svg className="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div className="w-7 h-7 rounded-lg bg-primary-50 flex items-center justify-center">
+                    <svg className="w-4 h-4 text-primary-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                     </svg>
                   </div>
@@ -186,7 +186,7 @@ const Commissions = () => {
                     <p className="text-xs text-gray-400">Commandes livrées / total</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-2xl font-black leading-none text-emerald-500">
+                    <p className="text-2xl font-black leading-none text-primary-500">
                       {Math.round((data.deliveredCount / data.totalOrders) * 100)}%
                     </p>
                   </div>
@@ -262,7 +262,7 @@ const Commissions = () => {
                           {/* Tooltip */}
                           <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-[10px] font-bold rounded-lg px-2.5 py-1.5 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-all duration-200 pointer-events-none z-20 shadow-xl">
                             <div className="text-gray-400 text-[9px] uppercase tracking-wider mb-0.5">{MONTH_NAMES[m.month - 1]} {m.year}</div>
-                            {m.count} livrées<br /><span className="text-emerald-400">{fmt(m.commission)}</span>
+                            {m.count} livrées<br /><span className="text-primary-400">{fmt(m.commission)}</span>
                             <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800" />
                           </div>
 
@@ -349,7 +349,7 @@ const Commissions = () => {
                     <div className="divide-y divide-gray-50 max-h-[400px] overflow-y-auto">
                       {deliveredOrders.map((order, idx) => (
                         <div key={order._id} className="flex items-center gap-3 px-4 py-3 active:bg-gray-50 transition-colors">
-                          <div className="w-8 h-8 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center font-bold text-xs flex-shrink-0">
+                          <div className="w-8 h-8 bg-primary-50 text-primary-600 rounded-full flex items-center justify-center font-bold text-xs flex-shrink-0">
                             {idx + 1}
                           </div>
                           <div className="flex-1 min-w-0">
@@ -362,7 +362,7 @@ const Commissions = () => {
                             </p>
                           </div>
                           <div className="text-right flex-shrink-0">
-                            <p className="text-sm font-black text-emerald-600">
+                            <p className="text-sm font-black text-primary-600">
                               +{commType === 'percentage'
                                 ? fmt(Math.round((order.price || 0) * (order.quantity || 1) * commRate / 100))
                                 : fmt(commRate)
@@ -377,8 +377,8 @@ const Commissions = () => {
                   {deliveredOrders.length > 0 && (
                     <div className="px-4 py-4 flex items-center justify-between border-t border-gray-100"
                       style={{ background: 'linear-gradient(90deg,#ecfdf5,#f0fdf4)' }}>
-                      <span className="text-xs font-bold text-emerald-800 uppercase tracking-wide">{deliveredOrders.length} livraisons</span>
-                      <span className="text-lg font-black text-emerald-600">{fmt(data.totalCommission)}</span>
+                      <span className="text-xs font-bold text-primary-800 uppercase tracking-wide">{deliveredOrders.length} livraisons</span>
+                      <span className="text-lg font-black text-primary-600">{fmt(data.totalCommission)}</span>
                     </div>
                   )}
                 </div>

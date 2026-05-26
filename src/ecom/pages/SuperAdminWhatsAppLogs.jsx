@@ -3,9 +3,9 @@ import ecomApi from '../services/ecommApi.js';
 import { getContextualError } from '../utils/errorMessages';
 
 const statusConfig = {
-  sent:        { label: 'Envoyé',    color: 'bg-emerald-100 text-emerald-700',    dot: 'bg-emerald-600' },
+  sent:        { label: 'Envoyé',    color: 'bg-primary-100 text-primary-700',    dot: 'bg-primary-600' },
   delivered:   { label: 'Livré',     color: 'bg-green-100 text-green-700',  dot: 'bg-green-500' },
-  read:        { label: 'Lu',        color: 'bg-emerald-100 text-emerald-700', dot: 'bg-emerald-500' },
+  read:        { label: 'Lu',        color: 'bg-primary-100 text-primary-700', dot: 'bg-primary-500' },
   failed:      { label: 'Échoué',    color: 'bg-red-100 text-red-700',      dot: 'bg-red-500' },
   pending:     { label: 'En attente',color: 'bg-yellow-100 text-yellow-700',dot: 'bg-yellow-500' },
   undelivered: { label: 'Non livré', color: 'bg-orange-100 text-orange-700',dot: 'bg-orange-500' },
@@ -68,7 +68,7 @@ const SuperAdminWhatsAppLogs = () => {
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-6">
         {[
           { label: 'Total', value: stats.total, color: 'text-gray-700', bg: 'bg-gray-50 border-gray-200' },
-          { label: 'Envoyés', value: stats.sent, color: 'text-emerald-700', bg: 'bg-emerald-50 border-emerald-200' },
+          { label: 'Envoyés', value: stats.sent, color: 'text-primary-700', bg: 'bg-primary-50 border-primary-200' },
           { label: 'Livrés', value: stats.delivered, color: 'text-green-700', bg: 'bg-green-50 border-green-200' },
           { label: 'Échoués', value: stats.failed, color: 'text-red-700', bg: 'bg-red-50 border-red-200' },
           { label: 'En attente', value: stats.pending, color: 'text-yellow-700', bg: 'bg-yellow-50 border-yellow-200' },
@@ -87,7 +87,7 @@ const SuperAdminWhatsAppLogs = () => {
           placeholder="Rechercher par téléphone, nom, campagne, workspace, erreur..."
           value={search}
           onChange={e => setSearch(e.target.value)}
-          className="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600"
+          className="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-600"
         />
         <div className="flex gap-2 flex-wrap">
           {[
@@ -103,7 +103,7 @@ const SuperAdminWhatsAppLogs = () => {
               onClick={() => { setFilterStatus(f.value); setPage(1); }}
               className={`px-3 py-2 rounded-lg text-xs font-medium transition border ${
                 filterStatus === f.value
-                  ? 'bg-emerald-600 text-white border-emerald-600'
+                  ? 'bg-primary-600 text-white border-primary-600'
                   : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
               }`}
             >
@@ -196,7 +196,7 @@ const SuperAdminWhatsAppLogs = () => {
                         <td className="px-4 py-3">
                           <button
                             onClick={() => setExpandedId(isExpanded ? null : log._id)}
-                            className="text-xs text-emerald-600 hover:text-emerald-800 font-medium"
+                            className="text-xs text-primary-600 hover:text-primary-800 font-medium"
                           >
                             {isExpanded ? 'Masquer' : 'Détails'}
                           </button>
