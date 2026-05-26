@@ -38,7 +38,7 @@ function ScheduledPostEditor({ post, onChange, onRemove, products }) {
         </div>
 
         <label className="flex items-center gap-1.5 cursor-pointer ml-auto">
-          <div className={`relative w-9 h-5 rounded-full transition ${post.enabled !== false ? 'bg-emerald-500' : 'bg-gray-300'}`}>
+          <div className={`relative w-9 h-5 rounded-full transition ${post.enabled !== false ? 'bg-primary-500' : 'bg-gray-300'}`}>
             <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${post.enabled !== false ? 'translate-x-4' : 'translate-x-0.5'}`} />
           </div>
           <input type="checkbox" checked={post.enabled !== false} onChange={e => update('enabled', e.target.checked)} className="sr-only" />
@@ -54,13 +54,13 @@ function ScheduledPostEditor({ post, onChange, onRemove, products }) {
       {post.type === 'text' && (
         <textarea value={post.content || ''} onChange={e => update('content', e.target.value)} rows={3}
           placeholder="Message à envoyer dans le groupe... 💬"
-          className="w-full text-sm border rounded-lg px-3 py-2 resize-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-400" />
+          className="w-full text-sm border rounded-lg px-3 py-2 resize-none focus:ring-2 focus:ring-primary-200 focus:border-primary-400" />
       )}
       {post.type === 'image' && (
         <div className="space-y-2">
           <input type="text" value={post.content || ''} onChange={e => update('content', e.target.value)}
             placeholder="https://example.com/image.jpg"
-            className="w-full text-sm border rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-200 focus:border-emerald-400" />
+            className="w-full text-sm border rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary-200 focus:border-primary-400" />
           {post.content && (
             <img src={post.content} alt="Aperçu" className="h-20 w-20 object-cover rounded-lg border"
               onError={e => { e.target.style.display = 'none'; }} />
@@ -69,7 +69,7 @@ function ScheduledPostEditor({ post, onChange, onRemove, products }) {
       )}
       {post.type === 'product' && (
         <select value={post.productName || ''} onChange={e => update('productName', e.target.value)}
-          className="w-full text-sm border rounded-lg px-3 py-1.5 bg-gray-50 focus:ring-2 focus:ring-emerald-200 focus:border-emerald-400">
+          className="w-full text-sm border rounded-lg px-3 py-1.5 bg-gray-50 focus:ring-2 focus:ring-primary-200 focus:border-primary-400">
           <option value="">— Choisir un produit du catalogue —</option>
           {products.map(p => <option key={p} value={p}>{p}</option>)}
         </select>
@@ -81,12 +81,12 @@ function ScheduledPostEditor({ post, onChange, onRemove, products }) {
         <div className="flex flex-wrap gap-1.5">
           {DAYS.map(d => (
             <button key={d} onClick={() => toggleDay(d)}
-              className={`text-xs px-2.5 py-1 rounded-full border transition font-medium ${(post.days || []).includes(d) ? 'bg-emerald-50 border-emerald-400 text-emerald-700' : 'bg-white border-gray-200 text-gray-400 hover:border-gray-300'}`}>
+              className={`text-xs px-2.5 py-1 rounded-full border transition font-medium ${(post.days || []).includes(d) ? 'bg-primary-50 border-primary-400 text-primary-700' : 'bg-white border-gray-200 text-gray-400 hover:border-gray-300'}`}>
               {d.charAt(0).toUpperCase() + d.slice(1, 3)}
             </button>
           ))}
           <button onClick={() => update('days', DAYS.slice())}
-            className="text-[10px] px-2 py-0.5 text-emerald-600 hover:underline font-medium">Tous</button>
+            className="text-[10px] px-2 py-0.5 text-primary-600 hover:underline font-medium">Tous</button>
           <button onClick={() => update('days', [])}
             className="text-[10px] px-2 py-0.5 text-gray-400 hover:underline font-medium">Aucun</button>
         </div>
@@ -133,13 +133,13 @@ function ManagedGroupCard({ group, groupIndex, onUpdate, products, onCopyInvite,
       {/* Header du groupe */}
       <div className="px-5 py-4 flex items-center gap-3 cursor-pointer hover:bg-gray-50 transition"
         onClick={() => setExpanded(e => !e)}>
-        <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center text-lg flex-shrink-0">
+        <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center text-lg flex-shrink-0">
           {group.role === 'clients' ? '🛒' : group.role === 'prospects' ? '🎯' : group.role === 'vip' ? '⭐' : '👥'}
         </div>
         <div className="flex-1 min-w-0">
           <h3 className="text-sm font-bold text-gray-900 truncate">{group.name || group.groupJid}</h3>
           <div className="flex items-center gap-2 mt-0.5">
-            <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${group.role === 'vip' ? 'bg-amber-50 text-amber-700' : group.role === 'clients' ? 'bg-emerald-50 text-emerald-700' : group.role === 'prospects' ? 'bg-blue-50 text-blue-700' : 'bg-gray-100 text-gray-600'}`}>
+            <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${group.role === 'vip' ? 'bg-amber-50 text-amber-700' : group.role === 'clients' ? 'bg-primary-50 text-primary-700' : group.role === 'prospects' ? 'bg-blue-50 text-blue-700' : 'bg-gray-100 text-gray-600'}`}>
               {ROLES.find(r => r.value === group.role)?.label || group.role}
             </span>
             <span className="text-[10px] text-gray-400">
@@ -163,7 +163,7 @@ function ManagedGroupCard({ group, groupIndex, onUpdate, products, onCopyInvite,
 
             {group.inviteUrl ? (
               <button onClick={() => onCopyInvite(group.inviteUrl)}
-                className="text-xs px-3 py-1.5 rounded-lg border border-emerald-200 text-emerald-700 hover:bg-emerald-50 transition font-medium">
+                className="text-xs px-3 py-1.5 rounded-lg border border-primary-200 text-primary-700 hover:bg-primary-50 transition font-medium">
                 📋 Copier le lien d'invitation
               </button>
             ) : (
@@ -181,10 +181,10 @@ function ManagedGroupCard({ group, groupIndex, onUpdate, products, onCopyInvite,
 
           {/* Invite URL */}
           {group.inviteUrl && (
-            <div className="flex items-center gap-2 bg-emerald-50 rounded-lg px-3 py-2">
-              <span className="text-xs text-emerald-600 truncate flex-1">{group.inviteUrl}</span>
+            <div className="flex items-center gap-2 bg-primary-50 rounded-lg px-3 py-2">
+              <span className="text-xs text-primary-600 truncate flex-1">{group.inviteUrl}</span>
               <button onClick={() => onRefreshInvite(group.groupJid, groupIndex)}
-                className="text-[10px] text-emerald-700 hover:underline font-medium whitespace-nowrap">🔄 Régénérer</button>
+                className="text-[10px] text-primary-700 hover:underline font-medium whitespace-nowrap">🔄 Régénérer</button>
             </div>
           )}
 
@@ -193,7 +193,7 @@ function ManagedGroupCard({ group, groupIndex, onUpdate, products, onCopyInvite,
             <div className="flex items-center justify-between">
               <h4 className="text-xs font-bold text-gray-700 uppercase tracking-wide">📢 Posts planifiés</h4>
               <button onClick={addPost}
-                className="text-xs px-3 py-1 rounded-lg bg-emerald-600 text-white font-medium hover:bg-emerald-700 transition">
+                className="text-xs px-3 py-1 rounded-lg bg-primary-600 text-white font-medium hover:bg-primary-700 transition">
                 + Ajouter
               </button>
             </div>
@@ -203,7 +203,7 @@ function ManagedGroupCard({ group, groupIndex, onUpdate, products, onCopyInvite,
                 <p className="text-2xl mb-1">📭</p>
                 <p className="text-xs text-gray-400">Aucun post planifié. Rita peut animer ce groupe automatiquement !</p>
                 <button onClick={addPost}
-                  className="mt-2 text-xs text-emerald-600 font-medium hover:underline">
+                  className="mt-2 text-xs text-primary-600 font-medium hover:underline">
                   + Créer le premier post
                 </button>
               </div>
@@ -377,7 +377,7 @@ export default function RitaGroupAnimation() {
   if (loading || !config) {
     return (
       <div className="flex items-center justify-center min-h-[50vh]">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600" />
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600" />
       </div>
     );
   }
@@ -397,14 +397,14 @@ export default function RitaGroupAnimation() {
           <p className="text-sm text-gray-500 mt-1">Rita anime automatiquement vos groupes WhatsApp avec du contenu planifié.</p>
         </div>
         <button onClick={save} disabled={saving}
-          className="px-5 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 disabled:opacity-50 transition shadow-sm">
+          className="px-5 py-2.5 rounded-xl bg-primary-600 text-white text-sm font-semibold hover:bg-primary-700 disabled:opacity-50 transition shadow-sm">
           {saving ? 'Enregistrement...' : '💾 Sauvegarder'}
         </button>
       </div>
 
       {/* ─── Messages flash ─── */}
       {(saveMsg || testMsg) && (
-        <div className={`text-sm px-4 py-2.5 rounded-xl ${(saveMsg || testMsg).ok ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
+        <div className={`text-sm px-4 py-2.5 rounded-xl ${(saveMsg || testMsg).ok ? 'bg-primary-50 text-primary-700' : 'bg-red-50 text-red-700'}`}>
           {(saveMsg || testMsg).text}
         </div>
       )}
@@ -416,7 +416,7 @@ export default function RitaGroupAnimation() {
           <p className="text-xs text-gray-500">Groupes gérés</p>
         </div>
         <div className="bg-white border rounded-xl p-4 text-center">
-          <p className="text-2xl font-bold text-emerald-600">{activePosts}</p>
+          <p className="text-2xl font-bold text-primary-600">{activePosts}</p>
           <p className="text-xs text-gray-500">Posts actifs</p>
         </div>
         <div className="bg-white border rounded-xl p-4 text-center">
@@ -436,10 +436,10 @@ export default function RitaGroupAnimation() {
             <div className="flex gap-2">
               <input type="text" value={newGroupName} onChange={e => setNewGroupName(e.target.value)}
                 placeholder="Ex: 🛒 Clients Premium"
-                className="flex-1 text-sm border rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-200 focus:border-emerald-400"
+                className="flex-1 text-sm border rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary-200 focus:border-primary-400"
                 onKeyDown={e => e.key === 'Enter' && createGroup()} />
               <button onClick={createGroup} disabled={creatingGroup || !newGroupName.trim()}
-                className="px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 disabled:opacity-50 transition whitespace-nowrap">
+                className="px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-semibold hover:bg-primary-700 disabled:opacity-50 transition whitespace-nowrap">
                 {creatingGroup ? '...' : 'Créer'}
               </button>
             </div>

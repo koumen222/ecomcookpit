@@ -100,7 +100,7 @@ const DecisionForm = () => {
               required
               value={formData.productId}
               onChange={handleChange}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-emerald-600 focus:border-emerald-600"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-600 focus:border-primary-600"
             >
               <option value="">Sélectionnez un produit</option>
               {products.map((product) => (
@@ -120,7 +120,7 @@ const DecisionForm = () => {
               required
               value={formData.type}
               onChange={handleChange}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-emerald-600 focus:border-emerald-600"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-600 focus:border-primary-600"
             >
               <option value="continue">Continuer</option>
               <option value="scale">Scaler</option>
@@ -140,7 +140,7 @@ const DecisionForm = () => {
               required
               value={formData.priority}
               onChange={handleChange}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-emerald-600 focus:border-emerald-600"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-600 focus:border-primary-600"
             >
               <option value="low">Basse</option>
               <option value="medium">Moyenne</option>
@@ -158,7 +158,7 @@ const DecisionForm = () => {
               value={formData.assignedTo}
               onChange={handleChange}
               placeholder="Nom de la personne assignée"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-emerald-600 focus:border-emerald-600"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-600 focus:border-primary-600"
             />
           </div>
         </div>
@@ -174,7 +174,7 @@ const DecisionForm = () => {
             value={formData.reason}
             onChange={handleChange}
             placeholder="Expliquez pourquoi vous prenez cette décision..."
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-emerald-600 focus:border-emerald-600"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-600 focus:border-primary-600"
           />
         </div>
 
@@ -188,15 +188,15 @@ const DecisionForm = () => {
             value={formData.notes}
             onChange={handleChange}
             placeholder="Informations complémentaires, actions ù  prendre, etc..."
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-emerald-600 focus:border-emerald-600"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-600 focus:border-primary-600"
           />
         </div>
 
         {/* Aperçu de la décision */}
         {formData.productId && formData.type && (
-          <div className="bg-emerald-50 p-4 rounded-lg">
-            <h3 className="text-sm font-medium text-emerald-900 mb-2">Aperçu de la décision</h3>
-            <div className="text-sm text-emerald-700">
+          <div className="bg-primary-50 p-4 rounded-lg">
+            <h3 className="text-sm font-medium text-primary-900 mb-2">Aperçu de la décision</h3>
+            <div className="text-sm text-primary-700">
               <p><strong>Produit:</strong> {products.find(p => p._id === formData.productId)?.name}</p>
               <p><strong>Action:</strong> {formData.type === 'scale' ? 'Scaler le produit' : formData.type === 'stop' ? 'Arrêter le produit' : 'Continuer le produit'}</p>
               <p><strong>Priorité:</strong> {formData.priority === 'high' ? 'Haute' : formData.priority === 'medium' ? 'Moyenne' : 'Basse'}</p>
@@ -216,7 +216,7 @@ const DecisionForm = () => {
           <button
             type="submit"
             disabled={loading}
-            className="px-4 py-2 bg-emerald-600 text-white rounded-md hover:bg-emerald-700 disabled:opacity-50"
+            className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:opacity-50"
           >
             {loading ? 'Création...' : 'Créer la décision'}
           </button>

@@ -99,7 +99,7 @@ const FinancialSummary = ({ data, loading = false, showDetails = true }) => {
 
                 <div className="flex justify-between items-center">
                   <div className="flex items-center">
-                    <div className="w-3 h-3 bg-emerald-600 rounded-full mr-2"></div>
+                    <div className="w-3 h-3 bg-primary-600 rounded-full mr-2"></div>
                     <span className="text-gray-700">Dépenses Pub</span>
                   </div>
                   <span className="font-semibold text-gray-900">
@@ -133,7 +133,7 @@ const FinancialSummary = ({ data, loading = false, showDetails = true }) => {
                         title="Coûts Livraison"
                       ></div>
                       <div 
-                        className="bg-emerald-600"
+                        className="bg-primary-600"
                         style={{ width: `${(data.totalAdSpend / data.totalCost) * 100}%` }}
                         title="Dépenses Pub"
                       ></div>

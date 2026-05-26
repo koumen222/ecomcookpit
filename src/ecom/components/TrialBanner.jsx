@@ -45,7 +45,7 @@ const TrialBanner = ({ plan, trialEndsAt, onClose }) => {
           ? 'bg-gradient-to-r from-red-600 to-red-700'
           : isWarning
             ? 'bg-gradient-to-r from-amber-600 to-amber-700'
-            : 'bg-gradient-to-r from-emerald-600 to-emerald-700'
+            : 'bg-gradient-to-r from-primary-600 to-primary-700'
       } text-white shadow-lg`}
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
@@ -69,7 +69,7 @@ const TrialBanner = ({ plan, trialEndsAt, onClose }) => {
         <div className="flex items-center gap-3">
           <a
             href="/ecom/billing"
-            className="px-4 py-2 bg-white text-emerald-700 font-bold rounded-lg hover:bg-gray-100 transition-colors text-sm flex items-center gap-2"
+            className="px-4 py-2 bg-white text-primary-700 font-bold rounded-lg hover:bg-gray-100 transition-colors text-sm flex items-center gap-2"
           >
             <Zap className="w-4 h-4" />
             Passer à un plan payant

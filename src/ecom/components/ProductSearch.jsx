@@ -46,8 +46,8 @@ const ProductSearch = () => {
 
   const getStatusBadge = (status) => {
     const statusConfig = {
-      winner: { color: 'bg-emerald-100 text-emerald-800', label: '🏆 Winner' },
-      stable: { color: 'bg-emerald-100 text-emerald-800', label: '📈 Stable' },
+      winner: { color: 'bg-primary-100 text-primary-800', label: '🏆 Winner' },
+      stable: { color: 'bg-primary-100 text-primary-800', label: '📈 Stable' },
       test: { color: 'bg-amber-100 text-amber-800', label: '🧪 Test' },
       pause: { color: 'bg-gray-100 text-gray-800', label: '⏸️ Pause' },
       stop: { color: 'bg-red-100 text-red-800', label: '🛑 Stop' }
@@ -72,11 +72,11 @@ const ProductSearch = () => {
             onChange={(e) => setSearchTerm(e.target.value)}
             onFocus={() => setShowResults(true)}
             placeholder="Rechercher un produit..."
-            className="w-full px-4 py-3 pl-12 text-lg border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-600 focus:border-emerald-600 shadow-sm"
+            className="w-full px-4 py-3 pl-12 text-lg border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-600 focus:border-primary-600 shadow-sm"
           />
           <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
             {loading ? (
-              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-emerald-600"></div>
+              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary-600"></div>
             ) : (
               <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -106,7 +106,7 @@ const ProductSearch = () => {
                   <div className="flex-1">
                     <h3 className="font-semibold text-gray-900 mb-1">{product.name}</h3>
                     <div className="flex items-center gap-3 text-sm text-gray-600">
-                      <span className="font-medium text-emerald-600">{formatPrice(product.sellingPrice)}</span>
+                      <span className="font-medium text-primary-600">{formatPrice(product.sellingPrice)}</span>
                       {getStatusBadge(product.status)}
                     </div>
                     {product.stock > 0 && (
@@ -123,7 +123,7 @@ const ProductSearch = () => {
               <div className="p-3 bg-gray-50 border-t border-gray-200">
                 <button 
                   onClick={() => window.location.href = '/ecom/login'}
-                  className="w-full px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 text-sm font-medium transition"
+                  className="w-full px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm font-medium transition"
                 >
                   Voir tous les produits →
                 </button>

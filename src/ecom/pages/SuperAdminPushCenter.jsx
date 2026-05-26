@@ -11,14 +11,14 @@ import SuperAdminShell from '../components/SuperAdminShell';
 const Inp = ({ value, onChange, placeholder, type = 'text', disabled, className = '' }) => (
   <input
     type={type} value={value} onChange={onChange} placeholder={placeholder} disabled={disabled}
-    className={`w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-400 placeholder:text-slate-400 bg-white transition-colors disabled:bg-slate-50 disabled:text-slate-400 ${className}`}
+    className={`w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-400 placeholder:text-slate-400 bg-white transition-colors disabled:bg-slate-50 disabled:text-slate-400 ${className}`}
   />
 );
 
 const Sel = ({ value, onChange, disabled, children }) => (
   <select
     value={value} onChange={onChange} disabled={disabled}
-    className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-400 bg-white transition-colors disabled:bg-slate-50 disabled:text-slate-400"
+    className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-400 bg-white transition-colors disabled:bg-slate-50 disabled:text-slate-400"
   >
     {children}
   </select>
@@ -48,7 +48,7 @@ const CardHeader = ({ title, subtitle, right }) => (
 
 const STATUS_META = {
   scheduled: { label: 'Programmée', cls: 'bg-blue-100 text-blue-700'   },
-  sent:      { label: 'Envoyée',    cls: 'bg-emerald-100 text-emerald-700' },
+  sent:      { label: 'Envoyée',    cls: 'bg-primary-100 text-primary-700' },
   failed:    { label: 'Échouée',    cls: 'bg-red-100 text-red-600'      },
   cancelled: { label: 'Annulée',    cls: 'bg-slate-100 text-slate-500'  },
 };
@@ -191,7 +191,7 @@ const SuperAdminPushCenter = () => {
       {toast && (
         <div className={`fixed top-4 right-4 z-50 flex items-center gap-2.5 px-4 py-3 rounded-2xl shadow-2xl text-sm font-semibold transition-all ${
           toast.type === 'ok'
-            ? 'bg-emerald-600 text-white'
+            ? 'bg-primary-600 text-white'
             : 'bg-red-600 text-white'
         }`}>
           {toast.type === 'ok' ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
@@ -209,7 +209,7 @@ const SuperAdminPushCenter = () => {
           {[
             { label: 'Abonnements',       value: pushStats.subscriptions.total   || 0, sub: `${pushStats.subscriptions.workspaces || 0} workspace(s)`,                   icon: Bell,         accent: 'text-slate-800'   },
             { label: 'Programmées',       value: pushStats.scheduled.total       || 0, sub: `${pushStats.scheduled.byStatus?.scheduled || 0} en attente`,                 icon: Clock,        accent: 'text-blue-700'    },
-            { label: 'Livraisons réuss.', value: pushStats.deliveries.successful || 0, sub: `Taux ${successRate}%`,                                                       icon: CheckCircle2, accent: 'text-emerald-700' },
+            { label: 'Livraisons réuss.', value: pushStats.deliveries.successful || 0, sub: `Taux ${successRate}%`,                                                       icon: CheckCircle2, accent: 'text-primary-700' },
             { label: 'Automations act.', value: pushStats.automations.enabled   || 0, sub: `/ ${pushStats.automations.total || 0} total`,                                icon: Zap,          accent: 'text-amber-700'   },
           ].map(k => (
             <div key={k.label} className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
@@ -230,17 +230,17 @@ const SuperAdminPushCenter = () => {
             {TABS.map(t => (
               <button key={t.k} onClick={() => setTab(t.k)}
                 className={`flex items-center gap-1.5 px-4 py-3 text-xs font-semibold transition-all relative flex-shrink-0 ${
-                  tab === t.k ? 'text-emerald-700' : 'text-slate-500 hover:text-slate-700'
+                  tab === t.k ? 'text-primary-700' : 'text-slate-500 hover:text-slate-700'
                 }`}
               >
                 <t.icon className="w-3.5 h-3.5" />
                 {t.label}
                 {t.count !== undefined && t.count > 0 && (
-                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${tab === t.k ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${tab === t.k ? 'bg-primary-100 text-primary-700' : 'bg-slate-100 text-slate-500'}`}>
                     {t.count}
                   </span>
                 )}
-                {tab === t.k && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-emerald-500 rounded-t" />}
+                {tab === t.k && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary-500 rounded-t" />}
               </button>
             ))}
           </div>
@@ -274,7 +274,7 @@ const SuperAdminPushCenter = () => {
                   <textarea
                     value={body} onChange={e => setBody(e.target.value)} rows={4}
                     placeholder="Ex : Une nouvelle fonctionnalité est disponible…"
-                    className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-400 placeholder:text-slate-400 resize-y transition-colors"
+                    className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-400 placeholder:text-slate-400 resize-y transition-colors"
                   />
                 </div>
 
@@ -293,7 +293,7 @@ const SuperAdminPushCenter = () => {
 
               {/* Scope preview */}
               <div className={`flex items-center gap-2.5 px-4 py-3 rounded-xl border text-xs font-semibold ${
-                scope === 'global' ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                scope === 'global' ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-primary-50 border-primary-200 text-primary-700'
               }`}>
                 {scope === 'global' ? <Globe className="w-4 h-4" /> : <Building2 className="w-4 h-4" />}
                 {scope === 'global'
@@ -308,7 +308,7 @@ const SuperAdminPushCenter = () => {
                   <button
                     onClick={sendNow}
                     disabled={busy || !canSend || (scope === 'workspace' && !workspaceId)}
-                    className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 text-white text-sm font-bold rounded-xl hover:bg-emerald-500 disabled:opacity-50 transition-all shadow-sm"
+                    className="flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white text-sm font-bold rounded-xl hover:bg-primary-500 disabled:opacity-50 transition-all shadow-sm"
                   >
                     {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                     Envoyer maintenant
@@ -396,7 +396,7 @@ const SuperAdminPushCenter = () => {
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 flex-wrap mb-1">
                           <p className="text-sm font-bold text-slate-900">{a.name}</p>
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${a.enabled ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${a.enabled ? 'bg-primary-100 text-primary-700' : 'bg-slate-100 text-slate-500'}`}>
                             {a.enabled ? 'Active' : 'Inactive'}
                           </span>
                         </div>
@@ -412,7 +412,7 @@ const SuperAdminPushCenter = () => {
                         disabled={busy}
                         className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl border transition-colors disabled:opacity-50 flex-shrink-0 ${
                           a.enabled
-                            ? 'border-emerald-200 text-emerald-700 hover:bg-emerald-50'
+                            ? 'border-primary-200 text-primary-700 hover:bg-primary-50'
                             : 'border-slate-200 text-slate-600 hover:bg-slate-50'
                         }`}
                       >

@@ -44,8 +44,8 @@ const PrivacyBanner = () => {
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
             {/* Icon + Text */}
             <div className="flex items-start gap-3 flex-1">
-              <div className="flex-shrink-0 w-10 h-10 bg-emerald-600/20 border border-emerald-600/30 rounded-xl flex items-center justify-center">
-                <svg className="w-5 h-5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="flex-shrink-0 w-10 h-10 bg-primary-600/20 border border-primary-600/30 rounded-xl flex items-center justify-center">
+                <svg className="w-5 h-5 text-primary-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                 </svg>
               </div>
@@ -57,7 +57,7 @@ const PrivacyBanner = () => {
                   Vos données sont chiffrées et isolées par espace de travail.{' '}
                   <button 
                     onClick={() => navigate('/ecom/privacy')} 
-                    className="text-emerald-500 hover:text-emerald-400 underline underline-offset-2 transition"
+                    className="text-primary-500 hover:text-primary-400 underline underline-offset-2 transition"
                   >
                     Politique de confidentialité complète
                   </button>
@@ -75,7 +75,7 @@ const PrivacyBanner = () => {
               </button>
               <button
                 onClick={handleAccept}
-                className="flex-1 sm:flex-none px-5 py-2 text-xs font-semibold text-white bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-600 hover:to-emerald-600 rounded-lg transition shadow-lg shadow-emerald-600/20"
+                className="flex-1 sm:flex-none px-5 py-2 text-xs font-semibold text-white bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-600 hover:to-primary-600 rounded-lg transition shadow-lg shadow-primary-600/20"
               >
                 J'accepte
               </button>

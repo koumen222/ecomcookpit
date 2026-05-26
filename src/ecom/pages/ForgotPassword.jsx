@@ -32,7 +32,7 @@ const ForgotPassword = () => {
 
   if (success) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-emerald-50 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-gradient-to-br from-primary-50 via-white to-primary-50 flex items-center justify-center p-4">
         <div className="w-full max-w-md">
           <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-8">
             <div className="text-center mb-6">
@@ -47,14 +47,14 @@ const ForgotPassword = () => {
               </p>
             </div>
 
-            <div className="bg-emerald-50 rounded-xl p-4 mb-6">
+            <div className="bg-primary-50 rounded-xl p-4 mb-6">
               <div className="flex gap-3">
-                <svg className="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-5 h-5 text-primary-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                <div className="text-sm text-emerald-700">
+                <div className="text-sm text-primary-700">
                   <p className="font-medium mb-1">V&eacute;rifiez votre bo&icirc;te de r&eacute;ception</p>
-                  <p className="text-emerald-600">Le lien expire dans 1 heure. Pensez &agrave; v&eacute;rifier vos spams.</p>
+                  <p className="text-primary-600">Le lien expire dans 1 heure. Pensez &agrave; v&eacute;rifier vos spams.</p>
                 </div>
               </div>
             </div>
@@ -68,7 +68,7 @@ const ForgotPassword = () => {
               </button>
               <Link
                 to="/ecom/login"
-                className="block w-full py-2.5 px-4 text-center text-emerald-600 font-medium hover:text-emerald-700 transition text-sm"
+                className="block w-full py-2.5 px-4 text-center text-primary-600 font-medium hover:text-primary-700 transition text-sm"
               >
                 &larr; Retour &agrave; la connexion
               </Link>
@@ -80,12 +80,12 @@ const ForgotPassword = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-emerald-50 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-primary-50 via-white to-primary-50 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-8">
           <div className="text-center mb-8">
-            <div className="w-16 h-16 bg-emerald-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-              <svg className="w-8 h-8 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="w-16 h-16 bg-primary-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <svg className="w-8 h-8 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
               </svg>
             </div>
@@ -125,7 +125,7 @@ const ForgotPassword = () => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 px-4 bg-emerald-600 text-white rounded-xl font-semibold hover:bg-emerald-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm"
+              className="w-full py-3 px-4 bg-primary-600 text-white rounded-xl font-semibold hover:bg-primary-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm"
             >
               {loading ? (
                 <>
@@ -146,7 +146,7 @@ const ForgotPassword = () => {
           <div className="mt-6 text-center">
             <Link
               to="/ecom/login"
-              className="text-sm text-emerald-600 hover:text-emerald-700 font-medium transition flex items-center justify-center gap-1"
+              className="text-sm text-primary-600 hover:text-primary-700 font-medium transition flex items-center justify-center gap-1"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />

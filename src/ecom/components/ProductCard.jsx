@@ -7,7 +7,7 @@ const ProductCard = ({ product, showActions = true, onEdit, onDelete }) => {
   const getStatusColor = (status) => {
     const colors = {
       test: 'bg-yellow-100 text-yellow-800',
-      stable: 'bg-emerald-100 text-emerald-800',
+      stable: 'bg-primary-100 text-primary-800',
       winner: 'bg-green-100 text-green-800',
       pause: 'bg-orange-100 text-orange-800',
       stop: 'bg-red-100 text-red-800'
@@ -111,7 +111,7 @@ const ProductCard = ({ product, showActions = true, onEdit, onDelete }) => {
             <div className="flex space-x-2">
               <Link
                 to={`/products/${product._id}`}
-                className="px-3 py-1 bg-emerald-100 text-emerald-700 rounded text-sm font-medium hover:bg-emerald-200 transition"
+                className="px-3 py-1 bg-primary-100 text-primary-700 rounded text-sm font-medium hover:bg-primary-200 transition"
               >
                 Voir
               </Link>

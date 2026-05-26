@@ -28,15 +28,15 @@ const roleLabels = {
 };
 
 const roleColors = {
-  ecom_admin: 'bg-emerald-100 text-emerald-900',
-  ecom_closeuse: 'bg-emerald-100 text-emerald-800',
+  ecom_admin: 'bg-primary-100 text-primary-900',
+  ecom_closeuse: 'bg-primary-100 text-primary-800',
   ecom_compta: 'bg-green-100 text-green-800',
   ecom_livreur: 'bg-orange-100 text-orange-800'
 };
 
 const roleAvatarColors = {
-  ecom_admin: 'bg-emerald-100 text-emerald-800',
-  ecom_closeuse: 'bg-emerald-100 text-emerald-700',
+  ecom_admin: 'bg-primary-100 text-primary-800',
+  ecom_closeuse: 'bg-primary-100 text-primary-700',
   ecom_compta: 'bg-green-100 text-green-700',
   ecom_livreur: 'bg-orange-100 text-orange-700'
 };
@@ -66,10 +66,10 @@ const auditActionLabels = {
 
 const auditActionColors = {
   CREATE_USER: 'bg-green-100 text-green-700',
-  UPDATE_USER: 'bg-emerald-100 text-emerald-700',
+  UPDATE_USER: 'bg-primary-100 text-primary-700',
   DELETE_USER: 'bg-red-100 text-red-700',
   RESET_PASSWORD: 'bg-yellow-100 text-yellow-700',
-  GENERATE_INVITE: 'bg-emerald-100 text-emerald-800',
+  GENERATE_INVITE: 'bg-primary-100 text-primary-800',
   ACCEPT_INVITE: 'bg-teal-100 text-teal-700',
   LOGIN: 'bg-gray-100 text-gray-600',
   LOGOUT: 'bg-gray-100 text-gray-600',
@@ -344,13 +344,13 @@ const UserManagement = () => {
         </div>
       )}
 
-      <div className="relative mb-6 overflow-hidden rounded-[30px] border border-emerald-100 bg-white p-4 shadow-sm shadow-emerald-100/60 sm:p-6">
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-gradient-to-r from-emerald-50 via-white to-white" />
+      <div className="relative mb-6 overflow-hidden rounded-[30px] border border-primary-100 bg-white p-4 shadow-sm shadow-primary-100/60 sm:p-6">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-gradient-to-r from-primary-50 via-white to-white" />
         <div className="relative flex flex-col gap-5">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-700">
+                <span className="inline-flex items-center rounded-full border border-primary-200 bg-primary-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-primary-700">
                   Workspace
                 </span>
                 <span className="inline-flex items-center rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-500">
@@ -366,7 +366,7 @@ const UserManagement = () => {
             <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap xl:justify-end">
               <Link
                 to="/ecom/users/team/performance"
-                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-100"
+                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-primary-200 bg-primary-50 px-4 py-3 text-sm font-semibold text-primary-800 transition hover:bg-primary-100"
               >
                 <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
                 Performances
@@ -375,7 +375,7 @@ const UserManagement = () => {
               {activeTab === 'team' && (
                 <button
                   onClick={() => setShowCreateModal(true)}
-                  className="inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700"
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl bg-primary-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-primary-700"
                 >
                   <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
                   Ajouter
@@ -386,7 +386,7 @@ const UserManagement = () => {
                 <button
                   onClick={handleGenerateInvite}
                   disabled={generatingInvite}
-                  className="inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-700 px-4 py-3 text-sm font-semibold text-white transition hover:bg-emerald-800 disabled:opacity-50"
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl bg-primary-700 px-4 py-3 text-sm font-semibold text-white transition hover:bg-primary-800 disabled:opacity-50"
                 >
                   {generatingInvite
                     ? <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
@@ -403,18 +403,18 @@ const UserManagement = () => {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center justify-between rounded-2xl border px-4 py-3 text-left transition ${activeTab === tab.id ? 'border-emerald-200 bg-emerald-50 text-emerald-800 shadow-sm shadow-emerald-100/70' : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50'}`}
+                className={`flex items-center justify-between rounded-2xl border px-4 py-3 text-left transition ${activeTab === tab.id ? 'border-primary-200 bg-primary-50 text-primary-800 shadow-sm shadow-primary-100/70' : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50'}`}
               >
                 <div>
                   <p className="text-sm font-semibold">{tab.label}</p>
                   <p className="text-[11px] uppercase tracking-[0.18em] text-gray-400">Section</p>
                 </div>
                 {tab.count > 0 ? (
-                  <span className={`inline-flex min-w-8 items-center justify-center rounded-full px-2 py-1 text-[11px] font-bold ${activeTab === tab.id ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-600'}`}>
+                  <span className={`inline-flex min-w-8 items-center justify-center rounded-full px-2 py-1 text-[11px] font-bold ${activeTab === tab.id ? 'bg-primary-100 text-primary-700' : 'bg-gray-100 text-gray-600'}`}>
                     {tab.count}
                   </span>
                 ) : (
-                  <span className={`inline-flex h-2.5 w-2.5 rounded-full ${activeTab === tab.id ? 'bg-emerald-500' : 'bg-gray-300'}`} />
+                  <span className={`inline-flex h-2.5 w-2.5 rounded-full ${activeTab === tab.id ? 'bg-primary-500' : 'bg-gray-300'}`} />
                 )}
               </button>
             ))}
@@ -440,7 +440,7 @@ const UserManagement = () => {
                   <button
                     key={val}
                     onClick={() => setFilterRole(val)}
-                    className={`rounded-full border px-3 py-2 text-xs font-semibold transition ${filterRole === val ? 'border-emerald-600 bg-emerald-600 text-white shadow-sm shadow-emerald-200' : 'border-gray-200 bg-gray-50 text-gray-600 hover:border-gray-300 hover:bg-white'}`}
+                    className={`rounded-full border px-3 py-2 text-xs font-semibold transition ${filterRole === val ? 'border-primary-600 bg-primary-600 text-white shadow-sm shadow-primary-200' : 'border-gray-200 bg-gray-50 text-gray-600 hover:border-gray-300 hover:bg-white'}`}
                   >
                     {label}
                   </button>
@@ -452,13 +452,13 @@ const UserManagement = () => {
               <UserSkeleton />
             ) : users.length === 0 ? (
               <div className="py-12 text-center">
-                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-3xl bg-emerald-50 text-emerald-600">
+                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-3xl bg-primary-50 text-primary-600">
                   <svg className="h-8 w-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                 </div>
                 <p className="text-lg font-semibold text-gray-900">Aucun membre pour l'instant</p>
                 <p className="mx-auto mt-2 max-w-md text-sm text-gray-500">Ajoutez des membres ou passez par un lien d'invitation pour démarrer l'équipe.</p>
                 <div className="mt-6 flex flex-col justify-center gap-3 sm:flex-row">
-                  <button onClick={() => setShowCreateModal(true)} className="rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700">Ajouter un membre</button>
+                  <button onClick={() => setShowCreateModal(true)} className="rounded-2xl bg-primary-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-primary-700">Ajouter un membre</button>
                   <button onClick={() => setActiveTab('invites')} className="rounded-2xl border border-gray-200 px-5 py-3 text-sm font-semibold text-gray-700 transition hover:bg-gray-50">Voir les invitations</button>
                 </div>
               </div>
@@ -476,7 +476,7 @@ const UserManagement = () => {
                   return (
                     <div
                       key={u._id}
-                      className={`rounded-[26px] border border-gray-100 bg-white px-4 py-4 shadow-sm shadow-gray-100/80 transition hover:border-emerald-200 hover:shadow-md ${!u.isActive ? 'opacity-60' : ''}`}
+                      className={`rounded-[26px] border border-gray-100 bg-white px-4 py-4 shadow-sm shadow-gray-100/80 transition hover:border-primary-200 hover:shadow-md ${!u.isActive ? 'opacity-60' : ''}`}
                     >
                       <div className="flex flex-col gap-4 xl:grid xl:grid-cols-[minmax(0,2.2fr)_minmax(0,1.25fr)_minmax(0,0.95fr)_auto] xl:items-center xl:gap-4">
                         <div className="flex min-w-0 items-center gap-3">
@@ -487,7 +487,7 @@ const UserManagement = () => {
                             <div className="flex flex-wrap items-center gap-2">
                               <p className="truncate text-sm font-semibold text-gray-900">{u.name || u.email}</p>
                               {isCurrentUser && (
-                                <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
+                                <span className="inline-flex items-center rounded-full border border-primary-200 bg-primary-50 px-2 py-0.5 text-[10px] font-bold text-primary-700">
                                   Vous
                                 </span>
                               )}
@@ -501,7 +501,7 @@ const UserManagement = () => {
                             {roleLabels[u.role]}
                           </span>
                           {u.role === 'ecom_admin' && (
-                            <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-bold ${hasRitaAgentAccess(u) ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                            <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-bold ${hasRitaAgentAccess(u) ? 'bg-primary-100 text-primary-700' : 'bg-amber-100 text-amber-700'}`}>
                               {hasRitaAgentAccess(u) ? 'Rita autorise' : 'Rita bloque'}
                             </span>
                           )}
@@ -531,7 +531,7 @@ const UserManagement = () => {
                               className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${u.isActive ? 'bg-green-400' : 'bg-gray-200'}`}>
                               <span className={`inline-block h-4.5 w-4.5 transform rounded-full bg-white shadow transition-transform ${u.isActive ? 'translate-x-6' : 'translate-x-1'}`} />
                             </button>
-                            <button onClick={() => openEdit(u)} className="rounded-xl p-2 text-gray-400 transition hover:bg-emerald-50 hover:text-emerald-600" title="Modifier">
+                            <button onClick={() => openEdit(u)} className="rounded-xl p-2 text-gray-400 transition hover:bg-primary-50 hover:text-primary-600" title="Modifier">
                               <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                             </button>
                             <button onClick={() => openResetPw(u)} className="rounded-xl p-2 text-gray-400 transition hover:bg-yellow-50 hover:text-yellow-600" title="Mot de passe">
@@ -569,12 +569,12 @@ const UserManagement = () => {
             <UserSkeleton />
           ) : invites.length === 0 ? (
             <div className="bg-white rounded-2xl border-2 border-dashed border-gray-200 p-10 text-center">
-              <div className="w-14 h-14 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-3">
-                <svg className="w-7 h-7 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
+              <div className="w-14 h-14 bg-primary-50 rounded-full flex items-center justify-center mx-auto mb-3">
+                <svg className="w-7 h-7 text-primary-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
               </div>
               <p className="font-semibold text-gray-900 mb-1">Aucun lien d'invitation</p>
               <p className="text-sm text-gray-500 mb-4">Générez un lien et partagez-le avec votre équipe. Il sera valide 7 jours.</p>
-              <button onClick={handleGenerateInvite} disabled={generatingInvite} className="px-5 py-2.5 bg-emerald-700 text-white rounded-lg text-sm font-medium hover:bg-emerald-800 disabled:opacity-50">
+              <button onClick={handleGenerateInvite} disabled={generatingInvite} className="px-5 py-2.5 bg-primary-700 text-white rounded-lg text-sm font-medium hover:bg-primary-800 disabled:opacity-50">
                 {generatingInvite ? 'Génération...' : 'Générer mon premier lien'}
               </button>
             </div>
@@ -583,7 +583,7 @@ const UserManagement = () => {
               {invites.map((inv) => {
                 const isActive = !inv.used && !inv.isExpired;
                 return (
-                  <div key={inv._id} className={`bg-white rounded-xl border p-4 ${isActive ? 'border-emerald-100' : 'border-gray-100 opacity-60'}`}>
+                  <div key={inv._id} className={`bg-white rounded-xl border p-4 ${isActive ? 'border-primary-100' : 'border-gray-100 opacity-60'}`}>
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 mb-1">
@@ -603,7 +603,7 @@ const UserManagement = () => {
                       </div>
                       {isActive && (
                         <button onClick={() => handleCopyLink(inv)}
-                          className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition ${copiedId === inv._id ? 'bg-green-100 text-green-700' : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100'}`}>
+                          className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition ${copiedId === inv._id ? 'bg-green-100 text-green-700' : 'bg-primary-50 text-primary-800 hover:bg-primary-100'}`}>
                           {copiedId === inv._id ? (
                             <><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>Copié</>
                           ) : (
@@ -676,20 +676,20 @@ const UserManagement = () => {
             <form onSubmit={handleCreate} className="space-y-3">
               <div><label className="block text-xs font-medium text-gray-600 mb-1">Email *</label>
                 <input type="email" required value={createForm.email} onChange={(e) => setCreateForm(p => ({ ...p, email: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-600 focus:border-transparent text-sm" placeholder="email@exemple.com" /></div>
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-600 focus:border-transparent text-sm" placeholder="email@exemple.com" /></div>
               <div><label className="block text-xs font-medium text-gray-600 mb-1">Mot de passe *</label>
                 <input type="password" required minLength={6} value={createForm.password} onChange={(e) => setCreateForm(p => ({ ...p, password: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-600 focus:border-transparent text-sm" placeholder="Min. 6 caractères" /></div>
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-600 focus:border-transparent text-sm" placeholder="Min. 6 caractères" /></div>
               <div><label className="block text-xs font-medium text-gray-600 mb-1">Rôle *</label>
                 <select value={createForm.role} onChange={(e) => setCreateForm(p => ({ ...p, role: e.target.value, canAccessRitaAgent: e.target.value === 'ecom_admin' ? p.canAccessRitaAgent : false }))}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-600 focus:border-transparent text-sm">
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-600 focus:border-transparent text-sm">
                   <option value="ecom_closeuse">Closeuse</option>
                   <option value="ecom_compta">Comptable</option>
                   <option value="ecom_livreur">Livreur</option>
                   <option value="ecom_admin">Admin</option>
                 </select></div>
               {createForm.role === 'ecom_admin' && (
-                <div className="flex items-center justify-between p-3 bg-emerald-50 rounded-xl border border-emerald-100">
+                <div className="flex items-center justify-between p-3 bg-primary-50 rounded-xl border border-primary-100">
                   <div>
                     <p className="text-sm font-medium text-gray-800">Acces Rita IA</p>
                     <p className="text-xs text-gray-500">Autorise la creation et la configuration de l'agent Rita.</p>
@@ -697,7 +697,7 @@ const UserManagement = () => {
                   <button
                     type="button"
                     onClick={() => setCreateForm(p => ({ ...p, canAccessRitaAgent: !p.canAccessRitaAgent }))}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${createForm.canAccessRitaAgent ? 'bg-emerald-600' : 'bg-gray-300'}`}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${createForm.canAccessRitaAgent ? 'bg-primary-600' : 'bg-gray-300'}`}
                   >
                     <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${createForm.canAccessRitaAgent ? 'translate-x-6' : 'translate-x-1'}`} />
                   </button>
@@ -713,7 +713,7 @@ const UserManagement = () => {
               </>)}
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setShowCreateModal(false)} className="flex-1 px-4 py-2 border border-gray-200 rounded-lg text-gray-700 hover:bg-gray-50 text-sm">Annuler</button>
-                <button type="submit" disabled={submitting} className="flex-1 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 text-sm font-medium">{submitting ? 'Création...' : 'Créer'}</button>
+                <button type="submit" disabled={submitting} className="flex-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 text-sm font-medium">{submitting ? 'Création...' : 'Créer'}</button>
               </div>
             </form>
           </div>
@@ -729,14 +729,14 @@ const UserManagement = () => {
             <form onSubmit={handleEdit} className="space-y-4">
               <div><label className="block text-xs font-medium text-gray-600 mb-1">Rôle</label>
                 <select value={editForm.role} onChange={(e) => setEditForm(p => ({ ...p, role: e.target.value, canAccessRitaAgent: e.target.value === 'ecom_admin' ? p.canAccessRitaAgent : false }))}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-600 text-sm">
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-600 text-sm">
                   <option value="ecom_closeuse">Closeuse</option>
                   <option value="ecom_compta">Comptable</option>
                   <option value="ecom_livreur">Livreur</option>
                   <option value="ecom_admin">Admin</option>
                 </select></div>
               {editForm.role === 'ecom_admin' && (
-                <div className="flex items-center justify-between p-3 bg-emerald-50 rounded-xl border border-emerald-100">
+                <div className="flex items-center justify-between p-3 bg-primary-50 rounded-xl border border-primary-100">
                   <div>
                     <p className="text-sm font-medium text-gray-800">Acces Rita IA</p>
                     <p className="text-xs text-gray-500">Bloque ou autorise l'acces direct a Rita pour ce compte.</p>
@@ -744,7 +744,7 @@ const UserManagement = () => {
                   <button
                     type="button"
                     onClick={() => setEditForm(p => ({ ...p, canAccessRitaAgent: !p.canAccessRitaAgent }))}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${editForm.canAccessRitaAgent ? 'bg-emerald-600' : 'bg-gray-300'}`}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${editForm.canAccessRitaAgent ? 'bg-primary-600' : 'bg-gray-300'}`}
                   >
                     <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${editForm.canAccessRitaAgent ? 'translate-x-6' : 'translate-x-1'}`} />
                   </button>
@@ -762,7 +762,7 @@ const UserManagement = () => {
               </div>
               <div className="flex gap-3">
                 <button type="button" onClick={() => { setShowEditModal(false); setSelectedUser(null); }} className="flex-1 px-4 py-2 border border-gray-200 rounded-lg text-gray-700 hover:bg-gray-50 text-sm">Annuler</button>
-                <button type="submit" disabled={submitting} className="flex-1 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 text-sm font-medium">{submitting ? 'Enregistrement...' : 'Enregistrer'}</button>
+                <button type="submit" disabled={submitting} className="flex-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 text-sm font-medium">{submitting ? 'Enregistrement...' : 'Enregistrer'}</button>
               </div>
             </form>
           </div>

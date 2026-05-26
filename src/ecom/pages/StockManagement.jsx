@@ -48,7 +48,7 @@ const IconFillLoader = ({ backgroundClassName = 'bg-gray-50' }) => {
 function getStockStatus(current) {
   if (current <= 5) return { label: 'Stock faible  réassort urgent', color: 'bg-red-100 text-red-700 border-red-200', dot: 'bg-red-500' };
   if (current <= 15) return { label: 'Stock correct  à surveiller', color: 'bg-orange-100 text-orange-700 border-orange-200', dot: 'bg-orange-400' };
-  return { label: 'Bon stock', color: 'bg-emerald-100 text-emerald-700 border-emerald-200', dot: 'bg-emerald-500' };
+  return { label: 'Bon stock', color: 'bg-primary-100 text-primary-700 border-primary-200', dot: 'bg-primary-500' };
 }
 
 const getTodayInputDate = () => new Date().toISOString().split('T')[0];
@@ -217,21 +217,21 @@ const StockManagement = () => {
         </div>
       )}
       {success && (
-        <div className="flex items-center justify-between bg-emerald-50 border border-emerald-200 text-emerald-700 px-4 py-3 rounded-xl text-sm">
+        <div className="flex items-center justify-between bg-primary-50 border border-primary-200 text-primary-700 px-4 py-3 rounded-xl text-sm">
           {success}
-          <button onClick={() => setSuccess('')} className="ml-3 text-emerald-400 hover:text-emerald-600">&times;</button>
+          <button onClick={() => setSuccess('')} className="ml-3 text-primary-400 hover:text-primary-600">&times;</button>
         </div>
       )}
 
       <div className="flex flex-col gap-3 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:p-5">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-600">Gestion du stock</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary-600">Gestion du stock</p>
           <h1 className="mt-1 text-xl font-bold text-gray-900 sm:text-2xl">État du stock par date</h1>
           <p className="mt-1 text-sm text-gray-500">Suivez le stock par produit, ville et agence, avec une date visible sur chaque ligne.</p>
         </div>
-        <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3">
-          <p className="text-xs font-medium text-emerald-700">Stock total</p>
-          <p className="mt-1 text-2xl font-bold text-emerald-900">{totalStock.toLocaleString('fr-FR')}</p>
+        <div className="rounded-2xl border border-primary-100 bg-primary-50 px-4 py-3">
+          <p className="text-xs font-medium text-primary-700">Stock total</p>
+          <p className="mt-1 text-2xl font-bold text-primary-900">{totalStock.toLocaleString('fr-FR')}</p>
         </div>
       </div>
 
@@ -244,12 +244,12 @@ const StockManagement = () => {
         </div>
         <div className="bg-white rounded-lg sm:rounded-xl border border-gray-200 shadow-sm p-2.5 sm:p-4">
           <p className="text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wide mb-0.5 sm:mb-1">Total ventes</p>
-          <p className="text-lg sm:text-2xl font-bold text-emerald-600">{totalSales.toLocaleString('fr-FR')}</p>
+          <p className="text-lg sm:text-2xl font-bold text-primary-600">{totalSales.toLocaleString('fr-FR')}</p>
           <p className="text-[10px] sm:text-xs text-gray-400 mt-0.5">unités vendues</p>
         </div>
         <div className="bg-white rounded-lg sm:rounded-xl border border-gray-200 shadow-sm p-2.5 sm:p-4">
           <p className="text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wide mb-0.5 sm:mb-1">Ruptures / faibles</p>
-          <p className={`text-lg sm:text-2xl font-bold ${lowStock > 0 ? 'text-red-600' : 'text-emerald-600'}`}>{lowStock}</p>
+          <p className={`text-lg sm:text-2xl font-bold ${lowStock > 0 ? 'text-red-600' : 'text-primary-600'}`}>{lowStock}</p>
           <p className="text-[10px] sm:text-xs text-gray-400 mt-0.5">{lowStock > 0 ? 'réassort urgent' : 'tout est OK'}</p>
         </div>
       </div>
@@ -262,26 +262,26 @@ const StockManagement = () => {
           </svg>
           <input type="text" value={search} onChange={e => setSearch(e.target.value)}
             placeholder="Rechercher produit, ville, agence..."
-            className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-600 focus:border-emerald-600 outline-none" />
+            className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-primary-600 focus:border-primary-600 outline-none" />
         </div>
         <div className="grid grid-cols-2 sm:flex gap-2 flex-wrap">
           <select value={filterProduct} onChange={e => setFilterProduct(e.target.value)}
-            className="px-2.5 sm:px-3 py-2 border border-gray-200 rounded-lg text-xs sm:text-sm focus:ring-2 focus:ring-emerald-600 outline-none">
+            className="px-2.5 sm:px-3 py-2 border border-gray-200 rounded-lg text-xs sm:text-sm focus:ring-2 focus:ring-primary-600 outline-none">
             <option value="">Tous les produits</option>
             {products.map(p => <option key={p._id} value={p._id}>{p.name}</option>)}
           </select>
           <select value={filterCity} onChange={e => setFilterCity(e.target.value)}
-            className="px-2.5 sm:px-3 py-2 border border-gray-200 rounded-lg text-xs sm:text-sm focus:ring-2 focus:ring-emerald-600 outline-none">
+            className="px-2.5 sm:px-3 py-2 border border-gray-200 rounded-lg text-xs sm:text-sm focus:ring-2 focus:ring-primary-600 outline-none">
             <option value="">Toutes les villes</option>
             {uniqueCities.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
           <select value={filterAgency} onChange={e => setFilterAgency(e.target.value)}
-            className="px-2.5 sm:px-3 py-2 border border-gray-200 rounded-lg text-xs sm:text-sm focus:ring-2 focus:ring-emerald-600 outline-none col-span-2 sm:col-span-1">
+            className="px-2.5 sm:px-3 py-2 border border-gray-200 rounded-lg text-xs sm:text-sm focus:ring-2 focus:ring-primary-600 outline-none col-span-2 sm:col-span-1">
             <option value="">Toutes les agences</option>
             {uniqueAgencies.map(a => <option key={a} value={a}>{a}</option>)}
           </select>
           <button onClick={openAdd}
-            className="col-span-2 sm:col-span-1 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition flex items-center justify-center gap-1.5">
+            className="col-span-2 sm:col-span-1 px-4 py-2 bg-primary-600 text-white rounded-lg text-sm font-medium hover:bg-primary-700 transition flex items-center justify-center gap-1.5">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
@@ -303,7 +303,7 @@ const StockManagement = () => {
                   </svg>
                 </div>
                 <p className="text-sm text-gray-500">Aucune entrée de stock</p>
-                <button onClick={openAdd} className="text-sm text-emerald-600 font-medium hover:underline">+ Ajouter une ligne</button>
+                <button onClick={openAdd} className="text-sm text-primary-600 font-medium hover:underline">+ Ajouter une ligne</button>
               </div>
             </div>
           ) : filtered.map(entry => {
@@ -316,16 +316,16 @@ const StockManagement = () => {
                     <p className="font-semibold text-gray-900 text-sm truncate">{entry.productId?.name || ''}</p>
                     <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                       {entry.city && (
-                        <span className="inline-flex items-center text-[10px] font-medium text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-full">{entry.city}</span>
+                        <span className="inline-flex items-center text-[10px] font-medium text-primary-700 bg-primary-50 px-1.5 py-0.5 rounded-full">{entry.city}</span>
                       )}
                       {entry.agency && (
-                        <span className="inline-flex items-center text-[10px] font-medium text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded-full">{entry.agency}</span>
+                        <span className="inline-flex items-center text-[10px] font-medium text-primary-800 bg-primary-50 px-1.5 py-0.5 rounded-full">{entry.agency}</span>
                       )}
                     </div>
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0">
                     <button onClick={() => openEdit(entry)}
-                      className="p-1.5 text-gray-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition">
+                      className="p-1.5 text-gray-500 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition">
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                       </svg>
@@ -343,13 +343,13 @@ const StockManagement = () => {
                     <p className="text-[10px] text-gray-500 uppercase font-medium mb-0.5">Stock initial</p>
                     <p className="text-sm font-bold text-gray-900">{(entry.quantity || 0).toLocaleString('fr-FR')}</p>
                   </div>
-                  <div className="bg-emerald-50 rounded-lg p-2">
-                    <p className="text-[10px] text-emerald-600 uppercase font-medium mb-0.5">Ventes</p>
-                    <p className="text-sm font-bold text-emerald-600">{(entry.sales || 0).toLocaleString('fr-FR')}</p>
+                  <div className="bg-primary-50 rounded-lg p-2">
+                    <p className="text-[10px] text-primary-600 uppercase font-medium mb-0.5">Ventes</p>
+                    <p className="text-sm font-bold text-primary-600">{(entry.sales || 0).toLocaleString('fr-FR')}</p>
                   </div>
-                  <div className={`rounded-lg p-2 ${stockActuel <= 5 ? 'bg-red-50' : stockActuel <= 15 ? 'bg-orange-50' : 'bg-emerald-50'}`}>
-                    <p className={`text-[10px] uppercase font-medium mb-0.5 ${stockActuel <= 5 ? 'text-red-600' : stockActuel <= 15 ? 'text-orange-600' : 'text-emerald-600'}`}>Actuel</p>
-                    <p className={`text-sm font-bold ${stockActuel <= 5 ? 'text-red-600' : stockActuel <= 15 ? 'text-orange-500' : 'text-emerald-600'}`}>{stockActuel.toLocaleString('fr-FR')}</p>
+                  <div className={`rounded-lg p-2 ${stockActuel <= 5 ? 'bg-red-50' : stockActuel <= 15 ? 'bg-orange-50' : 'bg-primary-50'}`}>
+                    <p className={`text-[10px] uppercase font-medium mb-0.5 ${stockActuel <= 5 ? 'text-red-600' : stockActuel <= 15 ? 'text-orange-600' : 'text-primary-600'}`}>Actuel</p>
+                    <p className={`text-sm font-bold ${stockActuel <= 5 ? 'text-red-600' : stockActuel <= 15 ? 'text-orange-500' : 'text-primary-600'}`}>{stockActuel.toLocaleString('fr-FR')}</p>
                   </div>
                 </div>
                 <div className="flex items-center justify-between">
@@ -392,7 +392,7 @@ const StockManagement = () => {
                         </svg>
                       </div>
                       <p className="text-sm text-gray-500">Aucune entrée de stock</p>
-                      <button onClick={openAdd} className="text-sm text-emerald-600 font-medium hover:underline">+ Ajouter une ligne</button>
+                      <button onClick={openAdd} className="text-sm text-primary-600 font-medium hover:underline">+ Ajouter une ligne</button>
                     </div>
                   </td>
                 </tr>
@@ -409,18 +409,18 @@ const StockManagement = () => {
                     </td>
                     <td className="px-4 py-3.5">
                       {entry.city
-                        ? <span className="inline-flex items-center text-xs font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">{entry.city}</span>
+                        ? <span className="inline-flex items-center text-xs font-medium text-primary-700 bg-primary-50 px-2 py-0.5 rounded-full">{entry.city}</span>
                         : <span className="text-gray-400"></span>}
                     </td>
                     <td className="px-4 py-3.5">
                       {entry.agency
-                        ? <span className="inline-flex items-center text-xs font-medium text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full">{entry.agency}</span>
+                        ? <span className="inline-flex items-center text-xs font-medium text-primary-800 bg-primary-50 px-2 py-0.5 rounded-full">{entry.agency}</span>
                         : <span className="text-gray-400"></span>}
                     </td>
                     <td className="px-4 py-3.5 text-right font-semibold text-gray-800">{(entry.quantity || 0).toLocaleString('fr-FR')}</td>
-                    <td className="px-4 py-3.5 text-right font-semibold text-emerald-600">{(entry.sales || 0).toLocaleString('fr-FR')}</td>
+                    <td className="px-4 py-3.5 text-right font-semibold text-primary-600">{(entry.sales || 0).toLocaleString('fr-FR')}</td>
                     <td className="px-4 py-3.5 text-right">
-                      <span className={`font-bold text-base ${stockActuel <= 5 ? 'text-red-600' : stockActuel <= 15 ? 'text-orange-500' : 'text-emerald-600'}`}>
+                      <span className={`font-bold text-base ${stockActuel <= 5 ? 'text-red-600' : stockActuel <= 15 ? 'text-orange-500' : 'text-primary-600'}`}>
                         {stockActuel.toLocaleString('fr-FR')}
                       </span>
                     </td>
@@ -433,7 +433,7 @@ const StockManagement = () => {
                     <td className="px-4 py-3.5">
                       <div className="flex items-center justify-center gap-1">
                         <button onClick={() => openEdit(entry)}
-                          className="p-1.5 text-gray-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition" title="Modifier">
+                          className="p-1.5 text-gray-500 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition" title="Modifier">
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                           </svg>
@@ -457,7 +457,7 @@ const StockManagement = () => {
             <p className="text-xs text-gray-500">{filtered.length} ligne{filtered.length > 1 ? 's' : ''}</p>
             <div className="flex items-center gap-4 text-xs text-gray-500">
               <span>Stock total: <strong className="text-gray-800">{totalStock.toLocaleString('fr-FR')}</strong></span>
-              <span>Ventes: <strong className="text-emerald-600">{totalSales.toLocaleString('fr-FR')}</strong></span>
+              <span>Ventes: <strong className="text-primary-600">{totalSales.toLocaleString('fr-FR')}</strong></span>
               {lowStock > 0 && <span className="text-red-600 font-medium">{lowStock} en rupture</span>}
             </div>
           </div>
@@ -489,7 +489,7 @@ const StockManagement = () => {
                       ? Math.max(0, (lastEntry.quantity || 0) - (lastEntry.sales || 0)).toString()
                       : '';
                     setForm(prev => ({ ...prev, productId: e.target.value, productName: p?.name || '', quantity: prevStock, sales: '0' }));
-                  }} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-600 outline-none" required>
+                  }} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-600 outline-none" required>
                     <option value="">-- Choisir un produit --</option>
                     {products.map(p => <option key={p._id} value={p._id}>{p.name}</option>)}
                   </select>
@@ -497,19 +497,19 @@ const StockManagement = () => {
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">Date du stock *</label>
                   <input type="date" value={form.stockDate} onChange={e => setForm(p => ({ ...p, stockDate: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-600 outline-none"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-600 outline-none"
                     required />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">Ville</label>
                   <input type="text" value={form.city} onChange={e => setForm(p => ({ ...p, city: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-600 outline-none"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-600 outline-none"
                     placeholder="Ex: Douala" />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">Agence</label>
                   <input type="text" value={form.agency} onChange={e => setForm(p => ({ ...p, agency: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-600 outline-none"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-600 outline-none"
                     placeholder="Ex: Lygos, Anka" />
                 </div>
                 <div>
@@ -523,27 +523,27 @@ const StockManagement = () => {
                       if (!last) return null;
                       const prevStock = Math.max(0, (last.quantity || 0) - (last.sales || 0));
                       return (
-                        <span className="ml-1.5 text-[10px] font-normal text-emerald-600">
+                        <span className="ml-1.5 text-[10px] font-normal text-primary-600">
                           ← {prevStock} hier ({formatStockDate(last.stockDate || last.createdAt)})
                         </span>
                       );
                     })()}
                   </label>
                   <input type="number" min="0" value={form.quantity} onChange={e => setForm(p => ({ ...p, quantity: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-600 outline-none"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-600 outline-none"
                     placeholder="100" required />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">Ventes (stock vendu)</label>
                   <input type="number" min="0" value={form.sales} onChange={e => setForm(p => ({ ...p, sales: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-600 outline-none"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-600 outline-none"
                     placeholder="0" />
                 </div>
               </div>
               {form.quantity !== '' && (
                 <div className="rounded-xl p-3 bg-gray-50 border border-gray-200 flex items-center justify-between">
                   <span className="text-sm text-gray-600">Stock actuel calculé</span>
-                  <span className={`text-lg font-bold ${calcActuel(form.quantity, form.sales) <= 5 ? 'text-red-600' : calcActuel(form.quantity, form.sales) <= 15 ? 'text-orange-500' : 'text-emerald-600'}`}>
+                  <span className={`text-lg font-bold ${calcActuel(form.quantity, form.sales) <= 5 ? 'text-red-600' : calcActuel(form.quantity, form.sales) <= 15 ? 'text-orange-500' : 'text-primary-600'}`}>
                     {calcActuel(form.quantity, form.sales).toLocaleString('fr-FR')} unités
                   </span>
                 </div>
@@ -551,7 +551,7 @@ const StockManagement = () => {
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">Notes</label>
                 <input type="text" value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-600 outline-none"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-600 outline-none"
                   placeholder="Notes optionnelles..." />
               </div>
               <div className="flex gap-3 pt-2">
@@ -560,7 +560,7 @@ const StockManagement = () => {
                   Annuler
                 </button>
                 <button type="submit" disabled={submitting}
-                  className="flex-1 px-4 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 text-sm font-medium transition">
+                  className="flex-1 px-4 py-2.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 text-sm font-medium transition">
                   {submitting ? (editingId ? 'Modification...' : 'Ajout...') : (editingId ? 'Modifier' : 'Ajouter')}
                 </button>
               </div>

@@ -53,28 +53,28 @@ const ICON_MAP = {
 const TYPE_COLORS = {
   course: 'bg-amber-50 text-amber-600',
   new_delivery: 'bg-amber-50 text-amber-600',
-  order_assigned_to_you: 'bg-emerald-50 text-emerald-700',
+  order_assigned_to_you: 'bg-primary-50 text-primary-700',
   order_taken: 'bg-gray-50 text-gray-600',
-  order_new: 'bg-emerald-50 text-emerald-600',
-  order_confirmed: 'bg-emerald-50 text-emerald-600',
-  order_shipped: 'bg-emerald-50 text-emerald-700',
+  order_new: 'bg-primary-50 text-primary-600',
+  order_confirmed: 'bg-primary-50 text-primary-600',
+  order_shipped: 'bg-primary-50 text-primary-700',
   order_delivered: 'bg-green-50 text-green-600',
   order_cancelled: 'bg-red-50 text-red-600',
   order_returned: 'bg-orange-50 text-orange-600',
-  order_status: 'bg-emerald-50 text-emerald-600',
+  order_status: 'bg-primary-50 text-primary-600',
   stock_low: 'bg-amber-50 text-amber-600',
   stock_out: 'bg-red-50 text-red-600',
-  stock_received: 'bg-emerald-50 text-emerald-600',
-  report_created: 'bg-emerald-50 text-emerald-700',
+  stock_received: 'bg-primary-50 text-primary-600',
+  report_created: 'bg-primary-50 text-primary-700',
   team_order_status_changed: 'bg-blue-50 text-blue-600',
-  team_order_created: 'bg-emerald-50 text-emerald-600',
+  team_order_created: 'bg-primary-50 text-primary-600',
   team_campaign_created: 'bg-purple-50 text-purple-600',
   team_campaign_sent: 'bg-purple-50 text-purple-700',
-  team_report_generated: 'bg-emerald-50 text-emerald-700',
-  user_joined: 'bg-emerald-50 text-emerald-700',
-  decision_created: 'bg-emerald-50 text-emerald-600',
+  team_report_generated: 'bg-primary-50 text-primary-700',
+  user_joined: 'bg-primary-50 text-primary-700',
+  decision_created: 'bg-primary-50 text-primary-600',
   goal_achieved: 'bg-green-50 text-green-600',
-  campaign_sent: 'bg-emerald-50 text-emerald-700',
+  campaign_sent: 'bg-primary-50 text-primary-700',
   import_completed: 'bg-teal-50 text-teal-600',
   system: 'bg-gray-50 text-gray-600',
   info: 'bg-gray-50 text-gray-600',
@@ -213,7 +213,7 @@ export default function NotificationPanel({ isOpen, onClose, onMarkAllRead, onOp
           <div className="flex items-center gap-2.5">
             <h3 className="text-base font-bold text-gray-900">Notifications</h3>
             {unreadCount > 0 && (
-              <span className="px-2 py-1 rounded-full bg-emerald-600 text-white text-xs font-bold">
+              <span className="px-2 py-1 rounded-full bg-primary-600 text-white text-xs font-bold">
                 {unreadCount}
               </span>
             )}
@@ -232,7 +232,7 @@ export default function NotificationPanel({ isOpen, onClose, onMarkAllRead, onOp
             {unreadCount > 0 && (
               <button
                 onClick={handleMarkAllRead}
-                className="text-sm text-emerald-600 font-semibold px-3 py-1.5 rounded-lg hover:bg-emerald-50 active:bg-emerald-100 transition-colors"
+                className="text-sm text-primary-600 font-semibold px-3 py-1.5 rounded-lg hover:bg-primary-50 active:bg-primary-100 transition-colors"
               >
                 Tout lu
               </button>
@@ -250,7 +250,7 @@ export default function NotificationPanel({ isOpen, onClose, onMarkAllRead, onOp
         <div className="overflow-y-auto" style={{ maxHeight: 'min(450px, 65vh)' }}>
           {loading ? (
             <div className="flex items-center justify-center py-12">
-              <div className="w-6 h-6 border-3 border-gray-200 border-t-emerald-600 rounded-full animate-spin"></div>
+              <div className="w-6 h-6 border-3 border-gray-200 border-t-primary-600 rounded-full animate-spin"></div>
             </div>
           ) : notifications.length === 0 ? (
             <div className="py-16 text-center">
@@ -269,7 +269,7 @@ export default function NotificationPanel({ isOpen, onClose, onMarkAllRead, onOp
 
               const content = (
                 <div
-                  className={`flex gap-3.5 px-5 py-4 transition-all hover:bg-gray-50 ${!notif.read ? 'bg-emerald-50/30 border-l-2 border-emerald-600' : ''
+                  className={`flex gap-3.5 px-5 py-4 transition-all hover:bg-gray-50 ${!notif.read ? 'bg-primary-50/30 border-l-2 border-primary-600' : ''
                     }`}
                 >
                   {/* Icon */}
@@ -284,7 +284,7 @@ export default function NotificationPanel({ isOpen, onClose, onMarkAllRead, onOp
                         {notif.title}
                       </p>
                       {!notif.read && (
-                        <span className="w-2 h-2 bg-emerald-600 rounded-full flex-shrink-0 mt-1.5"></span>
+                        <span className="w-2 h-2 bg-primary-600 rounded-full flex-shrink-0 mt-1.5"></span>
                       )}
                     </div>
                     <p className="text-xs text-gray-600 leading-relaxed line-clamp-2 mb-2">{notif.message}</p>

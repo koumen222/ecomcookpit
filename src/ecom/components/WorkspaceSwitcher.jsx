@@ -91,7 +91,7 @@ const WorkspaceSwitcher = () => {
             </p>
 
             {/* Espace actif */}
-            <div className="mx-1.5 mb-1 px-2.5 py-2 bg-emerald-50 rounded-lg border border-emerald-100 flex items-center gap-2.5">
+            <div className="mx-1.5 mb-1 px-2.5 py-2 bg-primary-50 rounded-lg border border-primary-100 flex items-center gap-2.5">
               <div
                 className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0"
                 style={{ background: wsColor(currentWorkspace?.name || '') }}
@@ -101,11 +101,11 @@ const WorkspaceSwitcher = () => {
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-gray-900 truncate">{currentWorkspace?.name}</p>
                 <div className="flex items-center gap-1.5">
-                  <span className="text-[10px] font-medium text-emerald-600">{roleLabels[currentWorkspace?.role]}</span>
+                  <span className="text-[10px] font-medium text-primary-600">{roleLabels[currentWorkspace?.role]}</span>
                   {currentWorkspace?.isOwner && <span className="text-[10px] text-gray-400">· Propriétaire</span>}
                 </div>
               </div>
-              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0" />
+              <div className="w-1.5 h-1.5 rounded-full bg-primary-500 flex-shrink-0" />
             </div>
 
             {/* Autres espaces */}

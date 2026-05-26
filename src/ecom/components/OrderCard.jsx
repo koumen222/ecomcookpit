@@ -61,8 +61,8 @@ const OrderCard = ({
             
             {getProductName(order) && (
               <div className="flex items-center gap-2 mb-2">
-                <div className="w-6 h-6 bg-emerald-100 rounded-lg flex items-center justify-center">
-                  <svg className="w-3 h-3 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="w-6 h-6 bg-primary-100 rounded-lg flex items-center justify-center">
+                  <svg className="w-3 h-3 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
                   </svg>
                 </div>
@@ -77,11 +77,11 @@ const OrderCard = ({
               <div className="flex flex-wrap gap-1 mt-2">
                 {(order.tags || []).map(tag => (
                   <span key={tag} className={`text-xs font-medium px-2 py-0.5 rounded-full border ${
-                    tag === 'Client' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                    tag === 'Client' ? 'bg-primary-50 text-primary-700 border-primary-200' :
                     tag === 'En attente' ? 'bg-amber-50 text-amber-700 border-amber-200' :
                     tag === 'Annulé' ? 'bg-red-50 text-red-700 border-red-200' :
-                    tag === 'Confirmé' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-                    tag === 'Expédié' ? 'bg-emerald-50 text-emerald-800 border-emerald-200' :
+                    tag === 'Confirmé' ? 'bg-primary-50 text-primary-700 border-primary-200' :
+                    tag === 'Expédié' ? 'bg-primary-50 text-primary-800 border-primary-200' :
                     tag === 'Retour' ? 'bg-orange-50 text-orange-700 border-orange-200' :
                     'bg-gray-50 text-gray-600 border-gray-200'
                   }`}>{tag}</span>
@@ -171,7 +171,7 @@ const OrderDetails = ({
             <>
               <button 
                 onClick={(e) => { e.stopPropagation(); onEdit(order); }} 
-                className="p-2 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-all" 
+                className="p-2 text-primary-600 hover:text-primary-700 hover:bg-primary-50 rounded-lg transition-all" 
                 title="Modifier"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

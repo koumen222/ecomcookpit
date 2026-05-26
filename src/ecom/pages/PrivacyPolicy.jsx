@@ -352,7 +352,7 @@ Nous publions un rapport de transparence annuel détaillant :
             <button onClick={() => navigate(-1)} className="px-4 py-2 text-sm text-gray-400 hover:text-white transition">
               Retour
             </button>
-            <button onClick={() => navigate('/ecom/login')} className="px-4 py-2.5 text-sm font-semibold bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-600 hover:to-emerald-600 rounded-xl transition">
+            <button onClick={() => navigate('/ecom/login')} className="px-4 py-2.5 text-sm font-semibold bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-600 hover:to-primary-600 rounded-xl transition">
               Connexion
             </button>
           </div>
@@ -362,17 +362,17 @@ Nous publions un rapport de transparence annuel détaillant :
       {/* Hero */}
       <div className="relative py-16 sm:py-24 px-4">
         <div className="absolute inset-0 overflow-hidden">
-          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-emerald-600/10 rounded-full blur-3xl"></div>
-          <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-emerald-700/10 rounded-full blur-3xl"></div>
+          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary-600/10 rounded-full blur-3xl"></div>
+          <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-primary-700/10 rounded-full blur-3xl"></div>
         </div>
         <div className="relative max-w-4xl mx-auto text-center">
-          <div className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-500/10 border border-emerald-500/20 rounded-full text-emerald-400 text-sm font-medium mb-6">
+          <div className="inline-flex items-center gap-2 px-4 py-2 bg-primary-500/10 border border-primary-500/20 rounded-full text-primary-400 text-sm font-medium mb-6">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
             </svg>
             Vos données sont protégées
           </div>
-          <h1 className="text-3xl sm:text-5xl font-bold mb-6 bg-gradient-to-r from-white via-emerald-100 to-emerald-200 bg-clip-text text-transparent leading-tight">
+          <h1 className="text-3xl sm:text-5xl font-bold mb-6 bg-gradient-to-r from-white via-primary-100 to-primary-200 bg-clip-text text-transparent leading-tight">
             Politique de Confidentialité<br />& Sécurité des Données
           </h1>
           <p className="text-gray-400 text-lg max-w-2xl mx-auto leading-relaxed">
@@ -420,7 +420,7 @@ Nous publions un rapport de transparence annuel détaillant :
         ))}
 
         {/* Acceptation */}
-        <div className="bg-gradient-to-r from-emerald-600/10 to-emerald-700/10 border border-emerald-600/20 rounded-2xl p-6 sm:p-8 text-center">
+        <div className="bg-gradient-to-r from-primary-600/10 to-primary-700/10 border border-primary-600/20 rounded-2xl p-6 sm:p-8 text-center">
           <div className="text-4xl mb-4">✅</div>
           <h3 className="text-xl font-bold text-white mb-3">Votre consentement</h3>
           <p className="text-gray-400 text-sm max-w-xl mx-auto mb-6">
@@ -430,7 +430,7 @@ Nous publions un rapport de transparence annuel détaillant :
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
             <button 
               onClick={() => navigate('/ecom/register')}
-              className="px-6 py-3 bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-600 hover:to-emerald-600 rounded-xl font-semibold text-sm transition shadow-lg shadow-emerald-600/20"
+              className="px-6 py-3 bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-600 hover:to-primary-600 rounded-xl font-semibold text-sm transition shadow-lg shadow-primary-600/20"
             >
               Créer un compte en toute sécurité
             </button>
@@ -451,7 +451,7 @@ Nous publions un rapport de transparence annuel détaillant :
           <div className="flex items-center gap-4">
             <button onClick={() => navigate('/ecom/landing')} className="text-xs text-gray-500 hover:text-gray-300 transition">Accueil</button>
             <span className="text-gray-700">•</span>
-            <span className="text-xs text-emerald-500">Politique de confidentialité</span>
+            <span className="text-xs text-primary-500">Politique de confidentialité</span>
             <span className="text-gray-700">•</span>
             <button onClick={() => navigate('/ecom/terms')} className="text-xs text-gray-500 hover:text-gray-300 transition">CGU</button>
           </div>

@@ -293,7 +293,7 @@ const CampaignForm = () => {
 
   if (fetchLoading) return <div className="flex items-center justify-center h-64"><IconSpinner /></div>;
 
-  const inp = "block w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 text-sm bg-white";
+  const inp = "block w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm bg-white";
   const statusCount = (formData.targetFilters.orderStatus||[]).length;
   const cityCount = (formData.targetFilters.orderCity||[]).length;
   const productCount = (formData.targetFilters.orderProduct||[]).length;
@@ -320,16 +320,16 @@ const CampaignForm = () => {
               {[{n:1,l:"Template"},{n:2,l:"Ciblage"},{n:3,l:"Message"}].map((s,i) => (
                 <React.Fragment key={s.n}>
                   <button type="button" onClick={() => setStep(s.n)}
-                    className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition ${step===s.n?"bg-emerald-600 text-white":step>s.n?"bg-emerald-50 text-emerald-700 hover:bg-emerald-100":"bg-gray-100 text-gray-400 hover:bg-gray-200"}`}>
-                    <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 ${step===s.n?"bg-white text-emerald-600":step>s.n?"bg-emerald-500 text-white":"bg-gray-300 text-white"}`}>
+                    className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition ${step===s.n?"bg-primary-600 text-white":step>s.n?"bg-primary-50 text-primary-700 hover:bg-primary-100":"bg-gray-100 text-gray-400 hover:bg-gray-200"}`}>
+                    <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 ${step===s.n?"bg-white text-primary-600":step>s.n?"bg-primary-500 text-white":"bg-gray-300 text-white"}`}>
                       {step>s.n?<IconCheck/>:s.n}
                     </span>
                     {s.l}
                   </button>
-                  {i<2&&<div className={`hidden sm:block w-5 h-px ${step>s.n?"bg-emerald-400":"bg-gray-200"}`}/>}
+                  {i<2&&<div className={`hidden sm:block w-5 h-px ${step>s.n?"bg-primary-400":"bg-gray-200"}`}/>}
                 </React.Fragment>
               ))}
-              <span className="sm:hidden text-xs font-medium text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg">{step}/3</span>
+              <span className="sm:hidden text-xs font-medium text-primary-600 bg-primary-50 px-2 py-1 rounded-lg">{step}/3</span>
             </div>
           )}
         </div>
@@ -358,15 +358,15 @@ const CampaignForm = () => {
                     const active = selectedTemplate===tpl.id;
                     return (
                       <button key={tpl.id} type="button" onClick={() => applyTemplate(tpl)}
-                        className={`p-3 rounded-lg border-2 text-left transition-all ${active?"border-emerald-500 bg-emerald-50":"border-gray-100 bg-gray-50 hover:border-gray-300 hover:bg-white"}`}>
+                        className={`p-3 rounded-lg border-2 text-left transition-all ${active?"border-primary-500 bg-primary-50":"border-gray-100 bg-gray-50 hover:border-gray-300 hover:bg-white"}`}>
                         <div className="flex items-start justify-between gap-1 mb-1.5">
                           <p className="text-xs font-semibold text-gray-800 leading-snug">{tpl.label}</p>
-                          {active && <span className="flex-shrink-0 w-4 h-4 bg-emerald-500 rounded-full flex items-center justify-center text-white"><IconCheck/></span>}
+                          {active && <span className="flex-shrink-0 w-4 h-4 bg-primary-500 rounded-full flex items-center justify-center text-white"><IconCheck/></span>}
                         </div>
                         {tpl.orderStatus.length>0&&(
                           <div className="flex flex-wrap gap-1 mt-1">
                             {tpl.orderStatus.map(s=>(
-                              <span key={s} className="text-[9px] px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded font-medium">{STATUS_GROUPS.find(g=>g.id===s)?.label||s}</span>
+                              <span key={s} className="text-[9px] px-1.5 py-0.5 bg-primary-100 text-primary-700 rounded font-medium">{STATUS_GROUPS.find(g=>g.id===s)?.label||s}</span>
                             ))}
                           </div>
                         )}
@@ -385,7 +385,7 @@ const CampaignForm = () => {
                           <p className="text-xs text-gray-500 whitespace-pre-wrap line-clamp-4 font-mono">{renderMsg(tpl.message)}</p>
                         </div>
                         <button type="button" onClick={() => setStep(2)}
-                          className="flex-shrink-0 px-4 py-2 bg-emerald-600 text-white text-xs font-semibold rounded-lg hover:bg-emerald-700 transition">
+                          className="flex-shrink-0 px-4 py-2 bg-primary-600 text-white text-xs font-semibold rounded-lg hover:bg-primary-700 transition">
                           Continuer
                         </button>
                       </div>
@@ -398,7 +398,7 @@ const CampaignForm = () => {
             <div className="flex justify-between items-center">
               <button type="button" onClick={() => navigate("/ecom/campaigns")} className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700 transition">Annuler</button>
               <button type="button" onClick={() => setStep(2)} disabled={!formData.name.trim()}
-                className="px-5 py-2 bg-emerald-600 text-white text-sm font-semibold rounded-lg hover:bg-emerald-700 transition disabled:opacity-40 disabled:cursor-not-allowed">
+                className="px-5 py-2 bg-primary-600 text-white text-sm font-semibold rounded-lg hover:bg-primary-700 transition disabled:opacity-40 disabled:cursor-not-allowed">
                 Suivant  Ciblage
               </button>
             </div>
@@ -433,7 +433,7 @@ const CampaignForm = () => {
                 <div className="flex items-center gap-2">
                   {hasAnyFilter()&&<button type="button" onClick={resetFilters} className="text-xs text-red-500 hover:text-red-700 underline">Réinitialiser</button>}
                   <button type="button" onClick={handlePreview} disabled={previewLoading}
-                    className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 text-white text-xs font-semibold rounded-lg hover:bg-emerald-700 transition disabled:opacity-50">
+                    className="flex items-center gap-1.5 px-4 py-2 bg-primary-600 text-white text-xs font-semibold rounded-lg hover:bg-primary-700 transition disabled:opacity-50">
                     {previewLoading?<><IconSpinner/>Calcul...</>:"Voir l'audience"}
                   </button>
                 </div>
@@ -442,13 +442,13 @@ const CampaignForm = () => {
               <div className="p-5 space-y-5">
                 {/* Applied from template notice */}
                 {!isEdit && selectedTemplate && statusCount>0 && (
-                  <div className="flex items-start gap-2.5 p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
-                    <svg className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                  <div className="flex items-start gap-2.5 p-3 bg-primary-50 border border-primary-200 rounded-lg">
+                    <svg className="w-4 h-4 text-primary-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs font-semibold text-emerald-800">Filtre appliqué depuis le template</p>
-                      <p className="text-xs text-emerald-600 mt-0.5">Statuts : <strong>{activeStatusLabels.join(", ")}</strong>. Vous pouvez modifier ou ajouter d'autres statuts ci-dessous.</p>
+                      <p className="text-xs font-semibold text-primary-800">Filtre appliqué depuis le template</p>
+                      <p className="text-xs text-primary-600 mt-0.5">Statuts : <strong>{activeStatusLabels.join(", ")}</strong>. Vous pouvez modifier ou ajouter d'autres statuts ci-dessous.</p>
                     </div>
-                    <button type="button" onClick={() => setStep(1)} className="flex-shrink-0 text-[10px] text-emerald-700 underline hover:text-emerald-900">Changer</button>
+                    <button type="button" onClick={() => setStep(1)} className="flex-shrink-0 text-[10px] text-primary-700 underline hover:text-primary-900">Changer</button>
                   </div>
                 )}
 
@@ -456,7 +456,7 @@ const CampaignForm = () => {
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <p className="text-xs font-semibold text-gray-700">Statut des commandes</p>
-                    {statusCount>0&&<span className="text-[10px] font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">{statusCount} sélectionné{statusCount>1?"s":""}</span>}
+                    {statusCount>0&&<span className="text-[10px] font-medium text-primary-700 bg-primary-50 px-2 py-0.5 rounded-full border border-primary-200">{statusCount} sélectionné{statusCount>1?"s":""}</span>}
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {(availableStatuses.length > 0 ? availableStatuses : STATUS_GROUPS.map(s => s.id)).map((statusId) => {
@@ -467,8 +467,8 @@ const CampaignForm = () => {
                       return (
                         <button key={statusId} type="button" title={desc}
                           onClick={() => { toggleStatus(statusId); setTimeout(handlePreview, 300); }}
-                          className={`px-3 py-1.5 rounded-lg border-2 text-xs font-semibold transition-all ${sel?"border-emerald-500 bg-emerald-50 text-emerald-800":"border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50"}`}>
-                          {sel&&<span className="mr-1 text-emerald-500"></span>}{label}
+                          className={`px-3 py-1.5 rounded-lg border-2 text-xs font-semibold transition-all ${sel?"border-primary-500 bg-primary-50 text-primary-800":"border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50"}`}>
+                          {sel&&<span className="mr-1 text-primary-500"></span>}{label}
                         </button>
                       );
                     })}
@@ -480,8 +480,8 @@ const CampaignForm = () => {
                 <div className="grid sm:grid-cols-2 gap-4">
                   <div>
                     <div className="flex items-center justify-between mb-1.5">
-                      <p className="text-xs font-semibold text-gray-700">Villes {cityCount>0&&<span className="ml-1 text-[10px] font-medium text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-full border border-emerald-200">{cityCount}</span>}</p>
-                      {filteredCities.length>0&&<button type="button" onClick={()=>{const all=cityCount===filteredCities.length;setFormData(p=>({...p,targetFilters:{...p.targetFilters,orderCity:all?[]:filteredCities}}));setTimeout(handlePreview,300);}} className="text-[10px] text-emerald-600 hover:text-emerald-800 font-medium">{cityCount===filteredCities.length&&filteredCities.length>0?"Désélectionner tout":"Tout sélectionner"}</button>}
+                      <p className="text-xs font-semibold text-gray-700">Villes {cityCount>0&&<span className="ml-1 text-[10px] font-medium text-primary-700 bg-primary-50 px-1.5 py-0.5 rounded-full border border-primary-200">{cityCount}</span>}</p>
+                      {filteredCities.length>0&&<button type="button" onClick={()=>{const all=cityCount===filteredCities.length;setFormData(p=>({...p,targetFilters:{...p.targetFilters,orderCity:all?[]:filteredCities}}));setTimeout(handlePreview,300);}} className="text-[10px] text-primary-600 hover:text-primary-800 font-medium">{cityCount===filteredCities.length&&filteredCities.length>0?"Désélectionner tout":"Tout sélectionner"}</button>}
                     </div>
                     <div className="border border-gray-200 rounded-lg overflow-hidden">
                       <div className="px-3 py-2 bg-gray-50 border-b border-gray-100">
@@ -490,9 +490,9 @@ const CampaignForm = () => {
                       <div className="max-h-40 overflow-y-auto">
                         {filteredCities.length===0&&<p className="text-xs text-gray-400 p-3 text-center">Aucune ville</p>}
                         {filteredCities.map(c=>{const sel=(formData.targetFilters.orderCity||[]).includes(c);return(
-                          <label key={c} className={`flex items-center gap-2.5 px-3 py-1.5 cursor-pointer hover:bg-gray-50 transition ${sel?"bg-emerald-50":""}`}>
-                            <input type="checkbox" checked={sel} onChange={()=>{toggleArrayFilter("orderCity",c);setTimeout(handlePreview,300);}} className="w-3.5 h-3.5 rounded border-gray-300 text-emerald-600 flex-shrink-0" />
-                            <span className={`text-xs truncate ${sel?"font-semibold text-emerald-800":"text-gray-700"}`}>{c}</span>
+                          <label key={c} className={`flex items-center gap-2.5 px-3 py-1.5 cursor-pointer hover:bg-gray-50 transition ${sel?"bg-primary-50":""}`}>
+                            <input type="checkbox" checked={sel} onChange={()=>{toggleArrayFilter("orderCity",c);setTimeout(handlePreview,300);}} className="w-3.5 h-3.5 rounded border-gray-300 text-primary-600 flex-shrink-0" />
+                            <span className={`text-xs truncate ${sel?"font-semibold text-primary-800":"text-gray-700"}`}>{c}</span>
                           </label>
                         );})}
                       </div>
@@ -531,7 +531,7 @@ const CampaignForm = () => {
 
                 {/* Audience result */}
                 {preview && (
-                  <div className={`rounded-xl border p-4 ${preview.empty?"bg-gray-50 border-gray-200":preview.count===0?"bg-red-50 border-red-200":"bg-emerald-50 border-emerald-200"}`}>
+                  <div className={`rounded-xl border p-4 ${preview.empty?"bg-gray-50 border-gray-200":preview.count===0?"bg-red-50 border-red-200":"bg-primary-50 border-primary-200"}`}>
                     {preview.empty ? (
                       <p className="text-sm text-gray-500 text-center">Sélectionnez au moins un filtre pour calculer l'audience</p>
                     ) : preview.count===0 ? (
@@ -540,19 +540,19 @@ const CampaignForm = () => {
                       <>
                         <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
                           <div className="flex items-center gap-2">
-                            <span className="text-xl font-bold text-emerald-700">{preview.count}</span>
-                            <span className="text-sm text-emerald-600 font-medium">client{preview.count>1?"s":""} correspondant{preview.count>1?"s":""}</span>
-                            <span className="text-xs text-emerald-600 bg-white px-2 py-0.5 rounded-full border border-emerald-200">{selectedClients.size} sélectionné{selectedClients.size>1?"s":""}</span>
+                            <span className="text-xl font-bold text-primary-700">{preview.count}</span>
+                            <span className="text-sm text-primary-600 font-medium">client{preview.count>1?"s":""} correspondant{preview.count>1?"s":""}</span>
+                            <span className="text-xs text-primary-600 bg-white px-2 py-0.5 rounded-full border border-primary-200">{selectedClients.size} sélectionné{selectedClients.size>1?"s":""}</span>
                           </div>
-                          <button type="button" onClick={()=>setSelectedClients(selectedClients.size===preview.clients.length?new Set():new Set(preview.clients.map(c=>c._id)))} className="text-xs text-emerald-700 bg-white border border-emerald-200 px-2.5 py-1 rounded-lg hover:bg-emerald-50 transition font-medium">
+                          <button type="button" onClick={()=>setSelectedClients(selectedClients.size===preview.clients.length?new Set():new Set(preview.clients.map(c=>c._id)))} className="text-xs text-primary-700 bg-white border border-primary-200 px-2.5 py-1 rounded-lg hover:bg-primary-50 transition font-medium">
                             {selectedClients.size===preview.clients.length?"Désélectionner tout":"Tout sélectionner"}
                           </button>
                         </div>
                         <div className="max-h-56 overflow-y-auto space-y-1">
                           {preview.clients.map(c => (
-                            <label key={c._id||c.phone} className={`flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition text-xs ${selectedClients.has(c._id)?"bg-white border border-emerald-200 shadow-sm":"bg-white/50 border border-transparent hover:bg-white"}`}>
-                              <input type="checkbox" checked={selectedClients.has(c._id)} onChange={()=>setSelectedClients(prev=>{const n=new Set(prev);n.has(c._id)?n.delete(c._id):n.add(c._id);return n;})} className="w-3.5 h-3.5 rounded border-gray-300 text-emerald-600 flex-shrink-0" />
-                              <div className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center text-[10px] font-bold text-emerald-700 flex-shrink-0">
+                            <label key={c._id||c.phone} className={`flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition text-xs ${selectedClients.has(c._id)?"bg-white border border-primary-200 shadow-sm":"bg-white/50 border border-transparent hover:bg-white"}`}>
+                              <input type="checkbox" checked={selectedClients.has(c._id)} onChange={()=>setSelectedClients(prev=>{const n=new Set(prev);n.has(c._id)?n.delete(c._id):n.add(c._id);return n;})} className="w-3.5 h-3.5 rounded border-gray-300 text-primary-600 flex-shrink-0" />
+                              <div className="w-6 h-6 rounded-full bg-primary-100 flex items-center justify-center text-[10px] font-bold text-primary-700 flex-shrink-0">
                                 {(c.firstName||c.clientName||"?")[0].toUpperCase()}
                               </div>
                               <div className="flex-1 min-w-0">
@@ -576,7 +576,7 @@ const CampaignForm = () => {
 
             <div className="flex items-center justify-between">
               {!isEdit&&<button type="button" onClick={()=>setStep(1)} className="flex items-center gap-1.5 px-4 py-2 bg-white border border-gray-200 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-50 transition"><IconChevronLeft/>Retour</button>}
-              <button type="button" onClick={()=>setStep(3)} className="ml-auto px-5 py-2 bg-emerald-600 text-white text-sm font-semibold rounded-lg hover:bg-emerald-700 transition">
+              <button type="button" onClick={()=>setStep(3)} className="ml-auto px-5 py-2 bg-primary-600 text-white text-sm font-semibold rounded-lg hover:bg-primary-700 transition">
                 Suivant  Message
               </button>
             </div>
@@ -594,7 +594,7 @@ const CampaignForm = () => {
               <div className="px-5 py-3 bg-gray-50 border-b border-gray-100 flex flex-wrap gap-1.5">
                 {VARIABLES.map(v => (
                   <button key={v.var} type="button" onClick={()=>insertVariable(v.var)}
-                    className="px-2.5 py-1 bg-white border border-gray-200 rounded-lg text-[11px] font-medium text-gray-700 hover:bg-emerald-50 hover:border-emerald-300 hover:text-emerald-700 transition flex items-center gap-1">
+                    className="px-2.5 py-1 bg-white border border-gray-200 rounded-lg text-[11px] font-medium text-gray-700 hover:bg-primary-50 hover:border-primary-300 hover:text-primary-700 transition flex items-center gap-1">
                     {v.label}<code className="text-[10px] text-gray-400 ml-0.5">{v.var}</code>
                   </button>
                 ))}
@@ -604,7 +604,7 @@ const CampaignForm = () => {
                   <label className="block text-xs font-semibold text-gray-700 mb-2">Rédaction</label>
                   <textarea ref={textareaRef} rows={11} value={formData.messageTemplate}
                     onChange={e=>setFormData(p=>({...p,messageTemplate:e.target.value}))}
-                    className="block w-full px-3 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 text-sm font-mono resize-none bg-gray-50"
+                    className="block w-full px-3 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm font-mono resize-none bg-gray-50"
                     placeholder={"Bonjour {firstName},\n\nVotre message ici...\n\nCordialement,\nL'équipe Scalor"}
                   />
                   <p className="text-[10px] text-gray-400 mt-1.5">{formData.messageTemplate.length} caractère{formData.messageTemplate.length>1?"s":""}{formData.messageTemplate.length>500&&"  message long"}</p>
@@ -646,7 +646,7 @@ const CampaignForm = () => {
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
                       disabled={mediaUploading}
-                      className="flex-1 flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg hover:border-emerald-500 hover:bg-emerald-50 transition text-sm font-medium text-gray-600 hover:text-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="flex-1 flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg hover:border-primary-500 hover:bg-primary-50 transition text-sm font-medium text-gray-600 hover:text-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {mediaUploading ? (
                         <><IconSpinner /><span>Upload en cours...</span></>
@@ -696,7 +696,7 @@ const CampaignForm = () => {
                   </div>
                 ) : (
                   <div className={`p-4 rounded-lg border-2 ${
-                    formData.media.type === 'image' ? 'border-emerald-200 bg-emerald-50' :
+                    formData.media.type === 'image' ? 'border-primary-200 bg-primary-50' :
                     formData.media.type === 'video' ? 'border-blue-200 bg-blue-50' :
                     'border-purple-200 bg-purple-50'
                   }`}>
@@ -704,13 +704,13 @@ const CampaignForm = () => {
                       <div className="flex items-start gap-3 flex-1 min-w-0">
                         {formData.media.type === 'image' ? (
                           <>
-                            <div className="w-12 h-12 rounded-lg overflow-hidden bg-white border border-emerald-200 flex-shrink-0">
+                            <div className="w-12 h-12 rounded-lg overflow-hidden bg-white border border-primary-200 flex-shrink-0">
                               <img src={formData.media.url} alt="Preview" className="w-full h-full object-cover" />
                             </div>
                             <div className="flex-1 min-w-0">
-                              <p className="text-sm font-semibold text-emerald-800">Image ajoutée</p>
-                              <p className="text-xs text-emerald-600 truncate">{formData.media.fileName}</p>
-                              <p className="text-[10px] text-emerald-500 mt-1">Le texte sera envoyé en premier, puis l'image</p>
+                              <p className="text-sm font-semibold text-primary-800">Image ajoutée</p>
+                              <p className="text-xs text-primary-600 truncate">{formData.media.fileName}</p>
+                              <p className="text-[10px] text-primary-500 mt-1">Le texte sera envoyé en premier, puis l'image</p>
                             </div>
                           </>
                         ) : formData.media.type === 'video' ? (
@@ -787,7 +787,7 @@ const CampaignForm = () => {
                 <div className="flex items-center gap-3">
                   {!isEdit&&<button type="button" onClick={()=>setStep(2)} className="px-4 py-2 bg-gray-800 text-gray-300 text-sm rounded-lg hover:bg-gray-700 transition flex items-center gap-1.5"><IconChevronLeft/>Retour</button>}
                   <button type="submit" disabled={loading||!formData.name.trim()||!formData.messageTemplate.trim()}
-                    className="px-6 py-2 bg-emerald-500 text-white text-sm font-bold rounded-lg hover:bg-emerald-400 transition disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2">
+                    className="px-6 py-2 bg-primary-500 text-white text-sm font-bold rounded-lg hover:bg-primary-400 transition disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2">
                     {loading?<><IconSpinner/>Enregistrement...</>:<>{isEdit?"Enregistrer":"Créer la campagne"}</>}
                   </button>
                 </div>

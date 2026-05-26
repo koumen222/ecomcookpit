@@ -9,7 +9,7 @@ const Btn = ({ title, onClick, active, children }) => (
     onMouseDown={(e) => { e.preventDefault(); onClick(); }}
     className={`p-1.5 rounded text-sm transition-colors select-none
       ${active
-        ? 'bg-emerald-100 text-emerald-700'
+        ? 'bg-primary-100 text-primary-700'
         : 'hover:bg-gray-200 text-gray-700'
       }`}
   >
@@ -32,12 +32,12 @@ const LinkModal = ({ onConfirm, onClose }) => {
           value={url}
           onChange={e => setUrl(e.target.value)}
           placeholder="https://exemple.com"
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
           onKeyDown={e => { if (e.key === 'Enter') onConfirm(url); if (e.key === 'Escape') onClose(); }}
         />
         <div className="flex gap-2 mt-3">
           <button type="button" onClick={onClose} className="flex-1 px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition">Annuler</button>
-          <button type="button" onClick={() => onConfirm(url)} className="flex-1 px-3 py-2 text-sm bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition font-semibold">OK</button>
+          <button type="button" onClick={() => onConfirm(url)} className="flex-1 px-3 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition font-semibold">OK</button>
         </div>
       </div>
     </div>
@@ -89,10 +89,10 @@ const ImageModal = ({ onInsert, onClose, onUpload, uploading }) => {
           <div>
             <div
               onClick={() => fileRef.current?.click()}
-              className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center cursor-pointer hover:border-emerald-400 hover:bg-emerald-50 transition"
+              className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center cursor-pointer hover:border-primary-400 hover:bg-primary-50 transition"
             >
               {uploading ? (
-                <p className="text-sm text-emerald-600 font-medium">Upload en cours…</p>
+                <p className="text-sm text-primary-600 font-medium">Upload en cours…</p>
               ) : (
                 <>
                   <svg className="w-8 h-8 text-gray-400 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -113,20 +113,20 @@ const ImageModal = ({ onInsert, onClose, onUpload, uploading }) => {
               value={url}
               onChange={e => setUrl(e.target.value)}
               placeholder="https://exemple.com/image.jpg"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
             <input
               type="text"
               value={alt}
               onChange={e => setAlt(e.target.value)}
               placeholder="Texte alternatif (optionnel)"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
             <button
               type="button"
               disabled={!url.trim()}
               onClick={() => onInsert(url.trim(), alt.trim())}
-              className="w-full py-2 text-sm font-semibold text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 transition disabled:opacity-40"
+              className="w-full py-2 text-sm font-semibold text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition disabled:opacity-40"
             >
               Insérer
             </button>
@@ -177,14 +177,14 @@ const VideoModal = ({ onInsert, onClose }) => {
             value={url}
             onChange={e => setUrl(e.target.value)}
             placeholder="URL YouTube, Vimeo ou vidéo directe (.mp4)"
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
           />
           <p className="text-xs text-gray-400">YouTube, Vimeo, ou lien direct .mp4 / .webm</p>
           <button
             type="button"
             disabled={!url.trim() || !buildEmbed(url)}
             onClick={handleInsert}
-            className="w-full py-2 text-sm font-semibold text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 transition disabled:opacity-40"
+            className="w-full py-2 text-sm font-semibold text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition disabled:opacity-40"
           >
             Insérer
           </button>
@@ -326,7 +326,7 @@ const ImageResizeToolbar = ({ imageEl, onResize, onClose }) => {
             onMouseDown={e => { e.preventDefault(); e.stopPropagation(); onResize(s.value); }}
             className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-colors ${
               currentWidth === s.value || (!currentWidth && s.value === '')
-                ? 'bg-emerald-100 text-emerald-700'
+                ? 'bg-primary-100 text-primary-700'
                 : 'text-gray-600 hover:bg-gray-100'
             }`}
           >
@@ -564,7 +564,7 @@ const RichTextEditor = ({
   const isEmpty = !value || value === '<br>' || value === '<p><br></p>';
 
   return (
-    <div className="border border-gray-300 rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-emerald-500 focus-within:border-transparent transition">
+    <div className="border border-gray-300 rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-primary-500 focus-within:border-transparent transition">
       {/* ── Toolbar ── */}
       <div className="flex flex-wrap items-center gap-0.5 px-2 py-1.5 bg-gray-50 border-b border-gray-200">
         <HeadingSelect onSelect={() => editorRef.current?.focus()} />

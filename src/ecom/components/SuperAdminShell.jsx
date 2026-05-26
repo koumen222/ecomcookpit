@@ -50,7 +50,7 @@ const SuperAdminShell = ({
               {Icon && (
                 <div className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-lg"
                      style={{ background: 'linear-gradient(135deg, rgba(16,185,129,0.25) 0%, rgba(5,150,105,0.15) 100%)', border: '1px solid rgba(16,185,129,0.3)' }}>
-                  <Icon className="w-5 h-5 text-emerald-400" />
+                  <Icon className="w-5 h-5 text-primary-400" />
                 </div>
               )}
               <div className="min-w-0">
@@ -58,7 +58,7 @@ const SuperAdminShell = ({
                   <h1 className="text-lg sm:text-xl font-black text-white tracking-tight truncate">{title}</h1>
                   <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0"
                         style={{ background: 'rgba(16,185,129,0.15)', color: '#34d399', border: '1px solid rgba(16,185,129,0.25)' }}>
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-primary-400 animate-pulse" />
                     Live
                   </span>
                 </div>
@@ -90,7 +90,7 @@ const SuperAdminShell = ({
           {(success || error) && (
             <div className={`mb-3 flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold ${
               success
-                ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/25'
+                ? 'bg-primary-500/15 text-primary-300 border border-primary-500/25'
                 : 'bg-red-500/15 text-red-300 border border-red-500/25'
             }`}>
               {success

@@ -69,8 +69,8 @@ const LivreurEarningsPage = () => {
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
               <div className="flex items-center justify-between mb-4">
                 <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Ce mois</p>
-                <div className="w-8 h-8 rounded-xl bg-emerald-50 flex items-center justify-center">
-                  <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                <div className="w-8 h-8 rounded-xl bg-primary-50 flex items-center justify-center">
+                  <svg className="w-4 h-4 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
                 </div>
               </div>
               <p className="text-3xl font-black text-gray-900">{(stats.thisMonth?.amount || 0).toLocaleString('fr-FR')}</p>
@@ -106,7 +106,7 @@ const LivreurEarningsPage = () => {
                       </p>
                     </div>
                     <div className="text-right ml-3 flex-shrink-0">
-                      <p className="text-sm font-black text-emerald-600">+{(d.deliveryCostFcfa || 0).toLocaleString('fr-FR')} FCFA</p>
+                      <p className="text-sm font-black text-primary-600">+{(d.deliveryCostFcfa || 0).toLocaleString('fr-FR')} FCFA</p>
                       <p className="text-[10px] text-gray-400">
                         {d.updatedAt ? new Date(d.updatedAt).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }) : ''}
                       </p>
@@ -122,7 +122,7 @@ const LivreurEarningsPage = () => {
             <h2 className="text-sm font-bold text-gray-700 uppercase tracking-wide mb-4">📊 Statistiques</h2>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               {[
-                { label: 'Total livrées', value: stats.allTime?.delivered || 0, color: 'text-emerald-600' },
+                { label: 'Total livrées', value: stats.allTime?.delivered || 0, color: 'text-primary-600' },
                 { label: 'En cours', value: stats.inProgress || 0, color: 'text-indigo-600' },
                 { label: 'Disponibles', value: stats.available || 0, color: 'text-amber-600' },
                 { label: 'Mois en cours', value: stats.thisMonth?.delivered || 0, color: 'text-violet-600' },

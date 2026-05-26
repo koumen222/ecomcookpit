@@ -355,7 +355,7 @@ Produit 3	8000	Électronique	Description du produit 3	Non	https://example.com/im
           <button
             onClick={processImport}
             disabled={loading}
-            className="flex-1 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 text-[12px] font-semibold flex items-center justify-center gap-2 transition-colors"
+            className="flex-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 text-[12px] font-semibold flex items-center justify-center gap-2 transition-colors"
           >
             {loading ? (
               <>

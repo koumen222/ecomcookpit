@@ -180,8 +180,8 @@ const Register = () => {
 
   return (
     <div className="min-h-screen bg-white flex items-center justify-center px-4 py-12 relative overflow-hidden">
-      <div className="absolute top-0 left-1/4 w-96 h-96 bg-emerald-500/5 rounded-full blur-[120px] pointer-events-none" />
-      <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-emerald-600/5 rounded-full blur-[120px] pointer-events-none" />
+      <div className="absolute top-0 left-1/4 w-96 h-96 bg-primary-500/5 rounded-full blur-[120px] pointer-events-none" />
+      <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-primary-600/5 rounded-full blur-[120px] pointer-events-none" />
 
       <div className="w-full max-w-[420px] relative">
         <div className="text-center mb-8">
@@ -194,14 +194,14 @@ const Register = () => {
           {[1, 2, 3].map(s => (
             <React.Fragment key={s}>
               <div className={`flex items-center gap-1.5 transition-all ${s === step ? 'opacity-100' : s < step ? 'opacity-60' : 'opacity-25'}`}>
-                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-all ${s < step ? 'bg-emerald-500 text-white' : s === step ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-500'}`}>
+                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-all ${s < step ? 'bg-primary-500 text-white' : s === step ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-500'}`}>
                   {s < step
                     ? <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
                     : s}
                 </div>
                 <span className={`text-xs font-medium hidden sm:block ${s === step ? 'text-gray-900' : 'text-gray-500'}`}>{stepLabels[s - 1]}</span>
               </div>
-              {s < 3 && <div className={`w-8 h-px transition-all ${s < step ? 'bg-emerald-500' : 'bg-gray-200'}`} />}
+              {s < 3 && <div className={`w-8 h-px transition-all ${s < step ? 'bg-primary-500' : 'bg-gray-200'}`} />}
             </React.Fragment>
           ))}
         </div>
@@ -231,10 +231,10 @@ const Register = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">Adresse email</label>
                   <input type="email" autoComplete="email" required placeholder="vous@exemple.com"
                     value={email} onChange={e => setEmail(e.target.value)}
-                    className="block w-full px-4 py-3 bg-white border border-gray-300 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-sm transition" />
+                    className="block w-full px-4 py-3 bg-white border border-gray-300 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm transition" />
                 </div>
                 <button type="submit" disabled={loading || !email.includes('@')}
-                  className="w-full py-3 rounded-xl text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-600 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20">
+                  className="w-full py-3 rounded-xl text-sm font-semibold text-white bg-primary-600 hover:bg-primary-600 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center justify-center gap-2 shadow-lg shadow-primary-600/20">
                   {loading ? <Spinner /> : <><span>Continuer</span><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg></>}
                 </button>
               </form>
@@ -246,7 +246,7 @@ const Register = () => {
               <div className="mb-6">
                 <h1 className="text-xl font-bold text-gray-900">Vérifiez votre email</h1>
                 <p className="text-gray-600 text-sm mt-1">
-                  Code envoye a <span className="text-emerald-500 font-medium">{email}</span>
+                  Code envoye a <span className="text-primary-500 font-medium">{email}</span>
                 </p>
               </div>
               <form onSubmit={handleVerifyOtp} className="space-y-6">
@@ -258,12 +258,12 @@ const Register = () => {
                         type="text" inputMode="numeric" maxLength={1} value={digit}
                         onChange={e => handleOtpChange(idx, e.target.value)}
                         onKeyDown={e => handleOtpKeyDown(idx, e)}
-                        className={`w-11 h-14 text-center text-xl font-bold rounded-xl border transition focus:outline-none focus:ring-2 focus:ring-emerald-500 ${digit ? 'bg-emerald-50 border-emerald-500 text-gray-900' : 'bg-white border-gray-300 text-gray-900'}`} />
+                        className={`w-11 h-14 text-center text-xl font-bold rounded-xl border transition focus:outline-none focus:ring-2 focus:ring-primary-500 ${digit ? 'bg-primary-50 border-primary-500 text-gray-900' : 'bg-white border-gray-300 text-gray-900'}`} />
                     ))}
                   </div>
                 </div>
                 <button type="submit" disabled={loading || otp.join('').length !== 6}
-                  className="w-full py-3 rounded-xl text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-600 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20">
+                  className="w-full py-3 rounded-xl text-sm font-semibold text-white bg-primary-600 hover:bg-primary-600 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center justify-center gap-2 shadow-lg shadow-primary-600/20">
                   {loading ? <Spinner /> : 'Verifier le code'}
                 </button>
               </form>
@@ -274,7 +274,7 @@ const Register = () => {
                   Changer d email
                 </button>
                 <button onClick={handleResend} disabled={resendCooldown > 0 || loading}
-                  className="text-emerald-500 hover:text-emerald-400 disabled:text-gray-600 disabled:cursor-not-allowed transition">
+                  className="text-primary-500 hover:text-primary-400 disabled:text-gray-600 disabled:cursor-not-allowed transition">
                   {resendCooldown > 0 ? `Renvoyer (${resendCooldown}s)` : 'Renvoyer le code'}
                 </button>
               </div>
@@ -292,7 +292,7 @@ const Register = () => {
                   <label className="block text-xs font-medium text-gray-700 mb-1.5 uppercase tracking-wide">Nom complet</label>
                   <input id="name-input" type="text" required placeholder="Votre nom et prenom"
                     value={formData.name} onChange={e => setFormData(p => ({ ...p, name: e.target.value }))}
-                    className="block w-full px-4 py-3 bg-white border border-gray-300 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-sm transition" />
+                    className="block w-full px-4 py-3 bg-white border border-gray-300 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm transition" />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1.5 uppercase tracking-wide">
@@ -300,14 +300,14 @@ const Register = () => {
                   </label>
                   <input type="tel" placeholder="+237 6XX XXX XXX"
                     value={formData.phone} onChange={e => setFormData(p => ({ ...p, phone: e.target.value }))}
-                    className="block w-full px-4 py-3 bg-white border border-gray-300 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-sm transition" />
+                    className="block w-full px-4 py-3 bg-white border border-gray-300 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm transition" />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1.5 uppercase tracking-wide">Mot de passe</label>
                   <div className="relative">
                     <input type={showPassword ? 'text' : 'password'} required placeholder="Creez un mot de passe fort"
                       value={formData.password} onChange={e => setFormData(p => ({ ...p, password: e.target.value }))}
-                      className="block w-full px-4 py-3 pr-11 bg-white border border-gray-300 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-sm transition" />
+                      className="block w-full px-4 py-3 pr-11 bg-white border border-gray-300 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm transition" />
                     <button type="button" onClick={() => setShowPassword(v => !v)}
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition">
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -320,7 +320,7 @@ const Register = () => {
                   {formData.password && (
                     <div className="mt-2 flex gap-1">
                       {[1, 2, 3, 4, 5].map(i => (
-                        <div key={i} className={`h-1 flex-1 rounded-full transition ${i <= pwStrength ? (pwStrength <= 2 ? 'bg-red-500' : pwStrength <= 3 ? 'bg-yellow-500' : 'bg-emerald-500') : 'bg-gray-200'}`} />
+                        <div key={i} className={`h-1 flex-1 rounded-full transition ${i <= pwStrength ? (pwStrength <= 2 ? 'bg-red-500' : pwStrength <= 3 ? 'bg-yellow-500' : 'bg-primary-500') : 'bg-gray-200'}`} />
                       ))}
                     </div>
                   )}
@@ -329,9 +329,9 @@ const Register = () => {
                   <label className="block text-xs font-medium text-gray-700 mb-1.5 uppercase tracking-wide">Confirmer</label>
                   <input type="password" required placeholder="Retapez le mot de passe"
                     value={formData.confirmPassword} onChange={e => setFormData(p => ({ ...p, confirmPassword: e.target.value }))}
-                    className={`block w-full px-4 py-3 bg-white border rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-sm transition ${formData.confirmPassword && formData.password !== formData.confirmPassword ? 'border-red-500' : 'border-gray-300'}`} />
+                    className={`block w-full px-4 py-3 bg-white border rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm transition ${formData.confirmPassword && formData.password !== formData.confirmPassword ? 'border-red-500' : 'border-gray-300'}`} />
                   {formData.confirmPassword && formData.password === formData.confirmPassword && (
-                    <p className="text-emerald-400 text-xs mt-1 flex items-center gap-1">
+                    <p className="text-primary-400 text-xs mt-1 flex items-center gap-1">
                       <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
                       Identiques
                     </p>
@@ -339,16 +339,16 @@ const Register = () => {
                 </div>
                 <label className="flex items-start gap-3 cursor-pointer">
                   <input type="checkbox" checked={formData.acceptPrivacy} onChange={e => setFormData(p => ({ ...p, acceptPrivacy: e.target.checked }))}
-                    className="mt-0.5 w-4 h-4 rounded border-gray-300 bg-white text-emerald-600 focus:ring-emerald-500 focus:ring-offset-0 cursor-pointer" />
+                    className="mt-0.5 w-4 h-4 rounded border-gray-300 bg-white text-primary-600 focus:ring-primary-500 focus:ring-offset-0 cursor-pointer" />
                   <p className="text-xs text-gray-600 leading-relaxed">
                     J'accepte la{' '}
-                    <button type="button" onClick={() => window.open('/ecom/privacy', '_blank')} className="text-emerald-500 hover:text-emerald-400 underline underline-offset-2 transition">
+                    <button type="button" onClick={() => window.open('/ecom/privacy', '_blank')} className="text-primary-500 hover:text-primary-400 underline underline-offset-2 transition">
                       politique de confidentialite
                     </button>
                   </p>
                 </label>
                 <button type="submit" disabled={loading || !canSubmit}
-                  className="w-full py-3 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-600 hover:to-emerald-600 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20">
+                  className="w-full py-3 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-600 hover:to-primary-600 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center justify-center gap-2 shadow-lg shadow-primary-600/20">
                   {loading ? <Spinner /> : <><span>Creer mon compte</span><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg></>}
                 </button>
               </form>
@@ -358,7 +358,7 @@ const Register = () => {
 
         <p className="text-center mt-5 text-sm text-gray-600">
           Deja un compte ?{' '}
-          <button onClick={() => navigate('/ecom/login')} className="text-emerald-500 hover:text-emerald-400 font-medium transition">
+          <button onClick={() => navigate('/ecom/login')} className="text-primary-500 hover:text-primary-400 font-medium transition">
             Se connecter
           </button>
         </p>

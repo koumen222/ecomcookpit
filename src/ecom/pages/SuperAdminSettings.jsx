@@ -151,7 +151,7 @@ const SuperAdminSettings = () => {
               <select
                 value={supportConfig.supportNotificationInstanceId}
                 onChange={(e) => setSupportConfig((prev) => ({ ...prev, supportNotificationInstanceId: e.target.value }))}
-                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 transition"
+                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 transition"
               >
                 <option value="">Sélectionner une instance</option>
                 {supportInstances.map((instance) => (
@@ -162,7 +162,7 @@ const SuperAdminSettings = () => {
               </select>
               <div className="mt-2 flex items-center justify-between gap-3 text-xs">
                 <p className="text-gray-500">Crée ou connecte une instance dédiée pour le support avant d'activer les alertes.</p>
-                <Link to="/ecom/whatsapp/service" className="font-semibold text-emerald-700 hover:text-emerald-800">
+                <Link to="/ecom/whatsapp/service" className="font-semibold text-primary-700 hover:text-primary-800">
                   Créer / connecter une instance
                 </Link>
               </div>
@@ -174,7 +174,7 @@ const SuperAdminSettings = () => {
                 value={supportConfig.supportNotificationPhone}
                 onChange={(e) => setSupportConfig((prev) => ({ ...prev, supportNotificationPhone: e.target.value }))}
                 placeholder="Ex: +237612345678"
-                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 transition"
+                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 transition"
               />
             </div>
             <label className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 cursor-pointer">
@@ -182,7 +182,7 @@ const SuperAdminSettings = () => {
                 type="checkbox"
                 checked={supportConfig.supportNotificationEnabled}
                 onChange={(e) => setSupportConfig((prev) => ({ ...prev, supportNotificationEnabled: e.target.checked }))}
-                className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
               />
               <div>
                 <p className="text-sm font-medium text-gray-900">Activer les alertes WhatsApp</p>
@@ -212,7 +212,7 @@ const SuperAdminSettings = () => {
                 value={passwordData.currentPassword}
                 onChange={(e) => setPasswordData(p => ({ ...p, currentPassword: e.target.value }))}
                 required
-                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 transition"
+                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 transition"
               />
             </div>
             <div>
@@ -223,7 +223,7 @@ const SuperAdminSettings = () => {
                 onChange={(e) => setPasswordData(p => ({ ...p, newPassword: e.target.value }))}
                 required
                 placeholder="Min. 6 caractères"
-                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition"
+                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 transition"
               />
             </div>
             <div>
@@ -233,7 +233,7 @@ const SuperAdminSettings = () => {
                 value={passwordData.confirmPassword}
                 onChange={(e) => setPasswordData(p => ({ ...p, confirmPassword: e.target.value }))}
                 required
-                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 transition"
+                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 transition"
               />
             </div>
             <button

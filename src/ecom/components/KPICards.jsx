@@ -63,11 +63,11 @@ const KPICards = ({ stats, fmt }) => {
         progress: 'bg-gradient-to-r from-green-400 to-green-600'
       },
       blue: {
-        bg: 'bg-gradient-to-br from-emerald-50 to-emerald-100',
-        border: 'border-emerald-200',
-        title: 'text-emerald-700',
-        icon: 'bg-emerald-600',
-        progress: 'bg-gradient-to-r from-emerald-500 to-emerald-600'
+        bg: 'bg-gradient-to-br from-primary-50 to-primary-100',
+        border: 'border-primary-200',
+        title: 'text-primary-700',
+        icon: 'bg-primary-600',
+        progress: 'bg-gradient-to-r from-primary-500 to-primary-600'
       },
       orange: {
         bg: 'bg-gradient-to-br from-orange-50 to-orange-100',
@@ -77,11 +77,11 @@ const KPICards = ({ stats, fmt }) => {
         progress: 'bg-gradient-to-r from-orange-400 to-orange-600'
       },
       purple: {
-        bg: 'bg-gradient-to-br from-emerald-50 to-emerald-100',
-        border: 'border-emerald-200',
-        title: 'text-emerald-800',
-        icon: 'bg-emerald-600',
-        progress: 'bg-gradient-to-r from-emerald-500 to-emerald-700'
+        bg: 'bg-gradient-to-br from-violet-50 to-violet-100',
+        border: 'border-violet-200',
+        title: 'text-violet-700',
+        icon: 'bg-violet-600',
+        progress: 'bg-gradient-to-r from-violet-500 to-violet-700'
       }
     };
     return colors[color] || colors.blue;
@@ -92,24 +92,34 @@ const KPICards = ({ stats, fmt }) => {
       {kpis.map((kpi, index) => {
         const colorClasses = getColorClasses(kpi.color);
         return (
-          <div 
+          <div
             key={index}
-            className={`${colorClasses.bg} rounded-xl border ${colorClasses.border} shadow-sm p-4 hover:shadow-md transition-shadow`}
+            className={`${colorClasses.bg} rounded-xl border ${colorClasses.border} shadow-sm p-4 hover:shadow-md active:scale-[0.98] transition-all duration-200 cursor-default`}
           >
             <div className="flex items-center justify-between mb-2">
               <p className={`text-xs font-semibold ${colorClasses.title} uppercase tracking-wide`}>
                 {kpi.title}
               </p>
-              <div className={`w-8 h-8 ${colorClasses.icon} rounded-lg flex items-center justify-center`}>
+              <div
+                className={`w-8 h-8 ${colorClasses.icon} rounded-lg flex items-center justify-center`}
+                aria-hidden="true"
+              >
                 {kpi.icon}
               </div>
             </div>
             <p className="text-xl font-bold text-gray-900">{kpi.value}</p>
             <p className={`text-xs ${colorClasses.title} font-medium mt-1`}>{kpi.subtitle}</p>
             {kpi.progress !== undefined && (
-              <div className="w-full bg-gray-100 rounded-full h-2 mt-2">
-                <div 
-                  className={`${colorClasses.progress} h-2 rounded-full transition-all duration-500`} 
+              <div
+                className="w-full bg-gray-200 rounded-full h-2 mt-2"
+                role="progressbar"
+                aria-valuenow={Math.min(kpi.progress, 100)}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-label={kpi.title}
+              >
+                <div
+                  className={`${colorClasses.progress} h-2 rounded-full transition-all duration-500`}
                   style={{ width: `${Math.min(kpi.progress, 100)}%` }}
                 />
               </div>

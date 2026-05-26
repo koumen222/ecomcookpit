@@ -34,10 +34,10 @@ function haversineKm(lat1, lon1, lat2, lon2) {
 // ── Progress Step ────────────────────────────────────────────────────────
 const Step = ({ label, done, active, icon }) => (
   <div className="flex items-center gap-3">
-    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm flex-shrink-0 transition-all ${done ? 'bg-emerald-500 text-white' : active ? 'bg-amber-500 text-white animate-pulse' : 'bg-gray-200 text-gray-400'}`}>
+    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm flex-shrink-0 transition-all ${done ? 'bg-primary-500 text-white' : active ? 'bg-amber-500 text-white animate-pulse' : 'bg-gray-200 text-gray-400'}`}>
       {done ? '✓' : icon}
     </div>
-    <span className={`text-sm font-medium ${done ? 'text-emerald-700' : active ? 'text-amber-700' : 'text-gray-400'}`}>{label}</span>
+    <span className={`text-sm font-medium ${done ? 'text-primary-700' : active ? 'text-amber-700' : 'text-gray-400'}`}>{label}</span>
   </div>
 );
 
@@ -406,7 +406,7 @@ const LivreurDeliveryDetail = () => {
                         <p className="text-[10px] text-gray-400 font-medium">KM RESTANT</p>
                       </div>
                       <div className="bg-white rounded-xl p-3 text-center shadow-sm">
-                        <p className="text-2xl font-black text-emerald-600">{deliveryCost != null ? deliveryCost.toLocaleString('fr-FR') : '—'}</p>
+                        <p className="text-2xl font-black text-primary-600">{deliveryCost != null ? deliveryCost.toLocaleString('fr-FR') : '—'}</p>
                         <p className="text-[10px] text-gray-400 font-medium">{symbol}</p>
                       </div>
                     </div>
@@ -420,7 +420,7 @@ const LivreurDeliveryDetail = () => {
                         </div>
                         <div className="w-full bg-indigo-200 rounded-full h-2.5">
                           <div
-                            className="bg-gradient-to-r from-indigo-500 to-emerald-500 h-2.5 rounded-full transition-all duration-1000"
+                            className="bg-gradient-to-r from-indigo-500 to-primary-500 h-2.5 rounded-full transition-all duration-1000"
                             style={{ width: `${Math.max(0, Math.min(100, ((savedDistance - liveDistance) / savedDistance) * 100))}%` }}
                           />
                         </div>
@@ -442,7 +442,7 @@ const LivreurDeliveryDetail = () => {
                         🗺️ Naviguer
                       </a>
                       {order.clientPhone && (
-                        <a href={`tel:${order.clientPhone}`} className="px-4 py-2.5 bg-emerald-50 text-emerald-700 rounded-xl font-bold text-sm hover:bg-emerald-100 transition">
+                        <a href={`tel:${order.clientPhone}`} className="px-4 py-2.5 bg-primary-50 text-primary-700 rounded-xl font-bold text-sm hover:bg-primary-100 transition">
                           📞
                         </a>
                       )}
@@ -454,15 +454,15 @@ const LivreurDeliveryDetail = () => {
 
             {/* Delivered summary */}
             {isDelivered && savedDistance && (
-              <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 space-y-2">
-                <p className="text-sm font-bold text-emerald-800">✅ Livraison terminée</p>
+              <div className="bg-primary-50 border border-primary-200 rounded-xl p-4 space-y-2">
+                <p className="text-sm font-bold text-primary-800">✅ Livraison terminée</p>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="bg-white rounded-xl p-3 text-center shadow-sm">
-                    <p className="text-xl font-black text-emerald-700">{savedDistance.toFixed(1)} km</p>
+                    <p className="text-xl font-black text-primary-700">{savedDistance.toFixed(1)} km</p>
                     <p className="text-[10px] text-gray-400">DISTANCE</p>
                   </div>
                   <div className="bg-white rounded-xl p-3 text-center shadow-sm">
-                    <p className="text-xl font-black text-emerald-700">{fmt(deliveryCost || 0)}</p>
+                    <p className="text-xl font-black text-primary-700">{fmt(deliveryCost || 0)}</p>
                     <p className="text-[10px] text-gray-400">COÛT LIVRAISON</p>
                   </div>
                 </div>
@@ -550,7 +550,7 @@ const LivreurDeliveryDetail = () => {
           {order.deliveredAt && (
             <div className="flex items-center justify-between">
               <span className="text-xs text-gray-400">Livrée le</span>
-              <span className="text-xs text-emerald-600 font-medium">{fmtDate(order.deliveredAt)}</span>
+              <span className="text-xs text-primary-600 font-medium">{fmtDate(order.deliveredAt)}</span>
             </div>
           )}
         </div>

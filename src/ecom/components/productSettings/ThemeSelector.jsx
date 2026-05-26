@@ -132,7 +132,7 @@ const ThemeCard = ({ theme, selected, onSelect }) => {
       onClick={() => onSelect(theme.id)}
       className={`text-left rounded-2xl border-2 transition-all duration-200 overflow-hidden ${
         selected
-          ? 'border-emerald-500 shadow-lg shadow-emerald-100 scale-[1.02]'
+          ? 'border-primary-500 shadow-lg shadow-primary-100 scale-[1.02]'
           : 'border-gray-200 hover:border-gray-300 hover:shadow-md'
       }`}
       style={{ background: '#fff' }}
@@ -197,11 +197,11 @@ const ThemeCard = ({ theme, selected, onSelect }) => {
       <div style={{ padding: '10px 12px', background: '#fff' }}>
         <div className="flex items-center gap-2 mb-1">
           <span style={{ fontSize: 16 }}>{theme.emoji}</span>
-          <span className={`text-[13px] font-bold ${selected ? 'text-emerald-700' : 'text-gray-800'}`}>
+          <span className={`text-[13px] font-bold ${selected ? 'text-primary-700' : 'text-gray-800'}`}>
             {theme.name}
           </span>
           {selected && (
-            <span className="ml-auto text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
+            <span className="ml-auto text-[10px] font-bold text-primary-600 bg-primary-50 px-2 py-0.5 rounded-full">
               Actif
             </span>
           )}
@@ -271,11 +271,11 @@ const ThemeSelector = ({ config, onChange }) => {
         const current = THEMES.find(t => t.id === currentTheme);
         if (!current) return null;
         return (
-          <div className="flex items-center gap-3 p-3 rounded-xl bg-emerald-50 border border-emerald-200">
+          <div className="flex items-center gap-3 p-3 rounded-xl bg-primary-50 border border-primary-200">
             <span className="text-2xl">{current.emoji}</span>
             <div>
-              <div className="text-[13px] font-bold text-emerald-800">{current.name}</div>
-              <div className="text-[10px] text-emerald-600">{current.desc}</div>
+              <div className="text-[13px] font-bold text-primary-800">{current.name}</div>
+              <div className="text-[10px] text-primary-600">{current.desc}</div>
             </div>
           </div>
         );

@@ -11,7 +11,7 @@ const fmt = (d) => {
 const WORKFLOW_BADGE = {
   ai:            { label: 'Répondu par IA',        cls: 'bg-sky-100 text-sky-700' },
   pending_admin: { label: 'En attente de l\'admin', cls: 'bg-amber-100 text-amber-700' },
-  resolved:      { label: 'Résolu',                 cls: 'bg-emerald-100 text-emerald-700' },
+  resolved:      { label: 'Résolu',                 cls: 'bg-primary-100 text-primary-700' },
 };
 
 const CATEGORIES = [
@@ -351,7 +351,7 @@ const SupportChatWidget = () => {
                             <p className="text-[10px] font-bold mb-0.5 opacity-60">{m.senderType === 'ai' ? 'Scalor IA' : (m.agentName || 'Support')}</p>
                           )}
                           <p className="text-[13px] leading-relaxed whitespace-pre-wrap break-words">{m.text}</p>
-                          <p className={`text-[10px] mt-1 text-right ${isUser ? 'text-emerald-200' : 'text-gray-400'}`}>{fmt(m.createdAt)}</p>
+                          <p className={`text-[10px] mt-1 text-right ${isUser ? 'text-primary-200' : 'text-gray-400'}`}>{fmt(m.createdAt)}</p>
                         </div>
                       </div>
                     );

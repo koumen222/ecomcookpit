@@ -6,10 +6,10 @@ import ecomApi from '../services/ecommApi.js';
 
 // â”€â”€â”€ Status badge colors â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const STATUS_COLORS = {
-  success: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  success: 'bg-primary-50 text-primary-700 border-primary-200',
   partial: 'bg-amber-50 text-amber-700 border-amber-200',
   failed: 'bg-red-50 text-red-700 border-red-200',
-  in_progress: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  in_progress: 'bg-primary-50 text-primary-700 border-primary-200',
   pending: 'bg-gray-50 text-gray-500 border-gray-200',
   cancelled: 'bg-gray-50 text-gray-500 border-gray-200'
 };
@@ -275,9 +275,9 @@ const ImportOrders = () => {
               <div className="flex flex-col items-center">
                 <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 ${
                   currentStep > step.num
-                    ? 'bg-emerald-500 text-white shadow-sm shadow-emerald-200'
+                    ? 'bg-primary-500 text-white shadow-sm shadow-primary-200'
                     : currentStep === step.num
-                    ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-200 ring-4 ring-emerald-100'
+                    ? 'bg-primary-600 text-white shadow-sm shadow-primary-200 ring-4 ring-primary-100'
                     : 'bg-gray-100 text-gray-400'
                 }`}>
                   {currentStep > step.num ? (
@@ -292,7 +292,7 @@ const ImportOrders = () => {
               </div>
               {i < steps.length - 1 && (
                 <div className={`flex-1 h-0.5 mx-2 mt-[-18px] transition-all duration-500 ${
-                  currentStep > step.num ? 'bg-emerald-400' : 'bg-gray-200'
+                  currentStep > step.num ? 'bg-primary-400' : 'bg-gray-200'
                 }`} />
               )}
             </React.Fragment>
@@ -328,7 +328,7 @@ const ImportOrders = () => {
               <button
                 onClick={() => setUseManualInput(false)}
                 className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-medium transition ${
-                  !useManualInput ? 'bg-emerald-50 text-emerald-700 border-2 border-emerald-200' : 'bg-gray-50 text-gray-600 border-2 border-transparent hover:bg-gray-100'
+                  !useManualInput ? 'bg-primary-50 text-primary-700 border-2 border-primary-200' : 'bg-gray-50 text-gray-600 border-2 border-transparent hover:bg-gray-100'
                 }`}
               >
                 Sources configurées
@@ -336,7 +336,7 @@ const ImportOrders = () => {
               <button
                 onClick={() => setUseManualInput(true)}
                 className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-medium transition ${
-                  useManualInput ? 'bg-emerald-50 text-emerald-700 border-2 border-emerald-200' : 'bg-gray-50 text-gray-600 border-2 border-transparent hover:bg-gray-100'
+                  useManualInput ? 'bg-primary-50 text-primary-700 border-2 border-primary-200' : 'bg-gray-50 text-gray-600 border-2 border-transparent hover:bg-gray-100'
                 }`}
               >
                 Nouveau lien
@@ -351,7 +351,7 @@ const ImportOrders = () => {
                       <LinkIcon className="w-7 h-7 text-gray-400" />
                     </div>
                     <p className="text-sm text-gray-500 mb-3">Aucune source configurée</p>
-                    <button onClick={() => setUseManualInput(true)} className="text-sm text-emerald-600 hover:text-emerald-700 font-medium">
+                    <button onClick={() => setUseManualInput(true)} className="text-sm text-primary-600 hover:text-primary-700 font-medium">
                       Ajouter un lien manuellement
                     </button>
                   </div>
@@ -361,7 +361,7 @@ const ImportOrders = () => {
                       key={source._id}
                       className={`flex items-center gap-4 p-4 rounded-xl border-2 cursor-pointer transition-all ${
                         selectedSourceId === source._id
-                          ? 'border-emerald-400 bg-emerald-50/50'
+                          ? 'border-primary-400 bg-primary-50/50'
                           : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50/50'
                       }`}
                     >
@@ -371,7 +371,7 @@ const ImportOrders = () => {
                         value={source._id}
                         checked={selectedSourceId === source._id}
                         onChange={() => setSelectedSourceId(source._id)}
-                        className="w-4 h-4 text-emerald-600"
+                        className="w-4 h-4 text-primary-600"
                       />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-gray-900">{source.name}</p>
@@ -383,7 +383,7 @@ const ImportOrders = () => {
                         </p>
                       </div>
                       <div className="flex-shrink-0">
-                        <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-emerald-50 text-emerald-700 rounded-md">Actif</span>
+                        <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-primary-50 text-primary-700 rounded-md">Actif</span>
                       </div>
                     </label>
                   ))
@@ -398,7 +398,7 @@ const ImportOrders = () => {
                     value={manualSourceName}
                     onChange={(e) => setManualSourceName(e.target.value)}
                     placeholder="Ex: Commandes Facebook, Leads Janvier..."
-                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-600 focus:border-emerald-600 transition"
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition"
                   />
                   <p className="text-[11px] text-gray-400 mt-1">Ce nom apparaitra dans la liste des sources sur la page Commandes</p>
                 </div>
@@ -409,7 +409,7 @@ const ImportOrders = () => {
                     value={manualSheetId}
                     onChange={(e) => setManualSheetId(e.target.value)}
                     placeholder="https://docs.google.com/spreadsheets/d/... ou ID"
-                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-600 focus:border-emerald-600 transition"
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition"
                   />
                 </div>
                 <div>
@@ -419,7 +419,7 @@ const ImportOrders = () => {
                     value={manualSheetName}
                     onChange={(e) => setManualSheetName(e.target.value)}
                     placeholder="Sheet1"
-                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-600 focus:border-emerald-600 transition"
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition"
                   />
                 </div>
                 <div className="flex items-start gap-2 p-3 bg-amber-50 rounded-lg border border-amber-100">
@@ -431,15 +431,15 @@ const ImportOrders = () => {
 
             {/* Validation result */}
             {validationResult && (
-              <div className={`mt-6 p-4 rounded-xl border ${validationResult.valid ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'}`}>
+              <div className={`mt-6 p-4 rounded-xl border ${validationResult.valid ? 'bg-primary-50 border-primary-200' : 'bg-red-50 border-red-200'}`}>
                 {validationResult.valid ? (
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 bg-emerald-100 rounded-full flex items-center justify-center flex-shrink-0">
-                      <svg className="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                    <div className="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center flex-shrink-0">
+                      <svg className="w-5 h-5 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
                     </div>
                     <div>
-                      <p className="text-sm font-medium text-emerald-800">Spreadsheet accessible</p>
-                      <p className="text-xs text-emerald-600 mt-0.5">
+                      <p className="text-sm font-medium text-primary-800">Spreadsheet accessible</p>
+                      <p className="text-xs text-primary-600 mt-0.5">
                         {validationResult.rowCount || 0} lignes · {validationResult.columnCount || 0} colonnes
                         {validationResult.empty && ' · Spreadsheet vide'}
                       </p>
@@ -464,7 +464,7 @@ const ImportOrders = () => {
               <button
                 onClick={handleValidate}
                 disabled={validating || (!useManualInput && !selectedSourceId) || (useManualInput && !manualSheetId.trim())}
-                className="inline-flex items-center gap-2 px-6 py-2.5 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition shadow-sm"
+                className="inline-flex items-center gap-2 px-6 py-2.5 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition shadow-sm"
               >
                 {validating ? (
                   <><Spinner /> Vérification...</>
@@ -501,18 +501,18 @@ const ImportOrders = () => {
                   <h3 className="text-sm font-medium text-gray-700 mb-3">Colonnes détectées</h3>
                   <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
                     {Object.entries(previewData.columnMapping).map(([field, colIdx]) => (
-                      <div key={field} className="flex items-center gap-2 px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-lg">
-                        <svg className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
-                        <span className="text-xs font-medium text-emerald-800">{FIELD_LABELS[field] || field}</span>
-                        <span className="text-[10px] text-emerald-500 ml-auto">Col {colIdx + 1}</span>
+                      <div key={field} className="flex items-center gap-2 px-3 py-2 bg-primary-50 border border-primary-200 rounded-lg">
+                        <svg className="w-3.5 h-3.5 text-primary-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+                        <span className="text-xs font-medium text-primary-800">{FIELD_LABELS[field] || field}</span>
+                        <span className="text-[10px] text-primary-500 ml-auto">Col {colIdx + 1}</span>
                       </div>
                     ))}
                   </div>
                   {/* Info for non-detected recommended columns */}
                   {previewData.validation?.warnings?.length > 0 && (
-                    <div className="mt-3 flex items-start gap-2 p-3 bg-emerald-50 rounded-lg border border-emerald-100">
-                      <svg className="w-4 h-4 text-emerald-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                      <p className="text-xs text-emerald-700">
+                    <div className="mt-3 flex items-start gap-2 p-3 bg-primary-50 rounded-lg border border-primary-100">
+                      <svg className="w-4 h-4 text-primary-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                      <p className="text-xs text-primary-700">
                         Colonnes non détectées automatiquement : {previewData.validation.warnings.map(w => FIELD_LABELS[w] || w).join(', ')}. L'import fonctionnera quand même avec les colonnes disponibles.
                       </p>
                     </div>
@@ -528,7 +528,7 @@ const ImportOrders = () => {
                       <select 
                         value={sheetOrder} 
                         onChange={(e) => { setSheetOrder(e.target.value); handlePreview(); }}
-                        className="text-xs border border-gray-300 rounded-lg px-2 py-1 focus:ring-2 focus:ring-emerald-600"
+                        className="text-xs border border-gray-300 rounded-lg px-2 py-1 focus:ring-2 focus:ring-primary-600"
                       >
                         <option value="newest_first">Plus récentes d'abord (haut)</option>
                         <option value="oldest_first">Plus anciennes d'abord (bas)</option>
@@ -569,7 +569,7 @@ const ImportOrders = () => {
                   </button>
                   <button
                     onClick={handleImport}
-                    className="inline-flex items-center gap-2 px-6 py-2.5 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 transition shadow-sm"
+                    className="inline-flex items-center gap-2 px-6 py-2.5 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 transition shadow-sm"
                   >
                     Lancer l'import <ArrowRightIcon className="w-4 h-4" />
                   </button>
@@ -578,7 +578,7 @@ const ImportOrders = () => {
             ) : (
               <div className="text-center py-12">
                 <p className="text-sm text-gray-500">Aucun aperçu disponible</p>
-                <button onClick={handlePreview} className="mt-3 text-sm text-emerald-600 font-medium hover:text-emerald-700">Réessayer</button>
+                <button onClick={handlePreview} className="mt-3 text-sm text-primary-600 font-medium hover:text-primary-700">Réessayer</button>
               </div>
             )}
           </div>
@@ -588,9 +588,9 @@ const ImportOrders = () => {
         {currentStep === 3 && (
           <div className="p-6 sm:p-8">
             <div className="flex flex-col items-center justify-center py-8">
-              <div className="w-20 h-20 bg-emerald-50 rounded-2xl flex items-center justify-center mb-6">
+              <div className="w-20 h-20 bg-primary-50 rounded-2xl flex items-center justify-center mb-6">
                 <div className="animate-spin">
-                  <svg className="w-10 h-10 text-emerald-600" fill="none" viewBox="0 0 24 24">
+                  <svg className="w-10 h-10 text-primary-600" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
@@ -612,7 +612,7 @@ const ImportOrders = () => {
                 </div>
                 <div className="w-full h-3 bg-gray-100 rounded-full overflow-hidden">
                   <div
-                    className="h-full bg-gradient-to-r from-emerald-600 to-emerald-600 rounded-full transition-all duration-700 ease-out"
+                    className="h-full bg-gradient-to-r from-primary-600 to-primary-600 rounded-full transition-all duration-700 ease-out"
                     style={{ width: `${importProgress.percentage}%` }}
                   />
                 </div>
@@ -633,14 +633,14 @@ const ImportOrders = () => {
                       ? 'bg-red-50'
                       : importResult.errorCount > 0
                       ? 'bg-amber-50'
-                      : 'bg-emerald-50'
+                      : 'bg-primary-50'
                   }`}>
                     {importResult.errorCount > 0 && importResult.successCount === 0 ? (
                       <svg className="w-8 h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                     ) : importResult.errorCount > 0 ? (
                       <svg className="w-8 h-8 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" /></svg>
                     ) : (
-                      <svg className="w-8 h-8 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                      <svg className="w-8 h-8 text-primary-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
                     )}
                   </div>
                   <h2 className="text-lg font-semibold text-gray-900">
@@ -685,7 +685,7 @@ const ImportOrders = () => {
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-6 border-t border-gray-100">
               <button
                 onClick={handleRelaunch}
-                className="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 transition shadow-sm w-full sm:w-auto justify-center"
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 transition shadow-sm w-full sm:w-auto justify-center"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
                 Relancer l'import
@@ -741,8 +741,8 @@ const ImportOrders = () => {
                     </div>
                     <div className="text-right">
                       <div className="flex items-center gap-4 text-xs text-gray-500">
-                        {imp.successCount > 0 && <span className="text-emerald-600">+{imp.successCount}</span>}
-                        {imp.updatedCount > 0 && <span className="text-emerald-600">â†»{imp.updatedCount}</span>}
+                        {imp.successCount > 0 && <span className="text-primary-600">+{imp.successCount}</span>}
+                        {imp.updatedCount > 0 && <span className="text-primary-600">â†»{imp.updatedCount}</span>}
                         {imp.errorCount > 0 && <span className="text-red-600">!{imp.errorCount}</span>}
                         {imp.duration > 0 && <span>{imp.duration}s</span>}
                       </div>
@@ -762,8 +762,8 @@ const ImportOrders = () => {
 
 const StatCard = ({ label, value, color, icon }) => {
   const colors = {
-    emerald: 'bg-emerald-50 text-emerald-700 border-emerald-100',
-    blue: 'bg-emerald-50 text-emerald-700 border-emerald-100',
+    emerald: 'bg-primary-50 text-primary-700 border-primary-100',
+    blue: 'bg-primary-50 text-primary-700 border-primary-100',
     amber: 'bg-amber-50 text-amber-700 border-amber-100',
     red: 'bg-red-50 text-red-700 border-red-100'
   };
@@ -806,7 +806,7 @@ const ErrorDetails = ({ errors }) => {
 };
 
 const Spinner = ({ size = 'sm' }) => (
-  <svg className={`animate-spin ${size === 'lg' ? 'w-8 h-8' : 'w-4 h-4'} text-emerald-600`} fill="none" viewBox="0 0 24 24">
+  <svg className={`animate-spin ${size === 'lg' ? 'w-8 h-8' : 'w-4 h-4'} text-primary-600`} fill="none" viewBox="0 0 24 24">
     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
   </svg>

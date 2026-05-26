@@ -53,28 +53,28 @@ const ICON_MAP = {
 const TYPE_COLORS = {
   course: 'bg-amber-50 text-amber-600',
   new_delivery: 'bg-amber-50 text-amber-600',
-  order_assigned_to_you: 'bg-emerald-50 text-emerald-700',
+  order_assigned_to_you: 'bg-primary-50 text-primary-700',
   order_taken: 'bg-gray-50 text-gray-600',
-  order_new: 'bg-emerald-50 text-emerald-600',
-  order_confirmed: 'bg-emerald-50 text-emerald-600',
-  order_shipped: 'bg-emerald-50 text-emerald-700',
+  order_new: 'bg-primary-50 text-primary-600',
+  order_confirmed: 'bg-primary-50 text-primary-600',
+  order_shipped: 'bg-primary-50 text-primary-700',
   order_delivered: 'bg-green-50 text-green-600',
   order_cancelled: 'bg-red-50 text-red-600',
   order_returned: 'bg-orange-50 text-orange-600',
-  order_status: 'bg-emerald-50 text-emerald-600',
+  order_status: 'bg-primary-50 text-primary-600',
   stock_low: 'bg-amber-50 text-amber-600',
   stock_out: 'bg-red-50 text-red-600',
-  stock_received: 'bg-emerald-50 text-emerald-600',
-  report_created: 'bg-emerald-50 text-emerald-700',
+  stock_received: 'bg-primary-50 text-primary-600',
+  report_created: 'bg-primary-50 text-primary-700',
   team_order_status_changed: 'bg-blue-50 text-blue-600',
-  team_order_created: 'bg-emerald-50 text-emerald-600',
+  team_order_created: 'bg-primary-50 text-primary-600',
   team_campaign_created: 'bg-purple-50 text-purple-600',
   team_campaign_sent: 'bg-purple-50 text-purple-700',
-  team_report_generated: 'bg-emerald-50 text-emerald-700',
-  user_joined: 'bg-emerald-50 text-emerald-700',
-  decision_created: 'bg-emerald-50 text-emerald-600',
+  team_report_generated: 'bg-primary-50 text-primary-700',
+  user_joined: 'bg-primary-50 text-primary-700',
+  decision_created: 'bg-primary-50 text-primary-600',
   goal_achieved: 'bg-green-50 text-green-600',
-  campaign_sent: 'bg-emerald-50 text-emerald-700',
+  campaign_sent: 'bg-primary-50 text-primary-700',
   import_completed: 'bg-teal-50 text-teal-600',
   system: 'bg-gray-50 text-gray-600',
   info: 'bg-gray-50 text-gray-600',
@@ -197,8 +197,8 @@ export default function NotificationModal({ isOpen, onClose, onMarkAllRead }) {
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-5 border-b border-gray-200">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center">
-              <svg className="w-6 h-6 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="w-10 h-10 bg-primary-100 rounded-xl flex items-center justify-center">
+              <svg className="w-6 h-6 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
               </svg>
             </div>
@@ -213,7 +213,7 @@ export default function NotificationModal({ isOpen, onClose, onMarkAllRead }) {
             {unreadCount > 0 && (
               <button
                 onClick={handleMarkAllRead}
-                className="px-4 py-2 text-sm font-semibold text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                className="px-4 py-2 text-sm font-semibold text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
               >
                 Tout marquer comme lu
               </button>
@@ -233,7 +233,7 @@ export default function NotificationModal({ isOpen, onClose, onMarkAllRead }) {
         <div className="flex-1 overflow-y-auto">
           {loading && notifications.length === 0 ? (
             <div className="flex items-center justify-center py-16">
-              <div className="w-8 h-8 border-3 border-gray-200 border-t-emerald-600 rounded-full animate-spin"></div>
+              <div className="w-8 h-8 border-3 border-gray-200 border-t-primary-600 rounded-full animate-spin"></div>
             </div>
           ) : notifications.length === 0 ? (
             <div className="py-20 text-center">
@@ -254,7 +254,7 @@ export default function NotificationModal({ isOpen, onClose, onMarkAllRead }) {
                 const content = (
                   <div
                     className={`flex gap-4 p-6 transition-all hover:bg-gray-50 ${
-                      !notif.read ? 'bg-emerald-50/30 border-l-4 border-emerald-600' : ''
+                      !notif.read ? 'bg-primary-50/30 border-l-4 border-primary-600' : ''
                     }`}
                   >
                     {/* Icon */}
@@ -271,7 +271,7 @@ export default function NotificationModal({ isOpen, onClose, onMarkAllRead }) {
                           {notif.title}
                         </h4>
                         {!notif.read && (
-                          <span className="w-3 h-3 bg-emerald-600 rounded-full flex-shrink-0 mt-1"></span>
+                          <span className="w-3 h-3 bg-primary-600 rounded-full flex-shrink-0 mt-1"></span>
                         )}
                       </div>
                       <p className="text-sm text-gray-600 leading-relaxed mb-3">{notif.message}</p>
@@ -281,7 +281,7 @@ export default function NotificationModal({ isOpen, onClose, onMarkAllRead }) {
                           {!notif.read && (
                             <button
                               onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleMarkAsRead(notif._id); }}
-                              className="px-3 py-1.5 text-xs font-semibold text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                              className="px-3 py-1.5 text-xs font-semibold text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
                               title="Marquer comme lu"
                             >
                               Marquer comme lu
@@ -327,11 +327,11 @@ export default function NotificationModal({ isOpen, onClose, onMarkAllRead }) {
                   <button
                     onClick={loadMore}
                     disabled={loading}
-                    className="px-6 py-3 text-sm font-semibold text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors disabled:opacity-50"
+                    className="px-6 py-3 text-sm font-semibold text-primary-600 hover:bg-primary-50 rounded-lg transition-colors disabled:opacity-50"
                   >
                     {loading ? (
                       <div className="flex items-center gap-2">
-                        <div className="w-4 h-4 border-2 border-emerald-200 border-t-emerald-600 rounded-full animate-spin"></div>
+                        <div className="w-4 h-4 border-2 border-primary-200 border-t-primary-600 rounded-full animate-spin"></div>
                         Chargement...
                       </div>
                     ) : (

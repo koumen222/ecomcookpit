@@ -39,10 +39,10 @@ const BASE_PLAN_TIERS = [
     name: 'Scalor',
     tagline: 'Gestion complète de vos commandes',
     icon: <Package className="w-full h-full" />,
-    gradient: 'from-emerald-500 to-teal-600',
+    gradient: 'from-primary-500 to-teal-600',
     accent: 'emerald',
-    ring: 'ring-emerald-500/20',
-    btnClass: 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-500/25',
+    ring: 'ring-primary-500/20',
+    btnClass: 'bg-primary-600 hover:bg-primary-700 shadow-primary-500/25',
     features: [
       { text: 'Commandes illimitées', included: true },
       { text: 'Gestion clients complète', included: true },
@@ -330,7 +330,7 @@ function CheckoutModal({ plan, tier, onClose, onSuccess, workspaceId, userName, 
               />
             </div>
             {fullPhone && (
-              <p className="mt-2 flex items-center gap-1.5 text-xs font-semibold text-emerald-700">
+              <p className="mt-2 flex items-center gap-1.5 text-xs font-semibold text-primary-700">
                 <CheckIcon className="w-3.5 h-3.5" />
                 {fullPhone}
               </p>
@@ -341,19 +341,19 @@ function CheckoutModal({ plan, tier, onClose, onSuccess, workspaceId, userName, 
         <div className="rounded-[24px] border border-[#E2EAE4] bg-white/90 p-4 shadow-[0_16px_40px_rgba(15,107,79,0.05)] sm:p-5">
           <label className={labelClassName}>Code promo (optionnel)</label>
           {appliedPromo ? (
-            <div className="flex items-center justify-between rounded-[18px] border border-emerald-200 bg-emerald-50 p-3.5">
+            <div className="flex items-center justify-between rounded-[18px] border border-primary-200 bg-primary-50 p-3.5">
               <div>
-                <p className="flex items-center gap-1.5 text-sm font-bold text-emerald-700">
+                <p className="flex items-center gap-1.5 text-sm font-bold text-primary-700">
                   <CheckIcon className="w-4 h-4" /> {appliedPromo.code}
                 </p>
-                <p className="mt-1 text-xs text-emerald-600">
+                <p className="mt-1 text-xs text-primary-600">
                   -{formatAmount(appliedPromo.discountAmount)} FCFA appliqué
                 </p>
               </div>
               <button
                 type="button"
                 onClick={handleRemovePromo}
-                className="text-xs font-semibold text-emerald-700 hover:text-emerald-900"
+                className="text-xs font-semibold text-primary-700 hover:text-primary-900"
               >
                 Retirer
               </button>
@@ -388,7 +388,7 @@ function CheckoutModal({ plan, tier, onClose, onSuccess, workspaceId, userName, 
               <span>Sous-total</span>
               <span className="line-through">{formatAmount(plan.price)} FCFA</span>
             </div>
-            <div className="flex justify-between font-medium text-emerald-600">
+            <div className="flex justify-between font-medium text-primary-600">
               <span>Réduction ({appliedPromo.code})</span>
               <span>-{formatAmount(appliedPromo.discountAmount)} FCFA</span>
             </div>
@@ -461,13 +461,13 @@ function PlanCard({ tier, isAnnual, onCheckout, currentPlan, isActive, globalPro
   return (
     <div className={`relative flex flex-col h-full transition-all duration-200
       ${isPopular
-        ? 'rounded-2xl bg-gradient-to-b from-emerald-600 to-emerald-700 shadow-2xl shadow-emerald-500/30 ring-1 ring-inset ring-white/10'
+        ? 'rounded-2xl bg-gradient-to-b from-primary-600 to-primary-700 shadow-2xl shadow-primary-500/30 ring-1 ring-inset ring-white/10'
         : 'rounded-2xl bg-white border border-gray-200 hover:border-gray-400 hover:shadow-md'
       }`}>
 
       {/* Top banner */}
       <div className={`rounded-t-2xl px-6 py-2.5 text-center text-[11px] font-black tracking-widest uppercase
-        ${isPopular ? 'bg-emerald-500 text-white' : 'bg-gray-50 text-gray-400 border-b border-gray-200'}`}>
+        ${isPopular ? 'bg-primary-500 text-white' : 'bg-gray-50 text-gray-400 border-b border-gray-200'}`}>
         {isPopular ? '⭐  Le plus populaire' : tier.free ? 'Gratuit pour toujours' : `${isAnnual && duration.saving ? `-${duration.saving}% en annuel` : 'Mensuel ou annuel'}`}
       </div>
 
@@ -478,46 +478,46 @@ function PlanCard({ tier, isAnnual, onCheckout, currentPlan, isActive, globalPro
           <h3 className={`text-2xl font-black mb-1 ${isPopular ? 'text-white' : 'text-gray-900'}`}>
             {tier.name}
           </h3>
-          <p className={`text-sm ${isPopular ? 'text-emerald-100' : 'text-gray-500'}`}>{tier.tagline}</p>
+          <p className={`text-sm ${isPopular ? 'text-primary-100' : 'text-gray-500'}`}>{tier.tagline}</p>
         </div>
 
         {/* Price block */}
         <div className="mb-6">
           {tier.free ? (
             <>
-              <p className={`text-xs font-semibold mb-1 ${isPopular ? 'text-emerald-200' : 'text-gray-400'}`}>À partir de</p>
+              <p className={`text-xs font-semibold mb-1 ${isPopular ? 'text-primary-200' : 'text-gray-400'}`}>À partir de</p>
               <div className="flex items-end gap-1.5">
                 <span className={`text-5xl font-black leading-none ${isPopular ? 'text-white' : 'text-gray-900'}`}>0</span>
-                <span className={`text-base font-semibold mb-0.5 ${isPopular ? 'text-emerald-200' : 'text-gray-400'}`}>FCFA</span>
+                <span className={`text-base font-semibold mb-0.5 ${isPopular ? 'text-primary-200' : 'text-gray-400'}`}>FCFA</span>
               </div>
-              <p className={`text-xs mt-1.5 ${isPopular ? 'text-emerald-200' : 'text-gray-400'}`}>Sans carte bancaire requise</p>
+              <p className={`text-xs mt-1.5 ${isPopular ? 'text-primary-200' : 'text-gray-400'}`}>Sans carte bancaire requise</p>
             </>
           ) : (
             <>
-              <p className={`text-xs font-semibold mb-1 ${isPopular ? 'text-emerald-200' : 'text-gray-400'}`}>À partir de</p>
+              <p className={`text-xs font-semibold mb-1 ${isPopular ? 'text-primary-200' : 'text-gray-400'}`}>À partir de</p>
               <div className="flex items-end gap-2">
                 {originalPrice && (
-                  <span className={`text-xl font-bold line-through mb-0.5 ${isPopular ? 'text-emerald-300' : 'text-gray-300'}`}>
+                  <span className={`text-xl font-bold line-through mb-0.5 ${isPopular ? 'text-primary-300' : 'text-gray-300'}`}>
                     {formatAmount(isAnnual ? Math.round(originalPrice / duration.months) : originalPrice)}
                   </span>
                 )}
                 <span className={`text-5xl font-black leading-none ${isPopular ? 'text-white' : 'text-gray-900'}`}>
                   {formatAmount(displayPerMonth)}
                 </span>
-                <span className={`text-base font-semibold mb-0.5 ${isPopular ? 'text-emerald-200' : 'text-gray-400'}`}>FCFA/mois</span>
+                <span className={`text-base font-semibold mb-0.5 ${isPopular ? 'text-primary-200' : 'text-gray-400'}`}>FCFA/mois</span>
               </div>
               {isPromoApplied && (
-                <p className={`text-xs font-bold mt-1.5 ${isPopular ? 'text-white' : 'text-emerald-600'}`}>
+                <p className={`text-xs font-bold mt-1.5 ${isPopular ? 'text-white' : 'text-primary-600'}`}>
                   ✨ Code {globalPromoData.code} appliqué
                 </p>
               )}
               {isAnnual && duration.saving && !isPromoApplied && (
-                <p className={`text-xs font-semibold mt-1.5 ${isPopular ? 'text-emerald-200' : 'text-emerald-600'}`}>
+                <p className={`text-xs font-semibold mt-1.5 ${isPopular ? 'text-primary-200' : 'text-primary-600'}`}>
                   {formatAmount(displayPrice)} FCFA facturé annuellement
                 </p>
               )}
               {!isAnnual && !isPromoApplied && (
-                <p className={`text-xs mt-1.5 ${isPopular ? 'text-emerald-200' : 'text-gray-400'}`}>
+                <p className={`text-xs mt-1.5 ${isPopular ? 'text-primary-200' : 'text-gray-400'}`}>
                   Facturation mensuelle, sans engagement
                 </p>
               )}
@@ -542,7 +542,7 @@ function PlanCard({ tier, isAnnual, onCheckout, currentPlan, isActive, globalPro
               onClick={() => onCheckout(duration)}
               className={`w-full py-3.5 rounded-xl font-bold text-sm transition-all active:scale-[0.98]
                 ${isPopular
-                  ? 'bg-emerald-500 text-white hover:bg-emerald-400'
+                  ? 'bg-primary-500 text-white hover:bg-primary-400'
                   : 'bg-gray-900 text-white hover:bg-gray-700'}`}>
               Commencer avec {tier.name}
             </button>
@@ -554,14 +554,14 @@ function PlanCard({ tier, isAnnual, onCheckout, currentPlan, isActive, globalPro
 
         {/* Features */}
         <div>
-          <p className={`text-[10px] font-black uppercase tracking-widest mb-3 ${isPopular ? 'text-emerald-200' : 'text-gray-400'}`}>
+          <p className={`text-[10px] font-black uppercase tracking-widest mb-3 ${isPopular ? 'text-primary-200' : 'text-gray-400'}`}>
             Fonctionnalités clés
           </p>
           <ul className="space-y-3">
             {includedFeatures.map((f, i) => (
               <li key={i} className="flex items-start gap-2.5">
-                <CheckIcon className={`w-4 h-4 flex-shrink-0 mt-0.5 ${isPopular ? 'text-emerald-400' : 'text-emerald-500'}`} />
-                <span className={`text-[13px] leading-snug ${isPopular ? (f.highlight ? 'text-white font-semibold' : 'text-emerald-100') : (f.highlight ? 'text-gray-900 font-semibold' : 'text-gray-600')}`}>
+                <CheckIcon className={`w-4 h-4 flex-shrink-0 mt-0.5 ${isPopular ? 'text-primary-400' : 'text-primary-500'}`} />
+                <span className={`text-[13px] leading-snug ${isPopular ? (f.highlight ? 'text-white font-semibold' : 'text-primary-100') : (f.highlight ? 'text-gray-900 font-semibold' : 'text-gray-600')}`}>
                   {f.text}
                 </span>
               </li>
@@ -577,7 +577,7 @@ function PlanCard({ tier, isAnnual, onCheckout, currentPlan, isActive, globalPro
 // StatusBadge
 function StatusBadge({ status }) {
   const cfg = {
-    paid:      { label: 'Payé',       cls: 'bg-emerald-50 text-emerald-700' },
+    paid:      { label: 'Payé',       cls: 'bg-primary-50 text-primary-700' },
     pending:   { label: 'En attente', cls: 'bg-amber-50 text-amber-700' },
     failure:   { label: 'Échoué',     cls: 'bg-red-50 text-red-700' },
     'no paid': { label: 'Non payé',   cls: 'bg-gray-100 text-gray-600' },
@@ -762,9 +762,9 @@ export default function BillingPage() {
               </button>
             )}
             {isActivePaid && (
-              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200">
-                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="text-[11px] font-bold text-emerald-700">{planTiers.find(t => t.id === currentPlan)?.name || 'Actif'}</span>
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary-50 border border-primary-200">
+                <div className="w-2 h-2 rounded-full bg-primary-500 animate-pulse" />
+                <span className="text-[11px] font-bold text-primary-700">{planTiers.find(t => t.id === currentPlan)?.name || 'Actif'}</span>
               </div>
             )}
           </div>
@@ -849,7 +849,7 @@ export default function BillingPage() {
                   <span className={`absolute top-0.5 left-0.5 w-6 h-6 bg-white rounded-full shadow-md transition-transform ${isAnnual ? 'translate-x-7' : ''}`} />
                 </button>
                 <span className={`text-sm font-semibold transition ${isAnnual ? 'text-gray-900' : 'text-gray-400'}`}>Annuel</span>
-                {isAnnual && <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full">Jusqu'à -25%</span>}
+                {isAnnual && <span className="text-xs font-bold text-primary-600 bg-primary-50 px-2.5 py-1 rounded-full">Jusqu'à -25%</span>}
               </div>
 
               {/* Promo code input (global) */}
@@ -879,7 +879,7 @@ export default function BillingPage() {
                   )}
                 </form>
                 {globalPromoError && <p className="text-red-500 text-[11px] font-bold mt-2">{globalPromoError}</p>}
-                {globalPromoData && <p className="text-emerald-600 text-[11px] font-bold mt-2">Code {globalPromoData.code} validé !</p>}
+                {globalPromoData && <p className="text-primary-600 text-[11px] font-bold mt-2">Code {globalPromoData.code} validé !</p>}
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-8">
@@ -904,7 +904,7 @@ export default function BillingPage() {
                 {activeTier.features.map((f, i) => (
                   <div key={i} className={`flex items-center gap-2.5 text-[13px] ${f.included ? 'text-gray-700' : 'text-gray-300'}`}>
                     {f.included
-                      ? <div className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0"><CheckIcon className="w-3 h-3 text-emerald-600" /></div>
+                      ? <div className="w-5 h-5 rounded-full bg-primary-100 flex items-center justify-center flex-shrink-0"><CheckIcon className="w-3 h-3 text-primary-600" /></div>
                       : <div className="w-5 h-5 rounded-full bg-gray-50 flex items-center justify-center flex-shrink-0"><XIcon className="w-3 h-3 text-gray-300" /></div>
                     }
                     <span className={f.highlight ? 'font-semibold' : ''}>{f.text}</span>
@@ -954,12 +954,12 @@ export default function BillingPage() {
 
               {/* Plan actuel banner (connecté + abonné) */}
               {!loading && isActivePaid && (
-                <div className="inline-flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-full px-4 py-1.5 mb-6">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                  <span className="text-xs font-bold text-emerald-700">
+                <div className="inline-flex items-center gap-2 bg-primary-50 border border-primary-200 rounded-full px-4 py-1.5 mb-6">
+                  <span className="w-2 h-2 rounded-full bg-primary-500 animate-pulse" />
+                  <span className="text-xs font-bold text-primary-700">
                     Plan actuel : {planTiers.find(t => t.id === currentPlan)?.name || currentPlan}
                   </span>
-                  <span className="text-xs text-emerald-600 ml-1">— Actif</span>
+                  <span className="text-xs text-primary-600 ml-1">— Actif</span>
                 </div>
               )}
 
@@ -973,11 +973,11 @@ export default function BillingPage() {
 
               {/* Activer essai */}
               {!loading && !isActivePaid && !isTrial && !trialUsed && (
-                <div className="inline-flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-full px-4 py-1.5 mb-6">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                  <span className="text-xs font-bold text-emerald-700">Essai gratuit 7 jours disponible</span>
+                <div className="inline-flex items-center gap-2 bg-primary-50 border border-primary-200 rounded-full px-4 py-1.5 mb-6">
+                  <span className="w-2 h-2 rounded-full bg-primary-500 animate-pulse" />
+                  <span className="text-xs font-bold text-primary-700">Essai gratuit 7 jours disponible</span>
                   <button onClick={handleActivateTrial} disabled={trialLoading}
-                    className="text-xs font-black text-emerald-600 hover:text-emerald-800 transition disabled:opacity-50 ml-1">
+                    className="text-xs font-black text-primary-600 hover:text-primary-800 transition disabled:opacity-50 ml-1">
                     {trialLoading ? '…' : 'Activer →'}
                   </button>
                 </div>
@@ -1001,7 +1001,7 @@ export default function BillingPage() {
                   onClick={() => setIsAnnual(true)}
                   className={`px-5 py-2 rounded-full text-sm font-bold transition-all flex items-center gap-2 ${isAnnual ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
                   Annuel
-                  <span className="text-[10px] font-black bg-emerald-500 text-white px-1.5 py-0.5 rounded-full">-25%</span>
+                  <span className="text-[10px] font-black bg-primary-500 text-white px-1.5 py-0.5 rounded-full">-25%</span>
                 </button>
               </div>
 
@@ -1032,7 +1032,7 @@ export default function BillingPage() {
                   )}
                 </form>
                 {globalPromoError && <p className="text-red-500 text-[11px] font-bold mt-2">{globalPromoError}</p>}
-                {globalPromoData && <p className="text-emerald-600 text-[11px] font-bold mt-2">✓ Code {globalPromoData.code} appliqué</p>}
+                {globalPromoData && <p className="text-primary-600 text-[11px] font-bold mt-2">✓ Code {globalPromoData.code} appliqué</p>}
               </div>
             </div>
           </div>
@@ -1087,7 +1087,7 @@ export default function BillingPage() {
                         <td className="px-6 py-3.5 text-gray-700 font-medium">{row.label}</td>
                         {row.values.map((val, j) => (
                           <td key={j} className="px-4 py-3.5 text-center">
-                            {val === true ? <CheckIcon className="w-5 h-5 text-emerald-500 mx-auto" />
+                            {val === true ? <CheckIcon className="w-5 h-5 text-primary-500 mx-auto" />
                               : val === false ? <span className="text-gray-300">—</span>
                               : <span className="text-gray-700 font-semibold text-sm">{val}</span>}
                           </td>
@@ -1103,7 +1103,7 @@ export default function BillingPage() {
             <div className="mt-20 grid sm:grid-cols-4 gap-6">
               {[
                 { icon: <Zap className="w-7 h-7 text-amber-500" />, title: 'Activation instantanée', desc: 'Votre plan est actif dès confirmation du paiement Mobile Money.' },
-                { icon: <Shield className="w-7 h-7 text-emerald-500" />, title: 'Paiement 100% sécurisé', desc: 'Orange Money, MTN MoMo, Wave, Flooz via MoneyFusion.' },
+                { icon: <Shield className="w-7 h-7 text-primary-500" />, title: 'Paiement 100% sécurisé', desc: 'Orange Money, MTN MoMo, Wave, Flooz via MoneyFusion.' },
                 { icon: <RefreshCw className="w-7 h-7 text-blue-500" />, title: 'Sans engagement', desc: 'Changez ou annulez votre plan à tout moment, sans frais cachés.' },
                 { icon: <MessageCircle className="w-7 h-7 text-violet-500" />, title: 'Support réactif', desc: 'Notre équipe répond en moins de 24h à toutes vos questions.' },
               ].map(item => (
@@ -1159,7 +1159,7 @@ export default function BillingPage() {
       <footer className="border-t border-gray-200 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 flex flex-wrap items-center justify-between gap-4 text-xs text-gray-400">
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-md bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center">
+            <div className="w-6 h-6 rounded-md bg-gradient-to-br from-primary-500 to-teal-600 flex items-center justify-center">
               <span className="text-white font-black text-[10px]">S</span>
             </div>
             <span className="font-semibold text-gray-500">Scalor</span>

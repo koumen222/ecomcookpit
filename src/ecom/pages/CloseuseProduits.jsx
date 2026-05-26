@@ -63,7 +63,7 @@ const CloseuseProduits = () => {
   const getStatusColor = (status) => {
     const colors = {
       test: 'bg-yellow-100 text-yellow-800',
-      stable: 'bg-emerald-100 text-emerald-800',
+      stable: 'bg-primary-100 text-primary-800',
       winner: 'bg-green-100 text-green-800'
     };
     return colors[status] || 'bg-gray-100 text-gray-800';
@@ -72,7 +72,7 @@ const CloseuseProduits = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
       </div>
     );
   }
@@ -94,8 +94,8 @@ const CloseuseProduits = () => {
 
       {/* Affichage des sources affectées */}
       {myAssignments.productAssignments && myAssignments.productAssignments.length > 0 && (
-        <div className="mb-6 bg-emerald-50 rounded-lg p-4">
-          <h3 className="text-sm font-semibold text-emerald-900 mb-2">📦 Vos affectations par source</h3>
+        <div className="mb-6 bg-primary-50 rounded-lg p-4">
+          <h3 className="text-sm font-semibold text-primary-900 mb-2">📦 Vos affectations par source</h3>
           <div className="space-y-2">
             {myAssignments.productAssignments.map((pa, paIdx) => {
               const totalProducts = (pa.productIds?.length || 0) + (pa.sheetProductNames?.length || 0);
@@ -184,7 +184,7 @@ const CloseuseProduits = () => {
                 <div className="pt-4 border-t border-gray-200">
                   <Link
                     to={`/ecom/products/${product._id}`}
-                    className="block w-full text-center px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
+                    className="block w-full text-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
                   >
                     Voir les détails
                   </Link>

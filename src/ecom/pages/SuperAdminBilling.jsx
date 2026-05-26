@@ -63,7 +63,7 @@ function MiniBar({ data, height = 60, color = '#059669' }) {
 
 function KpiCard({ icon: Icon, label, value, sub, accent = 'emerald', trend }) {
   const styles = {
-    emerald: { ring: 'ring-emerald-100', icon: 'bg-emerald-100 text-emerald-600', val: 'text-emerald-700' },
+    emerald: { ring: 'ring-primary-100', icon: 'bg-primary-100 text-primary-600', val: 'text-primary-700' },
     blue:    { ring: 'ring-blue-100',    icon: 'bg-blue-100 text-blue-600',       val: 'text-blue-700' },
     amber:   { ring: 'ring-amber-100',   icon: 'bg-amber-100 text-amber-600',    val: 'text-amber-700' },
     red:     { ring: 'ring-red-100',     icon: 'bg-red-100 text-red-600',         val: 'text-red-700' },
@@ -77,7 +77,7 @@ function KpiCard({ icon: Icon, label, value, sub, accent = 'emerald', trend }) {
           <Icon className="w-5 h-5" />
         </div>
         {trend && (
-          <span className={`text-[11px] font-bold flex items-center gap-0.5 ${trend.up ? 'text-emerald-600' : 'text-red-500'}`}>
+          <span className={`text-[11px] font-bold flex items-center gap-0.5 ${trend.up ? 'text-primary-600' : 'text-red-500'}`}>
             {trend.up ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
             {trend.label}
           </span>
@@ -94,7 +94,7 @@ function KpiCard({ icon: Icon, label, value, sub, accent = 'emerald', trend }) {
 
 function StatusBadge({ status }) {
   const map = {
-    paid:    { label: 'Payé',     cls: 'bg-emerald-100 text-emerald-700', icon: CheckCircle2 },
+    paid:    { label: 'Payé',     cls: 'bg-primary-100 text-primary-700', icon: CheckCircle2 },
     pending: { label: 'En attente', cls: 'bg-amber-100 text-amber-700',   icon: Clock },
     failure: { label: 'Echoué',   cls: 'bg-red-100 text-red-700',         icon: XCircle },
     'no paid': { label: 'Non payé', cls: 'bg-slate-100 text-slate-600',   icon: XCircle },
@@ -111,7 +111,7 @@ function StatusBadge({ status }) {
 function PlanBadge({ plan }) {
   const map = {
     free:    { label: 'Gratuit',       cls: 'bg-slate-100 text-slate-600' },
-    starter: { label: 'Scalor',         cls: 'bg-emerald-100 text-emerald-700' },
+    starter: { label: 'Scalor',         cls: 'bg-primary-100 text-primary-700' },
     pro:     { label: 'Scalor + IA',    cls: 'bg-blue-100 text-blue-700' },
     ultra:   { label: 'Scalor IA Pro',  cls: 'bg-violet-100 text-violet-700' },
   };
@@ -194,7 +194,7 @@ function buildDefaultEmailDraft(templateKey, workspaceName, ownerName, hoursLeft
 
 // ─── Section header ───────────────────────────────────────────────────────────
 
-function SectionHead({ icon: Icon, title, subtitle, color = 'from-emerald-600 to-teal-600', children }) {
+function SectionHead({ icon: Icon, title, subtitle, color = 'from-primary-600 to-teal-600', children }) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
       <div className="flex items-center gap-3">
@@ -407,7 +407,7 @@ const SuperAdminBilling = () => {
     return (
       <div className="flex items-center justify-center h-96">
         <div className="flex flex-col items-center gap-4">
-          <Loader2 className="w-12 h-12 text-emerald-700 animate-spin" />
+          <Loader2 className="w-12 h-12 text-primary-700 animate-spin" />
           <p className="text-sm text-slate-600 font-semibold">Chargement des donnees facturation...</p>
         </div>
       </div>
@@ -420,7 +420,7 @@ const SuperAdminBilling = () => {
         <div className="text-center space-y-3">
           <AlertCircle className="w-12 h-12 text-red-400 mx-auto" />
           <p className="text-sm text-slate-600">{error || 'Impossible de charger les donnees'}</p>
-          <button onClick={() => fetchData()} className="text-sm font-bold text-emerald-600 hover:underline">Reessayer</button>
+          <button onClick={() => fetchData()} className="text-sm font-bold text-primary-600 hover:underline">Reessayer</button>
         </div>
       </div>
     );
@@ -517,7 +517,7 @@ const SuperAdminBilling = () => {
               placeholder="Rechercher par nom, email, telephone, workspace..."
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 bg-white ring-2 ring-slate-200 rounded-xl text-sm focus:ring-emerald-300 focus:outline-none transition-all"
+              className="w-full pl-10 pr-4 py-2.5 bg-white ring-2 ring-slate-200 rounded-xl text-sm focus:ring-primary-300 focus:outline-none transition-all"
             />
           </div>
         )}
@@ -530,7 +530,7 @@ const SuperAdminBilling = () => {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Revenue by month */}
               <div className="lg:col-span-2 bg-white rounded-2xl ring-2 ring-slate-100 p-6">
-                <SectionHead icon={BarChart3} title="Revenu mensuel" subtitle="12 derniers mois" color="from-emerald-600 to-teal-600" />
+                <SectionHead icon={BarChart3} title="Revenu mensuel" subtitle="12 derniers mois" color="from-primary-600 to-teal-600" />
                 <MiniBar data={revenue.byMonth || []} height={55} />
               </div>
 
@@ -619,7 +619,7 @@ const SuperAdminBilling = () => {
               </div>
 
               <div className="bg-white rounded-2xl ring-2 ring-slate-100 p-6">
-                <SectionHead icon={Phone} title="Methodes encaissees" subtitle="Paiements confirmes par canal de collecte" color="from-emerald-600 to-teal-600" />
+                <SectionHead icon={Phone} title="Methodes encaissees" subtitle="Paiements confirmes par canal de collecte" color="from-primary-600 to-teal-600" />
                 <div className="space-y-4 mt-4">
                   {paymentMethods.map(method => (
                     <div key={method._id} className="flex items-center justify-between gap-4">
@@ -627,7 +627,7 @@ const SuperAdminBilling = () => {
                         <p className="text-sm font-bold text-slate-800">{getPaymentMethodLabel(method._id)}</p>
                         <p className="text-xs text-slate-400">{method.count} transaction{method.count > 1 ? 's' : ''}</p>
                       </div>
-                      <span className="text-lg font-black text-emerald-700">{fmtMoney(method.total)} F</span>
+                      <span className="text-lg font-black text-primary-700">{fmtMoney(method.total)} F</span>
                     </div>
                   ))}
                   {paymentMethods.length === 0 && (
@@ -639,8 +639,8 @@ const SuperAdminBilling = () => {
 
             {/* Notification success toast */}
             {notifSuccess && (
-              <div className="flex items-center gap-3 p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-sm text-emerald-800 shadow-sm">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+              <div className="flex items-center gap-3 p-3 bg-primary-50 border border-primary-200 rounded-xl text-sm text-primary-800 shadow-sm">
+                <CheckCircle2 className="w-4 h-4 text-primary-600 flex-shrink-0" />
                 {notifSuccess}
               </div>
             )}
@@ -731,7 +731,7 @@ const SuperAdminBilling = () => {
                         </div>
                         <div className="w-full h-2 rounded-full bg-slate-100 mt-1">
                           <div
-                            className={`h-full rounded-full transition-all ${p._id === 'ultra' ? 'bg-violet-500' : p._id === 'generation' ? 'bg-emerald-500' : 'bg-blue-500'}`}
+                            className={`h-full rounded-full transition-all ${p._id === 'ultra' ? 'bg-violet-500' : p._id === 'generation' ? 'bg-primary-500' : 'bg-blue-500'}`}
                             style={{ width: `${revenue.total > 0 ? (p.total / revenue.total) * 100 : 0}%` }}
                           />
                         </div>
@@ -939,7 +939,7 @@ const SuperAdminBilling = () => {
                               <span className="text-slate-600">{fmtDate(ws.planExpiresAt)}</span>
                             </td>
                             <td className="px-4 py-3">
-                              <span className={`text-sm font-black ${days <= 3 ? 'text-red-600' : days <= 7 ? 'text-orange-600' : 'text-emerald-600'}`}>
+                              <span className={`text-sm font-black ${days <= 3 ? 'text-red-600' : days <= 7 ? 'text-orange-600' : 'text-primary-600'}`}>
                                 {days}j
                               </span>
                               {days <= 7 && (
@@ -1000,8 +1000,8 @@ const SuperAdminBilling = () => {
 
             {/* Notification success toast */}
             {notifSuccess && (
-              <div className="flex items-center gap-3 p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-sm text-emerald-800 shadow-sm">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+              <div className="flex items-center gap-3 p-3 bg-primary-50 border border-primary-200 rounded-xl text-sm text-primary-800 shadow-sm">
+                <CheckCircle2 className="w-4 h-4 text-primary-600 flex-shrink-0" />
                 {notifSuccess}
               </div>
             )}
@@ -1123,7 +1123,7 @@ const SuperAdminBilling = () => {
                             <span>Fin: {fmtDate(ws.trialEndsAt)}</span>
                           </div>
                           {ws.trialExpiredNotifiedAt && (
-                            <div className="flex items-center gap-1 text-emerald-600">
+                            <div className="flex items-center gap-1 text-primary-600">
                               <CheckCircle2 className="w-3 h-3" />
                               Notifié le {fmtDatetime(ws.trialExpiredNotifiedAt)}
                             </div>
@@ -1238,7 +1238,7 @@ const SuperAdminBilling = () => {
                           <td className="px-4 py-3"><PlanBadge plan={ws.plan} /></td>
                           <td className="px-4 py-3">
                             {isActive && (
-                              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-700">
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-primary-100 text-primary-700">
                                 <CheckCircle2 className="w-3 h-3" />Actif
                               </span>
                             )}
@@ -1263,7 +1263,7 @@ const SuperAdminBilling = () => {
                               <div>
                                 <span className="text-slate-600 text-xs">{fmtDate(ws.planExpiresAt)}</span>
                                 {days != null && (
-                                  <span className={`ml-2 text-[11px] font-bold ${isExpired ? 'text-red-500' : days <= 7 ? 'text-orange-500' : 'text-emerald-500'}`}>
+                                  <span className={`ml-2 text-[11px] font-bold ${isExpired ? 'text-red-500' : days <= 7 ? 'text-orange-500' : 'text-primary-500'}`}>
                                     {isExpired ? `Expire il y a ${Math.abs(days)}j` : `${days}j`}
                                   </span>
                                 )}
@@ -1320,7 +1320,7 @@ const SuperAdminBilling = () => {
                   type="text"
                   value={emailComposer.subject}
                   onChange={(e) => setEmailComposer((prev) => ({ ...prev, subject: e.target.value }))}
-                  className="w-full px-4 py-3 bg-white ring-2 ring-slate-200 rounded-xl text-sm focus:ring-emerald-300 focus:outline-none transition-all"
+                  className="w-full px-4 py-3 bg-white ring-2 ring-slate-200 rounded-xl text-sm focus:ring-primary-300 focus:outline-none transition-all"
                   placeholder="Sujet de l'email"
                 />
               </div>
@@ -1330,7 +1330,7 @@ const SuperAdminBilling = () => {
                 <textarea
                   value={emailComposer.message}
                   onChange={(e) => setEmailComposer((prev) => ({ ...prev, message: e.target.value }))}
-                  className="w-full min-h-[260px] px-4 py-3 bg-white ring-2 ring-slate-200 rounded-xl text-sm focus:ring-emerald-300 focus:outline-none transition-all resize-y"
+                  className="w-full min-h-[260px] px-4 py-3 bg-white ring-2 ring-slate-200 rounded-xl text-sm focus:ring-primary-300 focus:outline-none transition-all resize-y"
                   placeholder="Tapez votre email ici, sans HTML"
                 />
                 <p className="text-xs text-slate-400 mt-2">Saisissez un texte simple. Scalor mettra automatiquement le message en forme dans l’email.</p>
@@ -1347,7 +1347,7 @@ const SuperAdminBilling = () => {
               <button
                 onClick={sendComposedEmail}
                 disabled={sendingNotif === `${emailComposer.workspaceId}-email`}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 text-white text-sm font-bold hover:bg-emerald-700 transition-colors disabled:opacity-50"
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary-600 text-white text-sm font-bold hover:bg-primary-700 transition-colors disabled:opacity-50"
               >
                 {sendingNotif === `${emailComposer.workspaceId}-email` ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                 Envoyer l’email

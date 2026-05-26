@@ -522,11 +522,11 @@ const ThemeCard = ({ theme, selected, onSelect }) => {
 
       {/* Name */}
       <div className="mt-1.5 px-0.5">
-        <span className={`block text-[11px] font-semibold leading-tight truncate ${selected ? 'text-emerald-700' : 'text-gray-700'}`}>
+        <span className={`block text-[11px] font-semibold leading-tight truncate ${selected ? 'text-primary-700' : 'text-gray-700'}`}>
           {theme.name}
         </span>
         {selected && (
-          <span className="text-[9px] font-bold text-emerald-500">✓ Actif</span>
+          <span className="text-[9px] font-bold text-primary-500">✓ Actif</span>
         )}
       </div>
     </button>
@@ -561,7 +561,7 @@ const FormThemePicker = ({ config, onConfigChange }) => {
         <button
           type="button"
           onClick={() => handleSelect('classic')}
-          className="text-[10px] text-gray-400 hover:text-emerald-600 transition-colors font-medium"
+          className="text-[10px] text-gray-400 hover:text-primary-600 transition-colors font-medium"
         >
           Restaurer par défaut
         </button>

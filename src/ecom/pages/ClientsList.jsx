@@ -49,7 +49,7 @@ const IconFillLoader = ({ backgroundClassName = 'bg-gray-50' }) => {
 const statusLabels = { prospect: 'Prospect', confirmed: 'Confirmé', delivered: 'Livré', returned: 'Retour', blocked: 'Bloqué' };
 const statusColors = {
   prospect: 'bg-yellow-100 text-yellow-800',
-  confirmed: 'bg-emerald-100 text-emerald-800',
+  confirmed: 'bg-primary-100 text-primary-800',
   delivered: 'bg-green-100 text-green-800',
   returned: 'bg-orange-100 text-orange-800',
   blocked: 'bg-red-100 text-red-800'
@@ -78,8 +78,8 @@ const ClientsList = () => {
 
   const availableSyncStatuses = [
     { key: 'delivered', label: 'Livré', color: 'bg-green-500', clientStatus: 'Client' },
-    { key: 'confirmed', label: 'Confirmé', color: 'bg-emerald-600', clientStatus: 'Confirmé' },
-    { key: 'shipped', label: 'Expédié', color: 'bg-emerald-600', clientStatus: 'Expédié' },
+    { key: 'confirmed', label: 'Confirmé', color: 'bg-primary-600', clientStatus: 'Confirmé' },
+    { key: 'shipped', label: 'Expédié', color: 'bg-primary-600', clientStatus: 'Expédié' },
     { key: 'pending', label: 'En attente', color: 'bg-yellow-500', clientStatus: 'En attente' },
     { key: 'returned', label: 'Retour', color: 'bg-orange-500', clientStatus: 'Retour' },
     { key: 'cancelled', label: 'Annulé', color: 'bg-red-500', clientStatus: 'Annulé' },
@@ -145,7 +145,7 @@ const ClientsList = () => {
   const uniqueTags = useMemo(() => [...new Set(clients.flatMap(c => c.tags || []).filter(Boolean))].sort(), [clients]);
   const activeFilterChips = [
     search ? { key: 'search', label: `Recherche: ${search}`, clear: () => setSearch(''), tone: 'bg-slate-100 text-slate-700' } : null,
-    filterStatus ? { key: 'status', label: `Statut: ${statusLabels[filterStatus] || filterStatus}`, clear: () => setFilterStatus(''), tone: 'bg-emerald-50 text-emerald-700' } : null,
+    filterStatus ? { key: 'status', label: `Statut: ${statusLabels[filterStatus] || filterStatus}`, clear: () => setFilterStatus(''), tone: 'bg-primary-50 text-primary-700' } : null,
     filterSource ? { key: 'source', label: `Source: ${sourceLabels[filterSource] || filterSource}`, clear: () => setFilterSource(''), tone: 'bg-cyan-50 text-cyan-700' } : null,
     filterCity ? { key: 'city', label: `Ville: ${filterCity}`, clear: () => setFilterCity(''), tone: 'bg-orange-50 text-orange-700' } : null,
     filterProduct ? { key: 'product', label: `Produit: ${filterProduct}`, clear: () => setFilterProduct(''), tone: 'bg-green-50 text-green-700' } : null,
@@ -202,7 +202,7 @@ const ClientsList = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
       </div>
     );
   }
@@ -221,9 +221,9 @@ const ClientsList = () => {
       label: 'Confirmés',
       value: stats.confirmed || 0,
       tone: 'emerald',
-      accentClassName: 'from-emerald-400 to-emerald-500',
-      valueClassName: 'text-emerald-700',
-      chipClassName: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+      accentClassName: 'from-primary-400 to-primary-500',
+      valueClassName: 'text-primary-700',
+      chipClassName: 'bg-primary-50 text-primary-700 border-primary-200',
       description: 'Commandes validées'
     },
     {
@@ -261,12 +261,12 @@ const ClientsList = () => {
       {error && <div className="mb-4 p-3 bg-red-50 text-red-800 rounded-lg text-sm border border-red-200">{error}</div>}
 
       {/* Header */}
-      <div className="relative mb-5 overflow-hidden rounded-[30px] border border-emerald-100 bg-white p-4 shadow-sm shadow-emerald-100/60 sm:mb-6 sm:p-6 lg:p-7">
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-gradient-to-r from-emerald-50 via-white to-white" />
+      <div className="relative mb-5 overflow-hidden rounded-[30px] border border-primary-100 bg-white p-4 shadow-sm shadow-primary-100/60 sm:mb-6 sm:p-6 lg:p-7">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-gradient-to-r from-primary-50 via-white to-white" />
         <div className="relative flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-700">
+              <span className="inline-flex items-center rounded-full border border-primary-200 bg-primary-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-primary-700">
                 Base clients
               </span>
               <span className="inline-flex items-center rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-500">
@@ -283,7 +283,7 @@ const ClientsList = () => {
               <button
                 onClick={() => setShowSyncModal(true)}
                 disabled={syncing}
-                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-emerald-200 bg-white px-4 py-3 text-sm font-semibold text-emerald-700 shadow-sm shadow-emerald-100 transition hover:border-emerald-300 hover:bg-emerald-50 disabled:opacity-50"
+                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-primary-200 bg-white px-4 py-3 text-sm font-semibold text-primary-700 shadow-sm shadow-primary-100 transition hover:border-primary-300 hover:bg-primary-50 disabled:opacity-50"
                 title="Synchroniser les clients depuis les commandes"
               >
                 {syncing ? (
@@ -316,7 +316,7 @@ const ClientsList = () => {
             )}
             <Link
               to="/ecom/clients/new"
-              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white shadow-sm shadow-emerald-200 transition hover:bg-emerald-700"
+              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-primary-600 px-4 py-3 text-sm font-semibold text-white shadow-sm shadow-primary-200 transition hover:bg-primary-700"
             >
               <span className="text-base leading-none">+</span>
               Client
@@ -371,7 +371,7 @@ const ClientsList = () => {
                     placeholder="Nom, téléphone, email, ville, produit..."
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
-                    className="w-full rounded-2xl border border-gray-200 bg-gray-50 py-3 pl-10 pr-3 text-sm text-gray-900 outline-none transition focus:border-emerald-300 focus:bg-white focus:ring-2 focus:ring-emerald-100"
+                    className="w-full rounded-2xl border border-gray-200 bg-gray-50 py-3 pl-10 pr-3 text-sm text-gray-900 outline-none transition focus:border-primary-300 focus:bg-white focus:ring-2 focus:ring-primary-100"
                   />
                 </div>
               </label>
@@ -379,7 +379,7 @@ const ClientsList = () => {
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
                 <label className="block">
                   <span className="mb-1.5 block text-xs font-medium text-gray-500">Statut</span>
-                  <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-3 py-3 text-sm outline-none transition focus:border-emerald-300 focus:bg-white focus:ring-2 focus:ring-emerald-100">
+                  <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-3 py-3 text-sm outline-none transition focus:border-primary-300 focus:bg-white focus:ring-2 focus:ring-primary-100">
                     <option value="">Tous les statuts</option>
                     <option value="prospect">Prospect</option>
                     <option value="confirmed">Confirmé</option>
@@ -390,7 +390,7 @@ const ClientsList = () => {
                 </label>
                 <label className="block">
                   <span className="mb-1.5 block text-xs font-medium text-gray-500">Source</span>
-                  <select value={filterSource} onChange={(e) => setFilterSource(e.target.value)} className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-3 py-3 text-sm outline-none transition focus:border-emerald-300 focus:bg-white focus:ring-2 focus:ring-emerald-100">
+                  <select value={filterSource} onChange={(e) => setFilterSource(e.target.value)} className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-3 py-3 text-sm outline-none transition focus:border-primary-300 focus:bg-white focus:ring-2 focus:ring-primary-100">
                     <option value="">Toutes les sources</option>
                     <option value="facebook">Facebook</option>
                     <option value="instagram">Instagram</option>
@@ -403,12 +403,12 @@ const ClientsList = () => {
                 </label>
               </div>
 
-              <button onClick={() => setShowFilters(!showFilters)} className={`inline-flex w-full items-center justify-between rounded-2xl border px-3.5 py-3 text-sm font-semibold transition ${showFilters || activeFiltersCount > 0 ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'}`}>
+              <button onClick={() => setShowFilters(!showFilters)} className={`inline-flex w-full items-center justify-between rounded-2xl border px-3.5 py-3 text-sm font-semibold transition ${showFilters || activeFiltersCount > 0 ? 'border-primary-200 bg-primary-50 text-primary-700' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'}`}>
                 <span className="inline-flex items-center gap-2">
                   <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/></svg>
                   Filtres avancés
                 </span>
-                <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-white px-2 text-[11px] font-bold text-emerald-700">
+                <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-white px-2 text-[11px] font-bold text-primary-700">
                   {activeFiltersCount}
                 </span>
               </button>
@@ -418,21 +418,21 @@ const ClientsList = () => {
                   <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
                     <label className="block xl:col-span-2">
                       <span className="mb-1.5 block text-xs font-medium text-gray-500">Ville</span>
-                      <select value={filterCity} onChange={e => setFilterCity(e.target.value)} className="w-full rounded-2xl border border-gray-200 bg-white px-3 py-3 text-sm outline-none transition focus:border-emerald-300 focus:ring-2 focus:ring-emerald-100">
+                      <select value={filterCity} onChange={e => setFilterCity(e.target.value)} className="w-full rounded-2xl border border-gray-200 bg-white px-3 py-3 text-sm outline-none transition focus:border-primary-300 focus:ring-2 focus:ring-primary-100">
                         <option value="">Toutes les villes</option>
                         {uniqueCities.map(c => <option key={c} value={c}>{c}</option>)}
                       </select>
                     </label>
                     <label className="block xl:col-span-2">
                       <span className="mb-1.5 block text-xs font-medium text-gray-500">Produit commandé</span>
-                      <select value={filterProduct} onChange={e => setFilterProduct(e.target.value)} className="w-full rounded-2xl border border-gray-200 bg-white px-3 py-3 text-sm outline-none transition focus:border-emerald-300 focus:ring-2 focus:ring-emerald-100">
+                      <select value={filterProduct} onChange={e => setFilterProduct(e.target.value)} className="w-full rounded-2xl border border-gray-200 bg-white px-3 py-3 text-sm outline-none transition focus:border-primary-300 focus:ring-2 focus:ring-primary-100">
                         <option value="">Tous les produits</option>
                         {uniqueProducts.map(p => <option key={p} value={p}>{p}</option>)}
                       </select>
                     </label>
                     <label className="block xl:col-span-2">
                       <span className="mb-1.5 block text-xs font-medium text-gray-500">Tag</span>
-                      <select value={filterTag} onChange={e => setFilterTag(e.target.value)} className="w-full rounded-2xl border border-gray-200 bg-white px-3 py-3 text-sm outline-none transition focus:border-emerald-300 focus:ring-2 focus:ring-emerald-100">
+                      <select value={filterTag} onChange={e => setFilterTag(e.target.value)} className="w-full rounded-2xl border border-gray-200 bg-white px-3 py-3 text-sm outline-none transition focus:border-primary-300 focus:ring-2 focus:ring-primary-100">
                         <option value="">Tous les tags</option>
                         {uniqueTags.map(t => <option key={t} value={t}>{t}</option>)}
                       </select>
@@ -463,9 +463,9 @@ const ClientsList = () => {
           <div className="rounded-[24px] border border-gray-100 bg-white p-4 shadow-sm">
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400">Vue actuelle</p>
             <div className="mt-3 grid grid-cols-2 gap-3">
-              <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-3">
-                <p className="text-xs font-medium text-emerald-700">Profils affichés</p>
-                <p className="mt-1 text-2xl font-bold text-emerald-900">{clients.length}</p>
+              <div className="rounded-2xl border border-primary-100 bg-primary-50 p-3">
+                <p className="text-xs font-medium text-primary-700">Profils affichés</p>
+                <p className="mt-1 text-2xl font-bold text-primary-900">{clients.length}</p>
               </div>
               <div className="rounded-2xl border border-gray-100 bg-gray-50 p-3">
                 <p className="text-xs font-medium text-gray-500">Filtres actifs</p>
@@ -489,7 +489,7 @@ const ClientsList = () => {
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {filterStatus && (
-                    <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                    <span className="inline-flex items-center rounded-full border border-primary-200 bg-primary-50 px-3 py-1 text-xs font-semibold text-primary-700">
                       {statusLabels[filterStatus] || filterStatus}
                     </span>
                   )}
@@ -524,7 +524,7 @@ const ClientsList = () => {
                       Réinitialiser les filtres
                     </button>
                   )}
-                  <Link to="/ecom/clients/new" className="rounded-2xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700">
+                  <Link to="/ecom/clients/new" className="rounded-2xl bg-primary-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary-700">
                     Ajouter un client
                   </Link>
                 </div>
@@ -551,12 +551,12 @@ const ClientsList = () => {
                         <div className="grid gap-3 lg:grid-cols-[minmax(0,2fr)_minmax(0,1.35fr)_minmax(0,1.1fr)_minmax(0,1.45fr)_auto] lg:items-center lg:gap-4">
                           <div className="min-w-0">
                             <div className="flex items-start gap-3">
-                              <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl bg-emerald-100 text-sm font-bold text-emerald-700">
+                              <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl bg-primary-100 text-sm font-bold text-primary-700">
                                 {c.firstName?.charAt(0).toUpperCase()}{c.lastName?.charAt(0).toUpperCase() || ''}
                               </div>
                               <div className="min-w-0 flex-1">
                                 <div className="flex flex-wrap items-center gap-2">
-                                  <Link to={`/ecom/clients/${c._id}/edit`} className="truncate text-sm font-semibold text-gray-900 transition hover:text-emerald-600">
+                                  <Link to={`/ecom/clients/${c._id}/edit`} className="truncate text-sm font-semibold text-gray-900 transition hover:text-primary-600">
                                     {c.firstName} {c.lastName}
                                   </Link>
                                   <span className={`rounded-full px-2 py-1 text-[10px] font-semibold ${statusColors[c.status]}`}>
@@ -594,10 +594,10 @@ const ClientsList = () => {
                             {productPreview.length > 0 || tagPreview.length > 0 ? (
                               <div className="flex flex-wrap gap-1.5">
                                 {productPreview.map(p => (
-                                  <span key={p} className="rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-semibold text-emerald-700">{p}</span>
+                                  <span key={p} className="rounded-full bg-primary-50 px-2 py-1 text-[10px] font-semibold text-primary-700">{p}</span>
                                 ))}
                                 {extraProducts > 0 && (
-                                  <span className="rounded-full bg-emerald-100 px-2 py-1 text-[10px] font-semibold text-emerald-700">+{extraProducts} produit{extraProducts > 1 ? 's' : ''}</span>
+                                  <span className="rounded-full bg-primary-100 px-2 py-1 text-[10px] font-semibold text-primary-700">+{extraProducts} produit{extraProducts > 1 ? 's' : ''}</span>
                                 )}
                                 {tagPreview.map(t => (
                                   <span key={t} className="rounded-full bg-gray-100 px-2 py-1 text-[10px] font-semibold text-gray-600">{t}</span>
@@ -615,7 +615,7 @@ const ClientsList = () => {
                             <select
                               value={c.status}
                               onChange={(e) => handleStatusChange(c._id, e.target.value)}
-                              className="rounded-2xl border border-gray-200 bg-gray-50 px-3 py-2 text-xs font-medium text-gray-700 outline-none transition focus:border-emerald-300 focus:bg-white focus:ring-2 focus:ring-emerald-100"
+                              className="rounded-2xl border border-gray-200 bg-gray-50 px-3 py-2 text-xs font-medium text-gray-700 outline-none transition focus:border-primary-300 focus:bg-white focus:ring-2 focus:ring-primary-100"
                             >
                               <option value="prospect">Prospect</option>
                               <option value="confirmed">Confirmé</option>
@@ -625,7 +625,7 @@ const ClientsList = () => {
                             </select>
                             <Link
                               to={`/ecom/clients/${c._id}/edit`}
-                              className="inline-flex items-center justify-center rounded-2xl bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100"
+                              className="inline-flex items-center justify-center rounded-2xl bg-primary-50 px-3 py-2 text-xs font-semibold text-primary-700 transition hover:bg-primary-100"
                             >
                               Modifier
                             </Link>
@@ -677,7 +677,7 @@ const ClientsList = () => {
                         setSyncStatuses(syncStatuses.filter(s => s !== status.key));
                       }
                     }}
-                    className="w-4 h-4 text-emerald-600 rounded border-gray-300 focus:ring-emerald-500"
+                    className="w-4 h-4 text-primary-600 rounded border-gray-300 focus:ring-primary-500"
                   />
                   <span className={`w-2 h-2 rounded-full ${status.color}`}></span>
                   <span className="text-sm text-gray-700">{status.label}</span>
@@ -696,7 +696,7 @@ const ClientsList = () => {
               <button
                 onClick={handleSyncClients}
                 disabled={syncing || syncStatuses.length === 0}
-                className="flex-1 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 text-sm font-medium flex items-center justify-center gap-2"
+                className="flex-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 text-sm font-medium flex items-center justify-center gap-2"
               >
                 {syncing ? (
                   <>

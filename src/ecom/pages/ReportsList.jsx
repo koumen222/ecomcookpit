@@ -1,86 +1,294 @@
-﻿import React, { useState, useEffect } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { useEcomAuth } from '../hooks/useEcomAuth';
 import { useMoney } from '../hooks/useMoney.js';
 import ecomApi from '../services/ecommApi.js';
 import { getContextualError } from '../utils/errorMessages';
-import { getCache, setCache } from '../utils/cacheUtils.js';
 import {
-  TrendingUp, Package, DollarSign, Truck, BarChart3,
-  Zap, Plus, RefreshCw, Calendar, Filter, X,
-  Crown, Medal, Award, ChevronRight, ArrowUpRight,
-  ShoppingCart, CheckCircle2, AlertTriangle
+  Plus, Filter, X, Zap, Calendar,
+  ChevronRight, ChevronDown, ArrowUp, ArrowDown,
+  MoreHorizontal, CheckCircle2, AlertTriangle,
+  Package, Crown, Medal, Award, ArrowRight,
 } from 'lucide-react';
 
-const ListSkeleton = ({ rows = 7 }) => (
-  <div className="space-y-3 p-6">
-    <div className="h-8 w-48 bg-gray-200 rounded-xl animate-pulse mb-6" />
-    <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
-      {[...Array(5)].map((_, i) => (
-        <div key={i} className="bg-white rounded-2xl border border-gray-100 p-4 space-y-2">
-          <div className="h-3 w-20 bg-gray-100 rounded animate-pulse" />
-          <div className="h-6 w-28 bg-gray-200 rounded animate-pulse" />
-        </div>
+// ═════════════════════════════════════════════════════════════════════════════
+//  DESIGN SYSTEM (strict)
+//  spacing : 4 / 8 / 12 / 16 / 24 / 32 / 48
+//  radius  : 12px (rounded-xl) / 16px (rounded-2xl)
+//  text    : xs(12) / sm(14) / base(16) / lg(18) / xl(20) / 2xl(24) / 3xl(30) / 5xl(48)
+//  colors  : gray-900 / 700 / 500 / 400 / 200 / 100 / 50
+//            scalor-green / primary-500 (#0F6B4F) (accent unique)
+//            red-600 (état négatif uniquement)
+//  motion  : transition-all duration-200 ease-out
+//  shadows : aucune ombre colorée, shadow-sm max
+// ═════════════════════════════════════════════════════════════════════════════
+
+const T = 'transition-all duration-200 ease-out';
+
+// ─── Skeleton ──
+const Skeleton = () => (
+  <div className="px-4 sm:px-6 py-6 space-y-6 max-w-5xl mx-auto">
+    <div className="h-10 w-32 bg-gray-100 rounded-xl animate-pulse" />
+    <div className="h-32 bg-gray-50 rounded-2xl animate-pulse" />
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      {[...Array(4)].map((_, i) => (
+        <div key={i} className="h-20 bg-gray-50 rounded-xl animate-pulse" />
       ))}
     </div>
-    {[...Array(rows)].map((_, i) => (
-      <div key={i} className="bg-white rounded-2xl border border-gray-100 p-4 flex items-center gap-4">
-        <div className="h-9 w-9 rounded-xl bg-gray-200 animate-pulse flex-shrink-0" />
-        <div className="flex-1 space-y-2">
-          <div className="h-4 w-40 bg-gray-200 rounded animate-pulse" />
-          <div className="h-3 w-28 bg-gray-100 rounded animate-pulse" />
-        </div>
-        <div className="h-6 w-16 bg-gray-100 rounded-full animate-pulse" />
-      </div>
+    {[...Array(5)].map((_, i) => (
+      <div key={i} className="h-16 bg-gray-50 rounded-xl animate-pulse" />
     ))}
   </div>
 );
 
-const RankIcon = ({ rank }) => {
-  if (rank === 1) return <Crown size={14} className="text-amber-500" />;
-  if (rank === 2) return <Medal size={14} className="text-slate-400" />;
-  return <Award size={14} className="text-orange-400" />;
+// ─── Delta indicator (+12%) — neutral when 0/N/A ──
+const Delta = ({ value, suffix = '%' }) => {
+  if (value === null || value === undefined || !isFinite(value)) {
+    return <span className="text-gray-400 text-xs tabular-nums">—</span>;
+  }
+  if (Math.abs(value) < 0.1) {
+    return <span className="text-gray-400 text-xs tabular-nums">±0{suffix}</span>;
+  }
+  const positive = value > 0;
+  return (
+    <span className={`inline-flex items-center gap-0.5 text-xs font-medium tabular-nums ${positive ? 'text-primary-500' : 'text-red-600'}`}>
+      {positive ? <ArrowUp size={11} strokeWidth={2.5} /> : <ArrowDown size={11} strokeWidth={2.5} />}
+      {Math.abs(value).toFixed(value < 10 ? 1 : 0)}{suffix}
+    </span>
+  );
 };
 
+// ─── Compact stat — pas de boîte d'icône colorée ──
+const Stat = ({ label, value, delta }) => (
+  <div className="py-2.5">
+    <p className="text-xs font-medium text-gray-500 mb-0.5">{label}</p>
+    <div className="flex items-baseline gap-2">
+      <p className="text-lg font-semibold text-gray-900 tabular-nums tracking-tight">{value}</p>
+      {delta !== undefined && <Delta value={delta} />}
+    </div>
+  </div>
+);
+
+// ─── Period chip — minimaliste ──
+const Chip = ({ active, onClick, children }) => (
+  <button
+    onClick={onClick}
+    className={`shrink-0 px-3 h-8 inline-flex items-center text-sm font-medium rounded-full ${T} ${
+      active
+        ? 'bg-primary-500 text-white'
+        : 'text-gray-700 hover:bg-gray-100'
+    }`}
+  >
+    {children}
+  </button>
+);
+
+// ─── Report row — hairline separator, no card-in-card ──
+const ReportRow = ({ report, isAdmin, isCloseuse, fmt, onDelete }) => {
+  const navigate = useNavigate();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const rate = report.ordersReceived > 0
+    ? Math.round((report.ordersDelivered / report.ordersReceived) * 100)
+    : 0;
+  const profit = report.profit ?? ((report.revenue || 0) - (report.cost || 0));
+
+  return (
+    <div
+      onClick={() => navigate(`/ecom/reports/${report._id}`)}
+      className={`group flex items-center gap-4 px-4 sm:px-5 py-4 border-b border-gray-100 hover:bg-gray-50 active:bg-gray-100 cursor-pointer ${T}`}
+    >
+      {/* Date — discret */}
+      <div className="w-14 shrink-0 text-center">
+        <p className="text-xs font-medium text-gray-400 uppercase tracking-wider">
+          {new Date(report.date).toLocaleDateString('fr-FR', { month: 'short' }).replace('.', '')}
+        </p>
+        <p className="text-lg font-semibold text-gray-900 tabular-nums leading-none mt-0.5">
+          {new Date(report.date).getDate()}
+        </p>
+      </div>
+
+      {/* Product name + secondary info */}
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold text-gray-900 truncate">
+          {report.productId?.name || 'Produit inconnu'}
+        </p>
+        <p className="text-xs text-gray-500 mt-0.5 tabular-nums">
+          {report.ordersDelivered}/{report.ordersReceived} livrées · {rate}%
+        </p>
+      </div>
+
+      {/* Profit (or ratio for closeuse) — right aligned */}
+      {!isCloseuse && (
+        <div className="text-right shrink-0">
+          <p className={`text-sm font-semibold tabular-nums ${profit >= 0 ? 'text-primary-500' : 'text-red-600'}`}>
+            {profit >= 0 ? '+' : ''}{fmt(profit)}
+          </p>
+          <p className="text-xs text-gray-500 tabular-nums mt-0.5">{fmt(report.revenue || 0)}</p>
+        </div>
+      )}
+
+      {/* Menu */}
+      <div className="shrink-0 relative">
+        {(isAdmin || isCloseuse) ? (
+          <>
+            <button
+              onClick={(e) => { e.stopPropagation(); setMenuOpen(m => !m); }}
+              className={`w-8 h-8 rounded-full hover:bg-gray-200 flex items-center justify-center text-gray-400 ${T}`}
+              aria-label="Actions"
+            >
+              <MoreHorizontal size={16} />
+            </button>
+            {menuOpen && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={(e) => { e.stopPropagation(); setMenuOpen(false); }} />
+                <div className="absolute right-0 top-9 z-20 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden min-w-[160px]">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setMenuOpen(false); navigate(`/ecom/reports/${report._id}/edit`); }}
+                    className={`block w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 ${T}`}
+                  >
+                    Modifier
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onDelete(report._id); }}
+                    className={`block w-full text-left px-4 py-3 text-sm text-red-600 hover:bg-red-50 border-t border-gray-100 ${T}`}
+                  >
+                    Supprimer
+                  </button>
+                </div>
+              </>
+            )}
+          </>
+        ) : (
+          <ChevronRight size={16} className="text-gray-300 group-hover:text-gray-500 transition" />
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ─── Rank badge inline (top 3 lists) ──
+const Rank = ({ n }) => {
+  if (n === 1) return <Crown size={12} className="text-amber-500" />;
+  if (n === 2) return <Medal size={12} className="text-gray-400" />;
+  return <Award size={12} className="text-orange-400" />;
+};
+
+// ─── Insights — minimal, no boxes ──
+const InsightList = ({ title, link, items, render }) => (
+  <div>
+    <div className="flex items-center justify-between mb-3 px-1">
+      <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{title}</h3>
+      {link && (
+        <Link to={link} className={`text-xs font-medium text-primary-500 hover:text-primary-600 inline-flex items-center gap-0.5 ${T}`}>
+          Voir tout <ChevronRight size={11} />
+        </Link>
+      )}
+    </div>
+    {items.length === 0 ? (
+      <p className="text-xs text-gray-400 px-1 py-3">Aucune donnée</p>
+    ) : (
+      <div className="space-y-px">{items.map(render)}</div>
+    )}
+  </div>
+);
+
+// ─── Sheet (mobile) / Modal (desktop) ──
+const Sheet = ({ open, onClose, title, children, size = 'sm' }) => {
+  useEffect(() => {
+    document.body.style.overflow = open ? 'hidden' : '';
+    return () => { document.body.style.overflow = ''; };
+  }, [open]);
+
+  if (!open) return null;
+  const maxW = size === 'sm' ? 'sm:max-w-md' : 'sm:max-w-lg';
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+      <div
+        className="absolute inset-0 bg-gray-900/40"
+        onClick={onClose}
+        style={{ animation: 'fadeIn 200ms ease-out' }}
+      />
+      <div
+        className={`relative w-full ${maxW} bg-white rounded-t-2xl sm:rounded-2xl shadow-xl max-h-[92vh] overflow-y-auto`}
+        style={{ animation: 'slideUp 220ms cubic-bezier(0.16, 1, 0.3, 1)' }}
+      >
+        <div className="sm:hidden flex justify-center pt-3">
+          <div className="w-9 h-1 bg-gray-200 rounded-full" />
+        </div>
+        <div className="px-6 pt-4 pb-3 flex items-center justify-between border-b border-gray-100">
+          <h2 className="text-base font-semibold text-gray-900">{title}</h2>
+          <button onClick={onClose} className={`w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-500 ${T}`}>
+            <X size={16} />
+          </button>
+        </div>
+        <div className="px-6 py-6">{children}</div>
+      </div>
+    </div>
+  );
+};
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  MAIN
+// ═════════════════════════════════════════════════════════════════════════════
 const ReportsList = () => {
   const { user } = useEcomAuth();
   const { fmt } = useMoney();
+
   const [reports, setReports] = useState([]);
   const [financialStats, setFinancialStats] = useState({});
+  const [prevStats, setPrevStats] = useState(null); // For delta computation
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [showFilters, setShowFilters] = useState(false);
+  const [showInsights, setShowInsights] = useState(false);
+
+  // Auto report state
   const [autoModal, setAutoModal] = useState(false);
   const [autoDate, setAutoDate] = useState(new Date().toISOString().split('T')[0]);
   const [autoStartDate, setAutoStartDate] = useState('');
   const [autoEndDate, setAutoEndDate] = useState('');
-  const [autoMode, setAutoMode] = useState('day'); // 'day' | 'range'
+  const [autoMode, setAutoMode] = useState('day');
   const [autoLoading, setAutoLoading] = useState(false);
   const [autoResult, setAutoResult] = useState(null);
-  const [autoStep, setAutoStep] = useState('config'); // 'config' | 'assign' | 'done'
-  const [autoProducts, setAutoProducts] = useState([]); // catalogue
-  const [autoMappings, setAutoMappings] = useState({}); // { orderProductName: productId }
-  const [filter, setFilter] = useState({
-    dateStart: '',
-    dateEnd: '',
-    status: '',
-    productId: ''
-  });
+  const [autoStep, setAutoStep] = useState('config');
+  const [autoProducts, setAutoProducts] = useState([]);
+  const [autoMappings, setAutoMappings] = useState({});
+
+  const [filter, setFilter] = useState({ dateStart: '', dateEnd: '', status: '', productId: '' });
   const [dateRangePreset, setDateRangePreset] = useState('all');
 
-  useEffect(() => {
-    loadData();
-  }, [filter]);
+  const isAdmin = user?.role === 'ecom_admin';
+  const isCloseuse = user?.role === 'ecom_closeuse';
+
+  useEffect(() => { loadData(); }, [filter]);
 
   useEffect(() => {
     const onStoreSwitch = () => {
       setReports([]);
       setFinancialStats({});
+      setPrevStats(null);
       setFilter({ dateStart: '', dateEnd: '', status: '', productId: '' });
       setDateRangePreset('all');
     };
     window.addEventListener('scalor:store-switch', onStoreSwitch);
     return () => window.removeEventListener('scalor:store-switch', onStoreSwitch);
   }, []);
+
+  // Compute the previous-period date range for delta calculation
+  const previousPeriodParams = useMemo(() => {
+    if (!filter.dateStart || !filter.dateEnd) return null;
+    const start = new Date(filter.dateStart);
+    const end = new Date(filter.dateEnd);
+    const ms = end.getTime() - start.getTime();
+    const lengthDays = Math.max(1, Math.round(ms / 86400000) + 1);
+    const prevEnd = new Date(start.getTime() - 86400000);
+    const prevStart = new Date(prevEnd.getTime() - (lengthDays - 1) * 86400000);
+    return {
+      startDate: prevStart.toISOString().split('T')[0],
+      endDate: prevEnd.toISOString().split('T')[0],
+    };
+  }, [filter.dateStart, filter.dateEnd]);
 
   const loadData = async () => {
     try {
@@ -91,25 +299,43 @@ const ReportsList = () => {
       if (filter.dateEnd) params.endDate = filter.dateEnd;
       if (filter.status) params.status = filter.status;
       if (filter.productId) params.productId = filter.productId;
-      
-      // Charger les rapports (obligatoire)
-      const reportsRes = await ecomApi.get('/reports', { params });
+
+      // Current period (reports + stats) in parallel with previous period stats
+      const [reportsRes, statsRes, prevStatsRes] = await Promise.all([
+        ecomApi.get('/reports', { params }),
+        ecomApi.get('/reports/stats/financial', { params }).catch(() => ({ data: { data: {} } })),
+        previousPeriodParams
+          ? ecomApi.get('/reports/stats/financial', { params: previousPeriodParams }).catch(() => null)
+          : Promise.resolve(null),
+      ]);
+
       const reportsData = reportsRes.data?.data?.reports || [];
       setReports(Array.isArray(reportsData) ? reportsData : []);
-
-      // Charger les stats financières (optionnel - peut échouer pour certains rôles)
-      try {
-        const statsRes = await ecomApi.get('/reports/stats/financial', { params });
-        setFinancialStats(statsRes.data?.data || {});
-      } catch {
-        setFinancialStats({});
-      }
-    } catch (error) {
-      setError(getContextualError(error, 'load_stats'));
-      console.error(error);
+      setFinancialStats(statsRes.data?.data || {});
+      setPrevStats(prevStatsRes?.data?.data || null);
+    } catch (e) {
+      setError(getContextualError(e, 'load_stats'));
+      console.error(e);
       setReports([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const setPeriodPreset = (key) => {
+    setDateRangePreset(key);
+    if (key === 'all') setFilter(p => ({ ...p, dateStart: '', dateEnd: '' }));
+    else if (key === 'today') {
+      const t = new Date().toISOString().split('T')[0];
+      setFilter(p => ({ ...p, dateStart: t, dateEnd: t }));
+    } else if (key === 'week') {
+      const td = new Date();
+      const wa = new Date(td.getTime() - 6 * 86400000);
+      setFilter(p => ({ ...p, dateStart: wa.toISOString().split('T')[0], dateEnd: td.toISOString().split('T')[0] }));
+    } else if (key === 'month') {
+      const td = new Date();
+      const fd = new Date(td.getFullYear(), td.getMonth(), 1);
+      setFilter(p => ({ ...p, dateStart: fd.toISOString().split('T')[0], dateEnd: td.toISOString().split('T')[0] }));
     }
   };
 
@@ -118,14 +344,11 @@ const ReportsList = () => {
     setAutoResult(null);
     setAutoStep('config');
     setAutoMappings({});
-    // Charger le catalogue produits
     try {
       const res = await ecomApi.get('/products', { params: { isActive: true, limit: 500 } });
       const list = res.data?.data?.products || res.data?.data || [];
       setAutoProducts(Array.isArray(list) ? list : []);
-    } catch {
-      setAutoProducts([]);
-    }
+    } catch { setAutoProducts([]); }
   };
 
   const generateAutoReports = async (extraMappings = {}) => {
@@ -142,12 +365,8 @@ const ReportsList = () => {
       const res = await ecomApi.post('/reports/auto-generate', body);
       setAutoResult(res.data);
       const unmatched = res.data?.data?.unmatched || [];
-      if (unmatched.length > 0 && autoStep === 'config') {
-        setAutoStep('assign');
-      } else {
-        setAutoStep('done');
-        loadData();
-      }
+      if (unmatched.length > 0 && autoStep === 'config') setAutoStep('assign');
+      else { setAutoStep('done'); loadData(); }
     } catch (err) {
       setAutoResult({ success: false, message: getContextualError(err, 'load_stats') });
     } finally {
@@ -155,673 +374,564 @@ const ReportsList = () => {
     }
   };
 
-  const confirmAssignments = () => {
-    generateAutoReports(autoMappings);
-  };
-
-  const deleteReport = async (reportId) => {
-    if (!confirm('Êtes-vous sûr de vouloir supprimer ce rapport ?')) return;
-    
+  const deleteReport = async (id) => {
+    if (!confirm('Supprimer ce rapport ?')) return;
     try {
-      await ecomApi.delete(`/reports/${reportId}`);
+      await ecomApi.delete(`/reports/${id}`);
       loadData();
-    } catch (error) {
-      setError(getContextualError(error, 'delete_order'));
-      console.error(error);
+    } catch (e) {
+      setError(getContextualError(e, 'delete_order'));
     }
   };
 
+  // ─── Computed stats ──
+  const totals = useMemo(() => {
+    const totalReceived = reports.reduce((s, r) => s + (r.ordersReceived || 0), 0);
+    const totalDelivered = reports.reduce((s, r) => s + (r.ordersDelivered || 0), 0);
+    const totalAdSpend = reports.reduce((s, r) => s + (r.adSpend || 0), 0);
+    const totalRevenue = financialStats.totalRevenue || reports.reduce((s, r) => s + (r.revenue || 0), 0);
+    const totalProfit = financialStats.totalProfit || reports.reduce((s, r) => s + (r.profit || 0), 0);
+    const totalProductCost = financialStats.totalProductCost || reports.reduce((s, r) => s + (r.productCost || 0), 0);
+    const totalDeliveryCost = financialStats.totalDeliveryCost || reports.reduce((s, r) => s + (r.deliveryCost || 0), 0);
+    const totalCost = financialStats.totalCost || reports.reduce((s, r) => s + (r.cost || 0), 0);
+    const roas = financialStats.roas ?? (totalAdSpend > 0 ? totalRevenue / totalAdSpend : 0);
+    const deliveryRate = totalReceived > 0 ? ((totalDelivered / totalReceived) * 100) : 0;
+    return { totalReceived, totalDelivered, totalAdSpend, totalRevenue, totalProfit, totalProductCost, totalDeliveryCost, totalCost, roas, deliveryRate };
+  }, [reports, financialStats]);
 
+  // ─── Deltas vs previous period ──
+  const deltas = useMemo(() => {
+    if (!prevStats) return { profit: null, revenue: null, deliveryRate: null, roas: null };
+    const pct = (cur, prev) => (prev && prev !== 0) ? ((cur - prev) / Math.abs(prev)) * 100 : null;
+    const prevDeliveryRate = (prevStats.totalOrdersReceived || 0) > 0
+      ? ((prevStats.totalOrdersDelivered || 0) / prevStats.totalOrdersReceived) * 100
+      : 0;
+    return {
+      profit: pct(totals.totalProfit, prevStats.totalProfit),
+      revenue: pct(totals.totalRevenue, prevStats.totalRevenue),
+      deliveryRate: totals.deliveryRate - prevDeliveryRate, // points, not %
+      roas: pct(totals.roas, prevStats.roas),
+    };
+  }, [totals, prevStats]);
 
-  // Stats calculées depuis les rapports chargés
-  const totalReceived = reports.reduce((sum, r) => sum + (r.ordersReceived || 0), 0);
-  const totalDelivered = reports.reduce((sum, r) => sum + (r.ordersDelivered || 0), 0);
-  const totalAdSpend = reports.reduce((sum, r) => sum + (r.adSpend || 0), 0);
-  const totalRevenue = financialStats.totalRevenue || reports.reduce((sum, r) => sum + (r.revenue || 0), 0);
-  const totalProfit = financialStats.totalProfit || reports.reduce((sum, r) => sum + (r.profit || 0), 0);
-  const totalProductCost = financialStats.totalProductCost || reports.reduce((sum, r) => sum + (r.productCost || 0), 0);
-  const totalDeliveryCost = financialStats.totalDeliveryCost || reports.reduce((sum, r) => sum + (r.deliveryCost || 0), 0);
-  const totalCost = financialStats.totalCost || reports.reduce((sum, r) => sum + (r.cost || 0), 0);
-  const roas = financialStats.roas ?? (totalAdSpend > 0 ? totalRevenue / totalAdSpend : 0);
-  const deliveryRate = totalReceived > 0 ? ((totalDelivered / totalReceived) * 100).toFixed(1) : 0;
-
-  const getReportProfit = (report) => {
-    if ((report.profit || 0) !== 0) return report.profit || 0;
-    const revenue = report.revenue || 0;
-    const cost = report.cost || 0;
-    if (revenue !== 0 || cost !== 0) return revenue - cost;
-    return -(report.adSpend || 0);
+  const getReportProfit = (r) => {
+    if ((r.profit || 0) !== 0) return r.profit || 0;
+    const rev = r.revenue || 0, c = r.cost || 0;
+    if (rev !== 0 || c !== 0) return rev - c;
+    return -(r.adSpend || 0);
   };
 
-  const dayProfitMap = reports.reduce((acc, report) => {
-    const dateKey = new Date(report.date).toISOString().split('T')[0];
-    if (!acc[dateKey]) {
-      acc[dateKey] = { date: dateKey, profit: 0, reports: 0, delivered: 0, revenue: 0 };
-    }
-    acc[dateKey].profit += getReportProfit(report);
-    acc[dateKey].reports += 1;
-    acc[dateKey].delivered += report.ordersDelivered || 0;
-    acc[dateKey].revenue += report.revenue || 0;
-    return acc;
-  }, {});
+  const topProfitDays = useMemo(() => {
+    const map = reports.reduce((acc, r) => {
+      const k = new Date(r.date).toISOString().split('T')[0];
+      if (!acc[k]) acc[k] = { date: k, profit: 0, reports: 0, delivered: 0 };
+      acc[k].profit += getReportProfit(r);
+      acc[k].reports += 1;
+      acc[k].delivered += r.ordersDelivered || 0;
+      return acc;
+    }, {});
+    return Object.values(map).sort((a, b) => b.profit - a.profit).slice(0, 3);
+  }, [reports]);
 
-  const topProfitDays = Object.values(dayProfitMap)
-    .sort((a, b) => b.profit - a.profit)
-    .slice(0, 3);
+  const topAgencies = useMemo(() => {
+    const map = reports.reduce((acc, r) => {
+      (r.deliveries || []).forEach(d => {
+        const name = (d.agencyName || '').trim();
+        if (!name) return;
+        if (!acc[name]) acc[name] = { agencyName: name, ordersDelivered: 0, deliveryCost: 0 };
+        acc[name].ordersDelivered += d.ordersDelivered || 0;
+        acc[name].deliveryCost += d.deliveryCost || 0;
+      });
+      return acc;
+    }, {});
+    return Object.values(map).map(a => ({
+      ...a,
+      avgCostPerDelivery: a.ordersDelivered > 0 ? a.deliveryCost / a.ordersDelivered : 0,
+    })).sort((a, b) => b.ordersDelivered - a.ordersDelivered).slice(0, 3);
+  }, [reports]);
 
-  const agencyMap = reports.reduce((acc, report) => {
-    (report.deliveries || []).forEach((delivery) => {
-      const agencyName = (delivery.agencyName || '').trim();
-      if (!agencyName) return;
+  const topProducts = useMemo(() => {
+    const map = reports.reduce((acc, r) => {
+      const name = r.productId?.name || 'Produit inconnu';
+      if (!acc[name]) acc[name] = { productName: name, ordersDelivered: 0, revenue: 0 };
+      acc[name].ordersDelivered += r.ordersDelivered || 0;
+      acc[name].revenue += r.revenue || 0;
+      return acc;
+    }, {});
+    return Object.values(map).sort((a, b) => b.ordersDelivered - a.ordersDelivered).slice(0, 3);
+  }, [reports]);
 
-      if (!acc[agencyName]) {
-        acc[agencyName] = {
-          agencyName,
-          ordersDelivered: 0,
-          deliveryCost: 0,
-          reportsCount: 0
-        };
-      }
+  const activeFiltersCount =
+    (filter.status ? 1 : 0) +
+    (filter.productId ? 1 : 0);
 
-      acc[agencyName].ordersDelivered += delivery.ordersDelivered || 0;
-      acc[agencyName].deliveryCost += delivery.deliveryCost || 0;
-      acc[agencyName].reportsCount += 1;
-    });
-    return acc;
-  }, {});
+  const hasComparison = !!prevStats;
+  const profitPositive = totals.totalProfit >= 0;
 
-  const topAgencies = Object.values(agencyMap)
-    .map((agency) => {
-      const avgCostPerDelivery = agency.ordersDelivered > 0
-        ? agency.deliveryCost / agency.ordersDelivered
-        : 0;
-      const efficiencyScore = avgCostPerDelivery > 0
-        ? agency.ordersDelivered / avgCostPerDelivery
-        : agency.ordersDelivered;
-
-      return {
-        ...agency,
-        avgCostPerDelivery,
-        efficiencyScore
-      };
-    })
-    .sort((a, b) => b.efficiencyScore - a.efficiencyScore)
-    .slice(0, 3);
-
-  const productMap = reports.reduce((acc, report) => {
-    const productName = report.productId?.name || 'Produit inconnu';
-    if (!acc[productName]) {
-      acc[productName] = {
-        productName,
-        ordersDelivered: 0,
-        revenue: 0,
-        profit: 0,
-        reportsCount: 0
-      };
-    }
-
-    acc[productName].ordersDelivered += report.ordersDelivered || 0;
-    acc[productName].revenue += report.revenue || 0;
-    acc[productName].profit += getReportProfit(report);
-    acc[productName].reportsCount += 1;
-    return acc;
-  }, {});
-
-  const topProducts = Object.values(productMap)
-    .sort((a, b) => b.ordersDelivered - a.ordersDelivered)
-    .slice(0, 3);
-
-  if (loading) return <ListSkeleton />;
+  if (loading) return <Skeleton />;
 
   return (
-    <div className="min-h-screen bg-gray-50/60 p-3 sm:p-5 lg:p-7">
+    <div className="min-h-screen bg-white pb-24">
 
-      {/* ─── Header ─────────────────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight">Rapports</h1>
-          <p className="text-sm text-gray-500 mt-0.5">{reports.length} rapport{reports.length !== 1 ? 's' : ''} chargé{reports.length !== 1 ? 's' : ''}</p>
-        </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <Link
-            to="/ecom/stats-rapports"
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 hover:border-gray-300 transition shadow-sm"
-          >
-            <BarChart3 size={15} />
-            Stats produits
-          </Link>
-          <button
-            onClick={openAutoModal}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium bg-violet-600 text-white hover:bg-violet-700 transition shadow-sm"
-          >
-            <Zap size={15} />
-            Rapport automatique
-          </button>
-          <Link
-            to="/ecom/reports/new"
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium bg-emerald-600 text-white hover:bg-emerald-700 transition shadow-sm"
-          >
-            <Plus size={15} />
-            Nouveau
-          </Link>
-        </div>
-      </div>
+      {/* Inline animations (200ms ease-out everywhere) */}
+      <style>{`
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideUp { from { transform: translateY(16px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+      `}</style>
 
-      {error && (
-        <div className="mb-5 p-4 bg-red-50 border border-red-200 text-red-700 rounded-2xl flex items-center gap-3 text-sm">
-          <AlertTriangle size={18} className="shrink-0 text-red-500" />
-          {error}
-        </div>
-      )}
-
-      {/* ─── Modal Rapport automatique ──────────────────────────────────── */}
-      {autoModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto border border-gray-100">
-
-            {/* Étape 1 : configuration date */}
-            {autoStep === 'config' && (
-              <>
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h2 className="text-lg font-bold text-gray-900">Rapport automatique</h2>
-                    <p className="text-xs text-gray-500 mt-0.5">Génère depuis les commandes <strong>livrées</strong></p>
-                  </div>
-                  <button onClick={() => { setAutoModal(false); setAutoResult(null); }} className="p-2 hover:bg-gray-100 rounded-xl transition text-gray-400">
-                    <X size={18} />
-                  </button>
-                </div>
-
-                <div className="flex gap-2 mb-4 p-1 bg-gray-100 rounded-xl">
-                  <button onClick={() => setAutoMode('day')} className={`flex-1 py-2 rounded-lg text-sm font-medium transition ${autoMode === 'day' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>Un jour</button>
-                  <button onClick={() => setAutoMode('range')} className={`flex-1 py-2 rounded-lg text-sm font-medium transition ${autoMode === 'range' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>Période</button>
-                </div>
-
-                {autoMode === 'day' ? (
-                  <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-1.5">Date</label>
-                    <input type="date" value={autoDate} onChange={e => setAutoDate(e.target.value)} className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-violet-500 focus:border-transparent outline-none" />
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-2 gap-3 mb-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Début</label>
-                      <input type="date" value={autoStartDate} onChange={e => setAutoStartDate(e.target.value)} className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-violet-500 focus:border-transparent outline-none" />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Fin</label>
-                      <input type="date" value={autoEndDate} onChange={e => setAutoEndDate(e.target.value)} className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-violet-500 focus:border-transparent outline-none" />
-                    </div>
-                  </div>
+      {/* ─── Sticky Header — solide, hairline en bas ────────────────────── */}
+      <header className="sticky top-0 z-30 bg-white border-b border-gray-100">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6">
+          <div className="py-3 flex items-center justify-between gap-4">
+            <h1 className="text-xl font-semibold text-gray-900 tracking-tight">Rapports</h1>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowFilters(true)}
+                className={`relative w-9 h-9 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-700 ${T}`}
+                aria-label="Filtres"
+              >
+                <Filter size={16} strokeWidth={2} />
+                {activeFiltersCount > 0 && (
+                  <span className="absolute top-1 right-1 w-2 h-2 bg-primary-500 rounded-full" />
                 )}
+              </button>
+              <button
+                onClick={openAutoModal}
+                className={`hidden sm:inline-flex items-center gap-1.5 px-3 h-9 rounded-full text-sm font-medium text-gray-700 hover:bg-gray-100 ${T}`}
+              >
+                <Zap size={14} strokeWidth={2} />
+                Auto
+              </button>
+              <Link
+                to="/ecom/reports/new"
+                className={`inline-flex items-center gap-1.5 px-4 h-9 rounded-full bg-primary-500 text-white text-sm font-medium hover:bg-primary-600 ${T}`}
+              >
+                <Plus size={15} strokeWidth={2.5} />
+                <span className="hidden xs:inline">Nouveau</span>
+              </Link>
+            </div>
+          </div>
 
-                {autoResult && !autoResult.success && (
-                  <div className="rounded-xl px-4 py-3 mb-4 text-sm bg-red-50 border border-red-200 text-red-700">{autoResult.message}</div>
-                )}
-
-                <div className="flex gap-3 mt-2">
-                  <button onClick={() => { setAutoModal(false); setAutoResult(null); }} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50 text-sm font-medium transition">Annuler</button>
-                  <button
-                    onClick={() => generateAutoReports()}
-                    disabled={autoLoading || (autoMode === 'range' && (!autoStartDate || !autoEndDate))}
-                    className="flex-1 py-2.5 rounded-xl bg-violet-600 text-white hover:bg-violet-700 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition"
-                  >
-                    {autoLoading ? 'Analyse...' : 'Générer'}
-                  </button>
-                </div>
-              </>
-            )}
-
-            {/* Étape 2 : assigner les produits non reconnus */}
-            {autoStep === 'assign' && (
-              <>
-                <div className="flex items-center gap-3 mb-4">
-                  <button onClick={() => { setAutoStep('config'); setAutoResult(null); }} className="p-2 hover:bg-gray-100 rounded-xl transition text-gray-400">
-                    <ChevronRight size={18} className="rotate-180" />
-                  </button>
-                  <div>
-                    <h2 className="text-lg font-bold text-gray-900">Assigner les produits</h2>
-                    <p className="text-xs text-gray-500">Produits non reconnus automatiquement</p>
-                  </div>
-                </div>
-
-                {autoResult?.message && (
-                  <div className="rounded-xl px-3 py-2.5 mb-4 text-xs bg-blue-50 border border-blue-200 text-blue-700">{autoResult.message}</div>
-                )}
-
-                <div className="space-y-3 mb-5">
-                  {(autoResult?.data?.unmatched || []).map((item) => (
-                    <div key={item.productName} className="border border-gray-200 rounded-xl p-3.5">
-                      <div className="flex items-center justify-between mb-2.5">
-                        <div>
-                          <p className="text-sm font-semibold text-gray-900">{item.productName}</p>
-                          <p className="text-xs text-gray-500">{item.totalDelivered} commande{item.totalDelivered > 1 ? 's' : ''} livrée{item.totalDelivered > 1 ? 's' : ''}</p>
-                        </div>
-                        <span className="text-xs bg-orange-100 text-orange-700 px-2.5 py-1 rounded-full font-medium">Non reconnu</span>
-                      </div>
-                      <select
-                        value={autoMappings[item.productName] || ''}
-                        onChange={e => setAutoMappings(prev => ({ ...prev, [item.productName]: e.target.value }))}
-                        className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-violet-500 focus:border-transparent outline-none"
-                      >
-                        <option value="">— Ignorer ce produit —</option>
-                        {autoProducts.map(p => (
-                          <option key={p._id} value={p._id}>{p.name}</option>
-                        ))}
-                      </select>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="flex gap-3">
-                  <button onClick={() => { setAutoModal(false); setAutoResult(null); loadData(); }} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50 text-sm font-medium transition">Fermer</button>
-                  <button
-                    onClick={confirmAssignments}
-                    disabled={autoLoading}
-                    className="flex-1 py-2.5 rounded-xl bg-violet-600 text-white hover:bg-violet-700 text-sm font-medium disabled:opacity-50 transition"
-                  >
-                    {autoLoading ? 'Génération...' : 'Confirmer et générer'}
-                  </button>
-                </div>
-              </>
-            )}
-
-            {/* Étape 3 : résultat final */}
-            {autoStep === 'done' && (
-              <>
-                <div className="flex items-center gap-2 mb-4">
-                  <div className="w-9 h-9 rounded-xl bg-emerald-100 flex items-center justify-center">
-                    <CheckCircle2 size={18} className="text-emerald-600" />
-                  </div>
-                  <h2 className="text-lg font-bold text-gray-900">Rapport généré</h2>
-                </div>
-                {autoResult && (
-                  <div className={`rounded-xl px-4 py-3.5 mb-4 text-sm ${autoResult.success ? 'bg-emerald-50 border border-emerald-200 text-emerald-800' : 'bg-red-50 border border-red-200 text-red-700'}`}>
-                    {autoResult.message}
-                    {autoResult.success && autoResult.data?.created?.length > 0 && (
-                      <ul className="mt-2 space-y-1">{autoResult.data.created.map((c, i) => <li key={i} className="text-xs flex items-center gap-1"><span className="text-emerald-500">✓</span> {c.productName} — {new Date(c.dateKey).toLocaleDateString('fr-FR')}</li>)}</ul>
-                    )}
-                    {autoResult.success && autoResult.data?.updated?.length > 0 && (
-                      <ul className="mt-2 space-y-1">{autoResult.data.updated.map((c, i) => <li key={i} className="text-xs flex items-center gap-1"><span className="text-blue-500">↻</span> {c.productName} — {new Date(c.dateKey).toLocaleDateString('fr-FR')}</li>)}</ul>
-                    )}
-                    {autoResult.success && autoResult.data?.unmatched?.length > 0 && (
-                      <p className="mt-2 text-xs text-orange-700">{autoResult.data.unmatched.length} produit(s) toujours non assigné(s) ignoré(s)</p>
-                    )}
-                  </div>
-                )}
-                <button onClick={() => { setAutoModal(false); setAutoResult(null); setAutoStep('config'); }} className="w-full py-2.5 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 text-sm font-medium transition">Fermer</button>
-              </>
-            )}
+          {/* Period chips */}
+          <div className="pb-2.5 -mx-4 sm:-mx-6 px-4 sm:px-6 overflow-x-auto scrollbar-hide">
+            <div className="flex items-center gap-0.5 w-max">
+              <Chip active={dateRangePreset === 'all'} onClick={() => setPeriodPreset('all')}>Tout</Chip>
+              <Chip active={dateRangePreset === 'today'} onClick={() => setPeriodPreset('today')}>Aujourd'hui</Chip>
+              <Chip active={dateRangePreset === 'week'} onClick={() => setPeriodPreset('week')}>7 jours</Chip>
+              <Chip active={dateRangePreset === 'month'} onClick={() => setPeriodPreset('month')}>Ce mois</Chip>
+              <button
+                onClick={() => setShowFilters(true)}
+                className={`shrink-0 px-3 h-8 inline-flex items-center gap-1 text-sm font-medium rounded-full ${T} ${
+                  dateRangePreset === 'custom' ? 'bg-primary-500 text-white' : 'text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                <Calendar size={12} strokeWidth={2} /> Personnalisé
+              </button>
+            </div>
           </div>
         </div>
-      )}
+      </header>
 
-      {/* ─── Filtres ─────────────────────────────────────────────────────── */}
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4 mb-5">
-        <div className="flex items-center gap-2 mb-3">
-          <Filter size={15} className="text-gray-400" />
-          <span className="text-sm font-semibold text-gray-700">Période</span>
-        </div>
-        <div className="flex flex-wrap gap-2 mb-4">
-          {[
-            { key: 'all', label: 'Toute la période' },
-            { key: 'today', label: "Aujourd'hui" },
-            { key: 'week', label: '7 derniers jours' },
-            { key: 'month', label: 'Ce mois' },
-            { key: 'custom', label: 'Personnalisé' },
-          ].map(({ key, label }) => (
-            <button
-              key={key}
-              onClick={() => {
-                setDateRangePreset(key);
-                if (key === 'all') setFilter(prev => ({ ...prev, dateStart: '', dateEnd: '' }));
-                if (key === 'today') { const t = new Date().toISOString().split('T')[0]; setFilter(prev => ({ ...prev, dateStart: t, dateEnd: t })); }
-                if (key === 'week') { const td = new Date(); const wa = new Date(td.getTime() - 7 * 86400000); setFilter(prev => ({ ...prev, dateStart: wa.toISOString().split('T')[0], dateEnd: td.toISOString().split('T')[0] })); }
-                if (key === 'month') { const td = new Date(); const fd = new Date(td.getFullYear(), td.getMonth(), 1); setFilter(prev => ({ ...prev, dateStart: fd.toISOString().split('T')[0], dateEnd: td.toISOString().split('T')[0] })); }
-              }}
-              className={`px-3.5 py-1.5 rounded-lg text-sm font-medium transition ${dateRangePreset === key ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
-            >
-              {label}
+      <div className="max-w-5xl mx-auto px-4 sm:px-6">
+
+        {error && (
+          <div className="mt-6 p-3 bg-red-50 border border-red-100 text-red-700 rounded-xl flex items-start gap-2 text-sm">
+            <AlertTriangle size={15} className="shrink-0 text-red-500 mt-0.5" />
+            <span className="flex-1">{error}</span>
+            <button onClick={() => setError('')} className="text-red-400 hover:text-red-600">
+              <X size={14} />
             </button>
-          ))}
-        </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          </div>
+        )}
+
+        {/* ═══ HERO METRIC — un seul chiffre dominant ═══════════════════════ */}
+        {!isCloseuse && (
+          <section className="pt-5 pb-4">
+            <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Bénéfice net</p>
+            <div className="flex items-baseline gap-3 flex-wrap">
+              <h2 className={`text-3xl sm:text-4xl font-semibold tracking-tight tabular-nums leading-none ${profitPositive ? 'text-primary-500' : 'text-red-600'}`}>
+                {profitPositive ? '+' : ''}{fmt(totals.totalProfit)}
+              </h2>
+              {hasComparison && <Delta value={deltas.profit} />}
+            </div>
+            <p className="text-sm text-gray-500 mt-1.5">
+              {dateRangePreset === 'all' && 'Toute la période'}
+              {dateRangePreset === 'today' && "Aujourd'hui"}
+              {dateRangePreset === 'week' && '7 derniers jours'}
+              {dateRangePreset === 'month' && 'Ce mois-ci'}
+              {dateRangePreset === 'custom' && 'Période personnalisée'}
+              {hasComparison && <span className="text-gray-400"> · vs période précédente</span>}
+            </p>
+          </section>
+        )}
+
+        {/* ═══ STATS COMPACT — pas de boîtes d'icônes ═══════════════════════ */}
+        <section className="grid grid-cols-2 sm:grid-cols-4 gap-0 sm:gap-8 border-y border-gray-100 divide-x divide-gray-100 sm:divide-x-0">
+          {!isCloseuse && (
+            <div className="px-4 sm:px-0">
+              <Stat
+                label="Chiffre d'affaires"
+                value={fmt(totals.totalRevenue)}
+                delta={hasComparison ? deltas.revenue : undefined}
+              />
+            </div>
+          )}
+          <div className="px-4 sm:px-0">
+            <Stat
+              label="Cmd livrées"
+              value={`${totals.totalDelivered}`}
+            />
+          </div>
+          <div className="px-4 sm:px-0">
+            <Stat
+              label="Taux livraison"
+              value={`${totals.deliveryRate.toFixed(0)}%`}
+              delta={hasComparison ? deltas.deliveryRate : undefined}
+            />
+          </div>
+          {!isCloseuse && (
+            <div className="px-4 sm:px-0">
+              <Stat
+                label="ROAS"
+                value={totals.roas > 0 ? totals.roas.toFixed(2) : '—'}
+                delta={hasComparison ? deltas.roas : undefined}
+              />
+            </div>
+          )}
+          {isCloseuse && (
+            <div className="px-4 sm:px-0">
+              <Stat
+                label="Cmd reçues"
+                value={`${totals.totalReceived}`}
+              />
+            </div>
+          )}
+        </section>
+
+        {/* ═══ COST BREAKDOWN — barre minimaliste ═══════════════════════════ */}
+        {totals.totalCost > 0 && !isCloseuse && (
+          <section className="py-5 border-b border-gray-100">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Coûts</p>
+              <p className="text-sm font-medium text-gray-900 tabular-nums">{fmt(totals.totalCost)}</p>
+            </div>
+            <div className="flex h-1.5 rounded-full overflow-hidden gap-px bg-gray-100">
+              <div className="bg-gray-900" style={{ width: `${(totals.totalProductCost / totals.totalCost * 100)}%` }} />
+              <div className="bg-gray-500" style={{ width: `${(totals.totalDeliveryCost / totals.totalCost * 100)}%` }} />
+              <div className="bg-gray-300" style={{ width: `${(totals.totalAdSpend / totals.totalCost * 100)}%` }} />
+            </div>
+            <div className="flex flex-wrap gap-x-5 gap-y-1 mt-2 text-xs">
+              <span className="flex items-center gap-1.5 text-gray-700">
+                <span className="w-1.5 h-1.5 bg-gray-900 rounded-full" />
+                Produits <strong className="font-semibold text-gray-900 tabular-nums">{fmt(totals.totalProductCost)}</strong>
+              </span>
+              <span className="flex items-center gap-1.5 text-gray-700">
+                <span className="w-1.5 h-1.5 bg-gray-500 rounded-full" />
+                Livraison <strong className="font-semibold text-gray-900 tabular-nums">{fmt(totals.totalDeliveryCost)}</strong>
+              </span>
+              <span className="flex items-center gap-1.5 text-gray-700">
+                <span className="w-1.5 h-1.5 bg-gray-300 rounded-full" />
+                Publicité <strong className="font-semibold text-gray-900 tabular-nums">{fmt(totals.totalAdSpend)}</strong>
+              </span>
+            </div>
+          </section>
+        )}
+
+        {/* ═══ INSIGHTS — accordion mobile, 3 cols desktop ══════════════════ */}
+        <section className="py-5 border-b border-gray-100">
+          <button
+            onClick={() => setShowInsights(s => !s)}
+            className={`lg:hidden w-full flex items-center justify-between mb-3 ${T}`}
+          >
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Top 3</p>
+            <ChevronDown size={14} className={`text-gray-400 ${T} ${showInsights ? 'rotate-180' : ''}`} />
+          </button>
+          <div className={`grid grid-cols-1 lg:grid-cols-3 gap-6 ${showInsights ? 'block' : 'hidden lg:grid'}`}>
+            <InsightList
+              title="Jours rentables"
+              link="/ecom/reports/insights?tab=days"
+              items={topProfitDays}
+              render={(day, i) => (
+                <div key={day.date} className={`flex items-center gap-3 py-2 hover:bg-gray-50 -mx-2 px-2 rounded-lg ${T}`}>
+                  <span className="w-4 shrink-0 flex justify-center"><Rank n={i + 1} /></span>
+                  <span className="flex-1 min-w-0 text-sm text-gray-900 truncate">
+                    {new Date(day.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
+                  </span>
+                  <span className="text-xs text-gray-400 tabular-nums">{day.delivered}</span>
+                  <span className={`text-sm font-medium tabular-nums shrink-0 ${day.profit >= 0 ? 'text-gray-900' : 'text-red-600'}`}>
+                    {fmt(day.profit)}
+                  </span>
+                </div>
+              )}
+            />
+            <InsightList
+              title="Agences efficaces"
+              link="/ecom/reports/insights?tab=agencies"
+              items={topAgencies}
+              render={(a, i) => (
+                <div key={a.agencyName} className={`flex items-center gap-3 py-2 hover:bg-gray-50 -mx-2 px-2 rounded-lg ${T}`}>
+                  <span className="w-4 shrink-0 flex justify-center"><Rank n={i + 1} /></span>
+                  <span className="flex-1 min-w-0 text-sm text-gray-900 truncate">{a.agencyName}</span>
+                  <span className="text-xs text-gray-400 tabular-nums">{a.ordersDelivered}</span>
+                  <span className="text-sm font-medium text-gray-900 tabular-nums shrink-0">{fmt(a.avgCostPerDelivery)}</span>
+                </div>
+              )}
+            />
+            <InsightList
+              title="Top produits"
+              link="/ecom/stats-rapports"
+              items={topProducts}
+              render={(p, i) => (
+                <div key={`${p.productName}-${i}`} className={`flex items-center gap-3 py-2 hover:bg-gray-50 -mx-2 px-2 rounded-lg ${T}`}>
+                  <span className="w-4 shrink-0 flex justify-center"><Rank n={i + 1} /></span>
+                  <span className="flex-1 min-w-0 text-sm text-gray-900 truncate">{p.productName}</span>
+                  <span className="text-xs text-gray-400 tabular-nums">{p.ordersDelivered}</span>
+                  <span className="text-sm font-medium text-gray-900 tabular-nums shrink-0">{fmt(p.revenue)}</span>
+                </div>
+              )}
+            />
+          </div>
+        </section>
+
+        {/* ═══ REPORTS LIST — table-like rows, hairlines ════════════════════ */}
+        <section className="py-5">
+          <div className="flex items-center justify-between mb-2 px-1">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Tous les rapports</p>
+            {reports.length > 0 && (
+              <p className="text-xs text-gray-400 tabular-nums">{reports.length}</p>
+            )}
+          </div>
+
+          {reports.length === 0 ? (
+            <div className="py-16 text-center">
+              <Package size={28} className="text-gray-200 mx-auto mb-4" strokeWidth={1.5} />
+              <p className="text-sm font-medium text-gray-700 mb-1">Aucun rapport</p>
+              <p className="text-sm text-gray-500 mb-6">
+                {activeFiltersCount > 0 || dateRangePreset !== 'all'
+                  ? 'Essayez d\'élargir vos filtres'
+                  : 'Créez votre premier rapport pour commencer'}
+              </p>
+              <Link
+                to="/ecom/reports/new"
+                className={`inline-flex items-center gap-1.5 px-4 h-9 rounded-full bg-primary-500 text-white text-sm font-medium hover:bg-primary-600 ${T}`}
+              >
+                <Plus size={14} strokeWidth={2.5} /> Nouveau rapport
+              </Link>
+            </div>
+          ) : (
+            <div className="border-t border-gray-100">
+              {reports.map(r => (
+                <ReportRow
+                  key={r._id}
+                  report={r}
+                  isAdmin={isAdmin}
+                  isCloseuse={isCloseuse}
+                  fmt={fmt}
+                  onDelete={deleteReport}
+                />
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
+
+      {/* ─── Mobile FAB (Auto) ──────────────────────────────────────────── */}
+      <button
+        onClick={openAutoModal}
+        className={`sm:hidden fixed bottom-6 right-5 z-20 w-12 h-12 rounded-full bg-primary-500 text-white shadow-lg active:scale-95 flex items-center justify-center ${T}`}
+        aria-label="Rapport automatique"
+      >
+        <Zap size={18} strokeWidth={2} />
+      </button>
+
+      {/* ═══ FILTERS SHEET ════════════════════════════════════════════════ */}
+      <Sheet open={showFilters} onClose={() => setShowFilters(false)} title="Filtres">
+        <div className="space-y-5">
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1.5">Date début</label>
+            <label className="block text-xs font-medium text-gray-500 mb-2">Date début</label>
             <input
               type="date"
               value={filter.dateStart}
-              onChange={(e) => { setDateRangePreset('custom'); setFilter(prev => ({ ...prev, dateStart: e.target.value })); }}
-              className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
+              onChange={(e) => { setDateRangePreset('custom'); setFilter(p => ({ ...p, dateStart: e.target.value })); }}
+              className={`w-full h-10 px-3 border border-gray-200 rounded-xl text-sm focus:border-gray-900 focus:ring-0 outline-none ${T}`}
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1.5">Date fin</label>
+            <label className="block text-xs font-medium text-gray-500 mb-2">Date fin</label>
             <input
               type="date"
               value={filter.dateEnd}
-              onChange={(e) => { setDateRangePreset('custom'); setFilter(prev => ({ ...prev, dateEnd: e.target.value })); }}
-              className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
+              onChange={(e) => { setDateRangePreset('custom'); setFilter(p => ({ ...p, dateEnd: e.target.value })); }}
+              className={`w-full h-10 px-3 border border-gray-200 rounded-xl text-sm focus:border-gray-900 focus:ring-0 outline-none ${T}`}
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1.5">Statut</label>
+            <label className="block text-xs font-medium text-gray-500 mb-2">Statut</label>
             <select
               value={filter.status}
-              onChange={(e) => setFilter(prev => ({ ...prev, status: e.target.value }))}
-              className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
+              onChange={(e) => setFilter(p => ({ ...p, status: e.target.value }))}
+              className={`w-full h-10 px-3 border border-gray-200 rounded-xl text-sm focus:border-gray-900 focus:ring-0 outline-none bg-white ${T}`}
             >
               <option value="">Tous</option>
               <option value="validated">Validé</option>
               <option value="pending">En attente</option>
             </select>
           </div>
-          <div className="flex items-end">
+          <div className="flex gap-2 pt-2">
             <button
-              onClick={() => { setDateRangePreset('all'); setFilter({ dateStart: '', dateEnd: '', status: '', productId: '' }); }}
-              className="w-full px-4 py-2 border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50 text-sm font-medium transition flex items-center justify-center gap-1.5"
+              onClick={() => {
+                setDateRangePreset('all');
+                setFilter({ dateStart: '', dateEnd: '', status: '', productId: '' });
+              }}
+              className={`flex-1 h-10 rounded-xl border border-gray-200 text-gray-700 text-sm font-medium hover:bg-gray-50 ${T}`}
             >
-              <X size={14} /> Réinitialiser
+              Réinitialiser
+            </button>
+            <button
+              onClick={() => setShowFilters(false)}
+              className={`flex-1 h-10 rounded-xl bg-primary-500 text-white text-sm font-medium hover:bg-primary-600 ${T}`}
+            >
+              Appliquer
             </button>
           </div>
         </div>
-      </div>
+      </Sheet>
 
-      {/* ─── KPIs financiers ─────────────────────────────────────────────── */}
-      {user?.role !== 'ecom_closeuse' && (
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center shrink-0">
-                <DollarSign size={15} className="text-emerald-600" />
-              </div>
-              <p className="text-xs font-medium text-gray-500">Chiffre d'affaires</p>
-            </div>
-            <p className="text-lg font-bold text-gray-900">{fmt(totalRevenue)}</p>
-          </div>
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${(totalProfit || 0) >= 0 ? 'bg-green-100' : 'bg-red-100'}`}>
-                <TrendingUp size={15} className={(totalProfit || 0) >= 0 ? 'text-green-600' : 'text-red-600'} />
-              </div>
-              <p className="text-xs font-medium text-gray-500">Bénéfice net</p>
-            </div>
-            <p className={`text-lg font-bold ${(totalProfit || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>{fmt(totalProfit)}</p>
-          </div>
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center shrink-0">
-                <Truck size={15} className="text-amber-600" />
-              </div>
-              <p className="text-xs font-medium text-gray-500">Frais livraison</p>
-            </div>
-            <p className="text-lg font-bold text-gray-900">{fmt(totalDeliveryCost)}</p>
-          </div>
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="w-8 h-8 rounded-lg bg-red-100 flex items-center justify-center shrink-0">
-                <BarChart3 size={15} className="text-red-500" />
-              </div>
-              <p className="text-xs font-medium text-gray-500">Dépenses pub</p>
-            </div>
-            <p className="text-lg font-bold text-gray-900">{fmt(totalAdSpend)}</p>
-          </div>
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${roas >= 3 ? 'bg-green-100' : roas >= 2 ? 'bg-amber-100' : 'bg-red-100'}`}>
-                <ArrowUpRight size={15} className={roas >= 3 ? 'text-green-600' : roas >= 2 ? 'text-amber-600' : 'text-red-500'} />
-              </div>
-              <p className="text-xs font-medium text-gray-500">ROAS</p>
-            </div>
-            <p className={`text-lg font-bold ${roas >= 3 ? 'text-green-600' : roas >= 2 ? 'text-amber-600' : 'text-red-500'}`}>{roas.toFixed(2)}</p>
-          </div>
-        </div>
-      )}
+      {/* ═══ AUTO REPORT SHEET ════════════════════════════════════════════ */}
+      <Sheet
+        open={autoModal}
+        onClose={() => { setAutoModal(false); setAutoResult(null); }}
+        title={
+          autoStep === 'config' ? 'Rapport automatique' :
+          autoStep === 'assign' ? 'Assigner les produits' :
+          'Rapport généré'
+        }
+        size="md"
+      >
+        {autoStep === 'config' && (
+          <div className="space-y-5">
+            <p className="text-sm text-gray-500">Génère un rapport depuis les commandes livrées.</p>
 
-      {/* ─── Stats commandes ─────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
-        {[
-          { label: 'Rapports', value: reports.length, color: 'text-gray-900', icon: <Package size={15} className="text-gray-500" />, bg: 'bg-gray-100' },
-          { label: 'Cmd reçues', value: totalReceived, color: 'text-blue-600', icon: <ShoppingCart size={15} className="text-blue-500" />, bg: 'bg-blue-100' },
-          { label: 'Cmd livrées', value: totalDelivered, color: 'text-emerald-600', icon: <CheckCircle2 size={15} className="text-emerald-500" />, bg: 'bg-emerald-100' },
-          { label: 'Taux livraison', value: `${deliveryRate}%`, color: deliveryRate >= 70 ? 'text-green-600' : deliveryRate >= 50 ? 'text-amber-600' : 'text-red-500', icon: <Truck size={15} className={deliveryRate >= 70 ? 'text-green-500' : deliveryRate >= 50 ? 'text-amber-500' : 'text-red-400'} />, bg: deliveryRate >= 70 ? 'bg-green-100' : deliveryRate >= 50 ? 'bg-amber-100' : 'bg-red-100', progress: deliveryRate },
-        ].map((stat) => (
-          <div key={stat.label} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${stat.bg}`}>{stat.icon}</div>
-              <p className="text-xs font-medium text-gray-500">{stat.label}</p>
+            <div className="inline-flex p-1 bg-gray-100 rounded-full">
+              <button onClick={() => setAutoMode('day')} className={`px-4 h-8 rounded-full text-sm font-medium ${T} ${autoMode === 'day' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'}`}>Un jour</button>
+              <button onClick={() => setAutoMode('range')} className={`px-4 h-8 rounded-full text-sm font-medium ${T} ${autoMode === 'range' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'}`}>Période</button>
             </div>
-            <p className={`text-2xl font-bold ${stat.color}`}>{stat.value}</p>
-            {stat.progress !== undefined && (
-              <div className="w-full bg-gray-100 rounded-full h-1.5 mt-2">
-                <div className={`h-1.5 rounded-full transition-all ${deliveryRate >= 70 ? 'bg-green-500' : deliveryRate >= 50 ? 'bg-amber-500' : 'bg-red-400'}`} style={{ width: `${Math.min(deliveryRate, 100)}%` }} />
+
+            {autoMode === 'day' ? (
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-2">Date</label>
+                <input type="date" value={autoDate} onChange={e => setAutoDate(e.target.value)} className={`w-full h-10 px-3 border border-gray-200 rounded-xl text-sm focus:border-gray-900 focus:ring-0 outline-none ${T}`} />
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-2">Début</label>
+                  <input type="date" value={autoStartDate} onChange={e => setAutoStartDate(e.target.value)} className={`w-full h-10 px-3 border border-gray-200 rounded-xl text-sm focus:border-gray-900 focus:ring-0 outline-none ${T}`} />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-2">Fin</label>
+                  <input type="date" value={autoEndDate} onChange={e => setAutoEndDate(e.target.value)} className={`w-full h-10 px-3 border border-gray-200 rounded-xl text-sm focus:border-gray-900 focus:ring-0 outline-none ${T}`} />
+                </div>
               </div>
             )}
-          </div>
-        ))}
-      </div>
 
-      {/* ─── Insights Top 3 ──────────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-5">
-        {/* Jours rentables */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-bold text-gray-800">Top 3 jours rentables</h3>
-            <Link to="/ecom/reports/insights?tab=days" className="text-xs font-medium text-emerald-600 hover:text-emerald-700 flex items-center gap-0.5">
-              Voir plus <ChevronRight size={13} />
-            </Link>
+            {autoResult && !autoResult.success && (
+              <div className="rounded-xl px-3 py-2.5 text-sm bg-red-50 border border-red-100 text-red-700">{autoResult.message}</div>
+            )}
+
+            <button
+              onClick={() => generateAutoReports()}
+              disabled={autoLoading || (autoMode === 'range' && (!autoStartDate || !autoEndDate))}
+              className={`w-full h-11 rounded-xl bg-primary-500 text-white text-sm font-medium hover:bg-primary-600 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 ${T}`}
+            >
+              {autoLoading ? 'Analyse en cours...' : <>Générer <ArrowRight size={14} strokeWidth={2.5} /></>}
+            </button>
           </div>
-          {topProfitDays.length > 0 ? (
-            <div className="space-y-2.5">
-              {topProfitDays.map((day, index) => (
-                <div key={day.date} className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 hover:bg-gray-100 transition">
-                  <div className="w-7 h-7 rounded-full bg-white shadow-sm flex items-center justify-center shrink-0">
-                    <RankIcon rank={index + 1} />
+        )}
+
+        {autoStep === 'assign' && (
+          <div className="space-y-5">
+            {autoResult?.message && (
+              <p className="text-sm text-gray-500">{autoResult.message}</p>
+            )}
+            <div className="space-y-3 max-h-[50vh] overflow-y-auto">
+              {(autoResult?.data?.unmatched || []).map(item => (
+                <div key={item.productName} className="border border-gray-200 rounded-xl p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-gray-900 truncate">{item.productName}</p>
+                      <p className="text-xs text-gray-500 mt-0.5">{item.totalDelivered} commande{item.totalDelivered > 1 ? 's' : ''} livrée{item.totalDelivered > 1 ? 's' : ''}</p>
+                    </div>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-gray-900">#{index + 1} {new Date(day.date).toLocaleDateString('fr-FR')}</p>
-                    <p className="text-xs text-gray-400">{day.delivered} livrées • {day.reports} rapport{day.reports > 1 ? 's' : ''}</p>
-                  </div>
-                  <p className={`text-sm font-bold shrink-0 ${day.profit >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>{fmt(day.profit)}</p>
+                  <select
+                    value={autoMappings[item.productName] || ''}
+                    onChange={e => setAutoMappings(p => ({ ...p, [item.productName]: e.target.value }))}
+                    className={`w-full h-9 px-3 border border-gray-200 rounded-lg text-sm focus:border-gray-900 focus:ring-0 outline-none bg-white ${T}`}
+                  >
+                    <option value="">— Ignorer —</option>
+                    {autoProducts.map(p => (
+                      <option key={p._id} value={p._id}>{p.name}</option>
+                    ))}
+                  </select>
                 </div>
               ))}
             </div>
-          ) : <p className="text-sm text-gray-400 text-center py-4">Aucune donnée</p>}
-        </div>
 
-        {/* Agences */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-bold text-gray-800">Agences les plus efficaces</h3>
-            <Link to="/ecom/reports/insights?tab=agencies" className="text-xs font-medium text-emerald-600 hover:text-emerald-700 flex items-center gap-0.5">
-              Voir plus <ChevronRight size={13} />
-            </Link>
-          </div>
-          {topAgencies.length > 0 ? (
-            <div className="space-y-2.5">
-              {topAgencies.map((agency, index) => (
-                <div key={agency.agencyName} className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 hover:bg-gray-100 transition">
-                  <div className="w-7 h-7 rounded-full bg-white shadow-sm flex items-center justify-center shrink-0">
-                    <RankIcon rank={index + 1} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-gray-900 truncate">#{index + 1} {agency.agencyName}</p>
-                    <p className="text-xs text-gray-400">{agency.ordersDelivered} livrées • {agency.reportsCount} rapport{agency.reportsCount > 1 ? 's' : ''}</p>
-                  </div>
-                  <div className="text-right shrink-0">
-                    <p className="text-[10px] text-gray-400">Coût moy.</p>
-                    <p className="text-sm font-bold text-emerald-600">{fmt(agency.avgCostPerDelivery)}</p>
-                  </div>
-                </div>
-              ))}
+            <div className="flex gap-2">
+              <button onClick={() => { setAutoModal(false); setAutoResult(null); loadData(); }} className={`flex-1 h-10 rounded-xl border border-gray-200 text-gray-700 text-sm font-medium hover:bg-gray-50 ${T}`}>Fermer</button>
+              <button
+                onClick={() => generateAutoReports(autoMappings)}
+                disabled={autoLoading}
+                className={`flex-[2] h-10 rounded-xl bg-primary-500 text-white text-sm font-medium hover:bg-primary-600 disabled:opacity-40 ${T}`}
+              >
+                {autoLoading ? 'Génération...' : 'Confirmer'}
+              </button>
             </div>
-          ) : <p className="text-sm text-gray-400 text-center py-4">Aucune donnée</p>}
-        </div>
-
-        {/* Produits */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-bold text-gray-800">Top 3 produits</h3>
-            <Link to="/ecom/stats-rapports" className="text-xs font-medium text-emerald-600 hover:text-emerald-700 flex items-center gap-0.5">
-              Voir plus <ChevronRight size={13} />
-            </Link>
           </div>
-          {topProducts.length > 0 ? (
-            <div className="space-y-2.5">
-              {topProducts.map((product, index) => (
-                <div key={`${product.productName}-${index}`} className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 hover:bg-gray-100 transition">
-                  <div className="w-7 h-7 rounded-full bg-white shadow-sm flex items-center justify-center shrink-0">
-                    <RankIcon rank={index + 1} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-gray-900 truncate">#{index + 1} {product.productName}</p>
-                    <p className="text-xs text-gray-400">{product.ordersDelivered} livrées • {product.reportsCount} rapport{product.reportsCount > 1 ? 's' : ''}</p>
-                  </div>
-                  <div className="text-right shrink-0">
-                    <p className="text-[10px] text-gray-400">CA</p>
-                    <p className="text-sm font-bold text-emerald-600">{fmt(product.revenue)}</p>
-                  </div>
-                </div>
-              ))}
+        )}
+
+        {autoStep === 'done' && (
+          <div className="space-y-5">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-primary-50 flex items-center justify-center shrink-0">
+                <CheckCircle2 size={18} className="text-primary-500" strokeWidth={2} />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-gray-900">Rapport généré</p>
+                <p className="text-xs text-gray-500 mt-0.5">{autoResult?.message}</p>
+              </div>
             </div>
-          ) : <p className="text-sm text-gray-400 text-center py-4">Aucune donnée</p>}
-        </div>
-      </div>
-
-      {/* ─── Répartition des coûts ───────────────────────────────────────── */}
-      {totalCost > 0 && user?.role !== 'ecom_closeuse' && (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mb-5">
-          <h3 className="text-sm font-bold text-gray-800 mb-4">Répartition des coûts</h3>
-          <div className="flex h-3 rounded-full overflow-hidden gap-0.5">
-            <div className="bg-violet-500 rounded-l-full" style={{ width: `${(totalProductCost / totalCost * 100)}%` }} title={`Produits: ${fmt(totalProductCost)}`} />
-            <div className="bg-amber-400" style={{ width: `${(totalDeliveryCost / totalCost * 100)}%` }} title={`Livraison: ${fmt(totalDeliveryCost)}`} />
-            <div className="bg-red-400 rounded-r-full" style={{ width: `${(totalAdSpend / totalCost * 100)}%` }} title={`Pub: ${fmt(totalAdSpend)}`} />
+            {autoResult?.success && autoResult.data?.created?.length > 0 && (
+              <div className="border border-gray-200 rounded-xl p-3">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">{autoResult.data.created.length} créé{autoResult.data.created.length > 1 ? 's' : ''}</p>
+                <ul className="space-y-1 max-h-32 overflow-y-auto">
+                  {autoResult.data.created.map((c, i) => (
+                    <li key={i} className="text-sm text-gray-700 truncate">{c.productName}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {autoResult?.success && autoResult.data?.updated?.length > 0 && (
+              <div className="border border-gray-200 rounded-xl p-3">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">{autoResult.data.updated.length} mis à jour</p>
+                <ul className="space-y-1 max-h-32 overflow-y-auto">
+                  {autoResult.data.updated.map((c, i) => (
+                    <li key={i} className="text-sm text-gray-700 truncate">{c.productName}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            <button
+              onClick={() => { setAutoModal(false); setAutoResult(null); setAutoStep('config'); }}
+              className={`w-full h-11 rounded-xl bg-primary-500 text-white text-sm font-medium hover:bg-primary-600 ${T}`}
+            >
+              Terminé
+            </button>
           </div>
-          <div className="flex flex-wrap gap-4 mt-3">
-            <span className="flex items-center gap-1.5 text-xs text-gray-600"><span className="w-2.5 h-2.5 bg-violet-500 rounded-full" />Produits <strong>{fmt(totalProductCost)}</strong></span>
-            <span className="flex items-center gap-1.5 text-xs text-gray-600"><span className="w-2.5 h-2.5 bg-amber-400 rounded-full" />Livraison <strong>{fmt(totalDeliveryCost)}</strong></span>
-            <span className="flex items-center gap-1.5 text-xs text-gray-600"><span className="w-2.5 h-2.5 bg-red-400 rounded-full" />Pub <strong>{fmt(totalAdSpend)}</strong></span>
-          </div>
-        </div>
-      )}
-
-      {/* ─── Table des rapports ───────────────────────────────────────────── */}
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="min-w-full">
-            <thead>
-              <tr className="border-b border-gray-100 bg-gray-50/80">
-                <th className="px-4 sm:px-5 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Date</th>
-                <th className="px-4 sm:px-5 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Produit</th>
-                <th className="px-4 sm:px-5 py-3.5 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Reçues</th>
-                <th className="px-4 sm:px-5 py-3.5 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Livrées</th>
-                {user?.role !== 'ecom_closeuse' && (
-                  <th className="px-4 sm:px-5 py-3.5 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Pub</th>
-                )}
-                {user?.role !== 'ecom_closeuse' && (
-                  <th className="px-4 sm:px-5 py-3.5 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">CA</th>
-                )}
-                {user?.role !== 'ecom_closeuse' && (
-                  <th className="px-4 sm:px-5 py-3.5 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">Frais livraison</th>
-                )}
-                <th className="px-4 sm:px-5 py-3.5 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Taux</th>
-                <th className="px-4 sm:px-5 py-3.5 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {reports.length === 0 ? (
-                <tr>
-                  <td colSpan={user?.role === 'ecom_closeuse' ? 6 : 9} className="px-6 py-12 text-center">
-                    <Package size={36} className="text-gray-200 mx-auto mb-3" />
-                    <p className="text-sm text-gray-400">Aucun rapport trouvé</p>
-                  </td>
-                </tr>
-              ) : (
-                reports.map((report) => {
-                  const rate = report.ordersReceived > 0
-                    ? ((report.ordersDelivered / report.ordersReceived) * 100).toFixed(0)
-                    : 0;
-                  return (
-                    <tr key={report._id} className="hover:bg-gray-50/70 transition-colors group">
-                      <td className="px-4 sm:px-5 py-3.5 whitespace-nowrap">
-                        <Link to={`/ecom/reports/${report._id}`} className="text-sm font-semibold text-emerald-600 hover:text-emerald-800 hover:underline">
-                          {new Date(report.date).toLocaleDateString('fr-FR')}
-                        </Link>
-                      </td>
-                      <td className="px-4 sm:px-5 py-3.5 whitespace-nowrap max-w-[200px]">
-                        {report.productId?._id ? (
-                          <Link
-                            to={`/ecom/reports/product/${report.productId._id}`}
-                            className="text-sm font-medium text-gray-800 hover:text-emerald-700 flex items-center gap-1 group/link"
-                            onClick={() => console.log('🔗 Navigation vers produit:', report.productId._id, 'Nom:', report.productId.name)}
-                          >
-                            <span className="truncate">{report.productId.name}</span>
-                            <ChevronRight size={13} className="shrink-0 text-gray-300 group-hover/link:text-emerald-500 transition" />
-                          </Link>
-                        ) : (
-                          <span className="text-sm text-gray-400">N/A</span>
-                        )}
-                      </td>
-                      <td className="px-4 sm:px-5 py-3.5 text-center">
-                        <span className="text-sm font-semibold text-gray-700">{report.ordersReceived}</span>
-                      </td>
-                      <td className="px-4 sm:px-5 py-3.5 text-center">
-                        <span className="text-sm font-bold text-emerald-600">{report.ordersDelivered}</span>
-                      </td>
-                      {user?.role !== 'ecom_closeuse' && (
-                        <td className="px-4 sm:px-5 py-3.5 text-center">
-                          <span className="text-sm text-gray-500">{fmt(report.adSpend)}</span>
-                        </td>
-                      )}
-                      {user?.role !== 'ecom_closeuse' && (
-                        <td className="px-4 sm:px-5 py-3.5 text-right">
-                          <span className="text-sm font-semibold text-emerald-600">{fmt(report.revenue || 0)}</span>
-                        </td>
-                      )}
-                      {user?.role !== 'ecom_closeuse' && (
-                        <td className="px-4 sm:px-5 py-3.5 text-right">
-                          <span className="text-sm font-semibold text-amber-600">{fmt(report.deliveryCost || 0)}</span>
-                        </td>
-                      )}
-                      <td className="px-4 sm:px-5 py-3.5 text-center">
-                        <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold ${rate >= 70 ? 'bg-green-100 text-green-700' : rate >= 50 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-600'}`}>
-                          {rate}%
-                        </span>
-                      </td>
-                      <td className="px-4 sm:px-5 py-3.5 text-right whitespace-nowrap">
-                        <div className="inline-flex items-center gap-1">
-                          <Link
-                            to={`/ecom/reports/${report._id}`}
-                            className="px-2.5 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition"
-                          >
-                            Voir
-                          </Link>
-                          {(user.role === 'ecom_admin' || user.role === 'ecom_closeuse') && (
-                            <>
-                              <Link
-                                to={`/ecom/reports/${report._id}/edit`}
-                                className="px-2.5 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition"
-                              >
-                                Modifier
-                              </Link>
-                              <button
-                                onClick={() => deleteReport(report._id)}
-                                className="px-2.5 py-1.5 text-xs font-medium text-red-500 bg-red-50 hover:bg-red-100 rounded-lg transition"
-                              >
-                                Supprimer
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+        )}
+      </Sheet>
     </div>
   );
 };

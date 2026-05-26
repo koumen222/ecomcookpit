@@ -66,7 +66,7 @@ const KpiCard = ({ label, value, sub, icon: Icon, trend, trendUp, spark, sparkCo
           {Icon && <Icon className="w-4 h-4" style={{ color: accent }} />}
         </div>
         {trend != null && (
-          <span className={`inline-flex items-center gap-0.5 text-[11px] font-bold px-2 py-0.5 rounded-lg ${trendUp ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'}`}>
+          <span className={`inline-flex items-center gap-0.5 text-[11px] font-bold px-2 py-0.5 rounded-lg ${trendUp ? 'bg-primary-50 text-primary-700' : 'bg-red-50 text-red-600'}`}>
             {trendUp ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
             {trend}
           </span>
@@ -432,11 +432,11 @@ const SuperAdminDashboard = () => {
         {/* ── KPI — Croissance ── */}
         <section>
           <div className="flex items-center gap-2 mb-3">
-            <div className="w-1.5 h-5 rounded-full bg-emerald-500" />
+            <div className="w-1.5 h-5 rounded-full bg-primary-500" />
             <h2 className="text-sm font-extrabold text-slate-700">Croissance</h2>
             <span className="text-[10px] text-slate-400 font-medium">— {rangeLabel}</span>
             {errors.users && (
-              <button onClick={() => retrySection('users')} className="ml-auto text-[11px] text-emerald-600 font-bold hover:underline flex items-center gap-1">
+              <button onClick={() => retrySection('users')} className="ml-auto text-[11px] text-primary-600 font-bold hover:underline flex items-center gap-1">
                 <RefreshCw className="w-3 h-3" /> Réessayer
               </button>
             )}
@@ -493,7 +493,7 @@ const SuperAdminDashboard = () => {
                     <div className="flex items-center gap-3 text-xs">
                       <span className="font-extrabold text-slate-800">{dailySessions.reduce((s, d) => s + (d.sessions || 0), 0).toLocaleString()}</span>
                       <span className="text-slate-400">total</span>
-                      <span className="font-bold text-emerald-700">↑ {Math.max(...dailySessions.map(d => d.sessions || 0), 0).toLocaleString()} peak</span>
+                      <span className="font-bold text-primary-700">↑ {Math.max(...dailySessions.map(d => d.sessions || 0), 0).toLocaleString()} peak</span>
                     </div>
                   )}
                 </SH>
@@ -522,7 +522,7 @@ const SuperAdminDashboard = () => {
                       <span className="font-extrabold text-slate-800">{dailySignups.reduce((s, d) => s + (d.count || 0), 0).toLocaleString()}</span>
                       <span className="text-slate-400">total</span>
                       {signupTrend && (
-                        <span className={`font-bold ${signupTrend.startsWith('+') ? 'text-emerald-700' : 'text-red-500'}`}>{signupTrend}</span>
+                        <span className={`font-bold ${signupTrend.startsWith('+') ? 'text-primary-700' : 'text-red-500'}`}>{signupTrend}</span>
                       )}
                     </div>
                   )}
@@ -799,7 +799,7 @@ const SuperAdminDashboard = () => {
           <div className="px-5 pt-5 pb-3">
             <SH icon={LogIn} title="Connexions récentes" subtitle={`${usersActivity?.totalLogins ?? 0} connexions sur la période`} color="#334155">
               <button onClick={() => navigate('/ecom/super-admin/users')}
-                className="text-xs font-bold text-emerald-600 hover:text-emerald-700 flex items-center gap-1 transition-colors">
+                className="text-xs font-bold text-primary-600 hover:text-primary-700 flex items-center gap-1 transition-colors">
                 Voir tous <ChevronRight className="w-3.5 h-3.5" />
               </button>
             </SH>
@@ -823,7 +823,7 @@ const SuperAdminDashboard = () => {
                     <tr key={i} className="border-b border-slate-50 hover:bg-slate-50/60 transition-colors">
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2.5">
-                          <div className="w-7 h-7 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0">
+                          <div className="w-7 h-7 rounded-full bg-gradient-to-br from-primary-400 to-teal-500 flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0">
                             {(login.name || login.email || '?')[0].toUpperCase()}
                           </div>
                           <div className="min-w-0">
@@ -869,7 +869,7 @@ const SuperAdminDashboard = () => {
                     <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-violet-400 to-purple-500 flex items-center justify-center text-white text-[10px] font-bold">
                       {(ws.name || 'W')[0].toUpperCase()}
                     </div>
-                    <span className={`w-2 h-2 rounded-full mt-1 ${ws.isActive ? 'bg-emerald-500' : 'bg-slate-300'}`} />
+                    <span className={`w-2 h-2 rounded-full mt-1 ${ws.isActive ? 'bg-primary-500' : 'bg-slate-300'}`} />
                   </div>
                   <p className="text-xs font-bold text-slate-800 truncate mb-1 group-hover:text-violet-700 transition-colors">{ws.name || 'Sans nom'}</p>
                   <div className="flex items-center gap-1 text-[10px] text-slate-400">

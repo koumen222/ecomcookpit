@@ -32,8 +32,8 @@ const PushSection = () => {
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isSubscribed ? 'bg-emerald-100' : 'bg-gray-100'}`}>
-            <svg className={`w-5 h-5 ${isSubscribed ? 'text-emerald-600' : 'text-gray-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isSubscribed ? 'bg-primary-100' : 'bg-gray-100'}`}>
+            <svg className={`w-5 h-5 ${isSubscribed ? 'text-primary-600' : 'text-gray-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
             </svg>
           </div>
@@ -44,7 +44,7 @@ const PushSection = () => {
                isSubscribed ? '✅ Activées sur cet appareil' :
                '⬜ Désactivées sur cet appareil'}
             </p>
-            {testSent && <p className="text-xs text-emerald-600 font-medium mt-0.5">✅ Notification de test envoyée !</p>}
+            {testSent && <p className="text-xs text-primary-600 font-medium mt-0.5">✅ Notification de test envoyée !</p>}
             {error && <p className="text-xs text-red-500 mt-0.5">{error}</p>}
           </div>
         </div>
@@ -55,7 +55,7 @@ const PushSection = () => {
           <button
             onClick={handleToggle}
             disabled={activating || loading}
-            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none disabled:opacity-50 ${isSubscribed ? 'bg-emerald-600' : 'bg-gray-300'}`}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none disabled:opacity-50 ${isSubscribed ? 'bg-primary-600' : 'bg-gray-300'}`}
           >
             <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform duration-200 ${isSubscribed ? 'translate-x-6' : 'translate-x-1'}`} />
           </button>
@@ -220,8 +220,8 @@ const Profile = () => {
   };
 
   const roleColors = {
-    'super_admin': 'bg-emerald-100 text-emerald-900',
-    'ecom_admin': 'bg-emerald-100 text-emerald-800',
+    'super_admin': 'bg-primary-100 text-primary-900',
+    'ecom_admin': 'bg-primary-100 text-primary-800',
     'ecom_closeuse': 'bg-amber-100 text-pink-800',
     'ecom_compta': 'bg-green-100 text-green-800',
     'ecom_livreur': 'bg-orange-100 text-orange-800'
@@ -364,7 +364,7 @@ const Profile = () => {
           <p className="text-gray-600 mb-4">Utilisateur non trouvé</p>
           <button
             onClick={() => window.location.href = '/ecom/login'}
-            className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700"
+            className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
           >
             Se connecter
           </button>
@@ -378,7 +378,7 @@ const Profile = () => {
       {switchingWsId && <SwitchOverlay name={switchingName} />}
       {/* Header avec avatar */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden mb-6">
-        <div className="h-24 bg-gradient-to-r from-emerald-600 via-emerald-600 to-emerald-700"></div>
+        <div className="h-24 bg-gradient-to-r from-primary-600 via-primary-600 to-primary-700"></div>
         <div className="px-6 pb-6 -mt-12">
           <div className="flex flex-col sm:flex-row sm:items-end gap-4">
             <button
@@ -390,7 +390,7 @@ const Profile = () => {
               {avatarPreview ? (
                 <img src={avatarPreview} alt="Avatar" className="w-full h-full rounded-xl object-cover" />
               ) : (
-                <div className="w-full h-full bg-gradient-to-br from-emerald-600 to-emerald-700 rounded-xl flex items-center justify-center">
+                <div className="w-full h-full bg-gradient-to-br from-primary-600 to-primary-700 rounded-xl flex items-center justify-center">
                   <span className="text-white text-3xl font-bold">{initial}</span>
                 </div>
               )}
@@ -450,7 +450,7 @@ const Profile = () => {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Votre nom"
-                className="ecom-mobile-input w-full px-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-emerald-600 focus:border-emerald-600 transition outline-none"
+                className="ecom-mobile-input w-full px-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition outline-none"
               />
             </div>
             <div>
@@ -460,7 +460,7 @@ const Profile = () => {
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder="+237 6XX XXX XXX"
-                className="ecom-mobile-input w-full px-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-emerald-600 focus:border-emerald-600 transition outline-none"
+                className="ecom-mobile-input w-full px-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition outline-none"
               />
             </div>
             <div>
@@ -487,7 +487,7 @@ const Profile = () => {
             <button
               type="submit"
               disabled={saving}
-              className="ecom-mobile-button px-6 py-2.5 bg-emerald-600 text-white text-sm font-medium rounded-xl hover:bg-emerald-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              className="ecom-mobile-button px-6 py-2.5 bg-primary-600 text-white text-sm font-medium rounded-xl hover:bg-primary-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >
               {saving && (
                 <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
@@ -510,7 +510,7 @@ const Profile = () => {
           </div>
           <div className="p-6">
             <div className="flex items-center gap-4 mb-4">
-              <div className="w-12 h-12 bg-gradient-to-br from-emerald-600 to-emerald-700 rounded-xl flex items-center justify-center">
+              <div className="w-12 h-12 bg-gradient-to-br from-primary-600 to-primary-700 rounded-xl flex items-center justify-center">
                 <span className="text-white text-lg font-bold">{workspace.name?.charAt(0)?.toUpperCase() || 'W'}</span>
               </div>
               <div>
@@ -527,7 +527,7 @@ const Profile = () => {
                   </div>
                   <button
                     onClick={() => { navigator.clipboard.writeText(workspace.inviteCode); }}
-                    className="px-4 py-2 bg-emerald-50 text-emerald-600 rounded-xl hover:bg-emerald-100 transition text-sm font-medium flex items-center gap-2"
+                    className="px-4 py-2 bg-primary-50 text-primary-600 rounded-xl hover:bg-primary-100 transition text-sm font-medium flex items-center gap-2"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
@@ -571,7 +571,7 @@ const Profile = () => {
               </div>
               <button
                 onClick={() => setShowPwdForm(true)}
-                className="px-4 py-2 text-sm font-medium text-emerald-600 bg-emerald-50 rounded-xl hover:bg-emerald-100 transition"
+                className="px-4 py-2 text-sm font-medium text-primary-600 bg-primary-50 rounded-xl hover:bg-primary-100 transition"
               >
                 Modifier
               </button>
@@ -585,7 +585,7 @@ const Profile = () => {
                   value={currentPassword}
                   onChange={(e) => setCurrentPassword(e.target.value)}
                   required
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-emerald-600 focus:border-emerald-600 transition outline-none"
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition outline-none"
                 />
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -597,7 +597,7 @@ const Profile = () => {
                     onChange={(e) => setNewPassword(e.target.value)}
                     required
                     minLength={6}
-                    className="w-full px-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-emerald-600 focus:border-emerald-600 transition outline-none"
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition outline-none"
                   />
                 </div>
                 <div>
@@ -608,7 +608,7 @@ const Profile = () => {
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     required
                     minLength={6}
-                    className="w-full px-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-emerald-600 focus:border-emerald-600 transition outline-none"
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition outline-none"
                   />
                 </div>
               </div>
@@ -623,7 +623,7 @@ const Profile = () => {
                 <button
                   type="submit"
                   disabled={changingPwd}
-                  className="px-5 py-2 bg-emerald-600 text-white text-sm font-medium rounded-xl hover:bg-emerald-700 transition disabled:opacity-50 flex items-center gap-2"
+                  className="px-5 py-2 bg-primary-600 text-white text-sm font-medium rounded-xl hover:bg-primary-700 transition disabled:opacity-50 flex items-center gap-2"
                 >
                   {changingPwd && (
                     <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
@@ -671,7 +671,7 @@ const Profile = () => {
           {workspace && (
             <div className="mt-6 pt-6 border-t border-gray-200">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-gradient-to-br from-emerald-600 to-emerald-700 rounded-xl flex items-center justify-center">
+                <div className="w-10 h-10 bg-gradient-to-br from-primary-600 to-primary-700 rounded-xl flex items-center justify-center">
                   <span className="text-white text-lg font-bold">{workspace.name?.charAt(0)?.toUpperCase() || 'W'}</span>
                 </div>
                 <div>
@@ -693,7 +693,7 @@ const Profile = () => {
               <p className="text-xs text-gray-500 mt-0.5">Basculer entre vos espaces (rôle différent selon l'espace).</p>
             </div>
             {loadingWorkspaces && (
-              <div className="w-4 h-4 rounded-full border-2 border-gray-200 border-t-emerald-600 animate-spin" />
+              <div className="w-4 h-4 rounded-full border-2 border-gray-200 border-t-primary-600 animate-spin" />
             )}
           </div>
           <div className="divide-y divide-gray-100">
@@ -707,13 +707,13 @@ const Profile = () => {
                     <p className="text-xs text-gray-500 mt-0.5">Rôle: {roleLabels[ws.role] || ws.role}</p>
                   </div>
                   {active ? (
-                    <span className="px-3 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700">Actif</span>
+                    <span className="px-3 py-1 rounded-full text-xs font-semibold bg-primary-100 text-primary-700">Actif</span>
                   ) : (
                     <button
                       type="button"
                       onClick={() => handleSwitchWorkspace(id)}
                       disabled={!!switchingWsId}
-                      className="px-3 py-2 rounded-xl text-xs font-semibold bg-emerald-600 text-white hover:bg-emerald-700 transition disabled:opacity-50"
+                      className="px-3 py-2 rounded-xl text-xs font-semibold bg-primary-600 text-white hover:bg-primary-700 transition disabled:opacity-50"
                     >
                       {switchingWsId === id ? 'Switch…' : 'Basculer'}
                     </button>
@@ -737,7 +737,7 @@ const Profile = () => {
             value={joinCode}
             onChange={e => { setJoinCode(e.target.value); setJoinMsg(null); }}
             placeholder="Code d'invitation (ex: ABC123)"
-            className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-400 font-mono uppercase placeholder-normal"
+            className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-400 font-mono uppercase placeholder-normal"
             style={{ textTransform: 'none' }}
             maxLength={32}
             disabled={joiningWorkspace}
@@ -745,13 +745,13 @@ const Profile = () => {
           <button
             type="submit"
             disabled={joiningWorkspace || !joinCode.trim()}
-            className="px-4 py-2.5 rounded-xl text-sm font-semibold bg-emerald-600 text-white hover:bg-emerald-700 transition disabled:opacity-50 flex-shrink-0"
+            className="px-4 py-2.5 rounded-xl text-sm font-semibold bg-primary-600 text-white hover:bg-primary-700 transition disabled:opacity-50 flex-shrink-0"
           >
             {joiningWorkspace ? 'Envoi…' : 'Rejoindre'}
           </button>
         </form>
         {joinMsg && (
-          <p className={`px-6 pb-4 text-xs font-medium ${joinMsg.type === 'error' ? 'text-red-600' : 'text-emerald-600'}`}>
+          <p className={`px-6 pb-4 text-xs font-medium ${joinMsg.type === 'error' ? 'text-red-600' : 'text-primary-600'}`}>
             {joinMsg.text}
           </p>
         )}
@@ -805,13 +805,13 @@ const Profile = () => {
                     key={session.sessionId}
                     className={`flex items-center justify-between p-4 rounded-xl border transition-all ${
                       session.isCurrent
-                        ? 'bg-emerald-50 border-emerald-200'
+                        ? 'bg-primary-50 border-primary-200'
                         : 'bg-gray-50 border-gray-200 hover:border-gray-300'
                     }`}
                   >
                     <div className="flex items-center gap-3 flex-1 min-w-0">
                       <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl flex-shrink-0 ${
-                        session.isCurrent ? 'bg-emerald-100' : 'bg-white border border-gray-200'
+                        session.isCurrent ? 'bg-primary-100' : 'bg-white border border-gray-200'
                       }`}>
                         {deviceIcon}
                       </div>
@@ -821,14 +821,14 @@ const Profile = () => {
                             {session.browser || 'Navigateur inconnu'} · {session.os || session.device || 'Appareil inconnu'}
                           </p>
                           {session.isCurrent && (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-700 flex-shrink-0">
-                              <span className="w-1.5 h-1.5 bg-emerald-600 rounded-full"></span>
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-primary-100 text-primary-700 flex-shrink-0">
+                              <span className="w-1.5 h-1.5 bg-primary-600 rounded-full"></span>
                               Session actuelle
                             </span>
                           )}
                           {!session.isCurrent && isRecent && (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-700 flex-shrink-0">
-                              <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-primary-100 text-primary-700 flex-shrink-0">
+                              <span className="w-1.5 h-1.5 bg-primary-500 rounded-full animate-pulse"></span>
                               Active
                             </span>
                           )}

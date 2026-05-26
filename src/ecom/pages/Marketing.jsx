@@ -17,7 +17,7 @@ const STATUS = {
   draft:     { label: 'Brouillon',  icon: Edit3,        dot: 'bg-slate-400',   badge: 'bg-slate-100 text-slate-600 ring-slate-200'  },
   scheduled: { label: 'Planifiée',  icon: Calendar,     dot: 'bg-blue-500',    badge: 'bg-blue-50 text-blue-700 ring-blue-200'      },
   sending:   { label: 'En cours',   icon: Loader2,      dot: 'bg-amber-500',   badge: 'bg-amber-50 text-amber-700 ring-amber-200'   },
-  sent:      { label: 'Envoyée',    icon: CheckCircle2, dot: 'bg-emerald-500', badge: 'bg-emerald-50 text-emerald-700 ring-emerald-200' },
+  sent:      { label: 'Envoyée',    icon: CheckCircle2, dot: 'bg-primary-500', badge: 'bg-primary-50 text-primary-700 ring-primary-200' },
   failed:    { label: 'Échouée',    icon: AlertCircle,  dot: 'bg-red-500',     badge: 'bg-red-50 text-red-700 ring-red-200'         },
 };
 
@@ -65,7 +65,7 @@ const Toast = ({ toasts, dismiss }) => (
     {toasts.map(t => (
       <div key={t.id} className={`flex items-center gap-2.5 px-4 py-3 rounded-xl shadow-lg text-sm font-medium pointer-events-auto transition-all duration-300 ${
         t.type === 'ok'
-          ? 'bg-emerald-600 text-white'
+          ? 'bg-primary-600 text-white'
           : 'bg-red-600 text-white'
       }`}>
         {t.type === 'ok'
@@ -283,7 +283,7 @@ export default function Marketing() {
   };
 
   const waStatusStyle = (status) => {
-    if (status === 'connected' || status === 'active') return { label: 'Connecté', cls: 'bg-emerald-100 text-emerald-700', ready: true };
+    if (status === 'connected' || status === 'active') return { label: 'Connecté', cls: 'bg-primary-100 text-primary-700', ready: true };
     if (status === 'configured')   return { label: 'Configuré',   cls: 'bg-blue-100 text-blue-600',   ready: false };
     if (status === 'disconnected') return { label: 'Déconnecté',  cls: 'bg-red-100 text-red-600',     ready: false };
     return { label: 'Inactif', cls: 'bg-slate-100 text-slate-500', ready: false };
@@ -321,8 +321,8 @@ export default function Marketing() {
               <div>
                 <div className="flex items-center gap-2">
                   <h1 className="text-xl font-black text-white tracking-tight">Marketing Email</h1>
-                  <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary-500/20 text-primary-300 border border-primary-500/30">
+                    <span className="w-1.5 h-1.5 rounded-full bg-primary-400 animate-pulse" />
                     Live
                   </span>
                 </div>
@@ -342,7 +342,7 @@ export default function Marketing() {
               </Link>
               <button
                 onClick={() => goCompose()}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 rounded-xl transition-all shadow-sm"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-primary-600 hover:bg-primary-500 rounded-xl transition-all shadow-sm"
               >
                 <Plus className="w-3.5 h-3.5" />
                 Nouvelle campagne
@@ -407,7 +407,7 @@ export default function Marketing() {
                   placeholder="Rechercher une campagne…"
                   value={searchInput}
                   onChange={e => handleSearchInput(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 text-xs font-medium bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-400 placeholder:text-slate-400"
+                  className="w-full pl-9 pr-3 py-2 text-xs font-medium bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-400 placeholder:text-slate-400"
                 />
               </div>
 
@@ -449,8 +449,8 @@ export default function Marketing() {
             <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
               {campaigns.length === 0 && !loading ? (
                 <div className="flex flex-col items-center justify-center py-20 px-6 text-center">
-                  <div className="w-16 h-16 rounded-2xl bg-emerald-50 flex items-center justify-center mb-4">
-                    <Mail className="w-7 h-7 text-emerald-500" />
+                  <div className="w-16 h-16 rounded-2xl bg-primary-50 flex items-center justify-center mb-4">
+                    <Mail className="w-7 h-7 text-primary-500" />
                   </div>
                   <h3 className="text-base font-bold text-slate-800 mb-1">Aucune campagne</h3>
                   <p className="text-sm text-slate-400 mb-5 max-w-xs">
@@ -461,7 +461,7 @@ export default function Marketing() {
                   {!filterStatus && !search && (
                     <button
                       onClick={() => goCompose()}
-                      className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 text-white text-sm font-bold rounded-xl hover:bg-emerald-500 transition-all shadow-sm"
+                      className="flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white text-sm font-bold rounded-xl hover:bg-primary-500 transition-all shadow-sm"
                     >
                       <Plus className="w-4 h-4" />
                       Créer une campagne
@@ -509,7 +509,7 @@ export default function Marketing() {
 
                                 {/* Envoyés */}
                                 <td className="px-4 py-3.5 text-right">
-                                  <span className={`text-sm font-semibold ${(c.stats?.sent || 0) > 0 ? 'text-emerald-600' : 'text-slate-400'}`}>
+                                  <span className={`text-sm font-semibold ${(c.stats?.sent || 0) > 0 ? 'text-primary-600' : 'text-slate-400'}`}>
                                     {fmt(c.stats?.sent)}
                                   </span>
                                 </td>
@@ -524,7 +524,7 @@ export default function Marketing() {
                                 {/* Date */}
                                 <td className="px-4 py-3.5 text-[11px] text-slate-500 whitespace-nowrap">
                                   {c.sentAt
-                                    ? <span className="flex items-center gap-1"><CheckCircle2 className="w-3 h-3 text-emerald-500" />{date(c.sentAt)}</span>
+                                    ? <span className="flex items-center gap-1"><CheckCircle2 className="w-3 h-3 text-primary-500" />{date(c.sentAt)}</span>
                                     : c.scheduledAt
                                     ? <span className="flex items-center gap-1"><Calendar className="w-3 h-3 text-blue-500" />{date(c.scheduledAt)}</span>
                                     : <span className="flex items-center gap-1"><Clock className="w-3 h-3 text-slate-400" />{date(c.createdAt)}</span>
@@ -540,7 +540,7 @@ export default function Marketing() {
                                         onClick={() => sendCampaign(c._id)}
                                         disabled={isSending}
                                         title="Envoyer"
-                                        className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-bold text-white bg-emerald-600 hover:bg-emerald-500 rounded-lg transition-all disabled:opacity-50 shadow-sm"
+                                        className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-bold text-white bg-primary-600 hover:bg-primary-500 rounded-lg transition-all disabled:opacity-50 shadow-sm"
                                       >
                                         {isSending
                                           ? <Loader2 className="w-3 h-3 animate-spin" />
@@ -658,7 +658,7 @@ export default function Marketing() {
             <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
               <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
                 <h3 className="text-sm font-bold text-slate-800">Dernières campagnes envoyées</h3>
-                <button onClick={() => setView('campaigns')} className="text-xs font-semibold text-emerald-600 hover:text-emerald-500 flex items-center gap-1">
+                <button onClick={() => setView('campaigns')} className="text-xs font-semibold text-primary-600 hover:text-primary-500 flex items-center gap-1">
                   Voir tout <ArrowUpRight className="w-3 h-3" />
                 </button>
               </div>
@@ -673,8 +673,8 @@ export default function Marketing() {
                     const rate = pct(c.stats?.sent, c.stats?.targeted);
                     return (
                       <div key={c._id} className="flex items-center gap-4 px-5 py-3.5 hover:bg-slate-50/60 transition-colors group">
-                        <div className="w-8 h-8 rounded-xl bg-emerald-50 flex items-center justify-center flex-shrink-0">
-                          <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                        <div className="w-8 h-8 rounded-xl bg-primary-50 flex items-center justify-center flex-shrink-0">
+                          <CheckCircle2 className="w-4 h-4 text-primary-500" />
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-semibold text-slate-800 truncate">{c.name}</p>
@@ -721,7 +721,7 @@ export default function Marketing() {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <p className="text-xs text-slate-500">Sélectionnez une instance connectée pour lancer l'envoi.</p>
-            <button onClick={refreshWaStatus} disabled={waLoading} className="flex items-center gap-1 text-[11px] font-semibold text-emerald-600 hover:text-emerald-500 disabled:opacity-40">
+            <button onClick={refreshWaStatus} disabled={waLoading} className="flex items-center gap-1 text-[11px] font-semibold text-primary-600 hover:text-primary-500 disabled:opacity-40">
               <RefreshCw className={`w-3 h-3 ${waLoading ? 'animate-spin' : ''}`} />
               Actualiser
             </button>
@@ -748,12 +748,12 @@ export default function Marketing() {
                     disabled={!s.ready || !!sendingId}
                     className={`w-full flex items-center gap-3 p-3.5 rounded-xl border text-left transition-all ${
                       s.ready
-                        ? 'border-emerald-200 hover:border-emerald-400 hover:bg-emerald-50 cursor-pointer'
+                        ? 'border-primary-200 hover:border-primary-400 hover:bg-primary-50 cursor-pointer'
                         : 'border-slate-100 bg-slate-50 opacity-60 cursor-not-allowed'
                     }`}
                   >
                     <div className="w-9 h-9 rounded-xl bg-white border border-slate-200 flex items-center justify-center flex-shrink-0 shadow-sm">
-                      <MessageSquare className={`w-4 h-4 ${s.ready ? 'text-emerald-500' : 'text-slate-400'}`} />
+                      <MessageSquare className={`w-4 h-4 ${s.ready ? 'text-primary-500' : 'text-slate-400'}`} />
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-slate-800 truncate">{inst.customName || inst.instanceName}</p>

@@ -54,7 +54,7 @@ const ResetPassword = () => {
 
   if (!tokenValid) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-emerald-50 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-gradient-to-br from-primary-50 via-white to-primary-50 flex items-center justify-center p-4">
         <div className="w-full max-w-md">
           <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-8 text-center">
             <div className="w-16 h-16 bg-red-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
@@ -65,10 +65,10 @@ const ResetPassword = () => {
             <h1 className="text-2xl font-bold text-gray-900 mb-2">Lien invalide</h1>
             <p className="text-gray-500 text-sm mb-6">Ce lien de réinitialisation est invalide ou a expiré.</p>
             <div className="space-y-3">
-              <Link to="/ecom/forgot-password" className="block w-full py-2.5 px-4 bg-emerald-600 text-white rounded-xl font-medium hover:bg-emerald-700 transition text-sm">
+              <Link to="/ecom/forgot-password" className="block w-full py-2.5 px-4 bg-primary-600 text-white rounded-xl font-medium hover:bg-primary-700 transition text-sm">
                 Demander un nouveau lien
               </Link>
-              <Link to="/ecom/login" className="block w-full py-2.5 px-4 text-emerald-600 font-medium hover:text-emerald-700 transition text-sm">
+              <Link to="/ecom/login" className="block w-full py-2.5 px-4 text-primary-600 font-medium hover:text-primary-700 transition text-sm">
                 Retour ù  la connexion
               </Link>
             </div>
@@ -80,7 +80,7 @@ const ResetPassword = () => {
 
   if (success) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-emerald-50 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-gradient-to-br from-primary-50 via-white to-primary-50 flex items-center justify-center p-4">
         <div className="w-full max-w-md">
           <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-8 text-center">
             <div className="w-16 h-16 bg-green-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
@@ -90,7 +90,7 @@ const ResetPassword = () => {
             </div>
             <h1 className="text-2xl font-bold text-gray-900 mb-2">Mot de passe réinitialisé</h1>
             <p className="text-gray-500 text-sm mb-6">Votre mot de passe a été modifié avec succès. Vous pouvez maintenant vous connecter.</p>
-            <Link to="/ecom/login" className="block w-full py-3 px-4 bg-emerald-600 text-white rounded-xl font-semibold hover:bg-emerald-700 transition text-sm">
+            <Link to="/ecom/login" className="block w-full py-3 px-4 bg-primary-600 text-white rounded-xl font-semibold hover:bg-primary-700 transition text-sm">
               Se connecter
             </Link>
           </div>
@@ -100,12 +100,12 @@ const ResetPassword = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-emerald-50 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-primary-50 via-white to-primary-50 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-8">
           <div className="text-center mb-8">
-            <div className="w-16 h-16 bg-emerald-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-              <svg className="w-8 h-8 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="w-16 h-16 bg-primary-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <svg className="w-8 h-8 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
               </svg>
             </div>
@@ -177,7 +177,7 @@ const ResetPassword = () => {
             <button
               type="submit"
               disabled={loading || newPassword !== confirmPassword || newPassword.length < 6}
-              className="w-full py-3 px-4 bg-emerald-600 text-white rounded-xl font-semibold hover:bg-emerald-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm"
+              className="w-full py-3 px-4 bg-primary-600 text-white rounded-xl font-semibold hover:bg-primary-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm"
             >
               {loading ? (
                 <>
@@ -191,7 +191,7 @@ const ResetPassword = () => {
           </form>
 
           <div className="mt-6 text-center">
-            <Link to="/ecom/login" className="text-sm text-emerald-600 hover:text-emerald-700 font-medium transition">
+            <Link to="/ecom/login" className="text-sm text-primary-600 hover:text-primary-700 font-medium transition">
               Retour ù  la connexion
             </Link>
           </div>

@@ -28,25 +28,25 @@ const roleConfig = {
     gradient: 'from-amber-500 to-amber-500'
   },
   ecom_admin: {
-    bg: 'bg-emerald-50',
-    text: 'text-emerald-800',
-    ring: 'ring-emerald-700/20',
+    bg: 'bg-primary-50',
+    text: 'text-primary-800',
+    ring: 'ring-primary-700/20',
     icon: Briefcase,
-    gradient: 'from-emerald-600 to-emerald-600'
+    gradient: 'from-primary-600 to-primary-600'
   },
   ecom_closeuse: {
     bg: 'bg-sky-50',
     text: 'text-sky-700',
     ring: 'ring-teal-600/20',
     icon: Package,
-    gradient: 'from-teal-500 to-emerald-600'
+    gradient: 'from-teal-500 to-primary-600'
   },
   ecom_compta: {
-    bg: 'bg-emerald-50',
-    text: 'text-emerald-700',
-    ring: 'ring-emerald-600/20',
+    bg: 'bg-primary-50',
+    text: 'text-primary-700',
+    ring: 'ring-primary-600/20',
     icon: Calculator,
-    gradient: 'from-emerald-500 to-teal-500'
+    gradient: 'from-primary-500 to-teal-500'
   },
   ecom_livreur: {
     bg: 'bg-amber-50',
@@ -171,10 +171,10 @@ const SuperAdminUsers = () => {
                 placeholder="Rechercher par email..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border-2 border-slate-200 rounded-xl text-sm font-medium placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:border-emerald-600 transition-all"
+                className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border-2 border-slate-200 rounded-xl text-sm font-medium placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-all"
               />
             </div>
-            <select value={filterRole} onChange={(e) => setFilterRole(e.target.value)} className="px-4 py-2.5 bg-slate-50 border-2 border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:border-emerald-600 transition-all cursor-pointer">
+            <select value={filterRole} onChange={(e) => setFilterRole(e.target.value)} className="px-4 py-2.5 bg-slate-50 border-2 border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-all cursor-pointer">
               <option value="">Tous les rôles</option>
               <option value="super_admin">Super Admin</option>
               <option value="ecom_admin">Admin</option>
@@ -182,11 +182,11 @@ const SuperAdminUsers = () => {
               <option value="ecom_compta">Comptable</option>
               <option value="ecom_livreur">Livreur</option>
             </select>
-            <select value={filterWorkspace} onChange={(e) => setFilterWorkspace(e.target.value)} className="px-4 py-2.5 bg-slate-50 border-2 border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:border-emerald-600 transition-all cursor-pointer">
+            <select value={filterWorkspace} onChange={(e) => setFilterWorkspace(e.target.value)} className="px-4 py-2.5 bg-slate-50 border-2 border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-all cursor-pointer">
               <option value="">Tous les espaces</option>
               {workspaces.map(ws => <option key={ws._id} value={ws._id}>{ws.name}</option>)}
             </select>
-            <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="px-4 py-2.5 bg-slate-50 border-2 border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:border-emerald-600 transition-all cursor-pointer">
+            <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="px-4 py-2.5 bg-slate-50 border-2 border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-all cursor-pointer">
               <option value="">Tous les statuts</option>
               <option value="true">Actifs</option>
               <option value="false">Bloqués</option>
@@ -218,7 +218,7 @@ const SuperAdminUsers = () => {
                   >
                     <div className={`relative w-14 h-14 rounded-2xl flex items-center justify-center text-lg font-black flex-shrink-0 ring-2 ring-inset ${u.isActive ? `${config.bg} ${config.text} ${config.ring}` : 'bg-amber-50 text-amber-600 ring-amber-200'} transition-all duration-300 group-hover:scale-110`}>
                       {u.email?.charAt(0).toUpperCase()}
-                      <div className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full ${u.isActive ? 'bg-emerald-500' : 'bg-amber-500'} ring-2 ring-white flex items-center justify-center`}>
+                      <div className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full ${u.isActive ? 'bg-primary-500' : 'bg-amber-500'} ring-2 ring-white flex items-center justify-center`}>
                         {u.isActive ? <CheckCircle2 className="w-3 h-3 text-white" /> : <XCircle className="w-3 h-3 text-white" />}
                       </div>
                     </div>
@@ -251,7 +251,7 @@ const SuperAdminUsers = () => {
                       {(() => {
                         const ws = workspaces.find(w => w._id === (u.workspaceId?._id || u.workspaceId));
                         const plan = ws?.plan || 'free';
-                        const planColors = { free: 'bg-slate-100 text-slate-500', pro: 'bg-emerald-100 text-emerald-700', ultra: 'bg-amber-100 text-amber-700' };
+                        const planColors = { free: 'bg-slate-100 text-slate-500', pro: 'bg-primary-100 text-primary-700', ultra: 'bg-amber-100 text-amber-700' };
                         const planLabels = { free: 'Gratuit', pro: 'Pro', ultra: 'Ultra' };
                         return (
                           <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${planColors[plan]}`}>
@@ -282,7 +282,7 @@ const SuperAdminUsers = () => {
                       value={u.role}
                       onChange={(e) => handleChangeRole(u._id, e.target.value)}
                       disabled={u._id === currentUser?.id}
-                      className="text-xs font-bold px-3 py-2.5 bg-slate-50 border-2 border-slate-200 rounded-xl disabled:opacity-30 disabled:cursor-not-allowed hidden sm:block cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:border-emerald-600 transition-all"
+                      className="text-xs font-bold px-3 py-2.5 bg-slate-50 border-2 border-slate-200 rounded-xl disabled:opacity-30 disabled:cursor-not-allowed hidden sm:block cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-all"
                     >
                       <option value="ecom_admin">Admin</option>
                       <option value="ecom_closeuse">Closeuse</option>
@@ -298,7 +298,7 @@ const SuperAdminUsers = () => {
                           value={plan}
                           onChange={(e) => handleSetPlan(wsId, e.target.value)}
                           disabled={!wsId}
-                          className="text-xs font-bold px-3 py-2.5 bg-slate-50 border-2 border-slate-200 rounded-xl disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:border-emerald-600 transition-all"
+                          className="text-xs font-bold px-3 py-2.5 bg-slate-50 border-2 border-slate-200 rounded-xl disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-all"
                           title="Changer le plan"
                         >
                           <option value="free">Gratuit</option>
@@ -310,7 +310,7 @@ const SuperAdminUsers = () => {
                     <button
                       onClick={() => handleToggleUser(u._id)}
                       disabled={u._id === currentUser?.id}
-                      className={`inline-flex items-center gap-1.5 px-3 py-2.5 text-xs rounded-xl font-bold transition-all duration-300 disabled:opacity-30 disabled:cursor-not-allowed ring-2 ring-inset ${u.isActive ? 'text-amber-700 bg-amber-50 hover:bg-amber-100 hover:shadow-md ring-amber-600/20' : 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100 hover:shadow-md ring-emerald-600/20'}`}
+                      className={`inline-flex items-center gap-1.5 px-3 py-2.5 text-xs rounded-xl font-bold transition-all duration-300 disabled:opacity-30 disabled:cursor-not-allowed ring-2 ring-inset ${u.isActive ? 'text-amber-700 bg-amber-50 hover:bg-amber-100 hover:shadow-md ring-amber-600/20' : 'text-primary-700 bg-primary-50 hover:bg-primary-100 hover:shadow-md ring-primary-600/20'}`}
                     >
                       {u.isActive ? <><XCircle className="w-3.5 h-3.5" /> Bloquer</> : <><CheckCircle2 className="w-3.5 h-3.5" /> Activer</>}
                     </button>

@@ -125,13 +125,13 @@ const ReportsInsightsPage = () => {
       <div className="flex gap-2 mb-6">
         <Link
           to="/ecom/reports/insights?tab=days"
-          className={`px-4 py-2 rounded-lg text-sm font-medium ${activeTab === 'days' ? 'bg-emerald-600 text-white' : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'}`}
+          className={`px-4 py-2 rounded-lg text-sm font-medium ${activeTab === 'days' ? 'bg-primary-600 text-white' : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'}`}
         >
           Jours rentables
         </Link>
         <Link
           to="/ecom/reports/insights?tab=agencies"
-          className={`px-4 py-2 rounded-lg text-sm font-medium ${activeTab === 'agencies' ? 'bg-emerald-600 text-white' : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'}`}
+          className={`px-4 py-2 rounded-lg text-sm font-medium ${activeTab === 'agencies' ? 'bg-primary-600 text-white' : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'}`}
         >
           Agences efficaces
         </Link>
@@ -149,7 +149,7 @@ const ReportsInsightsPage = () => {
       ) : activeTab === 'days' ? (
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
           <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-2">
-            <CalendarDays size={16} className="text-emerald-600" />
+            <CalendarDays size={16} className="text-primary-600" />
             <h2 className="text-sm font-semibold text-gray-700">Tous les jours classés par rentabilité</h2>
           </div>
           <div className="divide-y divide-gray-100">
@@ -174,7 +174,7 @@ const ReportsInsightsPage = () => {
       ) : (
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
           <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-2">
-            <Truck size={16} className="text-emerald-700" />
+            <Truck size={16} className="text-primary-700" />
             <h3 className="text-lg font-semibold text-gray-900 mb-1">🔍 Recommandations</h3>
             <h2 className="text-sm font-semibold text-gray-700"> les agences classées par efficacité</h2>
           </div>
@@ -189,7 +189,7 @@ const ReportsInsightsPage = () => {
                     <p className="text-xs text-gray-500">{agency.ordersDelivered} livrées • {agency.reportsCount} rapport{agency.reportsCount > 1 ? 's' : ''}</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-sm font-semibold text-emerald-700">{fmt(agency.avgCostPerDelivery)}</p>
+                    <p className="text-sm font-semibold text-primary-700">{fmt(agency.avgCostPerDelivery)}</p>
                     <p className="text-xs text-gray-500">Coût moyen / livraison</p>
                   </div>
                 </div>

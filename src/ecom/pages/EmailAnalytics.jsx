@@ -121,7 +121,7 @@ export default function EmailAnalytics() {
 
           <button
             onClick={() => loadAnalytics(days, campaignId)}
-            className="px-4 py-2 text-sm font-medium rounded-lg bg-emerald-600 text-white hover:bg-emerald-700"
+            className="px-4 py-2 text-sm font-medium rounded-lg bg-primary-600 text-white hover:bg-primary-700"
           >
             Actualiser
           </button>
@@ -132,7 +132,7 @@ export default function EmailAnalytics() {
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
           {[
             { label: 'Cibles', value: fmtNum(totals.targeted), color: 'text-gray-900' },
-            { label: 'Envoyes', value: fmtNum(totals.sent), color: 'text-emerald-600' },
+            { label: 'Envoyes', value: fmtNum(totals.sent), color: 'text-primary-600' },
             { label: 'Echecs', value: fmtNum(totals.failed), color: 'text-red-600' },
             { label: 'Ouverts', value: fmtNum(totals.opened), color: 'text-blue-600' },
             { label: 'Cliqueurs', value: fmtNum(totals.uniqueClicked), color: 'text-amber-600' },

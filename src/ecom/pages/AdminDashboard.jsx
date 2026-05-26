@@ -91,7 +91,7 @@ const KPICard = React.memo(({ card, isSelected, onClick, loadingKpi, isLastInRow
      ${!isLastInRowDesktop && index < 2 ? 'md:border-r md:border-gray-200' : ''}`}
   >
     {isSelected && (
-      <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-emerald-600 rounded-t"></div>
+      <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary-600 rounded-t"></div>
     )}
     <p className={`text-xs font-medium mb-0.5 sm:mb-1 ${isSelected ? 'text-gray-900' : 'text-gray-500'}`}>
       {card.title}
@@ -554,8 +554,8 @@ const AdminDashboard = () => {
   const getStatusColor = (status) => {
     const colors = {
       test: 'bg-yellow-100 text-yellow-700 border-yellow-200',
-      stable: 'bg-emerald-100 text-emerald-700 border-emerald-200',
-      winner: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+      stable: 'bg-primary-100 text-primary-700 border-primary-200',
+      winner: 'bg-primary-100 text-primary-700 border-primary-200',
       pause: 'bg-orange-100 text-orange-700 border-orange-200',
       stop: 'bg-red-100 text-red-700 border-red-200'
     };
@@ -565,9 +565,9 @@ const AdminDashboard = () => {
   const getOrderStatusColor = (status) => {
     const colors = {
       pending: 'bg-yellow-500',
-      confirmed: 'bg-emerald-600',
-      shipped: 'bg-emerald-600',
-      delivered: 'bg-emerald-500',
+      confirmed: 'bg-primary-600',
+      shipped: 'bg-primary-600',
+      delivered: 'bg-primary-500',
       cancelled: 'bg-red-500',
       returned: 'bg-orange-500',
       reported: 'bg-purple-500'
@@ -665,8 +665,8 @@ const AdminDashboard = () => {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
         </svg>
       ),
-      iconBg: 'bg-emerald-100',
-      iconColor: 'text-emerald-600',
+      iconBg: 'bg-primary-100',
+      iconColor: 'text-primary-600',
       link: '/ecom/products/new'
     },
     {
@@ -677,8 +677,8 @@ const AdminDashboard = () => {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
         </svg>
       ),
-      iconBg: 'bg-emerald-100',
-      iconColor: 'text-emerald-700',
+      iconBg: 'bg-primary-100',
+      iconColor: 'text-primary-700',
       link: '/ecom/orders'
     },
     {
@@ -689,8 +689,8 @@ const AdminDashboard = () => {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
         </svg>
       ),
-      iconBg: 'bg-emerald-100',
-      iconColor: 'text-emerald-600',
+      iconBg: 'bg-primary-100',
+      iconColor: 'text-primary-600',
       link: '/ecom/stock/orders'
     }
   ];
@@ -713,8 +713,8 @@ const AdminDashboard = () => {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
         <div className="max-w-md w-full text-center">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-emerald-100 mb-4">
-            <svg className="w-8 h-8 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary-100 mb-4">
+            <svg className="w-8 h-8 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
             </svg>
           </div>
@@ -725,7 +725,7 @@ const AdminDashboard = () => {
               : 'Rejoignez une équipe existante pour accéder aux données partagées.'}
           </p>
           <div className="space-y-3">
-            <Link to="/ecom/workspace-setup" className="block w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-lg transition">
+            <Link to="/ecom/workspace-setup" className="block w-full py-3 px-4 bg-primary-600 hover:bg-primary-700 text-white font-medium rounded-lg transition">
               Créer un espace
             </Link>
             {user?.role !== 'ecom_admin' && (
@@ -746,7 +746,7 @@ const AdminDashboard = () => {
       {(loadingKpi || loadingSecondary) && (
         <div className="fixed top-0 left-0 right-0 h-1 bg-gray-200 z-40">
           <div 
-            className="h-full bg-emerald-500 transition-all duration-300 ease-out"
+            className="h-full bg-primary-500 transition-all duration-300 ease-out"
             style={{ width: `${Math.min(loadingProgress, 100)}%` }}
           />
         </div>
@@ -865,7 +865,7 @@ const AdminDashboard = () => {
                     key={p.id}
                     onClick={() => { setTimeRange(p.id); setCustomStartDate(''); setCustomEndDate(''); setShowDatePicker(false); }}
                     className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
-                      timeRange === p.id ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      timeRange === p.id ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                     }`}
                   >
                     {p.label}
@@ -931,8 +931,8 @@ const AdminDashboard = () => {
                           h-10 text-sm rounded-lg transition-all
                           ${isDisabled ? 'text-gray-300 cursor-not-allowed' : 'hover:bg-gray-100'}
                           ${isToday ? 'font-bold' : ''}
-                          ${isSelected ? 'bg-emerald-600 text-white hover:bg-emerald-700' : ''}
-                          ${isInRange && !isSelected ? 'bg-emerald-100 text-emerald-800' : ''}
+                          ${isSelected ? 'bg-primary-600 text-white hover:bg-primary-700' : ''}
+                          ${isInRange && !isSelected ? 'bg-primary-100 text-primary-800' : ''}
                           ${!isDisabled && !isSelected && !isInRange ? 'text-gray-700' : ''}
                         `}
                       >
@@ -945,8 +945,8 @@ const AdminDashboard = () => {
 
               {/* Résumé de la sélection */}
               {customStartDate && !customEndDate && (
-                <div className="mb-4 p-3 bg-emerald-50 rounded-lg border border-emerald-200">
-                  <div className="text-sm text-emerald-800">
+                <div className="mb-4 p-3 bg-primary-50 rounded-lg border border-primary-200">
+                  <div className="text-sm text-primary-800">
                     Sélectionnez la date de fin
                   </div>
                 </div>
@@ -1032,11 +1032,11 @@ const AdminDashboard = () => {
         {/* Top Products & Stock Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Top Products */}
-          <div className="relative overflow-hidden rounded-[28px] border border-emerald-100 bg-white p-4 shadow-sm shadow-emerald-100/60 sm:p-6">
-            <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-r from-emerald-50 via-white to-white" />
+          <div className="relative overflow-hidden rounded-[28px] border border-primary-100 bg-white p-4 shadow-sm shadow-primary-100/60 sm:p-6">
+            <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-r from-primary-50 via-white to-white" />
             <div className="relative flex items-center justify-between mb-4 sm:mb-6 gap-3">
               <div className="min-w-0 flex items-center gap-3">
-                <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700 shadow-sm shadow-emerald-100">
+                <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl bg-primary-100 text-primary-700 shadow-sm shadow-primary-100">
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M7 17l4-4 3 3 5-6M7 7h10M7 12h6" />
                   </svg>
@@ -1047,10 +1047,10 @@ const AdminDashboard = () => {
                 </div>
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">
-                <span className="hidden sm:inline-flex px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-[11px] font-bold">
+                <span className="hidden sm:inline-flex px-2.5 py-1 rounded-full bg-primary-50 text-primary-700 text-[11px] font-bold">
                   {topProductsPreview.length} visibles
                 </span>
-                <Link to="/ecom/reports" className="text-xs sm:text-sm text-emerald-600 hover:text-emerald-700 font-medium whitespace-nowrap">
+                <Link to="/ecom/reports" className="text-xs sm:text-sm text-primary-600 hover:text-primary-700 font-medium whitespace-nowrap">
                   Voir tout →
                 </Link>
               </div>
@@ -1058,7 +1058,7 @@ const AdminDashboard = () => {
             <div className="relative space-y-3">
               {loadingSecondary ? (
                 [...Array(5)].map((_, i) => (
-                  <div key={i} className="flex items-center gap-3 rounded-2xl border border-emerald-100/70 bg-gradient-to-r from-emerald-50/70 to-white p-3.5">
+                  <div key={i} className="flex items-center gap-3 rounded-2xl border border-primary-100/70 bg-gradient-to-r from-primary-50/70 to-white p-3.5">
                     <div className="w-10 h-10 rounded-2xl bg-gray-200 animate-pulse flex-shrink-0" />
                     <div className="flex-1 space-y-1.5">
                       <div className="h-3.5 w-40 bg-gray-200 rounded animate-pulse" />
@@ -1077,17 +1077,17 @@ const AdminDashboard = () => {
                   : 0;
                 const deliveredRatio = Math.max(14, Math.round(((product.ordersDelivered || 0) / maxDeliveredCount) * 100));
                 return (
-                  <div key={product._id || i} className="rounded-2xl border border-emerald-100/70 bg-gradient-to-r from-emerald-50/80 via-white to-white p-3.5 shadow-sm shadow-emerald-100/50 transition hover:-translate-y-0.5 hover:shadow-md">
+                  <div key={product._id || i} className="rounded-2xl border border-primary-100/70 bg-gradient-to-r from-primary-50/80 via-white to-white p-3.5 shadow-sm shadow-primary-100/50 transition hover:-translate-y-0.5 hover:shadow-md">
                     <div className="flex items-start gap-3 sm:gap-4">
-                      <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-gradient-to-br from-emerald-600 to-emerald-700 text-white flex items-center justify-center font-bold text-sm flex-shrink-0 shadow-sm shadow-emerald-200">
+                      <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-gradient-to-br from-primary-600 to-primary-700 text-white flex items-center justify-center font-bold text-sm flex-shrink-0 shadow-sm shadow-primary-200">
                         {i + 1}
                       </div>
                       <div className="flex-1 min-w-0 overflow-hidden">
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
                             <p className="font-semibold text-sm sm:text-[15px] text-gray-900 leading-5 break-words">{product.productName || 'Produit inconnu'}</p>
-                            <div className="flex flex-wrap items-center gap-1.5 mt-2 text-[10px] sm:text-xs">
-                              <span className="px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 font-semibold">
+                            <div className="flex flex-wrap items-center gap-1.5 mt-2 text-xs">
+                              <span className="px-2 py-1 rounded-full bg-primary-100 text-primary-700 font-semibold">
                                 {product.ordersDelivered || 0} livrées
                               </span>
                               <span className="px-2 py-1 rounded-full bg-gray-100 text-gray-500 font-medium">
@@ -1100,18 +1100,18 @@ const AdminDashboard = () => {
                           </div>
                           <div className="text-right flex-shrink-0 rounded-2xl border border-gray-100 bg-white/90 px-3 py-2.5">
                             <p className="text-sm sm:text-base font-bold text-gray-900 whitespace-nowrap">{fmt(product.revenue || 0)}</p>
-                            <p className={`mt-1 text-[10px] sm:text-xs font-semibold ${(product.profit || 0) >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                            <p className={`mt-1 text-xs font-semibold ${(product.profit || 0) >= 0 ? 'text-primary-600' : 'text-red-500'}`}>
                               {(product.profit || 0) >= 0 ? '+' : ''}{fmt(product.profit || 0)}
                             </p>
                           </div>
                         </div>
-                        <div className="mt-3 h-1.5 w-full rounded-full bg-emerald-100/80 overflow-hidden">
+                        <div className="mt-3 h-1.5 w-full rounded-full bg-primary-100/80 overflow-hidden">
                           <div
-                            className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-emerald-600"
+                            className="h-full rounded-full bg-gradient-to-r from-primary-500 to-primary-600"
                             style={{ width: `${deliveredRatio}%` }}
                           />
                         </div>
-                        <div className="mt-1.5 flex items-center justify-between text-[10px] text-gray-400">
+                        <div className="mt-1.5 flex items-center justify-between text-xs text-gray-500">
                           <span>Volume livré</span>
                           <span className="tabular-nums">{product.ordersDelivered || 0} / {maxDeliveredCount}</span>
                         </div>
@@ -1121,15 +1121,15 @@ const AdminDashboard = () => {
                 );
               })}
               {!loadingSecondary && topProductsPreview.length === 0 && (
-                <div className="rounded-3xl border border-dashed border-emerald-200 bg-emerald-50/70 px-6 py-10 text-center">
-                  <div className="w-14 h-14 bg-white rounded-2xl shadow-sm flex items-center justify-center mx-auto mb-4 text-emerald-600">
+                <div className="rounded-3xl border border-dashed border-primary-200 bg-primary-50/70 px-6 py-10 text-center">
+                  <div className="w-14 h-14 bg-white rounded-2xl shadow-sm flex items-center justify-center mx-auto mb-4 text-primary-600">
                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M7 17l4-4 3 3 5-6M7 7h10M7 12h6" />
                     </svg>
                   </div>
                   <p className="text-gray-700 font-semibold mb-1">Aucune donnée de vente disponible</p>
                   <p className="text-sm text-gray-500 mb-4">Créez des rapports pour faire remonter les produits leaders.</p>
-                  <Link to="/ecom/reports/new" className="text-emerald-600 hover:text-emerald-700 font-medium text-sm">
+                  <Link to="/ecom/reports/new" className="text-primary-600 hover:text-primary-700 font-medium text-sm">
                     + Créer un rapport
                   </Link>
                 </div>
@@ -1153,7 +1153,7 @@ const AdminDashboard = () => {
                 </div>
               </div>
               {lowStockCount > 0 && (
-                <span className="px-2.5 py-1 bg-red-100 text-red-700 rounded-full text-[10px] sm:text-xs font-bold whitespace-nowrap flex-shrink-0">
+                <span className="px-2.5 py-1 bg-red-100 text-red-700 rounded-full text-xs font-bold whitespace-nowrap flex-shrink-0">
                   {lowStockCount} alertes
                 </span>
               )}
@@ -1211,14 +1211,14 @@ const AdminDashboard = () => {
                           <div className="flex flex-wrap items-start justify-between gap-2">
                             <div className="min-w-0">
                               <p className="text-sm font-semibold text-gray-900 break-words">{alert.name}</p>
-                              <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[10px] sm:text-xs text-gray-500">
+                              <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-gray-500">
                                 <span>Stock actuel</span>
                                 <span className="font-bold text-red-600 tabular-nums">{alert.stock}</span>
                                 <span>•</span>
                                 <span>Seuil {alert.reorderThreshold}</span>
                               </div>
                             </div>
-                            <span className={`px-2 py-1 rounded-full text-[10px] font-bold ${tone.badge}`}>
+                            <span className={`px-2 py-1 rounded-full text-xs font-bold ${tone.badge}`}>
                               {alert.urgency === 'critical' ? 'Critique' : alert.urgency === 'high' ? 'Élevée' : 'À surveiller'}
                             </span>
                           </div>
@@ -1228,7 +1228,7 @@ const AdminDashboard = () => {
                               style={{ width: `${stockProgress}%` }}
                             />
                           </div>
-                          <div className="mt-1.5 flex items-center justify-between text-[10px] text-gray-400">
+                          <div className="mt-1.5 flex items-center justify-between text-xs text-gray-500">
                             <span>Niveau de stock</span>
                             <span className="tabular-nums">{Math.round(stockProgress)}%</span>
                           </div>
@@ -1245,8 +1245,8 @@ const AdminDashboard = () => {
                 })}
               </div>
             ) : (
-              <div className="rounded-3xl border border-dashed border-emerald-200 bg-emerald-50/70 px-6 py-10 text-center">
-                <div className="w-14 h-14 sm:w-16 sm:h-16 bg-white rounded-2xl shadow-sm flex items-center justify-center mx-auto mb-4 text-emerald-600">
+              <div className="rounded-3xl border border-dashed border-primary-200 bg-primary-50/70 px-6 py-10 text-center">
+                <div className="w-14 h-14 sm:w-16 sm:h-16 bg-white rounded-2xl shadow-sm flex items-center justify-center mx-auto mb-4 text-primary-600">
                   <svg className="w-6 h-6 sm:w-8 sm:h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
@@ -1257,7 +1257,7 @@ const AdminDashboard = () => {
             )}
 
             <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-gray-100">
-              <Link to="/ecom/stock" className="flex items-center justify-center gap-2 text-xs sm:text-sm text-emerald-600 hover:text-emerald-700 font-medium py-2 rounded-lg hover:bg-emerald-50 transition">
+              <Link to="/ecom/stock" className="flex items-center justify-center gap-2 text-xs sm:text-sm text-primary-600 hover:text-primary-700 font-medium py-2 rounded-lg hover:bg-primary-50 transition">
                 <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
@@ -1271,7 +1271,7 @@ const AdminDashboard = () => {
         <div className="mt-8 bg-white rounded-xl border border-gray-100 p-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-gray-900">🎯 Objectifs du mois</h3>
-            <Link to="/ecom/goals" className="text-sm text-emerald-600 hover:text-emerald-700 font-medium">
+            <Link to="/ecom/goals" className="text-sm text-primary-600 hover:text-primary-700 font-medium">
               Gérer →
             </Link>
           </div>
@@ -1333,8 +1333,8 @@ const AdminDashboard = () => {
                     <div className="relative h-2 bg-gray-100 rounded-full overflow-hidden">
                       <div 
                         className={`absolute inset-y-0 left-0 rounded-full transition-all ${
-                          progress >= 100 ? 'bg-emerald-500' :
-                          progress >= 75 ? 'bg-emerald-600' :
+                          progress >= 100 ? 'bg-primary-500' :
+                          progress >= 75 ? 'bg-primary-600' :
                           progress >= 50 ? 'bg-yellow-500' :
                           'bg-orange-500'
                         }`}
@@ -1343,15 +1343,15 @@ const AdminDashboard = () => {
                     </div>
                     <div className="flex items-center justify-between mt-1.5">
                       <p className={`text-xs font-semibold ${
-                        progress >= 100 ? 'text-emerald-600' :
-                        progress >= 75 ? 'text-emerald-600' :
+                        progress >= 100 ? 'text-primary-600' :
+                        progress >= 75 ? 'text-primary-600' :
                         progress >= 50 ? 'text-yellow-600' :
                         'text-orange-600'
                       }`}>
                         {progress.toFixed(1)}% atteint
                       </p>
                       {progress >= 100 && (
-                        <span className="text-xs text-emerald-600 font-semibold">✓ Objectif atteint</span>
+                        <span className="text-xs text-primary-600 font-semibold">✓ Objectif atteint</span>
                       )}
                     </div>
                   </div>
@@ -1360,13 +1360,13 @@ const AdminDashboard = () => {
             </div>
           ) : (
             <div className="text-center py-8">
-              <div className="w-12 h-12 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-3">
-                <svg className="w-6 h-6 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="w-12 h-12 bg-primary-50 rounded-full flex items-center justify-center mx-auto mb-3">
+                <svg className="w-6 h-6 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                 </svg>
               </div>
               <p className="text-sm text-gray-500 mb-3">Aucun objectif défini pour ce mois</p>
-              <Link to="/ecom/goals" className="text-sm text-emerald-600 hover:text-emerald-700 font-medium">
+              <Link to="/ecom/goals" className="text-sm text-primary-600 hover:text-primary-700 font-medium">
                 + Créer un objectif
               </Link>
             </div>
@@ -1385,7 +1385,7 @@ const AdminDashboard = () => {
               <p className="text-xs text-gray-500 mb-1">{stat.label}</p>
               <div className="flex items-end gap-2">
                 <p className="text-lg font-bold text-gray-900">{stat.value}</p>
-                <span className="text-xs text-emerald-600 font-medium mb-0.5">{stat.trend}</span>
+                <span className="text-xs text-primary-600 font-medium mb-0.5">{stat.trend}</span>
               </div>
             </div>
           ))}

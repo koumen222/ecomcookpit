@@ -260,11 +260,11 @@ export const CenteredSpinner = ({ message = 'Chargement…', icon: Icon = null }
   <div className="flex items-center justify-center min-h-[60vh]">
     <div className="text-center space-y-4">
       <div className="relative mx-auto w-12 h-12">
-        <div className="absolute inset-0 rounded-full border-4 border-emerald-100" />
-        <div className="absolute inset-0 rounded-full border-4 border-emerald-500 border-t-transparent animate-spin" />
+        <div className="absolute inset-0 rounded-full border-4 border-primary-100" />
+        <div className="absolute inset-0 rounded-full border-4 border-primary-500 border-t-transparent animate-spin" />
         {Icon && (
           <div className="absolute inset-0 flex items-center justify-center">
-            <Icon className="w-4 h-4 text-emerald-500" />
+            <Icon className="w-4 h-4 text-primary-500" />
           </div>
         )}
       </div>
@@ -285,7 +285,7 @@ export const SectionError = ({ message = 'Erreur de chargement', onRetry }) => (
     {onRetry && (
       <button
         onClick={onRetry}
-        className="text-xs font-bold text-emerald-600 hover:text-emerald-700 underline transition-colors"
+        className="text-xs font-bold text-primary-600 hover:text-primary-700 underline transition-colors"
       >
         Réessayer
       </button>

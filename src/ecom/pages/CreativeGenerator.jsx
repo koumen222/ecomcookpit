@@ -14,10 +14,10 @@ const FORMATS = [
 ];
 
 const TEMPLATES = [
-  { id: 'listing-green', title: 'Listing Vert', icon: '🍃', color: 'from-emerald-500 to-green-600', light: 'bg-emerald-50 border-emerald-200 text-emerald-800' },
+  { id: 'listing-green', title: 'Listing Vert', icon: '🍃', color: 'from-primary-500 to-green-600', light: 'bg-primary-50 border-primary-200 text-primary-800' },
   { id: 'general', title: 'Premium', icon: '🌟', color: 'from-slate-700 to-slate-900', light: 'bg-slate-50 border-slate-200 text-slate-800' },
   { id: 'beauty', title: 'Beauté', icon: '🌸', color: 'from-pink-400 to-rose-500', light: 'bg-pink-50 border-pink-200 text-pink-800' },
-  { id: 'health', title: 'Santé', icon: '🌿', color: 'from-teal-500 to-emerald-600', light: 'bg-teal-50 border-teal-200 text-teal-800' },
+  { id: 'health', title: 'Santé', icon: '🌿', color: 'from-teal-500 to-primary-600', light: 'bg-teal-50 border-teal-200 text-teal-800' },
   { id: 'tech', title: 'Tech', icon: '⚡', color: 'from-blue-600 to-indigo-700', light: 'bg-blue-50 border-blue-200 text-blue-800' },
   { id: 'fashion', title: 'Mode', icon: '👗', color: 'from-amber-500 to-yellow-600', light: 'bg-amber-50 border-amber-200 text-amber-800' },
   { id: 'home', title: 'Maison', icon: '🏠', color: 'from-orange-400 to-amber-500', light: 'bg-orange-50 border-orange-200 text-orange-800' },
@@ -635,11 +635,11 @@ const CreativeGenerator = () => {
                       return (
                         <div key={i} className={`flex items-center gap-3 px-4 py-3 rounded-xl border transition-all ${
                           isCurrent ? 'bg-green-50 border-green-200 shadow-sm' :
-                          isDone ? 'bg-emerald-50 border-emerald-100' :
+                          isDone ? 'bg-primary-50 border-primary-100' :
                           'bg-gray-50 border-gray-100'
                         }`}>
                           {isDone ? (
-                            <div className="w-7 h-7 rounded-full bg-emerald-500 flex items-center justify-center shrink-0">
+                            <div className="w-7 h-7 rounded-full bg-primary-500 flex items-center justify-center shrink-0">
                               <CheckCircle size={14} className="text-white" />
                             </div>
                           ) : isCurrent ? (
@@ -652,7 +652,7 @@ const CreativeGenerator = () => {
                             </div>
                           )}
                           <span className={`text-sm font-semibold ${
-                            isDone ? 'text-emerald-700' : isCurrent ? 'text-green-800' : 'text-gray-400'
+                            isDone ? 'text-primary-700' : isCurrent ? 'text-green-800' : 'text-gray-400'
                           }`}>{step.label}</span>
                         </div>
                       );
@@ -720,7 +720,7 @@ const CreativeGenerator = () => {
                       </div>
                       <div className="flex items-center gap-2">
                         {result.productImageFound && (
-                          <span className="text-[10px] font-bold bg-emerald-50 text-emerald-600 border border-emerald-100 px-2 py-1 rounded-full">
+                          <span className="text-[10px] font-bold bg-primary-50 text-primary-600 border border-primary-100 px-2 py-1 rounded-full">
                             📸 Image détectée
                           </span>
                         )}
@@ -742,7 +742,7 @@ const CreativeGenerator = () => {
                             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Bénéfices</p>
                             <div className="flex flex-wrap gap-1.5">
                               {result.analysis.keyBenefits.map((b, i) => (
-                                <span key={i} className="text-xs bg-emerald-50 text-emerald-700 border border-emerald-100 px-2.5 py-1 rounded-full font-medium">✅ {b}</span>
+                                <span key={i} className="text-xs bg-primary-50 text-primary-700 border border-primary-100 px-2.5 py-1 rounded-full font-medium">✅ {b}</span>
                               ))}
                             </div>
                           </div>
@@ -786,7 +786,7 @@ const CreativeGenerator = () => {
                                   onClick={() => copyImageUrl(creative.imageUrl, creative.id)}
                                   className="w-8 h-8 bg-white/90 text-gray-900 rounded-xl flex items-center justify-center shadow-lg hover:bg-white transition-colors"
                                 >
-                                  {copiedId === creative.id ? <CheckCircle size={14} className="text-emerald-500" /> : <Copy size={14} />}
+                                  {copiedId === creative.id ? <CheckCircle size={14} className="text-primary-500" /> : <Copy size={14} />}
                                 </button>
                                 <a
                                   href={creative.imageUrl}

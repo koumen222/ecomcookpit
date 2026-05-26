@@ -193,7 +193,7 @@ export default function LivreurHome() {
 
         {/* CTA - Commandes disponibles */}
         <div
-          className={`rounded-2xl p-5 flex items-center justify-between cursor-pointer active:scale-[0.98] transition-transform shadow-lg ${(stats?.available ?? 0) > 0 ? 'bg-gradient-to-r from-amber-500 to-orange-500' : 'bg-gradient-to-r from-emerald-500 to-teal-600'}`}
+          className={`rounded-2xl p-5 flex items-center justify-between cursor-pointer active:scale-[0.98] transition-transform shadow-lg ${(stats?.available ?? 0) > 0 ? 'bg-gradient-to-r from-amber-500 to-orange-500' : 'bg-gradient-to-r from-primary-500 to-teal-600'}`}
           onClick={() => navigate('/ecom/livreur/available')}
         >
           <div className="flex items-center gap-4">

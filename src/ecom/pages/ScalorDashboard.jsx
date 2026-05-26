@@ -18,7 +18,7 @@ import {
 // STATUS BADGE
 // ═══════════════════════════════════════════════
 const STATUS_META = {
-  connected:     { dot: 'bg-emerald-400', bg: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20', label: 'Connecté' },
+  connected:     { dot: 'bg-primary-400', bg: 'bg-primary-500/10 text-primary-400 border-primary-500/20', label: 'Connecté' },
   disconnected:  { dot: 'bg-red-400',     bg: 'bg-red-500/10 text-red-400 border-red-500/20',             label: 'Déconnecté' },
   awaiting_qr:   { dot: 'bg-amber-400 animate-pulse', bg: 'bg-amber-500/10 text-amber-400 border-amber-500/20', label: 'En attente QR' },
   creating:      { dot: 'bg-blue-400 animate-pulse',  bg: 'bg-blue-500/10 text-blue-400 border-blue-500/20',   label: 'En création' },
@@ -366,7 +366,7 @@ export default function ScalorDashboard() {
     return (
       <div className="min-h-screen bg-[#0f1117] flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+          <div className="w-8 h-8 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
           <p className="text-gray-500 text-sm">Chargement…</p>
         </div>
       </div>
@@ -393,7 +393,7 @@ export default function ScalorDashboard() {
       <header className="sticky top-0 z-40 bg-[#0f1117]/90 backdrop-blur border-b border-white/5">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-7 h-7 rounded-lg bg-emerald-500 flex items-center justify-center">
+            <div className="w-7 h-7 rounded-lg bg-primary-500 flex items-center justify-center">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/></svg>
             </div>
             <span className="font-bold text-white text-sm">Scalor API</span>
@@ -402,7 +402,7 @@ export default function ScalorDashboard() {
           </div>
           <div className="flex items-center gap-3">
             <span className="hidden sm:block text-xs text-gray-500">{user?.email}</span>
-            <span className="px-2 py-0.5 bg-emerald-500/15 text-emerald-400 rounded text-xs font-semibold uppercase tracking-wide border border-emerald-500/20">{user?.plan || 'free'}</span>
+            <span className="px-2 py-0.5 bg-primary-500/15 text-primary-400 rounded text-xs font-semibold uppercase tracking-wide border border-primary-500/20">{user?.plan || 'free'}</span>
             <button onClick={handleLogout} className="text-xs text-gray-500 hover:text-red-400 transition-colors">Déconnexion</button>
           </div>
         </div>
@@ -425,9 +425,9 @@ export default function ScalorDashboard() {
             <p className="text-xs text-gray-500 mb-1">Messages aujourd'hui</p>
             <p className="text-xl font-bold text-white">{(user?.messagesSentToday || 0).toLocaleString()}</p>
           </div>
-          <div className="bg-emerald-500/[0.06] border border-emerald-500/20 rounded-xl p-4">
-            <p className="text-xs text-emerald-400/70 mb-1">Crédits disponibles</p>
-            <p className="text-xl font-bold text-emerald-400">{user?.credits !== undefined ? user.credits.toLocaleString() : '—'}</p>
+          <div className="bg-primary-500/[0.06] border border-primary-500/20 rounded-xl p-4">
+            <p className="text-xs text-primary-400/70 mb-1">Crédits disponibles</p>
+            <p className="text-xl font-bold text-primary-400">{user?.credits !== undefined ? user.credits.toLocaleString() : '—'}</p>
           </div>
         </div>
 
@@ -437,7 +437,7 @@ export default function ScalorDashboard() {
             <button key={t.id} onClick={() => changeTab(t.id)}
               className={`px-4 py-2.5 text-sm font-medium whitespace-nowrap transition-colors border-b-2 -mb-px ${
                 activeTab === t.id
-                  ? 'text-white border-emerald-500'
+                  ? 'text-white border-primary-500'
                   : 'text-gray-500 border-transparent hover:text-gray-300'
               }`}>
               {t.label}
@@ -473,7 +473,7 @@ export default function ScalorDashboard() {
                   Rafraîchir
                 </button>
                 <button onClick={() => setShowCreateInstance(true)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-500 rounded-lg transition-colors">
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-primary-600 hover:bg-primary-500 rounded-lg transition-colors">
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                   Nouvelle instance
                 </button>
@@ -487,7 +487,7 @@ export default function ScalorDashboard() {
                 </div>
                 <h3 className="text-white font-semibold mb-1">Aucune instance</h3>
                 <p className="text-gray-500 text-sm mb-5">Créez votre première instance WhatsApp pour commencer à envoyer des messages.</p>
-                <button onClick={() => setShowCreateInstance(true)} className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold rounded-lg transition-colors">
+                <button onClick={() => setShowCreateInstance(true)} className="px-5 py-2 bg-primary-600 hover:bg-primary-500 text-white text-sm font-semibold rounded-lg transition-colors">
                   Créer une instance
                 </button>
               </div>
@@ -498,7 +498,7 @@ export default function ScalorDashboard() {
                     <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
                       {/* Left: identity */}
                       <div className="flex items-start gap-3 min-w-0">
-                        <div className={`mt-0.5 w-9 h-9 rounded-xl flex-shrink-0 flex items-center justify-center ${inst.status === 'connected' ? 'bg-emerald-500/15' : 'bg-white/5'}`}>
+                        <div className={`mt-0.5 w-9 h-9 rounded-xl flex-shrink-0 flex items-center justify-center ${inst.status === 'connected' ? 'bg-primary-500/15' : 'bg-white/5'}`}>
                           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={inst.status === 'connected' ? '#34d399' : '#6b7280'} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/></svg>
                         </div>
                         <div className="min-w-0">
@@ -540,7 +540,7 @@ export default function ScalorDashboard() {
                       )}
                       {inst.status === 'connected' && (
                         <button onClick={() => { setShowSendMessage(inst); setSendResult(null); }}
-                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-lg hover:bg-emerald-500/20 transition-colors">
+                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-primary-400 bg-primary-500/10 border border-primary-500/20 rounded-lg hover:bg-primary-500/20 transition-colors">
                           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
                           Tester statut
                         </button>
@@ -591,7 +591,7 @@ export default function ScalorDashboard() {
                 <p className="text-xs text-gray-500 mt-0.5">{apiKeys.length} clé{apiKeys.length !== 1 ? 's' : ''}</p>
               </div>
               <button onClick={() => { setShowCreateKey(true); setNewKeyResult(null); setNewKeyName(''); }}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-500 rounded-lg transition-colors">
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-primary-600 hover:bg-primary-500 rounded-lg transition-colors">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                 Nouvelle clé
               </button>
@@ -606,8 +606,8 @@ export default function ScalorDashboard() {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       <p className="text-white text-sm font-semibold">{key.name}</p>
-                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${key.isActive ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-gray-500/10 text-gray-500 border-gray-600/20'}`}>
-                        <span className={`w-1.5 h-1.5 rounded-full ${key.isActive ? 'bg-emerald-400' : 'bg-gray-500'}`} />
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${key.isActive ? 'bg-primary-500/10 text-primary-400 border-primary-500/20' : 'bg-gray-500/10 text-gray-500 border-gray-600/20'}`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${key.isActive ? 'bg-primary-400' : 'bg-gray-500'}`} />
                         {key.isActive ? 'Active' : 'Révoquée'}
                       </span>
                     </div>
@@ -649,8 +649,8 @@ export default function ScalorDashboard() {
                     {recentMessages.map((msg, i) => (
                       <tr key={i} className="hover:bg-white/[0.02]">
                         <td className="px-4 py-3">
-                          <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${msg.status === 'sent' ? 'text-emerald-400' : 'text-red-400'}`}>
-                            <span className={`w-1.5 h-1.5 rounded-full ${msg.status === 'sent' ? 'bg-emerald-400' : 'bg-red-400'}`} />
+                          <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${msg.status === 'sent' ? 'text-primary-400' : 'text-red-400'}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${msg.status === 'sent' ? 'bg-primary-400' : 'bg-red-400'}`} />
                             {msg.status}
                           </span>
                         </td>
@@ -692,7 +692,7 @@ export default function ScalorDashboard() {
               </div>
             )}
             {provMsg && (
-              <div className="flex items-center justify-between bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-4 py-3 rounded-xl text-sm">
+              <div className="flex items-center justify-between bg-primary-500/10 border border-primary-500/20 text-primary-400 px-4 py-3 rounded-xl text-sm">
                 <span>{provMsg}</span>
                 <button onClick={() => setProvMsg('')} className="ml-4 opacity-60 hover:opacity-100">✕</button>
               </div>
@@ -713,12 +713,12 @@ export default function ScalorDashboard() {
                     <form onSubmit={handleProvLogin} className="space-y-3">
                       <input required type="email" placeholder="Email" value={provLoginForm.email}
                         onChange={e => setProvLoginForm(f => ({ ...f, email: e.target.value }))}
-                        className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500 text-sm" />
+                        className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder-gray-600 focus:outline-none focus:border-primary-500 text-sm" />
                       <input required type="password" placeholder="Mot de passe" value={provLoginForm.password}
                         onChange={e => setProvLoginForm(f => ({ ...f, password: e.target.value }))}
-                        className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500 text-sm" />
+                        className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder-gray-600 focus:outline-none focus:border-primary-500 text-sm" />
                       <button disabled={provLoading} type="submit"
-                        className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-xl text-sm disabled:opacity-50 transition-colors">
+                        className="w-full py-2.5 bg-primary-600 hover:bg-primary-500 text-white font-semibold rounded-xl text-sm disabled:opacity-50 transition-colors">
                         {provLoading ? 'Connexion…' : 'Connexion Provider'}
                       </button>
                     </form>
@@ -730,10 +730,10 @@ export default function ScalorDashboard() {
                           type={type} placeholder={label} value={provRegForm[k]}
                           onChange={e => setProvRegForm(f => ({ ...f, [k]: e.target.value }))}
                           minLength={k === 'password' ? 6 : undefined}
-                          className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500 text-sm" />
+                          className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder-gray-600 focus:outline-none focus:border-primary-500 text-sm" />
                       ))}
                       <button disabled={provLoading} type="submit"
-                        className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-xl text-sm disabled:opacity-50 transition-colors">
+                        className="w-full py-2.5 bg-primary-600 hover:bg-primary-500 text-white font-semibold rounded-xl text-sm disabled:opacity-50 transition-colors">
                         {provLoading ? 'Création…' : 'Créer compte Provider'}
                       </button>
                     </form>
@@ -742,7 +742,7 @@ export default function ScalorDashboard() {
                     <form onSubmit={handleProvVerify} className="space-y-3">
                       <input required placeholder="Token reçu par email" value={provVerifyToken}
                         onChange={e => setProvVerifyToken(e.target.value)}
-                        className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500 text-sm" />
+                        className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder-gray-600 focus:outline-none focus:border-primary-500 text-sm" />
                       <button disabled={provLoading} type="submit"
                         className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl text-sm disabled:opacity-50 transition-colors">
                         {provLoading ? 'Vérification…' : 'Vérifier email'}
@@ -759,7 +759,7 @@ export default function ScalorDashboard() {
                     <li>Créez des instances sans passer par l'API principale.</li>
                     <li>Gérez vos instances avec droits complets.</li>
                   </ol>
-                  <div className="mt-4 bg-white/5 border border-white/5 rounded-xl p-3 font-mono text-xs text-emerald-300">
+                  <div className="mt-4 bg-white/5 border border-white/5 rounded-xl p-3 font-mono text-xs text-primary-300">
                     Authorization: Bearer prov_xxxxxxxxxxxxxxxxx
                   </div>
                   <p className="text-xs text-gray-700 mt-2">API: {providerApiBaseUrl()}</p>
@@ -797,17 +797,17 @@ export default function ScalorDashboard() {
                   <form onSubmit={handleProvCreateInstance} className="flex flex-wrap gap-3">
                     <input required placeholder="Nom" value={provInstanceForm.name}
                       onChange={e => setProvInstanceForm(f => ({ ...f, name: e.target.value }))}
-                      className="flex-1 min-w-36 px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500 text-sm" />
+                      className="flex-1 min-w-36 px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder-gray-600 focus:outline-none focus:border-primary-500 text-sm" />
                     <input placeholder="Subdomain (optionnel)" value={provInstanceForm.subdomain}
                       onChange={e => setProvInstanceForm(f => ({ ...f, subdomain: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g,'') }))}
-                      className="flex-1 min-w-36 px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500 text-sm" />
+                      className="flex-1 min-w-36 px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder-gray-600 focus:outline-none focus:border-primary-500 text-sm" />
                     <select value={provInstanceForm.currency}
                       onChange={e => setProvInstanceForm(f => ({ ...f, currency: e.target.value }))}
-                      className="px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-emerald-500 text-sm">
+                      className="px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-primary-500 text-sm">
                       {['XAF','XOF','USD','EUR'].map(c => <option key={c} value={c} className="bg-gray-900">{c}</option>)}
                     </select>
                     <button disabled={provLoading} type="submit"
-                      className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-xl text-sm disabled:opacity-50 transition-colors">
+                      className="px-5 py-2.5 bg-primary-600 hover:bg-primary-500 text-white font-semibold rounded-xl text-sm disabled:opacity-50 transition-colors">
                       {provLoading ? 'Création…' : '+ Créer'}
                     </button>
                   </form>
@@ -829,7 +829,7 @@ export default function ScalorDashboard() {
                           <div>
                             <p className="text-white font-semibold text-sm">{inst.name}</p>
                             <p className="text-gray-600 text-xs mt-0.5">slug: {inst.slug || '—'} · statut: {inst.status || '—'}</p>
-                            {inst.accessUrl && <a href={inst.accessUrl} target="_blank" rel="noreferrer" className="text-xs text-emerald-400 hover:underline mt-1 inline-block">Ouvrir la boutique ↗</a>}
+                            {inst.accessUrl && <a href={inst.accessUrl} target="_blank" rel="noreferrer" className="text-xs text-primary-400 hover:underline mt-1 inline-block">Ouvrir la boutique ↗</a>}
                           </div>
                           <div className="flex gap-2">
                             <button onClick={() => { setProvEditing(inst.id); setProvInstanceForm({ name: inst.name||'', subdomain: inst.subdomain||'', currency: 'XAF' }); }}
@@ -879,7 +879,7 @@ export default function ScalorDashboard() {
                 ].map(ep => (
                   <div key={ep.path} className="bg-white/[0.02] border border-white/5 rounded-2xl overflow-hidden">
                     <div className="flex items-center gap-3 px-4 py-3 border-b border-white/5">
-                      <span className={`px-2 py-0.5 rounded text-xs font-bold font-mono ${ep.method === 'POST' ? 'bg-blue-500/15 text-blue-400' : ep.method === 'PUT' ? 'bg-amber-500/15 text-amber-400' : 'bg-emerald-500/15 text-emerald-400'}`}>{ep.method}</span>
+                      <span className={`px-2 py-0.5 rounded text-xs font-bold font-mono ${ep.method === 'POST' ? 'bg-blue-500/15 text-blue-400' : ep.method === 'PUT' ? 'bg-amber-500/15 text-amber-400' : 'bg-primary-500/15 text-primary-400'}`}>{ep.method}</span>
                       <code className="text-gray-300 text-xs font-mono flex-1">/api/scalor{ep.path}</code>
                       <span className="text-gray-500 text-xs">{ep.title}</span>
                     </div>
@@ -902,26 +902,26 @@ export default function ScalorDashboard() {
               <div className="space-y-4">
                 <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-4">
                   <p className="text-xs text-gray-500 uppercase tracking-wide font-medium mb-2">Base URL</p>
-                  <code className="block bg-white/5 border border-white/5 p-2.5 rounded-xl text-emerald-300 text-xs font-mono">https://api.scalor.net/api/scalor</code>
+                  <code className="block bg-white/5 border border-white/5 p-2.5 rounded-xl text-primary-300 text-xs font-mono">https://api.scalor.net/api/scalor</code>
                 </div>
                 <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-4">
                   <p className="text-xs text-gray-500 uppercase tracking-wide font-medium mb-2">Authentification</p>
-                  <code className="block bg-white/5 border border-white/5 p-2.5 rounded-xl text-emerald-300 text-xs font-mono break-all">Authorization: Bearer sk_live_xxxxxxxx</code>
+                  <code className="block bg-white/5 border border-white/5 p-2.5 rounded-xl text-primary-300 text-xs font-mono break-all">Authorization: Bearer sk_live_xxxxxxxx</code>
                 </div>
 
                 {/* Credits system */}
                 <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-4">
                   <div className="flex items-center justify-between mb-3">
                     <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">Système de crédits</p>
-                    <span className="text-xs text-emerald-400 font-semibold">Pay-as-you-go</span>
+                    <span className="text-xs text-primary-400 font-semibold">Pay-as-you-go</span>
                   </div>
                   <p className="text-gray-500 text-xs mb-4">Chaque action consomme des crédits. Rechargez à tout moment, sans abonnement.</p>
 
                   {/* Solde actuel */}
-                  <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3 mb-4">
-                    <p className="text-xs text-emerald-400/70 mb-0.5">Votre solde</p>
-                    <p className="text-2xl font-bold text-emerald-400">{(user?.credits ?? 0).toLocaleString()}
-                      <span className="text-sm font-normal text-emerald-400/60 ml-1">crédits</span>
+                  <div className="bg-primary-500/10 border border-primary-500/20 rounded-xl p-3 mb-4">
+                    <p className="text-xs text-primary-400/70 mb-0.5">Votre solde</p>
+                    <p className="text-2xl font-bold text-primary-400">{(user?.credits ?? 0).toLocaleString()}
+                      <span className="text-sm font-normal text-primary-400/60 ml-1">crédits</span>
                     </p>
                   </div>
 
@@ -952,14 +952,14 @@ export default function ScalorDashboard() {
                       <div key={p.credits} className="flex items-center justify-between py-1.5 border-b border-white/5 last:border-0">
                         <div className="flex items-center gap-2">
                           <span className="text-white text-xs font-semibold">{p.credits} cr.</span>
-                          {p.note && <span className="px-1.5 py-0.5 bg-emerald-500/15 text-emerald-400 text-[10px] font-bold rounded">{p.note}</span>}
+                          {p.note && <span className="px-1.5 py-0.5 bg-primary-500/15 text-primary-400 text-[10px] font-bold rounded">{p.note}</span>}
                         </div>
                         <span className="text-gray-400 text-xs">{p.price}</span>
                       </div>
                     ))}
                   </div>
 
-                  <button className="mt-4 w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-xl transition-colors">
+                  <button className="mt-4 w-full py-2 bg-primary-600 hover:bg-primary-500 text-white text-xs font-semibold rounded-xl transition-colors">
                     Recharger des crédits
                   </button>
                 </div>
@@ -977,12 +977,12 @@ export default function ScalorDashboard() {
             <div>
               <label className="block text-xs font-medium text-gray-400 mb-1.5">Nom de l'instance</label>
               <input type="text" value={newInstanceName} onChange={e => setNewInstanceName(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500 text-sm"
+                className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-gray-600 focus:outline-none focus:border-primary-500 text-sm"
                 placeholder="ma_boutique" maxLength={30} autoFocus />
               <p className="text-gray-600 text-xs mt-1.5">Lettres, chiffres, tirets et underscores uniquement</p>
             </div>
             <button onClick={handleCreateInstance} disabled={actionLoading || !newInstanceName.trim()}
-              className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-xl disabled:opacity-50 transition-colors text-sm">
+              className="w-full py-3 bg-primary-600 hover:bg-primary-500 text-white font-semibold rounded-xl disabled:opacity-50 transition-colors text-sm">
               {actionLoading ? 'Création…' : 'Créer l\'instance'}
             </button>
           </div>
@@ -1003,11 +1003,11 @@ export default function ScalorDashboard() {
                 <img src={qrData.qrcode.startsWith('data:') ? qrData.qrcode : `data:image/png;base64,${qrData.qrcode}`}
                   alt="QR Code" className="mx-auto w-56 h-56 rounded-xl border border-white/10" />
                 <p className="text-gray-500 text-sm mt-4">Scannez avec WhatsApp sur votre téléphone</p>
-                {qrData.pairingCode && <p className="text-emerald-400 font-mono text-lg mt-2 font-bold tracking-widest">{qrData.pairingCode}</p>}
+                {qrData.pairingCode && <p className="text-primary-400 font-mono text-lg mt-2 font-bold tracking-widest">{qrData.pairingCode}</p>}
               </>
             ) : (
               <div className="py-12 flex flex-col items-center gap-3">
-                <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                <div className="w-6 h-6 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
                 <p className="text-gray-500 text-sm">Chargement du QR code…</p>
               </div>
             )}
@@ -1021,22 +1021,22 @@ export default function ScalorDashboard() {
             <div>
               <label className="block text-xs font-medium text-gray-400 mb-1.5">Numéro (format international)</label>
               <input type="text" value={sendForm.number} onChange={e => setSendForm(f => ({ ...f, number: e.target.value }))}
-                className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500 text-sm"
+                className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-gray-600 focus:outline-none focus:border-primary-500 text-sm"
                 placeholder="237691234567" />
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-400 mb-1.5">Message</label>
               <textarea value={sendForm.message} onChange={e => setSendForm(f => ({ ...f, message: e.target.value }))}
-                className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500 resize-y text-sm"
+                className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-gray-600 focus:outline-none focus:border-primary-500 resize-y text-sm"
                 rows={3} placeholder="Votre message…" />
             </div>
             {sendResult && (
-              <div className={`p-3 rounded-xl text-sm ${sendResult.success ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400' : 'bg-red-500/10 border border-red-500/20 text-red-400'}`}>
+              <div className={`p-3 rounded-xl text-sm ${sendResult.success ? 'bg-primary-500/10 border border-primary-500/20 text-primary-400' : 'bg-red-500/10 border border-red-500/20 text-red-400'}`}>
                 {sendResult.success ? `✓ Message envoyé (ID: ${sendResult.messageId})` : `✕ ${sendResult.error}`}
               </div>
             )}
             <button onClick={handleSendMessage} disabled={actionLoading || !sendForm.number || !sendForm.message}
-              className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-xl disabled:opacity-50 transition-colors text-sm">
+              className="w-full py-3 bg-primary-600 hover:bg-primary-500 text-white font-semibold rounded-xl disabled:opacity-50 transition-colors text-sm">
               {actionLoading ? 'Envoi…' : 'Envoyer'}
             </button>
           </div>
@@ -1049,7 +1049,7 @@ export default function ScalorDashboard() {
             <div>
               <label className="block text-xs font-medium text-gray-400 mb-1.5">URL du webhook</label>
               <input type="url" value={webhookUrl} onChange={e => setWebhookUrl(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500 text-sm"
+                className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-gray-600 focus:outline-none focus:border-primary-500 text-sm"
                 placeholder="https://monsite.com/webhook" autoFocus />
               <p className="text-gray-600 text-xs mt-1.5">Les événements WhatsApp seront envoyés à cette URL via POST</p>
             </div>
@@ -1067,10 +1067,10 @@ export default function ScalorDashboard() {
             <div className="space-y-4">
               <div className="bg-amber-500/10 border border-amber-500/20 p-4 rounded-xl">
                 <p className="text-amber-400 text-sm font-semibold mb-3">Sauvegardez cette clé maintenant — elle ne sera plus affichée.</p>
-                <code className="block bg-white/5 border border-white/10 p-3 rounded-xl text-emerald-300 text-xs break-all font-mono">{newKeyResult.apiKey}</code>
+                <code className="block bg-white/5 border border-white/10 p-3 rounded-xl text-primary-300 text-xs break-all font-mono">{newKeyResult.apiKey}</code>
               </div>
               <button onClick={() => navigator.clipboard.writeText(newKeyResult.apiKey)}
-                className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-xl transition-colors text-sm">
+                className="w-full py-3 bg-primary-600 hover:bg-primary-500 text-white font-semibold rounded-xl transition-colors text-sm">
                 Copier la clé
               </button>
             </div>
@@ -1079,11 +1079,11 @@ export default function ScalorDashboard() {
               <div>
                 <label className="block text-xs font-medium text-gray-400 mb-1.5">Nom de la clé</label>
                 <input type="text" value={newKeyName} onChange={e => setNewKeyName(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500 text-sm"
+                  className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-gray-600 focus:outline-none focus:border-primary-500 text-sm"
                   placeholder="Production API Key" autoFocus />
               </div>
               <button onClick={handleCreateKey} disabled={actionLoading}
-                className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-xl disabled:opacity-50 transition-colors text-sm">
+                className="w-full py-3 bg-primary-600 hover:bg-primary-500 text-white font-semibold rounded-xl disabled:opacity-50 transition-colors text-sm">
                 {actionLoading ? 'Génération…' : 'Générer la clé'}
               </button>
             </div>

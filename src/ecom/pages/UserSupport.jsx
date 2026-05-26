@@ -13,7 +13,7 @@ const CATEGORY_CFG = {
 const WORKFLOW_CFG = {
   ai:            { label: 'Répondu par IA',        bg: 'bg-sky-50',     text: 'text-sky-700',     dot: 'bg-sky-400' },
   pending_admin: { label: 'En attente de l\'admin', bg: 'bg-amber-50',   text: 'text-amber-700',   dot: 'bg-amber-400' },
-  resolved:      { label: 'Résolu',                 bg: 'bg-emerald-50', text: 'text-emerald-700', dot: 'bg-emerald-500' },
+  resolved:      { label: 'Résolu',                 bg: 'bg-primary-50', text: 'text-primary-700', dot: 'bg-primary-500' },
 };
 
 const fmtAgo = (d) => {
@@ -152,7 +152,7 @@ const UserSupport = () => {
 
       {/* Toast */}
       {toast && (
-        <div className={`fixed top-4 right-4 z-50 px-4 py-2.5 rounded-xl shadow-lg text-sm font-semibold text-white flex items-center gap-2 ${toast.type === 'error' ? 'bg-red-500' : 'bg-emerald-500'}`}>
+        <div className={`fixed top-4 right-4 z-50 px-4 py-2.5 rounded-xl shadow-lg text-sm font-semibold text-white flex items-center gap-2 ${toast.type === 'error' ? 'bg-red-500' : 'bg-primary-500'}`}>
           {toast.type === 'error'
             ? <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
             : <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
@@ -379,7 +379,7 @@ const UserSupport = () => {
                         )}
                         <p className="text-sm whitespace-pre-wrap break-words leading-relaxed">{m.text}</p>
                         <div className={`flex items-center gap-2 mt-1.5 ${isUser ? 'justify-end' : 'justify-start'}`}>
-                          <span className={`text-[10px] ${isUser ? 'text-emerald-200' : 'text-gray-400'}`}>{fmtFull(m.createdAt)}</span>
+                          <span className={`text-[10px] ${isUser ? 'text-primary-200' : 'text-gray-400'}`}>{fmtFull(m.createdAt)}</span>
                         </div>
                       </div>
                     </div>

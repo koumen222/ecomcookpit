@@ -112,8 +112,8 @@ const WorkspaceSetup = () => {
 
   return (
     <div className="min-h-screen bg-[#fafbfc] flex items-center justify-center px-4 py-12 relative overflow-hidden">
-      <div className="absolute top-0 left-1/4 w-96 h-96 bg-emerald-100/40 rounded-full blur-[120px] pointer-events-none" />
-      <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-emerald-100/40 rounded-full blur-[120px] pointer-events-none" />
+      <div className="absolute top-0 left-1/4 w-96 h-96 bg-primary-100/40 rounded-full blur-[120px] pointer-events-none" />
+      <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-primary-100/40 rounded-full blur-[120px] pointer-events-none" />
 
       <div className="w-full max-w-[440px] relative">
         <div className="text-center mb-8">
@@ -123,13 +123,13 @@ const WorkspaceSetup = () => {
         </div>
 
         <div className="text-center mb-6">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-emerald-50 border border-emerald-100 mb-4 shadow-sm">
+          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-primary-50 border border-primary-100 mb-4 shadow-sm">
             {step === 1 ? (
-              <svg className="w-7 h-7 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-7 h-7 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
               </svg>
             ) : (
-              <svg className="w-7 h-7 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-7 h-7 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             )}
@@ -155,14 +155,14 @@ const WorkspaceSetup = () => {
               <div>
                 <label className="block text-xs font-bold text-gray-400 mb-1.5 uppercase tracking-wide">Nom de votre espace</label>
                 <input type="text" required placeholder="Ex: Ma Boutique, Mon Business..." value={workspaceName} onChange={e => setWorkspaceName(e.target.value)}
-                  className="block w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 text-sm transition shadow-sm" />
+                  className="block w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500 text-sm transition shadow-sm" />
               </div>
               <div>
                 <label className="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">Votre rôle dans cet espace</label>
                 <div className="grid grid-cols-2 gap-2">
                   {roles.map(r => (
                     <button key={r.value} type="button" onClick={() => setSelectedRole(r.value)}
-                      className={`text-left px-3 py-2.5 rounded-xl border text-xs transition ${selectedRole === r.value ? 'border-emerald-500 bg-emerald-50 text-emerald-800 shadow-sm' : 'border-gray-200 bg-gray-50 text-gray-500 hover:border-gray-300 hover:text-gray-700'}`}>
+                      className={`text-left px-3 py-2.5 rounded-xl border text-xs transition ${selectedRole === r.value ? 'border-primary-500 bg-primary-50 text-primary-800 shadow-sm' : 'border-gray-200 bg-gray-50 text-gray-500 hover:border-gray-300 hover:text-gray-700'}`}>
                       <span className="font-bold block">{r.label}</span>
                       <span className="opacity-70 text-[10px]">{r.desc}</span>
                     </button>
@@ -175,7 +175,7 @@ const WorkspaceSetup = () => {
                 </p>
               </div>
               <button type="submit" disabled={loading || workspaceName.trim().length < 2}
-                className="w-full py-3 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-600 hover:to-emerald-600 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20">
+                className="w-full py-3 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-600 hover:to-primary-600 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center justify-center gap-2 shadow-lg shadow-primary-600/20">
                 {loading ? <Spinner /> : <><span>Créer mon espace</span><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg></>}
               </button>
             </form>
@@ -184,12 +184,12 @@ const WorkspaceSetup = () => {
               <div>
                 <label className="block text-xs font-bold text-gray-400 mb-1.5 uppercase tracking-wide">Numéro WhatsApp / Téléphone</label>
                 <input type="tel" placeholder="+237 6XX XX XX XX" value={phone} onChange={e => setPhone(e.target.value)}
-                  className="block w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 text-sm transition shadow-sm" />
+                  className="block w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500 text-sm transition shadow-sm" />
               </div>
               <div>
                 <label className="block text-xs font-bold text-gray-400 mb-1.5 uppercase tracking-wide">Que vendez-vous ?</label>
                 <select value={businessType} onChange={e => setBusinessType(e.target.value)}
-                  className="block w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 text-sm transition shadow-sm">
+                  className="block w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500 text-sm transition shadow-sm">
                   <option value="">Sélectionnez une catégorie...</option>
                   <option value="vetements">Vêtements mode et Beauté</option>
                   <option value="electronique">Électronique et Gadgets</option>
@@ -202,7 +202,7 @@ const WorkspaceSetup = () => {
               <div>
                 <label className="block text-xs font-bold text-gray-400 mb-1.5 uppercase tracking-wide">Commandes générées par mois</label>
                 <select value={ordersPerMonth} onChange={e => setOrdersPerMonth(e.target.value)}
-                  className="block w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 text-sm transition shadow-sm">
+                  className="block w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500 text-sm transition shadow-sm">
                   <option value="">Sélectionnez un volume...</option>
                   <option value="0-50">0 à 50 commandes</option>
                   <option value="50-500">50 à 500 commandes</option>
@@ -210,7 +210,7 @@ const WorkspaceSetup = () => {
                 </select>
               </div>
               <button type="submit" disabled={loading}
-                className="w-full py-3 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-600 hover:to-emerald-600 disabled:opacity-40 transition flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20">
+                className="w-full py-3 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-600 hover:to-primary-600 disabled:opacity-40 transition flex items-center justify-center gap-2 shadow-lg shadow-primary-600/20">
                 {loading ? <Spinner /> : <><span>Terminer l'inscription</span><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg></>}
               </button>
             </form>

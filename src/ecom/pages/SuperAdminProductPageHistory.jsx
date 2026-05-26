@@ -205,7 +205,7 @@ const SuperAdminProductPageHistory = () => {
                     onClick={() => setSelectedGenerationUser((prev) => prev === String(user._id) ? 'all' : String(user._id))}
                     className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left cursor-pointer mb-1.5 transition-all border ${
                       selectedGenerationUser === String(user._id)
-                        ? 'border-emerald-200 bg-emerald-50'
+                        ? 'border-primary-200 bg-primary-50'
                         : 'border-transparent hover:bg-slate-50'
                     }`}
                   >
@@ -217,7 +217,7 @@ const SuperAdminProductPageHistory = () => {
                       <div className="text-xs text-slate-400">{user.email || 'Email inconnu'} · {user.workspaceCount || 0} workspace{(user.workspaceCount || 0) > 1 ? 's' : ''}</div>
                     </div>
                     <div className="text-right flex-shrink-0">
-                      <div className="text-sm font-bold text-emerald-700">{user.generationCount || 0}</div>
+                      <div className="text-sm font-bold text-primary-700">{user.generationCount || 0}</div>
                       <div className="text-xs text-slate-400">{user.creditsUsed || 0} credit{(user.creditsUsed || 0) > 1 ? 's' : ''}</div>
                     </div>
                   </button>
@@ -252,13 +252,13 @@ const SuperAdminProductPageHistory = () => {
                   value={generationSearch}
                   onChange={(e) => setGenerationSearch(e.target.value)}
                   placeholder="Produit, URL, user, workspace…"
-                  className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:border-emerald-400 bg-slate-50"
+                  className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:border-primary-400 bg-slate-50"
                 />
               </div>
               <select
                 value={selectedGenerationUser}
                 onChange={(e) => setSelectedGenerationUser(e.target.value)}
-                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm bg-slate-50 focus:outline-none focus:border-emerald-400"
+                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm bg-slate-50 focus:outline-none focus:border-primary-400"
               >
                 <option value="all">Tous les utilisateurs</option>
                 {generationUsers.map((user) => (
@@ -270,7 +270,7 @@ const SuperAdminProductPageHistory = () => {
               <select
                 value={selectedGenerationStatus}
                 onChange={(e) => setSelectedGenerationStatus(e.target.value)}
-                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm bg-slate-50 focus:outline-none focus:border-emerald-400"
+                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm bg-slate-50 focus:outline-none focus:border-primary-400"
               >
                 <option value="all">Tous les statuts</option>
                 {Object.entries(STATUS_META).map(([key, meta]) => (

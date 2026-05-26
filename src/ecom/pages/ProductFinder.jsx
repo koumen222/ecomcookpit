@@ -102,7 +102,7 @@ const ProductFinder = () => {
     const sp = parseFloat(product.sourcingPrice) || 0;
     return Math.max(10000, Math.ceil((sp < 10000 ? sp * 3 : sp * 2.25) / 50) * 50);
   };
-  const marginColor = margin === null ? '' : parseFloat(margin) >= 60 ? 'text-emerald-600' : parseFloat(margin) >= 40 ? 'text-amber-500' : 'text-red-500';
+  const marginColor = margin === null ? '' : parseFloat(margin) >= 60 ? 'text-primary-600' : parseFloat(margin) >= 40 ? 'text-amber-500' : 'text-red-500';
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -178,7 +178,7 @@ const ProductFinder = () => {
           </div>
         )}
         {success && (
-          <div className="px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-xl text-sm text-emerald-700 flex items-center gap-2">
+          <div className="px-4 py-3 bg-primary-50 border border-primary-200 rounded-xl text-sm text-primary-700 flex items-center gap-2">
             <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
             {success}
           </div>
@@ -280,7 +280,7 @@ const ProductFinder = () => {
                   className="w-full px-3.5 py-2.5 pr-16 text-sm border border-gray-200 rounded-xl bg-gray-50/60 focus:bg-white focus:ring-2 focus:ring-[#0F6B4F]/20 focus:border-[#0F6B4F] outline-none transition"
                 />
                 <button type="button" onClick={() => set('cogs', calcCOGS())}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 px-2.5 py-1 text-[11px] font-bold bg-emerald-100 text-emerald-700 rounded-lg hover:bg-emerald-200 transition">
+                  className="absolute right-2 top-1/2 -translate-y-1/2 px-2.5 py-1 text-[11px] font-bold bg-primary-100 text-primary-700 rounded-lg hover:bg-primary-200 transition">
                   Auto
                 </button>
               </div>
@@ -310,7 +310,7 @@ const ProductFinder = () => {
             {showKpis && (
               <div className="flex gap-2 pt-1">
                 <KpiPill label="Marge" value={`${margin}%`} color={marginColor} />
-                <KpiPill label="Bénéfice" value={`${parseInt(profit).toLocaleString('fr-FR')} F`} color="text-emerald-600" />
+                <KpiPill label="Bénéfice" value={`${parseInt(profit).toLocaleString('fr-FR')} F`} color="text-primary-600" />
                 <KpiPill label="ROI" value={roi ? `${roi}%` : '—'} color="text-[#0F6B4F]" />
                 <div className="flex-1 min-w-0 bg-gray-50 rounded-xl px-3 py-3 border border-gray-100">
                   <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest text-center">Ventes/mois</p>
@@ -377,12 +377,12 @@ const ProductFinder = () => {
           <SectionCard icon="⚡" color="" title="Forces & Faiblesses">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <p className="text-[11px] font-bold text-emerald-600 uppercase tracking-widest">✓ Avantages</p>
+                <p className="text-[11px] font-bold text-primary-600 uppercase tracking-widest">✓ Avantages</p>
                 {product.pros.map((p, i) => (
                   <div key={i} className="flex items-center gap-1.5">
                     <input type="text" value={p} onChange={e => updateList('pros', i, e.target.value)}
                       placeholder="Ex: Forte marge…"
-                      className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-xl bg-gray-50/60 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-400 outline-none transition placeholder-gray-300"
+                      className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-xl bg-gray-50/60 focus:bg-white focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400 outline-none transition placeholder-gray-300"
                     />
                     {product.pros.length > 1 && (
                       <button type="button" onClick={() => removeItem('pros', i)}

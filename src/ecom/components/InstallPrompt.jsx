@@ -71,7 +71,7 @@ export default function InstallPrompt() {
 
   return (
     <div className="fixed bottom-0 inset-x-0 z-50 p-4 sm:p-0 sm:bottom-6 sm:right-6 sm:left-auto sm:max-w-sm">
-      <div className="bg-gradient-to-r from-emerald-600 to-emerald-700 rounded-2xl shadow-2xl p-4 text-white">
+      <div className="bg-gradient-to-r from-primary-600 to-primary-700 rounded-2xl shadow-2xl p-4 text-white">
         <div className="flex items-start gap-3">
           <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center flex-shrink-0">
             <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -80,7 +80,7 @@ export default function InstallPrompt() {
           </div>
           <div className="flex-1 min-w-0">
             <h3 className="text-sm font-bold">Installer Scalor</h3>
-            <p className="text-xs text-emerald-100 mt-0.5 leading-relaxed">
+            <p className="text-xs text-primary-100 mt-0.5 leading-relaxed">
               Ajoutez l'app sur votre écran d'accueil pour un accès rapide et des notifications en temps réel.
             </p>
           </div>
@@ -102,7 +102,7 @@ export default function InstallPrompt() {
           </button>
           <button
             onClick={install}
-            className="flex-1 px-3 py-2 text-xs font-bold rounded-lg bg-white text-emerald-600 hover:bg-emerald-50 transition flex items-center justify-center gap-1.5"
+            className="flex-1 px-3 py-2 text-xs font-bold rounded-lg bg-white text-primary-600 hover:bg-primary-50 transition flex items-center justify-center gap-1.5"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />

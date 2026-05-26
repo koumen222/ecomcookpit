@@ -15,11 +15,11 @@ const CHANNEL_LABELS = {
 };
 
 const ROLE_COLORS = {
-  ecom_admin: 'bg-emerald-600',
+  ecom_admin: 'bg-primary-600',
   ecom_closeuse: 'bg-amber-500',
-  ecom_compta: 'bg-emerald-500',
+  ecom_compta: 'bg-primary-500',
   ecom_livreur: 'bg-orange-500',
-  super_admin: 'bg-emerald-700'
+  super_admin: 'bg-primary-700'
 };
 
 const ROLE_LABELS = {
@@ -45,7 +45,7 @@ const renderContent = (content, own) => {
   const parts = content.split(/(@\S+)/g);
   return parts.map((part, i) =>
     part.startsWith('@')
-      ? <span key={i} className={`font-semibold ${own ? 'text-emerald-100 bg-emerald-600' : 'text-emerald-700 bg-emerald-50'} px-1 rounded`}>{part}</span>
+      ? <span key={i} className={`font-semibold ${own ? 'text-primary-100 bg-primary-600' : 'text-primary-700 bg-primary-50'} px-1 rounded`}>{part}</span>
       : part
   );
 };
@@ -327,13 +327,13 @@ export default function ChatWidget() {
                           <button
                             key={ch.slug}
                             onClick={() => { setActiveChannel(ch.slug); setShowChannels(false); }}
-                            className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-sm transition-colors ${activeChannel === ch.slug ? 'bg-emerald-50 text-emerald-700' : 'text-gray-700 hover:bg-gray-50'}`}
+                            className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-sm transition-colors ${activeChannel === ch.slug ? 'bg-primary-50 text-primary-700' : 'text-gray-700 hover:bg-gray-50'}`}
                           >
                             <span>{ch.emoji}</span>
                             <div className="flex-1 text-left">
                               <div className="flex items-center justify-between">
                                 <span className="font-medium">{ch.name}</span>
-                                {unread > 0 && <span className="min-w-[18px] h-[18px] flex items-center justify-center px-1 rounded-full bg-emerald-600 text-white text-[10px] font-bold">{unread > 99 ? '99+' : unread}</span>}
+                                {unread > 0 && <span className="min-w-[18px] h-[18px] flex items-center justify-center px-1 rounded-full bg-primary-600 text-white text-[10px] font-bold">{unread > 99 ? '99+' : unread}</span>}
                               </div>
                               {ch.description && <p className="text-[10px] text-gray-400">{ch.description}</p>}
                             </div>
@@ -368,7 +368,7 @@ export default function ChatWidget() {
             {hasMore && (
               <div className="flex justify-center mb-2">
                 <button onClick={() => loadMessages(activeChannel, page + 1, true)} disabled={loadingMore}
-                  className="text-xs text-emerald-600 hover:text-emerald-700 font-medium px-3 py-1 rounded-full border border-emerald-200 hover:bg-emerald-50 disabled:opacity-50">
+                  className="text-xs text-primary-600 hover:text-primary-700 font-medium px-3 py-1 rounded-full border border-primary-200 hover:bg-primary-50 disabled:opacity-50">
                   {loadingMore ? '...' : 'Charger plus'}
                 </button>
               </div>
@@ -376,7 +376,7 @@ export default function ChatWidget() {
 
             {loading ? (
               <div className="flex items-center justify-center h-full">
-                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-emerald-600"></div>
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-600"></div>
               </div>
             ) : messages.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-center py-8">
@@ -410,8 +410,8 @@ export default function ChatWidget() {
                       )}
 
                       {msg.replyToContent && (
-                        <div className="mb-0.5 px-2.5 py-1 rounded-lg border-l-2 border-emerald-500 bg-emerald-50 text-[11px] text-gray-600 max-w-full">
-                          <p className="font-medium text-emerald-600">{msg.replyToSenderName}</p>
+                        <div className="mb-0.5 px-2.5 py-1 rounded-lg border-l-2 border-primary-500 bg-primary-50 text-[11px] text-gray-600 max-w-full">
+                          <p className="font-medium text-primary-600">{msg.replyToSenderName}</p>
                           <p className="truncate">{msg.replyToContent}</p>
                         </div>
                       )}
@@ -420,16 +420,16 @@ export default function ChatWidget() {
                         <div className="w-full min-w-[160px]">
                           <textarea value={editContent} onChange={e => setEditContent(e.target.value)}
                             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveEdit(msg._id); } if (e.key === 'Escape') { setEditingId(null); setEditContent(''); } }}
-                            className="w-full px-2.5 py-1.5 border border-emerald-500 rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-emerald-600 resize-none" rows={2} autoFocus />
+                            className="w-full px-2.5 py-1.5 border border-primary-500 rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-primary-600 resize-none" rows={2} autoFocus />
                           <div className="flex gap-2 mt-0.5 justify-end">
                             <button onClick={() => { setEditingId(null); setEditContent(''); }} className="text-[10px] text-gray-500 hover:text-gray-700">Annuler</button>
-                            <button onClick={() => saveEdit(msg._id)} className="text-[10px] text-emerald-600 font-medium hover:text-emerald-700">Sauvegarder</button>
+                            <button onClick={() => saveEdit(msg._id)} className="text-[10px] text-primary-600 font-medium hover:text-primary-700">Sauvegarder</button>
                           </div>
                         </div>
                       ) : (
-                        <div className={`px-3 py-1.5 rounded-2xl text-xs leading-relaxed break-words ${own ? 'bg-emerald-600 text-white rounded-tr-sm' : 'bg-white text-gray-800 border border-gray-200 rounded-tl-sm shadow-sm'}`}>
+                        <div className={`px-3 py-1.5 rounded-2xl text-xs leading-relaxed break-words ${own ? 'bg-primary-600 text-white rounded-tr-sm' : 'bg-white text-gray-800 border border-gray-200 rounded-tl-sm shadow-sm'}`}>
                           {renderContent(msg.content, own)}
-                          {msg.edited && <span className={`text-[9px] ml-1 ${own ? 'text-emerald-200' : 'text-gray-400'}`}>(modifié)</span>}
+                          {msg.edited && <span className={`text-[9px] ml-1 ${own ? 'text-primary-200' : 'text-gray-400'}`}>(modifié)</span>}
                         </div>
                       )}
                     </div>
@@ -460,9 +460,9 @@ export default function ChatWidget() {
           {/* Zone de saisie */}
           <div className="bg-white border-t border-gray-100 px-3 py-2.5 flex-shrink-0">
             {replyTo && (
-              <div className="flex items-center gap-2 mb-2 px-2.5 py-1.5 bg-emerald-50 rounded-lg border-l-2 border-emerald-500">
+              <div className="flex items-center gap-2 mb-2 px-2.5 py-1.5 bg-primary-50 rounded-lg border-l-2 border-primary-500">
                 <div className="flex-1 min-w-0">
-                  <p className="text-[10px] font-medium text-emerald-600">↩ {replyTo.senderName}</p>
+                  <p className="text-[10px] font-medium text-primary-600">↩ {replyTo.senderName}</p>
                   <p className="text-[10px] text-gray-600 truncate">{replyTo.content}</p>
                 </div>
                 <button onClick={() => setReplyTo(null)} className="text-gray-400 hover:text-gray-600 flex-shrink-0">
@@ -475,7 +475,7 @@ export default function ChatWidget() {
                 <div className="absolute bottom-full left-0 mb-1 w-48 bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden z-10">
                   {filteredMentions.map((m, i) => (
                     <button key={m._id} type="button" onClick={() => insertMention(m)}
-                      className={`w-full flex items-center gap-2 px-3 py-2 text-xs transition-colors ${i === mentionIndex ? 'bg-emerald-50 text-emerald-700' : 'text-gray-700 hover:bg-gray-50'}`}>
+                      className={`w-full flex items-center gap-2 px-3 py-2 text-xs transition-colors ${i === mentionIndex ? 'bg-primary-50 text-primary-700' : 'text-gray-700 hover:bg-gray-50'}`}>
                       <div className={`w-5 h-5 ${ROLE_COLORS[m.role] || 'bg-gray-400'} rounded-full flex items-center justify-center flex-shrink-0`}>
                         <span className="text-white text-[9px] font-bold">{(m.name || m.email || 'U').charAt(0).toUpperCase()}</span>
                       </div>
@@ -491,13 +491,13 @@ export default function ChatWidget() {
                 onChange={e => handleMentionInput(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder="Écrire un message... (@mention)"
-                className="flex-1 px-3 py-2 border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:border-transparent resize-none leading-relaxed bg-gray-50"
+                className="flex-1 px-3 py-2 border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-transparent resize-none leading-relaxed bg-gray-50"
                 rows={1}
                 style={{ minHeight: '36px', maxHeight: '80px' }}
                 onInput={e => { e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 80) + 'px'; }}
               />
               <button type="submit" disabled={!newMessage.trim() || sending}
-                className="flex-shrink-0 w-8 h-8 bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-200 text-white rounded-xl flex items-center justify-center transition-colors">
+                className="flex-shrink-0 w-8 h-8 bg-primary-600 hover:bg-primary-700 disabled:bg-gray-200 text-white rounded-xl flex items-center justify-center transition-colors">
                 {sending ? (
                   <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
                 ) : (

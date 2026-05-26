@@ -4,7 +4,7 @@ import ToggleSwitch from './ToggleSwitch';
 
 const fmt = (n) => new Intl.NumberFormat('fr-FR').format(n);
 
-const inputCls = 'w-full px-2.5 py-2 rounded-xl border border-gray-200 text-[12px] focus:outline-none focus:border-emerald-400';
+const inputCls = 'w-full px-2.5 py-2 rounded-xl border border-gray-200 text-[12px] focus:outline-none focus:border-primary-400';
 
 const DEFAULT_OFFER_DESIGN = {
   displayType: 'radio',
@@ -42,7 +42,7 @@ const ColorRow = ({ label, value, onChange }) => (
         value={value}
         onChange={e => onChange(e.target.value)}
         placeholder="auto"
-        className="w-20 px-2 py-1 rounded-lg border border-gray-200 text-[11px] focus:outline-none focus:border-emerald-400 font-mono"
+        className="w-20 px-2 py-1 rounded-lg border border-gray-200 text-[11px] focus:outline-none focus:border-primary-400 font-mono"
       />
       {value && (
         <button onClick={() => onChange('')} className="text-gray-300 hover:text-red-400 transition-colors text-[10px]">✕</button>
@@ -60,7 +60,7 @@ const SliderRow = ({ label, value, onChange, min = 0, max = 24, unit = 'px' }) =
     <input
       type="range" min={min} max={max} value={value}
       onChange={e => onChange(Number(e.target.value))}
-      className="w-full h-1.5 appearance-none rounded-full bg-gray-200 accent-emerald-500"
+      className="w-full h-1.5 appearance-none rounded-full bg-gray-200 accent-primary-500"
     />
   </div>
 );
@@ -271,7 +271,7 @@ const OffersEditor = ({ config, onChange, basePrice = 0 }) => {
       {offersEnabled && basePrice > 0 && (
         <button
           onClick={autofillPrices}
-          className="mt-3 w-full flex items-center justify-center gap-2 py-2 rounded-xl border border-dashed border-emerald-300 text-[12px] font-semibold text-emerald-700 hover:bg-emerald-50 transition-colors"
+          className="mt-3 w-full flex items-center justify-center gap-2 py-2 rounded-xl border border-dashed border-primary-300 text-[12px] font-semibold text-primary-700 hover:bg-primary-50 transition-colors"
         >
           <Wand2 size={13} />
           Pré-remplir depuis le prix du produit ({fmt(basePrice)} F)
@@ -301,7 +301,7 @@ const OffersEditor = ({ config, onChange, basePrice = 0 }) => {
                   onClick={() => updateOD('displayType', val)}
                   className={`py-2 px-1 rounded-xl border text-center transition-colors ${
                     (od.displayType || 'radio') === val
-                      ? 'border-emerald-400 bg-emerald-50 text-emerald-700'
+                      ? 'border-primary-400 bg-primary-50 text-primary-700'
                       : 'border-gray-200 text-gray-500 hover:border-gray-300'
                   }`}
                 >
@@ -321,12 +321,12 @@ const OffersEditor = ({ config, onChange, basePrice = 0 }) => {
                 key={idx}
                 className={`relative rounded-2xl border-2 p-4 transition-all ${
                   offer.selected
-                    ? 'border-emerald-400 bg-emerald-50/50 shadow-sm ring-1 ring-emerald-200/50'
+                    ? 'border-primary-400 bg-primary-50/50 shadow-sm ring-1 ring-primary-200/50'
                     : 'border-gray-150 bg-white hover:border-gray-200'
                 }`}
               >
                 {offer.selected && (
-                  <div className="absolute -top-2.5 left-4 px-2.5 py-0.5 rounded-full bg-emerald-500 text-white text-[10px] font-bold flex items-center gap-1">
+                  <div className="absolute -top-2.5 left-4 px-2.5 py-0.5 rounded-full bg-primary-500 text-white text-[10px] font-bold flex items-center gap-1">
                     <Check size={9} /> Par défaut
                   </div>
                 )}
@@ -334,7 +334,7 @@ const OffersEditor = ({ config, onChange, basePrice = 0 }) => {
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center gap-2.5">
                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-lg ${
-                      offer.selected ? 'bg-emerald-500 text-white' : 'bg-gray-100 text-gray-500'
+                      offer.selected ? 'bg-primary-500 text-white' : 'bg-gray-100 text-gray-500'
                     }`}>
                       {offer.qty}×
                     </div>
@@ -354,7 +354,7 @@ const OffersEditor = ({ config, onChange, basePrice = 0 }) => {
                     {!offer.selected && (
                       <button
                         onClick={() => selectOffer(idx)}
-                        className="text-[10px] font-medium text-emerald-600 hover:text-emerald-700 px-2 py-1 rounded-lg hover:bg-emerald-50 transition-colors"
+                        className="text-[10px] font-medium text-primary-600 hover:text-primary-700 px-2 py-1 rounded-lg hover:bg-primary-50 transition-colors"
                       >
                         Sélectionner
                       </button>
@@ -377,7 +377,7 @@ const OffersEditor = ({ config, onChange, basePrice = 0 }) => {
                       type="number" min="1"
                       value={offer.qty}
                       onChange={e => updateOffer(idx, 'qty', parseInt(e.target.value) || 1)}
-                      className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm font-mono focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-200"
+                      className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm font-mono focus:outline-none focus:border-primary-400 focus:ring-1 focus:ring-primary-200"
                     />
                   </div>
                   <div>
@@ -387,7 +387,7 @@ const OffersEditor = ({ config, onChange, basePrice = 0 }) => {
                       value={offer.price || ''}
                       onChange={e => updateOffer(idx, 'price', parseInt(e.target.value) || 0)}
                       placeholder="Prix net"
-                      className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm font-mono focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-200"
+                      className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm font-mono focus:outline-none focus:border-primary-400 focus:ring-1 focus:ring-primary-200"
                     />
                   </div>
                   <div>
@@ -397,7 +397,7 @@ const OffersEditor = ({ config, onChange, basePrice = 0 }) => {
                       value={offer.comparePrice || ''}
                       onChange={e => updateOffer(idx, 'comparePrice', parseInt(e.target.value) || 0)}
                       placeholder="Ancien prix"
-                      className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm font-mono focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-200"
+                      className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm font-mono focus:outline-none focus:border-primary-400 focus:ring-1 focus:ring-primary-200"
                     />
                   </div>
                   <div>
@@ -409,7 +409,7 @@ const OffersEditor = ({ config, onChange, basePrice = 0 }) => {
                         value={offer.badge}
                         onChange={e => updateOffer(idx, 'badge', e.target.value)}
                         placeholder="Ex: Populaire"
-                        className="w-full pl-8 pr-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-200"
+                        className="w-full pl-8 pr-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary-400 focus:ring-1 focus:ring-primary-200"
                       />
                     </div>
                   </div>
@@ -436,7 +436,7 @@ const OffersEditor = ({ config, onChange, basePrice = 0 }) => {
 
           <button
             onClick={addOffer}
-            className="w-full py-3 rounded-2xl border-2 border-dashed border-gray-200 text-sm font-medium text-gray-400 hover:border-emerald-300 hover:text-emerald-600 hover:bg-emerald-50/30 transition-all flex items-center justify-center gap-2"
+            className="w-full py-3 rounded-2xl border-2 border-dashed border-gray-200 text-sm font-medium text-gray-400 hover:border-primary-300 hover:text-primary-600 hover:bg-primary-50/30 transition-all flex items-center justify-center gap-2"
           >
             <Plus size={16} /> Ajouter une offre
           </button>
@@ -448,7 +448,7 @@ const OffersEditor = ({ config, onChange, basePrice = 0 }) => {
               className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors"
             >
               <div className="flex items-center gap-2 text-[12px] font-semibold text-gray-700">
-                <Palette size={14} className="text-emerald-500" />
+                <Palette size={14} className="text-primary-500" />
                 Design des cartes
               </div>
               {designOpen ? <ChevronUp size={14} className="text-gray-400" /> : <ChevronDown size={14} className="text-gray-400" />}
@@ -482,7 +482,7 @@ const OffersEditor = ({ config, onChange, basePrice = 0 }) => {
                         onClick={() => updateOD('borderStyle', val)}
                         className={`flex-1 py-1.5 rounded-xl border text-[11px] font-semibold transition-colors ${
                           od.borderStyle === val
-                            ? 'border-emerald-400 bg-emerald-50 text-emerald-700'
+                            ? 'border-primary-400 bg-primary-50 text-primary-700'
                             : 'border-gray-200 text-gray-500 hover:border-gray-300'
                         }`}
                       >

@@ -70,7 +70,7 @@ const KpiCard = ({ label, value, sub, spark, color, icon: Icon }) => {
             <span className="text-xs font-semibold text-gray-400 uppercase tracking-widest">{label}</span>
           </div>
           {d && (
-            <div className={`flex items-center gap-0.5 text-[11px] font-bold px-2 py-0.5 rounded-full ${d.up ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-500'}`}>
+            <div className={`flex items-center gap-0.5 text-[11px] font-bold px-2 py-0.5 rounded-full ${d.up ? 'bg-primary-50 text-primary-600' : 'bg-red-50 text-red-500'}`}>
               {d.up ? <ArrowUpRight size={10} /> : <ArrowDownRight size={10} />}
               {Math.abs(d.pct)}%
             </div>
@@ -90,12 +90,12 @@ const KpiCard = ({ label, value, sub, spark, color, icon: Icon }) => {
 
 /* ─── Status dot ─────────────────────────────────────────────────────── */
 const StatusDot = ({ ok }) => (
-  <span className={`inline-block w-1.5 h-1.5 rounded-full ${ok ? 'bg-emerald-400' : 'bg-gray-300'}`} />
+  <span className={`inline-block w-1.5 h-1.5 rounded-full ${ok ? 'bg-primary-400' : 'bg-gray-300'}`} />
 );
 
 /* ─── Order badge ────────────────────────────────────────────────────── */
 const STATUS_STYLES = {
-  delivered:  'bg-emerald-50 text-emerald-700 border-emerald-100',
+  delivered:  'bg-primary-50 text-primary-700 border-primary-100',
   confirmed:  'bg-blue-50   text-blue-700   border-blue-100',
   pending:    'bg-amber-50  text-amber-700  border-amber-100',
   shipped:    'bg-violet-50 text-violet-700 border-violet-100',
@@ -131,7 +131,7 @@ const Action = ({ label, desc, href, icon: Icon, color }) => (
 /* ─── Store health checklist ─────────────────────────────────────────── */
 const CheckItem = ({ label, done, href }) => (
   <Link to={href} className="flex items-center gap-2.5 py-2 hover:opacity-80 transition-opacity group">
-    <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${done ? 'border-emerald-500 bg-emerald-500' : 'border-gray-200'}`}>
+    <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${done ? 'border-primary-500 bg-primary-500' : 'border-gray-200'}`}>
       {done && (
         <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 12 12">
           <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
@@ -289,7 +289,7 @@ const BoutiqueDashboard = () => {
         <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-5">
           <div className="flex items-center gap-4">
             {/* store avatar */}
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#0F6B4F] to-[#14B585] flex items-center justify-center shadow-lg shadow-emerald-900/40 shrink-0">
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#0F6B4F] to-[#14B585] flex items-center justify-center shadow-lg shadow-primary-900/40 shrink-0">
               {store?.storeSettings?.storeLogo ? (
                 <img src={store.storeSettings.storeLogo} alt="" className="w-10 h-10 object-contain rounded-xl" />
               ) : (
@@ -299,8 +299,8 @@ const BoutiqueDashboard = () => {
             <div>
               <div className="flex items-center gap-2 mb-0.5">
                 <h1 className="text-white font-black text-lg lg:text-xl tracking-tight">{storeName}</h1>
-                <div className="flex items-center gap-1 bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 text-[10px] font-bold px-2 py-0.5 rounded-full">
-                  <span className="w-1 h-1 rounded-full bg-emerald-400 animate-pulse" />
+                <div className="flex items-center gap-1 bg-primary-500/20 border border-primary-500/30 text-primary-400 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                  <span className="w-1 h-1 rounded-full bg-primary-400 animate-pulse" />
                   LIVE
                 </div>
               </div>
@@ -348,7 +348,7 @@ const BoutiqueDashboard = () => {
 
             {storeUrl && (
               <a href={storeUrl} target="_blank" rel="noreferrer"
-                className="flex items-center gap-2 bg-[#0F6B4F] hover:bg-[#0A5740] text-white text-xs font-bold px-4 py-2.5 rounded-xl transition-colors shadow-lg shadow-emerald-900/30">
+                className="flex items-center gap-2 bg-[#0F6B4F] hover:bg-[#0A5740] text-white text-xs font-bold px-4 py-2.5 rounded-xl transition-colors shadow-lg shadow-primary-900/30">
                 <Eye size={13} />
                 Voir la boutique
               </a>
@@ -470,7 +470,7 @@ const BoutiqueDashboard = () => {
           <div className="bg-white rounded-2xl border border-gray-100 p-5">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
-                <Shield size={14} className="text-emerald-500" />
+                <Shield size={14} className="text-primary-500" />
                 <h3 className="text-sm font-bold text-gray-900">Santé boutique</h3>
               </div>
               <div className="flex items-center gap-1.5">
@@ -494,7 +494,7 @@ const BoutiqueDashboard = () => {
 
           {/* Add product CTA */}
           <Link to="/ecom/boutique/products/new"
-            className="group flex items-center gap-3 bg-gradient-to-r from-[#0F6B4F] to-[#14B585] rounded-2xl p-4 hover:shadow-lg hover:shadow-emerald-900/20 transition-all">
+            className="group flex items-center gap-3 bg-gradient-to-r from-[#0F6B4F] to-[#14B585] rounded-2xl p-4 hover:shadow-lg hover:shadow-primary-900/20 transition-all">
             <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
               <Plus size={18} className="text-white" />
             </div>

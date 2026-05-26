@@ -199,7 +199,7 @@ const StockOrderForm = () => {
                     productName: selectedProduct?.name || prev.productName
                   }));
                 }}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-emerald-600 focus:border-emerald-600"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-600 focus:border-primary-600"
               >
                 <option value="">Sélectionnez un produit</option>
                 {products.map((product) => (
@@ -219,7 +219,7 @@ const StockOrderForm = () => {
                 required
                 value={formData.sourcing}
                 onChange={handleChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-emerald-600 focus:border-emerald-600"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-600 focus:border-primary-600"
               >
                 <option value="local">Local</option>
                 <option value="chine">Chine</option>
@@ -237,7 +237,7 @@ const StockOrderForm = () => {
                 min="1"
                 value={formData.quantity}
                 onChange={handleChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-emerald-600 focus:border-emerald-600"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-600 focus:border-primary-600"
               />
             </div>
 
@@ -250,7 +250,7 @@ const StockOrderForm = () => {
                 name="supplierName"
                 value={formData.supplierName}
                 onChange={handleChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-emerald-600 focus:border-emerald-600"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-600 focus:border-primary-600"
               />
             </div>
           </div>
@@ -273,7 +273,7 @@ const StockOrderForm = () => {
                 step="0.01"
                 value={formData.weightUnit}
                 onChange={handleChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-emerald-600 focus:border-emerald-600"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-600 focus:border-primary-600"
               />
             </div>
 
@@ -299,14 +299,14 @@ const StockOrderForm = () => {
                 step="0.01"
                 value={formData.pricePerKg}
                 onChange={handleChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-emerald-600 focus:border-emerald-600"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-600 focus:border-primary-600"
               />
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Prix d'achat unitaire ({symbol}) *
-                {formData.sourcing === 'chine' && <span className="text-xs text-emerald-600 ml-1">(en Chine)</span>}
+                {formData.sourcing === 'chine' && <span className="text-xs text-primary-600 ml-1">(en Chine)</span>}
               </label>
               <input
                 type="number"
@@ -316,7 +316,7 @@ const StockOrderForm = () => {
                 step="0.01"
                 value={formData.purchasePrice}
                 onChange={handleChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-emerald-600 focus:border-emerald-600"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-600 focus:border-primary-600"
               />
             </div>
 
@@ -332,7 +332,7 @@ const StockOrderForm = () => {
                 step="0.01"
                 value={formData.sellingPrice}
                 onChange={handleChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-emerald-600 focus:border-emerald-600"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-600 focus:border-primary-600"
               />
             </div>
 
@@ -361,7 +361,7 @@ const StockOrderForm = () => {
                 name="expectedArrival"
                 value={formData.expectedArrival}
                 onChange={handleChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-emerald-600 focus:border-emerald-600"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-600 focus:border-primary-600"
               />
             </div>
 
@@ -374,7 +374,7 @@ const StockOrderForm = () => {
                 name="trackingNumber"
                 value={formData.trackingNumber}
                 onChange={handleChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-emerald-600 focus:border-emerald-600"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-600 focus:border-primary-600"
               />
             </div>
           </div>
@@ -389,7 +389,7 @@ const StockOrderForm = () => {
               value={formData.notes}
               onChange={handleChange}
               placeholder="Notes supplémentaires..."
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-emerald-600 focus:border-emerald-600"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-600 focus:border-primary-600"
             />
           </div>
         </div>
@@ -417,7 +417,7 @@ const StockOrderForm = () => {
               </div>
               <div>
                 <span className="text-gray-600">Valeur de vente:</span>
-                <p className="font-semibold text-emerald-600">{fmt(totalSellingValue)}</p>
+                <p className="font-semibold text-primary-600">{fmt(totalSellingValue)}</p>
               </div>
               <div>
                 <span className="text-gray-600">Profit estimé:</span>
@@ -450,7 +450,7 @@ const StockOrderForm = () => {
           <button
             type="submit"
             disabled={loading}
-            className="px-4 py-2 bg-emerald-600 text-white rounded-md hover:bg-emerald-700 disabled:opacity-50"
+            className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:opacity-50"
           >
             {loading ? (isEditing ? 'Modification...' : 'Création...') : (isEditing ? 'Modifier la commande' : 'Créer la commande')}
           </button>

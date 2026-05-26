@@ -5,7 +5,7 @@ import { useMoney } from '../hooks/useMoney';
 import ecomApi from '../services/ecommApi.js';
 import { getContextualError } from '../utils/errorMessages';
 
-const inputCls = 'w-full px-3 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400 focus:bg-white transition placeholder:text-gray-400';
+const inputCls = 'w-full px-3 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-primary-400 focus:bg-white transition placeholder:text-gray-400';
 
 const Field = ({ label, hint, required, children }) => (
   <div>
@@ -284,10 +284,10 @@ export default function ReportForm() {
               {hasStats && (
                 <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-2">
                   {[
-                    { label: 'Taux livraison',  value: `${deliveryRate}%`,  color: 'text-emerald-700' },
+                    { label: 'Taux livraison',  value: `${deliveryRate}%`,  color: 'text-primary-700' },
                     { label: 'En attente',       value: pending,             color: pending > 0 ? 'text-amber-700' : 'text-gray-700' },
                     { label: 'Retours',          value: returned > 0 ? `-${returned}` : '0', color: returned > 0 ? 'text-red-600' : 'text-gray-500' },
-                    ...(selectedProduct ? [{ label: 'CA estimé', value: `${calcRevenue().toLocaleString('fr-FR')} ${symbol}`, color: calcRevenue() >= 0 ? 'text-emerald-700' : 'text-red-600' }] : []),
+                    ...(selectedProduct ? [{ label: 'CA estimé', value: `${calcRevenue().toLocaleString('fr-FR')} ${symbol}`, color: calcRevenue() >= 0 ? 'text-primary-700' : 'text-red-600' }] : []),
                   ].map(s => (
                     <div key={s.label} className="bg-gray-50 rounded-xl px-3 py-2.5">
                       <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">{s.label}</p>
@@ -359,7 +359,7 @@ export default function ReportForm() {
               title="Frais de livraison"
               action={
                 <button type="button" onClick={addDelivery}
-                  className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2.5 py-1 rounded-lg transition-colors">
+                  className="inline-flex items-center gap-1 text-xs font-semibold text-primary-700 bg-primary-50 hover:bg-primary-100 border border-primary-200 px-2.5 py-1 rounded-lg transition-colors">
                   <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4"/></svg>
                   Ajouter une agence
                 </button>
@@ -404,14 +404,14 @@ export default function ReportForm() {
 
                   {/* Récap total livraisons */}
                   {form.deliveries.some(d => d.deliveryCost) && (
-                    <div className="flex items-center justify-between px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-xl">
-                      <div className="flex items-center gap-2 text-xs text-emerald-700">
+                    <div className="flex items-center justify-between px-3 py-2 bg-primary-50 border border-primary-200 rounded-xl">
+                      <div className="flex items-center gap-2 text-xs text-primary-700">
                         <span className="font-semibold">{form.deliveries.reduce((s, d) => s + (parseInt(d.ordersDelivered) || 0), 0)}</span>
                         <span>commandes</span>
-                        <span className="text-emerald-400">·</span>
+                        <span className="text-primary-400">·</span>
                         <span>{form.deliveries.filter(d => d.agencyName).length} agence{form.deliveries.filter(d => d.agencyName).length > 1 ? 's' : ''}</span>
                       </div>
-                      <span className="text-xs font-bold text-emerald-800 tabular-nums">
+                      <span className="text-xs font-bold text-primary-800 tabular-nums">
                         {totalDeliveryCost.toLocaleString('fr-FR')} {symbol} total
                       </span>
                     </div>
@@ -432,10 +432,10 @@ export default function ReportForm() {
 
             {/* ── Bénéfice estimé ──────────────────────────── */}
             {selectedProduct && hasStats && (
-              <div className={`rounded-2xl border px-5 py-4 flex items-center gap-6 ${calcBenefit() >= 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'}`}>
+              <div className={`rounded-2xl border px-5 py-4 flex items-center gap-6 ${calcBenefit() >= 0 ? 'bg-primary-50 border-primary-200' : 'bg-red-50 border-red-200'}`}>
                 <div className="flex-1 min-w-0">
-                  <p className={`text-[11px] font-bold uppercase tracking-wide ${calcBenefit() >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>Bénéfice estimé</p>
-                  <p className={`text-2xl font-bold tabular-nums ${calcBenefit() >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
+                  <p className={`text-[11px] font-bold uppercase tracking-wide ${calcBenefit() >= 0 ? 'text-primary-600' : 'text-red-500'}`}>Bénéfice estimé</p>
+                  <p className={`text-2xl font-bold tabular-nums ${calcBenefit() >= 0 ? 'text-primary-700' : 'text-red-600'}`}>
                     {calcBenefit() >= 0 ? '+' : ''}{calcBenefit().toLocaleString('fr-FR')} {symbol}
                   </p>
                 </div>
@@ -456,9 +456,9 @@ export default function ReportForm() {
                     className={`${inputCls} resize-none`} />
                 </Field>
                 {whatsappNumber ? (
-                  <div className="flex items-center gap-2.5 px-3 py-2.5 bg-emerald-50 border border-emerald-200 rounded-xl">
-                    <svg className="w-4 h-4 text-emerald-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                    <p className="text-xs text-emerald-700">
+                  <div className="flex items-center gap-2.5 px-3 py-2.5 bg-primary-50 border border-primary-200 rounded-xl">
+                    <svg className="w-4 h-4 text-primary-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    <p className="text-xs text-primary-700">
                       Notification envoyée à <span className="font-bold">{whatsappNumber}</span> —{' '}
                       <Link to="/ecom/settings?tab=delivery_groups" className="underline underline-offset-2">modifier dans les réglages</Link>
                     </p>
@@ -482,7 +482,7 @@ export default function ReportForm() {
                 Annuler
               </button>
               <button type="submit" disabled={loading}
-                className="flex-1 py-2.5 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl shadow-sm shadow-emerald-200 transition-all active:scale-95">
+                className="flex-1 py-2.5 text-sm font-semibold text-white bg-primary-600 hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl shadow-sm shadow-primary-200 transition-all active:scale-95">
                 {loading
                   ? (isEditing ? 'Enregistrement…' : 'Création…')
                   : (isEditing ? 'Enregistrer' : 'Créer le rapport')}

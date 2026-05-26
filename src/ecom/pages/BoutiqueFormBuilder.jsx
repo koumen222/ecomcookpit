@@ -79,7 +79,7 @@ const mergeWithDefaults = (stored, storeCountry = '') => {
   };
 };
 
-const inputCls = 'w-full px-3 py-2 rounded-lg border border-gray-200 text-[13px] outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-200 transition-all bg-white';
+const inputCls = 'w-full px-3 py-2 rounded-lg border border-gray-200 text-[13px] outline-none focus:border-primary-400 focus:ring-1 focus:ring-primary-200 transition-all bg-white';
 
 // ── Section card pour les champs du formulaire ────────────────────────────────
 const FIELD_TYPE_ICONS = {
@@ -169,7 +169,7 @@ const CtaButtonEditor = ({ field, onChange }) => {
           {BUTTON_ICONS.map(({ id, label, Icon }) => (
             <button key={id} type="button" onClick={() => update('icon', id)} title={label}
               className={`flex flex-col items-center gap-0.5 p-1.5 rounded-lg border-2 transition-all ${
-                currentIcon === id ? 'border-emerald-400 bg-emerald-50 text-emerald-700' : 'border-transparent bg-gray-50 text-gray-400 hover:bg-gray-100 hover:text-gray-600'
+                currentIcon === id ? 'border-primary-400 bg-primary-50 text-primary-700' : 'border-transparent bg-gray-50 text-gray-400 hover:bg-gray-100 hover:text-gray-600'
               }`}>
               <Icon size={13} />
               <span className="text-[8px] font-medium leading-tight truncate w-full text-center">{label}</span>
@@ -218,7 +218,7 @@ const CtaButtonEditor = ({ field, onChange }) => {
         <ColorPicker label="Couleur de la bordure" value={borderColor} onColorChange={v => update('borderColor', v)} />
         <div>
           <div className="text-[11px] font-semibold text-gray-500 mb-1">Épaisseur bordure — {borderW}px</div>
-          <input type="range" min="0" max="6" className="w-full mt-2 accent-emerald-500"
+          <input type="range" min="0" max="6" className="w-full mt-2 accent-primary-500"
             value={borderW} onChange={e => update('borderWidth', parseInt(e.target.value))} />
         </div>
       </div>
@@ -227,12 +227,12 @@ const CtaButtonEditor = ({ field, onChange }) => {
       <div className="grid grid-cols-2 gap-2">
         <div>
           <div className="text-[11px] font-semibold text-gray-500 mb-1">Coins arrondis — {radius}px</div>
-          <input type="range" min="0" max="40" className="w-full mt-2 accent-emerald-500"
+          <input type="range" min="0" max="40" className="w-full mt-2 accent-primary-500"
             value={radius} onChange={e => update('borderRadius', parseInt(e.target.value))} />
         </div>
         <div>
           <div className="text-[11px] font-semibold text-gray-500 mb-1">Ombre — {shadowVal}</div>
-          <input type="range" min="0" max="30" className="w-full mt-2 accent-emerald-500"
+          <input type="range" min="0" max="30" className="w-full mt-2 accent-primary-500"
             value={shadowVal} onChange={e => update('shadow', parseInt(e.target.value))} />
         </div>
       </div>
@@ -325,7 +325,7 @@ const FieldCard = ({ field, index, total, onMove, onToggle, onChange, onRemove, 
       onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; onDragOver(index); }}
       onDrop={e => { e.preventDefault(); onDrop(index); }}
       onDragEnd={onDragEnd}
-      className={`bg-white rounded-xl border-2 transition-all ${isDragOver ? 'border-emerald-400 shadow-lg scale-[1.02]' : field.enabled ? 'border-gray-200' : 'border-gray-100 opacity-60'}`}
+      className={`bg-white rounded-xl border-2 transition-all ${isDragOver ? 'border-primary-400 shadow-lg scale-[1.02]' : field.enabled ? 'border-gray-200' : 'border-gray-100 opacity-60'}`}
       style={{ opacity: isDragging ? 0.4 : 1, cursor: 'grab' }}
     >
       {/* Header row */}
@@ -402,7 +402,7 @@ const FieldCard = ({ field, index, total, onMove, onToggle, onChange, onRemove, 
                 <input className={inputCls + ' flex-1'} value={field.imageUrl || ''}
                   onChange={e => onChange(index, 'imageUrl', e.target.value)}
                   placeholder="https://exemple.com/image.jpg" />
-                <label className="flex items-center gap-1 px-3 py-1.5 bg-emerald-50 text-emerald-700 text-[11px] font-semibold rounded-lg border border-emerald-200 cursor-pointer hover:bg-emerald-100 transition shrink-0">
+                <label className="flex items-center gap-1 px-3 py-1.5 bg-primary-50 text-primary-700 text-[11px] font-semibold rounded-lg border border-primary-200 cursor-pointer hover:bg-primary-100 transition shrink-0">
                   {field._uploading ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />}
                   Upload
                   <input type="file" accept="image/*" className="hidden"
@@ -624,7 +624,7 @@ const FieldCard = ({ field, index, total, onMove, onToggle, onChange, onRemove, 
                   {[{ v: 'banner', l: 'Bannière' }, { v: 'bar', l: 'Barre' }, { v: 'floating', l: 'Flottant' }].map(s => (
                     <button key={s.v} type="button"
                       onClick={() => onChange(index, 'urgencyStyle', s.v)}
-                      className={`flex-1 py-1.5 text-[10px] font-semibold rounded-lg border transition ${(field.urgencyStyle || 'banner') === s.v ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-gray-200 text-gray-500 hover:border-gray-300'}`}>
+                      className={`flex-1 py-1.5 text-[10px] font-semibold rounded-lg border transition ${(field.urgencyStyle || 'banner') === s.v ? 'border-primary-500 bg-primary-50 text-primary-700' : 'border-gray-200 text-gray-500 hover:border-gray-300'}`}>
                       {s.l}
                     </button>
                   ))}
@@ -658,7 +658,7 @@ const FieldCard = ({ field, index, total, onMove, onToggle, onChange, onRemove, 
               {/* Border radius */}
               <div>
                 <label className="block text-[10px] font-semibold text-gray-400 mb-1">Arrondi (px)</label>
-                <input type="range" min="0" max="24" className="w-full accent-emerald-600"
+                <input type="range" min="0" max="24" className="w-full accent-primary-600"
                   value={parseInt(field.urgencyRadius || 12)}
                   onChange={e => onChange(index, 'urgencyRadius', e.target.value + 'px')} />
                 <span className="text-[10px] text-gray-400">{field.urgencyRadius || '12px'}</span>
@@ -671,7 +671,7 @@ const FieldCard = ({ field, index, total, onMove, onToggle, onChange, onRemove, 
                   {[{ v: 'fire', l: '🔥' }, { v: 'warning', l: '⚠️' }, { v: 'clock', l: '⏰' }, { v: 'bolt', l: '⚡' }, { v: 'none', l: '❌' }].map(ic => (
                     <button key={ic.v} type="button"
                       onClick={() => onChange(index, 'urgencyIcon', ic.v)}
-                      className={`w-9 h-9 flex items-center justify-center rounded-lg border text-sm transition ${(field.urgencyIcon || 'fire') === ic.v ? 'border-emerald-500 bg-emerald-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                      className={`w-9 h-9 flex items-center justify-center rounded-lg border text-sm transition ${(field.urgencyIcon || 'fire') === ic.v ? 'border-primary-500 bg-primary-50' : 'border-gray-200 hover:border-gray-300'}`}>
                       {ic.l}
                     </button>
                   ))}
@@ -694,7 +694,7 @@ const FieldCard = ({ field, index, total, onMove, onToggle, onChange, onRemove, 
               {/* Countdown */}
               <div className="space-y-2">
                 <label className="flex items-center gap-1.5 cursor-pointer select-none">
-                  <input type="checkbox" className="rounded accent-emerald-600 w-3.5 h-3.5"
+                  <input type="checkbox" className="rounded accent-primary-600 w-3.5 h-3.5"
                     checked={field.showCountdown !== false}
                     onChange={e => onChange(index, 'showCountdown', e.target.checked)} />
                   <span className="text-[11px] text-gray-600 font-medium">Compte à rebours</span>
@@ -730,7 +730,7 @@ const FieldCard = ({ field, index, total, onMove, onToggle, onChange, onRemove, 
 
               {/* Progress bar */}
               <label className="flex items-center gap-1.5 cursor-pointer select-none">
-                <input type="checkbox" className="rounded accent-emerald-600 w-3.5 h-3.5"
+                <input type="checkbox" className="rounded accent-primary-600 w-3.5 h-3.5"
                   checked={field.showProgressBar === true}
                   onChange={e => onChange(index, 'showProgressBar', e.target.checked)} />
                 <span className="text-[11px] text-gray-600 font-medium">Barre de progression</span>
@@ -749,13 +749,13 @@ const FieldCard = ({ field, index, total, onMove, onToggle, onChange, onRemove, 
               <button type="button" onClick={() => {
                 const arr = [...(field.testimonials || []), { name: '', text: '', rating: 5, image: '' }];
                 onChange(index, 'testimonials', arr);
-              }} className="w-full py-1.5 border border-dashed border-gray-300 rounded-lg text-[11px] text-gray-400 hover:border-emerald-400 hover:text-emerald-600 transition flex items-center justify-center gap-1">
+              }} className="w-full py-1.5 border border-dashed border-gray-300 rounded-lg text-[11px] text-gray-400 hover:border-primary-400 hover:text-primary-600 transition flex items-center justify-center gap-1">
                 <Plus size={12} /> Ajouter un témoignage
               </button>
 
               {/* Auto-scroll */}
               <label className="flex items-center gap-1.5 cursor-pointer select-none">
-                <input type="checkbox" className="rounded accent-emerald-600 w-3.5 h-3.5"
+                <input type="checkbox" className="rounded accent-primary-600 w-3.5 h-3.5"
                   checked={field.autoScroll !== false}
                   onChange={e => onChange(index, 'autoScroll', e.target.checked)} />
                 <span className="text-[11px] text-gray-600 font-medium">Défilement automatique</span>
@@ -796,19 +796,19 @@ const FieldCard = ({ field, index, total, onMove, onToggle, onChange, onRemove, 
           {!['divider', 'html', 'image', 'trust_badge', 'guarantee'].includes(field.type) && (
           <div className="flex items-center gap-4 flex-wrap">
             <label className="flex items-center gap-1.5 cursor-pointer select-none">
-              <input type="checkbox" className="rounded accent-emerald-600 w-3.5 h-3.5"
+              <input type="checkbox" className="rounded accent-primary-600 w-3.5 h-3.5"
                 checked={field.showLabel !== false}
                 onChange={e => onChange(index, 'showLabel', e.target.checked)} />
               <span className="text-[11px] text-gray-600 font-medium">Afficher le label</span>
             </label>
             <label className="flex items-center gap-1.5 cursor-pointer select-none">
-              <input type="checkbox" className="rounded accent-emerald-600 w-3.5 h-3.5"
+              <input type="checkbox" className="rounded accent-primary-600 w-3.5 h-3.5"
                 checked={field.showIcon !== false}
                 onChange={e => onChange(index, 'showIcon', e.target.checked)} />
               <span className="text-[11px] text-gray-600 font-medium">Afficher l'icône</span>
             </label>
             <label className="flex items-center gap-1.5 cursor-pointer select-none">
-              <input type="checkbox" className="rounded accent-emerald-600 w-3.5 h-3.5"
+              <input type="checkbox" className="rounded accent-primary-600 w-3.5 h-3.5"
                 checked={!!field.required}
                 onChange={e => onChange(index, 'required', e.target.checked)} />
               <span className="text-[11px] text-gray-600 font-medium">Obligatoire</span>
@@ -821,13 +821,13 @@ const FieldCard = ({ field, index, total, onMove, onToggle, onChange, onRemove, 
             <div className="flex items-center gap-3 p-2 rounded-lg bg-blue-50 border border-blue-100">
               <span className="text-[11px] text-blue-700 font-semibold">Mode ville :</span>
               <label className="flex items-center gap-1.5 cursor-pointer select-none">
-                <input type="radio" name={`city_mode_${index}`} className="accent-emerald-600 w-3.5 h-3.5"
+                <input type="radio" name={`city_mode_${index}`} className="accent-primary-600 w-3.5 h-3.5"
                   checked={field.cityAuto !== false}
                   onChange={() => onChange(index, 'cityAuto', true)} />
                 <span className="text-[11px] text-gray-700 font-medium">Auto (liste déroulante)</span>
               </label>
               <label className="flex items-center gap-1.5 cursor-pointer select-none">
-                <input type="radio" name={`city_mode_${index}`} className="accent-emerald-600 w-3.5 h-3.5"
+                <input type="radio" name={`city_mode_${index}`} className="accent-primary-600 w-3.5 h-3.5"
                   checked={field.cityAuto === false}
                   onChange={() => onChange(index, 'cityAuto', false)} />
                 <span className="text-[11px] text-gray-700 font-medium">Manuel (saisie libre)</span>
@@ -1560,8 +1560,8 @@ const BoutiqueFormBuilder = () => {
   if (loading) return (
     <div className="flex items-center justify-center min-h-[60vh]">
       <div className="flex flex-col items-center gap-3">
-        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-100 to-teal-100 flex items-center justify-center">
-          <Loader2 size={28} className="animate-spin text-emerald-500" />
+        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary-100 to-teal-100 flex items-center justify-center">
+          <Loader2 size={28} className="animate-spin text-primary-500" />
         </div>
         <span className="text-sm font-medium text-gray-500">Chargement…</span>
       </div>
@@ -1575,7 +1575,7 @@ const BoutiqueFormBuilder = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3 min-w-0">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-200">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-500 to-teal-600 flex items-center justify-center shadow-lg shadow-primary-200">
                 <ShoppingCart size={20} className="text-white" />
               </div>
               <div>
@@ -1596,7 +1596,7 @@ const BoutiqueFormBuilder = () => {
               </button>
               <button onClick={handleSave} disabled={saving}
                 className={`flex items-center gap-1.5 px-5 py-2.5 rounded-xl text-sm font-bold text-white transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed ${
-                  saved ? 'bg-green-500 shadow-green-200' : 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-200'
+                  saved ? 'bg-green-500 shadow-green-200' : 'bg-primary-600 hover:bg-primary-700 shadow-primary-200'
                 }`}>
                 {saving ? <Loader2 size={15} className="animate-spin" /> : saved ? <Check size={15} /> : <Save size={15} />}
                 {saving ? 'Sauvegarde…' : saved ? 'Enregistré ✓' : 'Enregistrer'}
@@ -1672,7 +1672,7 @@ const BoutiqueFormBuilder = () => {
                   <h3 className="text-sm font-bold text-gray-800">Bouton d'achat</h3>
                   <p className="text-[11px] text-gray-400">Le bouton qui ouvre le formulaire</p>
                 </div>
-                <span className="flex items-center gap-1 text-[11px] text-emerald-600 font-semibold">
+                <span className="flex items-center gap-1 text-[11px] text-primary-600 font-semibold">
                   {buttonSectionOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />} Aperçu
                 </span>
               </div>
@@ -1800,7 +1800,7 @@ const BoutiqueFormBuilder = () => {
             <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-3">
               <div className="flex items-center justify-between cursor-pointer select-none" onClick={() => setCountrySectionOpen(v => !v)}>
                 <h3 className="text-sm font-bold text-gray-800">Pays du formulaire (indicatif téléphone)</h3>
-                <span className="flex items-center gap-1 text-[11px] text-emerald-600 font-semibold">
+                <span className="flex items-center gap-1 text-[11px] text-primary-600 font-semibold">
                   {countrySectionOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                 </span>
               </div>
@@ -1853,7 +1853,7 @@ const BoutiqueFormBuilder = () => {
                   <span className="text-xs text-gray-400">
                     {config.form.fields.filter(f => f.enabled).length}/{config.form.fields.length} actifs
                   </span>
-                  <span className="flex items-center text-[11px] text-emerald-600 font-semibold">
+                  <span className="flex items-center text-[11px] text-primary-600 font-semibold">
                     {fieldsSectionOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                   </span>
                 </div>
@@ -1888,7 +1888,7 @@ const BoutiqueFormBuilder = () => {
               {/* Add field button + dropdown */}
               <div className="relative">
                 <button onClick={() => setAddFieldMenuOpen(v => !v)}
-                  className="w-full flex items-center justify-center gap-1.5 py-2.5 border-2 border-dashed border-gray-200 rounded-xl text-sm text-gray-400 hover:border-emerald-400 hover:text-emerald-600 transition">
+                  className="w-full flex items-center justify-center gap-1.5 py-2.5 border-2 border-dashed border-gray-200 rounded-xl text-sm text-gray-400 hover:border-primary-400 hover:text-primary-600 transition">
                   <Plus size={14} /> Ajouter un champ
                 </button>
                 {addFieldMenuOpen && (
@@ -1896,7 +1896,7 @@ const BoutiqueFormBuilder = () => {
                     <div className="flex border-b border-gray-200 shrink-0">
                       {['Entrées', 'Contenu', 'Conversion'].map(cat => (
                         <button key={cat} onClick={() => setAddFieldTab(cat)}
-                          className={`flex-1 py-2.5 text-xs font-semibold transition ${addFieldTab === cat ? 'text-emerald-600 border-b-2 border-emerald-500 bg-emerald-50/50' : 'text-gray-400 hover:text-gray-600'}`}>
+                          className={`flex-1 py-2.5 text-xs font-semibold transition ${addFieldTab === cat ? 'text-primary-600 border-b-2 border-primary-500 bg-primary-50/50' : 'text-gray-400 hover:text-gray-600'}`}>
                           {cat}
                         </button>
                       ))}
@@ -1905,7 +1905,7 @@ const BoutiqueFormBuilder = () => {
                       {CUSTOM_FIELD_TYPES.filter(ft => ft.category === addFieldTab).map(ft => (
                         <button key={ft.type + ft.defaults.name}
                           onClick={() => { addField(ft); setAddFieldMenuOpen(false); }}
-                          className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left hover:bg-emerald-50 transition text-sm">
+                          className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left hover:bg-primary-50 transition text-sm">
                           <ft.Icon size={16} className="text-gray-500" />
                           <span className="font-medium text-gray-700">{ft.label}</span>
                         </button>
@@ -1930,7 +1930,7 @@ const BoutiqueFormBuilder = () => {
                   <div className="flex items-center justify-between px-5 py-3.5 cursor-pointer select-none"
                     onClick={() => setCtaButtonSectionOpen(v => !v)}>
                     <div className="flex items-center gap-2.5">
-                      <MousePointerClick size={15} className="text-emerald-600" />
+                      <MousePointerClick size={15} className="text-primary-600" />
                       <h3 className="text-sm font-bold text-gray-800">Bouton du formulaire</h3>
                     </div>
                     <div className="flex items-center gap-3">
@@ -1940,10 +1940,10 @@ const BoutiqueFormBuilder = () => {
                           const next = config.form.fields.map((f, i) => i === ctaIdx ? { ...f, enabled: !f.enabled } : f);
                           update(c => ({ ...c, form: { ...c.form, fields: next } }));
                         }}
-                        className={`relative inline-flex h-[22px] w-10 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ${ctaField.enabled ? 'bg-emerald-500' : 'bg-gray-200'}`}>
+                        className={`relative inline-flex h-[22px] w-10 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ${ctaField.enabled ? 'bg-primary-500' : 'bg-gray-200'}`}>
                         <span className={`inline-block h-[18px] w-[18px] rounded-full bg-white shadow-sm transition duration-200 ${ctaField.enabled ? 'translate-x-[18px]' : 'translate-x-0'}`} />
                       </button>
-                      <span className="flex items-center text-[11px] text-emerald-600 font-semibold">
+                      <span className="flex items-center text-[11px] text-primary-600 font-semibold">
                         {ctaButtonSectionOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                       </span>
                     </div>
@@ -1961,7 +1961,7 @@ const BoutiqueFormBuilder = () => {
             <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-4">
               <div className="flex items-center justify-between cursor-pointer select-none" onClick={() => setFormStyleSectionOpen(v => !v)}>
                 <h3 className="text-sm font-bold text-gray-800">Style de formulaire</h3>
-                <span className="flex items-center text-[11px] text-emerald-600 font-semibold">
+                <span className="flex items-center text-[11px] text-primary-600 font-semibold">
                   {formStyleSectionOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                 </span>
               </div>
@@ -2019,7 +2019,7 @@ const BoutiqueFormBuilder = () => {
                 <div className="flex flex-col justify-end">
                   <label className="flex items-center gap-2 cursor-pointer select-none">
                     <div
-                      className={`relative w-9 h-5 rounded-full transition-colors ${config.design?.showFieldLabels !== false ? 'bg-emerald-500' : 'bg-gray-300'}`}
+                      className={`relative w-9 h-5 rounded-full transition-colors ${config.design?.showFieldLabels !== false ? 'bg-primary-500' : 'bg-gray-300'}`}
                       onClick={() => update(c => ({ ...c, design: { ...c.design, showFieldLabels: c.design?.showFieldLabels === false } }))}>
                       <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${config.design?.showFieldLabels !== false ? 'translate-x-4' : 'translate-x-0.5'}`} />
                     </div>

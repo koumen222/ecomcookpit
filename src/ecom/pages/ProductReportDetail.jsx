@@ -170,7 +170,7 @@ const ProductReportDetail = () => {
                 setDateRangePreset('all');
                 setFilter({ dateStart: '', dateEnd: '' });
               }}
-              className={`px-3 py-1.5 text-sm rounded-md ${dateRangePreset === 'all' ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+              className={`px-3 py-1.5 text-sm rounded-md ${dateRangePreset === 'all' ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
             >
               Toute la période
             </button>
@@ -181,7 +181,7 @@ const ProductReportDetail = () => {
                 const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
                 setFilter({ dateStart: weekAgo.toISOString().split('T')[0], dateEnd: today.toISOString().split('T')[0] });
               }}
-              className={`px-3 py-1.5 text-sm rounded-md ${dateRangePreset === 'week' ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+              className={`px-3 py-1.5 text-sm rounded-md ${dateRangePreset === 'week' ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
             >
               7 derniers jours
             </button>
@@ -192,7 +192,7 @@ const ProductReportDetail = () => {
                 const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
                 setFilter({ dateStart: firstDay.toISOString().split('T')[0], dateEnd: today.toISOString().split('T')[0] });
               }}
-              className={`px-3 py-1.5 text-sm rounded-md ${dateRangePreset === 'month' ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+              className={`px-3 py-1.5 text-sm rounded-md ${dateRangePreset === 'month' ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
             >
               Ce mois
             </button>
@@ -200,7 +200,7 @@ const ProductReportDetail = () => {
               onClick={() => {
                 setDateRangePreset('custom');
               }}
-              className={`px-3 py-1.5 text-sm rounded-md ${dateRangePreset === 'custom' ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+              className={`px-3 py-1.5 text-sm rounded-md ${dateRangePreset === 'custom' ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
             >
               Personnalisé
             </button>
@@ -246,7 +246,7 @@ const ProductReportDetail = () => {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-6">
         <div className="bg-white rounded-lg shadow p-4">
           <p className="text-xs font-medium text-gray-500 uppercase">Commandes reçues</p>
-          <p className="text-2xl font-bold text-emerald-600 mt-1">{stats.totalReceived || 0}</p>
+          <p className="text-2xl font-bold text-primary-600 mt-1">{stats.totalReceived || 0}</p>
         </div>
         <div className="bg-white rounded-lg shadow p-4">
           <p className="text-xs font-medium text-gray-500 uppercase">Commandes livrées</p>
@@ -271,7 +271,7 @@ const ProductReportDetail = () => {
         </div>
         <div className="bg-white rounded-lg shadow p-4">
           <p className="text-xs font-medium text-gray-500 uppercase">Quantité vendue</p>
-          <p className="text-2xl font-bold text-emerald-700 mt-1">{stats.totalQuantity || 0}</p>
+          <p className="text-2xl font-bold text-primary-700 mt-1">{stats.totalQuantity || 0}</p>
         </div>
       </div>
 
@@ -280,7 +280,7 @@ const ProductReportDetail = () => {
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 mb-6">
           <div className="bg-white rounded-lg shadow p-4">
             <p className="text-xs font-medium text-gray-500 uppercase">Chiffre d'affaires</p>
-            <p className="text-2xl font-bold text-emerald-600 mt-1">{fmt(stats.totalRevenue)}</p>
+            <p className="text-2xl font-bold text-primary-600 mt-1">{fmt(stats.totalRevenue)}</p>
           </div>
           <div className="bg-white rounded-lg shadow p-4">
             <p className="text-xs font-medium text-gray-500 uppercase">Frais livraison</p>
@@ -315,7 +315,7 @@ const ProductReportDetail = () => {
               return (
                 <div key={idx} className="flex-1 h-full flex flex-col items-center">
                   <div className="w-full flex-1 flex items-end">
-                    <div className="w-full bg-emerald-600 rounded-t" style={{ height: `${Math.max(height, 2)}%` }}></div>
+                    <div className="w-full bg-primary-600 rounded-t" style={{ height: `${Math.max(height, 2)}%` }}></div>
                   </div>
                   <span className="text-xs text-gray-500 mt-1">{new Date(item.date).getDate()}</span>
                 </div>
@@ -383,7 +383,7 @@ const ProductReportDetail = () => {
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                       {new Date(item.date).toLocaleDateString('fr-FR')}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-emerald-600">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-primary-600">
                       {item.ordersReceived || 0}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-green-600">
@@ -404,7 +404,7 @@ const ProductReportDetail = () => {
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-yellow-600">
                           {fmt(item.deliveryCost)}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-emerald-600">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-primary-600">
                           {fmt(item.revenue)}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold">

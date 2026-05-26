@@ -90,7 +90,7 @@ const AffiliateLayoutComponent = ({ children, affiliate }) => {
                 onClick={handleLogout}
                 className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors"
               >
-                <div className="w-7 h-7 bg-gradient-to-br from-emerald-700 to-emerald-900 rounded-full flex items-center justify-center flex-shrink-0">
+                <div className="w-7 h-7 bg-gradient-to-br from-primary-700 to-primary-900 rounded-full flex items-center justify-center flex-shrink-0">
                   <span className="text-white text-xs font-bold">{initial}</span>
                 </div>
                 <div className="min-w-0 flex-1 text-left">
@@ -114,7 +114,7 @@ const AffiliateLayoutComponent = ({ children, affiliate }) => {
               <span className="text-[10px] font-bold text-[#0F6B4F] uppercase tracking-wider">Affilié</span>
             </Link>
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-gradient-to-br from-emerald-700 to-emerald-900 rounded-full flex items-center justify-center">
+              <div className="w-8 h-8 bg-gradient-to-br from-primary-700 to-primary-900 rounded-full flex items-center justify-center">
                 <span className="text-white text-xs font-bold">{initial}</span>
               </div>
             </div>

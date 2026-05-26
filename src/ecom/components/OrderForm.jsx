@@ -129,7 +129,7 @@ const OrderForm = ({ productId, initialData = {}, onSubmit, onCancel }) => {
             name="productId"
             value={formData.productId}
             onChange={handleInputChange}
-            className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-600 focus:border-transparent ${
+            className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary-600 focus:border-transparent ${
               errors.productId ? 'border-red-500' : 'border-gray-300'
             }`}
           >
@@ -157,7 +157,7 @@ const OrderForm = ({ productId, initialData = {}, onSubmit, onCancel }) => {
           value={formData.date}
           onChange={handleInputChange}
           max={new Date().toISOString().split('T')[0]}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-600 focus:border-transparent"
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-600 focus:border-transparent"
         />
       </div>
 
@@ -174,7 +174,7 @@ const OrderForm = ({ productId, initialData = {}, onSubmit, onCancel }) => {
             onChange={handleInputChange}
             min="0"
             placeholder="0"
-            className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-600 focus:border-transparent ${
+            className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary-600 focus:border-transparent ${
               errors.ordersReceived ? 'border-red-500' : 'border-gray-300'
             }`}
           />
@@ -194,7 +194,7 @@ const OrderForm = ({ productId, initialData = {}, onSubmit, onCancel }) => {
             onChange={handleInputChange}
             min="0"
             placeholder="0"
-            className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-600 focus:border-transparent ${
+            className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary-600 focus:border-transparent ${
               errors.ordersDelivered ? 'border-red-500' : 'border-gray-300'
             }`}
           />
@@ -217,7 +217,7 @@ const OrderForm = ({ productId, initialData = {}, onSubmit, onCancel }) => {
           min="0"
           step="0.01"
           placeholder="0.00"
-          className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-600 focus:border-transparent ${
+          className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary-600 focus:border-transparent ${
             errors.adSpend ? 'border-red-500' : 'border-gray-300'
           }`}
         />
@@ -236,31 +236,31 @@ const OrderForm = ({ productId, initialData = {}, onSubmit, onCancel }) => {
           value={formData.notes}
           onChange={handleInputChange}
           rows={4}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-600 focus:border-transparent"
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-600 focus:border-transparent"
           placeholder="Observations, problèmes rencontrés, retards de livraison..."
         />
       </div>
 
       {/* Informations du produit sélectionné */}
       {selectedProduct && (
-        <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
-          <h4 className="font-medium text-emerald-900 mb-2">Informations produit</h4>
+        <div className="bg-primary-50 border border-primary-200 rounded-lg p-4">
+          <h4 className="font-medium text-primary-900 mb-2">Informations produit</h4>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
             <div>
-              <span className="text-emerald-700">Stock actuel:</span>
-              <span className="ml-2 font-medium text-emerald-900">{selectedProduct.stock}</span>
+              <span className="text-primary-700">Stock actuel:</span>
+              <span className="ml-2 font-medium text-primary-900">{selectedProduct.stock}</span>
             </div>
             <div>
-              <span className="text-emerald-700">Prix vente:</span>
-              <span className="ml-2 font-medium text-emerald-900">{fmt(selectedProduct.sellingPrice)}</span>
+              <span className="text-primary-700">Prix vente:</span>
+              <span className="ml-2 font-medium text-primary-900">{fmt(selectedProduct.sellingPrice)}</span>
             </div>
             <div>
-              <span className="text-emerald-700">Coût produit:</span>
-              <span className="ml-2 font-medium text-emerald-900">{fmt(selectedProduct.productCost)}</span>
+              <span className="text-primary-700">Coût produit:</span>
+              <span className="ml-2 font-medium text-primary-900">{fmt(selectedProduct.productCost)}</span>
             </div>
             <div>
-              <span className="text-emerald-700">Statut:</span>
-              <span className="ml-2 font-medium text-emerald-900 capitalize">{selectedProduct.status}</span>
+              <span className="text-primary-700">Statut:</span>
+              <span className="ml-2 font-medium text-primary-900 capitalize">{selectedProduct.status}</span>
             </div>
           </div>
         </div>
@@ -281,7 +281,7 @@ const OrderForm = ({ productId, initialData = {}, onSubmit, onCancel }) => {
         <button
           type="submit"
           disabled={submitting}
-          className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+          className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {submitting ? (
             <div className="flex items-center">

@@ -5,12 +5,12 @@ import { getContextualError } from '../utils/errorMessages';
 const PLAN_LABELS = { starter: 'Starter', pro: 'Pro', business: 'Business', enterprise: 'Enterprise' };
 const PLAN_COLORS = {
   starter:    'bg-gray-100 text-gray-600',
-  pro:        'bg-emerald-100 text-emerald-700',
+  pro:        'bg-primary-100 text-primary-700',
   business:   'bg-blue-100 text-blue-700',
   enterprise: 'bg-amber-100 text-amber-700',
 };
 const STATUS_COLORS = {
-  sent:    'bg-emerald-100 text-emerald-700',
+  sent:    'bg-primary-100 text-primary-700',
   failed:  'bg-red-100 text-red-700',
   skipped: 'bg-amber-100 text-amber-700',
 };
@@ -121,8 +121,8 @@ export default function SuperAdminScalorWhatsApp() {
         </div>
         {/* Badge instance */}
         {adminInstance ? (
-          <div className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-sm font-medium ${instanceOk ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-red-50 border-red-200 text-red-600'}`}>
-            <span className={`w-2 h-2 rounded-full ${instanceOk ? 'bg-emerald-500' : 'bg-red-400'}`} />
+          <div className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-sm font-medium ${instanceOk ? 'bg-primary-50 border-primary-200 text-primary-700' : 'bg-red-50 border-red-200 text-red-600'}`}>
+            <span className={`w-2 h-2 rounded-full ${instanceOk ? 'bg-primary-500' : 'bg-red-400'}`} />
             {adminInstance.customName || adminInstance.instanceName}
             <span className="text-[10px] font-bold uppercase opacity-60">{adminInstance.status}</span>
           </div>
@@ -170,7 +170,7 @@ export default function SuperAdminScalorWhatsApp() {
             <div className="flex items-center justify-between text-xs text-gray-400">
               <span>
                 {users.length}/{allUsers.length} utilisateur(s) —{' '}
-                <span className="text-emerald-600 font-semibold">{usersWithPhone.length} avec téléphone</span>
+                <span className="text-primary-600 font-semibold">{usersWithPhone.length} avec téléphone</span>
                 {allUsers.length > 0 && <span className="text-gray-300 ml-1">({totalWithPhone} total)</span>}
               </span>
               {!sendAll && usersWithPhone.length > 0 && (
@@ -196,7 +196,7 @@ export default function SuperAdminScalorWhatsApp() {
                     <div
                       key={u._id}
                       onClick={() => !sendAll && hasPhone && toggleUser(u._id)}
-                      className={`flex items-center gap-3 px-4 py-3 transition-colors ${!sendAll && hasPhone ? 'cursor-pointer hover:bg-gray-50' : ''} ${!hasPhone ? 'opacity-40' : ''} ${isChecked ? 'bg-emerald-50/50' : ''}`}
+                      className={`flex items-center gap-3 px-4 py-3 transition-colors ${!sendAll && hasPhone ? 'cursor-pointer hover:bg-gray-50' : ''} ${!hasPhone ? 'opacity-40' : ''} ${isChecked ? 'bg-primary-50/50' : ''}`}
                     >
                       {!sendAll && (
                         <input
@@ -309,7 +309,7 @@ export default function SuperAdminScalorWhatsApp() {
           <h3 className="text-sm font-bold text-gray-900">Rapport d'envoi</h3>
           <div className="grid grid-cols-3 gap-3">
             {[
-              { label: 'Envoyés', value: results.sent, cls: 'bg-emerald-50 text-emerald-600' },
+              { label: 'Envoyés', value: results.sent, cls: 'bg-primary-50 text-primary-600' },
               { label: 'Échoués', value: results.failed, cls: 'bg-red-50 text-red-500' },
               { label: 'Ignorés', value: results.skipped, cls: 'bg-amber-50 text-amber-500' },
             ].map(s => (

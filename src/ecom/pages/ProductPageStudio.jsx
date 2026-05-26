@@ -25,7 +25,7 @@ const statusConfig = {
   pending: { label: 'En attente', color: 'bg-amber-100 text-amber-700', icon: Clock3 },
   generating_text: { label: 'Texte en cours', color: 'bg-blue-100 text-blue-700', icon: Loader2, animate: true },
   generating_images: { label: 'Images en cours', color: 'bg-violet-100 text-violet-700', icon: Loader2, animate: true },
-  done: { label: 'Terminée', color: 'bg-emerald-100 text-emerald-700', icon: CheckCircle2 },
+  done: { label: 'Terminée', color: 'bg-primary-100 text-primary-700', icon: CheckCircle2 },
   error: { label: 'Échec partiel', color: 'bg-red-100 text-red-700', icon: XCircle },
 };
 
@@ -186,7 +186,7 @@ export default function ProductPageStudio() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-[60vh]">
-        <Loader2 className="w-6 h-6 animate-spin text-emerald-600" />
+        <Loader2 className="w-6 h-6 animate-spin text-primary-600" />
       </div>
     );
   }
@@ -195,7 +195,7 @@ export default function ProductPageStudio() {
     <div className="max-w-6xl mx-auto space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <div className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 border border-emerald-100">
+          <div className="inline-flex items-center gap-2 rounded-full bg-primary-50 px-3 py-1 text-xs font-semibold text-primary-700 border border-primary-100">
             <Layers3 className="w-3.5 h-3.5" />
             Product Page Studio
           </div>
@@ -215,7 +215,7 @@ export default function ProductPageStudio() {
           </button>
           <button
             onClick={() => navigate('/ecom/boutique/products/generator', { state: { from: '/ecom/boutique/product-page-studio' } })}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl transition"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white text-sm font-semibold rounded-xl transition"
           >
             <Sparkles className="w-4 h-4" />
             Nouvelle generation
@@ -254,7 +254,7 @@ export default function ProductPageStudio() {
       <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
         <div className="bg-white border border-gray-200 rounded-2xl p-5 space-y-4">
           <div className="flex items-center gap-2">
-            <Zap className="w-4 h-4 text-emerald-600" />
+            <Zap className="w-4 h-4 text-primary-600" />
             <h2 className="text-sm font-bold text-gray-900">Etat des credits</h2>
           </div>
 
@@ -353,8 +353,8 @@ export default function ProductPageStudio() {
 
         {filteredTasks.length === 0 ? (
           <div className="py-14 text-center">
-            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50">
-              <Sparkles className="w-7 h-7 text-emerald-500" />
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary-50">
+              <Sparkles className="w-7 h-7 text-primary-500" />
             </div>
             <h3 className="text-base font-bold text-gray-900">Aucune donnée pour ce filtre</h3>
             <p className="mt-1 text-sm text-gray-500">Change de filtre ou lance une nouvelle génération.</p>
@@ -382,7 +382,7 @@ export default function ProductPageStudio() {
 function DashboardCard({ label, value, hint, color, icon }) {
   const colorClass = {
     blue: 'bg-blue-50 text-blue-700 border-blue-100',
-    emerald: 'bg-emerald-50 text-emerald-700 border-emerald-100',
+    emerald: 'bg-primary-50 text-primary-700 border-primary-100',
     amber: 'bg-amber-50 text-amber-700 border-amber-100',
     slate: 'bg-slate-50 text-slate-700 border-slate-100',
   }[color] || 'bg-gray-50 text-gray-700 border-gray-100';
@@ -412,7 +412,7 @@ function QuickLinkCard({ title, description, action, onClick }) {
     >
       <h2 className="text-lg font-bold text-gray-900">{title}</h2>
       <p className="mt-2 text-sm text-gray-500">{description}</p>
-      <span className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-emerald-700">
+      <span className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-primary-700">
         {action}
         <ArrowRight className="w-4 h-4" />
       </span>
@@ -422,7 +422,7 @@ function QuickLinkCard({ title, description, action, onClick }) {
 
 function CreditBlock({ label, value, hint, tone }) {
   const tones = {
-    emerald: 'bg-emerald-50 border-emerald-100 text-emerald-700',
+    emerald: 'bg-primary-50 border-primary-100 text-primary-700',
     blue: 'bg-blue-50 border-blue-100 text-blue-700',
     violet: 'bg-violet-50 border-violet-100 text-violet-700',
   };
@@ -493,7 +493,7 @@ function TaskDetailCard({ task, deleting, retrying, onDelete, onOpen, onRetry })
               </div>
               <div className="h-1.5 w-full overflow-hidden rounded-full bg-gray-100">
                 <div
-                  className="h-full rounded-full bg-emerald-500 transition-all duration-500"
+                  className="h-full rounded-full bg-primary-500 transition-all duration-500"
                   style={{ width: `${task.progressPercent || 0}%` }}
                 />
               </div>
@@ -536,7 +536,7 @@ function TaskDetailCard({ task, deleting, retrying, onDelete, onOpen, onRetry })
           {isDone && (
             <button
               onClick={() => onOpen(task._id)}
-              className="inline-flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-xl transition"
+              className="inline-flex items-center gap-1.5 px-3 py-2 bg-primary-600 hover:bg-primary-700 text-white text-xs font-semibold rounded-xl transition"
               title="Utiliser cette génération"
             >
               <ArrowRight className="w-3.5 h-3.5" />

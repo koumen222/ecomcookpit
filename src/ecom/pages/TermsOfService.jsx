@@ -396,7 +396,7 @@ Des conditions spécifiques s'appliquent aux revendeurs et partenaires commercia
             <button onClick={() => navigate(-1)} className="px-4 py-2 text-sm text-gray-400 hover:text-white transition">
               Retour
             </button>
-            <button onClick={() => navigate('/ecom/login')} className="px-4 py-2.5 text-sm font-semibold bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-600 hover:to-emerald-600 rounded-xl transition">
+            <button onClick={() => navigate('/ecom/login')} className="px-4 py-2.5 text-sm font-semibold bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-600 hover:to-primary-600 rounded-xl transition">
               Connexion
             </button>
           </div>
@@ -406,17 +406,17 @@ Des conditions spécifiques s'appliquent aux revendeurs et partenaires commercia
       {/* Hero */}
       <div className="relative py-16 sm:py-24 px-4">
         <div className="absolute inset-0 overflow-hidden">
-          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-emerald-600/10 rounded-full blur-3xl"></div>
-          <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-emerald-700/10 rounded-full blur-3xl"></div>
+          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary-600/10 rounded-full blur-3xl"></div>
+          <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-primary-700/10 rounded-full blur-3xl"></div>
         </div>
         <div className="relative max-w-4xl mx-auto text-center">
-          <div className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-500/10 border border-emerald-500/20 rounded-full text-emerald-400 text-sm font-medium mb-6">
+          <div className="inline-flex items-center gap-2 px-4 py-2 bg-primary-500/10 border border-primary-500/20 rounded-full text-primary-400 text-sm font-medium mb-6">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
             Conditions légales
           </div>
-          <h1 className="text-3xl sm:text-5xl font-bold mb-6 bg-gradient-to-r from-white via-emerald-100 to-emerald-200 bg-clip-text text-transparent leading-tight">
+          <h1 className="text-3xl sm:text-5xl font-bold mb-6 bg-gradient-to-r from-white via-primary-100 to-primary-200 bg-clip-text text-transparent leading-tight">
             Conditions Générales<br />d'Utilisation
           </h1>
           <p className="text-gray-400 text-lg max-w-2xl mx-auto leading-relaxed">
@@ -475,7 +475,7 @@ Des conditions spécifiques s'appliquent aux revendeurs et partenaires commercia
         ))}
 
         {/* Acceptation */}
-        <div className="bg-gradient-to-r from-emerald-600/10 to-emerald-700/10 border border-emerald-600/20 rounded-2xl p-6 sm:p-8 text-center">
+        <div className="bg-gradient-to-r from-primary-600/10 to-primary-700/10 border border-primary-600/20 rounded-2xl p-6 sm:p-8 text-center">
           <div className="text-4xl mb-4">✍️</div>
           <h3 className="text-xl font-bold text-white mb-3">Acceptation des conditions</h3>
           <p className="text-gray-400 text-sm max-w-xl mx-auto mb-6">
@@ -485,7 +485,7 @@ Des conditions spécifiques s'appliquent aux revendeurs et partenaires commercia
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
             <button 
               onClick={() => navigate('/ecom/register')}
-              className="px-6 py-3 bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-600 hover:to-emerald-600 rounded-xl font-semibold text-sm transition shadow-lg shadow-emerald-600/20"
+              className="px-6 py-3 bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-600 hover:to-primary-600 rounded-xl font-semibold text-sm transition shadow-lg shadow-primary-600/20"
             >
               Créer un compte
             </button>
@@ -512,7 +512,7 @@ Des conditions spécifiques s'appliquent aux revendeurs et partenaires commercia
               Confidentialité
             </button>
             <span className="text-gray-700">•</span>
-            <span className="text-xs text-emerald-500">CGU</span>
+            <span className="text-xs text-primary-500">CGU</span>
           </div>
         </div>
       </footer>

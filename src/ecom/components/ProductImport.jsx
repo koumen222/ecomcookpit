@@ -455,7 +455,7 @@ Patch anti douleurs	https://app.minea.com/posts/364525732348961?tab=ad_analysis	
             <button
               onClick={processImport}
               disabled={loading}
-              className="px-6 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 flex items-center"
+              className="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 flex items-center"
             >
               {loading ? (
                 <>

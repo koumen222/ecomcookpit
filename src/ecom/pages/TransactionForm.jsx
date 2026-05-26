@@ -147,7 +147,7 @@ const TransactionForm = () => {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Date *</label>
             <input type="date" name="date" required value={formData.date} onChange={handleChange}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-600 focus:border-transparent" />
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-600 focus:border-transparent" />
           </div>
 
           <div>
@@ -171,7 +171,7 @@ const TransactionForm = () => {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Catégorie *</label>
             <select name="category" required value={formData.category} onChange={handleChange}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-600 focus:border-transparent">
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-600 focus:border-transparent">
               <option value="">Sélectionner une catégorie</option>
               {availableCategories.map(cat => (
                 <option key={cat} value={cat}>{categoryLabels[cat]}</option>
@@ -183,13 +183,13 @@ const TransactionForm = () => {
             <label className="block text-sm font-medium text-gray-700 mb-1">Montant (FCFA) *</label>
             <input type="number" name="amount" required min="0" step="0.01" value={formData.amount} onChange={handleChange}
               placeholder="0.00"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-600 focus:border-transparent" />
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-600 focus:border-transparent" />
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Produit lié (optionnel)</label>
             <select name="productId" value={formData.productId} onChange={handleChange}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-600 focus:border-transparent">
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-600 focus:border-transparent">
               <option value="">Aucun</option>
               {products.map(p => (
                 <option key={p._id} value={p._id}>{p.name}</option>
@@ -201,7 +201,7 @@ const TransactionForm = () => {
             <label className="block text-sm font-medium text-gray-700 mb-1">Référence (optionnel)</label>
             <input type="text" name="reference" value={formData.reference} onChange={handleChange}
               placeholder="N° facture, reçu..."
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-600 focus:border-transparent" />
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-600 focus:border-transparent" />
           </div>
         </div>
 
@@ -209,7 +209,7 @@ const TransactionForm = () => {
           <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
           <textarea name="description" rows="3" value={formData.description} onChange={handleChange}
             placeholder="Détails de la transaction..."
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-600 focus:border-transparent" />
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-600 focus:border-transparent" />
         </div>
 
         <div className="flex justify-end space-x-4 pt-2">
@@ -218,7 +218,7 @@ const TransactionForm = () => {
             Annuler
           </button>
           <button type="submit" disabled={loading}
-            className="px-6 py-2 bg-emerald-700 text-white rounded-lg hover:bg-emerald-800 disabled:opacity-50">
+            className="px-6 py-2 bg-primary-700 text-white rounded-lg hover:bg-primary-800 disabled:opacity-50">
             {loading ? 'Enregistrement...' : (isEditing ? 'Modifier' : 'Enregistrer')}
           </button>
         </div>

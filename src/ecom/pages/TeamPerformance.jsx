@@ -34,15 +34,15 @@ const roleLabels = {
 };
 
 const roleColors = {
-  ecom_admin: 'bg-emerald-100 text-emerald-800',
-  ecom_closeuse: 'bg-emerald-100 text-emerald-700',
+  ecom_admin: 'bg-primary-100 text-primary-800',
+  ecom_closeuse: 'bg-primary-100 text-primary-700',
   ecom_compta: 'bg-green-100 text-green-700',
   ecom_livreur: 'bg-orange-100 text-orange-700'
 };
 
 const roleAvatarColors = {
-  ecom_admin: 'bg-emerald-100 text-emerald-700',
-  ecom_closeuse: 'bg-emerald-100 text-emerald-600',
+  ecom_admin: 'bg-primary-100 text-primary-700',
+  ecom_closeuse: 'bg-primary-100 text-primary-600',
   ecom_compta: 'bg-green-100 text-green-600',
   ecom_livreur: 'bg-orange-100 text-orange-600'
 };
@@ -132,7 +132,7 @@ const TeamPerformance = () => {
               onClick={() => setPeriod(p)}
               className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${
                 period === p
-                  ? 'bg-emerald-600 text-white'
+                  ? 'bg-primary-600 text-white'
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
             >
@@ -153,11 +153,11 @@ const TeamPerformance = () => {
           <div className="text-xs text-gray-500 uppercase font-medium mt-1">Livrées</div>
         </div>
         <div className="bg-white rounded-xl shadow-sm border p-4 text-center">
-          <div className="text-2xl font-bold text-emerald-600">{global.totalOrders > 0 ? Math.round((global.totalDelivered / global.totalOrders) * 100) : 0}%</div>
+          <div className="text-2xl font-bold text-primary-600">{global.totalOrders > 0 ? Math.round((global.totalDelivered / global.totalOrders) * 100) : 0}%</div>
           <div className="text-xs text-gray-500 uppercase font-medium mt-1">Taux livraison</div>
         </div>
         <div className="bg-white rounded-xl shadow-sm border p-4 text-center">
-          <div className="text-lg font-bold text-emerald-700">{fmtMoney(global.totalRevenue)}</div>
+          <div className="text-lg font-bold text-primary-700">{fmtMoney(global.totalRevenue)}</div>
           <div className="text-xs text-gray-500 uppercase font-medium mt-1">Revenus</div>
         </div>
       </div>
@@ -176,7 +176,7 @@ const TeamPerformance = () => {
             onClick={() => setFilterRole(f.key)}
             className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${
               filterRole === f.key
-                ? 'bg-emerald-600 text-white'
+                ? 'bg-primary-600 text-white'
                 : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
             }`}
           >
@@ -290,7 +290,7 @@ const MemberCard = ({ member, period }) => {
             <div className="pt-1 border-t border-gray-100">
               <div className="flex items-center justify-between">
                 <span className="text-xs text-gray-500">Revenus générés</span>
-                <span className="text-xs font-bold text-emerald-700">{fmtMoney(stats.revenue)}</span>
+                <span className="text-xs font-bold text-primary-700">{fmtMoney(stats.revenue)}</span>
               </div>
             </div>
           </div>
@@ -340,7 +340,7 @@ const MemberCard = ({ member, period }) => {
             <div className="pt-1 border-t border-gray-100">
               <div className="flex items-center justify-between">
                 <span className="text-xs text-gray-500">Valeur confirmée</span>
-                <span className="text-xs font-bold text-emerald-700">{fmtMoney(stats.revenue)}</span>
+                <span className="text-xs font-bold text-primary-700">{fmtMoney(stats.revenue)}</span>
               </div>
             </div>
           </div>

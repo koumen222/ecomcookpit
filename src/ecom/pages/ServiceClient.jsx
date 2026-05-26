@@ -34,7 +34,7 @@ const Section = ({ title, icon: Icon, children, defaultOpen = true }) => {
     <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
       <button onClick={() => setOpen(v => !v)} className="w-full flex items-center justify-between px-5 py-4 hover:bg-gray-50 transition-colors">
         <div className="flex items-center gap-2.5">
-          <Icon size={16} className="text-emerald-600" />
+          <Icon size={16} className="text-primary-600" />
           <span className="font-semibold text-gray-800 text-sm">{title}</span>
         </div>
         {open ? <ChevronUp size={15} className="text-gray-400" /> : <ChevronDown size={15} className="text-gray-400" />}
@@ -119,7 +119,7 @@ const AgentsTab = ({ showToast }) => {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-sm text-gray-500">{agents.length} agent{agents.length !== 1 ? 's' : ''} enregistré{agents.length !== 1 ? 's' : ''}</p>
-        <button onClick={openCreate} className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-semibold transition">
+        <button onClick={openCreate} className="flex items-center gap-1.5 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-xl text-sm font-semibold transition">
           <Plus size={14} /> Créer un agent
         </button>
       </div>
@@ -136,13 +136,13 @@ const AgentsTab = ({ showToast }) => {
               <label className="block text-xs font-semibold text-gray-600 mb-1">Nom complet *</label>
               <input type="text" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
                 placeholder="Jean Dupont"
-                className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white" />
+                className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 bg-white" />
             </div>
             <div>
               <label className="block text-xs font-semibold text-gray-600 mb-1">Email *</label>
               <input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
                 placeholder="agent@scalor.net"
-                className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white" />
+                className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 bg-white" />
             </div>
           </div>
           <div>
@@ -155,7 +155,7 @@ const AgentsTab = ({ showToast }) => {
                 value={form.password}
                 onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
                 placeholder="Minimum 8 caractères"
-                className="w-full px-3 py-2 pr-10 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white"
+                className="w-full px-3 py-2 pr-10 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 bg-white"
               />
               <button type="button" onClick={() => setShowPwd(v => !v)}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition">
@@ -167,7 +167,7 @@ const AgentsTab = ({ showToast }) => {
             <button onClick={() => setShowForm(false)} className="flex-1 py-2 rounded-xl border border-gray-200 text-xs font-semibold text-gray-600 hover:bg-white transition">
               Annuler
             </button>
-            <button onClick={submit} disabled={saving} className="flex-1 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold transition flex items-center justify-center gap-1.5 disabled:opacity-50">
+            <button onClick={submit} disabled={saving} className="flex-1 py-2 rounded-xl bg-primary-600 hover:bg-primary-700 text-white text-xs font-semibold transition flex items-center justify-center gap-1.5 disabled:opacity-50">
               {saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
               {editAgent ? 'Enregistrer' : 'Créer'}
             </button>
@@ -177,7 +177,7 @@ const AgentsTab = ({ showToast }) => {
 
       {/* Liste agents */}
       {loading ? (
-        <div className="flex justify-center py-8"><Loader2 size={24} className="animate-spin text-emerald-500" /></div>
+        <div className="flex justify-center py-8"><Loader2 size={24} className="animate-spin text-primary-500" /></div>
       ) : agents.length === 0 ? (
         <div className="bg-white border border-gray-200 rounded-2xl py-10 text-center">
           <Shield size={32} className="text-gray-300 mx-auto mb-3" />
@@ -199,13 +199,13 @@ const AgentsTab = ({ showToast }) => {
                 <Clock size={11} />
                 {a.lastLogin ? fmtDt(a.lastLogin) : 'Jamais connecté'}
               </div>
-              <span className={`w-2 h-2 rounded-full flex-shrink-0 ${a.isActive ? 'bg-emerald-400' : 'bg-red-400'}`} />
+              <span className={`w-2 h-2 rounded-full flex-shrink-0 ${a.isActive ? 'bg-primary-400' : 'bg-red-400'}`} />
               <div className="flex items-center gap-1 flex-shrink-0">
                 <button onClick={() => openEdit(a)} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition" title="Modifier">
                   <Edit3 size={13} />
                 </button>
                 <button onClick={() => toggleActive(a)} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition" title={a.isActive ? 'Désactiver' : 'Activer'}>
-                  {a.isActive ? <XCircle size={13} className="text-red-400" /> : <CheckCircle size={13} className="text-emerald-400" />}
+                  {a.isActive ? <XCircle size={13} className="text-red-400" /> : <CheckCircle size={13} className="text-primary-400" />}
                 </button>
                 <button onClick={() => { if (window.confirm(`Supprimer ${a.name} ?`)) deleteAgent(a._id); }}
                   disabled={deletingId === a._id}
@@ -355,10 +355,10 @@ const ConsoleTab = ({ showToast, isSuperAdmin }) => {
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input type="text" placeholder="Email ou nom du client..." value={query}
               onChange={e => setQuery(e.target.value)} onKeyDown={e => e.key === 'Enter' && search()}
-              className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent" />
+              className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-transparent" />
           </div>
           <button onClick={search} disabled={searching || !query.trim()}
-            className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-semibold transition disabled:opacity-50 flex items-center gap-2">
+            className="px-5 py-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-xl text-sm font-semibold transition disabled:opacity-50 flex items-center gap-2">
             {searching ? <Loader2 size={14} className="animate-spin" /> : <Search size={14} />}
             Rechercher
           </button>
@@ -368,7 +368,7 @@ const ConsoleTab = ({ showToast, isSuperAdmin }) => {
             {results.map(u => (
               <button key={u._id} onClick={() => selectUser(u)}
                 className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors text-left">
-                <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 font-bold text-sm flex-shrink-0">
+                <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center text-primary-700 font-bold text-sm flex-shrink-0">
                   {(u.name || u.email || '?')[0].toUpperCase()}
                 </div>
                 <div className="flex-1 min-w-0">
@@ -377,7 +377,7 @@ const ConsoleTab = ({ showToast, isSuperAdmin }) => {
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
                   <PlanBadge plan={u.workspaceId?.plan || 'free'} />
-                  <span className={`w-2 h-2 rounded-full ${u.isActive !== false ? 'bg-emerald-400' : 'bg-red-400'}`} />
+                  <span className={`w-2 h-2 rounded-full ${u.isActive !== false ? 'bg-primary-400' : 'bg-red-400'}`} />
                 </div>
               </button>
             ))}
@@ -385,7 +385,7 @@ const ConsoleTab = ({ showToast, isSuperAdmin }) => {
         )}
       </div>
 
-      {loading && <div className="flex justify-center py-10"><Loader2 size={28} className="animate-spin text-emerald-500" /></div>}
+      {loading && <div className="flex justify-center py-10"><Loader2 size={28} className="animate-spin text-primary-500" /></div>}
 
       {selected && !loading && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -393,7 +393,7 @@ const ConsoleTab = ({ showToast, isSuperAdmin }) => {
           <div className="space-y-4">
             <div className="bg-white border border-gray-200 rounded-2xl p-5">
               <div className="flex items-center gap-3 mb-4">
-                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center text-white font-black text-lg">
+                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center text-white font-black text-lg">
                   {(selected.name || selected.email)[0].toUpperCase()}
                 </div>
                 <div className="min-w-0">
@@ -404,7 +404,7 @@ const ConsoleTab = ({ showToast, isSuperAdmin }) => {
               <div className="space-y-1">
                 <Field label="Rôle" value={selected.role} />
                 <Field label="Statut" value={
-                  <span className={`inline-flex items-center gap-1 text-xs font-semibold ${selected.isActive !== false ? 'text-emerald-600' : 'text-red-500'}`}>
+                  <span className={`inline-flex items-center gap-1 text-xs font-semibold ${selected.isActive !== false ? 'text-primary-600' : 'text-red-500'}`}>
                     {selected.isActive !== false ? <CheckCircle size={11} /> : <XCircle size={11} />}
                     {selected.isActive !== false ? 'Actif' : 'Bloqué'}
                   </span>
@@ -428,7 +428,7 @@ const ConsoleTab = ({ showToast, isSuperAdmin }) => {
                 </div>
                 <button onClick={toggleWorkspace} disabled={toggling}
                   className={`mt-4 w-full py-2 rounded-xl text-xs font-semibold transition flex items-center justify-center gap-2 border
-                    ${workspace.isActive !== false ? 'border-red-200 text-red-600 hover:bg-red-50' : 'border-emerald-200 text-emerald-600 hover:bg-emerald-50'}`}>
+                    ${workspace.isActive !== false ? 'border-red-200 text-red-600 hover:bg-red-50' : 'border-primary-200 text-primary-600 hover:bg-primary-50'}`}>
                   {toggling ? <Loader2 size={12} className="animate-spin" /> : workspace.isActive !== false ? <XCircle size={12} /> : <CheckCircle size={12} />}
                   {workspace.isActive !== false ? 'Désactiver le workspace' : 'Réactiver le workspace'}
                 </button>
@@ -449,7 +449,7 @@ const ConsoleTab = ({ showToast, isSuperAdmin }) => {
                         {planExpired && <span className="text-xs text-red-500 font-medium flex items-center gap-1"><AlertCircle size={11} /> Expiré</span>}
                         {!planExpired && workspace.planExpiresAt && <span className="text-xs text-gray-400">Expire le {fmt(workspace.planExpiresAt)}</span>}
                       </div>
-                      <button onClick={() => setPlanEdit(true)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition">
+                      <button onClick={() => setPlanEdit(true)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-primary-700 bg-primary-50 hover:bg-primary-100 rounded-lg transition">
                         <Edit3 size={12} /> Modifier
                       </button>
                     </div>
@@ -458,10 +458,10 @@ const ConsoleTab = ({ showToast, isSuperAdmin }) => {
                       <div className="grid grid-cols-2 gap-3">
                         {['free', 'starter', 'pro', 'ultra'].map(p => (
                           <button key={p} onClick={() => setNewPlan(p)}
-                            className={`p-3 rounded-xl border-2 text-left transition ${newPlan === p ? 'border-emerald-500 bg-emerald-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                            className={`p-3 rounded-xl border-2 text-left transition ${newPlan === p ? 'border-primary-500 bg-primary-50' : 'border-gray-200 hover:border-gray-300'}`}>
                             <div className="flex items-center justify-between mb-1">
                               <PlanBadge plan={p} />
-                              {newPlan === p && <CheckCircle size={14} className="text-emerald-500" />}
+                              {newPlan === p && <CheckCircle size={14} className="text-primary-500" />}
                             </div>
                             <p className="text-[11px] text-gray-500 mt-1">{p === 'free' ? 'Gratuit, sans expiration' : 'Durée configurable'}</p>
                           </button>
@@ -473,7 +473,7 @@ const ConsoleTab = ({ showToast, isSuperAdmin }) => {
                           <div className="flex gap-2">
                             {[1, 3, 6, 12].map(d => (
                               <button key={d} onClick={() => setPlanDuration(d)}
-                                className={`flex-1 py-2 rounded-lg text-xs font-bold transition border ${planDuration === d ? 'bg-emerald-600 text-white border-emerald-600' : 'border-gray-200 text-gray-600 hover:border-emerald-300'}`}>
+                                className={`flex-1 py-2 rounded-lg text-xs font-bold transition border ${planDuration === d ? 'bg-primary-600 text-white border-primary-600' : 'border-gray-200 text-gray-600 hover:border-primary-300'}`}>
                                 {d} mois
                               </button>
                             ))}
@@ -482,7 +482,7 @@ const ConsoleTab = ({ showToast, isSuperAdmin }) => {
                       )}
                       <div className="flex gap-2 pt-1">
                         <button onClick={() => setPlanEdit(false)} className="flex-1 py-2 rounded-xl border border-gray-200 text-xs font-semibold text-gray-600 hover:bg-gray-50 transition">Annuler</button>
-                        <button onClick={savePlan} disabled={planSaving} className="flex-1 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold transition flex items-center justify-center gap-1.5 disabled:opacity-50">
+                        <button onClick={savePlan} disabled={planSaving} className="flex-1 py-2 rounded-xl bg-primary-600 hover:bg-primary-700 text-white text-xs font-semibold transition flex items-center justify-center gap-1.5 disabled:opacity-50">
                           {planSaving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />} Confirmer
                         </button>
                       </div>
@@ -508,7 +508,7 @@ const ConsoleTab = ({ showToast, isSuperAdmin }) => {
                   </div>
                   {!creditEdit ? (
                     <button onClick={() => { setCreditEdit(true); setFreeCred(workspace.freeGenerationsRemaining ?? 0); setPaidCred(workspace.paidGenerationsRemaining ?? 0); }}
-                      className="w-full py-2 rounded-xl border border-emerald-200 text-emerald-700 text-xs font-semibold hover:bg-emerald-50 transition flex items-center justify-center gap-1.5">
+                      className="w-full py-2 rounded-xl border border-primary-200 text-primary-700 text-xs font-semibold hover:bg-primary-50 transition flex items-center justify-center gap-1.5">
                       <Edit3 size={12} /> Modifier les crédits
                     </button>
                   ) : (
@@ -520,7 +520,7 @@ const ConsoleTab = ({ showToast, isSuperAdmin }) => {
                             <div className="flex items-center gap-1">
                               <button onClick={() => setVal(v => Math.max(0, v - 1))} className="w-7 h-7 rounded-lg border border-gray-200 flex items-center justify-center hover:bg-gray-100 transition"><Minus size={11} /></button>
                               <input type="number" min="0" value={val} onChange={e => setVal(Math.max(0, parseInt(e.target.value) || 0))}
-                                className="flex-1 text-center px-2 py-1.5 border border-gray-200 rounded-lg text-sm font-bold focus:outline-none focus:ring-1 focus:ring-emerald-400" />
+                                className="flex-1 text-center px-2 py-1.5 border border-gray-200 rounded-lg text-sm font-bold focus:outline-none focus:ring-1 focus:ring-primary-400" />
                               <button onClick={() => setVal(v => v + 1)} className="w-7 h-7 rounded-lg border border-gray-200 flex items-center justify-center hover:bg-gray-100 transition"><Plus size={11} /></button>
                             </div>
                           </div>
@@ -536,7 +536,7 @@ const ConsoleTab = ({ showToast, isSuperAdmin }) => {
                       </div>
                       <div className="flex gap-2">
                         <button onClick={() => setCreditEdit(false)} className="flex-1 py-2 rounded-xl border border-gray-200 text-xs font-semibold text-gray-600 hover:bg-gray-50 transition">Annuler</button>
-                        <button onClick={saveCredits} disabled={creditSaving} className="flex-1 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold transition flex items-center justify-center gap-1.5 disabled:opacity-50">
+                        <button onClick={saveCredits} disabled={creditSaving} className="flex-1 py-2 rounded-xl bg-primary-600 hover:bg-primary-700 text-white text-xs font-semibold transition flex items-center justify-center gap-1.5 disabled:opacity-50">
                           {creditSaving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />} Enregistrer
                         </button>
                       </div>
@@ -561,7 +561,7 @@ const ConsoleTab = ({ showToast, isSuperAdmin }) => {
                   <div className="flex items-center gap-2">
                     <label className="text-xs font-semibold text-gray-600 whitespace-nowrap">Prolonger de</label>
                     <input type="number" min="1" max="90" value={trialDays} onChange={e => setTrialDays(Math.max(1, parseInt(e.target.value) || 1))}
-                      className="w-20 text-center px-2 py-1.5 border border-gray-200 rounded-lg text-sm font-bold focus:outline-none focus:ring-1 focus:ring-emerald-400" />
+                      className="w-20 text-center px-2 py-1.5 border border-gray-200 rounded-lg text-sm font-bold focus:outline-none focus:ring-1 focus:ring-primary-400" />
                     <span className="text-xs text-gray-500">jours</span>
                     <button onClick={extendTrial} disabled={trialSaving}
                       className="ml-auto flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold transition disabled:opacity-50">
@@ -580,14 +580,14 @@ const ConsoleTab = ({ showToast, isSuperAdmin }) => {
                   <p className="text-xs text-blue-600">Le message apparaîtra dans la messagerie de support de l'utilisateur.</p>
                 </div>
                 <textarea rows={3} placeholder="Votre message..." value={msgText} onChange={e => setMsgText(e.target.value)}
-                  className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent" />
+                  className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-transparent" />
                 <div className="flex gap-2 flex-wrap">
                   {['Votre paiement a bien été reçu.', 'Votre plan a été mis à jour.', 'Votre problème a été résolu.'].map(t => (
                     <button key={t} onClick={() => setMsgText(t)} className="flex-1 px-2 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-lg text-[10px] font-medium transition text-center leading-tight">{t}</button>
                   ))}
                 </div>
                 <button onClick={sendMessage} disabled={msgSending || !msgText.trim()}
-                  className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-semibold transition flex items-center justify-center gap-2 disabled:opacity-50">
+                  className="w-full py-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-xl text-sm font-semibold transition flex items-center justify-center gap-2 disabled:opacity-50">
                   {msgSending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />} Envoyer
                 </button>
               </div>
@@ -598,8 +598,8 @@ const ConsoleTab = ({ showToast, isSuperAdmin }) => {
 
       {!selected && !loading && results.length === 0 && (
         <div className="bg-white border border-gray-200 rounded-2xl py-16 text-center">
-          <div className="w-14 h-14 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Search size={24} className="text-emerald-400" />
+          <div className="w-14 h-14 bg-primary-50 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Search size={24} className="text-primary-400" />
           </div>
           <h3 className="font-semibold text-gray-700 mb-1">Recherchez un client</h3>
           <p className="text-sm text-gray-400 max-w-xs mx-auto">Entrez l'email ou le nom pour accéder au compte et gérer plan, crédits et support.</p>
@@ -630,7 +630,7 @@ export default function ServiceClient() {
     <div className="min-h-screen bg-gray-50">
       {toast && (
         <div className={`fixed top-4 right-4 z-[500] flex items-center gap-2.5 px-4 py-3 rounded-xl shadow-lg text-sm font-medium
-          ${toast.type === 'error' ? 'bg-red-50 border border-red-200 text-red-700' : 'bg-emerald-50 border border-emerald-200 text-emerald-700'}`}>
+          ${toast.type === 'error' ? 'bg-red-50 border border-red-200 text-red-700' : 'bg-primary-50 border border-primary-200 text-primary-700'}`}>
           {toast.type === 'error' ? <AlertCircle size={15} /> : <CheckCircle size={15} />}
           {toast.msg}
         </div>
@@ -640,7 +640,7 @@ export default function ServiceClient() {
         {/* Header */}
         <div className="mb-7">
           <h1 className="text-2xl font-black text-gray-900 flex items-center gap-3">
-            <div className="w-10 h-10 bg-emerald-600 rounded-xl flex items-center justify-center">
+            <div className="w-10 h-10 bg-primary-600 rounded-xl flex items-center justify-center">
               <Users size={20} className="text-white" />
             </div>
             Service Client
@@ -655,7 +655,7 @@ export default function ServiceClient() {
           <div className="flex gap-1 bg-white border border-gray-200 rounded-xl p-1 w-fit mb-6">
             {tabs.map(t => (
               <button key={t.id} onClick={() => setTab(t.id)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition ${tab === t.id ? 'bg-emerald-600 text-white shadow-sm' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}>
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition ${tab === t.id ? 'bg-primary-600 text-white shadow-sm' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}>
                 <t.icon size={14} />
                 {t.label}
               </button>

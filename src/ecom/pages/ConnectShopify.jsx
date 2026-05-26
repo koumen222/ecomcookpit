@@ -135,7 +135,7 @@ export default function ConnectShopify() {
       {/* Webhook URL */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-6">
         <div className="flex items-center gap-3 mb-5">
-          <div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center">
+          <div className="w-10 h-10 bg-primary-500 rounded-xl flex items-center justify-center">
             <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
             </svg>
@@ -161,7 +161,7 @@ export default function ConnectShopify() {
             onClick={copyWebhookUrl}
             className={`px-4 py-3 rounded-xl text-sm font-medium transition flex items-center gap-2 flex-shrink-0 ${
               webhookCopied
-                ? 'bg-emerald-500 text-white'
+                ? 'bg-primary-500 text-white'
                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
             }`}
           >
@@ -194,8 +194,8 @@ export default function ConnectShopify() {
             Tester l'endpoint
           </button>
           {webhookStatus && (
-            <span className={`text-xs font-medium flex items-center gap-1.5 ${webhookStatus.ok ? 'text-emerald-600' : 'text-red-600'}`}>
-              <span className={`w-2 h-2 rounded-full ${webhookStatus.ok ? 'bg-emerald-500' : 'bg-red-500'}`} />
+            <span className={`text-xs font-medium flex items-center gap-1.5 ${webhookStatus.ok ? 'text-primary-600' : 'text-red-600'}`}>
+              <span className={`w-2 h-2 rounded-full ${webhookStatus.ok ? 'bg-primary-500' : 'bg-red-500'}`} />
               {webhookStatus.message}
               {webhookStatus.ok && webhookStatus.hmac && (
                 <span className="text-gray-400 font-normal ml-1">(HMAC actif)</span>
@@ -247,7 +247,7 @@ export default function ConnectShopify() {
         <div className="space-y-4">
           {/* Step 1 */}
           <div className="flex gap-3">
-            <div className="w-7 h-7 bg-emerald-100 text-emerald-700 rounded-lg flex items-center justify-center text-sm font-bold flex-shrink-0">1</div>
+            <div className="w-7 h-7 bg-primary-100 text-primary-700 rounded-lg flex items-center justify-center text-sm font-bold flex-shrink-0">1</div>
             <div>
               <p className="text-sm font-medium text-gray-900">Ouvrez les parametres Shopify</p>
               <p className="text-xs text-gray-500 mt-0.5">
@@ -258,7 +258,7 @@ export default function ConnectShopify() {
 
           {/* Step 2 */}
           <div className="flex gap-3">
-            <div className="w-7 h-7 bg-emerald-100 text-emerald-700 rounded-lg flex items-center justify-center text-sm font-bold flex-shrink-0">2</div>
+            <div className="w-7 h-7 bg-primary-100 text-primary-700 rounded-lg flex items-center justify-center text-sm font-bold flex-shrink-0">2</div>
             <div>
               <p className="text-sm font-medium text-gray-900">Creez un webhook</p>
               <p className="text-xs text-gray-500 mt-0.5">
@@ -269,7 +269,7 @@ export default function ConnectShopify() {
 
           {/* Step 3 */}
           <div className="flex gap-3">
-            <div className="w-7 h-7 bg-emerald-100 text-emerald-700 rounded-lg flex items-center justify-center text-sm font-bold flex-shrink-0">3</div>
+            <div className="w-7 h-7 bg-primary-100 text-primary-700 rounded-lg flex items-center justify-center text-sm font-bold flex-shrink-0">3</div>
             <div>
               <p className="text-sm font-medium text-gray-900">Configurez le webhook</p>
               <div className="mt-2 bg-gray-50 rounded-xl p-3 space-y-2">
@@ -284,7 +284,7 @@ export default function ConnectShopify() {
                 <div className="flex items-start gap-2 text-xs">
                   <span className="font-medium text-gray-600 w-16 mt-1">URL</span>
                   <div className="flex-1">
-                    <code className="bg-white px-2 py-1 rounded-lg border border-gray-200 text-emerald-700 block break-all">{webhookUrl || '...'}</code>
+                    <code className="bg-white px-2 py-1 rounded-lg border border-gray-200 text-primary-700 block break-all">{webhookUrl || '...'}</code>
                   </div>
                 </div>
               </div>
@@ -293,7 +293,7 @@ export default function ConnectShopify() {
 
           {/* Step 4 */}
           <div className="flex gap-3">
-            <div className="w-7 h-7 bg-emerald-100 text-emerald-700 rounded-lg flex items-center justify-center text-sm font-bold flex-shrink-0">4</div>
+            <div className="w-7 h-7 bg-primary-100 text-primary-700 rounded-lg flex items-center justify-center text-sm font-bold flex-shrink-0">4</div>
             <div>
               <p className="text-sm font-medium text-gray-900">Sauvegardez</p>
               <p className="text-xs text-gray-500 mt-0.5">
