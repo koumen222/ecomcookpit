@@ -500,6 +500,16 @@ const startServer = async () => {
       console.warn('⚠️ Trial expiry cron non démarré:', err.message);
     }
 
+    // ─── Credit recovery cron — récupère les crédits non appliqués ──────
+    // Garantit qu'aucun paiement validé ne reste sans crédit même si webhook
+    // ou polling ont échoué. Tourne toutes les 5 min.
+    try {
+      const { startCreditRecoveryCron } = await import('./services/creditRecoveryCron.js');
+      startCreditRecoveryCron();
+    } catch (err) {
+      console.warn('⚠️ Credit recovery cron non démarré:', err.message);
+    }
+
     // ─── Rita group animator (animation des groupes WhatsApp) ──────
     try {
       const { tickGroupAnimator } = await import('./services/ritaGroupAnimatorService.js');

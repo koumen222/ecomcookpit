@@ -89,10 +89,35 @@ const generationPaymentSchema = new mongoose.Schema({
   creditedAt: {
     type: Date,
     default: null
+  },
+  // ── Crédit effectivement appliqué au workspace (garde d'idempotence dédiée) ─
+  // Ce flag est SÉPARÉ de `status` pour gérer le cas où :
+  //   - status passe à 'paid' (1er update)
+  //   - puis le $inc workspace.credits crash (network/restart)
+  // Sans ce flag, le prochain appel voit status='paid' et skip → crédits perdus.
+  // Maintenant : on incrémente UNIQUEMENT si creditApplied=false, et on set
+  // creditApplied=true APRÈS l'$inc workspace réussi.
+  creditApplied: {
+    type: Boolean,
+    default: false,
+    index: true
+  },
+  // Nombre de tentatives de crédit (pour debug/alerting)
+  creditAttempts: {
+    type: Number,
+    default: 0
+  },
+  // Dernière erreur lors de la tentative (pour diagnostic)
+  lastCreditError: {
+    type: String,
+    default: ''
   }
 }, {
   timestamps: true
 });
+
+// Index composé pour la recovery cron : "trouve tout ce qui est payé mais pas crédité"
+generationPaymentSchema.index({ status: 1, creditApplied: 1, createdAt: -1 });
 
 const GenerationPayment = mongoose.model('GenerationPayment', generationPaymentSchema);
 export default GenerationPayment;

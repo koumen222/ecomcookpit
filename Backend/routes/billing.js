@@ -40,46 +40,98 @@ const TRIAL_DAYS = 7;
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 /**
- * Apply an approved generation payment to the workspace:
- * - increments paidGenerationsRemaining (atomic $inc to avoid races)
- * - records the payment token
+ * Apply an approved generation payment to the workspace.
  *
- * Idempotent: only one concurrent caller can succeed thanks to the
- * conditional findOneAndUpdate guard on `status: { $ne: 'paid' }`.
+ * GARANTIES :
+ *   - Idempotent : `creditApplied` empêche le double-crédit (flag séparé de `status`)
+ *   - Recovery-safe : si le crash arrive entre status=paid et $inc workspace,
+ *     le prochain appel détecte status=paid + creditApplied=false → retry.
+ *   - Audit : creditAttempts incrémenté à chaque tentative, lastCreditError stocké
+ *     en cas d'échec, pour qu'on puisse débugger.
+ *
+ * Étapes (chacune atomique) :
+ *   1. Claim : SET status=paid (conditionnel : status != 'paid' OR creditApplied=false)
+ *   2. $inc workspace.paidGenerationsRemaining
+ *   3. SET creditApplied=true, creditedAt=now (conditionnel : creditApplied=false)
+ *
+ * Si l'étape 2 ou 3 échoue, on log mais on NE rollback PAS le status —
+ * le cron recovery (toutes les 5 min) retentera.
  */
 async function applyGenerationPayment(payment) {
   const now = new Date();
 
-  // Atomic guard: only mark paid if still pending.
-  // Returns null if already paid → idempotency, no double-credit.
+  // Étape 1 : claim — on accepte les paiements pas encore crédités
+  // Le filtre cible tout ce qui n'est PAS encore payé+crédité.
   const claimed = await GenerationPayment.findOneAndUpdate(
-    { _id: payment._id, status: { $ne: 'paid' } },
-    { $set: { status: 'paid', creditedAt: now } },
+    {
+      _id: payment._id,
+      $or: [
+        { status: { $ne: 'paid' } },     // pas encore marqué payé → on le marque
+        { creditApplied: { $ne: true } }, // ou marqué payé mais pas crédité → on retry
+      ],
+    },
+    {
+      $set: { status: 'paid', creditedAt: now },
+      $inc: { creditAttempts: 1 },
+    },
     { new: true }
   );
 
   if (!claimed) {
-    console.log(`[billing] applyGenerationPayment: payment ${payment._id} already processed – skipping`);
+    console.log(`[billing] applyGenerationPayment: payment ${payment._id} already credited – skipping`);
     return;
   }
 
-  // Atomic credit increment — safe against concurrent reads on workspace
-  const workspace = await EcomWorkspace.findByIdAndUpdate(
-    payment.workspaceId,
-    { $inc: { paidGenerationsRemaining: payment.quantity } },
-    { new: true }
-  );
+  // Si déjà crédité (course très improbable mais possible), exit
+  if (claimed.creditApplied) {
+    console.log(`[billing] applyGenerationPayment: payment ${payment._id} creditApplied was already true after claim – skipping`);
+    return;
+  }
 
-  if (!workspace) {
-    console.error(`[billing] applyGenerationPayment: workspace ${payment.workspaceId} not found – rolling back payment status`);
-    // Roll back so the next poll/webhook attempt can retry
+  try {
+    // Étape 2 : atomic credit increment — safe against concurrent reads
+    const workspace = await EcomWorkspace.findByIdAndUpdate(
+      payment.workspaceId,
+      { $inc: { paidGenerationsRemaining: payment.quantity } },
+      { new: true }
+    );
+
+    if (!workspace) {
+      const errMsg = `Workspace ${payment.workspaceId} not found`;
+      console.error(`[billing] applyGenerationPayment: ${errMsg}`);
+      await GenerationPayment.findByIdAndUpdate(payment._id, {
+        $set: { lastCreditError: errMsg }
+      });
+      // On ne re-pending PAS — le cron recovery retentera de toute façon
+      return;
+    }
+
+    // Étape 3 : marquer creditApplied=true atomiquement (idempotent)
+    // Si un autre process a déjà incrémenté et set creditApplied, on annule notre $inc
+    const finalState = await GenerationPayment.findOneAndUpdate(
+      { _id: payment._id, creditApplied: { $ne: true } },
+      { $set: { creditApplied: true, lastCreditError: '' } },
+      { new: true }
+    );
+
+    if (!finalState) {
+      // Quelqu'un d'autre a déjà appliqué le crédit avant nous → annuler notre $inc
+      console.warn(`[billing] applyGenerationPayment: race detected on ${payment._id} – reverting double-credit`);
+      await EcomWorkspace.findByIdAndUpdate(
+        payment.workspaceId,
+        { $inc: { paidGenerationsRemaining: -payment.quantity } }
+      );
+      return;
+    }
+
+    console.log(`[billing] ✅ Credited ${payment.quantity} generation(s) to workspace ${workspace._id} (total: ${workspace.paidGenerationsRemaining}, attempt ${claimed.creditAttempts})`);
+  } catch (err) {
+    console.error(`[billing] applyGenerationPayment: $inc failed for ${payment._id}`, err);
     await GenerationPayment.findByIdAndUpdate(payment._id, {
-      $set: { status: 'pending', creditedAt: null }
+      $set: { lastCreditError: String(err.message || err).slice(0, 200) }
     });
-    return;
+    // Le cron recovery retentera
   }
-
-  console.log(`[billing] Credited ${payment.quantity} generation(s) to workspace ${workspace._id} (total paidRemaining: ${workspace.paidGenerationsRemaining})`);
 }
 
 /**
@@ -570,27 +622,67 @@ router.post('/checkout', requireEcomAuth, async (req, res) => {
 });
 
 // ─── Creative payment helper ──────────────────────────────────────────────────
+// Même garantie d'idempotence que applyGenerationPayment (creditApplied flag)
 async function applyCreativePayment(payment) {
   const now = new Date();
+
   const claimed = await GenerationPayment.findOneAndUpdate(
-    { _id: payment._id, status: { $ne: 'paid' } },
-    { $set: { status: 'paid', creditedAt: now } },
+    {
+      _id: payment._id,
+      $or: [
+        { status: { $ne: 'paid' } },
+        { creditApplied: { $ne: true } },
+      ],
+    },
+    {
+      $set: { status: 'paid', creditedAt: now },
+      $inc: { creditAttempts: 1 },
+    },
     { new: true }
   );
+
   if (!claimed) {
-    console.log(`[billing] applyCreativePayment: payment ${payment._id} already processed`);
+    console.log(`[billing] applyCreativePayment: payment ${payment._id} already credited`);
     return;
   }
-  const workspace = await EcomWorkspace.findByIdAndUpdate(
-    payment.workspaceId,
-    { $inc: { creativeCreditsRemaining: payment.quantity } },
-    { new: true }
-  );
-  if (!workspace) {
-    await GenerationPayment.findByIdAndUpdate(payment._id, { $set: { status: 'pending', creditedAt: null } });
-    return;
+  if (claimed.creditApplied) return;
+
+  try {
+    const workspace = await EcomWorkspace.findByIdAndUpdate(
+      payment.workspaceId,
+      { $inc: { creativeCreditsRemaining: payment.quantity } },
+      { new: true }
+    );
+
+    if (!workspace) {
+      const errMsg = `Workspace ${payment.workspaceId} not found`;
+      console.error(`[billing] applyCreativePayment: ${errMsg}`);
+      await GenerationPayment.findByIdAndUpdate(payment._id, { $set: { lastCreditError: errMsg } });
+      return;
+    }
+
+    const finalState = await GenerationPayment.findOneAndUpdate(
+      { _id: payment._id, creditApplied: { $ne: true } },
+      { $set: { creditApplied: true, lastCreditError: '' } },
+      { new: true }
+    );
+
+    if (!finalState) {
+      console.warn(`[billing] applyCreativePayment: race detected on ${payment._id} – reverting double-credit`);
+      await EcomWorkspace.findByIdAndUpdate(
+        payment.workspaceId,
+        { $inc: { creativeCreditsRemaining: -payment.quantity } }
+      );
+      return;
+    }
+
+    console.log(`[billing] ✅ Credited ${payment.quantity} creative image(s) to workspace ${workspace._id} (remaining: ${workspace.creativeCreditsRemaining}, attempt ${claimed.creditAttempts})`);
+  } catch (err) {
+    console.error(`[billing] applyCreativePayment: $inc failed for ${payment._id}`, err);
+    await GenerationPayment.findByIdAndUpdate(payment._id, {
+      $set: { lastCreditError: String(err.message || err).slice(0, 200) }
+    });
   }
-  console.log(`[billing] Credited ${payment.quantity} creative image(s) to workspace ${workspace._id} (remaining: ${workspace.creativeCreditsRemaining})`);
 }
 
 // ─── POST /buy-generation ─────────────────────────────────────────────────────
@@ -888,6 +980,80 @@ router.get('/generation-status/:token', requireEcomAuth, async (req, res) => {
       console.error('[billing] GET /generation-status error:', err.message);
     }
     res.status(500).json({ success: false, message: 'Erreur lors de la vérification' });
+  }
+});
+
+// ─── POST /recover-credits ──────────────────────────────────────────────────
+// Endpoint manuel : recrédite immédiatement tous les paiements marqués
+// "paid" mais où creditApplied=false (cas d'un crash après marquage paid).
+// Et re-vérifie les pending > 10 min auprès de MoneyFusion.
+// L'utilisateur final ou un admin peut le déclencher en cas de crédits manquants.
+router.post('/recover-credits', requireEcomAuth, async (req, res) => {
+  const workspaceId = req.workspaceId || req.body?.workspaceId;
+  if (!workspaceId) {
+    return res.status(400).json({ success: false, message: 'workspaceId requis' });
+  }
+
+  try {
+    // Phase A locale : paiements marqués paid mais creditApplied=false (pour CE workspace)
+    const stuck = await GenerationPayment.find({
+      workspaceId,
+      status: 'paid',
+      creditApplied: { $ne: true },
+    });
+
+    let recovered = 0;
+    for (const p of stuck) {
+      if (p.type === 'creative') {
+        await applyCreativePayment(p);
+      } else {
+        await applyGenerationPayment(p);
+      }
+      // Re-check : si maintenant creditApplied=true, on compte
+      const updated = await GenerationPayment.findById(p._id).lean();
+      if (updated?.creditApplied) recovered++;
+    }
+
+    // Phase B : pending > 5 min côté MF
+    const cutoff = new Date(Date.now() - 5 * 60 * 1000);
+    const pending = await GenerationPayment.find({
+      workspaceId,
+      status: 'pending',
+      createdAt: { $lt: cutoff },
+    });
+
+    let synced = 0;
+    for (const p of pending) {
+      try {
+        const mfResp = await axios.get(MF_STATUS_URL(p.mfToken), { timeout: 10000 });
+        const mfStatus = mfResp.data?.data?.statut;
+        if (mfStatus === 'paid') {
+          if (p.type === 'creative') await applyCreativePayment(p);
+          else await applyGenerationPayment(p);
+          synced++;
+        } else if (mfStatus === 'failure' || mfStatus === 'no paid') {
+          p.status = mfStatus;
+          await p.save();
+        }
+      } catch { /* skip individual failures */ }
+    }
+
+    const ws = await EcomWorkspace.findById(workspaceId)
+      .select('paidGenerationsRemaining freeGenerationsRemaining simpleGenerationsRemaining creativeCreditsRemaining')
+      .lean();
+
+    res.json({
+      success: true,
+      recovered, // stuck → re-credited
+      synced,    // pending → confirmed paid + credited
+      remainingCredits: {
+        generations: (ws?.paidGenerationsRemaining || 0) + (ws?.freeGenerationsRemaining || 0) + (ws?.simpleGenerationsRemaining || 0),
+        creative: ws?.creativeCreditsRemaining || 0,
+      },
+    });
+  } catch (err) {
+    console.error('[billing] POST /recover-credits error:', err);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
   }
 });
 
