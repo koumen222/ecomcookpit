@@ -262,20 +262,44 @@ const CAMEROUN_CITIES = [
   'mbouda', 'dschang', 'foumban', 'tibati', 'meiganga',
 ];
 
+// Abréviations courantes → ville officielle (clé toujours lowercase ASCII)
+const CITY_ABBREVIATIONS = {
+  'dla': 'Douala',
+  'douala': 'Douala',
+  'yde': 'Yaoundé',
+  'yaounde': 'Yaoundé',
+  'yaoundé': 'Yaoundé',
+  'bafou': 'Bafoussam',
+  'bafoussam': 'Bafoussam',
+  'bda': 'Bamenda',
+  'bamenda': 'Bamenda',
+  'gar': 'Garoua',
+  'garoua': 'Garoua',
+};
+
 // Quartiers connus de Douala et Yaoundé pour auto-détection de la ville
 const DOUALA_QUARTIERS = [
-  'akwa', 'bonanjo', 'bonapriso', 'deido', 'new bell', 'newbell', 'bassa',
-  'makepe', 'logbaba', 'bonaberi', 'bessengue', 'kotto', 'ndokoti',
-  'pk8', 'pk10', 'pk12', 'pk14', 'pk17', 'logpom', 'cite palmiers',
+  'akwa', 'akwa nord', 'bonanjo', 'bonapriso', 'deido', 'new bell', 'newbell', 'bassa',
+  'makepe', 'logbaba', 'bonaberi', 'bonabéri', 'bessengue', 'kotto', 'ndokoti',
+  'pk8', 'pk10', 'pk11', 'pk12', 'pk14', 'pk17', 'pk21', 'logpom', 'cite palmiers',
   'total', 'total new bell', 'carrefour', 'rond-point', 'bonamoussadi',
-  'yassa', 'cité sic', 'ngodi', 'village', 'bepanda', 'nylon',
+  'yassa', 'cité sic', 'cite sic', 'ngodi', 'village', 'bepanda', 'nylon',
+  // Ajouts — quartiers fréquents non couverts
+  'bali', 'bonadibong', 'bonateki', 'denver', 'koumassi', 'ange raphaël', 'ange raphael',
+  'cite cicam', 'cité cicam', 'oyack', 'kassalafam', 'beedi', 'brazaville',
+  'borne fontaine', 'cite des plaisirs', 'cité des plaisirs', 'ndogbong', 'ndogpassi',
+  'soboum', 'ndokotti', 'maképé', 'ange-raphael', 'kotto bonamoussadi',
+  'dakar', 'beach', 'bonaberi cite', 'mabanda', 'mboppi', 'newtown', 'douala centre',
 ];
 
 const YAOUNDE_QUARTIERS = [
-  'bastos', 'essos', 'mvan', 'mvog-ada', 'mvolyé', 'nlongkak', 'elig-edzoa',
+  'bastos', 'essos', 'mvan', 'mvog-ada', 'mvolyé', 'mvolye', 'nlongkak', 'elig-edzoa',
   'ekounou', 'emana', 'odza', 'mendong', 'messa', 'briqueterie', 'carriere',
   'mokolo', 'mvog-mbi', 'kondengui', 'etoudi', 'ngoa-ekelle', 'nkoldongo',
   'nkol-eton', 'nkomkana', 'simbock', 'tsinga', 'olembe', 'awae',
+  // Ajouts
+  'biyem-assi', 'biyem assi', 'damas', 'efoulan', 'mfandena', 'melen', 'ngousso',
+  'nsam', 'nsimeyong', 'oyom abang', 'santa barbara', 'titi garage', 'omnisport',
 ];
 
 /**
@@ -351,6 +375,20 @@ function extractEntities(text = '') {
     }
   }
 
+  // Si toujours pas de ville, tester les abréviations courantes (dla, yde…)
+  // — uniquement si le message est une réponse courte (≤ 4 tokens)
+  if (!found.ville) {
+    const tokens = lowerText.split(/\s+/).filter(Boolean);
+    if (tokens.length <= 4) {
+      for (const tok of tokens) {
+        if (CITY_ABBREVIATIONS[tok]) {
+          found.ville = CITY_ABBREVIATIONS[tok];
+          break;
+        }
+      }
+    }
+  }
+
   // ── Adresse (quartier / rue) ──
   // Patterns explicites : "quartier X", "zone X", "côté de X", "près de X", "adresse : X"
   const adresseRe = /(?:adresse\s*[:=]\s*|quartier\s+|zone\s+|côté de\s+|sector\s+|derrière\s+|près de\s+|livr(?:ez|er) (?:à|au)\s+|je suis (?:à|au|en)\s+)([A-ZÀ-Üa-zà-ü][a-zA-ZÀ-Üà-ü0-9\s\-',]{2,40})(?:\s*[,.\n]|$)/i;
@@ -416,6 +454,34 @@ function updateClientState(historyKey, message) {
       if (!CAMEROUN_CITIES.some(c => c === adresseCandidate)) {
         state.adresse = adresseCandidate;
       }
+    }
+  }
+
+  // ── Anti-boucle : si le client répète le même message court (≤ 30 chars)
+  //    alors qu'on attend une info (ville OU adresse), on force-set ce champ.
+  //    Évite "Pouvez-vous préciser l'adresse ?" 3 fois de suite.
+  {
+    const norm = normalizeForMatch(message);
+    const msgTrim = message.trim();
+    if (msgTrim.length > 0 && msgTrim.length <= 30) {
+      const last = state._lastShortAnswer || null;
+      const repeats = (last && last.norm === norm) ? (last.count + 1) : 1;
+      state._lastShortAnswer = { norm, count: repeats };
+
+      const isMeaningful = norm.length >= 2
+        && !/^(oui|non|ok|ouais|nope|merci|voila|c est tout|pas encore|rien)$/.test(norm);
+
+      if (repeats >= 2 && isMeaningful) {
+        if (!state.ville && CITY_ABBREVIATIONS[norm]) {
+          state.ville = CITY_ABBREVIATIONS[norm];
+        } else if (!state.adresse && state.ville) {
+          state.adresse = msgTrim.charAt(0).toUpperCase() + msgTrim.slice(1);
+        } else if (!state.ville && !state.adresse) {
+          state.ville = msgTrim.charAt(0).toUpperCase() + msgTrim.slice(1);
+        }
+      }
+    } else if (state._lastShortAnswer) {
+      state._lastShortAnswer = null;
     }
   }
 
@@ -490,7 +556,7 @@ Exemples de comportement correct :
   } else if (!state.ville) {
     deliveryRule = `✅ MODE COMMANDE — quantité OK (${state.quantite}). 👉 PROCHAINE : demande la ville de livraison`;
   } else if (!state.adresse) {
-    deliveryRule = `✅ MODE COMMANDE — ville OK (${state.ville}). 👉 PROCHAINE : demande le lieu de livraison (quartier/zone), PAS l'adresse exacte avec numéro de rue`;
+    deliveryRule = `✅ MODE COMMANDE — ville OK (${state.ville}). 👉 PROCHAINE : demande UNIQUEMENT le lieu de livraison (quartier/zone). INTERDIT : « adresse exacte », « numéro de rue », « précisez davantage ». Si le client a déjà donné un quartier court (« bali », « akwa », « bonapriso »…) ACCEPTE-LE TEL QUEL et passe directement à la question du numéro de téléphone.`;
   } else if (!state.telephoneAppel) {
     deliveryRule = `✅ MODE COMMANDE — presque fini. 👉 PROCHAINE : confirme le numéro pour la livraison (ce WhatsApp ou un autre ?)`;
   } else {
