@@ -679,9 +679,8 @@ router.post('/', requireEcomAuth, upload.fields([
     const productImageBuffer = req.files?.productImage?.[0]?.buffer || null;
     const logoBuffer = req.files?.logoImage?.[0]?.buffer || null;
 
-    // Require at least image OR (url OR description)
-    if (!productImageBuffer && !url && !description) {
-      return res.status(400).json({ error: 'Veuillez fournir une image produit et/ou un lien ou une description' });
+    if (!productImageBuffer && !url) {
+      return res.status(400).json({ error: 'Veuillez fournir une image produit ou un lien produit (pour récupérer l\'image automatiquement)' });
     }
 
     // Validate URL if provided

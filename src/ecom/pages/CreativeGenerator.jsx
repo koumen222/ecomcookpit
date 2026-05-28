@@ -105,7 +105,7 @@ const CreativeGenerator = () => {
     if (logoInputRef.current) logoInputRef.current.value = '';
   };
 
-  const canGenerate = productImage || url.trim() || description.trim();
+  const canGenerate = productImage || url.trim();
 
   // Fetch credits on mount
   useEffect(() => {
@@ -608,7 +608,7 @@ const CreativeGenerator = () => {
                 : `Générer ${selectedFormats.length} image${selectedFormats.length > 1 ? 's' : ''}`}
             </button>
             {!canGenerate && !insufficientCredits && (
-              <p className="text-[11px] text-center text-gray-400 -mt-2">Ajoutez une image, un lien ou une description</p>
+              <p className="text-[11px] text-center text-gray-400 -mt-2">Ajoutez une image produit ou un lien produit</p>
             )}
           </div>
 

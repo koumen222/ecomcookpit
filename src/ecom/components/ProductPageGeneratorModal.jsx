@@ -1936,18 +1936,13 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
   };
 
   const handleRestart = () => {
-    setPhase('input');
-    setStep(1);
-    setProductSubstep(1);
     setProduct(null);
     setInfographicsTaskResult(null);
     setError('');
     setLimitReached(false);
     setActiveTab('page');
-    setBuildStep(0);
-    setBuildProgress(0);
-    setBuildMessage('');
     setShowConfetti(false);
+    handleGenerate();
   };
 
   // ── Hero image builder helpers ─────────────────────────────────────────────
