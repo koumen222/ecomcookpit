@@ -1439,30 +1439,58 @@ const AiGallerySection = ({ cfg }) => {
 };
 
 // ─── NEWSLETTER ───────────────────────────────────────────────────────────────
-const AiNewsletterSection = ({ cfg }) => (
-  <section style={{
-    padding: 'clamp(48px, 8vw, 72px) 24px',
-    background: cfg.backgroundColor || 'linear-gradient(135deg, color-mix(in srgb, var(--s-primary) 8%, white), color-mix(in srgb, var(--s-primary) 3%, white))',
-  }}>
-    <div style={{ maxWidth: 560, margin: '0 auto', textAlign: 'center' }}>
-      {cfg.title && <h2 style={{ fontSize: 'clamp(22px, 3vw, 30px)', fontWeight: 800, color: 'var(--s-text)', margin: '0 0 12px', fontFamily: 'var(--s-font)' }}>{cfg.title}</h2>}
-      {cfg.subtitle && <p style={{ fontSize: 14.5, color: 'var(--s-text2)', margin: '0 0 24px', lineHeight: 1.6, fontFamily: 'var(--s-font)' }}>{cfg.subtitle}</p>}
-      <div style={{ display: 'flex', gap: 10, maxWidth: 440, margin: '0 auto' }}>
-        <input type="email" placeholder={cfg.placeholder || 'Votre adresse email'} style={{
-          flex: 1, padding: '14px 18px', borderRadius: 'var(--sf-radius, 12px)',
-          border: '2px solid #E5E7EB', fontSize: 14, fontFamily: 'var(--s-font)',
-          outline: 'none',
-        }} />
-        <button style={{
-          padding: '14px 24px', borderRadius: 'var(--sf-radius, 12px)', border: 'none',
-          backgroundColor: 'var(--s-primary)', color: 'var(--sf-cta-text, #fff)',
-          fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--s-font)',
-          whiteSpace: 'nowrap',
-        }}>{cfg.buttonText || "S'inscrire"}</button>
+const AiNewsletterSection = ({ cfg, store }) => {
+  const [email, setEmail] = useState('');
+  const [status, setStatus] = useState(null); // 'success' | 'error'
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!email || loading) return;
+    setLoading(true);
+    setStatus(null);
+    try {
+      const { publicStoreApi } = await import('../services/storeApi.js');
+      await publicStoreApi.subscribeNewsletter(store?.subdomain, email);
+      setStatus('success');
+      setEmail('');
+    } catch {
+      setStatus('error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <section style={{
+      padding: 'clamp(48px, 8vw, 72px) 24px',
+      background: cfg.backgroundColor || 'linear-gradient(135deg, color-mix(in srgb, var(--s-primary) 8%, white), color-mix(in srgb, var(--s-primary) 3%, white))',
+    }}>
+      <div style={{ maxWidth: 560, margin: '0 auto', textAlign: 'center' }}>
+        {cfg.title && <h2 style={{ fontSize: 'clamp(22px, 3vw, 30px)', fontWeight: 800, color: 'var(--s-text)', margin: '0 0 12px', fontFamily: 'var(--s-font)' }}>{cfg.title}</h2>}
+        {cfg.subtitle && <p style={{ fontSize: 14.5, color: 'var(--s-text2)', margin: '0 0 24px', lineHeight: 1.6, fontFamily: 'var(--s-font)' }}>{cfg.subtitle}</p>}
+        {status === 'success' ? (
+          <p style={{ fontSize: 15, color: 'var(--s-primary)', fontWeight: 600, fontFamily: 'var(--s-font)' }}>Merci pour votre inscription !</p>
+        ) : (
+          <form onSubmit={handleSubmit} style={{ display: 'flex', gap: 10, maxWidth: 440, margin: '0 auto' }}>
+            <input type="email" required value={email} onChange={e => setEmail(e.target.value)} placeholder={cfg.placeholder || 'Votre adresse email'} style={{
+              flex: 1, padding: '14px 18px', borderRadius: 'var(--sf-radius, 12px)',
+              border: '2px solid #E5E7EB', fontSize: 14, fontFamily: 'var(--s-font)',
+              outline: 'none',
+            }} />
+            <button type="submit" disabled={loading} style={{
+              padding: '14px 24px', borderRadius: 'var(--sf-radius, 12px)', border: 'none',
+              backgroundColor: 'var(--s-primary)', color: 'var(--sf-cta-text, #fff)',
+              fontSize: 14, fontWeight: 700, cursor: loading ? 'wait' : 'pointer', fontFamily: 'var(--s-font)',
+              whiteSpace: 'nowrap', opacity: loading ? 0.7 : 1,
+            }}>{loading ? '...' : (cfg.buttonText || "S'inscrire")}</button>
+          </form>
+        )}
+        {status === 'error' && <p style={{ fontSize: 13, color: '#EF4444', marginTop: 10, fontFamily: 'var(--s-font)' }}>Une erreur est survenue, réessayez.</p>}
       </div>
-    </div>
-  </section>
-);
+    </section>
+  );
+};
 
 // ─── ANNOUNCEMENT BAR ──────────────────────────────────────────────────────────
 const AiAnnouncementBar = ({ cfg }) => (
@@ -1704,7 +1732,7 @@ const SectionRenderer = ({ section, store, products, prefix }) => {
       case 'image_text':   return <AiImageTextSection cfg={cfg} />;
       case 'banner':       return <AiBannerSection cfg={cfg} />;
       case 'gallery':      return <AiGallerySection cfg={cfg} />;
-      case 'newsletter':   return <AiNewsletterSection cfg={cfg} />;
+      case 'newsletter':   return <AiNewsletterSection cfg={cfg} store={store} />;
       case 'products':     return <AiProductsSection cfg={cfg} products={products} prefix={prefix} store={store} />;
       case 'testimonials': 
         return (

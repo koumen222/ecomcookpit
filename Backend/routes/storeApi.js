@@ -40,6 +40,7 @@ import { buildMetaEventPayload, buildMetaUserData, isSupportedMetaEvent, sendMet
 import { createAffiliateConversionFromOrder, normalizeCode } from '../services/affiliateService.js';
 import { getPlanRuntimeSnapshot } from '../middleware/planLimits.js';
 import { notifyOrderLimitReached } from '../services/orderLimitNotificationService.js';
+import NewsletterSubscriber from '../models/NewsletterSubscriber.js';
 
 const router = express.Router();
 
@@ -1217,6 +1218,34 @@ router.post('/:subdomain/orders', orderLimiter, async (req, res) => {
 
   } catch (error) {
     console.error('❌ POST /api/store/:subdomain/orders error:', error.message);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// ─── Newsletter subscription ─────────────────────────────────────────────────
+router.post('/:subdomain/newsletter', orderLimiter, async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ success: false, message: 'Email invalide' });
+    }
+
+    const workspace = await resolveStore(req.params.subdomain);
+    if (!workspace) {
+      return res.status(404).json({ success: false, message: 'Store not found' });
+    }
+
+    const storeId = workspace._storeId || workspace._id;
+
+    await NewsletterSubscriber.findOneAndUpdate(
+      { storeId, email: email.toLowerCase().trim() },
+      { isActive: true },
+      { upsert: true, setDefaultsOnInsert: true }
+    );
+
+    res.json({ success: true, message: 'Inscription réussie' });
+  } catch (error) {
+    console.error('❌ POST /api/store/:subdomain/newsletter error:', error.message);
     res.status(500).json({ success: false, message: 'Erreur serveur' });
   }
 });

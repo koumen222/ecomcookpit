@@ -354,6 +354,9 @@ export const publicStoreApi = {
 
   // Place a public order (guest checkout)
   placeOrder: (subdomain, orderData) => publicApi.post(`/${subdomain}/orders`, orderData),
+
+  // Newsletter subscription
+  subscribeNewsletter: (subdomain, email) => publicApi.post(`/${subdomain}/newsletter`, { email }),
 };
 
 
