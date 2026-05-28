@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, ShoppingCart, CheckCircle, AlertCircle, Loader2, User, Phone, MapPin, FileText, Truck, Package, ChevronDown } from 'lucide-react';
-import { PHONE_CODES, getDefaultPhoneCodeFromConfig, getPhoneCodeByCountryName, buildFullPhone } from '../utils/phoneCodes.js';
+import { PHONE_CODES, getDefaultPhoneCodeFromConfig, getPhoneCodeByCountryName, buildFullPhone, getPhoneLength } from '../utils/phoneCodes.js';
 import { publicStoreApi } from '../services/storeApi.js';
 import { useSubdomain } from '../hooks/useSubdomain.js';
 import { setDocumentMeta } from '../utils/pageMeta';
@@ -309,7 +309,7 @@ const StoreCheckout = () => {
   }, [store, orderResult]);
 
   const handleChange = (field, value) => {
-    const sanitized = field === 'phone' ? value.replace(/[^0-9\s\-+()]/g, '') : value;
+    const sanitized = field === 'phone' ? value.replace(/[^0-9]/g, '').slice(0, getPhoneLength(phoneCode)) : value;
     setForm(prev => ({ ...prev, [field]: sanitized }));
     setError('');
   };
@@ -394,8 +394,9 @@ const StoreCheckout = () => {
       return;
     }
     const phoneDigits = form.phone.replace(/[^0-9]/g, '');
-    if (phoneDigits.length < 7 || phoneDigits.length > 15) {
-      setError('Numéro de téléphone invalide (7-15 chiffres)');
+    const expectedLen = getPhoneLength(phoneCode);
+    if (phoneDigits.length !== expectedLen) {
+      setError(`Numéro invalide — ${expectedLen} chiffres requis pour ${phoneCode}`);
       return;
     }
     if (form.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(form.email.trim())) {
@@ -866,6 +867,7 @@ const StoreCheckout = () => {
                   type="tel"
                   value={form.phone}
                   onChange={(e) => handleChange('phone', e.target.value)}
+                  maxLength={getPhoneLength(phoneCode)}
                   placeholder={activePlaceholders.phone}
                   required
                   className="checkout-input flex-1 min-w-0 px-3 py-3 border text-sm font-medium transition-all"

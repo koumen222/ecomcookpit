@@ -4,7 +4,7 @@ import { ShoppingCart, User, Phone, MapPin, Loader2, CheckCircle, Truck, Plus, M
 import { publicStoreApi } from '../services/storeApi.js';
 import defaultConfig from './productSettings/defaultConfig.js';
 import { createMetaEventId, injectPixelScripts, safeFirePixelEvent } from '../utils/pixelTracking';
-import { PHONE_CODES, getDefaultPhoneCodeFromConfig, getPhoneCodeByCountryName, buildFullPhone, getCurrencyByPhoneCode } from '../utils/phoneCodes.js';
+import { PHONE_CODES, getDefaultPhoneCodeFromConfig, getPhoneCodeByCountryName, buildFullPhone, getCurrencyByPhoneCode, getPhoneLength } from '../utils/phoneCodes.js';
 import {
   buildStorefrontOrderWhatsappMessage,
   getPopularCitiesForCountries,
@@ -278,7 +278,8 @@ const EmbeddedOrderForm = ({ product, subdomain, store, pixels, productPageConfi
       }
       if (f.type === 'phone' && val) {
         const digits = val.replace(/[^0-9]/g, '');
-        if (digits.length < 7 || digits.length > 15) { setError('Numéro de téléphone invalide (7-15 chiffres)'); return; }
+        const expected = getPhoneLength(phoneCode);
+        if (digits.length !== expected) { setError(`Numéro invalide — ${expected} chiffres requis pour ${phoneCode}`); return; }
       }
       if (f.type === 'email' && val) {
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(val)) { setError('Adresse e-mail invalide'); return; }
@@ -629,7 +630,8 @@ const EmbeddedOrderForm = ({ product, subdomain, store, pixels, productPageConfi
                     <span style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: labelColorResolved, display: 'flex' }}><ChevronDown size={13} /></span>
                   </div>
                   <input type="tel" inputMode="tel" value={form[formKey] || ''}
-                    onChange={e => set(formKey, e.target.value.replace(/[^0-9\s\-+()]/g, ''))}
+                    onChange={e => set(formKey, e.target.value.replace(/[^0-9]/g, '').slice(0, getPhoneLength(phoneCode)))}
+                    maxLength={getPhoneLength(phoneCode)}
                     placeholder={ph} required={field.required !== false}
                     style={{ ...inputStyle, paddingLeft: '14px', borderTopLeftRadius: 0, borderBottomLeftRadius: 0, borderLeft: 'none' }}
                     onFocus={e => e.currentTarget.style.borderColor = effectiveBtnColor}

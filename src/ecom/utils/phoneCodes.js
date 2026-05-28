@@ -148,6 +148,18 @@ export function getDefaultPhoneCodeFromConfig(countries, currency) {
  * Build the full phone number by prepending the country code if needed.
  * Avoids double-prefixing if user already typed the code.
  */
+const PHONE_LOCAL_LENGTH = {
+  '+237': 9, '+225': 10, '+221': 9, '+228': 8, '+229': 10,
+  '+226': 8, '+223': 8, '+224': 9, '+222': 8, '+227': 8,
+  '+235': 8, '+241': 8, '+242': 9, '+243': 9, '+240': 9,
+  '+236': 8, '+234': 10, '+233': 9, '+212': 9, '+216': 8,
+  '+213': 9, '+33': 9, '+32': 9, '+41': 9, '+1': 10,
+};
+
+export function getPhoneLength(code) {
+  return PHONE_LOCAL_LENGTH[code] || 9;
+}
+
 export function buildFullPhone(phoneCode, rawPhone) {
   const phone = (rawPhone || '').trim().replace(/\s+/g, '');
   if (!phone) return '';
