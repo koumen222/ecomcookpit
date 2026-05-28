@@ -209,7 +209,15 @@ export function securityHeaders(req, res, next) {
   // Referrer Policy
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   // Permissions Policy
-  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  // ── Permissions-Policy ─────────────────────────────────────────────────────
+  // identity-credentials-get=* : autorise l'API FedCM utilisée par Google Sign-In.
+  // Sans ça, le bouton Google se charge mais échoue avec "Cannot read properties
+  // of null (reading 'postMessage')" car le SDK GIS tente d'utiliser FedCM pour
+  // récupérer le token et la fenêtre parente est null.
+  res.setHeader(
+    'Permissions-Policy',
+    'camera=(), microphone=(), geolocation=(), identity-credentials-get=*, publickey-credentials-get=*'
+  );
   // ── Content Security Policy ─────────────────────────────────────────────────
   // IMPORTANT : tous les domaines des pixels publicitaires DOIVENT être whitelist
   // ici, sinon le navigateur bloque silencieusement le chargement des scripts
@@ -256,6 +264,8 @@ export function securityHeaders(req, res, next) {
         "https://*.cloudinary.com https://*.r2.dev https://res.cloudinary.com",
         // Domaines Scalor (logos, icons, banners de fallback)
         "https://scalor.net https://*.scalor.net",
+        // Avatars Google Sign-In
+        "https://*.googleusercontent.com https://lh3.googleusercontent.com",
         // Pixel pings (1x1 image trackers)
         "https://www.facebook.com https://*.facebook.com",
         "https://analytics.tiktok.com https://*.tiktok.com",
@@ -268,6 +278,8 @@ export function securityHeaders(req, res, next) {
         "https://api.scalor.net https://*.scalor.net https://*.railway.app",
         // Sockets (WebSocket pour store:updated)
         "wss://api.scalor.net wss://*.scalor.net wss://*.railway.app",
+        // Google Sign-In — fetch des tokens + introspection (sinon erreur postMessage)
+        "https://accounts.google.com https://oauth2.googleapis.com https://apis.google.com",
         // PostHog
         "https://*.posthog.com https://us.i.posthog.com https://us-assets.i.posthog.com",
         // Meta — events POST vers /tr/

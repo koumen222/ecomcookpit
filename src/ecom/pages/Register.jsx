@@ -33,6 +33,23 @@ const Register = () => {
   const [resendCooldown, setResendCooldown] = useState(0);
   const otpRefs = useRef([]);
 
+  // ── Nettoyage au mount ─────────────────────────────────────────────────
+  // Avant : si un vieux token (périmé/invalide) traînait dans localStorage,
+  // useEcomAuth tentait getProfile() en arrière-plan, ça plantait avec
+  // "Network Error" et l'erreur remontait dans le state global → la page
+  // /register affichait "Impossible de contacter le serveur" sans aucune
+  // action de l'utilisateur. Maintenant on purge à l'arrivée sur /register.
+  useEffect(() => {
+    setError('');
+    try {
+      if (localStorage.getItem('ecomToken')) {
+        localStorage.removeItem('ecomToken');
+        localStorage.removeItem('ecomUser');
+        localStorage.removeItem('ecomWorkspace');
+      }
+    } catch { /* mode privé : localStorage indisponible */ }
+  }, []);
+
   const pwChecks = [
     { label: '12+ caracteres', ok: formData.password.length >= 12 },
     { label: 'Majuscule', ok: /[A-Z]/.test(formData.password) },
