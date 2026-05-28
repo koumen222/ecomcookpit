@@ -76,7 +76,8 @@ const workspaceSettingsSchema = new mongoose.Schema({
   closeuseNotifNumbers: [{
     label: { type: String, default: '' },
     phoneNumber: { type: String, required: true },
-    isActive: { type: Boolean, default: true }
+    isActive: { type: Boolean, default: true },
+    products: [{ type: String }]
   }],
   // Groupes WhatsApp de livraison pour recevoir les notifications de nouvelles commandes
   deliveryGroupNumbers: [{

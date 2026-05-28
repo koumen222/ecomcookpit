@@ -930,7 +930,10 @@ router.get('/', requireEcomAuth, async (req, res) => {
   try {
     const { status, search, startDate, endDate, city, product, tag, sourceId, page = 1, limit = 50, allWorkspaces, period, sortOrder } = req.query;
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
-    const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 50));
+    // Plafond augmenté à 1000 — le frontend propose 25/50/100/250/500/1000.
+    // Avant : capé à 100, ce qui faisait que choisir « 500 lignes » retournait
+    // quand même 100 lignes + une pagination cassée (pages calculées sur 100).
+    const limitNum = Math.min(1000, Math.max(1, parseInt(limit, 10) || 50));
     
     // Déterminer l'ordre de tri (1 = ascending/oldest first, -1 = descending/newest first)
     const sortDirection = sortOrder === 'oldest_first' ? 1 : -1;
@@ -4628,13 +4631,13 @@ router.patch('/config/whatsapp-notifs', requireEcomAuth, validateEcomAccess('pro
 
     const updateData = {};
     if (Array.isArray(closeuseNotifNumbers)) {
-      // Valider et nettoyer chaque numéro
       updateData.closeuseNotifNumbers = closeuseNotifNumbers
         .filter(n => n && n.phoneNumber && n.phoneNumber.trim())
         .map(n => ({
           label: (n.label || '').trim(),
           phoneNumber: n.phoneNumber.trim(),
-          isActive: n.isActive !== false
+          isActive: n.isActive !== false,
+          products: Array.isArray(n.products) ? n.products.map(p => String(p).trim()).filter(Boolean) : []
         }));
     }
     if (Array.isArray(deliveryGroupNumbers)) {

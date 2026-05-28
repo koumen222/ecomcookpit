@@ -375,17 +375,36 @@ async function _resolveStoreFast(subdomain) {
   if (!subdomain) return null;
   const clean = subdomain.toLowerCase().trim();
 
-  const store = await Store.findOne({ subdomain: clean, isActive: true, 'storeSettings.isStoreEnabled': true })
-    .select('_id workspaceId name subdomain storeSettings storeTheme storePixels storeFooter storeLegalPages storeDeliveryZones storePages')
-    .lean();
+  // ── Resilient lookup ───────────────────────────────────────────────────────
+  // Anti-flicker : un timeout MongoDB transitoire faisait disparaître la
+  // boutique. Maintenant on retry 1 fois avec backoff 300ms. Si ça échoue
+  // toujours, on relance l'erreur (le caller la traite comme "indisponible
+  // temporairement" et ne renvoie PAS 404 — voir fetchInitialData).
+  const queryWithRetry = async (model, filter, projection) => {
+    try {
+      return await model.findOne(filter).select(projection).lean().maxTimeMS(3000);
+    } catch (err) {
+      console.warn(`[resolver] ${model.modelName} query failed (${err.message}), retrying once...`);
+      await new Promise(r => setTimeout(r, 300));
+      return await model.findOne(filter).select(projection).lean().maxTimeMS(5000);
+    }
+  };
+
+  const store = await queryWithRetry(
+    Store,
+    { subdomain: clean, isActive: true, 'storeSettings.isStoreEnabled': true },
+    '_id workspaceId name subdomain storeSettings storeTheme storePixels storeFooter storeLegalPages storeDeliveryZones storePages'
+  );
 
   if (store) {
     return { ...store, _storeId: store._id, _workspaceId: store.workspaceId };
   }
 
-  const ws = await EcomWorkspace.findOne({ subdomain: clean, isActive: true, 'storeSettings.isStoreEnabled': true })
-    .select('_id name subdomain storeSettings storeTheme storePixels storeFooter storeLegalPages storeDeliveryZones storePages')
-    .lean();
+  const ws = await queryWithRetry(
+    EcomWorkspace,
+    { subdomain: clean, isActive: true, 'storeSettings.isStoreEnabled': true },
+    '_id name subdomain storeSettings storeTheme storePixels storeFooter storeLegalPages storeDeliveryZones storePages'
+  );
 
   if (ws) {
     return { ...ws, _workspaceId: ws._id, _storeId: null };
@@ -444,7 +463,11 @@ async function fetchInitialData(routeContext) {
   if (!routeContext?.subdomain) return null;
   try {
     const workspace = await _resolveStoreFast(routeContext.subdomain);
-    if (!workspace) return null;
+    if (!workspace) {
+      // Vraiment introuvable — on retourne null, le caller affiche le HTML
+      // par défaut sans __SCALOR_INITIAL__ (le SPA gérera l'erreur côté client).
+      return null;
+    }
 
     const storePayload = _buildStorePayload(workspace);
     const productFilter = workspace._storeId

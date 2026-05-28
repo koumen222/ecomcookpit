@@ -5,7 +5,7 @@ import { useMoney } from '../hooks/useMoney.js';
 import { formatMoney } from '../utils/currency.js';
 import ecomApi from '../services/ecommApi.js';
 
-const SL = { pending: 'En attente', confirmed: 'Confirmé', shipped: 'Expédié', delivered: 'Livré', returned: 'Retour', cancelled: 'Annulé', reported: 'Reporté' };
+const SL = { pending: 'En attente', confirmed: 'Confirmé', shipped: 'Expédié', delivered: 'Livré', returned: 'Retour', cancelled: 'Annulé', unreachable: 'Injoignable', called: 'Appelé', postponed: 'Reporté', reported: 'Reporté' };
 const SC = {
   pending: 'bg-yellow-50 text-yellow-700 border-yellow-100',
   confirmed: 'bg-primary-50 text-primary-700 border-primary-100',
@@ -13,6 +13,9 @@ const SC = {
   delivered: 'bg-green-50 text-green-700 border-green-100',
   returned: 'bg-orange-50 text-orange-700 border-orange-100',
   cancelled: 'bg-red-50 text-red-700 border-red-100',
+  unreachable: 'bg-gray-100 text-gray-700 border-gray-200',
+  called: 'bg-blue-50 text-blue-700 border-blue-100',
+  postponed: 'bg-purple-50 text-purple-700 border-purple-100',
   reported: 'bg-purple-50 text-purple-700 border-purple-100'
 };
 
@@ -91,6 +94,7 @@ const OrderDetail = () => {
   const [deliveryGroups, setDeliveryGroups] = useState([]);
   const [loadingGroups, setLoadingGroups] = useState(false);
   const [selectedGroups, setSelectedGroups] = useState([]);
+  const [copiedOrder, setCopiedOrder] = useState(false);
   const optionsMenuRef = useRef(null);
   const livreurMenuRef = useRef(null);
 
@@ -405,6 +409,35 @@ const OrderDetail = () => {
     setTimeout(() => { win.print(); win.close(); }, 300);
   };
 
+  const handleCopyOrder = () => {
+    const brandName = workspace?.name || 'Notre boutique';
+    const dayNames = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
+    const todayName = dayNames[new Date().getDay()];
+    const deliveryDay = order.deliveryDay || `aujourd'hui ${todayName}`;
+    const phone = getEffectivePhone(order);
+    const quantity = order.quantity || 1;
+    const total = (order.price || 0) * quantity;
+
+    let msg = `*${brandName}*\n\n`;
+    msg += `Nom du client : ${order.clientName || '—'}\n\n`;
+    msg += `Ville : ${order.city || '—'}\n\n`;
+    msg += `Lieu de la livraison : ${order.deliveryLocation || order.rawData?.['Address 1'] || '—'}\n\n`;
+    msg += `Jour de la livraison : ${deliveryDay}\n\n`;
+    msg += `Numéro : ${phone || '—'}\n\n`;
+    msg += `Heure de livraison : ${order.deliveryTime || 'Disponible maintenant'}\n\n`;
+    msg += `Article : ${getDisplayProduct(order)}\n\n`;
+    msg += `Quantité : ${String(quantity).padStart(2, '0')}\n\n`;
+    msg += `Montant : ${total.toLocaleString('fr-FR')} ${order.currency || symbol}`;
+    if (order.notes) msg += `\n\nNotes : ${order.notes}`;
+
+    navigator.clipboard.writeText(msg).then(() => {
+      setCopiedOrder(true);
+      setTimeout(() => setCopiedOrder(false), 2500);
+    }).catch(() => {
+      setError('Impossible de copier dans le presse-papier');
+    });
+  };
+
   const fmtDate = (d) => d ? new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' }) : '-';
   const fmtDateTime = (d) => d ? new Date(d).toLocaleString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-';
   const cleanPhone = (phone) => phone ? phone.replace(/^'+/, '').trim() : '';
@@ -449,7 +482,7 @@ const OrderDetail = () => {
               <p className="text-sm text-gray-500 mt-0.5">{fmtDateTime(order.createdAt)}</p>
             </div>
           </div>
-          <span className={`text-xs font-semibold px-3 py-1.5 rounded-md border ${SC[order.status]}`}>{SL[order.status]}</span>
+          <span className={`text-xs font-semibold px-3 py-1.5 rounded-md border ${SC[order.status] || 'bg-gray-50 text-gray-700 border-gray-200'}`}>{SL[order.status] || order.status}</span>
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
@@ -537,6 +570,30 @@ const OrderDetail = () => {
 
             {showOptionsMenu && (
               <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
+                <button
+                  onClick={() => {
+                    setShowOptionsMenu(false);
+                    handleCopyOrder();
+                  }}
+                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                  </svg>
+                  Copier la commande
+                </button>
+                <button
+                  onClick={() => {
+                    setShowOptionsMenu(false);
+                    handlePrint();
+                  }}
+                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
+                  </svg>
+                  Imprimer facture
+                </button>
                 {isAdmin && (
                   <button
                     onClick={() => {
@@ -552,18 +609,6 @@ const OrderDetail = () => {
                     {deleting ? 'Suppression...' : 'Supprimer'}
                   </button>
                 )}
-                <button
-                  onClick={() => {
-                    setShowOptionsMenu(false);
-                    handlePrint();
-                  }}
-                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
-                  </svg>
-                  Imprimer facture
-                </button>
               </div>
             )}
           </div>
@@ -580,6 +625,10 @@ const OrderDetail = () => {
               {label}
             </button>
           ))}
+          <button onClick={() => { const c = prompt('Entrez le statut personnalisé :'); if (c && c.trim()) handleStatusChange(c.trim()); }}
+            className="px-4 py-2 rounded-lg text-sm font-semibold transition border-2 border-dashed border-gray-300 text-gray-400 hover:border-gray-400 hover:text-gray-600 hover:bg-gray-50">
+            + Personnalisé
+          </button>
         </div>
         {(order.tags || []).length > 0 && (
           <div className="flex items-center gap-2 mt-2.5 pt-2.5 border-t border-gray-100">
@@ -886,6 +935,10 @@ const OrderDetail = () => {
           <div className="bg-white rounded-xl shadow-sm border p-4">
             <p className="text-[10px] font-semibold text-gray-400 uppercase mb-3">Actions rapides</p>
             <div className="space-y-2">
+              <button onClick={handleCopyOrder} className={`w-full px-3 py-2.5 rounded-lg transition text-xs font-medium flex items-center gap-2 ${copiedOrder ? 'bg-green-50 text-green-700' : 'bg-gray-50 text-gray-700 hover:bg-gray-100'}`}>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                {copiedOrder ? '✓ Commande copiée !' : 'Copier la commande'}
+              </button>
               <button onClick={handlePrint} className="w-full px-3 py-2.5 bg-gray-50 text-gray-700 rounded-lg hover:bg-gray-100 transition text-xs font-medium flex items-center gap-2">
                 <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
                 Imprimer la facture

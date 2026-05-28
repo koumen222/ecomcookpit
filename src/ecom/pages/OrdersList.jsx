@@ -881,6 +881,15 @@ const OrdersList = () => {
   }, [search, filterCity, filterProduct, filterTag]);
 
   useEffect(() => { if (!loading) fetchOrders(false); }, [debouncedSearch, filterStatus, debouncedCity, debouncedProduct, debouncedTag, filterStartDate, filterEndDate, selectedSourceId, page, viewAllWorkspaces, itemsPerPage, sortOrder]);
+
+  // Scroll-to-top à chaque changement de page (sauf restauration)
+  const previousPageRef = useRef(page);
+  useEffect(() => {
+    if (previousPageRef.current !== page && !shouldRestoreScroll.current) {
+      try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch {}
+    }
+    previousPageRef.current = page;
+  }, [page]);
   useEffect(() => { if (success) { const t = setTimeout(() => setSuccess(''), 10000); return () => clearTimeout(t); } }, [success]);
   useEffect(() => { if (error) { const t = setTimeout(() => setError(''), 5000); return () => clearTimeout(t); } }, [error]);
 
@@ -2874,7 +2883,7 @@ const OrdersList = () => {
                         </button>
                         {expandedId === o._id && (
                           <div className="absolute right-0 top-full mt-1 bg-white rounded-lg shadow-xl border border-gray-300 py-1 min-w-[160px]" style={{zIndex: 9999}} onClick={(e) => e.stopPropagation()}>
-                            {isAdmin && (
+                            {(isAdmin || isCloseuse) && (
                               <button onClick={(e) => { e.stopPropagation(); handleCopyOrder(o); setExpandedId(null); }} className="w-full px-3 py-2 text-left text-xs font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2">
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
                                 Copier
@@ -2907,29 +2916,74 @@ const OrdersList = () => {
         <div className="flex items-center gap-3">
           <p className="text-[11px] text-gray-400">
             {pagination.pages > 1 ? (
-              <>Page {page}/{pagination.pages} · {pagination.total} commandes</>
+              <>
+                Page <span className="font-semibold text-gray-900 tabular-nums">{page}</span>
+                <span className="text-gray-300"> / </span>
+                <span className="tabular-nums">{pagination.pages}</span>
+                <span className="text-gray-300"> · </span>
+                <span className="tabular-nums">
+                  {Math.min((page - 1) * itemsPerPage + 1, pagination.total)}–{Math.min(page * itemsPerPage, pagination.total)}
+                </span>
+                <span className="text-gray-400"> sur </span>
+                <span className="tabular-nums">{pagination.total}</span> commandes
+              </>
             ) : (
               <>{orders.length} commande{orders.length > 1 ? 's' : ''} affichée{orders.length > 1 ? 's' : ''}</>
             )}
           </p>
           <div className="flex items-center gap-2">
             <label className="text-[11px] text-gray-500 font-medium">Lignes par page:</label>
-            <select 
-              value={itemsPerPage} 
+            <select
+              value={itemsPerPage}
               onChange={(e) => { setItemsPerPage(Number(e.target.value)); setPage(1); }}
               className="text-[11px] px-2 py-1 border border-gray-200 rounded-md bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-600"
             >
+              <option value={25}>25</option>
               <option value={50}>50</option>
               <option value={100}>100</option>
-              <option value={200}>200</option>
+              <option value={250}>250</option>
               <option value={500}>500</option>
+              <option value={1000}>1000</option>
             </select>
           </div>
         </div>
         {pagination.pages > 1 && (
-          <div className="flex gap-1">
-            <button onClick={() => setPage(Math.max(1, page - 1))} disabled={page <= 1} className="px-3 py-1 text-xs rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed">Préc</button>
-            <button onClick={() => setPage(Math.min(pagination.pages, page + 1))} disabled={page >= pagination.pages} className="px-3 py-1 text-xs rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed">Suiv</button>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setPage(1)}
+              disabled={page <= 1}
+              className="px-2.5 py-1 text-xs rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all duration-200 ease-out"
+              aria-label="Première page"
+              title="Première page"
+            >
+              «
+            </button>
+            <button
+              onClick={() => setPage(Math.max(1, page - 1))}
+              disabled={page <= 1}
+              className="px-3 py-1 text-xs rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all duration-200 ease-out"
+            >
+              Préc
+            </button>
+            <span className="px-2 text-xs text-gray-400 tabular-nums">
+              {page}/{pagination.pages}
+            </span>
+            <button
+              onClick={() => setPage(Math.min(pagination.pages, page + 1))}
+              disabled={page >= pagination.pages}
+              className="px-3 py-1 text-xs rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all duration-200 ease-out"
+            >
+              Suiv
+            </button>
+            <button
+              onClick={() => setPage(pagination.pages)}
+              disabled={page >= pagination.pages}
+              className="px-2.5 py-1 text-xs rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all duration-200 ease-out"
+              aria-label="Dernière page"
+              title="Dernière page"
+            >
+              »
+            </button>
           </div>
         )}
       </div>
@@ -3258,44 +3312,86 @@ const OrdersList = () => {
                 <h4 className="text-sm font-bold text-gray-900">Notifications Closeuses</h4>
               </div>
               <p className="text-xs text-gray-500 mb-3">Numéros WhatsApp qui reçoivent un message à chaque nouvelle commande.</p>
-              <div className="space-y-2 mb-3">
+              <div className="space-y-3 mb-3">
                 {closeuseNotifNumbers.map((item, idx) => (
-                  <div key={idx} className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      placeholder="Label (ex: Closeuse 1)"
-                      value={item.label}
-                      onChange={e => setCloseuseNotifNumbers(prev => prev.map((n, i) => i === idx ? { ...n, label: e.target.value } : n))}
-                      className="flex-1 min-w-0 px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs focus:ring-1 focus:ring-primary-500"
-                    />
-                    <input
-                      type="text"
-                      placeholder="+237..."
-                      value={item.phoneNumber}
-                      onChange={e => setCloseuseNotifNumbers(prev => prev.map((n, i) => i === idx ? { ...n, phoneNumber: e.target.value } : n))}
-                      className="flex-1 min-w-0 px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs font-mono focus:ring-1 focus:ring-primary-500"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setCloseuseNotifNumbers(prev => prev.map((n, i) => i === idx ? { ...n, isActive: !n.isActive } : n))}
-                      className={`p-1.5 rounded-lg border transition ${item.isActive ? 'bg-primary-50 border-primary-300 text-primary-600' : 'bg-gray-50 border-gray-200 text-gray-400'}`}
-                      title={item.isActive ? 'Actif — cliquer pour désactiver' : 'Inactif — cliquer pour activer'}
-                    >
-                      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/></svg>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setCloseuseNotifNumbers(prev => prev.filter((_, i) => i !== idx))}
-                      className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
-                    >
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
-                    </button>
+                  <div key={idx} className="border border-gray-200 rounded-lg p-3 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        placeholder="Label (ex: Closeuse 1)"
+                        value={item.label}
+                        onChange={e => setCloseuseNotifNumbers(prev => prev.map((n, i) => i === idx ? { ...n, label: e.target.value } : n))}
+                        className="flex-1 min-w-0 px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs focus:ring-1 focus:ring-primary-500"
+                      />
+                      <input
+                        type="text"
+                        placeholder="+237..."
+                        value={item.phoneNumber}
+                        onChange={e => setCloseuseNotifNumbers(prev => prev.map((n, i) => i === idx ? { ...n, phoneNumber: e.target.value } : n))}
+                        className="flex-1 min-w-0 px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs font-mono focus:ring-1 focus:ring-primary-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setCloseuseNotifNumbers(prev => prev.map((n, i) => i === idx ? { ...n, isActive: !n.isActive } : n))}
+                        className={`p-1.5 rounded-lg border transition ${item.isActive ? 'bg-primary-50 border-primary-300 text-primary-600' : 'bg-gray-50 border-gray-200 text-gray-400'}`}
+                        title={item.isActive ? 'Actif — cliquer pour désactiver' : 'Inactif — cliquer pour activer'}
+                      >
+                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/></svg>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCloseuseNotifNumbers(prev => prev.filter((_, i) => i !== idx))}
+                        className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
+                      </button>
+                    </div>
+                    {/* Product assignment */}
+                    <div className="pl-1">
+                      <p className="text-[11px] text-gray-500 mb-1">Produits assignés <span className="text-gray-400">(vide = reçoit toutes les commandes)</span></p>
+                      <div className="flex flex-wrap gap-1.5 mb-1.5">
+                        {(item.products || []).map((prod, pidx) => (
+                          <span key={pidx} className="inline-flex items-center gap-1 px-2 py-0.5 bg-primary-50 text-primary-700 border border-primary-200 rounded text-[11px] font-medium">
+                            {prod}
+                            <button type="button" onClick={() => setCloseuseNotifNumbers(prev => prev.map((n, i) => i === idx ? { ...n, products: (n.products || []).filter((_, pi) => pi !== pidx) } : n))} className="text-primary-400 hover:text-red-500">
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          type="text"
+                          placeholder="Nom du produit (pattern)"
+                          onKeyDown={e => {
+                            if (e.key === 'Enter' && e.target.value.trim()) {
+                              e.preventDefault();
+                              const val = e.target.value.trim();
+                              setCloseuseNotifNumbers(prev => prev.map((n, i) => i === idx ? { ...n, products: [...(n.products || []), val] } : n));
+                              e.target.value = '';
+                            }
+                          }}
+                          className="flex-1 min-w-0 px-2 py-1 border border-gray-200 rounded text-[11px] focus:ring-1 focus:ring-primary-500 placeholder:text-gray-400"
+                        />
+                        <button
+                          type="button"
+                          onClick={e => {
+                            const input = e.currentTarget.previousElementSibling;
+                            if (input.value.trim()) {
+                              setCloseuseNotifNumbers(prev => prev.map((n, i) => i === idx ? { ...n, products: [...(n.products || []), input.value.trim()] } : n));
+                              input.value = '';
+                            }
+                          }}
+                          className="px-2 py-1 bg-gray-100 hover:bg-gray-200 border border-gray-200 rounded text-[11px] text-gray-600 font-medium transition"
+                        >+</button>
+                      </div>
+                    </div>
                   </div>
                 ))}
               </div>
               <button
                 type="button"
-                onClick={() => setCloseuseNotifNumbers(prev => [...prev, { label: '', phoneNumber: '', isActive: true }])}
+                onClick={() => setCloseuseNotifNumbers(prev => [...prev, { label: '', phoneNumber: '', isActive: true, products: [] }])}
                 className="inline-flex items-center gap-1 px-3 py-1.5 bg-primary-50 text-primary-700 border border-primary-200 rounded-lg text-xs font-medium hover:bg-primary-100 transition"
               >
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>

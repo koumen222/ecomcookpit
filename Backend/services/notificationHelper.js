@@ -216,10 +216,22 @@ export const notifyNewOrder = async (workspaceId, order) => {
     console.log(`📲 [WhatsApp Notif] Recherche config pour workspace: ${wsId}`);
     const settings = await WorkspaceSettings.findOne({ workspaceId: wsId }).select('closeuseNotifNumbers deliveryGroupNumbers').lean();
     console.log(`📲 [WhatsApp Notif] Settings trouvé: ${settings ? 'OUI' : 'NON'}, closeuses: ${settings?.closeuseNotifNumbers?.length || 0}, groupes: ${settings?.deliveryGroupNumbers?.length || 0}`);
-    const closeuseNumbers = (settings?.closeuseNotifNumbers || []).filter(n => n.isActive && n.phoneNumber);
+    const allCloseuses = (settings?.closeuseNotifNumbers || []).filter(n => n.isActive && n.phoneNumber);
+    const orderProductName = (productName || order?.product || '').toLowerCase().trim();
+
+    // Filter closeuses by product assignment: if a closeuse has products defined,
+    // only send if the order product matches one of them (case-insensitive substring)
+    const closeuseNumbers = allCloseuses.filter(c => {
+      if (!c.products || c.products.length === 0) return true; // no filter = receives all
+      return c.products.some(p => {
+        const pattern = p.toLowerCase().trim();
+        return pattern && orderProductName.includes(pattern);
+      });
+    });
+
     const deliveryGroupNumbers = (settings?.deliveryGroupNumbers || []).filter(n => n.isActive && n.phoneNumber);
     const allTargets = [...closeuseNumbers, ...deliveryGroupNumbers];
-    console.log(`📲 [WhatsApp Notif] Destinataires actifs: ${allTargets.length} (closeuses: ${closeuseNumbers.length}, groupes: ${deliveryGroupNumbers.length})`);
+    console.log(`📲 [WhatsApp Notif] Destinataires actifs: ${allTargets.length} (closeuses: ${closeuseNumbers.length}/${allCloseuses.length}, groupes: ${deliveryGroupNumbers.length}, produit: "${orderProductName}")`);
 
     if (allTargets.length > 0) {
       const workspace = await Workspace.findById(wsId).select('name').lean();

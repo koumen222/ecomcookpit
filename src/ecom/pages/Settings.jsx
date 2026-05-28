@@ -879,33 +879,68 @@ const Settings = () => {
                 <div key={idx} className="bg-orange-50 border border-orange-100 rounded-xl p-3 space-y-2">
                   <div className="flex items-center gap-2">
                     {/* Sélecteur de groupe depuis l'instance WhatsApp connectée */}
-                    {waGroups.length > 0 ? (
-                      <select
-                        value={item.phoneNumber || ''}
-                        onChange={e => {
-                          const g = waGroups.find(g => g.id === e.target.value);
-                          setDeliveryGroups(prev => prev.map((n, i) => i === idx ? {
-                            ...n,
-                            phoneNumber: e.target.value,
-                            label: n.label || g?.name || ''
-                          } : n));
-                        }}
-                        className="flex-1 px-3 py-2 border border-orange-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-orange-400 focus:outline-none"
-                      >
-                        <option value="">— Choisir un groupe WhatsApp —</option>
-                        {waGroups.map(g => (
-                          <option key={g.id} value={g.id}>{g.name}</option>
-                        ))}
-                      </select>
+                    {waGroups.length > 0 && !item._useLinkInput ? (
+                      <div className="flex-1 flex items-center gap-2">
+                        <select
+                          value={item.phoneNumber || ''}
+                          onChange={e => {
+                            const g = waGroups.find(g => g.id === e.target.value);
+                            setDeliveryGroups(prev => prev.map((n, i) => i === idx ? {
+                              ...n,
+                              phoneNumber: e.target.value,
+                              label: n.label || g?.name || ''
+                            } : n));
+                          }}
+                          className="flex-1 px-3 py-2 border border-orange-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-orange-400 focus:outline-none"
+                        >
+                          <option value="">— Choisir un groupe WhatsApp —</option>
+                          {waGroups.map(g => (
+                            <option key={g.id} value={g.id}>{g.name}</option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() => setDeliveryGroups(prev => prev.map((n, i) => i === idx ? { ...n, _useLinkInput: true } : n))}
+                          className="p-2 text-orange-500 hover:text-orange-700 hover:bg-orange-100 rounded-lg transition"
+                          title="Coller un lien d'invitation"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
+                        </button>
+                      </div>
                     ) : (
-                      /* Fallback : saisie manuelle du JID si aucun groupe chargé */
-                      <input
-                        type="text"
-                        placeholder="JID du groupe (ex: 120363xxx@g.us)"
-                        value={item.phoneNumber || ''}
-                        onChange={e => setDeliveryGroups(prev => prev.map((n, i) => i === idx ? { ...n, phoneNumber: e.target.value } : n))}
-                        className="flex-1 px-3 py-2 border border-orange-200 rounded-lg text-sm font-mono bg-white focus:ring-2 focus:ring-orange-400 focus:outline-none"
-                      />
+                      <div className="flex-1 flex items-center gap-2">
+                        <input
+                          type="text"
+                          placeholder="Lien d'invitation (chat.whatsapp.com/...) ou JID"
+                          value={item.inviteLink || item.phoneNumber || ''}
+                          onChange={e => {
+                            const val = e.target.value;
+                            const isLink = val.includes('chat.whatsapp.com/');
+                            setDeliveryGroups(prev => prev.map((n, i) => i === idx ? { ...n, inviteLink: isLink ? val : '', phoneNumber: isLink ? n.phoneNumber : val } : n));
+                          }}
+                          className="flex-1 px-3 py-2 border border-orange-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-orange-400 focus:outline-none"
+                        />
+                        {(item.inviteLink || (item.phoneNumber && item.phoneNumber.includes('chat.whatsapp.com'))) && !item.phoneNumber?.includes('@g.us') && (
+                          <button
+                            type="button"
+                            onClick={() => resolveGroupLink(idx)}
+                            disabled={item._resolving}
+                            className="px-3 py-2 bg-orange-500 text-white rounded-lg text-xs font-medium hover:bg-orange-600 disabled:opacity-50 transition whitespace-nowrap"
+                          >
+                            {item._resolving ? '...' : 'Résoudre'}
+                          </button>
+                        )}
+                        {waGroups.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setDeliveryGroups(prev => prev.map((n, i) => i === idx ? { ...n, _useLinkInput: false } : n))}
+                            className="p-2 text-orange-500 hover:text-orange-700 hover:bg-orange-100 rounded-lg transition"
+                            title="Choisir depuis la liste"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16"/></svg>
+                          </button>
+                        )}
+                      </div>
                     )}
                     <button
                       type="button"
@@ -933,6 +968,9 @@ const Settings = () => {
                   />
                   {item.phoneNumber && item.phoneNumber.includes('@g.us') && (
                     <p className="text-xs text-primary-600 font-mono">✅ {item.label || item.phoneNumber}</p>
+                  )}
+                  {item._resolveError && (
+                    <p className="text-xs text-red-500">❌ {item._resolveError}</p>
                   )}
                 </div>
               ))}

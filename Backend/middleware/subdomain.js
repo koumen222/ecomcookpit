@@ -32,9 +32,13 @@ const SYSTEM_SUBDOMAINS = ['api', 'admin', 'mail', 'smtp', 'ftp', 'cdn', 'static
 const PLATFORM_SUFFIXES = ['.scalor.net', '.scalor.site', '.ecomcookpit.pages.dev', '.railway.app', '.railway.internal'];
 const PLATFORM_ROOTS = ['scalor.net', 'scalor.site', 'ecomcookpit.pages.dev', 'localhost', '127.0.0.1'];
 
-// Simple cache for custom domain → subdomain lookups (TTL: 5min)
+// Simple cache for custom domain → subdomain lookups
+// IMPORTANT : on cache les RÉSULTATS POSITIFS pendant 5 min mais les négatifs
+// (not found) pendant 30 SEC seulement. Sinon, un hiccup MongoDB transitoire
+// faisait disparaître la boutique pendant 5 min côté visiteur.
 const customDomainCache = new Map();
-const CUSTOM_DOMAIN_TTL = 5 * 60 * 1000;
+const CUSTOM_DOMAIN_TTL_OK = 5 * 60 * 1000;   // 5 min pour les hits
+const CUSTOM_DOMAIN_TTL_MISS = 30 * 1000;     // 30 sec pour les misses (anti-bot scan)
 
 function getCachedCustomDomain(hostname) {
   const entry = customDomainCache.get(hostname);
@@ -43,11 +47,12 @@ function getCachedCustomDomain(hostname) {
     customDomainCache.delete(hostname);
     return undefined;
   }
-  return entry.subdomain; // null = cached "not found"
+  return entry.subdomain; // null = cached "not found" (court TTL)
 }
 
 function setCachedCustomDomain(hostname, subdomain) {
-  customDomainCache.set(hostname, { subdomain, expires: Date.now() + CUSTOM_DOMAIN_TTL });
+  const ttl = subdomain ? CUSTOM_DOMAIN_TTL_OK : CUSTOM_DOMAIN_TTL_MISS;
+  customDomainCache.set(hostname, { subdomain, expires: Date.now() + ttl });
 }
 
 // Cleanup every 10 min
@@ -168,12 +173,18 @@ export const extractSubdomain = (req, res, next) => {
       return next();
     }
     
-    // Cherche d'abord dans Store (multi-boutique), puis dans Workspace (legacy)
+    // Cherche d'abord dans Store (multi-boutique), puis dans Workspace (legacy).
+    // ── Anti-flicker ─────────────────────────────────────────────────────────
+    // Avant : si la query DB échouait (timeout, réseau), on cachait null pendant
+    // 5 min et tous les visiteurs voyaient 404. Maintenant :
+    //   - Succès → cache 5 min
+    //   - Vraiment introuvable → cache 30 sec (anti-bot, mais sans flicker long)
+    //   - Erreur DB → PAS de cache + retourne 503 Retry-After (le client / CDN
+    //     retentera, et la prochaine requête réussira dès que la DB répond)
+    // ────────────────────────────────────────────────────────────────────────
     Promise.resolve()
       .then(async () => {
         // 1. Store (setup multi-boutique)
-        // Note: on ne filtre PAS sur isStoreEnabled ici — le domaine custom est suffisant
-        // pour identifier la boutique. L'activation du store est vérifiée au moment du rendu.
         const store = await Store.findOne({
           'storeDomains.customDomain': normalizedHostname,
           isActive: { $ne: false }
@@ -181,7 +192,7 @@ export const extractSubdomain = (req, res, next) => {
 
         if (store?.subdomain) {
           console.log(`🔍 [subdomain] DOMAIN FOUND in Store:`, store._id);
-          return store.subdomain;
+          return { subdomain: store.subdomain, error: null };
         }
 
         // 2. Workspace (setup legacy)
@@ -191,26 +202,27 @@ export const extractSubdomain = (req, res, next) => {
         }).select('subdomain').lean();
 
         console.log(`🔍 [subdomain] DOMAIN FOUND in Workspace:`, workspace || null);
-        return workspace?.subdomain || null;
+        return { subdomain: workspace?.subdomain || null, error: null };
       })
-      .then(subdomain => {
+      .then(({ subdomain }) => {
         if (subdomain) {
           setCachedCustomDomain(normalizedHostname, subdomain);
           req.subdomain = subdomain;
           req.isStoreDomain = true;
           req.isCustomDomain = true;
           console.log(`🌐 [custom-domain] ${normalizedHostname} → Store: ${subdomain} (DB)`);
-          next();
-        } else {
-          setCachedCustomDomain(normalizedHostname, null);
-          console.log(`🌐 [custom-domain] ${normalizedHostname} → not found (DB)`);
-          return res.status(404).send("Boutique introuvable ❌");
+          return next();
         }
+        // Vraiment introuvable côté DB — cache COURT (30 sec) au lieu de 5 min
+        setCachedCustomDomain(normalizedHostname, null);
+        console.log(`🌐 [custom-domain] ${normalizedHostname} → not found (DB, short cache)`);
+        return res.status(404).send("Boutique introuvable ❌");
       })
       .catch(err => {
-        console.error('❌ Custom domain lookup error:', err.message);
-        req.isRootDomain = true;
-        next();
+        // Erreur DB (timeout, réseau, server down) — NE PAS CACHER, retry-friendly
+        console.error(`❌ [custom-domain] DB lookup error for ${normalizedHostname}: ${err.message}`);
+        res.set('Retry-After', '5');
+        return res.status(503).send("Service temporairement indisponible — réessayez dans quelques secondes.");
       });
     
     // Don't call next() here — it's called in the .then()/.catch() above
