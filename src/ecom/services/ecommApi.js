@@ -85,7 +85,13 @@ console.log('🔧 [API] ECOM_API_BASE_URL =', ECOM_API_BASE_URL, '| VITE_API_URL
 
 const RETRYABLE_STATUS_CODES = new Set([502, 503, 504]);
 const MAX_RETRY_ATTEMPTS = 2;
+// Cold start backend (Railway se rendort) : sur une erreur RÉSEAU, les POST d'auth
+// sûrs sont rejoués plus longtemps, avec un backoff progressif, pour laisser au
+// serveur le temps de se réveiller au lieu d'afficher tout de suite
+// « Impossible de contacter le serveur ».
+const AUTH_NETWORK_MAX_RETRY_ATTEMPTS = 5;
 const RETRY_DELAY_MS = 700;
+const RETRY_DELAY_MAX_MS = 6000;
 
 // Endpoints d'auth POST sûrs à rejouer sur une simple erreur réseau / timeout.
 // Ils sont idempotents ou protégés côté serveur : un blip de connexion passager
@@ -186,19 +192,20 @@ function isRetryableRequestError(error) {
   const isNetworkError = !error?.response && !axios.isCancel(error);
   const isRetryableStatus = RETRYABLE_STATUS_CODES.has(status);
 
-  if (config._retry || attempt >= MAX_RETRY_ATTEMPTS) return false;
+  if (config._retry) return false;
 
   // Erreurs passerelle (502/503/504) : la requête n'a jamais atteint la logique
   // applicative (proxy / cold start). Sûr à rejouer pour TOUTE méthode, y compris
   // les POST d'auth.
-  if (isRetryableStatus) return true;
+  if (isRetryableStatus) return attempt < MAX_RETRY_ATTEMPTS;
 
   // Erreurs réseau pures / timeouts : rejouer les lectures idempotentes (GET)
   // et uniquement les POST d'auth autorisés (login, otp, refresh, google).
   if (isNetworkError) {
-    if (method === 'get') return true;
+    if (method === 'get') return attempt < MAX_RETRY_ATTEMPTS;
     if (['post', 'put', 'patch'].includes(method) && isNetworkRetrySafePath(config.url || '')) {
-      return true;
+      // Cold start : on patiente plus longtemps pour les POST d'auth.
+      return attempt < AUTH_NETWORK_MAX_RETRY_ATTEMPTS;
     }
   }
 
@@ -367,7 +374,10 @@ ecomApi.interceptors.response.use(
 
     if (isRetryableRequestError(error)) {
       originalRequest._retryAttempt = Number(originalRequest._retryAttempt || 0) + 1;
-      await sleep(RETRY_DELAY_MS * originalRequest._retryAttempt);
+      // Backoff progressif (exponentiel, plafonné) : 700ms, 1.4s, 2.8s, 5.6s, 6s.
+      // Laisse au backend en cold start le temps de se réveiller (~16s cumulés).
+      const delay = Math.min(RETRY_DELAY_MS * 2 ** (originalRequest._retryAttempt - 1), RETRY_DELAY_MAX_MS);
+      await sleep(delay);
       return ecomApi(originalRequest);
     }
 
