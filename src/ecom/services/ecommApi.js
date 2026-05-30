@@ -84,8 +84,26 @@ const ECOM_API_BASE_URL = resolveEcomApiBaseUrl();
 console.log('🔧 [API] ECOM_API_BASE_URL =', ECOM_API_BASE_URL, '| VITE_API_URL =', import.meta.env.VITE_API_URL, '| VITE_BACKEND_URL =', import.meta.env.VITE_BACKEND_URL);
 
 const RETRYABLE_STATUS_CODES = new Set([502, 503, 504]);
-const MAX_RETRY_ATTEMPTS = 1;
+const MAX_RETRY_ATTEMPTS = 2;
 const RETRY_DELAY_MS = 700;
+
+// Endpoints d'auth POST sûrs à rejouer sur une simple erreur réseau / timeout.
+// Ils sont idempotents ou protégés côté serveur : un blip de connexion passager
+// (fréquent quand le backend "cold start") est réessayé en silence au lieu
+// d'afficher "Impossible de contacter le serveur" à l'utilisateur.
+// NOTE : /auth/register est volontairement exclu — rejouer après une réponse
+// perdue pourrait créer un compte en double.
+const NETWORK_RETRY_SAFE_PATHS = [
+  '/auth/login',
+  '/auth/send-otp',
+  '/auth/verify-otp',
+  '/auth/refresh',
+  '/auth/google',
+];
+
+function isNetworkRetrySafePath(url = '') {
+  return NETWORK_RETRY_SAFE_PATHS.some((p) => url.includes(p));
+}
 
 // ─── In-memory GET cache + in-flight deduplication ───────────────────────────
 // _cache:    URL → { data, ts }  — serves stale responses within TTL
@@ -160,16 +178,31 @@ function sleep(ms) {
 
 function isRetryableRequestError(error) {
   const config = error?.config;
-  const method = String(config?.method || 'get').toLowerCase();
-  const attempt = Number(config?._retryAttempt || 0);
+  if (!config) return false;
+
+  const method = String(config.method || 'get').toLowerCase();
+  const attempt = Number(config._retryAttempt || 0);
   const status = error?.response?.status;
   const isNetworkError = !error?.response && !axios.isCancel(error);
   const isRetryableStatus = RETRYABLE_STATUS_CODES.has(status);
 
-  if (!config || method !== 'get') return false;
   if (config._retry || attempt >= MAX_RETRY_ATTEMPTS) return false;
 
-  return isNetworkError || isRetryableStatus;
+  // Erreurs passerelle (502/503/504) : la requête n'a jamais atteint la logique
+  // applicative (proxy / cold start). Sûr à rejouer pour TOUTE méthode, y compris
+  // les POST d'auth.
+  if (isRetryableStatus) return true;
+
+  // Erreurs réseau pures / timeouts : rejouer les lectures idempotentes (GET)
+  // et uniquement les POST d'auth autorisés (login, otp, refresh, google).
+  if (isNetworkError) {
+    if (method === 'get') return true;
+    if (['post', 'put', 'patch'].includes(method) && isNetworkRetrySafePath(config.url || '')) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 const ecomApi = axios.create({
@@ -277,7 +310,9 @@ ecomApi.interceptors.request.use(
     // Log complet de chaque requête
     logApiRequest(config);
 
-    window.dispatchEvent(new Event('toploader:start'));
+    // _silent : requêtes en arrière-plan (ex : warm-up backend) qui ne doivent
+    // pas afficher la barre de chargement globale.
+    if (!config._silent) window.dispatchEvent(new Event('toploader:start'));
     return config;
   },
   (error) => {
@@ -340,7 +375,7 @@ ecomApi.interceptors.response.use(
     if (!error.response) {
       logApiError(error);
       window.dispatchEvent(new Event('toploader:stop'));
-      console.error('🌐 Erreur réseau - backend inaccessible:', error.message);
+      if (!error.config?._silent) console.error('🌐 Erreur réseau - backend inaccessible:', error.message);
       // Important: keep original Axios error metadata (code/message/config)
       // so contextual handlers can distinguish timeout vs network vs other failures.
       return Promise.reject(error);
@@ -501,8 +536,26 @@ export const authApi = {
   // Gestion des sessions
   getSessions: () => ecomApi.get('/auth/sessions'),
   disconnectSession: (sessionId) => ecomApi.delete(`/auth/sessions/${sessionId}`),
-  disconnectAllSessions: () => ecomApi.delete('/auth/sessions')
+  disconnectAllSessions: () => ecomApi.delete('/auth/sessions'),
+
+  // Ping léger pour réveiller le backend (cold start)
+  health: () => ecomApi.get('/auth/health', { timeout: 20000, _silent: true, _bypassCache: true }),
 };
+
+// ── Warm-up backend ──────────────────────────────────────────────────────────
+// Réveille le backend (cold start fréquent sur l'hébergeur) dès que l'utilisateur
+// arrive sur Login/Register. Le temps qu'il saisisse ses identifiants, le serveur
+// est déjà chaud → fini le « Impossible de contacter le serveur » au 1er essai.
+// Fire-and-forget : silencieux (pas de barre de chargement), timeout large, et
+// jamais d'exception remontée à l'appelant. Les appels concurrents sont mutualisés.
+let _warmUpInFlight = null;
+export function warmUpBackend() {
+  if (_warmUpInFlight) return _warmUpInFlight;
+  _warmUpInFlight = authApi.health()
+    .catch(() => null)
+    .finally(() => { _warmUpInFlight = null; });
+  return _warmUpInFlight;
+}
 
 export const productsApi = {
   // Liste des produits

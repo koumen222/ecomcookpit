@@ -1,7 +1,7 @@
 ﻿import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useEcomAuth } from '../hooks/useEcomAuth';
-import { authApi } from '../services/ecommApi';
+import { authApi, warmUpBackend } from '../services/ecommApi';
 import { getContextualError } from '../utils/errorMessages';
 import { getPendingPlanSelection } from '../utils/pendingPlanFlow.js';
 
@@ -41,6 +41,9 @@ const Register = () => {
   // action de l'utilisateur. Maintenant on purge à l'arrivée sur /register.
   useEffect(() => {
     setError('');
+    // Réveille le backend dès l'arrivée (évite « Impossible de contacter le
+    // serveur » au 1er envoi de code quand le backend est en cold start).
+    warmUpBackend();
     try {
       if (localStorage.getItem('ecomToken')) {
         localStorage.removeItem('ecomToken');
@@ -51,11 +54,12 @@ const Register = () => {
   }, []);
 
   const pwChecks = [
-    { label: '12+ caracteres', ok: formData.password.length >= 12 },
-    { label: 'Majuscule', ok: /[A-Z]/.test(formData.password) },
-    { label: 'Minuscule', ok: /[a-z]/.test(formData.password) },
-    { label: 'Chiffre', ok: /[0-9]/.test(formData.password) },
+    { label: 'Au moins 12 caractères', short: '12 caractères', ok: formData.password.length >= 12 },
+    { label: 'Une majuscule (A-Z)', short: 'une majuscule', ok: /[A-Z]/.test(formData.password) },
+    { label: 'Une minuscule (a-z)', short: 'une minuscule', ok: /[a-z]/.test(formData.password) },
+    { label: 'Un chiffre (0-9)', short: 'un chiffre', ok: /[0-9]/.test(formData.password) },
   ];
+  const pwMissing = pwChecks.filter(c => !c.ok);
   const pwStrength = pwChecks.filter(c => c.ok).length;
 
   useEffect(() => {
@@ -105,22 +109,46 @@ const Register = () => {
     } finally { setLoading(false); }
   }, [affiliateCode, googleLogin, navigateAfterAuth]);
 
+  // Garde le callback à jour sans relancer l'effet de chargement GSI.
+  const googleCallbackRef = useRef(handleGoogleCallback);
+  useEffect(() => { googleCallbackRef.current = handleGoogleCallback; }, [handleGoogleCallback]);
+
+  // Chargement Google Identity Services — s'exécute UNE SEULE FOIS.
+  // Avant : l'effet dépendait de handleGoogleCallback (qui change à chaque
+  // changement de affiliateCode/googleLogin), donc il rajoutait/supprimait le
+  // script GSI en boucle, et le retirait au démontage → cassait le bouton Google
+  // (et celui de la page Login qui partage le même script).
   useEffect(() => {
-    const script = document.createElement('script');
-    script.src = 'https://accounts.google.com/gsi/client';
-    script.async = true; script.defer = true;
-    script.onload = () => {
-      if (window.google) {
-        window.google.accounts.id.initialize({ client_id: GOOGLE_CLIENT_ID, callback: handleGoogleCallback });
+    // Wrapper stable qui appelle toujours la dernière version du callback.
+    const stableCallback = (response) => googleCallbackRef.current(response);
+
+    const initGsi = () => {
+      if (!window.google?.accounts?.id) return;
+      window.google.accounts.id.initialize({ client_id: GOOGLE_CLIENT_ID, callback: stableCallback });
+      const container = document.getElementById('google-reg-btn');
+      if (container) {
         window.google.accounts.id.renderButton(
-          document.getElementById('google-reg-btn'),
+          container,
           { theme: 'filled_black', size: 'large', width: 360, text: 'signup_with', shape: 'pill', locale: 'fr' }
         );
       }
     };
+
+    // GSI déjà chargé (ex : on arrive depuis la page Login) → init direct.
+    if (window.google?.accounts?.id) { initGsi(); return; }
+
+    // Script déjà présent mais pas encore chargé → attendre son chargement.
+    const existing = document.querySelector('script[src="https://accounts.google.com/gsi/client"]');
+    if (existing) { existing.addEventListener('load', initGsi); return; }
+
+    const script = document.createElement('script');
+    script.src = 'https://accounts.google.com/gsi/client';
+    script.async = true; script.defer = true;
+    script.onload = initGsi;
+    script.onerror = () => console.error('❌ [Google Auth] Impossible de charger le script GSI');
     document.head.appendChild(script);
-    return () => { try { document.head.removeChild(script); } catch (e) { } };
-  }, [handleGoogleCallback]);
+    // Ne pas retirer le script au démontage — il est partagé avec la page Login.
+  }, []);
 
   const handleSendOtp = async (e) => {
     e.preventDefault();
@@ -333,13 +361,31 @@ const Register = () => {
                       </svg>
                     </button>
                   </div>
-                  {formData.password && (
-                    <div className="mt-2 flex gap-1">
-                      {[1, 2, 3, 4].map(i => (
-                        <div key={i} className={`h-1 flex-1 rounded-full transition ${i <= pwStrength ? (pwStrength <= 1 ? 'bg-red-500' : pwStrength <= 2 ? 'bg-yellow-500' : 'bg-primary-500') : 'bg-gray-200'}`} />
-                      ))}
-                    </div>
-                  )}
+                  <div className="mt-2.5">
+                    <p className="text-[11px] font-medium text-gray-500 mb-1.5">Votre mot de passe doit contenir :</p>
+                    <ul className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+                      {pwChecks.map((c) => {
+                        const neutral = !formData.password;
+                        return (
+                          <li key={c.label} className={`flex items-center gap-1.5 text-xs transition ${neutral ? 'text-gray-400' : c.ok ? 'text-primary-600' : 'text-red-500'}`}>
+                            {neutral ? (
+                              <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.5" /></svg>
+                            ) : c.ok ? (
+                              <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+                            ) : (
+                              <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
+                            )}
+                            <span>{c.label}</span>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                    {formData.password && pwMissing.length > 0 && (
+                      <p className="mt-2 text-xs text-red-500">
+                        Il manque : {pwMissing.map(c => c.short).join(', ')}.
+                      </p>
+                    )}
+                  </div>
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1.5 uppercase tracking-wide">Confirmer</label>

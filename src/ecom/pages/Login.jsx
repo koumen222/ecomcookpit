@@ -3,8 +3,13 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useEcomAuth } from '../hooks/useEcomAuth';
 import { getContextualError } from '../utils/errorMessages';
 import { getPendingPlanSelection } from '../utils/pendingPlanFlow.js';
+import { warmUpBackend } from '../services/ecommApi.js';
 
-const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+// Fallback codé en dur identique à Register.jsx : si VITE_GOOGLE_CLIENT_ID
+// n'est pas injecté au build, le bouton Google s'affichait sur Register mais
+// PAS sur Login (aucun fallback) → la connexion Google échouait sur cette page.
+// ⚠️ Doit rester identique à la valeur dans Register.jsx.
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '559924689181-rpkv8ji3029kvrtsvt3qceusmsh1i4p2.apps.googleusercontent.com';
 
 const IconFillLoader = ({ backgroundClassName = 'bg-[#0F1115]' }) => {
   const [p, setP] = useState(0);
@@ -115,6 +120,10 @@ const Login = () => {
   // Store callback in ref to avoid re-running the effect
   const googleCallbackRef = useRef(handleGoogleCallback);
   useEffect(() => { googleCallbackRef.current = handleGoogleCallback; }, [handleGoogleCallback]);
+
+  // Réveille le backend dès l'arrivée sur la page (évite « Impossible de contacter
+  // le serveur » au 1er login quand le backend est en cold start).
+  useEffect(() => { warmUpBackend(); }, []);
 
   // Load Google Identity Services — runs ONCE
   useEffect(() => {
