@@ -527,10 +527,87 @@ export async function sendOrderToProductGroup(order, workspaceId) {
   }
 }
 
+// ── Message automatique AU CLIENT, par produit ───────────────────────────────
+// Modèle par défaut si le produit n'en définit pas.
+const DEFAULT_CLIENT_MESSAGE =
+  'Bonjour {prenom} 👋\n\n' +
+  'Merci pour votre commande *{produit}* ✅\n' +
+  'Référence : {commande}\n' +
+  'Quantité : {quantite}\n' +
+  'Total : {total} {devise}\n\n' +
+  'Notre équipe vous contactera très vite pour confirmer la livraison. À bientôt !';
+
+// Remplace les variables {…} du modèle par les données de la commande.
+export function renderClientTemplate(tpl, order, product) {
+  const prenom = (order?.clientName || '').trim().split(/\s+/)[0] || 'cher client';
+  const qty = order?.quantity || 1;
+  const price = order?.price || 0;
+  const vars = {
+    '{prenom}': prenom,
+    '{client}': order?.clientName || prenom,
+    '{nom}': order?.clientName || prenom,
+    '{produit}': order?.product || product?.name || '',
+    '{commande}': order?.orderId || order?._id || '',
+    '{ref}': order?.orderId || order?._id || '',
+    '{prix}': String(price),
+    '{quantite}': String(qty),
+    '{total}': String(price * qty),
+    '{ville}': order?.city || '',
+    '{adresse}': order?.address || '',
+    '{devise}': order?.currency || 'XAF',
+  };
+  return String(tpl || DEFAULT_CLIENT_MESSAGE)
+    .replace(/\{(prenom|client|nom|produit|commande|ref|prix|quantite|total|ville|adresse|devise)\}/g, (m) => vars[m] ?? m);
+}
+
+/**
+ * Envoie un message de confirmation AU CLIENT pour le produit commandé,
+ * via l'instance WhatsApp assignée au produit (fallback : instance active du
+ * workspace). Ne s'exécute QUE si le produit a `whatsappClientEnabled = true`.
+ * Conçu pour être appelé sur le hook post-save de Order (toute source).
+ */
+export async function sendOrderClientMessage(order, workspaceId) {
+  try {
+    if (!workspaceId || !order?.clientPhone) return;
+    if (!order?.productId && !order?.product) return;
+
+    const { default: Product } = await import('../models/Product.js');
+    const fields = 'whatsappClientEnabled whatsappClientInstanceId whatsappClientMessage name';
+    let product = null;
+    if (order.productId) {
+      product = await Product.findOne({ _id: order.productId, workspaceId }).select(fields).lean();
+    }
+    // Fallback : résolution par nom (les commandes webhook n'ont qu'un nom de produit)
+    if (!product && order.product) {
+      product = await Product.findOne({
+        workspaceId,
+        name: { $regex: `^${order.product.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, $options: 'i' },
+      }).select(fields).lean();
+    }
+
+    if (!product || !product.whatsappClientEnabled) return;
+
+    const message = renderClientTemplate(product.whatsappClientMessage, order, product);
+
+    await sendWhatsAppMessage({
+      to: order.clientPhone,
+      message,
+      workspaceId,
+      instanceId: product.whatsappClientInstanceId || undefined,
+    });
+    console.log(`✅ [OrderClient] Message envoyé au client ${order.clientPhone} pour "${product.name}"`);
+  } catch (error) {
+    console.error('❌ sendOrderClientMessage:', error.message);
+    // Ne jamais bloquer la création de commande
+  }
+}
+
 export default {
   sendWhatsAppMessage,
   sendOrderNotification,
   sendOrderToProductGroup,
+  sendOrderClientMessage,
+  renderClientTemplate,
   sendWhatsAppMedia,
   sendWhatsAppAudio,
   sendWhatsAppVideo,

@@ -441,6 +441,23 @@ export async function sendOrderConfirmationToClient(order, workspaceId) {
   const logPrefix = `[Order→WhatsApp]`;
 
   try {
+    // Anti-doublon : si le produit commandé gère son propre message client
+    // (instance dédiée, via le hook produit), on n'envoie pas aussi le message
+    // auto au niveau workspace — sinon le client reçoit deux messages.
+    try {
+      const { default: Product } = await import('../models/Product.js');
+      if (order?.productId || order?.product) {
+        const q = order.productId
+          ? { _id: order.productId, workspaceId }
+          : { workspaceId, name: { $regex: `^${String(order.product).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, $options: 'i' } };
+        const prod = await Product.findOne(q).select('whatsappClientEnabled').lean();
+        if (prod?.whatsappClientEnabled) {
+          console.log(`ℹ️ ${logPrefix} Produit gère son message client (instance dédiée) — envoi workspace ignoré`);
+          return { success: false, skipped: true, reason: 'product_client_message' };
+        }
+      }
+    } catch { /* en cas d'erreur, on continue avec le flux workspace normal */ }
+
     // Vérifier que whatsappAutoConfirm est activé
     const workspace = await EcomWorkspace.findById(workspaceId)
       .select('whatsappAutoConfirm whatsappOrderTemplate whatsappAutoInstanceId whatsappAutoImageUrl whatsappAutoVideoUrl whatsappAutoDocumentUrl whatsappAutoAudioUrl whatsappAutoSendOrder whatsappAutoProductMediaRules storeSettings name')

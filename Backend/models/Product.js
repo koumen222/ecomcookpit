@@ -64,6 +64,30 @@ const productSchema = new mongoose.Schema({
     default: null,
     trim: true
   },
+  // ── Message automatique AU CLIENT par produit (WhatsApp) ──────────────────
+  // Quand une commande de ce produit arrive, l'instance ci-dessous envoie un
+  // message au numéro du client. Si aucune instance n'est choisie, on retombe
+  // sur l'instance WhatsApp active du workspace.
+  whatsappClientEnabled: {
+    type: Boolean,
+    default: false
+  },
+  whatsappClientInstanceId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'WhatsappInstance',
+    default: null
+  },
+  whatsappClientInstanceName: {
+    type: String,
+    default: null,
+    trim: true
+  },
+  // Modèle de message personnalisable. Variables : {prenom} {produit}
+  // {commande} {prix} {quantite} {total} {ville} {adresse} {devise}
+  whatsappClientMessage: {
+    type: String,
+    default: null
+  },
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'EcomUser',

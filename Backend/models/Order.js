@@ -386,12 +386,17 @@ orderSchema.pre('save', function () {
   this.$locals.wasNew = this.isNew;
 });
 
-// Notifier le groupe WhatsApp lié au produit dès qu'une commande est créée
+// Dès qu'une commande est créée :
+//  1) notifier le groupe WhatsApp d'équipe lié au produit (existant)
+//  2) envoyer un message AU CLIENT via l'instance assignée au produit (nouveau)
 orderSchema.post('save', function (doc) {
   if (!doc.$locals?.wasNew) return;
-  import('../services/whatsappService.js').then(({ sendOrderToProductGroup }) => {
-    sendOrderToProductGroup(doc, doc.workspaceId?.toString())
+  const workspaceId = doc.workspaceId?.toString();
+  import('../services/whatsappService.js').then(({ sendOrderToProductGroup, sendOrderClientMessage }) => {
+    sendOrderToProductGroup(doc, workspaceId)
       .catch(err => console.error('❌ [Order hook] sendOrderToProductGroup:', err.message));
+    sendOrderClientMessage(doc, workspaceId)
+      .catch(err => console.error('❌ [Order hook] sendOrderClientMessage:', err.message));
   }).catch(() => {});
 });
 

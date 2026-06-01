@@ -152,19 +152,45 @@ const Settings = () => {
   const [productGroupsLoading, setProductGroupsLoading] = useState(false);
   const [productGroupsSaving, setProductGroupsSaving] = useState({});
   const [productGroupsSaved, setProductGroupsSaved] = useState({});
+  // Message client automatique par produit (instance dédiée + message perso)
+  const [waInstances, setWaInstances] = useState([]);
+  const [productClientSaving, setProductClientSaving] = useState({});
+  const [productClientSaved, setProductClientSaved] = useState({});
 
   const fetchProductGroups = async () => {
     setProductGroupsLoading(true);
     try {
-      const [prodRes, grpRes] = await Promise.all([
+      const [prodRes, grpRes, instRes] = await Promise.all([
         ecomApi.get('/products?isActive=true'),
-        ecomApi.get('/products/whatsapp-groups').catch(() => ({ data: { groups: [], connected: false } }))
+        ecomApi.get('/products/whatsapp-groups').catch(() => ({ data: { groups: [], connected: false } })),
+        ecomApi.get('/v1/external/whatsapp/instances').catch(() => ({ data: { instances: [] } }))
       ]);
       setProducts(prodRes.data?.data || []);
       setWaGroups(grpRes.data?.groups || []);
       setWaGroupsConnected(grpRes.data?.connected !== false);
+      setWaInstances(instRes.data?.instances || []);
     } catch {}
     finally { setProductGroupsLoading(false); }
+  };
+
+  // Enregistre la config "message client" d'un produit (activation / instance / message).
+  const saveProductClient = async (productId, patch) => {
+    setProductClientSaving(p => ({ ...p, [productId]: true }));
+    try {
+      await ecomApi.patch(`/products/${productId}/whatsapp-client`, patch);
+      setProducts(prev => prev.map(p => {
+        if (p._id !== productId) return p;
+        const next = { ...p };
+        if (patch.enabled !== undefined) next.whatsappClientEnabled = patch.enabled;
+        if (patch.instanceId !== undefined) next.whatsappClientInstanceId = patch.instanceId;
+        if (patch.instanceName !== undefined) next.whatsappClientInstanceName = patch.instanceName;
+        if (patch.message !== undefined) next.whatsappClientMessage = patch.message;
+        return next;
+      }));
+      setProductClientSaved(p => ({ ...p, [productId]: true }));
+      setTimeout(() => setProductClientSaved(p => ({ ...p, [productId]: false })), 2500);
+    } catch {}
+    finally { setProductClientSaving(p => ({ ...p, [productId]: false })); }
   };
 
   const saveProductGroup = async (productId, groupJid, groupName) => {
@@ -1061,6 +1087,85 @@ const Settings = () => {
                       <svg className="w-4 h-4 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7"/></svg>
                     )}
                   </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* ── Message client automatique par produit ───────────────────── */}
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mt-6">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-9 h-9 rounded-xl bg-emerald-50 flex items-center justify-center shrink-0">
+              <svg className="w-5 h-5 text-emerald-600" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0C5.373 0 0 5.373 0 12c0 2.124.558 4.117 1.533 5.84L0 24l6.335-1.507A11.945 11.945 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0z"/></svg>
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-gray-900">Message client automatique par produit</h2>
+              <p className="text-xs text-gray-400">À chaque commande, l'instance choisie envoie automatiquement un WhatsApp au client. Sans instance, l'instance par défaut du workspace est utilisée.</p>
+            </div>
+          </div>
+
+          <div className="mb-4 p-2.5 bg-gray-50 border border-gray-100 rounded-lg text-[11px] text-gray-500 leading-relaxed">
+            Variables disponibles dans le message : <code className="text-emerald-600">{'{prenom}'}</code> <code className="text-emerald-600">{'{produit}'}</code> <code className="text-emerald-600">{'{commande}'}</code> <code className="text-emerald-600">{'{prix}'}</code> <code className="text-emerald-600">{'{quantite}'}</code> <code className="text-emerald-600">{'{total}'}</code> <code className="text-emerald-600">{'{ville}'}</code> <code className="text-emerald-600">{'{devise}'}</code>
+          </div>
+
+          {productGroupsLoading ? (
+            <div className="py-8 flex justify-center"><div className="w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"/></div>
+          ) : products.length === 0 ? (
+            <p className="text-sm text-gray-400 italic py-2">Aucun produit actif trouvé.</p>
+          ) : (
+            <div className="space-y-3">
+              {products.map(product => (
+                <div key={product._id} className="p-3 bg-gray-50 border border-gray-100 rounded-xl">
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <label className="flex items-center gap-2 cursor-pointer shrink-0">
+                      <input
+                        type="checkbox"
+                        checked={!!product.whatsappClientEnabled}
+                        onChange={e => saveProductClient(product._id, { enabled: e.target.checked })}
+                        disabled={productClientSaving[product._id]}
+                        className="w-4 h-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                      />
+                      <span className="text-sm font-semibold text-gray-900 truncate max-w-[150px]">{product.name}</span>
+                    </label>
+
+                    <select
+                      value={product.whatsappClientInstanceId || ''}
+                      onChange={e => {
+                        const inst = waInstances.find(i => String(i._id) === e.target.value);
+                        saveProductClient(product._id, {
+                          instanceId: e.target.value || null,
+                          instanceName: inst ? (inst.customName || inst.instanceName) : null,
+                          enabled: e.target.value ? true : product.whatsappClientEnabled,
+                        });
+                      }}
+                      disabled={productClientSaving[product._id]}
+                      className="text-sm border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400 focus:outline-none max-w-[200px] disabled:opacity-50 ml-auto"
+                    >
+                      <option value="">— Instance par défaut —</option>
+                      {waInstances.map(i => (
+                        <option key={i._id} value={i._id}>{(i.customName || i.instanceName)}{i.status ? ` (${i.status})` : ''}</option>
+                      ))}
+                    </select>
+
+                    {productClientSaving[product._id] && (
+                      <div className="w-4 h-4 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"/>
+                    )}
+                    {productClientSaved[product._id] && (
+                      <svg className="w-4 h-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7"/></svg>
+                    )}
+                  </div>
+
+                  {product.whatsappClientEnabled && (
+                    <textarea
+                      key={`${product._id}-msg`}
+                      defaultValue={product.whatsappClientMessage || ''}
+                      onBlur={e => { if ((e.target.value || '') !== (product.whatsappClientMessage || '')) saveProductClient(product._id, { message: e.target.value }); }}
+                      rows={3}
+                      placeholder={'Bonjour {prenom} 👋\nMerci pour votre commande {produit} ✅\nTotal : {total} {devise}\nNous vous contactons vite pour la livraison.'}
+                      className="mt-2 w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400 focus:outline-none resize-y"
+                    />
+                  )}
                 </div>
               ))}
             </div>

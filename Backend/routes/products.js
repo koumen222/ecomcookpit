@@ -401,6 +401,35 @@ router.patch('/:id/whatsapp-group', requireEcomAuth, validateEcomAccess('product
   }
 });
 
+// PATCH /api/ecom/products/:id/whatsapp-client - Configurer le message auto AU CLIENT
+// (instance dédiée + message personnalisé + activation) pour ce produit.
+router.patch('/:id/whatsapp-client', requireEcomAuth, validateEcomAccess('products', 'write'), async (req, res) => {
+  try {
+    const { enabled, instanceId, instanceName, message } = req.body;
+    const product = await Product.findOne({ _id: req.params.id, workspaceId: req.workspaceId });
+    if (!product) return res.status(404).json({ success: false, message: 'Produit non trouvé' });
+
+    if (enabled !== undefined) product.whatsappClientEnabled = !!enabled;
+    if (instanceId !== undefined) product.whatsappClientInstanceId = instanceId || null;
+    if (instanceName !== undefined) product.whatsappClientInstanceName = instanceName || null;
+    if (message !== undefined) product.whatsappClientMessage = message || null;
+    await product.save();
+
+    res.json({
+      success: true,
+      data: {
+        whatsappClientEnabled: product.whatsappClientEnabled,
+        whatsappClientInstanceId: product.whatsappClientInstanceId,
+        whatsappClientInstanceName: product.whatsappClientInstanceName,
+        whatsappClientMessage: product.whatsappClientMessage,
+      },
+    });
+  } catch (error) {
+    console.error('Erreur patch whatsapp-client:', error);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
 // DELETE /api/ecom/products/:id - Supprimer un produit (admin uniquement)
 router.delete('/:id', 
   requireEcomAuth, 
