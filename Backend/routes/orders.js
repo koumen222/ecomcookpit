@@ -4514,6 +4514,8 @@ router.patch('/config/whatsapp-auto', requireEcomAuth, validateEcomAccess('produ
       updateFields.whatsappAutoProductMediaRules = whatsappAutoProductMediaRules
         .map(rule => ({
           productKeyword: String(rule?.productKeyword || '').trim(),
+          instanceId:  rule?.instanceId || null,
+          template:    rule?.template || null,
           imageUrl: rule?.imageUrl || null,
           videoUrl: rule?.videoUrl || null,
           documentUrl: rule?.documentUrl || null,
@@ -4637,7 +4639,8 @@ router.patch('/config/whatsapp-notifs', requireEcomAuth, validateEcomAccess('pro
           label: (n.label || '').trim(),
           phoneNumber: n.phoneNumber.trim(),
           isActive: n.isActive !== false,
-          products: Array.isArray(n.products) ? n.products.map(p => String(p).trim()).filter(Boolean) : []
+          products: Array.isArray(n.products) ? n.products.map(p => String(p).trim()).filter(Boolean) : [],
+          instanceId: n.instanceId || null
         }));
     }
     if (Array.isArray(deliveryGroupNumbers)) {
@@ -4743,7 +4746,7 @@ router.post('/config/whatsapp-notifs/test', requireEcomAuth, validateEcomAccess(
     const results = [];
     for (const target of allTargets) {
       try {
-        await sendWhatsAppMessage({ to: target.phoneNumber, message: msg, workspaceId: req.workspaceId });
+        await sendWhatsAppMessage({ to: target.phoneNumber, message: msg, workspaceId: req.workspaceId, instanceId: target.instanceId || undefined });
         results.push({ phone: target.phoneNumber, label: target.label, status: 'ok' });
         console.log(`✅ [Test Notif] Envoyé à ${target.phoneNumber}`);
       } catch (err) {

@@ -158,6 +158,8 @@ const workspaceSchema = new mongoose.Schema({
   whatsappAutoProductMediaRules: {
     type: [{
       productKeyword: { type: String, required: true },
+      instanceId:   { type: String, default: null },
+      template:     { type: String, default: null },
       imageUrl: { type: String, default: null },
       videoUrl: { type: String, default: null },
       documentUrl: { type: String, default: null },

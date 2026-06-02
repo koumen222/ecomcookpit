@@ -77,7 +77,8 @@ const workspaceSettingsSchema = new mongoose.Schema({
     label: { type: String, default: '' },
     phoneNumber: { type: String, required: true },
     isActive: { type: Boolean, default: true },
-    products: [{ type: String }]
+    products: [{ type: String }],
+    instanceId: { type: String, default: null }
   }],
   // Groupes WhatsApp de livraison pour recevoir les notifications de nouvelles commandes
   deliveryGroupNumbers: [{

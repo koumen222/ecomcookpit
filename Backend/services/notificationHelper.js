@@ -218,20 +218,28 @@ export const notifyNewOrder = async (workspaceId, order) => {
     console.log(`📲 [WhatsApp Notif] Settings trouvé: ${settings ? 'OUI' : 'NON'}, closeuses: ${settings?.closeuseNotifNumbers?.length || 0}, groupes: ${settings?.deliveryGroupNumbers?.length || 0}`);
     const allCloseuses = (settings?.closeuseNotifNumbers || []).filter(n => n.isActive && n.phoneNumber);
     const orderProductName = (productName || order?.product || '').toLowerCase().trim();
+    console.log(`📲 [WhatsApp Notif] Produit commande: "${orderProductName}", closeuses actives: ${allCloseuses.length}`);
 
-    // Filter closeuses by product assignment: if a closeuse has products defined,
-    // only send if the order product matches one of them (case-insensitive substring)
+    // Filter closeuses by product: if products defined, match if either side contains the other
     const closeuseNumbers = allCloseuses.filter(c => {
-      if (!c.products || c.products.length === 0) return true; // no filter = receives all
-      return c.products.some(p => {
+      if (!c.products || c.products.length === 0) {
+        console.log(`   ✅ ${c.label || c.phoneNumber} → aucun filtre produit`);
+        return true;
+      }
+      const match = c.products.some(p => {
         const pattern = p.toLowerCase().trim();
-        return pattern && orderProductName.includes(pattern);
+        if (!pattern) return false;
+        const hit = orderProductName.includes(pattern) || pattern.includes(orderProductName);
+        console.log(`   🔍 ${c.label || c.phoneNumber} filtre "${pattern}" vs "${orderProductName}" → ${hit ? 'MATCH ✅' : 'non'}`);
+        return hit;
       });
+      if (!match) console.log(`   ❌ ${c.label || c.phoneNumber} → aucun produit ne correspond`);
+      return match;
     });
 
     const deliveryGroupNumbers = (settings?.deliveryGroupNumbers || []).filter(n => n.isActive && n.phoneNumber);
     const allTargets = [...closeuseNumbers, ...deliveryGroupNumbers];
-    console.log(`📲 [WhatsApp Notif] Destinataires actifs: ${allTargets.length} (closeuses: ${closeuseNumbers.length}/${allCloseuses.length}, groupes: ${deliveryGroupNumbers.length}, produit: "${orderProductName}")`);
+    console.log(`📲 [WhatsApp Notif] Destinataires: ${allTargets.length} (closeuses: ${closeuseNumbers.length}/${allCloseuses.length}, groupes: ${deliveryGroupNumbers.length})`);
 
     if (allTargets.length > 0) {
       const workspace = await Workspace.findById(wsId).select('name').lean();
@@ -239,8 +247,8 @@ export const notifyNewOrder = async (workspaceId, order) => {
       const msg = formatOrderMessage(wsName, order, productName);
 
       for (const target of allTargets) {
-        console.log(`📲 [WhatsApp Notif] Envoi vers ${target.phoneNumber} (${target.label || 'sans label'})`);
-        sendWhatsAppMessage({ to: target.phoneNumber, message: msg, workspaceId: String(wsId) }).catch(err => {
+        console.log(`📲 [WhatsApp Notif] Envoi vers ${target.phoneNumber} (${target.label || 'sans label'})${target.instanceId ? ` via instance ${target.instanceId}` : ''}`);
+        sendWhatsAppMessage({ to: target.phoneNumber, message: msg, workspaceId: String(wsId), instanceId: target.instanceId || undefined }).catch(err => {
           console.warn(`⚠️ [WhatsApp Notif] Echec envoi vers ${target.phoneNumber}: ${err.message}`);
         });
       }

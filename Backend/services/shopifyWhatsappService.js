@@ -157,9 +157,9 @@ function scorePatternAgainstProduct(pattern, normalizedProduct, productTokens) {
 }
 
 function normalizeSendOrder(order = []) {
-  if (!Array.isArray(order)) return ['text', 'image', 'audio'];
+  if (!Array.isArray(order)) return ['text'];
   const filtered = order.filter(step => ALLOWED_SEND_STEPS.includes(step));
-  return filtered.length > 0 ? filtered : ['text', 'image', 'audio'];
+  return filtered.length > 0 ? filtered : ['text'];
 }
 
 function resolveMediaRule(orderProduct = '', rules = []) {
@@ -263,168 +263,23 @@ async function sendAutoStep(step, context) {
 export async function sendClientOrderConfirmation(order, shopifyOrder, workspaceId, options = {}) {
   const logPrefix = `[Shopify→WhatsApp]`;
 
-  try {
-    // ── Vérifier qu'on a un numéro de téléphone ─────────────────────────
-    const rawPhone = order.clientPhone
-      || shopifyOrder?.customer?.phone
-      || shopifyOrder?.shipping_address?.phone
-      || shopifyOrder?.phone
-      || '';
+  // Compléter le téléphone depuis le payload Shopify si manquant sur la commande
+  const rawPhone = order.clientPhone
+    || shopifyOrder?.customer?.phone
+    || shopifyOrder?.shipping_address?.phone
+    || shopifyOrder?.phone
+    || '';
 
-    console.log(`📞 ${logPrefix} Téléphone brut : "${rawPhone}"`);
-    console.log(`   Sources → order.clientPhone: "${order.clientPhone || ''}" | customer.phone: "${shopifyOrder?.customer?.phone || ''}" | shipping.phone: "${shopifyOrder?.shipping_address?.phone || ''}" | order.phone: "${shopifyOrder?.phone || ''}"`);
+  console.log(`📞 ${logPrefix} Téléphone brut : "${rawPhone}" (order: "${order.clientPhone || ''}", customer: "${shopifyOrder?.customer?.phone || ''}", shipping: "${shopifyOrder?.shipping_address?.phone || ''}")`);
 
-    if (!rawPhone) {
-      console.log(`ℹ️ ${logPrefix} Commande #${order.orderId} — pas de téléphone client, WhatsApp non envoyé`);
-      return { success: false, error: 'Pas de numéro de téléphone' };
-    }
-
-    // ── Formater le numéro pour WhatsApp ─────────────────────────────────
-    const phoneResult = formatInternationalPhone(rawPhone);
-    if (!phoneResult.success) {
-      console.warn(`⚠️ ${logPrefix} Numéro invalide "${rawPhone}" : ${phoneResult.error}`);
-      return { success: false, error: `Numéro invalide: ${phoneResult.error}` };
-    }
-
-    const whatsappNumber = phoneResult.formatted;
-    console.log(`📱 ${logPrefix} Numéro formaté : "${rawPhone}" → "${whatsappNumber}"`);
-
-    // ── Extraire les données pour le template ────────────────────────────
-    const customer = shopifyOrder?.customer || {};
-    const lineItems = shopifyOrder?.line_items || [];
-    const currency = shopifyOrder?.currency || 'XAF';
-    const shippingCountry = shopifyOrder?.shipping_address?.country || '';
-    const shippingDeliveryType = shopifyOrder?.delivery_type || '';
-
-    const firstName = customer.first_name
-      || order.clientName?.split(' ')[0]
-      || 'Client';
-
-    const productNames = lineItems.length > 0
-      ? lineItems.map(li => li.title || li.name).filter(Boolean).join(', ')
-      : order.product || 'Produit';
-
-    const totalQuantity = lineItems.reduce((sum, li) => sum + (li.quantity || 1), 0)
-      || order.quantity
-      || 1;
-
-    // ── Construire le message ────────────────────────────────────────────
-    const message = buildConfirmationMessage({
-      firstName,
-      orderNumber: shopifyOrder?.order_number || order.orderId,
-      product:     productNames,
-      quantity:    totalQuantity,
-      city:        order.city || '',
-      totalPrice:  order.price || parseFloat(shopifyOrder?.total_price) || 0,
-      currency,
-      country: shippingCountry,
-      deliveryType: shippingDeliveryType,
-      storeName:     options.storeName || '',
-      customTemplate: options.customTemplate || null,
-    });
-
-    console.log(
-      `📱 ${logPrefix} Envoi WhatsApp à ${whatsappNumber} — commande #${order.orderId}`
-    );
-
-    // ── Récupérer la config auto (instance spécifique, médias, ordre) ───
-    const autoInstanceId = options.instanceId || null;
-    const autoImageUrl = options.imageUrl || null;
-    const autoVideoUrl = options.videoUrl || null;
-    const autoDocumentUrl = options.documentUrl || null;
-    const autoAudioUrl = options.audioUrl || null;
-    const sendOrder = normalizeSendOrder(options.sendOrder || ['text', 'image', 'audio']);
-
-    // ── Envoi progressif configurable ─────────────────────────────────────
-    console.log(`📩 ${logPrefix} Envoi WhatsApp à : ${whatsappNumber} (instance: ${autoInstanceId || 'auto'})`);
-    let result = null;
-    for (const step of sendOrder) {
-      try {
-        const stepResult = await sendAutoStep(step, {
-          whatsappNumber,
-          workspaceId,
-          instanceId: autoInstanceId,
-          message,
-          media: {
-            imageUrl: autoImageUrl,
-            videoUrl: autoVideoUrl,
-            documentUrl: autoDocumentUrl,
-            audioUrl: autoAudioUrl,
-          }
-        });
-        if (stepResult && !result && step === 'text') {
-          result = stepResult;
-        }
-        if (stepResult) {
-          console.log(`✅ ${logPrefix} Étape envoyée: ${step}`);
-        }
-        await new Promise(r => setTimeout(r, 1200));
-      } catch (stepErr) {
-        console.warn(`⚠️ ${logPrefix} Erreur envoi étape ${step}: ${stepErr.message}`);
-      }
-    }
-
-    // ── Logger dans WhatsAppLog ──────────────────────────────────────────
-    await WhatsAppLog.create({
-      workspaceId,
-      userId:       null,
-      phoneNumber:  whatsappNumber,
-      message,
-      status:       'sent',
-      messageId:    result?.messageId || '',
-      instanceName: result?.instanceName || '',
-      messageType:  'text',
-      metadata: {
-        trigger: 'shopify_order_confirmation',
-        orderId: order._id,
-        shopifyOrderId: order.orderId,
-        orderNumber: shopifyOrder?.order_number,
-      },
-    });
-
-    console.log(
-      `✅ ${logPrefix} Message envoyé — commande #${order.orderId}, dest: ${whatsappNumber}`
-    );
-
-    // ── Marquer la commande comme notifiée ───────────────────────────────
-    try {
-      await order.constructor.updateOne(
-        { _id: order._id },
-        {
-          whatsappNotificationSent:   true,
-          whatsappNotificationSentAt: new Date(),
-        }
-      );
-    } catch (updateErr) {
-      console.warn(`⚠️ ${logPrefix} Erreur mise à jour flag WhatsApp: ${updateErr.message}`);
-    }
-
-    return { success: true, messageId: result?.messageId };
-
-  } catch (err) {
-    console.error(`❌ ${logPrefix} Erreur envoi WhatsApp — commande #${order?.orderId}: ${err.message}`);
-
-    // Logger l'échec
-    try {
-      await WhatsAppLog.create({
-        workspaceId,
-        phoneNumber:  order.clientPhone || '',
-        message:      '',
-        status:       'failed',
-        errorMessage: err.message,
-        messageType:  'text',
-        metadata: {
-          trigger: 'shopify_order_confirmation',
-          orderId: order._id,
-          shopifyOrderId: order.orderId,
-        },
-      });
-    } catch {
-      // Ignorer si le log échoue aussi
-    }
-
-    return { success: false, error: err.message };
+  if (rawPhone && !order.clientPhone) {
+    order.clientPhone = rawPhone.replace(/\D/g, '');
   }
+
+  // Déléguer à sendOrderConfirmationToClient qui gère toute la logique
+  // (règles produit, instance dédiée, template, médias, whatsappAutoConfirm)
+  console.log(`📱 ${logPrefix} Délégation à sendOrderConfirmationToClient — commande #${order.orderId}`);
+  return sendOrderConfirmationToClient(order, workspaceId);
 }
 
 /**
@@ -463,25 +318,48 @@ export async function sendOrderConfirmationToClient(order, workspaceId) {
       .select('whatsappAutoConfirm whatsappOrderTemplate whatsappAutoInstanceId whatsappAutoImageUrl whatsappAutoVideoUrl whatsappAutoDocumentUrl whatsappAutoAudioUrl whatsappAutoSendOrder whatsappAutoProductMediaRules storeSettings name')
       .lean();
 
+    console.log(`🔍 ${logPrefix} workspace trouvé: ${workspace ? 'OUI' : 'NON'}, whatsappAutoConfirm: ${workspace?.whatsappAutoConfirm}, workspaceId: ${workspaceId}`);
+
     if (!workspace?.whatsappAutoConfirm) {
       console.log(`ℹ️ ${logPrefix} WhatsApp auto désactivé pour workspace ${workspaceId}`);
       return { success: false, error: 'WhatsApp auto désactivé' };
     }
 
     const rawPhone = order.clientPhone || '';
+    console.log(`📞 ${logPrefix} Téléphone: "${rawPhone}", commande: #${order.orderId}, produit: "${order.product}"`);
     if (!rawPhone) {
       console.log(`ℹ️ ${logPrefix} Commande #${order.orderId} — pas de téléphone client`);
       return { success: false, error: 'Pas de numéro de téléphone' };
     }
 
     const phoneResult = formatInternationalPhone(rawPhone);
+    console.log(`📱 ${logPrefix} Format tél: success=${phoneResult.success}, formatted="${phoneResult.formatted}", error="${phoneResult.error || ''}"`);
     if (!phoneResult.success) {
-      console.warn(`⚠️ ${logPrefix} Numéro invalide "${rawPhone}" : ${phoneResult.error}`);
-      return { success: false, error: `Numéro invalide: ${phoneResult.error}` };
+      // Fallback : essayer d'envoyer avec le numéro brut nettoyé si assez long
+      const fallbackDigits = rawPhone.replace(/\D/g, '');
+      if (fallbackDigits.length >= 8) {
+        console.warn(`⚠️ ${logPrefix} Format échoué mais fallback sur "${fallbackDigits}"`);
+        // continue avec fallback ci-dessous
+      } else {
+        console.warn(`⚠️ ${logPrefix} Numéro invalide "${rawPhone}" : ${phoneResult.error}`);
+        return { success: false, error: `Numéro invalide: ${phoneResult.error}` };
+      }
     }
 
-    const whatsappNumber = phoneResult.formatted;
+    const whatsappNumber = phoneResult.formatted || rawPhone.replace(/\D/g, '');
     const storeName = workspace.storeSettings?.storeName || workspace.name || '';
+    console.log(`📲 ${logPrefix} Numéro final: "${whatsappNumber}"`);
+
+    const matchedRule = resolveMediaRule(order.product, workspace.whatsappAutoProductMediaRules || []);
+    if (matchedRule) {
+      console.log(`📦 ${logPrefix} Règle produit trouvée: "${matchedRule.productKeyword}"${matchedRule.instanceId ? ` → instance ${matchedRule.instanceId}` : ''}`);
+    }
+
+    // Instance: règle produit > instance globale
+    const autoInstanceId = matchedRule?.instanceId || workspace.whatsappAutoInstanceId || null;
+
+    // Template: règle produit > template global
+    const effectiveTemplate = matchedRule?.template || workspace.whatsappOrderTemplate || null;
 
     const message = buildConfirmationMessage({
       firstName:      order.clientName?.split(' ')[0] || 'Client',
@@ -494,13 +372,11 @@ export async function sendOrderConfirmationToClient(order, workspaceId) {
       country:        order.rawData?.shipping_address?.country || order.country || '',
       deliveryType:   order.rawData?.delivery_type || order.deliveryType || '',
       storeName,
-      customTemplate: workspace.whatsappOrderTemplate || null,
+      customTemplate: effectiveTemplate,
     });
 
-    console.log(`📱 ${logPrefix} Envoi WhatsApp à ${whatsappNumber} — commande #${order.orderId}`);
+    console.log(`📱 ${logPrefix} Envoi WhatsApp à ${whatsappNumber} — commande #${order.orderId}${autoInstanceId ? ` via instance ${autoInstanceId}` : ''}`);
 
-    const autoInstanceId = workspace.whatsappAutoInstanceId || null;
-    const matchedRule = resolveMediaRule(order.product, workspace.whatsappAutoProductMediaRules || []);
     const media = {
       imageUrl: matchedRule?.imageUrl || workspace.whatsappAutoImageUrl || null,
       videoUrl: matchedRule?.videoUrl || workspace.whatsappAutoVideoUrl || null,

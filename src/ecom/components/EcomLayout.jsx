@@ -494,7 +494,7 @@ const EcomLayoutComponent = ({ children }) => {
   console.log('[EcomLayout] workspace?.subscriptionWarning:', JSON.stringify(workspace?.subscriptionWarning));
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col lg:flex-row overflow-x-hidden max-w-[100vw]">
+    <div className="ecom-app min-h-dvh bg-gray-50 flex flex-col lg:flex-row overflow-x-hidden max-w-[100vw]">
       <TopLoader />
       {/* Subscription Warning Banner — alerte rouge renouvellement */}
       {workspace?.subscriptionWarning?.active && (
@@ -596,10 +596,10 @@ const EcomLayoutComponent = ({ children }) => {
       {/* Main content area */}
       <div className="flex-1 flex flex-col min-w-0 lg:ml-[220px]">
         {/* ── Mobile Header: Scalor style (hidden on chat) ── */}
-        <header className={`lg:hidden fixed top-0 left-0 right-0 z-20 bg-white border-b border-gray-200 ${location.pathname.startsWith('/ecom/chat') ? 'hidden' : ''}`}>
-          <div className="flex items-center justify-between h-14 px-4">
+        <header className={`lg:hidden fixed top-0 left-0 right-0 z-20 bg-white border-b border-gray-200 pt-safe ${location.pathname.startsWith('/ecom/chat') ? 'hidden' : ''}`}>
+          <div className="flex items-center justify-between min-h-[56px] px-3 sm:px-4">
             {/* Logo left */}
-            <Link to={dashboardPath} className="flex items-center gap-2">
+            <Link to={dashboardPath} className="flex min-h-[44px] min-w-[44px] items-center gap-2">
               <img src="/logo.png" alt="Scalor" className="h-7 object-contain" />
             </Link>
 
@@ -612,7 +612,8 @@ const EcomLayoutComponent = ({ children }) => {
               <div ref={notifRef}>
                 <button
                   onClick={() => { setNotifOpen(!notifOpen); setUserMenuOpen(false); }}
-                  className="relative w-9 h-9 flex items-center justify-center rounded-full bg-gray-100 text-gray-600 active:bg-gray-200"
+                  className="relative flex h-11 w-11 items-center justify-center rounded-full bg-gray-100 text-gray-600 active:bg-gray-200"
+                  aria-label="Ouvrir les notifications"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
                   {unreadCount > 0 && <span className="absolute top-0 right-0 min-w-[18px] h-[18px] flex items-center justify-center px-1 rounded-full bg-[#0F6B4F] text-white text-[10px] font-bold">{unreadCount > 99 ? '99+' : unreadCount}</span>}
@@ -620,7 +621,7 @@ const EcomLayoutComponent = ({ children }) => {
               </div>
 
               {/* Profile */}
-              <Link to="/ecom/profile" className="w-9 h-9 flex items-center justify-center">
+              <Link to="/ecom/profile" className="flex h-11 w-11 items-center justify-center" aria-label="Ouvrir le profil">
                 {displayUser?.avatar ? (
                   <img src={displayUser.avatar} alt="" className="w-9 h-9 rounded-full object-cover" />
                 ) : (
@@ -777,8 +778,8 @@ const EcomLayoutComponent = ({ children }) => {
         )}
 
         {/* Page content - pb-safe-nav = pb-20 + home indicator sur iOS */}
-        <main className={`flex-1 overflow-y-auto overflow-x-hidden pb-safe-nav lg:pb-0 ${
-          workspace?.trialEndsAt ? 'pt-32 lg:pt-28' : 'pt-14 pt-safe-header lg:pt-14'
+        <main className={`flex-1 min-w-0 overflow-y-auto overflow-x-hidden pb-safe-nav lg:pb-0 ${
+          workspace?.trialEndsAt ? 'pt-32 lg:pt-28' : 'pt-safe-header lg:pt-14'
         }`}>
           {children}
         </main>
@@ -896,7 +897,7 @@ const EcomLayoutComponent = ({ children }) => {
 
       {/* ── Mobile Bottom Tab Bar - Scalor style (hidden on chat page) ── */}
       <nav className={`lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-200 ${location.pathname.startsWith('/ecom/chat') ? 'hidden' : ''}`}>
-        <div className="flex items-stretch px-2 bottom-nav-safe" style={{ height: '60px' }}>
+        <div className="flex items-stretch gap-1 px-2 bottom-nav-safe min-h-[64px]">
           {mobileMainTabs.map((item) => {
             const active = isActive(item.href);
             const locked = item.requiredPlan && !hasPlan(item.requiredPlan);
@@ -909,7 +910,8 @@ const EcomLayoutComponent = ({ children }) => {
                 key={item.name}
                 to={item.href}
                 onClick={handleClick}
-                className="flex flex-col items-center justify-center flex-1 gap-1 transition-all duration-200 active:scale-95 relative"
+                className="flex min-h-[56px] min-w-[44px] flex-1 flex-col items-center justify-center gap-1 rounded-xl transition-all duration-200 active:scale-95 relative"
+                aria-label={item.name}
               >
                 {locked && (
                   <span className="absolute top-1 right-3 w-2 h-2 rounded-full bg-amber-500" />
@@ -917,7 +919,7 @@ const EcomLayoutComponent = ({ children }) => {
                 <span className={`transition-colors duration-200 ${active ? 'text-[#0F6B4F]' : 'text-gray-500'}`}>
                   {mobileIcon(item)}
                 </span>
-                <span className={`text-[10px] font-medium leading-none transition-colors duration-200 ${
+                <span className={`max-w-full truncate text-[10px] font-medium leading-none transition-colors duration-200 ${
                   active ? 'text-gray-900' : 'text-gray-500'
                 }`}>{item.shortName}</span>
               </Link>
@@ -928,13 +930,15 @@ const EcomLayoutComponent = ({ children }) => {
             <div className="relative flex-1">
               <button
                 onClick={() => setMoreMenuOpen(!moreMenuOpen)}
-                className="flex flex-col items-center justify-center w-full h-full gap-1 transition-all duration-200 active:scale-95"
+                className="flex min-h-[56px] min-w-[44px] w-full flex-col items-center justify-center gap-1 rounded-xl transition-all duration-200 active:scale-95"
+                aria-expanded={moreMenuOpen}
+                aria-label="Ouvrir le menu"
               >
                 <svg className={`w-5 h-5 transition-colors duration-200 ${moreMenuOpen ? 'text-[#0F6B4F]' : 'text-gray-500'}`} fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01" />
                   <circle cx="12" cy="12" r="10" strokeWidth={1.5} />
                 </svg>
-                <span className={`text-[10px] font-medium leading-none transition-colors duration-200 ${
+                <span className={`max-w-full truncate text-[10px] font-medium leading-none transition-colors duration-200 ${
                   moreMenuOpen ? 'text-gray-900' : 'text-gray-500'
                 }`}>Menu</span>
               </button>

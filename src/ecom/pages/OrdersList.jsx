@@ -172,11 +172,13 @@ const OrdersList = () => {
     instanceId: '',
     imageUrl: '',
     audioUrl: '',
-    template: ''
+    template: '',
+    productRules: []  // [{productKeyword, instanceId, template, imageUrl, audioUrl}]
   });
   const [savingAutoConfig, setSavingAutoConfig] = useState(false);
   const [uploadingAutoImage, setUploadingAutoImage] = useState(false);
   const [uploadingAutoAudio, setUploadingAutoAudio] = useState(false);
+  const [uploadingRuleMedia, setUploadingRuleMedia] = useState({});
   const [showAddSheetModal, setShowAddSheetModal] = useState(false);
   const [newSheetData, setNewSheetData] = useState({ name: '', spreadsheetId: '', sheetName: 'Sheet1' });
   const [savingSheet, setSavingSheet] = useState(false);
@@ -494,7 +496,8 @@ const OrdersList = () => {
         instanceId: res.data.data.whatsappAutoInstanceId || '',
         imageUrl: res.data.data.whatsappAutoImageUrl || '',
         audioUrl: res.data.data.whatsappAutoAudioUrl || '',
-        template: res.data.data.whatsappOrderTemplate || ''
+        template: res.data.data.whatsappOrderTemplate || '',
+        productRules: res.data.data.whatsappAutoProductMediaRules || []
       });
     } catch (err) {
       console.error('Erreur récupération config WhatsApp:', err);
@@ -647,6 +650,23 @@ const OrdersList = () => {
     }
   };
 
+  const handleRuleMediaUpload = async (ridx, field, file) => {
+    if (!file) return;
+    setUploadingRuleMedia(prev => ({ ...prev, [`${ridx}_${field}`]: true }));
+    try {
+      const fd = new FormData();
+      fd.append('image', file);
+      const { data } = await ecomApi.post('/v1/external/whatsapp/upload-image', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      if (data.url) {
+        setAutoConfig(prev => ({ ...prev, productRules: prev.productRules.map((r, i) => i === ridx ? { ...r, [field]: data.url } : r) }));
+      }
+    } catch {
+      setError('Erreur upload');
+    } finally {
+      setUploadingRuleMedia(prev => ({ ...prev, [`${ridx}_${field}`]: false }));
+    }
+  };
+
   const saveAutoConfig = async () => {
     setSavingAutoConfig(true);
     try {
@@ -655,7 +675,24 @@ const OrdersList = () => {
         whatsappAutoInstanceId: autoConfig.instanceId || null,
         whatsappAutoImageUrl: autoConfig.imageUrl || null,
         whatsappAutoAudioUrl: autoConfig.audioUrl || null,
-        whatsappOrderTemplate: autoConfig.template || null
+        whatsappOrderTemplate: autoConfig.template || null,
+        whatsappAutoProductMediaRules: (autoConfig.productRules || [])
+          .filter(r => r.productKeyword?.trim())
+          .map(r => {
+            const sendOrder = ['text'];
+            if (r.imageUrl) sendOrder.push('image');
+            if (r.videoUrl) sendOrder.push('video');
+            if (r.audioUrl) sendOrder.push('audio');
+            return {
+              productKeyword: r.productKeyword.trim(),
+              instanceId: r.instanceId || null,
+              template: r.template || null,
+              imageUrl: r.imageUrl || null,
+              videoUrl: r.videoUrl || null,
+              audioUrl: r.audioUrl || null,
+              sendOrder
+            };
+          })
       });
       if (res.data.success) {
         setWhatsappAutoConfirm(true);
@@ -736,6 +773,12 @@ const OrdersList = () => {
   // Ouvrir le modal notifs en rechargeant les groupes depuis la DB
   const openNotifModal = async () => {
     await fetchWhatsAppConfig();
+    if (whatsappInstances.length === 0) {
+      try {
+        const res = await ecomApi.get('/orders/whatsapp-instances');
+        setWhatsappInstances(res.data.data || []);
+      } catch { /* ignore */ }
+    }
     setShowWhatsAppConfig(true);
   };
 
@@ -1025,7 +1068,7 @@ const OrdersList = () => {
                 }));
                 
                 // Afficher un message de succès
-                setSuccess(`✅ Nouvelle commande: ${newOrder.clientName || 'Client'} — ${newOrder.product || 'Produit'}`);
+                setSuccess(`Nouvelle commande : ${newOrder.clientName || 'Client'} - ${newOrder.product || 'Produit'}`);
                 
                 // Jouer un son
                 playCashRegisterSound();
@@ -1049,7 +1092,7 @@ const OrdersList = () => {
     const handleOrderStatusChanged = (event) => {
       const { _id, orderId, status, assignedLivreur, updatedAt, tags } = event.detail || {};
       if (!_id || !status) return;
-      console.log('🚚 [Socket] Mise à jour statut livreur:', orderId, '→', status);
+      console.log('[Socket] Mise à jour statut livreur:', orderId, '->', status);
       setOrders(prev => prev.map(o =>
         String(o._id) === String(_id) ? { ...o, status, assignedLivreur: assignedLivreur ?? o.assignedLivreur, updatedAt: updatedAt ?? o.updatedAt, tags: tags ?? o.tags } : o
       ));
@@ -1096,8 +1139,10 @@ const OrdersList = () => {
   // Fermer le menu d'importation quand on clique ailleurs
   useEffect(() => {
     if (!showImportMenu) return;
-    
+
     const handleClickOutside = (e) => {
+      const importPanel = e.target.closest('.orders-import-menu-panel');
+      if (importPanel) return;
       if (importMenuRef.current && !importMenuRef.current.contains(e.target)) {
         setShowImportMenu(false);
       }
@@ -1166,9 +1211,9 @@ const OrdersList = () => {
           ...prev,
           total: (prev.total || 0) + uniqueNewOrders.length
         }));
-        setSuccess(`✅ ${uniqueNewOrders.length} nouvelle${uniqueNewOrders.length > 1 ? 's' : ''} commande${uniqueNewOrders.length > 1 ? 's' : ''} ajoutée${uniqueNewOrders.length > 1 ? 's' : ''}`);
+        setSuccess(`${uniqueNewOrders.length} nouvelle${uniqueNewOrders.length > 1 ? 's' : ''} commande${uniqueNewOrders.length > 1 ? 's' : ''} ajoutée${uniqueNewOrders.length > 1 ? 's' : ''}`);
       } else {
-        setSuccess('✅ Synchronisation terminée, aucune nouvelle commande');
+        setSuccess('Synchronisation terminée, aucune nouvelle commande');
       }
       
       // Sync clients auto après sync sheets
@@ -1329,7 +1374,7 @@ const OrdersList = () => {
         total
       });
       
-      let message = `✅ Synchronisation terminée !\n\n`;
+      let message = `Synchronisation terminée !\n\n`;
       message += `📊 ${total} clients traités (${created} créés, ${updated} mis à jour)\n\n`;
       message += `📈 Répartition par statut :\n`;
       
@@ -1484,9 +1529,9 @@ const OrdersList = () => {
   const handleCopyOrder = (order) => {
     const textToCopy = buildOrderDeliveryMessage(order);
     navigator.clipboard.writeText(textToCopy).then(() => {
-      setSuccess('✅ Commande copiée dans le presse-papier !');
+      setSuccess('Commande copiée dans le presse-papier');
     }).catch(() => {
-      setError('❌ Impossible de copier dans le presse-papier');
+      setError('Impossible de copier dans le presse-papier');
     });
   };
 
@@ -1687,7 +1732,7 @@ const OrdersList = () => {
     }).filter(s => knownStatusKeys.has(s.key) || stats[s.key] || orders.some(o => o.status === s.key));
   }, [orders, stats]);
 
-  const activeFiltersCount = [filterCity, filterProduct, filterTag, filterStartDate, filterEndDate].filter(Boolean).length;
+  const activeFiltersCount = [filterStatus, filterCity, filterProduct, filterTag, filterStartDate, filterEndDate, search].filter(Boolean).length;
 
   const quickDatePresets = useMemo(() => {
     const todayDate = new Date();
@@ -1864,7 +1909,6 @@ const OrdersList = () => {
   }, [filterStatus, filterCity, filterProduct, filterTag, filterStartDate, filterEndDate, search, orders, stats, user?.currency]);
 
   const deliveryRate = filteredStats.total ? ((filteredStats.delivered || 0) / filteredStats.total * 100).toFixed(1) : 0;
-  const returnRate = filteredStats.total ? ((filteredStats.returned || 0) / filteredStats.total * 100).toFixed(1) : 0;
 
   // Calculer les compteurs de filtres dynamiques (sans le filtre de statut)
   const dynamicFilterCounts = useMemo(() => {
@@ -1924,34 +1968,66 @@ const OrdersList = () => {
     return counts;
   }, [filterCity, filterProduct, filterTag, filterStartDate, filterEndDate, search, orders]);
 
-  if (loading) return (
-    <div className="p-3 sm:p-4 lg:p-6 max-w-[1400px] mx-auto">
-      {/* Skeleton header */}
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <div className="h-7 w-40 bg-gray-200 rounded-lg animate-pulse mb-2"></div>
-          <div className="h-4 w-24 bg-gray-100 rounded animate-pulse"></div>
+  const renderImportMenuOptions = () => (
+    <>
+      <button
+        onClick={() => {
+          setShowImportMenu(false);
+          navigate('/ecom/import');
+        }}
+        className="flex min-h-[44px] w-full min-w-0 items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-primary-50 transition"
+      >
+        <svg className="w-5 h-5 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+        <div className="flex-1 text-left">
+          <div className="font-medium text-gray-900">Google Sheets</div>
+          <div className="text-xs text-gray-500">Importer depuis un tableur</div>
         </div>
-        <div className="flex gap-2">
-          <div className="h-9 w-20 bg-gray-200 rounded-xl animate-pulse"></div>
-          <div className="h-9 w-20 bg-gray-200 rounded-xl animate-pulse"></div>
+      </button>
+      <button
+        onClick={() => {
+          setShowImportMenu(false);
+          navigate('/ecom/integrations/shopify');
+        }}
+        className="flex min-h-[44px] w-full min-w-0 items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-primary-50 transition"
+      >
+        <svg className="w-5 h-5 text-primary-600" fill="currentColor" viewBox="0 0 24 24"><path d="M15.337 2.136c-.012-.012-.025-.012-.037-.024-.012-.013-.025-.013-.037-.025l-.427-.214c-.287-.15-.65-.1-.888.125l-.325.3c-.1.088-.225.163-.35.238-.538-.163-1.15-.238-1.825-.125-1.05.175-2.037.713-2.787 1.525-.537.575-.925 1.275-1.137 2.038-.688.2-1.175.35-1.2.363-.362.112-.375.125-.425.475-.037.262-1.05 8.1-1.05 8.1l10.562 2.025 5.1-1.188S15.35 2.148 15.337 2.136zm-2.7.938c-.175.05-.375.113-.6.175v-.15c0-.525-.075-1-.2-1.438.375.088.65.725.8 1.413zm-1.4-.363c-.125.038-.25.075-.4.125V1.723c0-.45-.088-.875-.238-1.25.538.2.888.863 1.013 1.638-.125.037-.25.075-.375.1zm-.95-1.788c.15.375.225.813.225 1.313v.088c-.4.125-.838.25-1.288.388.25-.963.725-1.438 1.063-1.788zm-.538 10.325l-.875-2.913c.4-.15.913-.325 1.013-.363.125-.037.15.05.15.1 0 .063-.025 1.663-.288 3.176zm3.338-8.738c-.012-.537-.1-1.025-.237-1.45.537.175.875.8 1.05 1.438-.188.062-.513.15-.813.237v-.225z"/></svg>
+        <div className="flex-1 text-left">
+          <div className="font-medium text-gray-900">Shopify</div>
+          <div className="text-xs text-gray-500">Importer depuis Shopify</div>
+        </div>
+      </button>
+    </>
+  );
+
+  if (loading) return (
+    <div className="p-3 sm:p-4 lg:p-6 max-w-[1400px] mx-auto space-y-4">
+      {/* Skeleton header */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="space-y-2">
+          <div className="h-7 w-40 bg-gray-200 rounded-md animate-pulse"></div>
+          <div className="h-4 w-64 max-w-full bg-gray-100 rounded animate-pulse"></div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <div className="h-11 w-11 bg-gray-200 rounded-lg animate-pulse"></div>
+          <div className="h-11 w-24 bg-gray-200 rounded-lg animate-pulse"></div>
+          <div className="h-11 w-24 bg-gray-200 rounded-lg animate-pulse"></div>
         </div>
       </div>
       {/* Skeleton stats */}
-      <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 mb-4">
-        {[...Array(5)].map((_, i) => (
-          <div key={i} className="bg-white rounded-xl p-3 border border-gray-100">
-            <div className="h-3 w-16 bg-gray-200 rounded animate-pulse mb-2"></div>
-            <div className="h-6 w-10 bg-gray-200 rounded animate-pulse"></div>
+      <div className="grid grid-cols-2 gap-2">
+        {[...Array(2)].map((_, i) => (
+          <div key={i} className="bg-white rounded-lg p-3 border border-gray-200">
+            <div className="h-3 w-20 bg-gray-200 rounded animate-pulse mb-3"></div>
+            <div className="h-6 w-24 bg-gray-200 rounded animate-pulse"></div>
           </div>
         ))}
       </div>
       {/* Skeleton cards */}
-      <div className="space-y-3">
+      <div className="space-y-2">
         {[...Array(6)].map((_, i) => (
-          <div key={i} className="bg-white rounded-xl border border-gray-100 p-4">
-            <div className="flex justify-between mb-3">
-              <div className="h-5 w-32 bg-gray-200 rounded animate-pulse"></div>
+          <div key={i} className="bg-white rounded-lg border border-gray-200 p-4">
+            <div className="flex justify-between gap-4 mb-3">
+              <div className="h-5 w-40 bg-gray-200 rounded animate-pulse"></div>
               <div className="h-5 w-20 bg-gray-200 rounded animate-pulse"></div>
             </div>
             <div className="flex gap-3 mb-3">
@@ -1972,7 +2048,7 @@ const OrdersList = () => {
   /* Source selector removed — import is now handled at /import */
 
   return (
-    <div className="p-3 sm:p-4 lg:p-6 max-w-[1400px] mx-auto">
+    <div className="p-3 sm:p-4 lg:p-6 max-w-[1400px] mx-auto space-y-4">
       {/* Barre de chargement fluide */}
       {refreshing && (
         <div className="fixed top-0 left-0 right-0 z-[9999] h-0.5 bg-primary-100 overflow-hidden">
@@ -2030,8 +2106,8 @@ const OrdersList = () => {
       })()}
       
       {/* Header */}
-      <div className="flex items-start sm:items-center justify-between mb-3 sm:mb-4 gap-2">
-        <div className="min-w-0 flex-1">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="min-w-0 w-full sm:flex-1">
           <h1 className="text-lg sm:text-2xl font-bold text-gray-900 truncate">
             {selectedSourceId ? sources.find(s => s._id === selectedSourceId)?.name : 'Commandes'}
           </h1>
@@ -2048,14 +2124,14 @@ const OrdersList = () => {
             )}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto sm:flex-nowrap">
           {/* Toggle tous les espaces pour Super Admin */}
           {isSuperAdmin && (
             <button
               onClick={() => setViewAllWorkspaces(!viewAllWorkspaces)}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition text-xs font-medium ${
+              className={`inline-flex min-h-[44px] items-center gap-1.5 px-3 py-1.5 rounded-lg transition text-xs font-medium ${
                 viewAllWorkspaces
-                  ? 'bg-primary-700 text-white hover:bg-primary-800'
+                  ? 'bg-gray-900 text-white hover:bg-gray-800'
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
               title={viewAllWorkspaces ? 'Voir toutes les commandes de tous les espaces' : 'Voir uniquement les commandes de mon espace'}
@@ -2063,19 +2139,19 @@ const OrdersList = () => {
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={viewAllWorkspaces ? "M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" : "M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"} />
               </svg>
-              {viewAllWorkspaces ? '🌍 Tous les espaces' : '🏢 Mon espace'}
+              {viewAllWorkspaces ? 'Tous les espaces' : 'Mon espace'}
             </button>
           )}
           {isAdmin && (
             <>
               {/* Toggle WhatsApp auto — visible sur desktop et mobile */}
-              <div className="inline-flex items-center">
+              <div className="inline-flex min-h-[44px] items-center">
                 <button
                   onClick={toggleWhatsAppAuto}
-                  className={`inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1.5 transition text-[11px] sm:text-xs font-medium ${
+                  className={`inline-flex min-h-[44px] items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 transition text-[11px] sm:text-xs font-medium ${
                     whatsappAutoConfirm
                       ? 'bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 rounded-l-xl border-r-0'
-                      : 'bg-gray-50 text-gray-500 border border-gray-200 hover:bg-gray-100 rounded-xl'
+                      : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50 rounded-xl'
                   }`}
                   title={whatsappAutoConfirm ? 'Cliquer pour désactiver' : 'Cliquer pour configurer et activer'}
                 >
@@ -2088,8 +2164,9 @@ const OrdersList = () => {
                 {whatsappAutoConfirm && (
                   <button
                     onClick={openAutoConfigModal}
-                    className="inline-flex items-center px-1.5 py-1.5 bg-green-50 text-green-600 border border-green-200 border-l-0 rounded-r-xl hover:bg-green-100 transition"
+                    className="inline-flex h-11 w-11 items-center justify-center px-2 py-1.5 bg-green-50 text-green-600 border border-green-200 border-l-0 rounded-r-xl hover:bg-green-100 transition"
                     title="Modifier la configuration Auto WhatsApp"
+                    aria-label="Modifier la configuration Auto WhatsApp"
                   >
                     <svg className="w-3 h-3 sm:w-3.5 sm:h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
                   </button>
@@ -2098,8 +2175,9 @@ const OrdersList = () => {
 
               <button
                 onClick={openNotifModal}
-                className="hidden sm:flex p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition"
+                className="inline-flex h-11 w-11 items-center justify-center p-2 text-gray-600 bg-white border border-gray-200 hover:text-gray-900 hover:bg-gray-50 rounded-xl transition"
                 title="Configurer WhatsApp auto"
+                aria-label="Configurer les notifications WhatsApp"
               >
                 <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
@@ -2107,7 +2185,7 @@ const OrdersList = () => {
               </button>
               <button
                 onClick={openCreateOrder}
-                className="inline-flex items-center gap-1 px-2.5 sm:px-3 py-1.5 sm:py-2 bg-primary-600 text-white rounded-xl active:scale-95 transition text-[11px] sm:text-xs font-semibold"
+                className="inline-flex h-11 w-11 items-center justify-center gap-1 px-2.5 sm:h-auto sm:min-h-[44px] sm:w-auto sm:px-3 py-1.5 sm:py-2 bg-primary-600 text-white rounded-xl active:scale-95 transition text-[11px] sm:text-xs font-semibold shadow-sm"
                 title="Ajouter une commande"
               >
                 <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
@@ -2116,47 +2194,24 @@ const OrdersList = () => {
               <div className="relative" ref={importMenuRef}>
                 <button
                   onClick={() => setShowImportMenu(!showImportMenu)}
-                  className="inline-flex items-center gap-1 px-2.5 sm:px-3 py-1.5 sm:py-2 bg-primary-600 text-white rounded-xl active:scale-95 transition text-[11px] sm:text-xs font-semibold"
+                  className="inline-flex h-11 w-11 items-center justify-center gap-1 px-2.5 sm:h-auto sm:min-h-[44px] sm:w-auto sm:px-3 py-1.5 sm:py-2 bg-white text-gray-700 border border-gray-200 rounded-xl active:scale-95 hover:bg-gray-50 transition text-[11px] sm:text-xs font-semibold"
+                  aria-label="Importer des commandes"
+                  aria-expanded={showImportMenu}
                 >
                   <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 013 3h10a3 3 0 013-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
                   <span className="hidden sm:inline">Importer</span>
                   <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
                 </button>
                 {showImportMenu && (
-                  <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-lg border border-gray-200 py-1 z-50">
-                    <button
-                      onClick={() => {
-                        setShowImportMenu(false);
-                        navigate('/ecom/import');
-                      }}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-primary-50 transition"
-                    >
-                      <svg className="w-5 h-5 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                      <div className="flex-1 text-left">
-                        <div className="font-medium text-gray-900">Google Sheets</div>
-                        <div className="text-xs text-gray-500">Importer depuis un tableur</div>
-                      </div>
-                    </button>
-                    <button
-                      onClick={() => {
-                        setShowImportMenu(false);
-                        navigate('/ecom/integrations/shopify');
-                      }}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-primary-50 transition"
-                    >
-                      <svg className="w-5 h-5 text-primary-600" fill="currentColor" viewBox="0 0 24 24"><path d="M15.337 2.136c-.012-.012-.025-.012-.037-.024-.012-.013-.025-.013-.037-.025l-.427-.214c-.287-.15-.65-.1-.888.125l-.325.3c-.1.088-.225.163-.35.238-.538-.163-1.15-.238-1.825-.125-1.05.175-2.037.713-2.787 1.525-.537.575-.925 1.275-1.137 2.038-.688.2-1.175.35-1.2.363-.362.112-.375.125-.425.475-.037.262-1.05 8.1-1.05 8.1l10.562 2.025 5.1-1.188S15.35 2.148 15.337 2.136zm-2.7.938c-.175.05-.375.113-.6.175v-.15c0-.525-.075-1-.2-1.438.375.088.65.725.8 1.413zm-1.4-.363c-.125.038-.25.075-.4.125V1.723c0-.45-.088-.875-.238-1.25.538.2.888.863 1.013 1.638-.125.037-.25.075-.375.1zm-.95-1.788c.15.375.225.813.225 1.313v.088c-.4.125-.838.25-1.288.388.25-.963.725-1.438 1.063-1.788zm-.538 10.325l-.875-2.913c.4-.15.913-.325 1.013-.363.125-.037.15.05.15.1 0 .063-.025 1.663-.288 3.176zm3.338-8.738c-.012-.537-.1-1.025-.237-1.45.537.175.875.8 1.05 1.438-.188.062-.513.15-.813.237v-.225z"/></svg>
-                      <div className="flex-1 text-left">
-                        <div className="font-medium text-gray-900">Shopify</div>
-                        <div className="text-xs text-gray-500">Importer depuis Shopify</div>
-                      </div>
-                    </button>
+                  <div className="orders-import-menu orders-import-menu-panel absolute right-0 mt-2 hidden w-56 overflow-hidden rounded-xl border border-gray-200 bg-white py-1 shadow-lg z-50 sm:block">
+                    {renderImportMenuOptions()}
                   </div>
                 )}
               </div>
               <button
                 onClick={() => handleSync()}
                 disabled={syncDisabled}
-                className="inline-flex items-center gap-1 px-2.5 sm:px-3 py-1.5 sm:py-2 bg-orange-600 text-white rounded-xl active:scale-95 transition text-[11px] sm:text-xs font-semibold disabled:opacity-50"
+                className="inline-flex h-11 w-11 items-center justify-center gap-1 px-2.5 sm:h-auto sm:min-h-[44px] sm:w-auto sm:px-3 py-1.5 sm:py-2 bg-white text-gray-700 border border-gray-200 rounded-xl active:scale-95 hover:bg-gray-50 transition text-[11px] sm:text-xs font-semibold disabled:opacity-50"
                 title="Synchroniser"
               >
                 <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
@@ -2164,7 +2219,7 @@ const OrdersList = () => {
               </button>
               <button
                 onClick={() => navigate('/ecom/stats')}
-                className="hidden sm:inline-flex items-center gap-1.5 px-3 py-2 bg-primary-700 text-white rounded-xl transition text-xs font-semibold"
+                className="hidden sm:inline-flex min-h-[44px] items-center gap-1.5 px-3 py-2 bg-white text-gray-700 border border-gray-200 hover:bg-gray-50 rounded-xl transition text-xs font-semibold"
                 title="Voir les statistiques globales"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
@@ -2173,7 +2228,7 @@ const OrdersList = () => {
               {orders.length > 0 && (
                 <button
                   onClick={toggleSelectionMode}
-                  className={`inline-flex items-center gap-1 px-2.5 py-2 rounded-lg transition text-xs font-medium ${selectionMode ? 'bg-primary-100 text-primary-700 border border-primary-300' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'}`}
+                  className={`inline-flex h-11 w-11 items-center justify-center gap-1 px-2.5 py-2 sm:w-auto rounded-lg transition text-xs font-medium ${selectionMode ? 'bg-primary-100 text-primary-700 border border-primary-300' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'}`}
                   title="Sélection multiple"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>
@@ -2184,7 +2239,7 @@ const OrdersList = () => {
                 <button
                   onClick={handleDeleteAll}
                   disabled={deletingAll}
-                  className="inline-flex items-center gap-1 px-2.5 py-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition text-xs font-medium"
+                  className="inline-flex h-11 w-11 items-center justify-center gap-1 px-2.5 py-2 sm:w-auto text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition text-xs font-medium"
                   title="Supprimer toutes les commandes"
                 >
                   {deletingAll ? (
@@ -2201,7 +2256,7 @@ const OrdersList = () => {
             <button
               onClick={() => handleSync()}
               disabled={syncDisabled}
-              className="inline-flex items-center gap-1 px-2.5 sm:px-3 py-1.5 sm:py-2 bg-orange-600 text-white rounded-xl active:scale-95 transition text-[11px] sm:text-xs font-semibold disabled:opacity-50"
+              className="inline-flex h-11 w-11 items-center justify-center gap-1 px-2.5 sm:h-auto sm:min-h-[44px] sm:w-auto sm:px-3 py-1.5 sm:py-2 bg-orange-600 text-white rounded-xl active:scale-95 transition text-[11px] sm:text-xs font-semibold disabled:opacity-50"
               title="Synchroniser mes sources"
             >
               <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
@@ -2211,18 +2266,25 @@ const OrdersList = () => {
         </div>
       </div>
 
+      {showImportMenu && (
+        <div className="orders-import-menu-panel sm:hidden overflow-hidden rounded-xl border border-gray-200 bg-white py-1 shadow-sm">
+          {renderImportMenuOptions()}
+        </div>
+      )}
+
       {/* Sources */}
       {(isAdmin || isSuperAdmin || (isCloseuse && sources.length > 0)) && (
-        <div className="mb-4 bg-white rounded-xl border border-gray-200 shadow-sm p-2 sm:p-3">
+        <div className="bg-white rounded-xl border border-gray-200 p-2.5">
           <div className="flex items-center gap-2 mb-2">
             <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
-            <span className="text-[10px] sm:text-xs font-semibold text-gray-600 uppercase tracking-wide">Sources ({sources.length})</span>
+            <span className="text-[11px] font-semibold text-gray-700">Sources</span>
+            <span className="text-[10px] text-gray-400 tabular-nums">({sources.length})</span>
           </div>
 
           {/* Information d'adaptation au Google Sheet */}
           {selectedSourceId && sourcesConfig[selectedSourceId] && (
-            <div className="mb-2 sm:mb-3 p-1.5 sm:p-2 bg-primary-50 border border-primary-200 rounded-lg">
-              <div className="flex items-center gap-1 sm:gap-2 text-[10px] sm:text-xs">
+            <div className="mb-2 p-1.5 bg-gray-50 border border-gray-200 rounded-lg">
+              <div className="flex items-center gap-1.5 text-[11px]">
                 <svg className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-primary-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                 <span className="text-primary-700 font-medium truncate">
                   {sourcesConfig[selectedSourceId].name}
@@ -2235,12 +2297,12 @@ const OrdersList = () => {
               </div>
             </div>
           )}
-          <div className="flex flex-wrap gap-1 sm:gap-2">
+          <div className="flex flex-wrap gap-1.5">
             <button
               onClick={() => { setSelectedSourceId(''); setPage(1); }}
-              className={`inline-flex items-center gap-0.5 sm:gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg text-[10px] sm:text-xs font-medium transition-all ${
+              className={`inline-flex min-h-[36px] min-w-[36px] items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-all ${
                 !selectedSourceId
-                  ? 'bg-primary-600 text-white shadow-sm'
+                  ? 'bg-gray-900 text-white'
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
             >
@@ -2249,12 +2311,12 @@ const OrdersList = () => {
               <span className="sm:hidden">All</span>
             </button>
             {sources.map(s => (
-              <div key={s._id} className="flex items-center gap-0.5">
+              <div key={s._id} className="flex min-w-0 items-center gap-0.5">
                 <button
                   onClick={() => { setSelectedSourceId(s._id); setPage(1); }}
-                  className={`inline-flex items-center gap-0.5 sm:gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg text-[10px] sm:text-xs font-medium transition-all ${
+                  className={`inline-flex min-h-[36px] min-w-0 items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-all ${
                     selectedSourceId === s._id
-                      ? 'bg-primary-600 text-white shadow-sm'
+                      ? 'bg-gray-900 text-white'
                       : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                   }`}
                 >
@@ -2270,7 +2332,7 @@ const OrdersList = () => {
                   <button
                     onClick={() => deleteSource(s._id)}
                     disabled={deletingSource === s._id}
-                    className={`p-0.5 sm:p-1 rounded-md transition ${
+                    className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md transition ${
                       selectedSourceId === s._id
                         ? 'text-red-400 hover:text-red-600 hover:bg-red-50'
                         : 'text-gray-300 hover:text-red-500 hover:bg-red-50'
@@ -2299,7 +2361,7 @@ const OrdersList = () => {
               <div key={src.id} className="flex items-center gap-0.5">
                 <button
                   onClick={() => { setSelectedSourceId(selectedSourceId === src.id ? '' : src.id); setPage(1); }}
-                  className={`inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg text-[10px] sm:text-xs font-semibold transition-all ${selectedSourceId === src.id ? src.color + ' shadow-sm' : src.inactive}`}
+                  className={`inline-flex min-h-[36px] min-w-[36px] items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-all ${selectedSourceId === src.id ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
                 >
                   {src.label}
                 </button>
@@ -2308,7 +2370,7 @@ const OrdersList = () => {
                     if (!window.confirm(`Supprimer TOUTES les commandes ${src.label} ? Irréversible.`)) return;
                     Promise.all(src.deleteIds.map(did => ecomApi.delete(`/orders/bulk?sourceId=${did}`))).then(() => { fetchOrders(); setSuccess(`Commandes ${src.label} supprimées`); }).catch(() => setError('Erreur suppression'));
                   }}
-                  className="p-0.5 sm:p-1 rounded-md text-gray-300 hover:text-red-500 hover:bg-red-50 transition"
+                  className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-gray-300 hover:text-red-500 hover:bg-red-50 transition"
                   title={`Supprimer toutes les commandes ${src.label}`}
                 >
                   <svg className="w-3 h-3 sm:w-3.5 sm:h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
@@ -2320,12 +2382,12 @@ const OrdersList = () => {
       )}
 
       {/* Barre de filtres compacte */}
-      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden mb-3">
+      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
         {/* En-tête des filtres */}
-        <div className="bg-primary-50 px-3 py-2 border-b border-primary-100">
-          <div className="flex items-center justify-between">
+        <div className="px-2.5 py-2 border-b border-gray-100">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-2">
-              <h3 className="text-xs font-bold text-gray-900">Filtres</h3>
+              <h3 className="text-xs font-semibold text-gray-900">Filtres</h3>
               <p className="text-[11px] text-gray-500">
                 {hasActiveFilters ? (
                   <>
@@ -2341,14 +2403,14 @@ const OrdersList = () => {
               <select 
                 value={sortOrder} 
                 onChange={(e) => { setSortOrder(e.target.value); setPage(1); }}
-                className="text-[10px] border border-gray-300 rounded-lg px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-primary-600"
+                className="min-h-[36px] text-[11px] border border-gray-300 rounded-md px-2 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-primary-600"
                 title="Ordre d'affichage"
               >
                 <option value="newest_first">Plus récentes</option>
                 <option value="oldest_first">Plus anciennes</option>
               </select>
               {activeFiltersCount > 0 && (
-                <button onClick={clearAllFilters} className="inline-flex items-center gap-1 px-2 py-1 bg-red-50 text-red-600 hover:bg-red-100 rounded text-[10px] font-semibold transition-all">
+                <button onClick={clearAllFilters} className="inline-flex min-h-[36px] items-center gap-1 px-2 py-1 bg-white text-red-600 hover:bg-red-50 border border-red-100 rounded-md text-[11px] font-semibold transition-all">
                   <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                   Réinitialiser
                 </button>
@@ -2359,10 +2421,10 @@ const OrdersList = () => {
 
         {/* Chips de filtres actifs */}
         {activeFiltersCount > 0 && (
-          <div className="px-3 py-2 bg-gray-50 border-b border-gray-100">
-            <div className="flex flex-wrap gap-1.5">
+          <div className="px-2.5 py-1.5 bg-gray-50 border-b border-gray-100">
+            <div className="flex flex-wrap gap-1">
               {filterStatus && (
-                <div className="inline-flex items-center gap-1 px-2 py-0.5 bg-primary-100 text-primary-700 rounded-full text-[10px] font-semibold border border-primary-200">
+                <div className="inline-flex min-h-[24px] items-center gap-1 px-2 py-0.5 bg-white text-gray-700 rounded-full text-[10px] font-medium border border-gray-200">
                   {getStatusLabel(filterStatus)}
                   <button onClick={() => { setFilterStatus(''); setPage(1); }} className="hover:text-primary-900">
                     <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
@@ -2370,7 +2432,7 @@ const OrdersList = () => {
                 </div>
               )}
               {filterCity && (
-                <div className="inline-flex items-center gap-1 px-2 py-0.5 bg-primary-100 text-primary-800 rounded-full text-[10px] font-semibold border border-primary-200">
+                <div className="inline-flex min-h-[24px] items-center gap-1 px-2 py-0.5 bg-white text-gray-700 rounded-full text-[10px] font-medium border border-gray-200">
                   {filterCity}
                   <button onClick={() => { setFilterCity(''); setPage(1); }} className="hover:text-primary-900">
                     <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
@@ -2378,7 +2440,7 @@ const OrdersList = () => {
                 </div>
               )}
               {filterProduct && (
-                <div className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-[10px] font-semibold border border-green-200">
+                <div className="inline-flex min-h-[24px] items-center gap-1 px-2 py-0.5 bg-white text-gray-700 rounded-full text-[10px] font-medium border border-gray-200">
                   {filterProduct}
                   <button onClick={() => { setFilterProduct(''); setPage(1); }} className="hover:text-green-900">
                     <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
@@ -2386,7 +2448,7 @@ const OrdersList = () => {
                 </div>
               )}
               {filterStartDate && (
-                <div className="inline-flex items-center gap-1 px-2 py-0.5 bg-orange-100 text-orange-700 rounded-full text-[10px] font-semibold border border-orange-200">
+                <div className="inline-flex min-h-[24px] items-center gap-1 px-2 py-0.5 bg-white text-gray-700 rounded-full text-[10px] font-medium border border-gray-200">
                   {filterStartDate}
                   <button onClick={() => { setFilterStartDate(''); setPage(1); }} className="hover:text-orange-900">
                     <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
@@ -2394,7 +2456,7 @@ const OrdersList = () => {
                 </div>
               )}
               {filterEndDate && (
-                <div className="inline-flex items-center gap-1 px-2 py-0.5 bg-orange-100 text-orange-700 rounded-full text-[10px] font-semibold border border-orange-200">
+                <div className="inline-flex min-h-[24px] items-center gap-1 px-2 py-0.5 bg-white text-gray-700 rounded-full text-[10px] font-medium border border-gray-200">
                   {filterEndDate}
                   <button onClick={() => { setFilterEndDate(''); setPage(1); }} className="hover:text-orange-900">
                     <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
@@ -2402,7 +2464,7 @@ const OrdersList = () => {
                 </div>
               )}
               {search && (
-                <div className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 text-gray-700 rounded-full text-[10px] font-semibold border border-gray-300">
+                <div className="inline-flex min-h-[24px] items-center gap-1 px-2 py-0.5 bg-white text-gray-700 rounded-full text-[10px] font-medium border border-gray-200">
                   {search}
                   <button onClick={() => { setSearch(''); setPage(1); }} className="hover:text-gray-900">
                     <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
@@ -2414,21 +2476,22 @@ const OrdersList = () => {
         )}
 
         {/* Contenu des filtres */}
-        <div className="p-3">
+        <div className="p-2.5">
           <div className="mb-2">
             <div className="relative">
               <svg className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
               <input 
                 type="text" 
-                placeholder="Rechercher..." 
+                placeholder="Client, téléphone, ville ou produit" 
                 value={search} 
                 onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-                className="w-full pl-8 pr-4 py-1.5 border border-gray-300 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-primary-600 focus:border-transparent"
+                className="w-full min-h-[38px] pl-9 pr-9 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-transparent"
               />
               {search && (
                 <button 
                   onClick={() => { setSearch(''); setPage(1); }}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  className="absolute right-0.5 top-1/2 inline-flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-50"
+                  aria-label="Effacer la recherche"
                 >
                   <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                 </button>
@@ -2437,22 +2500,22 @@ const OrdersList = () => {
           </div>
 
           <div className="mb-2">
-            <div className="flex flex-wrap gap-1">
-          <button onClick={() => { setFilterStatus(''); setPage(1); }} className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-all ${!filterStatus ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+            <div className="-mx-2.5 flex gap-1.5 overflow-x-auto px-2.5 pb-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0">
+          <button onClick={() => { setFilterStatus(''); setPage(1); }} className={`shrink-0 min-h-[34px] px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all ${!filterStatus ? 'bg-gray-900 text-white' : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'}`}>
             Tous ({(filterCity || filterProduct || filterTag || filterStartDate || filterEndDate || search) ? dynamicFilterCounts.total : stats.total || 0})
           </button>
               {statusFilters.map(s => (
                 <button key={s.key} onClick={() => { setFilterStatus(filterStatus === s.key ? '' : s.key); setPage(1); }}
-                  className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-all ${filterStatus === s.key ? 'ring-1 ring-gray-400 ' : ''}${s.color}`}>
+                  className={`shrink-0 min-h-[34px] px-2.5 py-1 rounded-md text-[11px] font-semibold border transition-all ${filterStatus === s.key ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}>
                   {s.label} ({(filterCity || filterProduct || filterTag || filterStartDate || filterEndDate || search) ? dynamicFilterCounts[s.key] || 0 : stats[s.key] || 0})
                 </button>
               ))}
             </div>
           </div>
 
-          <div className="mb-4">
-            <label className="block text-xs font-semibold text-gray-700 mb-2">Période rapide</label>
-            <div className="flex flex-wrap gap-1.5">
+          <div className="mb-2.5">
+            <label className="block text-[11px] font-semibold text-gray-700 mb-1.5">Période rapide</label>
+            <div className="-mx-2.5 flex gap-1.5 overflow-x-auto px-2.5 pb-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0">
               {[
                 { key: 'today', label: "Aujourd'hui" },
                 { key: 'yesterday', label: 'Hier' },
@@ -2462,9 +2525,9 @@ const OrdersList = () => {
                 <button
                   key={preset.key}
                   onClick={() => applyQuickDatePreset(preset.key)}
-                  className={`px-2 py-0.5 rounded text-[10px] font-semibold border transition-all ${
+                  className={`shrink-0 min-h-[34px] px-2.5 py-1 rounded-md text-[11px] font-semibold border transition-all ${
                     activeQuickDatePreset === preset.key
-                      ? 'bg-orange-100 text-orange-800 border-orange-300'
+                      ? 'bg-gray-900 text-white border-gray-900'
                       : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
                   }`}
                 >
@@ -2476,7 +2539,7 @@ const OrdersList = () => {
 
           <button 
             onClick={() => setShowFilters(!showFilters)} 
-            className={`w-full px-3 py-1.5 rounded-lg text-[10px] font-semibold flex items-center justify-center gap-1.5 transition-all ${showFilters ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+            className={`w-full min-h-[36px] px-3 py-1.5 rounded-md text-[11px] font-semibold flex items-center justify-center gap-1.5 transition-all ${showFilters ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
           >
             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v2m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/></svg>
             {showFilters ? 'Masquer avancés' : 'Filtres avancés'}
@@ -2484,46 +2547,46 @@ const OrdersList = () => {
 
           {/* Advanced filters panel */}
           {showFilters && (
-            <div className="mt-2 pt-2 border-t border-gray-100">
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5">
+            <div className="mt-2.5 pt-2.5 border-t border-gray-100">
+              <div className="grid grid-cols-1 sm:grid-cols-5 gap-2">
                 <div>
-                  <label className="block text-[9px] font-medium text-gray-500 mb-0.5">Début</label>
-                  <input type="date" value={filterStartDate} onChange={e => { setFilterStartDate(e.target.value); setPage(1); }} className="w-full px-2 py-1 border border-gray-200 rounded text-[10px] focus:outline-none focus:ring-1 focus:ring-primary-600 focus:border-transparent" />
+                  <label className="block text-[11px] font-medium text-gray-500 mb-1">Début</label>
+                  <input type="date" value={filterStartDate} onChange={e => { setFilterStartDate(e.target.value); setPage(1); }} className="w-full min-h-[38px] px-2.5 py-1.5 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-transparent" />
                 </div>
                 <div>
-                  <label className="block text-[9px] font-medium text-gray-500 mb-0.5">Fin</label>
-                  <input type="date" value={filterEndDate} onChange={e => { setFilterEndDate(e.target.value); setPage(1); }} className="w-full px-2 py-1 border border-gray-200 rounded text-[10px] focus:outline-none focus:ring-1 focus:ring-primary-600 focus:border-transparent" />
+                  <label className="block text-[11px] font-medium text-gray-500 mb-1">Fin</label>
+                  <input type="date" value={filterEndDate} onChange={e => { setFilterEndDate(e.target.value); setPage(1); }} className="w-full min-h-[38px] px-2.5 py-1.5 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-transparent" />
                 </div>
                 <div>
-                  <label className="block text-[9px] font-medium text-gray-500 mb-0.5">Ville</label>
-                  <select value={filterCity} onChange={e => { setFilterCity(e.target.value); setPage(1); }} className="w-full px-2 py-1 border border-gray-200 rounded text-[10px] focus:outline-none focus:ring-1 focus:ring-primary-600 focus:border-transparent">
+                  <label className="block text-[11px] font-medium text-gray-500 mb-1">Ville</label>
+                  <select value={filterCity} onChange={e => { setFilterCity(e.target.value); setPage(1); }} className="w-full min-h-[38px] px-2.5 py-1.5 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-transparent">
                     <option value="">Toutes les villes</option>
                     {uniqueCities.map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[9px] font-medium text-gray-500 mb-0.5">Produit</label>
-                  <select value={filterProduct} onChange={e => { setFilterProduct(e.target.value); setPage(1); }} className="w-full px-2 py-1 border border-gray-200 rounded text-[10px] focus:outline-none focus:ring-1 focus:ring-primary-600 focus:border-transparent">
+                  <label className="block text-[11px] font-medium text-gray-500 mb-1">Produit</label>
+                  <select value={filterProduct} onChange={e => { setFilterProduct(e.target.value); setPage(1); }} className="w-full min-h-[38px] px-2.5 py-1.5 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-transparent">
                     <option value="">Tous</option>
                     {uniqueProducts.map(p => <option key={p} value={p}>{p}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[9px] font-medium text-gray-500 mb-0.5">Tag</label>
-                  <select value={filterTag} onChange={e => { setFilterTag(e.target.value); setPage(1); }} className="w-full px-2 py-1 border border-gray-200 rounded text-[10px] focus:outline-none focus:ring-1 focus:ring-primary-600 focus:border-transparent">
+                  <label className="block text-[11px] font-medium text-gray-500 mb-1">Tag</label>
+                  <select value={filterTag} onChange={e => { setFilterTag(e.target.value); setPage(1); }} className="w-full min-h-[38px] px-2.5 py-1.5 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-transparent">
                     <option value="">Tous</option>
                     {uniqueTags.map(t => <option key={t} value={t}>{t}</option>)}
                   </select>
                 </div>
               </div>
-              {activeFiltersCount > 0 && (
-                <div className="flex items-center justify-between mt-2.5">
+              {[filterCity, filterProduct, filterTag, filterStartDate, filterEndDate].filter(Boolean).length > 0 && (
+                <div className="flex items-center justify-between mt-2">
                   <div className="flex flex-wrap gap-1.5">
-                    {filterStartDate && <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-primary-50 text-primary-700 rounded-full text-[10px] font-medium">{filterStartDate} <button onClick={() => { setFilterStartDate(''); setPage(1); }} className="hover:text-primary-900">&times;</button></span>}
-                    {filterEndDate && <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-primary-50 text-primary-700 rounded-full text-[10px] font-medium">{filterEndDate} <button onClick={() => { setFilterEndDate(''); setPage(1); }} className="hover:text-primary-900">&times;</button></span>}
-                    {filterCity && <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-primary-50 text-primary-800 rounded-full text-[10px] font-medium">{filterCity} <button onClick={() => { setFilterCity(''); setPage(1); }} className="hover:text-primary-900">&times;</button></span>}
-                    {filterProduct && <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-50 text-green-700 rounded-full text-[10px] font-medium">{filterProduct} <button onClick={() => { setFilterProduct(''); setPage(1); }} className="hover:text-green-900">&times;</button></span>}
-                    {filterTag && <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-orange-50 text-orange-700 rounded-full text-[10px] font-medium">{filterTag} <button onClick={() => { setFilterTag(''); setPage(1); }} className="hover:text-orange-900">&times;</button></span>}
+                    {filterStartDate && <span className="inline-flex min-h-[24px] items-center gap-1 rounded-full border border-gray-200 bg-white px-2 py-0.5 text-[10px] font-medium text-gray-700">{filterStartDate} <button onClick={() => { setFilterStartDate(''); setPage(1); }} className="hover:text-gray-900">&times;</button></span>}
+                    {filterEndDate && <span className="inline-flex min-h-[24px] items-center gap-1 rounded-full border border-gray-200 bg-white px-2 py-0.5 text-[10px] font-medium text-gray-700">{filterEndDate} <button onClick={() => { setFilterEndDate(''); setPage(1); }} className="hover:text-gray-900">&times;</button></span>}
+                    {filterCity && <span className="inline-flex min-h-[24px] items-center gap-1 rounded-full border border-gray-200 bg-white px-2 py-0.5 text-[10px] font-medium text-gray-700">{filterCity} <button onClick={() => { setFilterCity(''); setPage(1); }} className="hover:text-gray-900">&times;</button></span>}
+                    {filterProduct && <span className="inline-flex min-h-[24px] items-center gap-1 rounded-full border border-gray-200 bg-white px-2 py-0.5 text-[10px] font-medium text-gray-700">{filterProduct} <button onClick={() => { setFilterProduct(''); setPage(1); }} className="hover:text-gray-900">&times;</button></span>}
+                    {filterTag && <span className="inline-flex min-h-[24px] items-center gap-1 rounded-full border border-gray-200 bg-white px-2 py-0.5 text-[10px] font-medium text-gray-700">{filterTag} <button onClick={() => { setFilterTag(''); setPage(1); }} className="hover:text-gray-900">&times;</button></span>}
                   </div>
                   <button onClick={clearAllFilters} className="text-[10px] text-red-600 hover:text-red-800 font-medium">Tout effacer</button>
                 </div>
@@ -2536,44 +2599,30 @@ const OrdersList = () => {
 
 
       {/* KPI Cards - Design compact */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
-        <div className="bg-gradient-to-br from-green-50 to-primary-50 rounded-lg border border-green-200 p-3">
-          <p className="text-[10px] font-bold text-green-700 uppercase tracking-wide mb-1">Revenu livré</p>
-          <p className="text-xl font-extrabold text-gray-900 mb-1">{fmtRaw(filteredStats.deliveredRevenue || 0) || `0 ${symbol}`}</p>
-          <p className="text-[10px] text-green-600 font-semibold">{filteredStats.delivered || 0} livrés · +{Math.round((filteredStats.delivered || 0) / (filteredStats.total || 1) * 100)}%</p>
+      <div className="grid grid-cols-2 gap-2">
+        <div className="bg-white rounded-xl border border-gray-200 p-3">
+          <p className="text-[11px] font-semibold text-gray-500 mb-1">Revenu livré</p>
+          <p className="text-xl font-bold text-gray-900 mb-1 tabular-nums">{fmtRaw(filteredStats.deliveredRevenue || 0) || `0 ${symbol}`}</p>
+          <p className="text-[11px] text-green-700 font-medium">{filteredStats.delivered || 0} livrés · {Math.round((filteredStats.delivered || 0) / (filteredStats.total || 1) * 100)}%</p>
         </div>
         
-        <div className="bg-gradient-to-br from-primary-50 to-primary-50 rounded-lg border border-primary-200 p-3">
-          <p className="text-[10px] font-bold text-primary-700 uppercase tracking-wide mb-1">Taux livraison</p>
-          <p className="text-xl font-extrabold text-gray-900 mb-1.5">{deliveryRate}%</p>
-          <div className="w-full bg-primary-100 rounded-full h-1.5">
+        <div className="bg-white rounded-xl border border-gray-200 p-3">
+          <p className="text-[11px] font-semibold text-gray-500 mb-1">Taux livraison</p>
+          <p className="text-xl font-bold text-gray-900 mb-1.5 tabular-nums">{deliveryRate}%</p>
+          <div className="w-full bg-gray-100 rounded-full h-1.5">
             <div className="bg-primary-600 h-1.5 rounded-full" style={{ width: `${Math.min(deliveryRate, 100)}%` }}></div>
           </div>
-        </div>
-        
-        <div className="bg-gradient-to-br from-orange-50 to-amber-50 rounded-lg border border-orange-200 p-3">
-          <p className="text-[10px] font-bold text-orange-700 uppercase tracking-wide mb-1">Taux retour</p>
-          <p className="text-xl font-extrabold text-gray-900 mb-1.5">{returnRate}%</p>
-          <div className="w-full bg-orange-100 rounded-full h-1.5">
-            <div className="bg-orange-500 h-1.5 rounded-full" style={{ width: `${Math.min(returnRate, 100)}%` }}></div>
-          </div>
-        </div>
-        
-        <div className="bg-gradient-to-br from-primary-50 to-primary-50 rounded-lg border border-primary-200 p-3">
-          <p className="text-[10px] font-bold text-primary-800 uppercase tracking-wide mb-1">En cours</p>
-          <p className="text-xl font-extrabold text-gray-900 mb-1">{filteredStats.delivered || 0}</p>
-          <p className="text-[10px] text-gray-600">{filteredStats.delivered || 0} livrées · {(filteredStats.pending || 0) + (filteredStats.confirmed || 0) + (filteredStats.shipped || 0)} en cours</p>
         </div>
       </div>
 
       {/* Floating bulk action bar */}
       {selectionMode && selectedOrders.size > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-gray-900 text-white rounded-2xl shadow-2xl px-5 py-3">
+        <div className="fixed bottom-[calc(env(safe-area-inset-bottom,0px)+5.5rem)] sm:bottom-6 left-3 right-3 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 z-50 flex items-center justify-between gap-3 bg-gray-900 text-white rounded-xl shadow-lg px-4 py-3 sm:px-5">
           <span className="text-sm font-semibold">{selectedOrders.size} sélectionnée(s)</span>
           <button
             onClick={handleBulkDeleteSelected}
             disabled={deletingSelected}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-xl text-sm font-semibold transition disabled:opacity-50"
+            className="inline-flex min-h-[44px] items-center gap-2 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg text-sm font-semibold transition disabled:opacity-50"
           >
             {deletingSelected ? (
               <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -2584,7 +2633,7 @@ const OrdersList = () => {
           </button>
           <button
             onClick={() => { setSelectedOrders(new Set()); setSelectionMode(false); }}
-            className="px-3 py-2 text-gray-300 hover:text-white text-sm transition"
+            className="min-h-[44px] px-3 py-2 text-gray-300 hover:text-white text-sm transition"
           >
             Annuler
           </button>
@@ -2593,8 +2642,8 @@ const OrdersList = () => {
 
       {/* Orders */}
       {orders.length === 0 ? (
-        <div className="bg-white rounded-xl shadow-sm border p-10 text-center">
-          <div className="w-14 h-14 bg-gray-50 rounded-2xl flex items-center justify-center mx-auto mb-3">
+        <div className="bg-white rounded-xl border border-gray-200 p-8 text-center">
+          <div className="w-14 h-14 bg-gray-50 rounded-xl flex items-center justify-center mx-auto mb-3">
             <svg className="w-7 h-7 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
           </div>
           <p className="text-gray-500 text-sm font-medium">Aucune commande trouvée</p>
@@ -2632,7 +2681,7 @@ const OrdersList = () => {
               const isSelected = selectedOrders.has(o._id);
 
               return (
-                <div key={o._id} className={`bg-white rounded-xl border transition-all duration-200 group ${selectionMode ? 'cursor-default' : 'cursor-pointer hover:border-primary-400 hover:shadow-md'} ${isSelected ? 'border-primary-500 ring-1 ring-primary-400' : 'border-gray-200'}`} onClick={() => selectionMode ? toggleOrderSelection(o._id) : navigateToOrder(o._id)}>
+                <div key={o._id} className={`bg-white rounded-xl border transition-colors duration-150 group ${selectionMode ? 'cursor-default' : 'cursor-pointer hover:border-gray-300 hover:bg-gray-50/40'} ${isSelected ? 'border-primary-500 ring-1 ring-primary-400' : 'border-gray-200'}`} onClick={() => selectionMode ? toggleOrderSelection(o._id) : navigateToOrder(o._id)}>
                   <div className="p-3">
                     <div className="flex items-center justify-between gap-4">
                       {/* Checkbox (selection mode) */}
@@ -2647,7 +2696,7 @@ const OrdersList = () => {
                         </div>
                       )}
                       <div className="flex items-center gap-3 flex-1 min-w-0">
-                        <div className="w-9 h-9 bg-gradient-to-br from-primary-600 to-primary-700 rounded-lg flex items-center justify-center text-white font-bold text-sm shadow-sm flex-shrink-0">
+                        <div className="w-9 h-9 bg-gray-100 border border-gray-200 rounded-lg flex items-center justify-center text-gray-700 font-bold text-sm flex-shrink-0">
                           {clientName ? clientName.charAt(0).toUpperCase() : '?'}
                         </div>
                         <div className="flex-1 min-w-0">
@@ -2693,8 +2742,9 @@ const OrdersList = () => {
                       {/* Pool livreur badge */}
                       {o.readyForDelivery && !o.assignedLivreur && (
                         <div className="flex-shrink-0" title="Dans le pool livreur">
-                          <span className="text-[10px] font-semibold px-2 py-1 rounded-full bg-amber-100 text-amber-700 border border-amber-300 flex items-center gap-1">
-                            <span>🚚</span> Pool
+                          <span className="text-[10px] font-semibold px-2 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1">
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 17a2 2 0 11-4 0 2 2 0 014 0zm12 0a2 2 0 11-4 0 2 2 0 014 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 17H3V6a1 1 0 011-1h9v12H7m6 0h3m4 0h1v-5l-3-4h-5"/></svg>
+                            Pool
                           </span>
                         </div>
                       )}
@@ -2702,18 +2752,18 @@ const OrdersList = () => {
                       {/* Source badge */}
                       {(o.source === 'skelor' || o.source === 'boutique') && (
                         <div className="flex-shrink-0">
-                          <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-primary-100 text-primary-700 border border-primary-200 uppercase tracking-wide">Scalor</span>
+                          <span className="text-[10px] font-semibold px-2 py-1 rounded-md bg-emerald-900 text-white border border-emerald-800 uppercase">Scalor</span>
                         </div>
                       )}
                       {o.source === 'shopify' && (
                         <div className="flex-shrink-0">
-                          <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-700 border border-green-200 uppercase tracking-wide">Shopify</span>
+                          <span className="text-[10px] font-semibold px-2 py-1 rounded-md bg-lime-400 text-lime-900 border border-lime-500 uppercase">Shopify</span>
                         </div>
                       )}
                       {/* Badge nom de source personnalisée (Scalor Store nommé, webhook, etc.) */}
                       {o.sourceName && !['skelor','shopify','boutique'].includes(o.source) && (
                         <div className="flex-shrink-0">
-                          <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 border border-indigo-200 truncate max-w-[80px]" title={o.sourceName}>{o.sourceName}</span>
+                          <span className="block max-w-[90px] truncate rounded-md border border-gray-200 bg-gray-50 px-2 py-1 text-[10px] font-semibold text-gray-700" title={o.sourceName}>{o.sourceName}</span>
                         </div>
                       )}
 
@@ -2738,8 +2788,9 @@ const OrdersList = () => {
                       {/* Copy Button */}
                       <button
                         onClick={(e) => { e.stopPropagation(); handleCopyOrder(o); }}
-                        className="flex-shrink-0 w-8 h-8 text-primary-600 bg-primary-50 hover:bg-primary-100 border border-primary-200 rounded-lg transition-all hover:scale-110 flex items-center justify-center"
+                        className="flex-shrink-0 w-10 h-10 text-primary-600 bg-white hover:bg-primary-50 border border-primary-200 rounded-lg transition flex items-center justify-center"
                         title="Copier la commande"
+                        aria-label="Copier la commande"
                       >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
@@ -2752,11 +2803,11 @@ const OrdersList = () => {
             })}
           </div>
 
-          {/* Vue cartes — Mobile */}
-          <div className="md:hidden space-y-3">
+          {/* Vue cartes — Mobile Pro */}
+          <div className="md:hidden space-y-2">
             {/* Select-all bar (mobile) */}
             {selectionMode && (
-              <div className="flex items-center gap-3 px-3 py-2 bg-primary-50 border border-primary-200 rounded-xl">
+              <div className="flex items-center gap-3 px-4 py-2.5 bg-primary-50/80 backdrop-blur-sm border border-primary-200 rounded-2xl">
                 <input
                   type="checkbox"
                   checked={selectedOrders.size === orders.length && orders.length > 0}
@@ -2777,11 +2828,11 @@ const OrdersList = () => {
               const isSelected = selectedOrders.has(o._id);
 
               return (
-                <div key={o._id} className={`bg-white rounded-xl border transition-all ${selectionMode ? 'cursor-default' : 'hover:border-primary-400 hover:shadow-md'} ${isSelected ? 'border-primary-500 ring-1 ring-primary-400' : 'border-gray-200'}`} onClick={() => selectionMode ? toggleOrderSelection(o._id) : navigateToOrder(o._id)}>
-                  <div className="p-2.5">
-                    {/* En-tête: Nom + Prix */}
-                    <div className="flex items-start justify-between mb-2">
-                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                <div key={o._id} className={`bg-white rounded-2xl border overflow-hidden transition-all duration-150 ${selectionMode ? 'cursor-default' : 'active:scale-[0.99]'} ${isSelected ? 'border-primary-400 ring-2 ring-primary-100' : 'border-gray-100 shadow-sm'}`} onClick={() => selectionMode ? toggleOrderSelection(o._id) : navigateToOrder(o._id)}>
+                  <div className="px-4 pt-4 pb-3">
+                    {/* Header: Avatar + Name/Phone + Price */}
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
                         {selectionMode && (
                           <div onClick={(e) => { e.stopPropagation(); toggleOrderSelection(o._id); }}>
                             <input
@@ -2792,113 +2843,118 @@ const OrdersList = () => {
                             />
                           </div>
                         )}
-                        <div className="w-8 h-8 bg-gradient-to-br from-primary-600 to-primary-700 rounded-md flex items-center justify-center text-white font-bold text-xs flex-shrink-0">
+                        <div className="w-10 h-10 rounded-full bg-gray-900 flex items-center justify-center text-white font-semibold text-sm flex-shrink-0">
                           {clientName ? clientName.charAt(0).toUpperCase() : '?'}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <h3 className="text-sm font-bold text-gray-900 truncate">{clientName || 'Sans nom'}</h3>
+                          <h3 className="text-[15px] font-semibold text-gray-900 truncate leading-tight">{clientName || 'Sans nom'}</h3>
+                          <p className="text-xs text-gray-500 font-mono mt-0.5 truncate">{clientPhone || '—'}</p>
                         </div>
                       </div>
-                      {totalPrice > 0 && (
-                        <p className="text-sm font-bold text-gray-900 ml-2 flex-shrink-0">{fmtOrder(totalPrice, o.currency)}</p>
+                      <div className="flex flex-col items-end flex-shrink-0">
+                        {totalPrice > 0 && (
+                          <p className="text-[15px] font-bold text-gray-900 tabular-nums">{fmtOrder(totalPrice, o.currency)}</p>
+                        )}
+                        {o.quantity > 1 && (
+                          <span className="text-[10px] text-gray-400 font-medium">Qté : {o.quantity}</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Meta chips: Product + City */}
+                    <div className="flex items-center gap-1.5 mt-2.5 flex-wrap">
+                      {productName && productName !== '—' && (
+                        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-gray-600 bg-gray-50 border border-gray-100 rounded-lg px-2 py-1 max-w-[60%]">
+                          <svg className="w-3 h-3 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+                          <span className="truncate">{productName}</span>
+                        </span>
+                      )}
+                      {city && (
+                        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-gray-600 bg-gray-50 border border-gray-100 rounded-lg px-2 py-1">
+                          <svg className="w-3 h-3 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                          {city}
+                        </span>
                       )}
                     </div>
 
-                    {/* Postponed date badge — Mobile */}
+                    {/* Postponed date badge */}
                     {(o.status === 'postponed' || o.status === 'reported') && o.deliveryTime && (
-                      <div className="mb-2">
+                      <div className="mt-2">
                         <span className={`text-[10px] font-semibold px-2 py-1 rounded-full border inline-flex items-center gap-1 ${getPostponedBadgeColor(o.deliveryTime)}`}>
                           <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
                           Reporté : {fmtPostponedDate(o.deliveryTime)}
                         </span>
                       </div>
                     )}
-
-                    {/* Infos essentielles */}
-                    <div className="mb-2 space-y-1">
-                      {clientPhone && (
-                        <div className="flex items-center gap-1.5">
-                          <svg className="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>
-                          <span className="text-xs text-gray-700 font-mono">{clientPhone}</span>
-                        </div>
-                      )}
-                      {city && (
-                        <div className="flex items-center gap-1.5">
-                          <svg className="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-                          <span className="text-xs text-gray-600">{city}</span>
-                        </div>
-                      )}
-                      {productName && (
-                        <div className="flex items-center gap-1.5">
-                          <svg className="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
-                          <span className="text-xs text-gray-600 truncate">{productName}</span>
-                          {o.quantity > 1 && <span className="text-[10px] text-gray-500">×{o.quantity}</span>}
-                        </div>
-                      )}
-                    </div>
                   </div>
 
-                  {/* Actions */}
-                  <div className="border-t border-gray-100 px-2.5 py-2 flex items-center justify-between bg-gray-50/50" onClick={(e) => e.stopPropagation()}>
-                    <div className="flex items-center gap-1.5">
-                    {o.readyForDelivery && !o.assignedLivreur && (
-                      <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-300">🚚 Pool</span>
-                    )}
-                    {(o.source === 'skelor' || o.source === 'boutique') && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-primary-100 text-primary-700 border border-primary-200 uppercase">Scalor</span>}
-                    {o.source === 'shopify' && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 border border-green-200 uppercase">Shopify</span>}
-                    {o.sourceName && !['skelor','shopify','boutique'].includes(o.source) && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700 border border-indigo-200 truncate max-w-[70px]">{o.sourceName}</span>}
-                    <select 
-                      value={o.status} 
-                      onChange={(e) => { 
-                        e.stopPropagation(); 
-                        if (e.target.value === '__custom') { 
-                          const c = prompt('Entrez le statut personnalisé :'); 
-                          if (c && c.trim()) handleStatusChange(o._id, c.trim()); 
-                        } else handleStatusChange(o._id, e.target.value); 
-                      }}
-                      onClick={(e) => e.stopPropagation()}
-                      className={`text-[9px] font-medium px-1.5 py-0.5 rounded border cursor-pointer focus:ring-2 focus:ring-primary-600 focus:outline-none ${getStatusColor(o.status)}`}
-                    >
-                      {Object.entries(SL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                      {!SL[o.status] && <option value={o.status}>{o.status}</option>}
-                      <option value="__custom">+ Personnalisé...</option>
-                    </select>
+                  {/* Footer: Source + Status + Quick Actions */}
+                  <div className="border-t border-gray-100/80 px-4 py-2.5 flex items-center justify-between gap-2 bg-gray-50/40" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      {o.readyForDelivery && !o.assignedLivreur && (
+                        <span className="inline-flex items-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-1.5 py-1 text-[10px] font-semibold text-amber-700">
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 17a2 2 0 11-4 0 2 2 0 014 0zm12 0a2 2 0 11-4 0 2 2 0 014 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 17H3V6a1 1 0 011-1h9v12H7m6 0h3m4 0h1v-5l-3-4h-5"/></svg>
+                          Pool
+                        </span>
+                      )}
+                      {(o.source === 'skelor' || o.source === 'boutique') && <span className="inline-flex items-center rounded-lg border border-emerald-800 bg-emerald-900 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-white">Scalor</span>}
+                      {o.source === 'shopify' && <span className="inline-flex items-center rounded-lg border border-lime-500 bg-lime-400 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-lime-900">Shopify</span>}
+                      {o.sourceName && !['skelor','shopify','boutique'].includes(o.source) && <span className="inline-flex max-w-[72px] items-center truncate rounded-lg border border-gray-200 bg-white px-2 py-1 text-[10px] font-bold text-gray-500">{o.sourceName}</span>}
+                      <select
+                        value={o.status}
+                        onChange={(e) => {
+                          e.stopPropagation();
+                          if (e.target.value === '__custom') {
+                            const c = prompt('Entrez le statut personnalisé :');
+                            if (c && c.trim()) handleStatusChange(o._id, c.trim());
+                          } else handleStatusChange(o._id, e.target.value);
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                        className={`h-8 rounded-lg border px-2 text-[11px] font-semibold cursor-pointer focus:ring-2 focus:ring-primary-500 focus:outline-none ${getStatusColor(o.status)}`}
+                      >
+                        {Object.entries(SL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                        {!SL[o.status] && <option value={o.status}>{o.status}</option>}
+                        <option value="__custom">+ Personnalisé...</option>
+                      </select>
                     </div>
-                    <div className="flex items-center gap-1.5">
-                      {/* Bouton principal */}
-                      <button onClick={(e) => { e.stopPropagation(); navigateToOrder(o._id); }} className="px-2.5 py-1 text-[11px] font-semibold text-primary-600 bg-primary-50 hover:bg-primary-100 border border-primary-200 rounded-lg transition">
-                        Voir
+                    <div className="flex flex-shrink-0 items-center gap-0.5">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleCopyOrder(o); }}
+                        className="inline-flex h-8 w-8 items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-white rounded-lg transition"
+                        aria-label="Copier commande"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
                       </button>
-                      {/* Menu ⋯ */}
                       <div className="relative menu-container">
-                        <button 
-                          onClick={(e) => { 
-                            e.stopPropagation(); 
-                            console.log('Menu clicked, current expandedId:', expandedId, 'order id:', o._id);
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
                             setExpandedId(expandedId === o._id ? null : o._id);
-                          }} 
-                          className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition"
+                          }}
+                          className="inline-flex h-8 w-8 items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-white rounded-lg transition"
+                          aria-label="Plus d'actions"
                         >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" /></svg>
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" /></svg>
                         </button>
                         {expandedId === o._id && (
-                          <div className="absolute right-0 top-full mt-1 bg-white rounded-lg shadow-xl border border-gray-300 py-1 min-w-[160px]" style={{zIndex: 9999}} onClick={(e) => e.stopPropagation()}>
-                            {(isAdmin || isCloseuse) && (
-                              <button onClick={(e) => { e.stopPropagation(); handleCopyOrder(o); setExpandedId(null); }} className="w-full px-3 py-2 text-left text-xs font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2">
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
-                                Copier
-                              </button>
-                            )}
-                            {isAdmin && (
-                              <button onClick={(e) => { e.stopPropagation(); handleDeleteOrder(o._id); setExpandedId(null); }} disabled={deletingOrderId === o._id} className="w-full px-3 py-2 text-left text-xs font-medium text-red-600 hover:bg-red-50 flex items-center gap-2 disabled:opacity-50">
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                                Supprimer
-                              </button>
-                            )}
-                            <button onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(o.clientPhone || ''); setExpandedId(null); }} className="w-full px-3 py-2 text-left text-xs font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2">
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>
-                              Copier téléphone
+                          <div className="absolute right-0 bottom-full mb-1 min-w-[156px] rounded-xl border border-gray-100 bg-white py-1 shadow-xl shadow-gray-200/50" style={{zIndex: 9999}} onClick={(e) => e.stopPropagation()}>
+                            <button onClick={(e) => { e.stopPropagation(); navigateToOrder(o._id); setExpandedId(null); }} className="flex min-h-[40px] w-full items-center gap-2.5 px-3.5 py-2 text-left text-xs font-medium text-gray-700 hover:bg-gray-50 rounded-lg mx-0.5 transition">
+                              <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                              Voir détails
                             </button>
+                            <button onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(o.clientPhone || ''); setExpandedId(null); setSuccess('Téléphone copié'); }} className="flex min-h-[40px] w-full items-center gap-2.5 px-3.5 py-2 text-left text-xs font-medium text-gray-700 hover:bg-gray-50 rounded-lg mx-0.5 transition">
+                              <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>
+                              Copier tél.
+                            </button>
+                            {isAdmin && (
+                              <>
+                                <div className="my-1 mx-3 border-t border-gray-100"></div>
+                                <button onClick={(e) => { e.stopPropagation(); handleDeleteOrder(o._id); setExpandedId(null); }} disabled={deletingOrderId === o._id} className="flex min-h-[40px] w-full items-center gap-2.5 px-3.5 py-2 text-left text-xs font-medium text-red-600 hover:bg-red-50 rounded-lg mx-0.5 disabled:opacity-50 transition">
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                  Supprimer
+                                </button>
+                              </>
+                            )}
                           </div>
                         )}
                       </div>
@@ -2912,8 +2968,8 @@ const OrdersList = () => {
       )}
 
       {/* Pagination */}
-      <div className="flex items-center justify-between mt-4 bg-white rounded-xl shadow-sm border px-4 py-2.5">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between bg-white rounded-xl border border-gray-200 px-4 py-3">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
           <p className="text-[11px] text-gray-400">
             {pagination.pages > 1 ? (
               <>
@@ -2936,7 +2992,7 @@ const OrdersList = () => {
             <select
               value={itemsPerPage}
               onChange={(e) => { setItemsPerPage(Number(e.target.value)); setPage(1); }}
-              className="text-[11px] px-2 py-1 border border-gray-200 rounded-md bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-600"
+              className="min-h-[44px] text-[11px] px-2 py-2 border border-gray-200 rounded-md bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-600"
             >
               <option value={25}>25</option>
               <option value={50}>50</option>
@@ -2948,11 +3004,11 @@ const OrdersList = () => {
           </div>
         </div>
         {pagination.pages > 1 && (
-          <div className="flex items-center gap-1">
+          <div className="flex items-center justify-between gap-1">
             <button
               onClick={() => setPage(1)}
               disabled={page <= 1}
-              className="px-2.5 py-1 text-xs rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all duration-200 ease-out"
+              className="h-11 w-11 px-2.5 py-2 text-xs rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all duration-200 ease-out"
               aria-label="Première page"
               title="Première page"
             >
@@ -2961,7 +3017,7 @@ const OrdersList = () => {
             <button
               onClick={() => setPage(Math.max(1, page - 1))}
               disabled={page <= 1}
-              className="px-3 py-1 text-xs rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all duration-200 ease-out"
+              className="min-h-[44px] px-3 py-2 text-xs rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all duration-200 ease-out"
             >
               Préc
             </button>
@@ -2971,14 +3027,14 @@ const OrdersList = () => {
             <button
               onClick={() => setPage(Math.min(pagination.pages, page + 1))}
               disabled={page >= pagination.pages}
-              className="px-3 py-1 text-xs rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all duration-200 ease-out"
+              className="min-h-[44px] px-3 py-2 text-xs rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all duration-200 ease-out"
             >
               Suiv
             </button>
             <button
               onClick={() => setPage(pagination.pages)}
               disabled={page >= pagination.pages}
-              className="px-2.5 py-1 text-xs rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all duration-200 ease-out"
+              className="h-11 w-11 px-2.5 py-2 text-xs rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all duration-200 ease-out"
               aria-label="Dernière page"
               title="Dernière page"
             >
@@ -2991,49 +3047,64 @@ const OrdersList = () => {
       {/* Modal Configuration Auto WhatsApp — Instance + Personnalisation */}
       {showAutoConfigModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowAutoConfigModal(false)}>
-          <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+          <div className="bg-white rounded-xl shadow-lg max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="sticky top-0 bg-white border-b border-gray-100 px-5 py-4 flex items-center justify-between">
               <div>
                 <h3 className="text-lg font-bold text-gray-900">Configurer Auto WhatsApp</h3>
                 <p className="text-xs text-gray-500 mt-0.5">Personnaliser le message automatique envoyé aux clients</p>
               </div>
-              <button onClick={() => setShowAutoConfigModal(false)} className="text-gray-400 hover:text-gray-600 p-1">
+              <button onClick={() => setShowAutoConfigModal(false)} className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-50" aria-label="Fermer">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
             <div className="p-5 space-y-5">
 
-              {/* Instance WhatsApp */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  <span className="flex items-center gap-2">
-                    <svg className="w-4 h-4 text-green-600" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/></svg>
-                    Instance d'envoi
-                  </span>
-                </label>
-                {loadingInstances ? (
-                  <div className="flex items-center gap-2 text-sm text-gray-500 py-2">
-                    <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-                    Chargement des instances...
-                  </div>
-                ) : (
-                  <select
-                    value={autoConfig.instanceId}
-                    onChange={e => setAutoConfig(prev => ({ ...prev, instanceId: e.target.value }))}
-                    className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                  >
-                    <option value="">Automatique (première instance disponible)</option>
-                    {whatsappInstances.map(inst => (
-                      <option key={inst._id} value={inst._id} disabled={!inst.isConnected}>
-                        {inst.customName} {inst.isConnected ? '🟢' : '🔴 Déconnectée'}
-                      </option>
-                    ))}
-                  </select>
-                )}
-                {whatsappInstances.length === 0 && !loadingInstances && (
-                  <p className="text-xs text-amber-600 mt-1">Aucune instance trouvée. Configurez-en une dans "Connexion WhatsApp".</p>
-                )}
-              </div>
+              {/* Instance WhatsApp globale */}
+              {(() => {
+                const allRulesHaveInstance = (autoConfig.productRules || []).length > 0 &&
+                  (autoConfig.productRules || []).every(r => r.productKeyword && r.instanceId);
+                const someRulesHaveInstance = (autoConfig.productRules || []).some(r => r.instanceId);
+                return (
+                <div className={allRulesHaveInstance ? 'opacity-40 pointer-events-none' : ''}>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    <span className="flex items-center gap-2 flex-wrap">
+                      <svg className="w-4 h-4 text-green-600 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/></svg>
+                      Instance d'envoi
+                      {someRulesHaveInstance && (
+                        <span className="text-[10px] font-normal text-gray-400">— remplacée par les instances produit ci-dessous</span>
+                      )}
+                    </span>
+                  </label>
+                  {allRulesHaveInstance ? (
+                    <div className="flex items-center gap-2 px-3 py-2.5 bg-gray-100 border border-gray-200 rounded-xl text-sm text-gray-400">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
+                      Remplacée par les instances par produit
+                    </div>
+                  ) : loadingInstances ? (
+                    <div className="flex items-center gap-2 text-sm text-gray-500 py-2">
+                      <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                      Chargement des instances...
+                    </div>
+                  ) : (
+                    <select
+                      value={autoConfig.instanceId}
+                      onChange={e => setAutoConfig(prev => ({ ...prev, instanceId: e.target.value }))}
+                      className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                    >
+                      <option value="">Automatique (première instance disponible)</option>
+                      {whatsappInstances.map(inst => (
+                        <option key={inst._id} value={inst._id} disabled={!inst.isConnected}>
+                          {inst.customName} - {inst.isConnected ? 'Connectée' : 'Déconnectée'}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  {whatsappInstances.length === 0 && !loadingInstances && !allRulesHaveInstance && (
+                    <p className="text-xs text-amber-600 mt-1">Aucune instance trouvée. Configurez-en une dans "Connexion WhatsApp".</p>
+                  )}
+                </div>
+                );
+              })()}
 
               {/* Template message texte */}
               <div>
@@ -3046,82 +3117,143 @@ const OrdersList = () => {
                 <textarea
                   value={autoConfig.template}
                   onChange={e => setAutoConfig(prev => ({ ...prev, template: e.target.value }))}
-                  placeholder="Bonjour {{first_name}} 👋&#10;&#10;Votre commande #{{order_number}} a été reçue...&#10;&#10;Variables : {{first_name}}, {{order_number}}, {{product}}, {{quantity}}, {{city}}, {{total_price}}, {{currency}}, {{store_name}}"
+                  placeholder="Bonjour {{first_name}}&#10;&#10;Votre commande #{{order_number}} a été reçue...&#10;&#10;Variables : {{first_name}}, {{order_number}}, {{product}}, {{quantity}}, {{city}}, {{total_price}}, {{currency}}, {{store_name}}"
                   rows={5}
                   className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 resize-none"
                 />
                 <p className="text-[10px] text-gray-400 mt-1">Laissez vide pour utiliser le template par défaut</p>
               </div>
 
-              {/* Image par défaut */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  <span className="flex items-center gap-2">
-                    <svg className="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-                    Image jointe (optionnel)
-                  </span>
-                </label>
-                {autoConfig.imageUrl ? (
-                  <div className="flex items-center gap-3 p-3 bg-purple-50 border border-purple-200 rounded-xl">
-                    <img src={autoConfig.imageUrl} alt="Auto" className="w-16 h-16 object-cover rounded-lg" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs text-purple-700 truncate">{autoConfig.imageUrl}</p>
-                    </div>
-                    <button
-                      onClick={() => setAutoConfig(prev => ({ ...prev, imageUrl: '' }))}
-                      className="text-red-400 hover:text-red-600 p-1"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                    </button>
+              {/* ─── Règles par produit ─── */}
+              <div className="border-t border-gray-100 pt-5">
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900">Par produit</p>
+                    <p className="text-[11px] text-gray-400 mt-0.5">Instance et message spécifiques selon le produit commandé</p>
                   </div>
-                ) : (
-                  <label className={`flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-gray-200 rounded-xl cursor-pointer hover:border-purple-300 hover:bg-purple-50 transition ${uploadingAutoImage ? 'opacity-50 pointer-events-none' : ''}`}>
-                    {uploadingAutoImage ? (
-                      <svg className="animate-spin w-5 h-5 text-purple-600" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-                    ) : (
-                      <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
-                    )}
-                    <span className="text-sm text-gray-500">{uploadingAutoImage ? 'Upload en cours...' : 'Ajouter une image'}</span>
-                    <input type="file" accept="image/*" className="hidden" onChange={handleAutoImageUpload} />
-                  </label>
-                )}
-              </div>
+                  <button
+                    type="button"
+                    onClick={() => setAutoConfig(prev => ({ ...prev, productRules: [...(prev.productRules || []), { productKeyword: '', instanceId: '', template: '', imageUrl: '', audioUrl: '' }] }))}
+                    className="inline-flex items-center gap-1.5 h-8 px-3 text-xs font-medium text-green-700 bg-green-50 hover:bg-green-100 border border-green-200 rounded-lg transition"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4"/></svg>
+                    Ajouter
+                  </button>
+                </div>
 
-              {/* Vocal par défaut */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  <span className="flex items-center gap-2">
-                    <svg className="w-4 h-4 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/></svg>
-                    Vocal joint (optionnel)
-                  </span>
-                </label>
-                {autoConfig.audioUrl ? (
-                  <div className="flex items-center gap-3 p-3 bg-orange-50 border border-orange-200 rounded-xl">
-                    <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
-                      <svg className="w-5 h-5 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072M18.364 5.636a9 9 0 010 12.728M12 18.75a.75.75 0 01-.75-.75V6a.75.75 0 011.5 0v12a.75.75 0 01-.75.75z"/></svg>
+                <div className="space-y-3">
+                  {(autoConfig.productRules || []).map((rule, ridx) => (
+                    <div key={ridx} className="rounded-xl border border-gray-200 p-3 space-y-2.5 bg-gray-50/50">
+                      {/* Header: keyword + delete */}
+                      <div className="flex items-center gap-2">
+                        <select
+                          value={rule.productKeyword}
+                          onChange={e => setAutoConfig(prev => ({ ...prev, productRules: prev.productRules.map((r, i) => i === ridx ? { ...r, productKeyword: e.target.value } : r) }))}
+                          className="flex-1 h-9 px-2 border border-gray-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-green-500/20 focus:outline-none"
+                        >
+                          <option value="">— Sélectionner un produit —</option>
+                          {availableProducts.map(p => (
+                            <option key={p._id} value={p.name}>{p.name}</option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() => setAutoConfig(prev => ({ ...prev, productRules: prev.productRules.filter((_, i) => i !== ridx) }))}
+                          className="h-9 w-9 flex items-center justify-center text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition flex-shrink-0"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                        </button>
+                      </div>
+
+                      {/* Instance dédiée — obligatoire pour ce produit */}
+                      <div>
+                        <select
+                          value={rule.instanceId || ''}
+                          onChange={e => setAutoConfig(prev => ({ ...prev, productRules: prev.productRules.map((r, i) => i === ridx ? { ...r, instanceId: e.target.value } : r) }))}
+                          className={`w-full h-9 px-2 border rounded-lg text-sm bg-white focus:ring-2 focus:ring-green-500/20 focus:outline-none ${!rule.instanceId ? 'border-amber-300 text-gray-400' : 'border-green-300 text-gray-900'}`}
+                        >
+                          <option value="">⚠️ Choisir une instance pour ce produit</option>
+                          {whatsappInstances.map(inst => (
+                            <option key={inst._id} value={inst._id}>
+                              {inst.customName} — {inst.isConnected ? 'Connectée' : 'Déconnectée'}
+                            </option>
+                          ))}
+                        </select>
+                        {!rule.instanceId && (
+                          <p className="text-[10px] text-amber-600 mt-1 pl-1">Sans instance, l'instance globale sera utilisée</p>
+                        )}
+                      </div>
+
+                      {/* Message personnalisé */}
+                      <textarea
+                        value={rule.template || ''}
+                        onChange={e => setAutoConfig(prev => ({ ...prev, productRules: prev.productRules.map((r, i) => i === ridx ? { ...r, template: e.target.value } : r) }))}
+                        placeholder="Message personnalisé pour ce produit... (laisser vide = message global)"
+                        rows={3}
+                        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs bg-white focus:ring-2 focus:ring-green-500/20 focus:outline-none resize-none"
+                      />
+
+                      {/* Image + Vidéo */}
+                      <div className="grid grid-cols-2 gap-2">
+                        {/* Image */}
+                        <div>
+                          {rule.imageUrl ? (
+                            <div className="relative rounded-lg overflow-hidden border border-purple-200 bg-purple-50">
+                              <img src={rule.imageUrl} alt="" className="w-full h-20 object-cover" />
+                              <button
+                                type="button"
+                                onClick={() => setAutoConfig(prev => ({ ...prev, productRules: prev.productRules.map((r, i) => i === ridx ? { ...r, imageUrl: '' } : r) }))}
+                                className="absolute top-1 right-1 h-6 w-6 flex items-center justify-center bg-black/50 hover:bg-red-500 rounded-full transition"
+                              >
+                                <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                              </button>
+                            </div>
+                          ) : (
+                            <label className={`flex flex-col items-center justify-center gap-1 h-20 border-2 border-dashed border-gray-200 rounded-lg cursor-pointer hover:border-purple-300 hover:bg-purple-50 transition ${uploadingRuleMedia[`${ridx}_imageUrl`] ? 'opacity-50 pointer-events-none' : ''}`}>
+                              {uploadingRuleMedia[`${ridx}_imageUrl`] ? (
+                                <svg className="animate-spin w-4 h-4 text-purple-500" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                              ) : (
+                                <svg className="w-4 h-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                              )}
+                              <span className="text-[10px] text-gray-400">Image</span>
+                              <input type="file" accept="image/*" className="hidden" onChange={e => handleRuleMediaUpload(ridx, 'imageUrl', e.target.files?.[0])} />
+                            </label>
+                          )}
+                        </div>
+
+                        {/* Vidéo */}
+                        <div>
+                          {rule.videoUrl ? (
+                            <div className="relative rounded-lg overflow-hidden border border-blue-200 bg-blue-50 h-20 flex items-center justify-center">
+                              <svg className="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.069A1 1 0 0121 8.87v6.26a1 1 0 01-1.447.894L15 14M3 8a2 2 0 012-2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z"/></svg>
+                              <p className="text-[10px] text-blue-600 truncate max-w-[80px] ml-1">Vidéo</p>
+                              <button
+                                type="button"
+                                onClick={() => setAutoConfig(prev => ({ ...prev, productRules: prev.productRules.map((r, i) => i === ridx ? { ...r, videoUrl: '' } : r) }))}
+                                className="absolute top-1 right-1 h-6 w-6 flex items-center justify-center bg-black/50 hover:bg-red-500 rounded-full transition"
+                              >
+                                <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                              </button>
+                            </div>
+                          ) : (
+                            <label className={`flex flex-col items-center justify-center gap-1 h-20 border-2 border-dashed border-gray-200 rounded-lg cursor-pointer hover:border-blue-300 hover:bg-blue-50 transition ${uploadingRuleMedia[`${ridx}_videoUrl`] ? 'opacity-50 pointer-events-none' : ''}`}>
+                              {uploadingRuleMedia[`${ridx}_videoUrl`] ? (
+                                <svg className="animate-spin w-4 h-4 text-blue-500" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                              ) : (
+                                <svg className="w-4 h-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.069A1 1 0 0121 8.87v6.26a1 1 0 01-1.447.894L15 14M3 8a2 2 0 012-2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z"/></svg>
+                              )}
+                              <span className="text-[10px] text-gray-400">Vidéo</span>
+                              <input type="file" accept="video/*,.mp4,.mov,.avi" className="hidden" onChange={e => handleRuleMediaUpload(ridx, 'videoUrl', e.target.files?.[0])} />
+                            </label>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs text-orange-700 truncate">{autoConfig.audioUrl}</p>
-                      <audio src={autoConfig.audioUrl} controls className="w-full mt-1 h-8" />
-                    </div>
-                    <button
-                      onClick={() => setAutoConfig(prev => ({ ...prev, audioUrl: '' }))}
-                      className="text-red-400 hover:text-red-600 p-1"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                    </button>
-                  </div>
-                ) : (
-                  <label className={`flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-gray-200 rounded-xl cursor-pointer hover:border-orange-300 hover:bg-orange-50 transition ${uploadingAutoAudio ? 'opacity-50 pointer-events-none' : ''}`}>
-                    {uploadingAutoAudio ? (
-                      <svg className="animate-spin w-5 h-5 text-orange-600" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-                    ) : (
-                      <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
-                    )}
-                    <span className="text-sm text-gray-500">{uploadingAutoAudio ? 'Upload en cours...' : 'Ajouter un vocal'}</span>
-                    <input type="file" accept="audio/*,.ogg,.mp3,.wav,.m4a" className="hidden" onChange={handleAutoAudioUpload} />
-                  </label>
-                )}
+                  ))}
+                  {(autoConfig.productRules || []).length === 0 && (
+                    <p className="text-xs text-gray-400 italic py-1">Aucune règle — toutes les commandes utilisent la config globale ci-dessus.</p>
+                  )}
+                </div>
               </div>
 
               {/* Info envoi progressif */}
@@ -3157,14 +3289,14 @@ const OrdersList = () => {
             <div className="sticky bottom-0 bg-white border-t border-gray-100 px-5 py-4 flex items-center justify-between gap-3">
               <button
                 onClick={() => setShowAutoConfigModal(false)}
-                className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-xl transition"
+                className="min-h-[44px] px-4 py-2 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-xl transition"
               >
                 Annuler
               </button>
               <button
                 onClick={saveAutoConfig}
                 disabled={savingAutoConfig}
-                className="px-5 py-2.5 text-sm font-semibold text-white bg-green-600 hover:bg-green-700 rounded-xl transition disabled:opacity-50 flex items-center gap-2"
+                className="flex min-h-[44px] items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-green-600 hover:bg-green-700 rounded-xl transition disabled:opacity-50"
               >
                 {savingAutoConfig ? (
                   <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
@@ -3184,10 +3316,10 @@ const OrdersList = () => {
       {/* Modal Créer/Modifier Commande */}
       {showOrderModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowOrderModal(false)}>
-          <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+          <div className="bg-white rounded-xl shadow-lg max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="sticky top-0 bg-white border-b border-gray-100 px-5 py-4 flex items-center justify-between">
               <h3 className="text-lg font-bold text-gray-900">{editingOrder ? 'Modifier la commande' : 'Nouvelle commande'}</h3>
-              <button onClick={() => setShowOrderModal(false)} className="text-gray-400 hover:text-gray-600 p-1">
+              <button onClick={() => setShowOrderModal(false)} className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-50" aria-label="Fermer">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
@@ -3281,11 +3413,11 @@ const OrdersList = () => {
               </div>
             </div>
             <div className="sticky bottom-0 bg-white border-t border-gray-100 px-5 py-4 flex gap-3">
-              <button onClick={() => setShowOrderModal(false)} className="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 text-sm font-medium">
+              <button onClick={() => setShowOrderModal(false)} className="flex-1 min-h-[44px] px-4 py-2.5 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 text-sm font-medium">
                 Annuler
               </button>
               <button onClick={handleSaveOrder} disabled={savingOrder}
-                className="flex-1 px-4 py-2.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 text-sm font-medium flex items-center justify-center gap-2">
+                className="flex min-h-[44px] flex-1 items-center justify-center gap-2 px-4 py-2.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 text-sm font-medium">
                 {savingOrder ? (
                   <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div> Enregistrement...</>
                 ) : editingOrder ? 'Modifier' : 'Creer'}
@@ -3296,203 +3428,222 @@ const OrdersList = () => {
       )}
 
       {showWhatsAppConfig && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowWhatsAppConfig(false)}>
-          <div className="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-5" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-5">
-              <h3 className="text-lg font-bold text-gray-900">Notifications WhatsApp</h3>
-              <button onClick={() => setShowWhatsAppConfig(false)} className="text-gray-400 hover:text-gray-600">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center z-50" onClick={() => setShowWhatsAppConfig(false)}>
+          <div className="bg-white w-full sm:max-w-lg sm:rounded-2xl rounded-t-2xl shadow-2xl max-h-[92vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100 flex-shrink-0">
+              <div>
+                <h3 className="text-base font-semibold text-gray-900">Notifications</h3>
+                <p className="text-xs text-gray-400 mt-0.5">Configuration WhatsApp</p>
+              </div>
+              <button onClick={() => setShowWhatsAppConfig(false)} className="h-8 w-8 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
 
-            {/* ── Section Notifications Closeuses ── */}
-            <div className="mb-6">
-              <div className="flex items-center gap-2 mb-3">
-                <svg className="w-4 h-4 text-primary-600" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/></svg>
-                <h4 className="text-sm font-bold text-gray-900">Notifications Closeuses</h4>
-              </div>
-              <p className="text-xs text-gray-500 mb-3">Numéros WhatsApp qui reçoivent un message à chaque nouvelle commande.</p>
-              <div className="space-y-3 mb-3">
-                {closeuseNotifNumbers.map((item, idx) => (
-                  <div key={idx} className="border border-gray-200 rounded-lg p-3 space-y-2">
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="text"
-                        placeholder="Label (ex: Closeuse 1)"
-                        value={item.label}
-                        onChange={e => setCloseuseNotifNumbers(prev => prev.map((n, i) => i === idx ? { ...n, label: e.target.value } : n))}
-                        className="flex-1 min-w-0 px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs focus:ring-1 focus:ring-primary-500"
-                      />
-                      <input
-                        type="text"
-                        placeholder="+237..."
-                        value={item.phoneNumber}
-                        onChange={e => setCloseuseNotifNumbers(prev => prev.map((n, i) => i === idx ? { ...n, phoneNumber: e.target.value } : n))}
-                        className="flex-1 min-w-0 px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs font-mono focus:ring-1 focus:ring-primary-500"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setCloseuseNotifNumbers(prev => prev.map((n, i) => i === idx ? { ...n, isActive: !n.isActive } : n))}
-                        className={`p-1.5 rounded-lg border transition ${item.isActive ? 'bg-primary-50 border-primary-300 text-primary-600' : 'bg-gray-50 border-gray-200 text-gray-400'}`}
-                        title={item.isActive ? 'Actif — cliquer pour désactiver' : 'Inactif — cliquer pour activer'}
-                      >
-                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/></svg>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setCloseuseNotifNumbers(prev => prev.filter((_, i) => i !== idx))}
-                        className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
-                      >
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
-                      </button>
-                    </div>
-                    {/* Product assignment */}
-                    <div className="pl-1">
-                      <p className="text-[11px] text-gray-500 mb-1">Produits assignés <span className="text-gray-400">(vide = reçoit toutes les commandes)</span></p>
-                      <div className="flex flex-wrap gap-1.5 mb-1.5">
-                        {(item.products || []).map((prod, pidx) => (
-                          <span key={pidx} className="inline-flex items-center gap-1 px-2 py-0.5 bg-primary-50 text-primary-700 border border-primary-200 rounded text-[11px] font-medium">
-                            {prod}
-                            <button type="button" onClick={() => setCloseuseNotifNumbers(prev => prev.map((n, i) => i === idx ? { ...n, products: (n.products || []).filter((_, pi) => pi !== pidx) } : n))} className="text-primary-400 hover:text-red-500">
-                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
-                            </button>
-                          </span>
-                        ))}
-                      </div>
-                      <div className="flex items-center gap-1.5">
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-8">
+
+              {/* ── Section Closeuses ── */}
+              <section>
+                <div className="flex items-center gap-2.5 mb-1">
+                  <div className="w-7 h-7 rounded-lg bg-emerald-50 flex items-center justify-center">
+                    <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>
+                  </div>
+                  <h4 className="text-sm font-semibold text-gray-900">Closeuses</h4>
+                </div>
+                <p className="text-xs text-gray-400 mb-4 pl-[38px]">Reçoivent un message à chaque nouvelle commande.</p>
+
+                <div className="space-y-3">
+                  {closeuseNotifNumbers.map((item, idx) => (
+                    <div key={idx} className={`rounded-xl border p-4 transition-colors ${item.isActive ? 'border-gray-200 bg-white' : 'border-gray-100 bg-gray-50/50'}`}>
+                      {/* Row 1: Label + Phone + Toggle + Delete */}
+                      <div className="flex items-center gap-2">
                         <input
                           type="text"
-                          placeholder="Nom du produit (pattern)"
-                          onKeyDown={e => {
-                            if (e.key === 'Enter' && e.target.value.trim()) {
-                              e.preventDefault();
-                              const val = e.target.value.trim();
-                              setCloseuseNotifNumbers(prev => prev.map((n, i) => i === idx ? { ...n, products: [...(n.products || []), val] } : n));
-                              e.target.value = '';
-                            }
-                          }}
-                          className="flex-1 min-w-0 px-2 py-1 border border-gray-200 rounded text-[11px] focus:ring-1 focus:ring-primary-500 placeholder:text-gray-400"
+                          placeholder="Label"
+                          value={item.label}
+                          onChange={e => setCloseuseNotifNumbers(prev => prev.map((n, i) => i === idx ? { ...n, label: e.target.value } : n))}
+                          className="flex-1 min-w-0 h-10 px-3 bg-gray-50 border-0 rounded-lg text-sm text-gray-900 placeholder:text-gray-300 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 transition"
+                        />
+                        <input
+                          type="tel"
+                          placeholder="+237..."
+                          value={item.phoneNumber}
+                          onChange={e => setCloseuseNotifNumbers(prev => prev.map((n, i) => i === idx ? { ...n, phoneNumber: e.target.value } : n))}
+                          className="w-[140px] h-10 px-3 bg-gray-50 border-0 rounded-lg text-sm font-mono text-gray-900 placeholder:text-gray-300 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 transition"
                         />
                         <button
                           type="button"
-                          onClick={e => {
-                            const input = e.currentTarget.previousElementSibling;
-                            if (input.value.trim()) {
-                              setCloseuseNotifNumbers(prev => prev.map((n, i) => i === idx ? { ...n, products: [...(n.products || []), input.value.trim()] } : n));
-                              input.value = '';
-                            }
-                          }}
-                          className="px-2 py-1 bg-gray-100 hover:bg-gray-200 border border-gray-200 rounded text-[11px] text-gray-600 font-medium transition"
-                        >+</button>
+                          onClick={() => setCloseuseNotifNumbers(prev => prev.map((n, i) => i === idx ? { ...n, isActive: !n.isActive } : n))}
+                          className={`relative h-6 w-11 rounded-full transition-colors flex-shrink-0 ${item.isActive ? 'bg-emerald-500' : 'bg-gray-200'}`}
+                          title={item.isActive ? 'Actif' : 'Inactif'}
+                        >
+                          <span className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${item.isActive ? 'translate-x-5' : 'translate-x-0'}`} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setCloseuseNotifNumbers(prev => prev.filter((_, i) => i !== idx))}
+                          className="h-8 w-8 flex items-center justify-center text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition flex-shrink-0"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                        </button>
+                      </div>
+
+                      {/* Row 2: Instance WhatsApp */}
+                      <div className="mt-3 pt-3 border-t border-gray-100 flex items-center gap-2">
+                        <svg className="w-3.5 h-3.5 text-gray-300 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                        <select
+                          value={item.instanceId || ''}
+                          onChange={e => setCloseuseNotifNumbers(prev => prev.map((n, i) => i === idx ? { ...n, instanceId: e.target.value || null } : n))}
+                          className="flex-1 h-7 px-2 bg-gray-50 border border-gray-200 rounded-lg text-[11px] text-gray-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                        >
+                          <option value="">— Instance par défaut du workspace —</option>
+                          {whatsappInstances.map(inst => (
+                            <option key={inst._id} value={inst._id}>
+                              {inst.customName || inst.instanceName}{inst.status ? ` (${inst.status})` : ''}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Row 3: Products */}
+                      <div className="mt-3 pt-3 border-t border-gray-100">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {(item.products || []).map((prod, pidx) => (
+                            <span key={pidx} className="inline-flex items-center gap-1 h-6 px-2 bg-emerald-50 text-emerald-700 rounded-md text-[11px] font-medium">
+                              {prod}
+                              <button type="button" onClick={() => setCloseuseNotifNumbers(prev => prev.map((n, i) => i === idx ? { ...n, products: (n.products || []).filter((_, pi) => pi !== pidx) } : n))} className="text-emerald-400 hover:text-red-500 transition">
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                              </button>
+                            </span>
+                          ))}
+                          <select
+                            value=""
+                            onChange={e => {
+                              const val = e.target.value;
+                              if (val && !(item.products || []).includes(val)) {
+                                setCloseuseNotifNumbers(prev => prev.map((n, i) => i === idx ? { ...n, products: [...(n.products || []), val] } : n));
+                              }
+                            }}
+                            className="flex-1 min-w-[140px] h-7 px-2 bg-gray-50 border border-gray-200 rounded-lg text-[11px] text-gray-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 cursor-pointer"
+                          >
+                            <option value="">{item.products?.length ? '+ Ajouter un produit...' : 'Tous les produits (sélectionner pour filtrer)'}</option>
+                            {availableProducts.filter(p => !(item.products || []).includes(p.name)).map(p => (
+                              <option key={p._id} value={p.name}>{p.name}</option>
+                            ))}
+                          </select>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-              <button
-                type="button"
-                onClick={() => setCloseuseNotifNumbers(prev => [...prev, { label: '', phoneNumber: '', isActive: true, products: [] }])}
-                className="inline-flex items-center gap-1 px-3 py-1.5 bg-primary-50 text-primary-700 border border-primary-200 rounded-lg text-xs font-medium hover:bg-primary-100 transition"
-              >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
-                Ajouter une closeuse
-              </button>
-            </div>
-
-            {/* ── Section Groupes de Livraison ── */}
-            <div className="mt-5 pt-5 border-t border-gray-100">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <svg className="w-4 h-4 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-                  <h4 className="text-sm font-bold text-gray-900">Groupes de Livraison</h4>
+                  ))}
                 </div>
-                <a
-                  href="/ecom/settings?tab=delivery_groups"
-                  className="inline-flex items-center gap-1 text-xs text-orange-600 hover:text-orange-700 font-medium"
-                  title="Configurer les groupes dans Paramètres"
+
+                <button
+                  type="button"
+                  onClick={() => setCloseuseNotifNumbers(prev => [...prev, { label: '', phoneNumber: '', isActive: true, products: [] }])}
+                  className="mt-3 inline-flex items-center gap-1.5 h-9 px-3.5 text-xs font-medium text-gray-500 hover:text-gray-700 hover:bg-gray-50 border border-dashed border-gray-200 hover:border-gray-300 rounded-lg transition"
                 >
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-                  Gérer les groupes
-                </a>
-              </div>
-              <p className="text-xs text-gray-500 mb-3">Activez/désactivez les groupes qui reçoivent les notifications de nouvelles commandes.</p>
-              {deliveryGroupNumbers.length === 0 ? (
-                <div className="py-4 text-center bg-orange-50 rounded-xl border border-orange-100">
-                  <p className="text-xs text-gray-500 mb-2">Aucun groupe configuré.</p>
-                  <a href="/ecom/settings?tab=delivery_groups" className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-orange-500 text-white rounded-lg text-xs font-medium hover:bg-orange-600 transition">
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
-                    Ajouter des groupes dans Paramètres
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4"/></svg>
+                  Ajouter
+                </button>
+              </section>
+
+              {/* ── Section Groupes de Livraison ── */}
+              <section>
+                <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-7 h-7 rounded-lg bg-amber-50 flex items-center justify-center">
+                      <svg className="w-3.5 h-3.5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                    </div>
+                    <h4 className="text-sm font-semibold text-gray-900">Groupes de livraison</h4>
+                  </div>
+                  <a href="/ecom/settings?tab=delivery_groups" className="text-[11px] font-medium text-gray-400 hover:text-gray-600 transition">
+                    Gérer
                   </a>
                 </div>
-              ) : (
-                <div className="space-y-2">
-                  {deliveryGroupNumbers.map((item, idx) => (
-                    <label key={idx} className={`flex items-center gap-3 p-2.5 rounded-xl border cursor-pointer transition ${item.isActive !== false ? 'border-orange-300 bg-orange-50' : 'border-gray-200 bg-gray-50'}`}>
-                      <input
-                        type="checkbox"
-                        checked={item.isActive !== false}
-                        onChange={() => setDeliveryGroupNumbers(prev => prev.map((n, i) => i === idx ? { ...n, isActive: n.isActive === false ? true : false } : n))}
-                        className="w-4 h-4 accent-orange-500 flex-shrink-0"
-                      />
-                      <div className="min-w-0 flex-1">
-                        <p className="text-xs font-semibold text-gray-800 truncate">{item.label || 'Groupe sans nom'}</p>
-                        <p className="text-[10px] font-mono text-gray-400 truncate">{item.phoneNumber}</p>
-                      </div>
-                      <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${item.isActive !== false ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-400'}`}>
-                        {item.isActive !== false ? 'Actif' : 'Inactif'}
-                      </span>
-                    </label>
+                <p className="text-xs text-gray-400 mb-4 pl-[38px]">Groupes notifiés à chaque nouvelle commande.</p>
+
+                {deliveryGroupNumbers.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-gray-200 py-8 flex flex-col items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center">
+                      <svg className="w-5 h-5 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                    </div>
+                    <p className="text-xs text-gray-400">Aucun groupe configuré</p>
+                    <a href="/ecom/settings?tab=delivery_groups" className="text-xs font-medium text-emerald-600 hover:text-emerald-700 transition">
+                      Configurer dans Paramètres
+                    </a>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {deliveryGroupNumbers.map((item, idx) => (
+                      <label key={idx} className={`flex items-center gap-3 h-14 px-4 rounded-xl border cursor-pointer transition-all ${item.isActive !== false ? 'border-gray-200 bg-white hover:border-gray-300' : 'border-gray-100 bg-gray-50/50'}`}>
+                        <input
+                          type="checkbox"
+                          checked={item.isActive !== false}
+                          onChange={() => setDeliveryGroupNumbers(prev => prev.map((n, i) => i === idx ? { ...n, isActive: n.isActive === false ? true : false } : n))}
+                          className="w-4 h-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500/20 flex-shrink-0"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium text-gray-800 truncate">{item.label || 'Groupe sans nom'}</p>
+                          <p className="text-[11px] font-mono text-gray-400 truncate">{item.phoneNumber}</p>
+                        </div>
+                        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${item.isActive !== false ? 'bg-emerald-50 text-emerald-600' : 'bg-gray-100 text-gray-400'}`}>
+                          {item.isActive !== false ? 'Actif' : 'Off'}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </section>
+
+              {/* Test result */}
+              {testNotifResult && (
+                <div className={`rounded-xl p-4 text-xs ${testNotifResult.success ? 'bg-emerald-50 text-emerald-800' : 'bg-red-50 text-red-800'}`}>
+                  <p className="font-semibold">{testNotifResult.success ? 'Envoi réussi' : 'Erreur'} — {testNotifResult.message}</p>
+                  {testNotifResult.results?.map((r, i) => (
+                    <p key={i} className="font-mono text-[11px] mt-1 opacity-75">
+                      {r.status === 'ok' ? 'OK' : 'Erreur'} — {r.label ? `${r.label} — ` : ''}{r.phone || r.jid || ''}
+                      {r.error ? ` : ${r.error}` : ''}
+                    </p>
                   ))}
+                  {!testNotifResult.success && testNotifResult.results?.some(r => r.error?.toLowerCase().includes('déconnect') || r.error?.toLowerCase().includes('reconnect')) && (
+                    <a href="/ecom/whatsapp" className="inline-flex items-center gap-1.5 mt-3 text-xs font-semibold text-red-700 hover:text-red-800 transition">
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                      Reconnecter WhatsApp
+                    </a>
+                  )}
                 </div>
               )}
             </div>
 
-            {/* Bouton de sauvegarde notifs */}
-            {testNotifResult && (
-              <div className={`mt-4 p-3 rounded-lg text-xs ${testNotifResult.success ? 'bg-primary-50 text-primary-800 border border-primary-200' : 'bg-red-50 text-red-800 border border-red-200'}`}>
-                <p className="font-semibold mb-1">{testNotifResult.success ? '✅' : '❌'} {testNotifResult.message}</p>
-                {testNotifResult.results?.map((r, i) => (
-                  <p key={i} className="font-mono text-[11px] mt-0.5">
-                    {r.status === 'ok' ? '✅' : '❌'} {r.label ? `${r.label} — ` : ''}{r.phone || r.jid || ''}
-                    {r.error ? ` : ${r.error}` : ''}
-                  </p>
-                ))}
-                {/* Lien de reconnexion si l'instance est déconnectée */}
-                {!testNotifResult.success && testNotifResult.results?.some(r => r.error?.toLowerCase().includes('déconnect') || r.error?.toLowerCase().includes('reconnect')) && (
-                  <a
-                    href="/ecom/whatsapp"
-                    className="inline-flex items-center gap-1.5 mt-2 px-3 py-1.5 bg-red-600 text-white rounded-lg text-xs font-semibold hover:bg-red-700 transition"
-                  >
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-                    Reconnecter l'instance WhatsApp
-                  </a>
-                )}
-              </div>
-            )}
-            <div className="mt-5 flex items-center justify-between gap-3">
+            {/* Footer actions */}
+            <div className="flex items-center gap-3 px-6 py-4 border-t border-gray-100 flex-shrink-0">
               <button
                 type="button"
                 onClick={testNotifConfig}
                 disabled={testingNotifConfig || savingNotifConfig}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 border border-gray-200 rounded-xl hover:bg-gray-200 disabled:opacity-50 text-sm font-medium transition"
+                className="h-11 px-4 text-sm font-medium text-gray-600 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-xl disabled:opacity-40 transition flex items-center gap-2"
               >
                 {testingNotifConfig ? (
-                  <><div className="w-4 h-4 border-2 border-gray-500 border-t-transparent rounded-full animate-spin"/><span>Test en cours...</span></>
+                  <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"/>
                 ) : (
-                  <><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg><span>Tester l'envoi</span></>
+                  <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
                 )}
+                Tester
               </button>
               <button
                 type="button"
                 onClick={saveNotifConfig}
                 disabled={savingNotifConfig}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-xl hover:bg-primary-700 disabled:opacity-50 text-sm font-semibold transition"
+                className="flex-1 h-11 text-sm font-semibold text-white bg-gray-900 hover:bg-gray-800 rounded-xl disabled:opacity-40 transition flex items-center justify-center gap-2"
               >
                 {savingNotifConfig ? (
-                  <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"/><span>Sauvegarde...</span></>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"/>
                 ) : (
-                  <><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg><span>Sauvegarder les notifications</span></>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg>
                 )}
+                Sauvegarder
               </button>
             </div>
           </div>
@@ -3502,7 +3653,7 @@ const OrdersList = () => {
       {/* Modal pour ajouter/modifier un numéro WhatsApp */}
       {showWhatsAppMultiConfig && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowWhatsAppMultiConfig(false)}>
-          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-5" onClick={e => e.stopPropagation()}>
+          <div className="bg-white rounded-xl shadow-lg max-w-md w-full p-5" onClick={e => e.stopPropagation()}>
             <h3 className="text-lg font-bold text-gray-900 mb-4">
               {editingWhatsAppNumber ? 'Modifier le numéro WhatsApp' : 'Ajouter un numéro WhatsApp'}
             </h3>
@@ -3521,7 +3672,7 @@ const OrdersList = () => {
                       phoneNumber: country?.dialCode || ''
                     });
                   }}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  className="w-full min-h-[44px] px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
                 >
                   <option value="">Sélectionner un pays</option>
                   {COUNTRIES.map(country => (
@@ -3539,7 +3690,7 @@ const OrdersList = () => {
                   value={whatsappForm.phoneNumber}
                   onChange={(e) => setWhatsappForm({ ...whatsappForm, phoneNumber: e.target.value })}
                   placeholder="+237676463725"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  className="w-full min-h-[44px] px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
                 />
                 <p className="text-xs text-gray-500 mt-1">
                   Format: +indicatif + numéro (ex: +237676463725)
@@ -3583,7 +3734,7 @@ const OrdersList = () => {
                     autoNotifyOrders: true
                   });
                 }}
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 text-sm"
+                className="flex-1 min-h-[44px] px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 text-sm"
               >
                 Annuler
               </button>
@@ -3591,7 +3742,7 @@ const OrdersList = () => {
                 type="button"
                 onClick={saveWhatsAppNumber}
                 disabled={savingWhatsAppNumber}
-                className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 text-sm"
+                className="flex-1 min-h-[44px] px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 text-sm"
               >
                 {savingWhatsAppNumber ? 'Enregistrement...' : 'Enregistrer'}
               </button>
@@ -3603,10 +3754,10 @@ const OrdersList = () => {
       {/* Sync Clients Modal */}
       {showSyncClientsModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowSyncClientsModal(false)}>
-          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6" onClick={e => e.stopPropagation()}>
+          <div className="bg-white rounded-xl shadow-lg max-w-md w-full p-6" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold text-gray-900">Synchroniser les clients</h3>
-              <button onClick={() => setShowSyncClientsModal(false)} className="text-gray-400 hover:text-gray-600">
+              <button onClick={() => setShowSyncClientsModal(false)} className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-50" aria-label="Fermer">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
@@ -3627,7 +3778,7 @@ const OrdersList = () => {
                 { key: 'called', label: 'Appelé', color: 'bg-cyan-500' },
                 { key: 'postponed', label: 'Reporté', color: 'bg-amber-500' }
               ].map(status => (
-                <label key={status.key} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 cursor-pointer">
+                <label key={status.key} className="flex min-h-[44px] items-center gap-3 p-2 rounded-lg hover:bg-gray-50 cursor-pointer">
                   <input
                     type="checkbox"
                     checked={syncClientsStatuses.includes(status.key)}
@@ -3649,14 +3800,14 @@ const OrdersList = () => {
             <div className="flex gap-3">
               <button
                 onClick={() => setShowSyncClientsModal(false)}
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 text-sm font-medium"
+                className="flex-1 min-h-[44px] px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 text-sm font-medium"
               >
                 Annuler
               </button>
               <button
                 onClick={handleSyncClients}
                 disabled={syncProgress !== null || syncClientsStatuses.length === 0}
-                className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 text-sm font-medium flex items-center justify-center gap-2"
+                className="flex min-h-[44px] flex-1 items-center justify-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 text-sm font-medium"
               >
                 {syncProgress ? (
                   <>

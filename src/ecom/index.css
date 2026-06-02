@@ -31,6 +31,27 @@
   --scalor-copper: #C56A2D;
 }
 
+html {
+  width: 100%;
+  min-width: 0;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body,
+#root {
+  width: 100%;
+  min-width: 0;
+}
+
+button,
+a,
+input,
+select,
+textarea {
+  touch-action: manipulation;
+}
+
 /* 🆕 Optimisations Mobile */
 /* Safe areas pour les mobiles modernes (iPhone X+, Dynamic Island) */
 .safe-area-top {
@@ -60,10 +81,12 @@
 
 /* Hauteur totale correcte sur iOS Safari (évite le bug 100vh) */
 .h-dvh {
+  height: 100vh;
   height: 100dvh;
 }
 
 .min-h-dvh {
+  min-height: 100vh;
   min-height: 100dvh;
 }
 
@@ -372,8 +395,16 @@
   /* Tables scrollables horizontalement sur mobile */
   table {
     display: block;
+    width: 100%;
+    max-width: 100%;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
+  }
+
+  thead,
+  tbody,
+  tr {
+    min-width: max-content;
   }
 
   /* ══════════════════════════════════════════════
@@ -425,14 +456,14 @@
     overflow: hidden;
   }
 
-  /* Empêcher les labels et badges de forcer le parent à grandir */
-  .text-xs,
-  .text-\[10px\],
-  .text-\[11px\],
-  .text-\[9px\] {
+  /* Seuls les vrais badges/pills restent en une ligne. Le contenu texte peut revenir à la ligne. */
+  .rounded-full[class*="px-"],
+  .rounded-lg[class*="px-"][class*="py-"][class*="text-xs"],
+  .rounded-xl[class*="px-"][class*="py-"][class*="text-xs"] {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    max-width: 100%;
   }
 
   /* ══════════════════════════════════════════════
@@ -455,7 +486,6 @@
   /* Grids Tailwind: les enfants ne débordent pas */
   [class*="grid"]>* {
     min-width: 0;
-    overflow: hidden;
   }
 
   /* Flex containers: les enfants ne débordent pas */
@@ -466,12 +496,20 @@
   /* ══════════════════════════════════════════════
      🔒 FIX: KPI Cards & Stats
      ══════════════════════════════════════════════ */
-  /* Valeur KPI: s'adapte à la taille dispo */
+  /* Tailles fixes en rem pour éviter les variations au viewport sur mobile. */
   .text-2xl,
   .text-3xl,
   .text-4xl {
-    font-size: clamp(1rem, 5vw, 1.875rem);
     line-height: 1.2;
+  }
+
+  .text-2xl {
+    font-size: 1.375rem;
+  }
+
+  .text-3xl,
+  .text-4xl {
+    font-size: 1.625rem;
   }
 
   /* Badges et pills ne cassent pas */
@@ -502,8 +540,7 @@
   .max-w-5xl,
   .max-w-4xl,
   .max-w-3xl {
-    max-width: 100vw;
-    overflow-x: hidden;
+    max-width: 100%;
   }
 
   /* Cards et modals: pas plus large que l'écran */
@@ -511,6 +548,11 @@
   .rounded-xl,
   .rounded-lg {
     max-width: 100%;
+  }
+
+  .orders-import-menu {
+    width: min(14rem, calc(100vw - 1.5rem)) !important;
+    max-width: calc(100vw - 1.5rem) !important;
   }
 
   /* Empêcher le contenu fixe de causer un scroll horizontal */

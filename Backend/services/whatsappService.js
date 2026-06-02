@@ -15,15 +15,15 @@ import { formatInternationalPhone, getPhonePrefixFromWorkspace, normalizePhone }
  */
 async function getActiveInstance(workspaceId, specificInstanceId = null) {
   try {
-    // Si une instance spécifique est demandée
+    // Si une instance spécifique est demandée, on la prend dès qu'elle est active
+    // (pas de filtre sur le statut : l'admin l'a choisie explicitement)
     if (specificInstanceId) {
       const specific = await WhatsAppInstance.findOne({
         _id: specificInstanceId,
-        isActive: true,
-        status: { $in: ['connected', 'active'] }
+        isActive: true
       });
       if (specific) return specific;
-      console.warn(`⚠️ Instance spécifique ${specificInstanceId} non trouvée ou déconnectée, fallback auto-detect`);
+      console.warn(`⚠️ Instance spécifique ${specificInstanceId} introuvable ou désactivée, fallback auto-detect`);
     }
 
     // Chercher une instance active et connectée pour ce workspace
