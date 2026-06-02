@@ -100,13 +100,7 @@ export async function saveSkolerOrder(orderData, workspaceId, workspaceSettings 
       line_items: items.map(i => ({ title: i.name || i.title, quantity: i.quantity || 1 })),
     };
 
-    sendClientOrderConfirmation(newOrder, fakePayload, workspaceId, {
-      storeName:      workspaceSettings.storeName || '',
-      customTemplate: workspaceSettings.whatsappOrderTemplate || null,
-      instanceId:     workspaceSettings.whatsappAutoInstanceId || null,
-      imageUrl:       workspaceSettings.whatsappAutoImageUrl || null,
-      audioUrl:       workspaceSettings.whatsappAutoAudioUrl || null,
-    }).catch(err => console.error('❌ [Skelor] Erreur WhatsApp client:', err.message));
+    // WhatsApp au client géré par le hook Order.post('save') → sendOrderClientMessage
   }
 
   return newOrder;

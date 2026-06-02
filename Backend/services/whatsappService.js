@@ -571,34 +571,94 @@ export async function sendOrderClientMessage(order, workspaceId) {
     if (!workspaceId || !order?.clientPhone) return;
     if (!order?.productId && !order?.product) return;
 
+    const { default: EcomWorkspace } = await import('../models/Workspace.js');
+    const ws = await EcomWorkspace.findById(workspaceId)
+      .select('whatsappAutoConfirm whatsappAutoProductMediaRules whatsappOrderTemplate storeSettings name')
+      .lean();
+
+    // ── 1. Règle par produit dans whatsappAutoProductMediaRules ──────────────
+    if (ws?.whatsappAutoConfirm && ws?.whatsappAutoProductMediaRules?.length > 0) {
+      const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+      const normProduct = norm(order.product);
+      let matchedRule = null;
+
+      for (const rule of ws.whatsappAutoProductMediaRules) {
+        if (!rule?.productKeyword) continue;
+        const normKeyword = norm(rule.productKeyword);
+        if (normProduct === normKeyword || normProduct.includes(normKeyword) || normKeyword.includes(normProduct)) {
+          matchedRule = rule; break;
+        }
+        const pw = normProduct.split(' ').filter(w => w.length >= 4);
+        const kw = normKeyword.split(' ').filter(w => w.length >= 4);
+        if (pw.some(w => kw.includes(w))) { matchedRule = rule; break; }
+      }
+
+      if (matchedRule) {
+        console.log(`✅ [OrderClient] Règle produit trouvée: "${matchedRule.productKeyword}" → instance: ${matchedRule.instanceId || 'défaut'}`);
+
+        const storeName = ws.storeSettings?.storeName || ws.name || '';
+        const effectiveTemplate = matchedRule.template || ws.whatsappOrderTemplate || null;
+
+        // Construire le message
+        let message;
+        if (effectiveTemplate) {
+          const unitPrice = (order.price || 0);
+          message = effectiveTemplate
+            .replace(/\{\{first_name\}\}/gi,   order.clientName?.split(' ')[0] || 'Client')
+            .replace(/\{\{order_number\}\}/gi, order.orderId || '')
+            .replace(/\{\{product\}\}/gi,      order.product || '')
+            .replace(/\{\{quantity\}\}/gi,     String(order.quantity || 1))
+            .replace(/\{\{city\}\}/gi,         order.city || '')
+            .replace(/\{\{total_price\}\}/gi,  String((order.price || 0) * (order.quantity || 1)))
+            .replace(/\{\{price\}\}/gi,        String(unitPrice))
+            .replace(/\{\{prix\}\}/gi,         String(unitPrice))
+            .replace(/\{\{currency\}\}/gi,     order.currency || 'XAF')
+            .replace(/\{\{devise\}\}/gi,       order.currency || 'XAF')
+            .replace(/\{\{store_name\}\}/gi,   storeName);
+        } else {
+          message = `Bonjour ${order.clientName?.split(' ')[0] || 'Client'} 👋\n\nVotre commande #${order.orderId} a bien été reçue${storeName ? ` chez ${storeName}` : ''}.\n\nProduit : ${order.product}\nQuantité : ${order.quantity || 1}\nTotal : ${order.price || 0} ${order.currency || 'XAF'}\n\nMerci pour votre confiance 🙏`;
+        }
+
+        const instanceId = matchedRule.instanceId || undefined;
+        await sendWhatsAppMessage({ to: order.clientPhone, message, workspaceId, instanceId });
+        console.log(`✅ [OrderClient] Message envoyé via instance ${instanceId || 'défaut'}`);
+
+        // Envoyer image si présente
+        if (matchedRule.imageUrl) {
+          await new Promise(r => setTimeout(r, 1000));
+          await sendWhatsAppMedia({ to: order.clientPhone, mediaUrl: matchedRule.imageUrl, caption: '', workspaceId, instanceId });
+          console.log(`✅ [OrderClient] Image envoyée`);
+        }
+        // Envoyer vidéo si présente
+        if (matchedRule.videoUrl) {
+          await new Promise(r => setTimeout(r, 1000));
+          await sendWhatsAppVideo({ to: order.clientPhone, videoUrl: matchedRule.videoUrl, caption: '', workspaceId, instanceId });
+          console.log(`✅ [OrderClient] Vidéo envoyée`);
+        }
+        return;
+      }
+    }
+
+    // ── 2. Fallback : product.whatsappClientEnabled ───────────────────────────
     const { default: Product } = await import('../models/Product.js');
     const fields = 'whatsappClientEnabled whatsappClientInstanceId whatsappClientMessage name';
     let product = null;
     if (order.productId) {
       product = await Product.findOne({ _id: order.productId, workspaceId }).select(fields).lean();
     }
-    // Fallback : résolution par nom (les commandes webhook n'ont qu'un nom de produit)
     if (!product && order.product) {
       product = await Product.findOne({
         workspaceId,
         name: { $regex: `^${order.product.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, $options: 'i' },
       }).select(fields).lean();
     }
-
     if (!product || !product.whatsappClientEnabled) return;
 
     const message = renderClientTemplate(product.whatsappClientMessage, order, product);
-
-    await sendWhatsAppMessage({
-      to: order.clientPhone,
-      message,
-      workspaceId,
-      instanceId: product.whatsappClientInstanceId || undefined,
-    });
-    console.log(`✅ [OrderClient] Message envoyé au client ${order.clientPhone} pour "${product.name}"`);
+    await sendWhatsAppMessage({ to: order.clientPhone, message, workspaceId, instanceId: product.whatsappClientInstanceId || undefined });
+    console.log(`✅ [OrderClient] Message produit envoyé pour "${product.name}"`);
   } catch (error) {
     console.error('❌ sendOrderClientMessage:', error.message);
-    // Ne jamais bloquer la création de commande
   }
 }
 

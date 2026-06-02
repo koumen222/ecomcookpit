@@ -443,9 +443,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('orders', 'write'), checkPl
     // Envoyer la notification WhatsApp automatiquement (au livreur)
     await sendOrderNotification(order, req.workspaceId);
     
-    // WhatsApp confirmation au client (si activé)
-    sendOrderConfirmationToClient(order, req.workspaceId)
-      .catch(err => console.error(`❌ Erreur WhatsApp client:`, err.message));
+    // WhatsApp au client géré par le hook Order.post('save') → sendOrderClientMessage
     
     // Notification interne
     notifyNewOrder(req.workspaceId, order).catch(() => {});
@@ -4480,6 +4478,14 @@ router.post('/:id/send-whatsapp', requireEcomAuth, validateEcomAccess('products'
   }
 });
 
+// GET /api/ecom/orders/config/whatsapp-auto/debug - Voir la config en DB
+router.get('/config/whatsapp-auto/debug', requireEcomAuth, validateEcomAccess('products', 'read'), async (req, res) => {
+  const workspace = await EcomWorkspace.findById(req.workspaceId)
+    .select('whatsappAutoConfirm whatsappAutoInstanceId whatsappOrderTemplate whatsappAutoProductMediaRules name')
+    .lean();
+  res.json({ success: true, data: workspace });
+});
+
 // PATCH /api/ecom/orders/config/whatsapp-auto - Toggle + config WhatsApp auto-confirmation
 router.patch('/config/whatsapp-auto', requireEcomAuth, validateEcomAccess('products', 'write'), async (req, res) => {
   try {
@@ -4538,6 +4544,48 @@ router.patch('/config/whatsapp-auto', requireEcomAuth, validateEcomAccess('produ
   } catch (error) {
     console.error('Erreur toggle WhatsApp auto:', error);
     res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// POST /api/ecom/orders/config/whatsapp-auto/test - Tester l'envoi auto au client
+router.post('/config/whatsapp-auto/test', requireEcomAuth, validateEcomAccess('products', 'write'), async (req, res) => {
+  try {
+    const { phoneNumber, productKeyword } = req.body;
+    if (!phoneNumber?.trim()) {
+      return res.status(400).json({ success: false, message: 'Numéro de téléphone requis' });
+    }
+
+    // Utiliser l'import statique déjà chargé en haut du fichier
+
+    // Construire une fausse commande pour le test
+    const fakeOrder = {
+      _id: 'test',
+      orderId: 'TEST-' + Date.now(),
+      clientName: 'Client Test',
+      clientPhone: phoneNumber.trim().replace(/\s/g, ''),
+      product: productKeyword?.trim() || 'Produit Test',
+      quantity: 1,
+      price: 0,
+      city: 'Test',
+      currency: 'XAF',
+      rawData: {},
+      constructor: { updateOne: async () => {} }
+    };
+
+    const result = await sendOrderConfirmationToClient(fakeOrder, req.workspaceId);
+    res.json({
+      success: result?.success || false,
+      skipped: result?.skipped || false,
+      reason: result?.reason || null,
+      message: result?.success
+        ? `Message envoyé à ${phoneNumber}`
+        : result?.skipped
+        ? `Ignoré: ${result.reason}`
+        : `Échec: ${result?.error || 'Erreur inconnue'}`
+    });
+  } catch (error) {
+    console.error('Erreur test WhatsApp auto:', error);
+    res.status(500).json({ success: false, message: error.message });
   }
 });
 

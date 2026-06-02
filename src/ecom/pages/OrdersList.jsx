@@ -179,6 +179,12 @@ const OrdersList = () => {
   const [uploadingAutoImage, setUploadingAutoImage] = useState(false);
   const [uploadingAutoAudio, setUploadingAutoAudio] = useState(false);
   const [uploadingRuleMedia, setUploadingRuleMedia] = useState({});
+  const [testAutoPhone, setTestAutoPhone] = useState('');
+  const [testAutoProduct, setTestAutoProduct] = useState('');
+  const [testingAuto, setTestingAuto] = useState(false);
+  const [testAutoResult, setTestAutoResult] = useState(null);
+  const [dbConfig, setDbConfig] = useState(null);
+  const [loadingDbConfig, setLoadingDbConfig] = useState(false);
   const [showAddSheetModal, setShowAddSheetModal] = useState(false);
   const [newSheetData, setNewSheetData] = useState({ name: '', spreadsheetId: '', sheetName: 'Sheet1' });
   const [savingSheet, setSavingSheet] = useState(false);
@@ -664,6 +670,23 @@ const OrdersList = () => {
       setError('Erreur upload');
     } finally {
       setUploadingRuleMedia(prev => ({ ...prev, [`${ridx}_${field}`]: false }));
+    }
+  };
+
+  const testAutoConfig = async () => {
+    if (!testAutoPhone.trim()) return;
+    setTestingAuto(true);
+    setTestAutoResult(null);
+    try {
+      const res = await ecomApi.post('/orders/config/whatsapp-auto/test', {
+        phoneNumber: testAutoPhone.trim(),
+        productKeyword: testAutoProduct.trim() || undefined
+      });
+      setTestAutoResult(res.data);
+    } catch (err) {
+      setTestAutoResult({ success: false, message: err.response?.data?.message || 'Erreur' });
+    } finally {
+      setTestingAuto(false);
     }
   };
 
@@ -3059,52 +3082,6 @@ const OrdersList = () => {
             </div>
             <div className="p-5 space-y-5">
 
-              {/* Instance WhatsApp globale */}
-              {(() => {
-                const allRulesHaveInstance = (autoConfig.productRules || []).length > 0 &&
-                  (autoConfig.productRules || []).every(r => r.productKeyword && r.instanceId);
-                const someRulesHaveInstance = (autoConfig.productRules || []).some(r => r.instanceId);
-                return (
-                <div className={allRulesHaveInstance ? 'opacity-40 pointer-events-none' : ''}>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    <span className="flex items-center gap-2 flex-wrap">
-                      <svg className="w-4 h-4 text-green-600 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/></svg>
-                      Instance d'envoi
-                      {someRulesHaveInstance && (
-                        <span className="text-[10px] font-normal text-gray-400">— remplacée par les instances produit ci-dessous</span>
-                      )}
-                    </span>
-                  </label>
-                  {allRulesHaveInstance ? (
-                    <div className="flex items-center gap-2 px-3 py-2.5 bg-gray-100 border border-gray-200 rounded-xl text-sm text-gray-400">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
-                      Remplacée par les instances par produit
-                    </div>
-                  ) : loadingInstances ? (
-                    <div className="flex items-center gap-2 text-sm text-gray-500 py-2">
-                      <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-                      Chargement des instances...
-                    </div>
-                  ) : (
-                    <select
-                      value={autoConfig.instanceId}
-                      onChange={e => setAutoConfig(prev => ({ ...prev, instanceId: e.target.value }))}
-                      className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                    >
-                      <option value="">Automatique (première instance disponible)</option>
-                      {whatsappInstances.map(inst => (
-                        <option key={inst._id} value={inst._id} disabled={!inst.isConnected}>
-                          {inst.customName} - {inst.isConnected ? 'Connectée' : 'Déconnectée'}
-                        </option>
-                      ))}
-                    </select>
-                  )}
-                  {whatsappInstances.length === 0 && !loadingInstances && !allRulesHaveInstance && (
-                    <p className="text-xs text-amber-600 mt-1">Aucune instance trouvée. Configurez-en une dans "Connexion WhatsApp".</p>
-                  )}
-                </div>
-                );
-              })()}
 
               {/* Template message texte */}
               <div>
@@ -3282,6 +3259,77 @@ const OrdersList = () => {
                     )}
                   </div>
                 </div>
+              )}
+            </div>
+
+            {/* Zone debug DB */}
+            <div className="px-5 pb-2">
+              <button
+                type="button"
+                onClick={async () => {
+                  setLoadingDbConfig(true);
+                  setDbConfig(null);
+                  try {
+                    const res = await ecomApi.get('/orders/config/whatsapp-auto/debug');
+                    setDbConfig(res.data.data);
+                  } catch { setDbConfig({ error: 'Erreur' }); }
+                  finally { setLoadingDbConfig(false); }
+                }}
+                className="text-[10px] text-gray-400 hover:text-gray-600 underline"
+              >
+                {loadingDbConfig ? 'Chargement...' : '🔍 Voir config en base de données'}
+              </button>
+              {dbConfig && (
+                <div className="mt-2 p-3 bg-gray-900 text-green-300 rounded-lg text-[10px] font-mono overflow-auto max-h-64">
+                  <p><strong>whatsappAutoConfirm:</strong> {String(dbConfig.whatsappAutoConfirm)}</p>
+                  <p><strong>Règles produit ({(dbConfig.whatsappAutoProductMediaRules || []).length}):</strong></p>
+                  {(dbConfig.whatsappAutoProductMediaRules || []).map((r, i) => (
+                    <div key={i} className="pl-2 mt-1 border-l border-green-600">
+                      <p>• keyword: "{r.productKeyword?.substring(0, 40)}..."</p>
+                      <p className="pl-2">instanceId: {r.instanceId || '❌ null'}</p>
+                      <p className="pl-2">template: {r.template ? `✅ (${r.template.length} chars)` : '❌ null'}</p>
+                      <p className="pl-2">imageUrl: {r.imageUrl ? '✅' : '❌ null'}</p>
+                      <p className="pl-2">videoUrl: {r.videoUrl ? '✅' : '❌ null'}</p>
+                      <p className="pl-2">sendOrder: [{(r.sendOrder || []).join(', ')}]</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Zone test */}
+            <div className="px-5 pb-4 space-y-2">
+              <p className="text-xs font-semibold text-gray-500">Tester l'envoi</p>
+              <div className="flex gap-2">
+                <input
+                  type="tel"
+                  placeholder="Numéro (ex: 237612345678)"
+                  value={testAutoPhone}
+                  onChange={e => { setTestAutoPhone(e.target.value); setTestAutoResult(null); }}
+                  className="flex-1 h-9 px-3 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-green-500/20 focus:outline-none"
+                />
+                <select
+                  value={testAutoProduct}
+                  onChange={e => { setTestAutoProduct(e.target.value); setTestAutoResult(null); }}
+                  className="w-36 h-9 px-2 border border-gray-200 rounded-lg text-xs bg-white focus:ring-2 focus:ring-green-500/20 focus:outline-none"
+                >
+                  <option value="">— Produit —</option>
+                  {availableProducts.map(p => <option key={p._id} value={p.name}>{p.name}</option>)}
+                </select>
+                <button
+                  type="button"
+                  onClick={testAutoConfig}
+                  disabled={testingAuto || !testAutoPhone.trim()}
+                  className="h-9 px-3 text-xs font-medium text-white bg-gray-800 hover:bg-gray-700 rounded-lg disabled:opacity-40 transition flex items-center gap-1.5"
+                >
+                  {testingAuto ? <svg className="animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg> : <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>}
+                  Tester
+                </button>
+              </div>
+              {testAutoResult && (
+                <p className={`text-xs px-3 py-2 rounded-lg ${testAutoResult.success ? 'bg-green-50 text-green-700' : testAutoResult.skipped ? 'bg-amber-50 text-amber-700' : 'bg-red-50 text-red-700'}`}>
+                  {testAutoResult.success ? '✅' : testAutoResult.skipped ? '⚠️' : '❌'} {testAutoResult.message}
+                </p>
               )}
             </div>
 

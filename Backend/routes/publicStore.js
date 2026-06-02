@@ -544,13 +544,7 @@ router.post('/:subdomain/orders', orderLimiter, resolveStoreBySubdomain, async (
             line_items: orderProducts.map(p => ({ title: p.name, quantity: p.quantity, price: String(p.price) })),
             total_price: String(order.total)
           };
-          sendClientOrderConfirmation(mainOrder, shopifyPayload, workspaceId.toString(), {
-            storeName: waSource.storeSettings?.storeName || waSource.name || workspace.name || '',
-            instanceId: waSource.whatsappAutoInstanceId || workspace.whatsappAutoInstanceId || wsSettings?.whatsappAutoInstanceId || null,
-            customTemplate: waSource.whatsappOrderTemplate || workspace.whatsappOrderTemplate || wsSettings?.whatsappOrderTemplate || null,
-            imageUrl: waSource.whatsappAutoImageUrl || workspace.whatsappAutoImageUrl || wsSettings?.whatsappAutoImageUrl || null,
-            audioUrl: waSource.whatsappAutoAudioUrl || workspace.whatsappAutoAudioUrl || wsSettings?.whatsappAutoAudioUrl || null,
-          }).catch(err => console.error('⚠️ [PublicStore] WhatsApp auto-confirm échoué:', err.message));
+          // WhatsApp au client géré par le hook Order.post('save') → sendOrderClientMessage
         }
       } catch (syncErr) {
         console.error('❌ [PublicStore] Sync vers Order échouée:', syncErr.message);

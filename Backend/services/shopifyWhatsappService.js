@@ -54,17 +54,21 @@ export function buildConfirmationMessage({
 }) {
   // Si un template personnalisé est défini, on remplace les variables
   if (customTemplate) {
+    const unitPrice = totalPrice && quantity > 1 ? Math.round(totalPrice / quantity) : (totalPrice || 0);
     return customTemplate
-      .replace(/\{\{first_name\}\}/gi,   firstName || 'Client')
-      .replace(/\{\{order_number\}\}/gi, orderNumber || '')
-      .replace(/\{\{product\}\}/gi,      product || '')
-      .replace(/\{\{quantity\}\}/gi,     String(quantity || 1))
-      .replace(/\{\{city\}\}/gi,         city || '')
-      .replace(/\{\{country\}\}/gi,      country || '')
-      .replace(/\{\{total_price\}\}/gi,  String(totalPrice || 0))
-      .replace(/\{\{currency\}\}/gi,     currency)
-      .replace(/\{\{delivery_type\}\}/gi, deliveryType || '')
-      .replace(/\{\{store_name\}\}/gi,   storeName);
+      .replace(/\{\{first_name\}\}/gi,      firstName || 'Client')
+      .replace(/\{\{order_number\}\}/gi,    orderNumber || '')
+      .replace(/\{\{product\}\}/gi,         product || '')
+      .replace(/\{\{quantity\}\}/gi,        String(quantity || 1))
+      .replace(/\{\{city\}\}/gi,            city || '')
+      .replace(/\{\{country\}\}/gi,         country || '')
+      .replace(/\{\{total_price\}\}/gi,     String(totalPrice || 0))
+      .replace(/\{\{price\}\}/gi,           String(unitPrice))
+      .replace(/\{\{prix\}\}/gi,            String(unitPrice))
+      .replace(/\{\{currency\}\}/gi,        currency)
+      .replace(/\{\{devise\}\}/gi,          currency)
+      .replace(/\{\{delivery_type\}\}/gi,   deliveryType || '')
+      .replace(/\{\{store_name\}\}/gi,      storeName);
   }
 
   // Template par défaut
@@ -164,28 +168,52 @@ function normalizeSendOrder(order = []) {
 
 function resolveMediaRule(orderProduct = '', rules = []) {
   if (!orderProduct || !Array.isArray(rules) || rules.length === 0) return null;
-  const normalizedProduct = normalizeProductText(orderProduct);
-  const productTokens = buildTokenSet(orderProduct);
 
-  let bestRule = null;
-  let bestScore = 0;
+  // Normalisation simple : minuscules + suppression accents + trim
+  const norm = (s) => {
+    try {
+      return String(s || '')
+        .normalize('NFD')
+        .replace(/[̀-ͯ]/g, '')
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+    } catch { return String(s || '').toLowerCase().trim(); }
+  };
+
+  const normProduct = norm(orderProduct);
+  console.log(`🔎 [resolveMediaRule] produit commande normalisé: "${normProduct}"`);
+  console.log(`🔎 [resolveMediaRule] ${rules.length} règle(s) en DB`);
 
   for (const rule of rules) {
-    const patterns = splitKeywordPatterns(rule?.productKeyword);
-    if (patterns.length === 0) continue;
+    if (!rule?.productKeyword) continue;
+    const normKeyword = norm(rule.productKeyword);
+    console.log(`   → test règle: "${normKeyword}"`);
 
-    let ruleScore = 0;
-    for (const pattern of patterns) {
-      ruleScore = Math.max(ruleScore, scorePatternAgainstProduct(pattern, normalizedProduct, productTokens));
+    // Exact
+    if (normProduct === normKeyword) {
+      console.log(`✅ match EXACT`);
+      return rule;
     }
-
-    if (ruleScore > bestScore) {
-      bestScore = ruleScore;
-      bestRule = rule;
+    // Inclusion dans les deux sens
+    if (normProduct.includes(normKeyword) || normKeyword.includes(normProduct)) {
+      console.log(`✅ match INCLUSION`);
+      return rule;
     }
+    // Mots significatifs en commun (>=4 chars)
+    const pw = normProduct.split(' ').filter(w => w.length >= 4);
+    const kw = normKeyword.split(' ').filter(w => w.length >= 4);
+    const common = pw.filter(w => kw.includes(w));
+    if (common.length >= 1) {
+      console.log(`✅ match MOTS (${common.join(',')})`);
+      return rule;
+    }
+    console.log(`   ❌ pas de match`);
   }
 
-  return bestScore >= 20 ? bestRule : null;
+  console.log(`🔎 [resolveMediaRule] aucune règle trouvée pour ce produit`);
+  return null;
 }
 
 async function sendAutoStep(step, context) {
@@ -296,33 +324,44 @@ export async function sendOrderConfirmationToClient(order, workspaceId) {
   const logPrefix = `[Order→WhatsApp]`;
 
   try {
-    // Anti-doublon : si le produit commandé gère son propre message client
-    // (instance dédiée, via le hook produit), on n'envoie pas aussi le message
-    // auto au niveau workspace — sinon le client reçoit deux messages.
-    try {
-      const { default: Product } = await import('../models/Product.js');
-      if (order?.productId || order?.product) {
-        const q = order.productId
-          ? { _id: order.productId, workspaceId }
-          : { workspaceId, name: { $regex: `^${String(order.product).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, $options: 'i' } };
-        const prod = await Product.findOne(q).select('whatsappClientEnabled').lean();
-        if (prod?.whatsappClientEnabled) {
-          console.log(`ℹ️ ${logPrefix} Produit gère son message client (instance dédiée) — envoi workspace ignoré`);
-          return { success: false, skipped: true, reason: 'product_client_message' };
-        }
-      }
-    } catch { /* en cas d'erreur, on continue avec le flux workspace normal */ }
-
-    // Vérifier que whatsappAutoConfirm est activé
+    // Charger le workspace en premier pour avoir les règles produit
     const workspace = await EcomWorkspace.findById(workspaceId)
       .select('whatsappAutoConfirm whatsappOrderTemplate whatsappAutoInstanceId whatsappAutoImageUrl whatsappAutoVideoUrl whatsappAutoDocumentUrl whatsappAutoAudioUrl whatsappAutoSendOrder whatsappAutoProductMediaRules storeSettings name')
       .lean();
 
     console.log(`🔍 ${logPrefix} workspace trouvé: ${workspace ? 'OUI' : 'NON'}, whatsappAutoConfirm: ${workspace?.whatsappAutoConfirm}, workspaceId: ${workspaceId}`);
+    console.log(`🔍 ${logPrefix} règles produit en DB: ${workspace?.whatsappAutoProductMediaRules?.length || 0}`);
+    (workspace?.whatsappAutoProductMediaRules || []).forEach((r, i) => {
+      console.log(`   [${i}] keyword="${r.productKeyword}" instanceId="${r.instanceId || 'null'}"`);
+    });
 
     if (!workspace?.whatsappAutoConfirm) {
       console.log(`ℹ️ ${logPrefix} WhatsApp auto désactivé pour workspace ${workspaceId}`);
       return { success: false, error: 'WhatsApp auto désactivé' };
+    }
+
+    console.log(`🔍 ${logPrefix} order.product: "${order.product}"`);
+
+    // Résoudre la règle produit AVANT l'anti-doublon
+    const matchedRule = resolveMediaRule(order.product, workspace.whatsappAutoProductMediaRules || []);
+    if (matchedRule) {
+      console.log(`📦 ${logPrefix} Règle produit trouvée: "${matchedRule.productKeyword}"${matchedRule.instanceId ? ` → instance ${matchedRule.instanceId}` : ''} — skip anti-doublon`);
+    } else {
+      // Pas de règle produit dédiée : vérifier si le produit gère son propre message
+      // (via Settings > Message client automatique par produit) pour éviter doublon
+      try {
+        const { default: Product } = await import('../models/Product.js');
+        if (order?.productId || order?.product) {
+          const q = order.productId
+            ? { _id: order.productId, workspaceId }
+            : { workspaceId, name: { $regex: `^${String(order.product).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, $options: 'i' } };
+          const prod = await Product.findOne(q).select('whatsappClientEnabled').lean();
+          if (prod?.whatsappClientEnabled) {
+            console.log(`ℹ️ ${logPrefix} Produit gère son message client — envoi workspace ignoré`);
+            return { success: false, skipped: true, reason: 'product_client_message' };
+          }
+        }
+      } catch { /* continuer */ }
     }
 
     const rawPhone = order.clientPhone || '';
@@ -348,12 +387,7 @@ export async function sendOrderConfirmationToClient(order, workspaceId) {
 
     const whatsappNumber = phoneResult.formatted || rawPhone.replace(/\D/g, '');
     const storeName = workspace.storeSettings?.storeName || workspace.name || '';
-    console.log(`📲 ${logPrefix} Numéro final: "${whatsappNumber}"`);
-
-    const matchedRule = resolveMediaRule(order.product, workspace.whatsappAutoProductMediaRules || []);
-    if (matchedRule) {
-      console.log(`📦 ${logPrefix} Règle produit trouvée: "${matchedRule.productKeyword}"${matchedRule.instanceId ? ` → instance ${matchedRule.instanceId}` : ''}`);
-    }
+    console.log(`📲 ${logPrefix} Numéro final: "${whatsappNumber}", règle produit: ${matchedRule ? `"${matchedRule.productKeyword}"` : 'aucune'}`);
 
     // Instance: règle produit > instance globale
     const autoInstanceId = matchedRule?.instanceId || workspace.whatsappAutoInstanceId || null;
@@ -383,7 +417,16 @@ export async function sendOrderConfirmationToClient(order, workspaceId) {
       documentUrl: matchedRule?.documentUrl || workspace.whatsappAutoDocumentUrl || null,
       audioUrl: matchedRule?.audioUrl || workspace.whatsappAutoAudioUrl || null,
     };
-    const sendOrder = normalizeSendOrder(matchedRule?.sendOrder?.length ? matchedRule.sendOrder : workspace.whatsappAutoSendOrder);
+    // Construire sendOrder automatiquement depuis les médias disponibles si non défini
+    let rawSendOrder = matchedRule?.sendOrder?.length ? matchedRule.sendOrder : workspace.whatsappAutoSendOrder;
+    if (!rawSendOrder?.length) {
+      rawSendOrder = ['text'];
+      if (media.imageUrl) rawSendOrder.push('image');
+      if (media.videoUrl) rawSendOrder.push('video');
+      if (media.audioUrl) rawSendOrder.push('audio');
+    }
+    const sendOrder = normalizeSendOrder(rawSendOrder);
+    console.log(`📦 ${logPrefix} sendOrder: [${sendOrder.join(', ')}] | image: ${!!media.imageUrl} | video: ${!!media.videoUrl}`);
 
     // Envoi progressif configurable (ordre global ou spécifique au produit)
     let result = null;

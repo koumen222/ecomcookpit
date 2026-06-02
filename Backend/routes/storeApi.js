@@ -1158,15 +1158,7 @@ router.post('/:subdomain/orders', orderLimiter, async (req, res) => {
             'whatsappAutoConfirm whatsappAutoInstanceId whatsappOrderTemplate whatsappAutoImageUrl whatsappAutoAudioUrl'
           ).lean();
           const autoConfirm = workspace.whatsappAutoConfirm || wsSettings?.whatsappAutoConfirm || false;
-          if (autoConfirm) {
-            sendClientOrderConfirmation(mainOrder, shopifyStylePayload, workspaceId.toString(), {
-              storeName:      workspace.storeSettings?.storeName || workspace.name || '',
-              instanceId:     workspace.whatsappAutoInstanceId || wsSettings?.whatsappAutoInstanceId || null,
-              customTemplate: workspace.whatsappOrderTemplate  || wsSettings?.whatsappOrderTemplate  || null,
-              imageUrl:       workspace.whatsappAutoImageUrl   || wsSettings?.whatsappAutoImageUrl   || null,
-              audioUrl:       workspace.whatsappAutoAudioUrl   || wsSettings?.whatsappAutoAudioUrl   || null,
-            }).catch(err => console.error('⚠️ [Scalor Store] WhatsApp auto-confirm échoué:', err.message));
-          }
+          // WhatsApp au client géré par le hook Order.post('save') → sendOrderClientMessage
         }
 
         // ── Meta Conversions API ─────────────────────────────────────────────

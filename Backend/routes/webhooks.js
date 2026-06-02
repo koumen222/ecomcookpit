@@ -154,9 +154,7 @@ router.post('/google-sheets/:sourceId', async (req, res) => {
       console.error(`❌ [WEBHOOK] Erreur envoi notifications:`, notifError);
     }
 
-    // 📱 WhatsApp confirmation au client (si activé)
-    sendOrderConfirmationToClient(newOrder, source.workspaceId)
-      .catch(err => console.error(`❌ [WEBHOOK] Erreur WhatsApp client:`, err.message));
+    // WhatsApp au client géré par le hook Order.post('save') → sendOrderClientMessage
     
     res.json({ 
       success: true, 

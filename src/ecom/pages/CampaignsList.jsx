@@ -51,14 +51,14 @@ const IconFillLoader = ({ backgroundClassName = 'bg-gray-50' }) => {
 };
 
 const statusLabels = { draft: 'Brouillon', scheduled: 'Programmée', sending: 'En cours', sent: 'Envoyée', paused: 'En pause', failed: 'Échouée', interrupted: 'Interrompue' };
-const statusColors = {
-  draft: 'bg-gray-100 text-gray-700',
-  scheduled: 'bg-primary-100 text-primary-700',
-  sending: 'bg-yellow-100 text-yellow-700',
-  sent: 'bg-green-100 text-green-700',
-  paused: 'bg-orange-100 text-orange-700',
-  failed: 'bg-red-100 text-red-700',
-  interrupted: 'bg-purple-100 text-purple-700'
+const SC = {
+  draft: 'bg-gray-100 text-gray-600 border-gray-200',
+  scheduled: 'bg-gray-100 text-gray-700 border-gray-200',
+  sending: 'bg-yellow-50 text-yellow-700 border-yellow-100',
+  sent: 'bg-green-50 text-green-700 border-green-100',
+  paused: 'bg-orange-50 text-orange-700 border-orange-100',
+  failed: 'bg-red-50 text-red-700 border-red-100',
+  interrupted: 'bg-gray-100 text-gray-600 border-gray-200',
 };
 
 // Couleurs par défaut pour les statuts de commandes personnalisés
@@ -78,56 +78,19 @@ const defaultOrderStatusColorMap = {
 const typeLabels = { relance_pending: 'Relance en attente', relance_cancelled: 'Relance annulés', promo: 'Promotion', followup: 'Suivi livraison', custom: 'Personnalisée' };
 
 const typeToneClasses = {
-  relance_pending: 'bg-amber-50 text-amber-700 border-amber-200',
-  relance_cancelled: 'bg-rose-50 text-rose-700 border-rose-200',
-  promo: 'bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200',
-  followup: 'bg-cyan-50 text-cyan-700 border-cyan-200',
-  custom: 'bg-slate-100 text-slate-700 border-slate-200'
+  relance_pending: 'bg-gray-100 text-gray-600 border-gray-200',
+  relance_cancelled: 'bg-gray-100 text-gray-600 border-gray-200',
+  promo: 'bg-green-50 text-green-700 border-green-100',
+  followup: 'bg-gray-100 text-gray-600 border-gray-200',
+  custom: 'bg-gray-100 text-gray-600 border-gray-200',
 };
 
-const campaignToneMap = {
-  draft: {
-    accent: 'from-slate-400 to-slate-500',
-    icon: 'bg-slate-100 text-slate-600',
-    panel: 'border-slate-200 bg-slate-50/80',
-    progress: 'from-slate-500 to-slate-600'
-  },
-  scheduled: {
-    accent: 'from-primary-400 to-primary-500',
-    icon: 'bg-primary-100 text-primary-700',
-    panel: 'border-primary-200 bg-primary-50/70',
-    progress: 'from-primary-500 to-primary-600'
-  },
-  sending: {
-    accent: 'from-amber-400 to-orange-500',
-    icon: 'bg-amber-100 text-amber-700',
-    panel: 'border-amber-200 bg-amber-50/80',
-    progress: 'from-amber-500 to-orange-500'
-  },
-  sent: {
-    accent: 'from-green-400 to-green-500',
-    icon: 'bg-green-100 text-green-700',
-    panel: 'border-green-200 bg-green-50/80',
-    progress: 'from-green-500 to-green-600'
-  },
-  paused: {
-    accent: 'from-orange-400 to-orange-500',
-    icon: 'bg-orange-100 text-orange-700',
-    panel: 'border-orange-200 bg-orange-50/80',
-    progress: 'from-orange-500 to-orange-600'
-  },
-  failed: {
-    accent: 'from-red-400 to-red-500',
-    icon: 'bg-red-100 text-red-700',
-    panel: 'border-red-200 bg-red-50/80',
-    progress: 'from-red-500 to-red-600'
-  },
-  interrupted: {
-    accent: 'from-violet-400 to-violet-500',
-    icon: 'bg-violet-100 text-violet-700',
-    panel: 'border-violet-200 bg-violet-50/80',
-    progress: 'from-violet-500 to-violet-600'
-  }
+const campaignProgressColor = {
+  done: 'bg-green-500',
+  paused: 'bg-orange-400',
+  interrupted: 'bg-gray-400',
+  reconnecting: 'bg-yellow-500',
+  sending: 'bg-gray-900',
 };
 
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : '-';
@@ -140,9 +103,9 @@ const compactMessage = (message, limit = 180) => {
 };
 
 const Badge = ({ status }) => {
-  const color = statusColors[status] || statusColors.draft;
-  const label = statusLabels[status] || statusLabels.draft;
-  return <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${color}`}>{label}</span>;
+  const cls = SC[status] || SC.draft;
+  const label = statusLabels[status] || status;
+  return <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-md border ${cls}`}>{label}</span>;
 };
 
 const Spin = () => (
@@ -556,376 +519,253 @@ const CampaignsList = () => {
   };
 
 
-  const totalTargeted = campaigns.reduce((sum, campaign) => sum + (campaign.stats?.targeted || campaign.recipientSnapshotIds?.length || campaign.selectedClientIds?.length || 0), 0);
-  const totalSentCount = campaigns.reduce((sum, campaign) => sum + (campaign.stats?.sent || 0), 0);
-  const liveCount = campaigns.filter(campaign => campaign.status === 'sending').length;
-  const pausedCount = campaigns.filter(campaign => campaign.status === 'paused').length;
-  const summaryCards = [
-    {
-      label: 'Brouillons',
-      value: stats.draft || 0,
-      caption: 'Campagnes à finaliser',
-      valueClassName: 'text-slate-700',
-      chipClassName: 'bg-slate-100 text-slate-700 border-slate-200',
-      accentClassName: 'from-slate-400 to-slate-500'
-    },
-    {
-      label: 'Programmées',
-      value: stats.scheduled || 0,
-      caption: 'Déclenchement planifié',
-      valueClassName: 'text-primary-700',
-      chipClassName: 'bg-primary-50 text-primary-700 border-primary-200',
-      accentClassName: 'from-primary-400 to-primary-500'
-    },
-    {
-      label: 'En cours',
-      value: stats.sending || 0,
-      caption: 'Diffusions actives',
-      valueClassName: 'text-amber-700',
-      chipClassName: 'bg-amber-50 text-amber-700 border-amber-200',
-      accentClassName: 'from-amber-400 to-orange-500'
-    },
-    {
-      label: 'Envoyées',
-      value: stats.sent || 0,
-      caption: 'Campagnes terminées',
-      valueClassName: 'text-green-700',
-      chipClassName: 'bg-green-50 text-green-700 border-green-200',
-      accentClassName: 'from-green-400 to-green-500'
-    }
-  ];
+  const totalTargeted = campaigns.reduce((sum, c) => sum + (c.stats?.targeted || c.recipientSnapshotIds?.length || c.selectedClientIds?.length || 0), 0);
+  const totalSentCount = campaigns.reduce((sum, c) => sum + (c.stats?.sent || 0), 0);
+  const liveCount = campaigns.filter(c => c.status === 'sending').length;
+  const pausedCount = campaigns.filter(c => c.status === 'paused').length;
+
   const statusFilterOptions = [
     { key: 'all', label: 'Toutes', count: campaigns.length },
-    ...['draft', 'scheduled', 'sending', 'paused', 'sent', 'failed', 'interrupted'].map((status) => ({
-      key: status,
-      label: statusLabels[status] || status,
-      count: campaigns.filter((campaign) => campaign.status === status).length
+    ...['draft', 'scheduled', 'sending', 'paused', 'sent', 'failed', 'interrupted'].map(s => ({
+      key: s, label: statusLabels[s] || s, count: campaigns.filter(c => c.status === s).length
     }))
-  ].filter((option) => option.key === 'all' || option.count > 0 || campaignStatusFilter === option.key);
+  ].filter(o => o.key === 'all' || o.count > 0 || campaignStatusFilter === o.key);
+
   const filteredCampaigns = campaignStatusFilter === 'all'
     ? campaigns
-    : campaigns.filter((campaign) => campaign.status === campaignStatusFilter);
-  const activeFilterLabel = campaignStatusFilter === 'all'
-    ? 'Toutes les campagnes'
-    : statusLabels[campaignStatusFilter] || campaignStatusFilter;
+    : campaigns.filter(c => c.status === campaignStatusFilter);
 
   return (
     <div className="p-3 sm:p-4 lg:p-6 max-w-7xl mx-auto">
-      {success && <div className="mb-3 p-2.5 bg-green-50 text-green-800 rounded-lg text-sm border border-green-200 flex items-center gap-2"><svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/></svg>{success}</div>}
-      <ErrorBanner message={error} onDismiss={() => setError('')} className="mb-3" />
+      {success && (
+        <div className="mb-4 flex items-center gap-2.5 p-3 bg-green-50 text-green-800 rounded-xl text-sm border border-green-100">
+          <svg className="w-4 h-4 text-green-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg>
+          {success}
+        </div>
+      )}
+      <ErrorBanner message={error} onDismiss={() => setError('')} className="mb-4" />
 
       {!(showProgress && sendProgress && !isProgressMinimized) && (<>
-      <div className="relative mb-5 overflow-hidden rounded-[30px] border border-primary-100 bg-white p-4 shadow-sm shadow-primary-100/60 sm:p-6">
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-gradient-to-r from-primary-50 via-white to-white" />
-        <div className="relative flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="inline-flex items-center rounded-full border border-primary-200 bg-primary-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-primary-700">
-                Centre marketing
-              </span>
-              <span className="inline-flex items-center rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-500">
-                {stats.total || 0} campagne{(stats.total || 0) > 1 ? 's' : ''}
-              </span>
-            </div>
-            <h1 className="mt-3 text-2xl font-bold tracking-tight text-gray-900 sm:text-3xl">Marketing</h1>
-            <p className="mt-2 max-w-2xl text-sm text-gray-500 sm:text-[15px]">
-              Pilotez les relances, suivez les diffusions WhatsApp et repérez rapidement les campagnes à reprendre ou à optimiser.
-            </p>
-
-            <div className="mt-5 flex flex-wrap gap-2">
-              <span className="inline-flex items-center rounded-full border border-primary-200 bg-primary-50 px-3 py-1 text-xs font-semibold text-primary-700">
-                {totalTargeted.toLocaleString('fr-FR')} ciblés
-              </span>
-              <span className="inline-flex items-center rounded-full border border-green-200 bg-green-50 px-3 py-1 text-xs font-semibold text-green-700">
-                {totalSentCount.toLocaleString('fr-FR')} envoyés
-              </span>
-              <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
-                {liveCount} diffusion{liveCount > 1 ? 's' : ''} en cours
-              </span>
-              <span className="inline-flex items-center rounded-full border border-orange-200 bg-orange-50 px-3 py-1 text-xs font-semibold text-orange-700">
-                {pausedCount} en pause
-              </span>
-            </div>
+      {/* Header */}
+      <div className="mb-5">
+        <div className="flex items-center justify-between gap-3 mb-5">
+          <div>
+            <h1 className="text-xl font-bold text-gray-900">Campagnes</h1>
+            <p className="text-sm text-gray-400 mt-0.5">Relances et diffusions WhatsApp</p>
           </div>
-
-          <div className="flex w-full flex-col gap-3 sm:flex-row sm:flex-wrap xl:w-auto xl:justify-end">
-            <Link to="/ecom/campaigns/stats" className="inline-flex items-center justify-center gap-2 rounded-2xl border border-primary-200 bg-white px-4 py-3 text-sm font-semibold text-primary-700 shadow-sm shadow-primary-100 transition hover:border-primary-300 hover:bg-primary-50">
-              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
-              Statistiques
+          <div className="flex items-center gap-2">
+            <Link to="/ecom/campaigns/stats" className="h-10 px-3.5 bg-white border border-gray-200 text-gray-700 rounded-xl text-sm font-medium flex items-center gap-2 hover:bg-gray-50 transition-colors">
+              <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+              <span className="hidden sm:inline">Stats</span>
             </Link>
-            <Link to="/ecom/campaigns/new" className="inline-flex items-center justify-center gap-2 rounded-2xl bg-primary-600 px-4 py-3 text-sm font-semibold text-white shadow-sm shadow-primary-200 transition hover:bg-primary-700">
-              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
-              Nouvelle campagne
+            <Link to="/ecom/campaigns/new" className="h-10 px-4 bg-gray-900 text-white rounded-xl text-sm font-medium flex items-center gap-2 hover:bg-gray-800 transition-colors">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M12 4v16m8-8H4"/></svg>
+              <span>Campagne</span>
             </Link>
           </div>
         </div>
 
-        <div className="relative mt-5 grid grid-cols-2 gap-3 xl:grid-cols-4">
-          {summaryCards.map((card) => (
-            <div key={card.label} className="overflow-hidden rounded-3xl border border-gray-100 bg-gradient-to-br from-white to-gray-50/80 p-4 shadow-sm">
-              <div className={`h-1.5 w-full rounded-full bg-gradient-to-r ${card.accentClassName}`} />
-              <div className="mt-4 flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400">{card.label}</p>
-                  <p className={`mt-2 text-2xl font-bold sm:text-[30px] ${card.valueClassName}`}>{card.value}</p>
-                </div>
-                <span className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold ${card.chipClassName}`}>
-                  {card.label}
-                </span>
-              </div>
-              <p className="mt-3 text-xs text-gray-500">{card.caption}</p>
+        {/* Stats row */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
+          {[
+            { label: 'Total', value: stats.total || 0 },
+            { label: 'En cours', value: liveCount, active: liveCount > 0 },
+            { label: 'Envoyés', value: totalSentCount, green: true },
+            { label: 'En pause', value: pausedCount },
+          ].map(s => (
+            <div key={s.label} className="bg-white rounded-xl border border-gray-200 p-4">
+              <p className="text-xs text-gray-400 font-medium mb-1">{s.label}</p>
+              <p className={`text-2xl font-bold ${s.green ? 'text-green-600' : s.active ? 'text-yellow-600' : 'text-gray-900'}`}>
+                {typeof s.value === 'number' ? s.value.toLocaleString('fr-FR') : s.value}
+              </p>
             </div>
           ))}
         </div>
-      </div>
 
-      {campaigns.length === 0 ? (
-        <div className="rounded-[28px] border border-dashed border-primary-200 bg-white px-6 py-12 text-center shadow-sm">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-3xl bg-primary-100 text-primary-700">
-            <svg className="h-8 w-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z"/></svg>
-          </div>
-          <p className="text-base font-semibold text-gray-800">Aucune campagne pour le moment</p>
-          <p className="mt-2 text-sm text-gray-500">Créez votre première campagne de relance WhatsApp pour activer ce centre marketing.</p>
-          <Link to="/ecom/campaigns/new" className="mt-5 inline-flex items-center justify-center rounded-2xl bg-primary-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-primary-700">
-            Créer une campagne
-          </Link>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          <div className="rounded-[24px] border border-gray-100 bg-white px-4 py-4 shadow-sm sm:px-5">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400">Campagnes récentes</p>
-                <h2 className="mt-1 text-xl font-bold text-gray-900">Suivi des diffusions</h2>
-                <p className="mt-1 text-sm text-gray-500">Une vue plus lisible des brouillons, diffusions en cours et campagnes à relancer.</p>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
-                  {liveCount} en cours
-                </span>
-                <span className="inline-flex items-center rounded-full border border-orange-200 bg-orange-50 px-3 py-1 text-xs font-semibold text-orange-700">
-                  {pausedCount} en pause
-                </span>
-                <span className="inline-flex items-center rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-500">
-                  {filteredCampaigns.length} carte{filteredCampaigns.length > 1 ? 's' : ''}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <div className="rounded-[24px] border border-gray-100 bg-white px-4 py-4 shadow-sm sm:px-5">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400">Filtrer la liste</p>
-                <p className="mt-1 text-sm font-semibold text-gray-900">{activeFilterLabel}</p>
-                <p className="mt-1 text-sm text-gray-500">Affiche seulement les campagnes du statut choisi.</p>
-              </div>
-              <div className="sm:hidden">
-                <select
-                  value={campaignStatusFilter}
-                  onChange={(e) => setCampaignStatusFilter(e.target.value)}
-                  className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm text-gray-700 outline-none transition focus:border-primary-300 focus:bg-white focus:ring-2 focus:ring-primary-100"
-                >
-                  {statusFilterOptions.map((option) => (
-                    <option key={option.key} value={option.key}>{option.label} ({option.count})</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-            <div className="mt-4 hidden flex-wrap gap-2 sm:flex">
-              {statusFilterOptions.map((option) => {
-                const isActive = campaignStatusFilter === option.key;
+        {/* Filtres statut */}
+        {campaigns.length > 0 && (
+          <div className="bg-white rounded-xl border border-gray-200 p-3">
+            <div className="flex flex-wrap gap-1.5">
+              {statusFilterOptions.map(opt => {
+                const active = campaignStatusFilter === opt.key;
                 return (
                   <button
-                    key={option.key}
-                    onClick={() => setCampaignStatusFilter(option.key)}
-                    className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${isActive ? 'border-primary-200 bg-primary-50 text-primary-700 shadow-sm shadow-primary-100' : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300 hover:text-gray-700'}`}
+                    key={opt.key}
+                    onClick={() => setCampaignStatusFilter(opt.key)}
+                    className={`h-8 px-3 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 ${active ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-600 hover:bg-gray-100 border border-gray-200'}`}
                   >
-                    <span>{option.label}</span>
-                    <span className={`inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[10px] ${isActive ? 'bg-white text-primary-700' : 'bg-gray-100 text-gray-500'}`}>
-                      {option.count}
-                    </span>
+                    {opt.label}
+                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${active ? 'bg-white/20 text-white' : 'bg-gray-200 text-gray-500'}`}>{opt.count}</span>
                   </button>
                 );
               })}
             </div>
           </div>
+        )}
+      </div>
 
-          {filteredCampaigns.length === 0 ? (
-            <div className="rounded-[28px] border border-dashed border-gray-200 bg-white px-6 py-12 text-center shadow-sm">
-              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-3xl bg-gray-100 text-gray-400">
-                <svg className="h-8 w-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z"/></svg>
-              </div>
-              <p className="text-base font-semibold text-gray-800">Aucune campagne dans ce segment</p>
-              <p className="mt-2 text-sm text-gray-500">Changez le filtre pour revenir à une autre vue de vos campagnes.</p>
-              <button onClick={() => setCampaignStatusFilter('all')} className="mt-5 inline-flex items-center justify-center rounded-2xl border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-50">
-                Voir toutes les campagnes
-              </button>
-            </div>
-          ) : filteredCampaigns.map(c => {
+      {campaigns.length === 0 ? (
+        <div className="bg-white rounded-xl border border-dashed border-gray-300 px-6 py-16 text-center">
+          <div className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center mx-auto mb-3">
+            <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z"/></svg>
+          </div>
+          <p className="text-sm font-semibold text-gray-800 mb-1">Aucune campagne</p>
+          <p className="text-sm text-gray-400 mb-4">Créez votre première campagne de relance WhatsApp.</p>
+          <Link to="/ecom/campaigns/new" className="inline-flex items-center gap-2 h-10 px-4 bg-gray-900 text-white rounded-xl text-sm font-medium hover:bg-gray-800 transition-colors">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M12 4v16m8-8H4"/></svg>
+            Créer une campagne
+          </Link>
+        </div>
+      ) : filteredCampaigns.length === 0 ? (
+        <div className="bg-white rounded-xl border border-gray-200 px-6 py-12 text-center">
+          <p className="text-sm font-semibold text-gray-800 mb-1">Aucune campagne dans ce segment</p>
+          <p className="text-sm text-gray-400 mb-4">Changez le filtre pour voir d'autres campagnes.</p>
+          <button onClick={() => setCampaignStatusFilter('all')} className="h-9 px-4 border border-gray-200 rounded-xl text-sm text-gray-600 hover:bg-gray-50 transition-colors">Tout afficher</button>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {filteredCampaigns.map(c => {
             const targetedCount = c.stats?.targeted || c.recipientSnapshotIds?.length || c.selectedClientIds?.length || 0;
             const sentCount = c.stats?.sent || 0;
             const failedCount = c.stats?.failed || 0;
             const processedCount = sentCount + failedCount;
-            const progressPercent = targetedCount > 0 ? Math.min(100, Math.round((processedCount / targetedCount) * 100)) : 0;
-            const tone = getCampaignTone(c.status);
+            const pct = targetedCount > 0 ? Math.min(100, Math.round((processedCount / targetedCount) * 100)) : 0;
 
             return (
-              <article key={c._id} className="overflow-hidden rounded-[28px] border border-gray-100 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
-                <div className={`h-1.5 w-full bg-gradient-to-r ${tone.accent}`} />
+              <article key={c._id} className="bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-sm transition-shadow">
+                {/* accent line */}
+                <div className={`h-1 w-full ${c.status === 'sent' ? 'bg-green-500' : c.status === 'sending' ? 'bg-yellow-400' : c.status === 'paused' ? 'bg-orange-400' : c.status === 'failed' || c.status === 'interrupted' ? 'bg-red-400' : 'bg-gray-200'}`}/>
+
                 <div className="p-4 sm:p-5">
-                  <div className="flex flex-col gap-4 2xl:flex-row 2xl:items-start 2xl:justify-between">
+                  <div className="flex items-start gap-3 mb-4">
+                    <div className="w-10 h-10 bg-gray-900 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z"/></svg>
+                    </div>
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-start gap-3">
-                        <div className={`mt-0.5 flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl ${tone.icon}`}>
-                          <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z"/></svg>
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <Link to={`/ecom/campaigns/${c._id}/edit`} className="max-w-full break-words text-base font-semibold text-gray-900 transition hover:text-primary-600 sm:text-lg">
-                              {c.name}
-                            </Link>
-                            <Badge status={c.status} />
-                            <span className={`inline-flex max-w-full items-center rounded-full border px-2 py-1 text-[10px] font-semibold ${getTypeTone(c.type)}`}>
-                              {typeLabels[c.type] || c.type}
-                            </span>
-                          </div>
+                      <div className="flex flex-wrap items-center gap-2 mb-1">
+                        <Link to={`/ecom/campaigns/${c._id}/edit`} className="text-base font-bold text-gray-900 hover:text-gray-600 transition-colors truncate">
+                          {c.name}
+                        </Link>
+                        <Badge status={c.status} />
+                        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-md border ${typeToneClasses[c.type] || typeToneClasses.custom}`}>
+                          {typeLabels[c.type] || c.type}
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-400">{fmtDate(c.createdAt)}{c.scheduledAt ? ` · Programmée: ${fmtDate(c.scheduledAt)}` : ''}</p>
+                    </div>
+                  </div>
 
-                          <div className="mt-3 grid gap-2 sm:grid-cols-2 2xl:grid-cols-4">
-                            <div className="rounded-2xl border border-gray-100 bg-gray-50/80 p-3">
-                              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-400">Ciblés</p>
-                              <p className="mt-1 text-xl font-bold text-gray-900">{targetedCount}</p>
-                            </div>
-                            <div className="rounded-2xl border border-green-100 bg-green-50/80 p-3">
-                              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-green-500">Envoyés</p>
-                              <p className="mt-1 text-xl font-bold text-green-700">{sentCount}</p>
-                            </div>
-                            <div className="rounded-2xl border border-red-100 bg-red-50/80 p-3">
-                              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-red-500">Échecs</p>
-                              <p className="mt-1 text-xl font-bold text-red-600">{failedCount}</p>
-                            </div>
-                            <div className="rounded-2xl border border-gray-100 bg-gray-50/80 p-3">
-                              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-400">Créée</p>
-                              <p className="mt-1 break-words text-sm font-semibold text-gray-900">{fmtDate(c.createdAt)}</p>
-                            </div>
-                          </div>
+                  {/* Stats 4 blocs */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
+                    <div className="bg-gray-50 rounded-lg p-3 border border-gray-100">
+                      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Ciblés</p>
+                      <p className="text-xl font-bold text-gray-900">{targetedCount}</p>
+                    </div>
+                    <div className="bg-green-50 rounded-lg p-3 border border-green-100">
+                      <p className="text-[10px] font-semibold text-green-500 uppercase tracking-wide mb-1">Envoyés</p>
+                      <p className="text-xl font-bold text-green-700">{sentCount}</p>
+                    </div>
+                    <div className="bg-gray-50 rounded-lg p-3 border border-gray-100">
+                      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Échecs</p>
+                      <p className="text-xl font-bold text-red-500">{failedCount}</p>
+                    </div>
+                    <div className="bg-gray-50 rounded-lg p-3 border border-gray-100">
+                      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Progression</p>
+                      <p className="text-xl font-bold text-gray-900">{pct}%</p>
+                    </div>
+                  </div>
 
-                          {c.messageTemplate && (
-                            <div className="mt-4 overflow-hidden rounded-2xl border border-gray-100 bg-gray-50/70 p-3.5">
-                              <div className="flex items-center justify-between gap-3">
-                                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-gray-400">Aperçu message</p>
-                                {c.scheduledAt && <span className="text-[11px] font-medium text-primary-600">Programmée: {fmtDate(c.scheduledAt)}</span>}
-                              </div>
-                              <p className="mt-2 break-words text-sm leading-6 text-gray-600">"{compactMessage(c.messageTemplate)}"</p>
-                            </div>
-                          )}
-
-                          {(c.tags || []).length > 0 && (
-                            <div className="mt-3 flex flex-wrap gap-1.5">
-                              {c.tags.map(t => <span key={t} className="rounded-full bg-primary-50 px-2 py-1 text-[10px] font-semibold text-primary-700">{t}</span>)}
-                            </div>
-                          )}
-                        </div>
+                  {/* Progress bar */}
+                  {targetedCount > 0 && (
+                    <div className="mb-4">
+                      <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all duration-500 ${c.status === 'sent' ? 'bg-green-500' : c.status === 'paused' ? 'bg-orange-400' : 'bg-gray-900'}`}
+                          style={{ width: `${Math.max(pct, pct > 0 ? 4 : 0)}%` }}
+                        />
+                      </div>
+                      <div className="flex justify-between text-[10px] text-gray-400 mt-1">
+                        <span>{processedCount} traités</span>
+                        <span>{targetedCount - processedCount} restants</span>
                       </div>
                     </div>
+                  )}
 
-                    <div className="min-w-0 2xl:w-[280px] 2xl:flex-shrink-0">
-                      <div className={`rounded-3xl border p-4 ${tone.panel}`}>
-                        <div className="flex items-center justify-between gap-3">
-                          <div>
-                            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-400">Diffusion</p>
-                            <p className="mt-1 text-sm font-semibold text-gray-900">{progressPercent}% traité</p>
-                          </div>
-                          <span className="text-xs font-medium text-gray-500">{processedCount}/{targetedCount || 0}</span>
-                        </div>
-                        <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-white/80">
-                          <div className={`h-full rounded-full bg-gradient-to-r ${tone.progress}`} style={{ width: `${Math.max(progressPercent, targetedCount > 0 ? 8 : 0)}%` }} />
-                        </div>
-                        <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                          <div className="rounded-2xl bg-white/70 px-3 py-2">
-                            <p className="text-gray-400">Type</p>
-                            <p className="mt-1 font-semibold text-gray-800">{typeLabels[c.type] || c.type}</p>
-                          </div>
-                          <div className="rounded-2xl bg-white/70 px-3 py-2">
-                            <p className="text-gray-400">Statut</p>
-                            <p className="mt-1 font-semibold text-gray-800">{statusLabels[c.status] || c.status}</p>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="mt-3 flex flex-wrap gap-2 2xl:justify-end">
-                        {(c.status === 'draft' || c.status === 'scheduled') && (
-                          <>
-                            <button onClick={() => handlePreview(c._id)} disabled={sending === c._id} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-2xl bg-primary-600 px-3.5 py-2.5 text-xs font-semibold text-white transition hover:bg-primary-700 disabled:opacity-50">
-                              <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
-                              Aperçu
-                            </button>
-                            <button onClick={() => handleSend(c._id)} disabled={sending === c._id} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-2xl bg-green-600 px-3.5 py-2.5 text-xs font-semibold text-white transition hover:bg-green-700 disabled:opacity-50">
-                              {sending === c._id ? (<><div className="h-3.5 w-3.5 rounded-full border-2 border-white border-t-transparent animate-spin"></div> Envoi...</>) : (<><svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>{c.status === 'scheduled' ? 'Envoyer maintenant' : 'Envoyer'}</>)}
-                            </button>
-                          </>
-                        )}
-
-                        {c.status === 'sending' && sending === c._id && (
-                          // Stream actif sur cet onglet → bouton Pause normal
-                          <button onClick={() => handlePause(c._id)} disabled={pausingCampaignId === c._id} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-2xl bg-orange-500 px-3.5 py-2.5 text-xs font-semibold text-white transition hover:bg-orange-600 disabled:opacity-60">
-                            {pausingCampaignId === c._id ? (<><div className="h-3.5 w-3.5 rounded-full border-2 border-white border-t-transparent animate-spin"></div> Arrêt...</>) : (<><svg className="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg> Pause</>)}
-                          </button>
-                        )}
-
-                        {c.status === 'sending' && sending !== c._id && (
-                          // Campagne bloquée en "sending" sans stream actif → permettre de la débloquer
-                          <>
-                            <button onClick={() => handleResume(c._id)} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-2xl bg-blue-600 px-3.5 py-2.5 text-xs font-semibold text-white transition hover:bg-blue-700">
-                              <svg className="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 24 24"><polygon points="5,3 19,12 5,21"/></svg>
-                              Reprendre
-                            </button>
-                            <button onClick={() => handleForceReset(c._id)} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-2xl bg-orange-500 px-3.5 py-2.5 text-xs font-semibold text-white transition hover:bg-orange-600">
-                              <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
-                              Forcer l'arrêt
-                            </button>
-                          </>
-                        )}
-
-                        {['paused', 'interrupted', 'failed'].includes(c.status) && (
-                          <>
-                            <button onClick={() => handleResume(c._id)} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-2xl bg-blue-600 px-3.5 py-2.5 text-xs font-semibold text-white transition hover:bg-blue-700">
-                              <svg className="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 24 24"><polygon points="5,3 19,12 5,21"/></svg>
-                              Reprendre
-                            </button>
-                            <button onClick={() => handleRestart(c._id)} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-2xl bg-gray-700 px-3.5 py-2.5 text-xs font-semibold text-white transition hover:bg-gray-800">
-                              <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-                              Relancer
-                            </button>
-                          </>
-                        )}
-
-                        {c.status === 'sent' && (
-                          <>
-                            <Link to={`/ecom/campaigns/${c._id}`} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-2xl bg-primary-100 px-3.5 py-2.5 text-xs font-semibold text-primary-800 transition hover:bg-primary-200">
-                              <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/></svg>
-                              Activité
-                            </Link>
-                            <button onClick={() => handleRestart(c._id)} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-2xl bg-gray-600 px-3.5 py-2.5 text-xs font-semibold text-white transition hover:bg-gray-700">
-                              <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-                              Relancer
-                            </button>
-                          </>
-                        )}
-
-                        {c.status !== 'sending' && (
-                          <Link to={`/ecom/campaigns/${c._id}/edit`} className="inline-flex min-w-0 items-center justify-center rounded-2xl border border-gray-200 bg-white px-3 py-2.5 text-xs font-semibold text-gray-600 transition hover:border-primary-200 hover:bg-primary-50 hover:text-primary-700">
-                            Modifier
-                          </Link>
-                        )}
-
-                        {isAdmin && c.status !== 'sending' && (
-                          <button onClick={() => handleDelete(c._id, c.name)} className="inline-flex min-w-0 items-center justify-center rounded-2xl border border-red-200 bg-red-50 px-3 py-2.5 text-xs font-semibold text-red-700 transition hover:bg-red-100">
-                            Supprimer
-                          </button>
-                        )}
-                      </div>
+                  {/* Message preview */}
+                  {c.messageTemplate && (
+                    <div className="bg-gray-50 rounded-lg px-3 py-2.5 border border-gray-100 mb-4">
+                      <p className="text-xs text-gray-500 leading-relaxed line-clamp-2">"{compactMessage(c.messageTemplate, 120)}"</p>
                     </div>
+                  )}
+
+                  {/* Tags */}
+                  {(c.tags || []).length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mb-4">
+                      {c.tags.map(t => <span key={t} className="text-[10px] font-medium px-2 py-0.5 rounded-md bg-gray-100 text-gray-600">{t}</span>)}
+                    </div>
+                  )}
+
+                  {/* Actions */}
+                  <div className="flex flex-wrap gap-2 pt-3 border-t border-gray-100">
+                    {(c.status === 'draft' || c.status === 'scheduled') && (<>
+                      <button onClick={() => handlePreview(c._id)} disabled={sending === c._id} className="h-9 px-3 bg-gray-100 text-gray-700 rounded-lg text-xs font-medium flex items-center gap-1.5 hover:bg-gray-200 transition-colors disabled:opacity-50">
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                        Aperçu
+                      </button>
+                      <button onClick={() => handleSend(c._id)} disabled={sending === c._id} className="h-9 px-3 bg-green-600 text-white rounded-lg text-xs font-medium flex items-center gap-1.5 hover:bg-green-700 transition-colors disabled:opacity-50">
+                        {sending === c._id ? <><div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"/> Envoi...</> : <><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>{c.status === 'scheduled' ? 'Envoyer maintenant' : 'Envoyer'}</>}
+                      </button>
+                    </>)}
+
+                    {c.status === 'sending' && sending === c._id && (
+                      <button onClick={() => handlePause(c._id)} disabled={pausingCampaignId === c._id} className="h-9 px-3 bg-orange-500 text-white rounded-lg text-xs font-medium flex items-center gap-1.5 hover:bg-orange-600 transition-colors disabled:opacity-60">
+                        {pausingCampaignId === c._id ? <><div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"/> Arrêt...</> : <><svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>Pause</>}
+                      </button>
+                    )}
+
+                    {c.status === 'sending' && sending !== c._id && (<>
+                      <button onClick={() => handleResume(c._id)} className="h-9 px-3 bg-gray-900 text-white rounded-lg text-xs font-medium flex items-center gap-1.5 hover:bg-gray-800 transition-colors">
+                        <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><polygon points="5,3 19,12 5,21"/></svg>
+                        Reprendre
+                      </button>
+                      <button onClick={() => handleForceReset(c._id)} className="h-9 px-3 bg-gray-100 text-gray-700 rounded-lg text-xs font-medium flex items-center gap-1.5 hover:bg-gray-200 transition-colors">
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M6 18L18 6M6 6l12 12"/></svg>
+                        Forcer l'arrêt
+                      </button>
+                    </>)}
+
+                    {['paused', 'interrupted', 'failed'].includes(c.status) && (<>
+                      <button onClick={() => handleResume(c._id)} className="h-9 px-3 bg-gray-900 text-white rounded-lg text-xs font-medium flex items-center gap-1.5 hover:bg-gray-800 transition-colors">
+                        <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><polygon points="5,3 19,12 5,21"/></svg>
+                        Reprendre
+                      </button>
+                      <button onClick={() => handleRestart(c._id)} className="h-9 px-3 bg-gray-100 text-gray-700 rounded-lg text-xs font-medium flex items-center gap-1.5 hover:bg-gray-200 transition-colors">
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                        Relancer
+                      </button>
+                    </>)}
+
+                    {c.status === 'sent' && (<>
+                      <Link to={`/ecom/campaigns/${c._id}`} className="h-9 px-3 bg-green-50 text-green-700 rounded-lg text-xs font-medium flex items-center gap-1.5 hover:bg-green-100 transition-colors border border-green-100">
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/></svg>
+                        Activité
+                      </Link>
+                      <button onClick={() => handleRestart(c._id)} className="h-9 px-3 bg-gray-100 text-gray-700 rounded-lg text-xs font-medium flex items-center gap-1.5 hover:bg-gray-200 transition-colors">
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                        Relancer
+                      </button>
+                    </>)}
+
+                    {c.status !== 'sending' && (
+                      <Link to={`/ecom/campaigns/${c._id}/edit`} className="h-9 px-3 bg-white border border-gray-200 text-gray-600 rounded-lg text-xs font-medium flex items-center hover:bg-gray-50 transition-colors">
+                        Modifier
+                      </Link>
+                    )}
+                    {isAdmin && c.status !== 'sending' && (
+                      <button onClick={() => handleDelete(c._id, c.name)} className="h-9 w-9 flex items-center justify-center bg-gray-50 border border-gray-200 text-red-400 rounded-lg hover:bg-red-50 hover:border-red-200 transition-colors">
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                      </button>
+                    )}
                   </div>
                 </div>
               </article>
@@ -936,223 +776,81 @@ const CampaignsList = () => {
       </>)}
 
 
-      {/* 🆕 Modale d'aperçu */}
+      {/* Modal aperçu */}
       {showPreview && previewData && (
-        <div className="fixed inset-0 z-50 bg-slate-950/55 backdrop-blur-sm p-3 sm:p-4" onClick={closePreviewModal}>
-          <div className="mx-auto flex max-w-6xl flex-col overflow-hidden rounded-[32px] border border-white/70 bg-white shadow-2xl" onClick={e => e.stopPropagation()}>
-            <div className="relative overflow-hidden bg-gradient-to-r from-primary-600 via-primary-600 to-green-600 px-5 py-5 text-white sm:px-6">
-              <div className="absolute inset-y-0 right-0 w-40 bg-[radial-gradient(circle_at_center,_rgba(255,255,255,0.18),_transparent_70%)]" />
-              <div className="relative flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="inline-flex items-center rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/90">
-                      Aperçu campagne
-                    </span>
-                    <span className="inline-flex items-center rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-medium text-white/90">
-                      {previewData.clients?.length || 0} cible{(previewData.clients?.length || 0) > 1 ? 's' : ''}
-                    </span>
-                  </div>
-                  <h3 className="mt-3 text-xl font-bold sm:text-2xl">Tester avant diffusion</h3>
-                  <p className="mt-2 max-w-2xl text-sm text-primary-50/90">
-                    Vérifiez le message, sélectionnez un destinataire précis puis envoyez un aperçu sans lancer toute la campagne.
-                  </p>
-                </div>
-                <button
-                  onClick={closePreviewModal}
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-white/10 text-white transition hover:bg-white/20"
-                >
-                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/>
-                  </svg>
-                </button>
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-end sm:items-center justify-center" onClick={closePreviewModal}>
+          <div className="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl w-full max-w-5xl max-h-[92vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
+            {/* Header */}
+            <div className="sticky top-0 bg-white border-b border-gray-100 px-5 py-4 flex items-center justify-between z-10">
+              <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto absolute top-2 left-1/2 -translate-x-1/2 sm:hidden"/>
+              <div>
+                <h3 className="text-sm font-bold text-gray-900">Aperçu campagne</h3>
+                <p className="text-xs text-gray-400">{previewData.clients?.length || 0} destinataire{(previewData.clients?.length || 0) > 1 ? 's' : ''} ciblé{(previewData.clients?.length || 0) > 1 ? 's' : ''}</p>
               </div>
+              <button onClick={closePreviewModal} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400 transition-colors">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
+              </button>
             </div>
 
-            <div className="grid min-h-0 flex-1 xl:grid-cols-[380px,minmax(0,1fr)]">
-              <div className="max-h-[calc(90vh-120px)] overflow-y-auto border-b border-gray-100 bg-gray-50/80 p-4 sm:p-5 lg:border-b-0 lg:border-r">
-                <div className="space-y-4">
-                  <section className="rounded-3xl border border-primary-100 bg-white p-4 shadow-sm">
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400">Message</p>
-                      <span className="inline-flex items-center rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-[11px] font-medium text-gray-500">
-                        {previewData.messageTemplate?.length || 0} caractères
-                      </span>
-                    </div>
-                    <div className="mt-3 rounded-2xl border border-gray-100 bg-gray-50/70 p-4">
-                      <p className="whitespace-pre-wrap text-sm leading-6 text-gray-700">{previewData.messageTemplate}</p>
-                    </div>
-                  </section>
-
-                  <section className="rounded-3xl border border-primary-100 bg-white p-4 shadow-sm">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400">Destinataire manuel</p>
-                    <p className="mt-2 text-sm text-gray-500">Saisissez un numéro WhatsApp pour envoyer ce message à un contact précis hors de la liste.</p>
-                    <div className="mt-4 grid gap-3">
-                      <input
-                        type="text"
-                        value={manualName}
-                        onChange={(e) => setManualName(e.target.value)}
-                        placeholder="Nom du destinataire"
-                        className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-3 py-3 text-sm text-gray-900 outline-none transition focus:border-primary-300 focus:bg-white focus:ring-2 focus:ring-primary-100"
-                      />
-                      <input
-                        type="text"
-                        value={manualPhone}
-                        onChange={(e) => {
-                          setManualPhone(e.target.value);
-                          setSelectedClient(null);
-                        }}
-                        placeholder="Numéro WhatsApp"
-                        className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-3 py-3 text-sm text-gray-900 outline-none transition focus:border-primary-300 focus:bg-white focus:ring-2 focus:ring-primary-100"
-                      />
-                      <button
-                        onClick={() => handleSend(showPreview)}
-                        disabled={sending === showPreview || !manualPhone.trim()}
-                        className="inline-flex items-center justify-center gap-2 rounded-2xl bg-primary-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-primary-700 disabled:opacity-50"
-                      >
-                        {sending === showPreview && manualPhone.trim() ? (
-                          <>
-                            <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-                            </svg>
-                            Envoi...
-                          </>
-                        ) : (
-                          <>
-                            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
-                            </svg>
-                            Envoyer à ce numéro
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  </section>
-
-                  <section className="rounded-3xl border border-green-200 bg-green-50 p-4 shadow-sm">
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                      <div>
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-green-600">Sélection active</p>
-                        <p className="mt-2 break-words text-sm font-semibold text-green-900">
-                          {manualPhone.trim()
-                            ? `${manualName.trim() || 'Destinataire'} (${manualPhone.trim()})`
-                            : selectedClient
-                              ? `${selectedClient.firstName} ${selectedClient.lastName}`
-                              : 'Aucun destinataire sélectionné'}
-                        </p>
-                        <p className="mt-1 text-xs text-green-700/80">
-                          {manualPhone.trim()
-                            ? 'Le message partira uniquement vers ce numéro.'
-                            : selectedClient
-                              ? 'Le message partira uniquement vers ce client ciblé.'
-                              : 'Choisissez un client à droite ou saisissez un numéro manuel.'}
-                        </p>
-                      </div>
-                      {(selectedClient || manualPhone.trim()) && (
-                        <button
-                          onClick={() => handleSend(showPreview)}
-                          disabled={sending === showPreview}
-                          className="inline-flex items-center justify-center gap-2 rounded-2xl bg-green-600 px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-green-700 disabled:opacity-50"
-                        >
-                          {sending === showPreview ? (
-                            <>
-                              <svg className="h-3.5 w-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
-                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-                              </svg>
-                              Envoi...
-                            </>
-                          ) : (
-                            <>
-                              <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
-                              </svg>
-                              Envoyer
-                            </>
-                          )}
-                        </button>
-                      )}
-                    </div>
-                  </section>
+            <div className="flex-1 overflow-hidden grid xl:grid-cols-[340px,minmax(0,1fr)]">
+              {/* Colonne gauche — message + envoi manuel */}
+              <div className="overflow-y-auto border-b xl:border-b-0 xl:border-r border-gray-100 p-5 space-y-4 bg-gray-50">
+                <div className="bg-white rounded-xl border border-gray-200 p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Message</p>
+                    <span className="text-xs text-gray-400">{previewData.messageTemplate?.length || 0} car.</span>
+                  </div>
+                  <p className="whitespace-pre-wrap text-sm leading-6 text-gray-700 bg-gray-50 rounded-lg p-3">{previewData.messageTemplate}</p>
                 </div>
+
+                <div className="bg-white rounded-xl border border-gray-200 p-4">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Envoi manuel</p>
+                  <div className="space-y-2.5">
+                    <input type="text" value={manualName} onChange={e => setManualName(e.target.value)} placeholder="Nom du destinataire" className="w-full h-10 px-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"/>
+                    <input type="tel" inputMode="numeric" value={manualPhone} onChange={e => { setManualPhone(e.target.value); setSelectedClient(null); }} placeholder="Numéro WhatsApp" className="w-full h-10 px-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"/>
+                    <button onClick={() => handleSend(showPreview)} disabled={sending === showPreview || !manualPhone.trim()} className="w-full h-10 bg-gray-900 text-white rounded-xl text-sm font-medium flex items-center justify-center gap-2 hover:bg-gray-800 disabled:opacity-40 transition-colors">
+                      {sending === showPreview && manualPhone.trim() ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"/>Envoi...</> : <>Envoyer à ce numéro</>}
+                    </button>
+                  </div>
+                </div>
+
+                {(selectedClient || manualPhone.trim()) && (
+                  <div className="bg-green-50 rounded-xl border border-green-100 p-4">
+                    <p className="text-xs font-semibold text-green-600 uppercase tracking-wide mb-1">Sélection active</p>
+                    <p className="text-sm font-semibold text-green-900">
+                      {manualPhone.trim() ? `${manualName.trim() || 'Destinataire'} (${manualPhone.trim()})` : `${selectedClient.firstName} ${selectedClient.lastName}`}
+                    </p>
+                    <button onClick={() => handleSend(showPreview)} disabled={sending === showPreview} className="mt-3 w-full h-10 bg-green-600 text-white rounded-xl text-sm font-medium flex items-center justify-center gap-2 hover:bg-green-700 disabled:opacity-40 transition-colors">
+                      {sending === showPreview ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"/> : <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>}
+                      {sending === showPreview ? 'Envoi...' : 'Envoyer'}
+                    </button>
+                  </div>
+                )}
               </div>
 
-              <div className="min-h-0 bg-white p-4 sm:p-5">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400">Clients ciblés</p>
-                    <h4 className="mt-1 text-lg font-bold text-gray-900">Choisir un destinataire</h4>
-                    <p className="mt-1 text-sm text-gray-500">Cliquez sur une carte pour la sélectionner, ou utilisez “Aperçu test” pour un envoi rapide.</p>
-                  </div>
-                  <span className="inline-flex items-center rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-xs font-medium text-gray-500">
-                    {previewData.clients?.length || 0} profil{(previewData.clients?.length || 0) > 1 ? 's' : ''}
-                  </span>
+              {/* Colonne droite — liste clients */}
+              <div className="overflow-y-auto p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Clients ciblés</p>
+                  <span className="text-xs text-gray-400">{previewData.clients?.length || 0} profil{(previewData.clients?.length || 0) > 1 ? 's' : ''}</span>
                 </div>
-
-                <div className="mt-4 max-h-[calc(90vh-220px)] space-y-3 overflow-y-auto pr-1">
+                <div className="space-y-2">
                   {previewData.clients?.map(client => {
-                    const isSelected = selectedClient?._id === client._id && !manualPhone.trim();
-
+                    const isSel = selectedClient?._id === client._id && !manualPhone.trim();
                     return (
-                      <div
-                        key={client._id}
-                        className={`rounded-3xl border p-4 transition ${isSelected ? 'border-green-200 bg-green-50/80 shadow-sm' : 'border-gray-100 bg-gray-50/70 hover:border-primary-200 hover:bg-primary-50/40'}`}
-                        onClick={() => {
-                          setSelectedClient(client);
-                          setManualPhone('');
-                        }}
-                      >
-                        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-                          <div className="min-w-0 flex-1">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <p className="max-w-full break-words text-sm font-semibold text-gray-900">{client.firstName} {client.lastName}</p>
-                              {isSelected && (
-                                <span className="inline-flex items-center rounded-full border border-green-200 bg-green-100 px-2 py-1 text-[10px] font-semibold text-green-700">
-                                  Sélectionné
-                                </span>
-                              )}
-                            </div>
-                            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-500">
-                              <span className="rounded-full bg-white px-2.5 py-1 font-medium text-gray-700">{client.phone}</span>
-                              {client.city && <span>{client.city}</span>}
-                            </div>
+                      <div key={client._id} onClick={() => { setSelectedClient(client); setManualPhone(''); }} className={`rounded-xl border p-3 cursor-pointer transition-colors ${isSel ? 'border-green-200 bg-green-50' : 'border-gray-200 hover:bg-gray-50'}`}>
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-gray-900 truncate">{client.firstName} {client.lastName}</p>
+                            <p className="text-xs text-gray-400 font-mono mt-0.5">{client.phone}{client.city ? ` · ${client.city}` : ''}</p>
                           </div>
-
-                          <div className="flex flex-wrap gap-2 lg:justify-end">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedClient(client);
-                                setManualPhone('');
-                              }}
-                              className={`inline-flex items-center justify-center rounded-2xl px-3 py-2 text-xs font-semibold transition ${isSelected ? 'bg-green-600 text-white hover:bg-green-700' : 'bg-white text-gray-700 border border-gray-200 hover:border-primary-200 hover:bg-primary-50 hover:text-primary-700'}`}
-                            >
-                              {isSelected ? 'Choisi' : 'Sélectionner'}
+                          <div className="flex items-center gap-1.5 flex-shrink-0">
+                            <button onClick={e => { e.stopPropagation(); setSelectedClient(client); setManualPhone(''); }} className={`h-7 px-2.5 rounded-lg text-xs font-medium transition-colors ${isSel ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                              {isSel ? 'Choisi' : 'Choisir'}
                             </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handlePreviewSend(client);
-                              }}
-                              disabled={previewSending}
-                              className="inline-flex items-center justify-center gap-1.5 rounded-2xl bg-primary-700 px-3 py-2 text-xs font-semibold text-white transition hover:bg-primary-800 disabled:opacity-50"
-                            >
-                              {previewSending ? (
-                                <>
-                                  <svg className="h-3.5 w-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
-                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-                                  </svg>
-                                  Envoi...
-                                </>
-                              ) : (
-                                <>
-                                  <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z"/>
-                                  </svg>
-                                  Aperçu test
-                                </>
-                              )}
+                            <button onClick={e => { e.stopPropagation(); handlePreviewSend(client); }} disabled={previewSending} className="h-7 px-2.5 bg-gray-900 text-white rounded-lg text-xs font-medium hover:bg-gray-800 disabled:opacity-40 transition-colors flex items-center gap-1">
+                              {previewSending ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"/> : <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>}
+                              Test
                             </button>
                           </div>
                         </div>
@@ -1167,59 +865,48 @@ const CampaignsList = () => {
       )}
 
 
-      {/* Modal sélection instance WhatsApp */}
+      {/* Modal instance WhatsApp */}
       {showInstanceSelector && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/50 backdrop-blur-sm" onClick={() => { setShowInstanceSelector(false); setPendingCampaignId(null); }}>
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40" onClick={() => { setShowInstanceSelector(false); setPendingCampaignId(null); }}>
           <div className="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl w-full sm:max-w-md overflow-hidden" onClick={e => e.stopPropagation()}>
-            {/* Header vert WhatsApp */}
-            <div className="relative px-6 py-5 bg-gradient-to-br from-primary-500 to-green-600 text-white">
-              <div className="flex items-start gap-3">
-                <div className="w-11 h-11 rounded-2xl bg-white/20 backdrop-blur flex items-center justify-center flex-shrink-0">
-                  <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h2 className="text-lg font-bold leading-tight">Envoyer la campagne</h2>
-                  <p className="text-xs text-primary-50/90 mt-0.5">Choisissez l'instance WhatsApp à utiliser</p>
-                </div>
-                <button
-                  onClick={() => { setShowInstanceSelector(false); setPendingCampaignId(null); }}
-                  className="p-1.5 hover:bg-white/20 rounded-lg transition flex-shrink-0"
-                  aria-label="Fermer"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
-                </button>
+            <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mt-3 mb-1 sm:hidden"/>
+            <div className="px-5 pt-4 pb-2 border-b border-gray-100 flex items-center gap-3">
+              <div className="w-10 h-10 bg-green-600 rounded-xl flex items-center justify-center flex-shrink-0">
+                <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
               </div>
+              <div className="flex-1">
+                <h2 className="text-sm font-bold text-gray-900">Envoyer la campagne</h2>
+                <p className="text-xs text-gray-400">Choisissez l'instance WhatsApp</p>
+              </div>
+              <button onClick={() => { setShowInstanceSelector(false); setPendingCampaignId(null); }} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400 transition-colors">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
+              </button>
             </div>
 
-            {/* Body */}
-            <div className="px-5 py-4 max-h-[60vh] overflow-y-auto">
+            <div className="px-5 py-4 max-h-[55vh] overflow-y-auto">
               <div className="flex items-center justify-between mb-3">
-                <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
-                  {instances.length > 0 ? `${instances.length} instance${instances.length > 1 ? 's' : ''} disponible${instances.length > 1 ? 's' : ''}` : 'Instances'}
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                  {instances.length > 0 ? `${instances.length} instance${instances.length > 1 ? 's' : ''}` : 'Instances'}
                 </p>
-                <button
-                  onClick={refreshInstancesStatus}
-                  disabled={loadingInstances}
-                  className="text-[11px] font-medium text-primary-600 hover:text-primary-700 flex items-center gap-1 disabled:opacity-40"
-                >
-                  <svg className={`w-3.5 h-3.5 ${loadingInstances ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                <button onClick={refreshInstancesStatus} disabled={loadingInstances} className="text-xs font-medium text-gray-500 hover:text-gray-700 flex items-center gap-1 disabled:opacity-40">
+                  <svg className={`w-3.5 h-3.5 ${loadingInstances ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
                   Actualiser
                 </button>
               </div>
 
               {loadingInstances && instances.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-10 gap-3">
-                  <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary-500 border-t-transparent"></div>
-                  <p className="text-xs text-gray-500">Chargement des instances…</p>
+                  <div className="w-8 h-8 border-2 border-gray-900 border-t-transparent rounded-full animate-spin"/>
+                  <p className="text-xs text-gray-400">Chargement...</p>
                 </div>
               ) : instances.length === 0 ? (
                 <div className="text-center py-10">
-                  <div className="w-14 h-14 mx-auto mb-3 rounded-2xl bg-gray-100 flex items-center justify-center">
-                    <svg className="w-7 h-7 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+                  <div className="w-12 h-12 mx-auto mb-3 bg-gray-100 rounded-xl flex items-center justify-center">
+                    <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
                   </div>
-                  <p className="text-sm font-medium text-gray-700">Aucune instance configurée</p>
-                  <p className="text-xs text-gray-400 mt-1 mb-4">Connectez WhatsApp pour envoyer vos campagnes</p>
-                  <a href="/ecom/whatsapp/service" className="inline-flex items-center gap-1.5 px-4 py-2 bg-primary-600 text-white rounded-xl hover:bg-primary-700 text-sm font-medium transition">
+                  <p className="text-sm font-semibold text-gray-800 mb-1">Aucune instance</p>
+                  <p className="text-xs text-gray-400 mb-4">Connectez WhatsApp pour envoyer des campagnes</p>
+                  <a href="/ecom/whatsapp/service" className="inline-flex items-center gap-1.5 h-9 px-4 bg-gray-900 text-white rounded-xl text-sm font-medium hover:bg-gray-800 transition-colors">
                     Configurer WhatsApp
                   </a>
                 </div>
@@ -1228,35 +915,20 @@ const CampaignsList = () => {
                   {instances.map(instance => {
                     const isReady = instance.status === 'connected' || instance.status === 'active';
                     return (
-                      <button
-                        key={instance._id}
-                        onClick={() => isReady && handleInstanceSelected(instance)}
-                        disabled={!isReady}
-                        className={`group w-full p-3.5 rounded-xl border-2 text-left transition-all ${
-                          isReady
-                            ? 'border-gray-100 hover:border-primary-400 hover:bg-primary-50/60 hover:shadow-sm cursor-pointer'
-                            : 'border-gray-100 bg-gray-50/50 opacity-60 cursor-not-allowed'
-                        }`}
-                      >
+                      <button key={instance._id} onClick={() => isReady && handleInstanceSelected(instance)} disabled={!isReady}
+                        className={`w-full p-3 rounded-xl border text-left transition-colors ${isReady ? 'border-gray-200 hover:border-gray-900 hover:bg-gray-50 cursor-pointer' : 'border-gray-100 bg-gray-50 opacity-50 cursor-not-allowed'}`}>
                         <div className="flex items-center gap-3">
-                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${isReady ? 'bg-primary-100 text-primary-700 group-hover:bg-primary-500 group-hover:text-white' : 'bg-gray-100 text-gray-400'} transition-colors`}>
-                            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                          <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${isReady ? 'bg-green-50' : 'bg-gray-100'}`}>
+                            <svg className={`w-4 h-4 ${isReady ? 'text-green-600' : 'text-gray-400'}`} fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-semibold text-gray-900 truncate">{instance.customName || instance.instanceName}</p>
-                            <p className="text-[11px] text-gray-400 font-mono truncate">{instance.instanceName}</p>
+                            <p className="text-[10px] text-gray-400 font-mono truncate">{instance.instanceName}</p>
                           </div>
-                          <div className="flex-shrink-0 flex flex-col items-end gap-1">
-                            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full flex items-center gap-1 ${
-                              isReady ? 'bg-green-100 text-green-700' : 'bg-red-50 text-red-600'
-                            }`}>
-                              <span className={`w-1.5 h-1.5 rounded-full ${isReady ? 'bg-green-500 animate-pulse' : 'bg-red-400'}`}></span>
-                              {isReady ? 'Connecté' : 'Déconnecté'}
-                            </span>
-                            {isReady && (
-                              <svg className="w-4 h-4 text-gray-300 group-hover:text-primary-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7"/></svg>
-                            )}
-                          </div>
+                          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-md border flex items-center gap-1 flex-shrink-0 ${isReady ? 'bg-green-50 text-green-700 border-green-100' : 'bg-red-50 text-red-600 border-red-100'}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${isReady ? 'bg-green-500' : 'bg-red-400'}`}/>
+                            {isReady ? 'Connecté' : 'Hors ligne'}
+                          </span>
                         </div>
                       </button>
                     );
@@ -1265,32 +937,22 @@ const CampaignsList = () => {
               )}
             </div>
 
-            {/* Footer */}
-            <div className="px-5 py-3 bg-gray-50 border-t border-gray-100 flex items-center justify-between gap-3">
-              <p className="text-[11px] text-gray-500 flex items-center gap-1.5">
-                <svg className="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                Vous pouvez mettre en pause à tout moment
-              </p>
-              <button
-                onClick={() => { setShowInstanceSelector(false); setPendingCampaignId(null); }}
-                className="px-3 py-1.5 text-xs font-medium text-gray-600 hover:text-gray-900"
-              >
-                Annuler
-              </button>
+            <div className="px-5 py-3 border-t border-gray-100 flex items-center justify-between">
+              <p className="text-xs text-gray-400">Vous pouvez mettre en pause à tout moment</p>
+              <button onClick={() => { setShowInstanceSelector(false); setPendingCampaignId(null); }} className="h-8 px-3 bg-gray-100 text-gray-600 rounded-lg text-xs font-medium hover:bg-gray-200 transition-colors">Annuler</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ═══ MODAL PROGRESSION EN TEMPS RÉEL — MINIMISÉE ═══ */}
+      {/* Widget progression minimisé */}
       {showProgress && sendProgress && isProgressMinimized && (
         <div
           className={`fixed bottom-4 right-4 z-50 flex items-center gap-3 px-4 py-3 rounded-2xl shadow-2xl cursor-pointer text-white max-w-xs w-full ${
             sendProgress.status === 'done' ? 'bg-green-600' :
             sendProgress.status === 'paused' ? 'bg-orange-500' :
-            sendProgress.status === 'interrupted' ? 'bg-purple-600' :
-            sendProgress.status === 'reconnecting' ? 'bg-yellow-600' :
-            'bg-primary-600'
+            sendProgress.status === 'interrupted' || sendProgress.status === 'reconnecting' ? 'bg-gray-700' :
+            'bg-gray-900'
           }`}
           onClick={() => setIsProgressMinimized(false)}
         >
@@ -1348,29 +1010,23 @@ const CampaignsList = () => {
         </div>
       )}
 
-      {/* ═══ PAGE DE PROGRESSION — EN LIGNE, NON BLOQUANT ═══ */}
+      {/* Panel progression */}
       {showProgress && sendProgress && !isProgressMinimized && (
         <div className="mb-4">
-          {/* Barre de retour */}
-          <div className="flex items-center justify-between mb-4">
-            <button
-              onClick={() => setIsProgressMinimized(true)}
-              className="inline-flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-gray-900 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7"/></svg>
+          <div className="flex items-center justify-between mb-3">
+            <button onClick={() => setIsProgressMinimized(true)} className="inline-flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-gray-900 h-9 px-3 rounded-xl hover:bg-gray-100 transition-colors">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M15 19l-7-7 7-7"/></svg>
               Retour aux campagnes
             </button>
-            <span className="text-[11px] text-gray-400 hidden sm:block">La campagne continue en arrière-plan si vous quittez</span>
+            <span className="text-xs text-gray-400 hidden sm:block">La campagne continue en arrière-plan si vous quittez</span>
           </div>
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 flex flex-col overflow-hidden max-h-[calc(100vh-10rem)]">
-            {/* Header */}
-            <div className={`px-5 py-4 flex items-center justify-between ${
+          <div className="bg-white rounded-xl border border-gray-200 flex flex-col overflow-hidden max-h-[calc(100vh-10rem)]">
+            <div className={`px-5 py-4 flex items-center justify-between text-white ${
               sendProgress.status === 'done' ? 'bg-green-600' :
               sendProgress.status === 'paused' ? 'bg-orange-500' :
-              sendProgress.status === 'interrupted' ? 'bg-purple-600' :
-              sendProgress.status === 'reconnecting' ? 'bg-yellow-600' :
-              'bg-primary-600'
-            } text-white`}>
+              sendProgress.status === 'interrupted' || sendProgress.status === 'reconnecting' ? 'bg-gray-700' :
+              'bg-gray-900'
+            }`}>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   {sendProgress.status === 'sending' && <div className="w-2.5 h-2.5 rounded-full bg-white animate-pulse flex-shrink-0"></div>}
@@ -1413,8 +1069,8 @@ const CampaignsList = () => {
                   className={`h-full rounded-full transition-all duration-500 ${
                     sendProgress.status === 'done' ? 'bg-green-500' :
                     sendProgress.status === 'paused' ? 'bg-orange-400' :
-                    sendProgress.status === 'interrupted' ? 'bg-purple-500' :
-                    'bg-primary-500'
+                    sendProgress.status === 'interrupted' ? 'bg-gray-500' :
+                    'bg-gray-900'
                   }`}
                   style={{ width: sendProgress.total > 0 ? `${Math.round(((sendProgress.sent + sendProgress.failed + sendProgress.skipped) / sendProgress.total) * 100)}%` : '0%' }}
                 />
@@ -1443,23 +1099,20 @@ const CampaignsList = () => {
 
             {/* Live log */}
             <div className="flex-1 overflow-y-auto px-5 pb-2 min-h-0">
-              <p className="text-xs font-medium text-gray-500 mb-2 sticky top-0 bg-white py-1">Journal d'envoi</p>
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2 sticky top-0 bg-white py-1.5">Journal</p>
               <div className="space-y-1">
                 {(sendProgress.log || []).map((entry, i) =>
                   entry.type === 'substep' ? (
                     <div key={i} className={`flex items-center gap-2 py-1 px-2 pl-5 rounded text-[11px] ${
-                      entry.status === 'sending' ? 'bg-blue-50 text-blue-700' :
+                      entry.status === 'sending' ? 'bg-gray-50 text-gray-700' :
                       entry.status === 'done' ? 'bg-green-50 text-green-700' :
                       'bg-red-50 text-red-600'
                     }`}>
-                      <span className="flex-shrink-0">{entry.step === 'text' ? '💬' : '🖼️'}</span>
                       <span className="font-medium">{entry.step === 'text' ? 'Texte' : 'Image'}</span>
-                      <span className="text-gray-400 mx-0.5">—</span>
+                      <span className="text-gray-300 mx-0.5">—</span>
                       <span className="truncate flex-1 text-gray-500">{entry.name}</span>
                       <span className="flex-shrink-0 flex items-center gap-1">
-                        {entry.status === 'sending' && <div className="w-2.5 h-2.5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>}
-                        {entry.status === 'done' && '✅'}
-                        {entry.status === 'failed' && '❌'}
+                        {entry.status === 'sending' && <div className="w-2.5 h-2.5 border-2 border-gray-500 border-t-transparent rounded-full animate-spin"/>}
                         <span>{entry.status === 'sending' ? 'en cours...' : entry.status === 'done' ? 'envoyé' : (entry.error || 'échec')}</span>
                       </span>
                     </div>
@@ -1469,111 +1122,68 @@ const CampaignsList = () => {
                     entry.status === 'failed' ? 'bg-red-50' :
                     'bg-gray-50'
                   }`}>
-                    <span className="text-gray-400 flex-shrink-0 font-mono w-10">
-                      #{entry.index || ''}
-                    </span>
-                    <span className="flex-shrink-0 mt-0.5">
-                      {entry.status === 'sent' ? '✅' : entry.status === 'failed' ? '❌' : '⏭️'}
-                    </span>
+                    <span className="text-gray-400 flex-shrink-0 font-mono w-10">#{entry.index || ''}</span>
                     <div className="flex-1 min-w-0">
                       <span className="font-medium text-gray-800">{entry.name}</span>
-                      <span className="text-gray-400 mx-1">·</span>
-                      <span className="text-gray-500 text-[10px]">{entry.phone}</span>
+                      <span className="text-gray-300 mx-1">·</span>
+                      <span className="text-gray-400 text-[10px]">{entry.phone}</span>
                     </div>
-                    <span className={`text-xs flex-shrink-0 ${
-                      entry.status === 'sent' ? 'text-green-600' :
-                      entry.status === 'failed' ? 'text-red-500' :
-                      'text-gray-400'
-                    }`}>{entry.reason}</span>
+                    <span className={`text-xs flex-shrink-0 ${entry.status === 'sent' ? 'text-green-600' : entry.status === 'failed' ? 'text-red-500' : 'text-gray-400'}`}>{entry.reason}</span>
                   </div>
                   )
                 )}
                 {sendProgress.status === 'sending' && (
                   <div className={`flex items-center gap-2 py-2 px-2 rounded-lg text-xs ${sendProgress.batchPause ? 'bg-orange-50 text-orange-700 font-medium' : 'text-gray-400'}`}>
-                    <div className={`w-3 h-3 border-2 border-t-transparent rounded-full animate-spin flex-shrink-0 ${sendProgress.batchPause ? 'border-orange-500' : 'border-primary-400'}`}></div>
+                    <div className={`w-3 h-3 border-2 border-t-transparent rounded-full animate-spin flex-shrink-0 ${sendProgress.batchPause ? 'border-orange-500' : 'border-gray-500'}`}/>
                     {sendProgress.batchPause
-                      ? `⏳ Pause anti-spam — reprise dans ${sendProgress.batchPause.remainingMin} min... (${sendProgress.batchPause.totalMin} min au total)`
+                      ? `Pause anti-spam — reprise dans ${sendProgress.batchPause.remainingMin} min (${sendProgress.batchPause.totalMin} min au total)`
                       : sendProgress.currentSubstep?.status === 'sending'
-                        ? (sendProgress.currentSubstep.step === 'text' ? '💬 Envoi du texte en cours...' : '🖼️ Envoi de l\'image en cours...')
+                        ? (sendProgress.currentSubstep.step === 'text' ? 'Envoi du texte...' : "Envoi de l'image...")
                         : 'Envoi en cours...'}
                   </div>
                 )}
               </div>
             </div>
 
-            {/* Footer actions - Pause uniquement si en cours d'envoi */}
+            {/* Footer */}
             {sendProgress.status === 'sending' && pausingCampaignId !== showProgress && (
-              <div className="px-5 py-3 border-t bg-gray-50">
-                <button onClick={() => handlePause(showProgress)} className="w-full py-2 bg-orange-500 text-white rounded-xl hover:bg-orange-600 transition text-sm font-medium flex items-center justify-center gap-2">
+              <div className="px-5 py-3 border-t border-gray-100">
+                <button onClick={() => handlePause(showProgress)} className="w-full h-10 bg-orange-500 text-white rounded-xl text-sm font-medium flex items-center justify-center gap-2 hover:bg-orange-600 transition-colors">
                   <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
                   Mettre en pause
                 </button>
               </div>
             )}
             {sendProgress.status === 'sending' && pausingCampaignId === showProgress && (
-              <div className="px-5 py-3 border-t bg-orange-50">
-                <div className="flex items-center justify-center gap-2 text-sm text-orange-700 font-medium">
-                  <div className="w-4 h-4 border-2 border-orange-600 border-t-transparent rounded-full animate-spin"></div>
-                  Arrêt en cours après ce message...
-                </div>
+              <div className="px-5 py-3 border-t border-gray-100 bg-orange-50 flex items-center justify-center gap-2 text-sm text-orange-700 font-medium">
+                <div className="w-4 h-4 border-2 border-orange-500 border-t-transparent rounded-full animate-spin"/>
+                Arrêt en cours après ce message...
               </div>
             )}
             {sendProgress.status === 'done' && (
-              <div className="px-5 py-3 border-t bg-gray-50">
-                <div className="text-center text-sm text-green-700 font-medium">
-                  ✅ Campagne envoyée avec succès ! {sendProgress.sent} message{sendProgress.sent > 1 ? 's' : ''} délivrés.
-                </div>
+              <div className="px-5 py-3 border-t border-gray-100 text-center text-sm text-green-700 font-medium">
+                Campagne envoyée — {sendProgress.sent} message{sendProgress.sent > 1 ? 's' : ''} délivrés.
               </div>
             )}
             {sendProgress.status === 'paused' && (
-              <div className="px-5 py-3 border-t bg-orange-50 text-center text-sm text-orange-700 font-medium">
-                ⏸️ Campagne en pause. Utilisez "Reprendre" pour continuer.
+              <div className="px-5 py-3 border-t border-gray-100 bg-orange-50 text-center text-sm text-orange-700 font-medium">
+                Campagne en pause. Utilisez "Reprendre" pour continuer.
               </div>
             )}
             {sendProgress.status === 'reconnecting' && (
-              <div className="px-5 py-3 border-t bg-blue-50 flex flex-col gap-2">
-                <span className="text-sm text-blue-800 font-medium">
-                  🔄 Connexion perdue — vérifiez le statut de la campagne.
-                </span>
+              <div className="px-5 py-3 border-t border-gray-100 bg-gray-50 flex flex-col gap-2">
+                <p className="text-sm text-gray-700 font-medium">Connexion perdue — vérifiez le statut.</p>
                 <div className="flex gap-2">
-                  <button
-                    onClick={async () => { await fetchCampaigns(); setSendProgress(null); setShowProgress(null); }}
-                    className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg transition"
-                  >
-                    Rafraîchir le statut
-                  </button>
-                  {showProgress && (
-                    <button
-                      onClick={async () => { await handleForceReset(showProgress); setSendProgress(null); setShowProgress(null); }}
-                      className="flex-1 py-2 bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold rounded-lg transition"
-                    >
-                      Forcer l'arrêt
-                    </button>
-                  )}
-                  {showProgress && (
-                    <button
-                      onClick={() => handleResume(showProgress)}
-                      className="flex-1 py-2 bg-green-600 hover:bg-green-700 text-white text-xs font-bold rounded-lg transition"
-                    >
-                      ▶ Reprendre
-                    </button>
-                  )}
+                  <button onClick={async () => { await fetchCampaigns(); setSendProgress(null); setShowProgress(null); }} className="flex-1 h-9 bg-gray-900 text-white text-xs font-semibold rounded-lg hover:bg-gray-800 transition-colors">Rafraîchir</button>
+                  {showProgress && <button onClick={async () => { await handleForceReset(showProgress); setSendProgress(null); setShowProgress(null); }} className="flex-1 h-9 bg-gray-100 text-gray-700 text-xs font-semibold rounded-lg hover:bg-gray-200 transition-colors">Forcer l'arrêt</button>}
+                  {showProgress && <button onClick={() => handleResume(showProgress)} className="flex-1 h-9 bg-green-600 text-white text-xs font-semibold rounded-lg hover:bg-green-700 transition-colors">Reprendre</button>}
                 </div>
               </div>
             )}
             {sendProgress.status === 'interrupted' && (
-              <div className="px-5 py-3 border-t bg-yellow-50 flex items-center justify-between gap-3">
-                <span className="text-sm text-yellow-800 font-medium">
-                  ⚡ Campagne interrompue.
-                </span>
-                {showProgress && (
-                  <button
-                    onClick={() => handleResume(showProgress)}
-                    className="px-3 py-1.5 bg-yellow-600 hover:bg-yellow-700 text-white text-xs font-bold rounded-lg transition flex-shrink-0"
-                  >
-                    ▶ Reprendre
-                  </button>
-                )}
+              <div className="px-5 py-3 border-t border-gray-100 bg-gray-50 flex items-center justify-between gap-3">
+                <p className="text-sm text-gray-700 font-medium">Campagne interrompue.</p>
+                {showProgress && <button onClick={() => handleResume(showProgress)} className="h-9 px-4 bg-gray-900 text-white text-xs font-semibold rounded-lg hover:bg-gray-800 transition-colors flex-shrink-0">Reprendre</button>}
               </div>
             )}
           </div>
