@@ -1,6 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { affiliatePortalApi, setAffiliateToken, getAffiliateToken } from '../services/affiliatePortalApi.js';
+
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '559924689181-rpkv8ji3029kvrtsvt3qceusmsh1i4p2.apps.googleusercontent.com';
 
 export default function AffiliateLogin() {
   const navigate = useNavigate();
@@ -13,6 +15,61 @@ export default function AffiliateLogin() {
 
   useEffect(() => {
     if (getAffiliateToken()) navigate('/affiliate/dashboard', { replace: true });
+  }, []);
+
+  // Google Sign-In
+  const handleGoogleCallback = useCallback(async (response) => {
+    if (!response?.credential) {
+      setError('Erreur Google : aucun token reçu');
+      return;
+    }
+    setLoading(true);
+    setError('');
+    try {
+      const res = await affiliatePortalApi.googleLogin(response.credential);
+      const affToken = res.data?.data?.token;
+      if (affToken) setAffiliateToken(affToken);
+      navigate('/affiliate/dashboard');
+    } catch (err) {
+      setError(err.response?.data?.message || 'Erreur Google');
+    } finally {
+      setLoading(false);
+    }
+  }, [navigate]);
+
+  const googleCallbackRef = useRef(handleGoogleCallback);
+  useEffect(() => { googleCallbackRef.current = handleGoogleCallback; }, [handleGoogleCallback]);
+
+  useEffect(() => {
+    if (!GOOGLE_CLIENT_ID) return;
+    const stableCallback = (response) => googleCallbackRef.current(response);
+
+    const initGsi = () => {
+      if (!window.google?.accounts?.id) return;
+      window.google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: stableCallback,
+      });
+      setTimeout(() => {
+        const container = document.getElementById('affiliate-google-btn');
+        if (container) {
+          const btnWidth = Math.min(container.offsetWidth || 400, 400);
+          window.google.accounts.id.renderButton(container, {
+            theme: 'outline', size: 'large', width: btnWidth, text: 'signin_with', shape: 'pill', locale: 'fr'
+          });
+        }
+      }, 300);
+    };
+
+    if (window.google?.accounts?.id) { initGsi(); return; }
+    const existing = document.querySelector('script[src="https://accounts.google.com/gsi/client"]');
+    if (existing) { existing.addEventListener('load', initGsi); return; }
+    const script = document.createElement('script');
+    script.src = 'https://accounts.google.com/gsi/client';
+    script.async = true;
+    script.defer = true;
+    script.onload = initGsi;
+    document.head.appendChild(script);
   }, []);
 
   const submit = async (e) => {
@@ -185,6 +242,18 @@ export default function AffiliateLogin() {
                 )}
               </button>
             </form>
+
+            {/* Google Sign-In */}
+            {GOOGLE_CLIENT_ID && (
+              <div className="mt-4">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="flex-1 h-px bg-gray-200"></div>
+                  <span className="text-xs text-gray-500">ou</span>
+                  <div className="flex-1 h-px bg-gray-200"></div>
+                </div>
+                <div id="affiliate-google-btn" className="w-full"></div>
+              </div>
+            )}
 
             {/* Security badge */}
             <div className="mt-4 flex items-center justify-center gap-2 text-[10px] text-gray-500">

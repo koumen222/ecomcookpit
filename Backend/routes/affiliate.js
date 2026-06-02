@@ -294,6 +294,94 @@ router.post('/auth/login-scalor', async (req, res) => {
   }
 });
 
+// Login/join with Google (same as Scalor Google login)
+router.post('/auth/google', async (req, res) => {
+  try {
+    const { credential } = req.body || {};
+    if (!credential) {
+      return res.status(400).json({ success: false, message: 'Token Google manquant' });
+    }
+
+    const { OAuth2Client } = await import('google-auth-library');
+    const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
+    if (!GOOGLE_CLIENT_ID) {
+      return res.status(503).json({ success: false, message: 'GOOGLE_CLIENT_ID non configuré' });
+    }
+
+    const client = new OAuth2Client(GOOGLE_CLIENT_ID);
+    let ticket;
+    try {
+      ticket = await client.verifyIdToken({ idToken: credential, audience: GOOGLE_CLIENT_ID });
+    } catch (verifyError) {
+      return res.status(401).json({ success: false, message: 'Token Google invalide' });
+    }
+
+    const payload = ticket.getPayload();
+    const { sub: googleId, email, name } = payload;
+    if (!email) {
+      return res.status(400).json({ success: false, message: 'Email non disponible depuis Google' });
+    }
+
+    const cleanEmail = email.toLowerCase();
+
+    // Find or create affiliate
+    let affiliate = await AffiliateUser.findOne({ email: cleanEmail });
+
+    if (!affiliate) {
+      // Check if a Scalor user exists with this email/googleId to link
+      const scalorUser = await EcomUser.findOne({ $or: [{ email: cleanEmail }, { googleId }] });
+
+      let referralCode = generateCode('SCL');
+      while (await AffiliateUser.exists({ referralCode })) {
+        referralCode = generateCode('SCL');
+      }
+
+      const config = await getAffiliateConfig();
+
+      affiliate = await AffiliateUser.create({
+        name: name || cleanEmail.split('@')[0],
+        email: cleanEmail,
+        password: `google_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+        referralCode,
+        scalorUserId: scalorUser?._id || null,
+        commissionType: config.baseCommissionType || 'percentage',
+        commissionValue: Number(config.baseCommissionValue || 30),
+        lastLoginAt: new Date()
+      });
+
+      const defaultDestination = config.defaultLandingUrl || 'https://scalor.net/ecom/register';
+      await AffiliateLink.create({
+        affiliateId: affiliate._id,
+        code: generateCode('LNK'),
+        name: 'Lien principal',
+        destinationUrl: defaultDestination,
+        linkType: 'default'
+      });
+    } else {
+      // Link to Scalor user if not already linked
+      if (!affiliate.scalorUserId) {
+        const scalorUser = await EcomUser.findOne({ $or: [{ email: cleanEmail }, { googleId }] });
+        if (scalorUser) affiliate.scalorUserId = scalorUser._id;
+      }
+      affiliate.lastLoginAt = new Date();
+      await affiliate.save();
+    }
+
+    const token = makeAffiliateToken(affiliate);
+
+    return res.json({
+      success: true,
+      data: {
+        token,
+        affiliate: sanitizeAffiliate(affiliate)
+      }
+    });
+  } catch (error) {
+    console.error('affiliate google auth error:', error);
+    return res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
 router.get('/auth/me', requireAffiliateAuth, async (req, res) => {
   return res.json({ success: true, data: { affiliate: sanitizeAffiliate(req.affiliate) } });
 });

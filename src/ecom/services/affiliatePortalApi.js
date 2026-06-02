@@ -52,6 +52,7 @@ export const affiliatePortalApi = {
   register: (payload) => affiliateApi.post('/auth/register', payload),
   login: (payload) => affiliateApi.post('/auth/login', payload),
   loginWithScalor: ({ email, password }) => affiliateApi.post('/auth/login-scalor', { email, password }),
+  googleLogin: (credential) => affiliateApi.post('/auth/google', { credential }),
   me: () => affiliateApi.get('/auth/me'),
   getDashboard: () => affiliateApi.get('/dashboard'),
   getLinks: () => affiliateApi.get('/links'),
