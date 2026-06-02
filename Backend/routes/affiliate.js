@@ -212,40 +212,40 @@ router.post('/auth/login', async (req, res) => {
   }
 });
 
-// Login/join with existing Scalor account
+// Login/join with Scalor account credentials (like "Sign in with Google")
 router.post('/auth/login-scalor', async (req, res) => {
   try {
-    const { scalorToken } = req.body || {};
-    if (!scalorToken) {
-      return res.status(400).json({ success: false, message: 'Token Scalor requis' });
+    const { email, password } = req.body || {};
+    if (!email || !password) {
+      return res.status(400).json({ success: false, message: 'Email et mot de passe Scalor requis' });
     }
 
-    let decoded;
-    try {
-      decoded = jwt.verify(scalorToken, ECOM_JWT_SECRET);
-    } catch {
-      return res.status(401).json({ success: false, message: 'Token Scalor invalide ou expiré' });
-    }
+    const cleanEmail = String(email).trim().toLowerCase();
 
-    const scalorUser = await EcomUser.findById(decoded.id).select('name email phone');
+    // Verify credentials against EcomUser (Scalor main account)
+    const scalorUser = await EcomUser.findOne({ email: cleanEmail });
     if (!scalorUser) {
-      return res.status(404).json({ success: false, message: 'Compte Scalor introuvable' });
+      return res.status(401).json({ success: false, message: 'Aucun compte Scalor trouvé avec cet email' });
     }
 
-    // Check if affiliate already linked to this Scalor user
+    // bcrypt compare
+    const bcrypt = await import('bcryptjs');
+    const validPassword = await bcrypt.default.compare(String(password), scalorUser.password);
+    if (!validPassword) {
+      return res.status(401).json({ success: false, message: 'Mot de passe Scalor incorrect' });
+    }
+
+    // Credentials OK — find or create affiliate account
     let affiliate = await AffiliateUser.findOne({ scalorUserId: scalorUser._id });
 
     if (!affiliate) {
-      // Check if affiliate exists with same email
-      affiliate = await AffiliateUser.findOne({ email: scalorUser.email.toLowerCase() });
+      affiliate = await AffiliateUser.findOne({ email: cleanEmail });
 
       if (affiliate) {
-        // Link existing affiliate to Scalor account
         affiliate.scalorUserId = scalorUser._id;
         affiliate.lastLoginAt = new Date();
         await affiliate.save();
       } else {
-        // Create new affiliate account from Scalor user
         let referralCode = generateCode('SCL');
         while (await AffiliateUser.exists({ referralCode })) {
           referralCode = generateCode('SCL');
@@ -254,9 +254,9 @@ router.post('/auth/login-scalor', async (req, res) => {
         const config = await getAffiliateConfig();
 
         affiliate = await AffiliateUser.create({
-          name: scalorUser.name || scalorUser.email.split('@')[0],
-          email: scalorUser.email.toLowerCase(),
-          password: `scalor_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+          name: scalorUser.name || cleanEmail.split('@')[0],
+          email: cleanEmail,
+          password: `scalor_linked_${Date.now()}_${Math.random().toString(36).slice(2)}`,
           phone: scalorUser.phone || '',
           referralCode,
           scalorUserId: scalorUser._id,
@@ -265,7 +265,6 @@ router.post('/auth/login-scalor', async (req, res) => {
           lastLoginAt: new Date()
         });
 
-        // Create default link
         const defaultDestination = config.defaultLandingUrl || 'https://scalor.net/ecom/register';
         await AffiliateLink.create({
           affiliateId: affiliate._id,

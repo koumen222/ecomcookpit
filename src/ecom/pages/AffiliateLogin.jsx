@@ -1,12 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { affiliatePortalApi, setAffiliateToken, getAffiliateToken } from '../services/affiliatePortalApi.js';
-import { useEcomAuth } from '../hooks/useEcomAuth.jsx';
 
 export default function AffiliateLogin() {
   const navigate = useNavigate();
-  const { isAuthenticated, user, token } = useEcomAuth();
-  const [mode, setMode] = useState('affiliate'); // 'affiliate' | 'scalor'
+  const [mode, setMode] = useState('scalor'); // 'scalor' | 'affiliate'
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -17,31 +15,17 @@ export default function AffiliateLogin() {
     if (getAffiliateToken()) navigate('/affiliate/dashboard', { replace: true });
   }, []);
 
-  const handleScalorLogin = async () => {
-    if (!isAuthenticated || !token) {
-      navigate('/ecom/login?redirect=/affiliate/dashboard');
-      return;
-    }
-    setLoading(true);
-    setError('');
-    try {
-      const res = await affiliatePortalApi.loginWithScalor({ scalorToken: token });
-      const affToken = res.data?.data?.token;
-      if (affToken) setAffiliateToken(affToken);
-      navigate('/affiliate/dashboard');
-    } catch (err) {
-      setError(err.response?.data?.message || 'Impossible de lier votre compte Scalor');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const submit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError('');
     try {
-      const res = await affiliatePortalApi.login({ email, password });
+      let res;
+      if (mode === 'scalor') {
+        res = await affiliatePortalApi.loginWithScalor({ email, password });
+      } else {
+        res = await affiliatePortalApi.login({ email, password });
+      }
       const affToken = res.data?.data?.token;
       if (affToken) setAffiliateToken(affToken);
       navigate('/affiliate/dashboard');
@@ -118,30 +102,37 @@ export default function AffiliateLogin() {
             <p className="mt-1 text-gray-600 text-sm">Connectez-vous pour gérer vos liens et commissions.</p>
           </div>
 
-          {/* Connect with Scalor account */}
+          {/* Form card */}
           <div className="bg-white border border-gray-200 rounded-2xl p-6 sm:p-7 shadow-xl">
-            {/* Scalor account quick access */}
-            <button
-              onClick={handleScalorLogin}
-              disabled={loading}
-              className="w-full flex items-center justify-center gap-3 py-3 px-4 rounded-xl text-sm font-semibold text-white bg-[#0F6B4F] hover:bg-[#0a5040] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 transition shadow-lg shadow-primary-600/20 mb-4"
-            >
-              <img src="/logo.png" alt="" className="w-5 h-5 object-contain brightness-0 invert" />
-              {isAuthenticated ? 'Continuer avec mon compte Scalor' : 'Se connecter avec Scalor'}
-            </button>
+            {/* Mode toggle */}
+            <div className="flex bg-gray-100 rounded-xl p-1 mb-5">
+              <button
+                type="button"
+                onClick={() => { setMode('scalor'); setError(''); }}
+                className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-all ${
+                  mode === 'scalor' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                <img src="/logo.png" alt="" className="w-4 h-4 object-contain" />
+                Compte Scalor
+              </button>
+              <button
+                type="button"
+                onClick={() => { setMode('affiliate'); setError(''); }}
+                className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-all ${
+                  mode === 'affiliate' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                Compte affilié
+              </button>
+            </div>
 
-            {isAuthenticated && user && (
-              <p className="text-xs text-center text-gray-500 mb-4">
-                Connecté en tant que <span className="font-medium text-gray-700">{user.email}</span>
+            {mode === 'scalor' && (
+              <p className="text-xs text-gray-500 mb-4 bg-primary-50 border border-primary-100 rounded-lg px-3 py-2">
+                Utilisez vos identifiants Scalor pour accéder au programme d'affiliation. Si c'est votre première fois, un compte affilié sera créé automatiquement.
               </p>
             )}
-
-            {/* Divider */}
-            <div className="flex items-center gap-3 mb-4">
-              <div className="flex-1 h-px bg-gray-200"></div>
-              <span className="text-xs text-gray-500">ou avec un compte affilié</span>
-              <div className="flex-1 h-px bg-gray-200"></div>
-            </div>
 
             <form className="space-y-5" onSubmit={submit}>
               {error && (
@@ -180,9 +171,15 @@ export default function AffiliateLogin() {
                 </div>
               </div>
 
-              <button disabled={loading} className="w-full py-3 rounded-xl bg-gray-900 hover:bg-gray-800 text-white font-semibold text-sm disabled:opacity-50 transition-colors flex items-center justify-center gap-2">
+              <button disabled={loading} className={`w-full py-3 rounded-xl font-semibold text-sm disabled:opacity-50 transition-all duration-200 flex items-center justify-center gap-2 shadow-lg ${
+                mode === 'scalor'
+                  ? 'bg-[#0F6B4F] hover:bg-[#0a5040] text-white shadow-primary-600/20'
+                  : 'bg-gray-900 hover:bg-gray-800 text-white shadow-gray-900/20'
+              }`}>
                 {loading ? (
                   <><svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg> Connexion...</>
+                ) : mode === 'scalor' ? (
+                  <><img src="/logo.png" alt="" className="w-4 h-4 object-contain brightness-0 invert" /> Se connecter avec Scalor</>
                 ) : (
                   <><span>Se connecter</span><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg></>
                 )}
