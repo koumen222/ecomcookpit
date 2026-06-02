@@ -156,6 +156,8 @@ const Settings = () => {
   const [waInstances, setWaInstances] = useState([]);
   const [productClientSaving, setProductClientSaving] = useState({});
   const [productClientSaved, setProductClientSaved] = useState({});
+  const [shopifySyncing, setShopifySyncing] = useState(false);
+  const [shopifySyncResult, setShopifySyncResult] = useState(null);
 
   const fetchProductGroups = async () => {
     setProductGroupsLoading(true);
@@ -191,6 +193,23 @@ const Settings = () => {
       setTimeout(() => setProductClientSaved(p => ({ ...p, [productId]: false })), 2500);
     } catch {}
     finally { setProductClientSaving(p => ({ ...p, [productId]: false })); }
+  };
+
+  const syncShopifyProducts = async () => {
+    setShopifySyncing(true);
+    setShopifySyncResult(null);
+    try {
+      const res = await ecomApi.post('/shopify/sync-products');
+      setShopifySyncResult(res.data);
+      if (res.data?.data?.created > 0) {
+        await fetchProductGroups();
+      }
+    } catch (err) {
+      setShopifySyncResult({ success: false, message: err.response?.data?.message || 'Erreur de synchronisation' });
+    } finally {
+      setShopifySyncing(false);
+      setTimeout(() => setShopifySyncResult(null), 5000);
+    }
   };
 
   const saveProductGroup = async (productId, groupJid, groupName) => {
@@ -1107,6 +1126,27 @@ const Settings = () => {
 
           <div className="mb-4 p-2.5 bg-gray-50 border border-gray-100 rounded-lg text-[11px] text-gray-500 leading-relaxed">
             Variables disponibles dans le message : <code className="text-emerald-600">{'{prenom}'}</code> <code className="text-emerald-600">{'{produit}'}</code> <code className="text-emerald-600">{'{commande}'}</code> <code className="text-emerald-600">{'{prix}'}</code> <code className="text-emerald-600">{'{quantite}'}</code> <code className="text-emerald-600">{'{total}'}</code> <code className="text-emerald-600">{'{ville}'}</code> <code className="text-emerald-600">{'{devise}'}</code>
+          </div>
+
+          {/* Bouton sync produits Shopify */}
+          <div className="mb-4 flex items-center gap-3 flex-wrap">
+            <button
+              onClick={syncShopifyProducts}
+              disabled={shopifySyncing}
+              className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-lg border border-[#96bf48]/30 bg-[#96bf48]/10 text-[#5e8e3e] hover:bg-[#96bf48]/20 transition disabled:opacity-50"
+            >
+              {shopifySyncing ? (
+                <div className="w-3.5 h-3.5 border-2 border-[#5e8e3e] border-t-transparent rounded-full animate-spin"/>
+              ) : (
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M15.34 3.4c-.24-.07-.48.04-.55.24l-.83 2.81c-.47-.36-1.05-.56-1.66-.56-1.37 0-2.49 1.16-2.78 2.81-.19-.09-.42-.06-.56.1L7.13 11.1c-.3.35-.25.87.1 1.17l1.52 1.29-.52 1.75c-.1.35.1.72.45.82l2.77.83c.35.1.72-.1.82-.45l2.55-8.62a.56.56 0 00-.04-.45c-.5-1.04-.58-1.7-.24-2.47.18-.4.62-.56 1-.38.07.03.14.07.2.12l.63-2.14c.07-.24-.04-.48-.24-.55l-.59-.17z"/></svg>
+              )}
+              {shopifySyncing ? 'Synchronisation...' : 'Importer produits Shopify'}
+            </button>
+            {shopifySyncResult && (
+              <span className={`text-xs font-medium ${shopifySyncResult.success ? 'text-emerald-600' : 'text-red-600'}`}>
+                {shopifySyncResult.message}
+              </span>
+            )}
           </div>
 
           {productGroupsLoading ? (

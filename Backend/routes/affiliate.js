@@ -4,6 +4,7 @@ import AffiliateUser from '../models/AffiliateUser.js';
 import AffiliateLink from '../models/AffiliateLink.js';
 import AffiliateClick from '../models/AffiliateClick.js';
 import AffiliateConversion from '../models/AffiliateConversion.js';
+import EcomUser from '../models/EcomUser.js';
 import { requireEcomAuth } from '../middleware/ecomAuth.js';
 import {
   generateCode,
@@ -11,6 +12,8 @@ import {
   getAffiliateConfig,
   resolveCommissionRule
 } from '../services/affiliateService.js';
+
+const ECOM_JWT_SECRET = process.env.ECOM_JWT_SECRET || 'ecom-secret-key-change-in-production';
 
 const router = express.Router();
 
@@ -30,11 +33,13 @@ function sanitizeAffiliate(affiliate) {
     id: affiliate._id,
     name: affiliate.name,
     email: affiliate.email,
+    phone: affiliate.phone || '',
     referralCode: affiliate.referralCode,
     commissionType: affiliate.commissionType,
     commissionValue: affiliate.commissionValue,
     isActive: affiliate.isActive,
     lastLoginAt: affiliate.lastLoginAt,
+    scalorLinked: !!affiliate.scalorUserId,
     createdAt: affiliate.createdAt
   };
 }
@@ -118,7 +123,7 @@ router.get('/r/:linkCode', async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 router.post('/auth/register', async (req, res) => {
   try {
-    const { name, email, password } = req.body || {};
+    const { name, email, password, phone } = req.body || {};
     if (!name || !email || !password) {
       return res.status(400).json({ success: false, message: 'Nom, email et mot de passe requis' });
     }
@@ -129,9 +134,9 @@ router.post('/auth/register', async (req, res) => {
       return res.status(409).json({ success: false, message: 'Cet email affilié existe déjà' });
     }
 
-    let referralCode = generateCode('AFF');
+    let referralCode = generateCode('SCL');
     while (await AffiliateUser.exists({ referralCode })) {
-      referralCode = generateCode('AFF');
+      referralCode = generateCode('SCL');
     }
 
     const config = await getAffiliateConfig();
@@ -140,9 +145,10 @@ router.post('/auth/register', async (req, res) => {
       name: String(name).trim(),
       email: cleanEmail,
       password: String(password),
+      phone: String(phone || '').trim(),
       referralCode,
-      commissionType: config.baseCommissionType || 'fixed',
-      commissionValue: Number(config.baseCommissionValue || 500)
+      commissionType: config.baseCommissionType || 'percentage',
+      commissionValue: Number(config.baseCommissionValue || 30)
     });
 
     const defaultDestination = config.defaultLandingUrl || 'https://scalor.net';
@@ -202,6 +208,89 @@ router.post('/auth/login', async (req, res) => {
     });
   } catch (error) {
     console.error('affiliate login error:', error);
+    return res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// Login/join with existing Scalor account
+router.post('/auth/login-scalor', async (req, res) => {
+  try {
+    const { scalorToken } = req.body || {};
+    if (!scalorToken) {
+      return res.status(400).json({ success: false, message: 'Token Scalor requis' });
+    }
+
+    let decoded;
+    try {
+      decoded = jwt.verify(scalorToken, ECOM_JWT_SECRET);
+    } catch {
+      return res.status(401).json({ success: false, message: 'Token Scalor invalide ou expiré' });
+    }
+
+    const scalorUser = await EcomUser.findById(decoded.id).select('name email phone');
+    if (!scalorUser) {
+      return res.status(404).json({ success: false, message: 'Compte Scalor introuvable' });
+    }
+
+    // Check if affiliate already linked to this Scalor user
+    let affiliate = await AffiliateUser.findOne({ scalorUserId: scalorUser._id });
+
+    if (!affiliate) {
+      // Check if affiliate exists with same email
+      affiliate = await AffiliateUser.findOne({ email: scalorUser.email.toLowerCase() });
+
+      if (affiliate) {
+        // Link existing affiliate to Scalor account
+        affiliate.scalorUserId = scalorUser._id;
+        affiliate.lastLoginAt = new Date();
+        await affiliate.save();
+      } else {
+        // Create new affiliate account from Scalor user
+        let referralCode = generateCode('SCL');
+        while (await AffiliateUser.exists({ referralCode })) {
+          referralCode = generateCode('SCL');
+        }
+
+        const config = await getAffiliateConfig();
+
+        affiliate = await AffiliateUser.create({
+          name: scalorUser.name || scalorUser.email.split('@')[0],
+          email: scalorUser.email.toLowerCase(),
+          password: `scalor_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+          phone: scalorUser.phone || '',
+          referralCode,
+          scalorUserId: scalorUser._id,
+          commissionType: config.baseCommissionType || 'percentage',
+          commissionValue: Number(config.baseCommissionValue || 30),
+          lastLoginAt: new Date()
+        });
+
+        // Create default link
+        const defaultDestination = config.defaultLandingUrl || 'https://scalor.net/ecom/register';
+        await AffiliateLink.create({
+          affiliateId: affiliate._id,
+          code: generateCode('LNK'),
+          name: 'Lien principal',
+          destinationUrl: defaultDestination,
+          linkType: 'default'
+        });
+      }
+    } else {
+      affiliate.lastLoginAt = new Date();
+      await affiliate.save();
+    }
+
+    const token = makeAffiliateToken(affiliate);
+
+    return res.json({
+      success: true,
+      data: {
+        token,
+        affiliate: sanitizeAffiliate(affiliate)
+      }
+    });
+  } catch (error) {
+    console.error('affiliate login-scalor error:', error);
     return res.status(500).json({ success: false, message: 'Erreur serveur' });
   }
 });

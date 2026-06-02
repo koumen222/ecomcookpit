@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { affiliatePortalApi, setAffiliateToken, getAffiliateToken } from '../services/affiliatePortalApi.js';
+import { useEcomAuth } from '../hooks/useEcomAuth.jsx';
 
 export default function AffiliateRegister() {
   const navigate = useNavigate();
-  const [form, setForm] = useState({ name: '', email: '', password: '' });
+  const { isAuthenticated, user, token } = useEcomAuth();
+  const [form, setForm] = useState({ name: '', email: '', phone: '', password: '' });
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -13,14 +15,45 @@ export default function AffiliateRegister() {
     if (getAffiliateToken()) navigate('/affiliate/dashboard', { replace: true });
   }, []);
 
+  // Pre-fill from Scalor account
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      setForm(f => ({
+        ...f,
+        name: f.name || user.name || '',
+        email: f.email || user.email || '',
+        phone: f.phone || user.phone || '',
+      }));
+    }
+  }, [isAuthenticated, user]);
+
+  const handleScalorJoin = async () => {
+    if (!isAuthenticated || !token) {
+      navigate('/ecom/login?redirect=/affiliate/register');
+      return;
+    }
+    setLoading(true);
+    setError('');
+    try {
+      const res = await affiliatePortalApi.loginWithScalor({ scalorToken: token });
+      const affToken = res.data?.data?.token;
+      if (affToken) setAffiliateToken(affToken);
+      navigate('/affiliate/dashboard');
+    } catch (err) {
+      setError(err.response?.data?.message || 'Impossible de rejoindre le programme');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const submit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError('');
     try {
       const res = await affiliatePortalApi.register(form);
-      const token = res.data?.data?.token;
-      if (token) setAffiliateToken(token);
+      const affToken = res.data?.data?.token;
+      if (affToken) setAffiliateToken(affToken);
       navigate('/affiliate/dashboard');
     } catch (err) {
       setError(err.response?.data?.message || 'Inscription impossible');
@@ -41,7 +74,7 @@ export default function AffiliateRegister() {
           <div className="absolute bottom-20 left-10 w-72 h-72 bg-primary-600/8 rounded-full blur-[100px]" />
         </div>
         <div className="relative">
-          <Link to="/affiliate/login" className="group flex items-center gap-3">
+          <Link to="/ecom" className="group flex items-center gap-3">
             <img src="/logo.png" alt="Scalor" className="h-10 object-contain" />
             <div>
               <span className="text-[9px] font-medium text-gray-500 uppercase tracking-[0.2em]">Programme d'affiliation</span>
@@ -72,10 +105,10 @@ export default function AffiliateRegister() {
         <div className="relative flex items-center gap-3">
           <div className="flex items-center gap-1.5 text-xs text-primary-600">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
-            Inscription sécurisée
+            Inscription gratuite
           </div>
           <span className="text-gray-300">•</span>
-          <span className="text-xs text-gray-500">Gratuit, sans engagement</span>
+          <span className="text-xs text-gray-500">Sans engagement</span>
         </div>
       </div>
 
@@ -84,20 +117,43 @@ export default function AffiliateRegister() {
         <div className="w-full max-w-md mx-auto">
           {/* Mobile logo */}
           <div className="lg:hidden text-center mb-8">
-            <Link to="/affiliate/login" className="inline-flex items-center gap-2.5 mb-4">
+            <Link to="/ecom" className="inline-flex items-center gap-2.5 mb-4">
               <img src="/logo.png" alt="Scalor" className="h-9 object-contain" />
             </Link>
           </div>
 
           {/* Header */}
           <div className="mb-8">
-            <h1 className="text-2xl font-bold text-gray-900">Créer un compte affilié</h1>
+            <h1 className="text-2xl font-bold text-gray-900">Rejoindre le programme affilié</h1>
             <p className="mt-1 text-gray-600 text-sm">Recevez votre lien, suivez vos ventes et vos gains.</p>
           </div>
 
           {/* Form card */}
           <div className="bg-white border border-gray-200 rounded-2xl p-6 sm:p-7 shadow-xl">
-            <form className="space-y-5" onSubmit={submit}>
+            {/* Join with Scalor account */}
+            <button
+              onClick={handleScalorJoin}
+              disabled={loading}
+              className="w-full flex items-center justify-center gap-3 py-3 px-4 rounded-xl text-sm font-semibold text-white bg-[#0F6B4F] hover:bg-[#0a5040] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 transition shadow-lg shadow-primary-600/20 mb-4"
+            >
+              <img src="/logo.png" alt="" className="w-5 h-5 object-contain brightness-0 invert" />
+              {isAuthenticated ? 'Rejoindre avec mon compte Scalor' : 'Se connecter à Scalor pour rejoindre'}
+            </button>
+
+            {isAuthenticated && user && (
+              <p className="text-xs text-center text-gray-500 mb-4">
+                Connecté en tant que <span className="font-medium text-gray-700">{user.email}</span>
+              </p>
+            )}
+
+            {/* Divider */}
+            <div className="flex items-center gap-3 mb-4">
+              <div className="flex-1 h-px bg-gray-200"></div>
+              <span className="text-xs text-gray-500">ou créer un compte affilié</span>
+              <div className="flex-1 h-px bg-gray-200"></div>
+            </div>
+
+            <form className="space-y-4" onSubmit={submit}>
               {error && (
                 <div className="bg-red-500/10 border border-red-500/30 text-red-600 px-4 py-3 rounded-xl text-sm flex items-center gap-2">
                   <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
@@ -128,6 +184,17 @@ export default function AffiliateRegister() {
               </div>
 
               <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Numéro Mobile Money</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
+                  </span>
+                  <input value={form.phone} onChange={(e) => setForm((p) => ({ ...p, phone: e.target.value }))} type="tel" required placeholder="6XXXXXXXX"
+                    className="block w-full pl-10 pr-3.5 py-3 bg-white border border-gray-300 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm transition" />
+                </div>
+              </div>
+
+              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Mot de passe</label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">
@@ -145,19 +212,39 @@ export default function AffiliateRegister() {
                 </div>
               </div>
 
-              <button disabled={loading} className="w-full py-3 rounded-xl bg-[#0F6B4F] hover:bg-[#0a5040] text-white font-semibold text-sm disabled:opacity-50 transition-colors flex items-center justify-center gap-2">
+              <button disabled={loading} className="w-full py-3 rounded-xl bg-gray-900 hover:bg-gray-800 text-white font-semibold text-sm disabled:opacity-50 transition-colors flex items-center justify-center gap-2">
                 {loading ? (
                   <><svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg> Création...</>
-                ) : 'Créer mon compte'}
+                ) : 'Créer mon compte affilié'}
               </button>
             </form>
 
-            <div className="mt-5 text-center">
-              <p className="text-sm text-gray-600">
-                Déjà inscrit ?{' '}
-                <Link to="/affiliate/login" className="text-[#0F6B4F] font-semibold hover:underline">Se connecter</Link>
-              </p>
+            {/* Security */}
+            <div className="mt-4 flex items-center justify-center gap-2 text-[10px] text-gray-500">
+              <svg className="w-3 h-3 text-primary-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
+              Inscription gratuite • Sans engagement • Paiements Mobile Money
             </div>
+          </div>
+
+          {/* Login link */}
+          <div className="flex items-center gap-3 my-5">
+            <div className="flex-1 h-px bg-gray-200"></div>
+            <span className="text-xs text-gray-500">Déjà affilié ?</span>
+            <div className="flex-1 h-px bg-gray-200"></div>
+          </div>
+
+          <Link
+            to="/affiliate/login"
+            className="w-full px-4 py-3 bg-gray-50 hover:bg-gray-100 border border-gray-200 hover:border-gray-300 rounded-xl text-sm font-medium text-gray-700 transition text-center flex items-center justify-center gap-2"
+          >
+            Se connecter
+          </Link>
+
+          {/* Footer */}
+          <div className="mt-6 flex items-center justify-center gap-3 text-xs text-gray-500">
+            <span>&copy; {new Date().getFullYear()} Scalor</span>
+            <span>•</span>
+            <Link to="/ecom/privacy" className="text-gray-500 hover:text-gray-700 transition">Confidentialité</Link>
           </div>
         </div>
       </div>

@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PC Portable HP Pro - 16Go RAM | 4Go Graphique</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            box-shadow: 0 10px 50px rgba(0,0,0,0.3);
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: white;
+            padding: 40px 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .header .tagline {
+            font-size: 1.3em;
+            font-weight: 300;
+            opacity: 0.95;
+        }
+        
+        .promo-banner {
+            background: #ff6b35;
+            color: white;
+            padding: 15px;
+            text-align: center;
+            font-weight: bold;
+            font-size: 1.1em;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.9; }
+        }
+        
+        .content {
+            padding: 40px 30px;
+        }
+        
+        .section {
+            margin-bottom: 50px;
+        }
+        
+        .section-title {
+            font-size: 1.8em;
+            color: #2a5298;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 3px solid #ff6b35;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .quick-summary {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        
+        .quick-summary ul {
+            list-style: none;
+        }
+        
+        .quick-summary li {
+            padding: 10px 0;
+            padding-left: 30px;
+            position: relative;
+            font-size: 1.1em;
+        }
+        
+        .quick-summary li:before {
+            content: "⭐";
+            position: absolute;
+            left: 0;
+        }
+        
+        .description {
+            font-size: 1.1em;
+            line-height: 1.8;
+            color: #444;
+        }
+        
+        .benefits {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+        
+        .benefit-card {
+            background: #f8f9fa;
+            padding: 25px;
+            border-radius: 10px;
+            border-left: 5px solid #2a5298;
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+        
+        .benefit-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        }
+        
+        .benefit-card h3 {
+            color: #2a5298;
+            margin-bottom: 10px;
+            font-size: 1.2em;
+        }
+        
+        .users-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+        }
+        
+        .user-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            font-weight: bold;
+        }
+        
+        .user-card .icon {
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+        
+        .specs-table {
+            width: 100%;
+            border-collapse: collapse;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        
+        .specs-table th,
+        .specs-table td {
+            padding: 15px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        .specs-table th {
+            background: #2a5298;
+            color: white;
+            font-weight: bold;
+        }
+        
+        .specs-table tr:hover {
+            background: #f5f5f5;
+        }
+        
+        .delivery-info {
+            background: #e8f5e9;
+            padding: 25px;
+            border-radius: 10px;
+            border-left: 5px solid #4caf50;
+        }
+        
+        .delivery-info p {
+            margin-bottom: 15px;
+            font-size: 1.05em;
+        }
+        
+        .pricing-section {
+            background: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%);
+            color: white;
+            padding: 40px;
+            border-radius: 15px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .pricing-section:before {
+            content: "🔥";
+            position: absolute;
+            font-size: 15em;
+            opacity: 0.1;
+            top: -50px;
+            right: -50px;
+        }
+        
+        .old-price {
+            font-size: 1.5em;
+            text-decoration: line-through;
+            opacity: 0.8;
+            margin-bottom: 10px;
+        }
+        
+        .new-price {
+            font-size: 3.5em;
+            font-weight: bold;
+            margin: 20px 0;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .bonus-list {
+            background: rgba(255,255,255,0.2);
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+            text-align: left;
+        }
+        
+        .bonus-list li {
+            padding: 8px 0;
+            font-size: 1.1em;
+        }
+        
+        .urgency {
+            background: rgba(255,255,255,0.3);
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+            font-size: 1.2em;
+            font-weight: bold;
+        }
+        
+        .cta-section {
+            background: #1e3c72;
+            color: white;
+            padding: 50px 30px;
+            text-align: center;
+        }
+        
+        .cta-button {
+            display: inline-block;
+            background: #ff6b35;
+            color: white;
+            padding: 20px 50px;
+            font-size: 1.5em;
+            font-weight: bold;
+            text-decoration: none;
+            border-radius: 50px;
+            margin: 20px 0;
+            transition: all 0.3s;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+        
+        .cta-button:hover {
+            background: #f7931e;
+            transform: scale(1.05);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.4);
+        }
+        
+        .whatsapp-btn {
+            background: #25D366;
+            color: white;
+            padding: 15px 30px;
+            border-radius: 30px;
+            text-decoration: none;
+            display: inline-block;
+            margin-top: 20px;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+        
+        .whatsapp-btn:hover {
+            background: #128C7E;
+            transform: scale(1.05);
+        }
+        
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 1.8em;
+            }
+            
+            .new-price {
+                font-size: 2.5em;
+            }
+            
+            .content {
+                padding: 20px 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🛒 PC Portable HP Pro - 16Go RAM | 4Go Graphique Dédié</h1>
+            <p class="tagline">Le PC qui suit ton rythme, pas l'inverse.</p>
+        </div>
+        
+        <div class="promo-banner">
+            🔥 OFFRE SPÉCIALE : -80 000 FCFA + CADEAUX OFFERTS | Plus que 7 unités en stock ! 🔥
+        </div>
+        
+        <div class="content">
+            <!-- Résumé rapide -->
+            <div class="section">
+                <h2 class="section-title">⭐ Résumé rapide</h2>
+                <div class="quick-summary">
+                    <ul>
+                        <li><strong>Fonction principale :</strong> Ordinateur portable performant pour travail intensif, création de contenu et gaming léger</li>
+                        <li><strong>Cible idéale :</strong> Étudiants, freelances, créateurs de contenu et jeunes professionnels ambitieux</li>
+                        <li><strong>Problème local résolu :</strong> Fini les PC qui rament pendant les présentations, les logiciels qui se bloquent, et la frustration face aux coupures de courant grâce à son autonomie solide</li>
+                        <li><strong>Valeur perçue :</strong> Un investissement rentable - la puissance d'un PC de bureau dans un format nomade qui te suit partout</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <!-- Description -->
+            <div class="section">
+                <h2 class="section-title">📌 Description produit</h2>
+                <div class="description">
+                    <p>Tu connais ça non ? Tu ouvres Chrome avec 5 onglets, WhatsApp Web, Word et Zoom en même temps... et ton PC commence à chauffer comme un fer à repasser. Il rame, il freeze, tu perds ta concentration. <strong>C'est terminé tout ça.</strong></p>
+                    
+                    <p>Ce HP Pro, c'est pas un simple ordinateur. C'est ton partenaire de réussite. Avec ses <strong>16Go de RAM</strong>, tu peux jongler entre plusieurs tâches sans que rien ne ralentisse. Tu fais ton montage vidéo pour YouTube ? Aucun souci. Tu prépares ton mémoire avec 20 documents ouverts ? C'est fluide.</p>
+                    
+                    <p>La <strong>carte graphique dédiée de 4Go</strong>, c'est le vrai plus. Que tu sois designer qui bosse sur Photoshop, étudiant en architecture avec AutoCAD, ou même gamer qui veut se détendre avec FIFA ou GTA après le boulot - ce PC gère tout sans transpirer.</p>
+                    
+                    <p>Et parlons vrai : avec nos délestages et coupures de courant, tu as besoin d'un PC avec une <strong>vraie autonomie</strong>. Plus besoin de courir chercher ton chargeur toutes les 2 heures ou de stresser pendant les coupures ENEO/CIE.</p>
+                    
+                    <p><strong>C'est le PC qu'on achète une fois, et qui nous accompagne pendant des années.</strong> Pas ces machines bas de gamme qui te lâchent après 6 mois.</p>
+                </div>
+            </div>
+            
+            <!-- Avantages -->
+            <div class="section">
+                <h2 class="section-title">🔥 Avantages clients</h2>
+                <div class="benefits">
+                    <div class="benefit-card">
+                        <h3>✅ Multitâche sans limite</h3>
+                        <p>Travaille sur plusieurs projets en même temps sans ralentissement, même avec 15 onglets ouverts</p>
+                    </div>
+                    <div class="benefit-card">
+                        <h3>✅ Gaming & Créativité</h3>
+                        <p>La carte graphique dédiée te permet de créer du contenu pro et jouer à tes jeux préférés sans lag</p>
+                    </div>
+                    <div class="benefit-card">
+                        <h3>✅ Autonomie qui tient la route</h3>
+                        <p>Travaille 5-7h sans brancher, idéal pour les coupures de courant ou quand tu bosses en terrasse</p>
+                    </div>
+                    <div class="benefit-card">
+                        <h3>✅ Écran confortable</h3>
+                        <p>Fini les yeux qui piquent après 2h de travail, l'écran est pensé pour les longues sessions</p>
+                    </div>
+                    <div class="benefit-card">
+                        <h3>✅ Design pro et portable</h3>
+                        <p>Classe en réunion, léger dans ton sac - l'image qui compte quand tu rencontres des clients</p>
+                    </div>
+                    <div class="benefit-card">
+                        <h3>✅ Investissement durable</h3>
+                        <p>Configuration qui reste performante pendant 4-5 ans minimum, pas besoin de changer chaque année</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Utilisateurs ciblés -->
+            <div class="section">
+                <h2 class="section-title">👨🏾‍💻 Utilisateurs ciblés</h2>
+                <div class="users-grid">
+                    <div class="user-card">
+                        <div class="icon">🎓</div>
+                        <div><strong>Étudiants</strong></div>
+                        <p>Mémoires, recherches, présentations, visioconférences</p>
+                    </div>
+                    <div class="user-card">
+                        <div class="icon">💼</div>
+                        <div><strong>Freelances & Entrepreneurs</strong></div>
+                        <p>Gestion de business, comptabilité, communication clients</p>
+                    </div>
+                    <div class="user-card">
+                        <div class="icon">🎨</div>
+                        <div><strong>Créateurs de contenu</strong></div>
+                        <p>Montage vidéo, design graphique, streaming</p>
+                    </div>
+                    <div class="user-card">
+                        <div class="icon">👨‍💻</div>
+                        <div><strong>Développeurs & IT</strong></div>
+                        <p>Programmation, tests d'applications</p>
+                    </div>
+                    <div class="user-card">
+                        <div class="icon">🎮</div>
+                        <div><strong>Gamers occasionnels</strong></div>
+                        <p>FIFA, Fortnite, GTA, Call of Duty</p>
+                    </div>
+                    <div class="user-card">
+                        <div class="icon">📊</div>
+                        <div><strong>Professionnels mobiles</strong></div>
+                        <p>Commerciaux, consultants, formateurs</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Caractéristiques techniques -->
+            <div class="section">
+                <h2 class="section-title">📦 Caractéristiques techniques</h2>
+                <table class="specs-table">
+                    <thead>
+                        <tr>
+                            <th>Composant</th>
+                            <th>Spécifications</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Processeur</strong></td>
+                            <td>Intel Core i5/i7 dernière génération (selon stock)</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Mémoire RAM</strong></td>
+                            <td>16 Go DDR4 - extensible</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Carte Graphique</strong></td>
+                            <td>4 Go dédiée (NVIDIA/AMD selon modèle)</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Stockage</strong></td>
+                            <td>512 Go SSD (ultra-rapide)</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Écran</strong></td>
+                            <td>15,6" Full HD Anti-reflets</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Système</strong></td>
+                            <td>Windows 11 Pro (original & activé)</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Connectique</strong></td>
+                            <td>3x USB, HDMI, Port Ethernet, Lecteur carte SD</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Autonomie</strong></td>
+                            <td>5 à 7 heures d'utilisation normale</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Poids</strong></td>
+                            <td>Environ 1,8 kg (facile à transporter)</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Garantie</strong></td>
+                            <td>12 mois pièces et main d'œuvre</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Livraison & Garantie -->
+            <div class="section">
+                <h2 class="section-title">🚚 Livraison & Garantie</h2>
+                <div class="delivery-info">
+                    <p><strong>📍 Livraison nationale :</strong> Nous livrons dans toutes les grandes villes (Yaoundé, Douala, Abidjan, Dakar, Lomé, Cotonou...). Délai 2-5 jours ouvrables selon ta localisation.</p>
+                    
+                    <p><strong>🔒 Paiement sécurisé :</strong> Paiement à la livraison disponible / Mobile Money (Orange Money, MTN, Moov) / Virement bancaire</p>
+                    
+                    <p><strong>✅ Garantie constructeur :</strong> 12 mois de garantie complète. Si problème technique, on s'occupe de tout.</p>
+                    
+                    <p><strong>📦 Emballage soigné :</strong> Colis protégé avec mousse anti-choc, tu reçois ton PC comme s'il sortait du magasin.</p>
+                    
+                    <p><strong>🛠️ Support technique :</strong> Notre équipe WhatsApp disponible 7j/7 pour t'accompagner dans la prise en main.</p>
+                </div>
+            </div>
+            
+            <!-- Prix & Promotion -->
+            <div class="section">
+                <h2 class="section-title">💵 Prix & Promotion</h2>
+                <div class="pricing-section">
+                    <div class="old-price">Prix normal : 475 000 FCFA</div>
+                    <div class="new-price">395 000 FCFA</div>
+                    
+                    <div class="bonus-list">
+                        <h3 style="margin-bottom: 15px; font-size: 1.3em;">🎁 BONUS OFFERTS AUJOURD'HUI :</h3>
+                        <ul>
+                            <li>✓ Sacoche de transport premium (valeur 15 000 FCFA)</li>
+                            <li>✓ Souris sans fil (valeur 8 000 FCFA)</li>
+                            <li>✓ Pack logiciels bureautique déjà installés</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="urgency">
+                        ⏰ Offre limitée - Plus que 7 unités en stock à ce prix<br>
+                        ⚠️ Le prix remonte à 435 000 FCFA dès demain minuit
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Call to Action -->
+        <div class="cta-section">
+            <h2 style="font-size: 2.5em; margin-bottom: 20px;">🚀 Ne laisse pas passer cette occasion !</h2>
+            <p style="font-size: 1.3em; margin-bottom: 30px;">Ton ancienne machine te ralentit ? Arrête de galérer et passe à la vitesse supérieure.</p>
+            
+            <a href="#" class="cta-button">🛒 AJOUTER AU PANIER MAINTENANT</a>
+            
+            <p style="font-size: 1.1em; margin: 30px 0;">Plus de 340 clients satisfaits nous font déjà confiance. Tu seras le prochain ?</p>
+            
+            <a href="#" class="whatsapp-btn">📞 Question ? WhatsApp direct : +XXX XX XX XX XX</a>
+            
+            <div style="margin-top: 40px; padding: 20px; background: rgba(255,255,255,0.1); border-radius: 10px;">
+                <p style="font-size: 1.1em;"><strong>💡 Astuce :</strong> Commande aujourd'hui et profite du paiement échelonné sur 2 mois sans frais supplémentaires (nous contacter pour les modalités).</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

@@ -51,6 +51,7 @@ affiliateApi.interceptors.request.use((config) => {
 export const affiliatePortalApi = {
   register: (payload) => affiliateApi.post('/auth/register', payload),
   login: (payload) => affiliateApi.post('/auth/login', payload),
+  loginWithScalor: (payload) => affiliateApi.post('/auth/login-scalor', payload),
   me: () => affiliateApi.get('/auth/me'),
   getDashboard: () => affiliateApi.get('/dashboard'),
   getLinks: () => affiliateApi.get('/links'),

@@ -147,7 +147,6 @@ export default function AffiliateConversions() {
             </table>
           </div>
 
-          {/* Pagination */}
           {pagination.pages > 1 && (
             <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100">
               <p className="text-xs text-gray-500">Page {pagination.page} sur {pagination.pages} — {pagination.total} résultat{pagination.total > 1 ? 's' : ''}</p>

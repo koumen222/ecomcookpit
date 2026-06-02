@@ -33,12 +33,6 @@ const AffiliateLayoutComponent = ({ children, affiliate }) => {
     return location.pathname.startsWith(href);
   }, [location.pathname]);
 
-  const getPageTitle = (pathname) => {
-    if (pathname.includes('/conversions')) return 'Conversions';
-    if (pathname.includes('/commissions')) return 'Commissions';
-    return 'Dashboard';
-  };
-
   const initial = affiliate?.name?.charAt(0)?.toUpperCase() || 'A';
 
   const NavLink = ({ item }) => {
@@ -95,7 +89,7 @@ const AffiliateLayoutComponent = ({ children, affiliate }) => {
                 </div>
                 <div className="min-w-0 flex-1 text-left">
                   <p className="text-xs font-semibold text-gray-800 truncate">{affiliate?.name || 'Affilié'}</p>
-                  <p className="text-[10px] text-gray-400 truncate">{affiliate?.email || 'affilié'}</p>
+                  <p className="text-[10px] text-gray-400 truncate">{affiliate?.email || ''}</p>
                 </div>
                 <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
               </button>
@@ -124,11 +118,10 @@ const AffiliateLayoutComponent = ({ children, affiliate }) => {
         {/* Desktop Header */}
         <header className="hidden lg:flex border-b h-14 items-center px-5 fixed top-0 left-[220px] right-0 z-20 bg-white border-gray-200 gap-4">
           <div className="flex items-center gap-2 min-w-[160px]">
-            <h1 className="text-[15px] font-semibold text-gray-900 truncate">{getPageTitle(location.pathname)}</h1>
+            <span className="text-xs text-gray-500">Code : <span className="font-mono font-bold text-[#0F6B4F]">{affiliate?.referralCode || '—'}</span></span>
           </div>
           <div className="flex-1" />
           <div className="flex items-center gap-3 flex-shrink-0">
-            <span className="text-xs text-gray-500">Code : <span className="font-mono font-bold text-[#0F6B4F]">{affiliate?.referralCode || '—'}</span></span>
             <button
               onClick={handleLogout}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors"

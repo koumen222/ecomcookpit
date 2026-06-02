@@ -48,7 +48,6 @@ export default function AffiliateCommissions() {
 
   useEffect(() => { load(); }, [load]);
 
-  // Group conversions by month
   const monthlyData = conversions.reduce((acc, c) => {
     const d = new Date(c.createdAt);
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
@@ -61,12 +60,11 @@ export default function AffiliateCommissions() {
   }, {});
   const months = Object.values(monthlyData).sort((a, b) => b.key.localeCompare(a.key));
 
-  // Commission rate display
   const commissionDisplay = affiliate
     ? affiliate.commissionType === 'percentage'
       ? `${affiliate.commissionValue}% par vente`
       : `${fmt(affiliate.commissionValue)} FCFA par vente`
-    : '—';
+    : '30% récurrent';
 
   if (loading) {
     return (
@@ -94,44 +92,36 @@ export default function AffiliateCommissions() {
         {/* KPI cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <div className="bg-white border border-gray-200 rounded-xl p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="w-8 h-8 bg-[#0F6B4F]/10 text-[#0F6B4F] rounded-lg flex items-center justify-center">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-              </div>
+            <div className="w-8 h-8 bg-[#0F6B4F]/10 text-[#0F6B4F] rounded-lg flex items-center justify-center mb-2">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
             </div>
             <p className="text-xl font-bold text-[#0F6B4F]">{fmt(kpis?.totalCommissions)} <span className="text-sm font-medium">F</span></p>
             <p className="text-[11px] uppercase tracking-wide text-gray-500 mt-0.5">Total commissions</p>
           </div>
           <div className="bg-white border border-gray-200 rounded-xl p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="w-8 h-8 bg-amber-50 text-amber-600 rounded-lg flex items-center justify-center">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-              </div>
+            <div className="w-8 h-8 bg-amber-50 text-amber-600 rounded-lg flex items-center justify-center mb-2">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
             </div>
             <p className="text-xl font-bold text-amber-700">{fmt(kpis?.pendingCommissions)} <span className="text-sm font-medium">F</span></p>
             <p className="text-[11px] uppercase tracking-wide text-gray-500 mt-0.5">En attente</p>
           </div>
           <div className="bg-white border border-gray-200 rounded-xl p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="w-8 h-8 bg-primary-50 text-primary-600 rounded-lg flex items-center justify-center">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-              </div>
+            <div className="w-8 h-8 bg-primary-50 text-primary-600 rounded-lg flex items-center justify-center mb-2">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
             </div>
             <p className="text-xl font-bold text-primary-700">{fmt(kpis?.approvedCommissions)} <span className="text-sm font-medium">F</span></p>
             <p className="text-[11px] uppercase tracking-wide text-gray-500 mt-0.5">Approuvées</p>
           </div>
           <div className="bg-white border border-gray-200 rounded-xl p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="w-8 h-8 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
-              </div>
+            <div className="w-8 h-8 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center mb-2">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
             </div>
             <p className="text-xl font-bold text-blue-700">{fmt(kpis?.paidCommissions)} <span className="text-sm font-medium">F</span></p>
             <p className="text-[11px] uppercase tracking-wide text-gray-500 mt-0.5">Payées</p>
           </div>
         </div>
 
-        {/* Commission rate info */}
+        {/* Commission rate */}
         <div className="bg-gradient-to-r from-[#0F6B4F] to-[#0a5040] rounded-xl p-5 text-white">
           <div className="flex items-center justify-between">
             <div>
@@ -173,7 +163,7 @@ export default function AffiliateCommissions() {
           )}
         </div>
 
-        {/* Recent conversions with commissions */}
+        {/* Detail table */}
         <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
           <div className="px-4 py-3 border-b border-gray-100">
             <h3 className="text-sm font-semibold text-gray-900">Détail des commissions</h3>

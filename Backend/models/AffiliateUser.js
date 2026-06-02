@@ -49,6 +49,18 @@ const affiliateUserSchema = new mongoose.Schema({
     type: Date,
     default: null
   },
+  scalorUserId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'EcomUser',
+    default: null,
+    index: true,
+    sparse: true
+  },
+  phone: {
+    type: String,
+    default: '',
+    trim: true
+  },
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'EcomUser',

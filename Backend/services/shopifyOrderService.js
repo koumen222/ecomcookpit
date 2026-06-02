@@ -2,11 +2,53 @@ import Order from '../models/Order.js';
 import OrderSource from '../models/OrderSource.js';
 import EcomUser from '../models/EcomUser.js';
 import Workspace from '../models/Workspace.js';
+import Product from '../models/Product.js';
 import { notifyNewOrder } from './notificationHelper.js';
 import { normalizeCity } from '../utils/cityNormalizer.js';
 import { sendClientOrderConfirmation } from './shopifyWhatsappService.js';
 import { getPlanRuntimeSnapshot } from '../middleware/planLimits.js';
 import { notifyOrderLimitReached } from './orderLimitNotificationService.js';
+
+/**
+ * Synchronise les produits du webhook Shopify → collection ecom_products.
+ * Crée les produits qui n'existent pas encore (match par nom, insensible à la casse).
+ * Ne modifie pas les produits existants.
+ */
+async function syncShopifyProducts(lineItems, workspaceId, createdByUserId, currency = 'XAF') {
+  if (!lineItems?.length || !workspaceId || !createdByUserId) return;
+
+  for (const item of lineItems) {
+    const title = (item.title || item.name || '').trim();
+    if (!title) continue;
+    if (/easysell|cod form|via import/i.test(title)) continue;
+
+    const existing = await Product.findOne({
+      workspaceId,
+      name: { $regex: `^${title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, $options: 'i' },
+    }).select('_id').lean();
+
+    if (existing) continue;
+
+    try {
+      const price = parseFloat(item.price) || 0;
+      await Product.create({
+        workspaceId,
+        name: title,
+        sellingPrice: price,
+        productCost: 0,
+        deliveryCost: 0,
+        stock: 0,
+        reorderThreshold: 10,
+        isActive: true,
+        createdBy: createdByUserId,
+      });
+      console.log(`📦 [Shopify WH] Produit auto-créé : "${title}"`);
+    } catch (err) {
+      if (err.code === 11000) continue;
+      console.warn(`⚠️ [Shopify WH] Erreur création produit "${title}":`, err.message);
+    }
+  }
+}
 
 /**
  * Sauvegarde une commande Shopify reçue par webhook.
@@ -101,6 +143,15 @@ export async function saveShopifyOrder(shopifyOrder, shopDomain, workspaceId, wo
   const customer = shopifyOrder.customer || {};
   const shipping = shopifyOrder.shipping_address || shopifyOrder.billing_address || {};
   const lineItems = shopifyOrder.line_items || [];
+
+  // ── Auto-créer les produits Shopify qui n'existent pas encore ──────────
+  if (orderSource?.createdBy) {
+    try {
+      await syncShopifyProducts(lineItems, workspaceId, orderSource.createdBy, shopifyOrder.currency);
+    } catch (err) {
+      console.warn(`⚠️ [Shopify WH] Erreur sync produits:`, err.message);
+    }
+  }
 
   const clientName = [customer.first_name, customer.last_name].filter(Boolean).join(' ')
     || shipping.name
