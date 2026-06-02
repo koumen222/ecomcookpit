@@ -250,6 +250,8 @@ export function securityHeaders(req, res, next) {
         "https://sc-static.net https://*.snapchat.com",
         // PostHog (analytics interne)
         "https://*.posthog.com",
+        // Cloudflare Insights
+        "https://static.cloudflareinsights.com",
       ].join(' '),
       [
         "style-src 'self' 'unsafe-inline'",
@@ -294,6 +296,8 @@ export function securityHeaders(req, res, next) {
         "https://fonts.googleapis.com https://fonts.gstatic.com",
         // Fontshare (Satoshi font CSS)
         "https://api.fontshare.com https://cdn.fontshare.com",
+        // Cloudflare Insights
+        "https://cloudflareinsights.com https://static.cloudflareinsights.com",
       ].join(' '),
       [
         "frame-src 'self'",
