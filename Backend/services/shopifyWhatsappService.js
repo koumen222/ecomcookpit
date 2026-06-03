@@ -14,7 +14,7 @@
  *   - Workspace.whatsappAutoConfirm (toggle on/off)
  */
 
-import { sendWhatsAppMessage, sendWhatsAppMedia, sendWhatsAppAudio, sendWhatsAppVideo, sendWhatsAppDocument } from './whatsappService.js';
+import { sendWhatsAppMessage, sendWhatsAppMedia, sendWhatsAppAudio, sendWhatsAppVideo, sendWhatsAppDocument, renderClientTemplate } from './whatsappService.js';
 import WhatsAppLog from '../models/WhatsAppLog.js';
 import EcomWorkspace from '../models/Workspace.js';
 import { formatInternationalPhone } from '../utils/phoneUtils.js';
@@ -335,33 +335,68 @@ export async function sendOrderConfirmationToClient(order, workspaceId) {
       console.log(`   [${i}] keyword="${r.productKeyword}" instanceId="${r.instanceId || 'null'}"`);
     });
 
-    if (!workspace?.whatsappAutoConfirm) {
-      console.log(`ℹ️ ${logPrefix} WhatsApp auto désactivé pour workspace ${workspaceId}`);
-      return { success: false, error: 'WhatsApp auto désactivé' };
+    // ── Anti-doublon : ne jamais réenvoyer si la commande a déjà été notifiée ──
+    if (order?.whatsappNotificationSent) {
+      console.log(`⏭️ ${logPrefix} Commande #${order.orderId} déjà notifiée — envoi ignoré`);
+      return { success: false, skipped: true, reason: 'already_sent' };
     }
+
+    const autoOn = !!workspace?.whatsappAutoConfirm;
 
     console.log(`🔍 ${logPrefix} order.product: "${order.product}"`);
 
-    // Résoudre la règle produit AVANT l'anti-doublon
-    const matchedRule = resolveMediaRule(order.product, workspace.whatsappAutoProductMediaRules || []);
+    // Règle produit dédiée (uniquement si l'auto-confirmation est activée)
+    const matchedRule = autoOn
+      ? resolveMediaRule(order.product, workspace.whatsappAutoProductMediaRules || [])
+      : null;
+
     if (matchedRule) {
-      console.log(`📦 ${logPrefix} Règle produit trouvée: "${matchedRule.productKeyword}"${matchedRule.instanceId ? ` → instance ${matchedRule.instanceId}` : ''} — skip anti-doublon`);
+      console.log(`📦 ${logPrefix} Règle produit trouvée: "${matchedRule.productKeyword}"${matchedRule.instanceId ? ` → instance ${matchedRule.instanceId}` : ''}`);
     } else {
-      // Pas de règle produit dédiée : vérifier si le produit gère son propre message
-      // (via Settings > Message client automatique par produit) pour éviter doublon
+      // Pas de règle produit dédiée : si le produit gère son propre message client
+      // (Settings > Message client automatique par produit), on l'ENVOIE ici.
+      // Ce message fonctionne même quand whatsappAutoConfirm est désactivé.
       try {
         const { default: Product } = await import('../models/Product.js');
         if (order?.productId || order?.product) {
           const q = order.productId
             ? { _id: order.productId, workspaceId }
             : { workspaceId, name: { $regex: `^${String(order.product).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, $options: 'i' } };
-          const prod = await Product.findOne(q).select('whatsappClientEnabled').lean();
+          const prod = await Product.findOne(q)
+            .select('whatsappClientEnabled whatsappClientInstanceId whatsappClientMessage name')
+            .lean();
           if (prod?.whatsappClientEnabled) {
-            console.log(`ℹ️ ${logPrefix} Produit gère son message client — envoi workspace ignoré`);
-            return { success: false, skipped: true, reason: 'product_client_message' };
+            console.log(`📨 ${logPrefix} Produit "${prod.name}" gère son propre message client — envoi dédié`);
+            const productMessage = renderClientTemplate(prod.whatsappClientMessage, order, prod);
+            try {
+              const prodRes = await sendWhatsAppMessage({
+                to: order.clientPhone,
+                message: productMessage,
+                workspaceId,
+                instanceId: prod.whatsappClientInstanceId || undefined,
+              });
+              try {
+                await order.constructor.updateOne(
+                  { _id: order._id },
+                  { whatsappNotificationSent: true, whatsappNotificationSentAt: new Date() }
+                );
+              } catch { /* ignore */ }
+              return { success: true, messageId: prodRes?.messageId, viaProductMessage: true };
+            } catch (sendErr) {
+              console.warn(`⚠️ ${logPrefix} Échec message produit: ${sendErr.message}`);
+              return { success: false, error: sendErr.message, viaProductMessage: true };
+            }
           }
         }
-      } catch { /* continuer */ }
+      } catch (prodErr) {
+        console.warn(`⚠️ ${logPrefix} Recherche message produit ignorée: ${prodErr.message}`);
+      }
+
+      // Aucun message dédié au produit : sans auto-confirmation, rien à envoyer.
+      if (!autoOn) {
+        console.log(`ℹ️ ${logPrefix} WhatsApp auto désactivé et aucun message produit — rien à envoyer`);
+        return { success: false, skipped: true, reason: 'auto_disabled' };
+      }
     }
 
     const rawPhone = order.clientPhone || '';

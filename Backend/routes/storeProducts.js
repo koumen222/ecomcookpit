@@ -1613,18 +1613,7 @@ router.put('/:id', requireEcomAuth, requireWorkspace, requireStoreOwner, async (
     if (pageBuilder !== undefined) update.pageBuilder = pageBuilder;
     if (productPageConfig !== undefined) update.productPageConfig = productPageConfig;
 
-    // Only regenerate slug if name actually changed
-    if (normalizedName) {
-      const existing = await StoreProduct.findOne({ _id: req.params.id, workspaceId: req.workspaceId }).select('name').lean();
-      if (existing && existing.name !== normalizedName) {
-        update.slug = normalizedName
-          .toLowerCase()
-          .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-          .replace(/[^a-z0-9]+/g, '-')
-          .replace(/^-|-$/g, '')
-          + '-' + Date.now().toString(36);
-      }
-    }
+    // Le slug ne doit JAMAIS changer lors d'une modification \u2014 le lien doit rester permanent
 
     const product = await StoreProduct.findOneAndUpdate(
       { _id: req.params.id, workspaceId: req.workspaceId },

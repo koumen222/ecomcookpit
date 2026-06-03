@@ -561,10 +561,15 @@ export function renderClientTemplate(tpl, order, product) {
 }
 
 /**
+ * @deprecated NE PLUS UTILISER. Remplacée par `sendOrderConfirmationToClient`
+ * (services/shopifyWhatsappService.js), désormais branchée sur le hook post-save
+ * de Order ET sur le bouton « Tester ». Cette ancienne version n'envoyait ni
+ * l'audio ni le document, ignorait `sendOrder`, et retombait silencieusement sur
+ * l'instance/template par défaut. Conservée uniquement pour compatibilité.
+ *
  * Envoie un message de confirmation AU CLIENT pour le produit commandé,
  * via l'instance WhatsApp assignée au produit (fallback : instance active du
  * workspace). Ne s'exécute QUE si le produit a `whatsappClientEnabled = true`.
- * Conçu pour être appelé sur le hook post-save de Order (toute source).
  */
 export async function sendOrderClientMessage(order, workspaceId) {
   try {

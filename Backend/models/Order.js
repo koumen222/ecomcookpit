@@ -392,11 +392,17 @@ orderSchema.pre('save', function () {
 orderSchema.post('save', function (doc) {
   if (!doc.$locals?.wasNew) return;
   const workspaceId = doc.workspaceId?.toString();
-  import('../services/whatsappService.js').then(({ sendOrderToProductGroup, sendOrderClientMessage }) => {
+  // Le message AU CLIENT passe par sendOrderConfirmationToClient — la MÊME fonction
+  // que le bouton « Tester » de l'interface — pour que les vraies commandes
+  // respectent l'instance + le template + l'audio/vidéo configurés par produit.
+  Promise.all([
+    import('../services/whatsappService.js'),
+    import('../services/shopifyWhatsappService.js'),
+  ]).then(([{ sendOrderToProductGroup }, { sendOrderConfirmationToClient }]) => {
     sendOrderToProductGroup(doc, workspaceId)
       .catch(err => console.error('❌ [Order hook] sendOrderToProductGroup:', err.message));
-    sendOrderClientMessage(doc, workspaceId)
-      .catch(err => console.error('❌ [Order hook] sendOrderClientMessage:', err.message));
+    sendOrderConfirmationToClient(doc, workspaceId)
+      .catch(err => console.error('❌ [Order hook] sendOrderConfirmationToClient:', err.message));
   }).catch(() => {});
 });
 
