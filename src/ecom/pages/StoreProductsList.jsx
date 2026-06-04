@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Package, Plus, Search, Edit, Trash2, Eye, EyeOff, ChevronLeft, ChevronRight, Loader2, AlertCircle, Image, Sparkles, ExternalLink, Zap, Layers, Copy, Download, Upload } from 'lucide-react';
+import { Package, Plus, Search, Edit, Trash2, Eye, EyeOff, ChevronLeft, ChevronRight, Loader2, AlertCircle, Image, Sparkles, ExternalLink, Zap, Layers, Copy, Download, Upload, Crown } from 'lucide-react';
 import { storeProductsApi, storeManageApi } from '../services/storeApi.js';
 import ecomApi from '../services/ecommApi.js';
 import { formatMoney } from '../utils/currency.js';
@@ -106,6 +106,14 @@ const StoreProductsList = () => {
       state: {
         from: `${basePath}/products`,
         pageStyle,
+      },
+    });
+  };
+
+  const handleOpenPremiumPageGenerator = () => {
+    navigate(`${basePath}/products/premium-generator`, {
+      state: {
+        from: `${basePath}/products`,
       },
     });
   };
@@ -767,29 +775,40 @@ const StoreProductsList = () => {
               </>
             )}
             {viewMode !== 'categories' && (
-              <div className="inline-flex rounded-xl shadow-sm overflow-hidden border border-violet-300">
-                {/* Gratuit — hero_page mode */}
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="inline-flex overflow-hidden rounded-xl border border-violet-300 shadow-sm">
+                  {/* Gratuit — hero_page mode */}
+                  <button
+                    onClick={() => handleOpenPageGenerator('hero_page')}
+                    className="inline-flex items-center justify-center gap-1.5 bg-primary-500 hover:bg-primary-600 px-3 py-2.5 text-sm font-semibold text-white transition border-r border-primary-400"
+                    title="Page complète + hero IA — gratuit, sans images d'angles"
+                  >
+                    <Sparkles className="h-4 w-4" />
+                    <span>Gratuit</span>
+                  </button>
+                  {/* Pro — classic mode with credits */}
+                  <button
+                    onClick={() => handleOpenPageGenerator('classic')}
+                    className="inline-flex items-center justify-center gap-1.5 bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700 px-3 py-2.5 text-sm font-semibold text-white transition"
+                    title="Génération IA classique avec images générées par IA"
+                  >
+                    <Zap className="h-4 w-4" />
+                    <span>Pro</span>
+                    {generationsInfo && (generationsInfo.freeRemaining + generationsInfo.paidRemaining) > 0 && (
+                      <span className="ml-0.5 inline-flex items-center gap-1 rounded-full bg-white/20 px-1.5 py-0.5 text-xs font-bold">
+                        {generationsInfo.freeRemaining + generationsInfo.paidRemaining}
+                      </span>
+                    )}
+                  </button>
+                </div>
                 <button
-                  onClick={() => handleOpenPageGenerator('hero_page')}
-                  className="inline-flex items-center justify-center gap-1.5 bg-primary-500 hover:bg-primary-600 px-3 py-2.5 text-sm font-semibold text-white transition border-r border-primary-400"
-                  title="Page complète + hero IA — gratuit, sans images d'angles"
+                  type="button"
+                  onClick={handleOpenPremiumPageGenerator}
+                  className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2.5 text-sm font-black text-amber-800 shadow-sm transition hover:bg-amber-100"
+                  title="Système séparé pour page produit premium avancée"
                 >
-                  <Sparkles className="h-4 w-4" />
-                  <span>Gratuit</span>
-                </button>
-                {/* Pro — classic mode with credits */}
-                <button
-                  onClick={() => handleOpenPageGenerator('classic')}
-                  className="inline-flex items-center justify-center gap-1.5 bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700 px-3 py-2.5 text-sm font-semibold text-white transition"
-                  title="Génération IA complète avec images générées par IA"
-                >
-                  <Zap className="h-4 w-4" />
-                  <span>Pro</span>
-                  {generationsInfo && (generationsInfo.freeRemaining + generationsInfo.paidRemaining) > 0 && (
-                    <span className="ml-0.5 inline-flex items-center gap-1 rounded-full bg-white/20 px-1.5 py-0.5 text-xs font-bold">
-                      {generationsInfo.freeRemaining + generationsInfo.paidRemaining}
-                    </span>
-                  )}
+                  <Crown className="h-4 w-4" />
+                  <span>Premium</span>
                 </button>
               </div>
             )}
@@ -1454,8 +1473,15 @@ const StoreProductsList = () => {
                           <ExternalLink className="w-4 h-4" />
                         </button>
                         <button
-                          onClick={() => navigate(`${basePath}/products/${product._id}/builder`)}
-                          className={`rounded-xl border p-2 transition ${product.pageBuilder?.enabled ? 'border-indigo-100 bg-indigo-50 text-indigo-600 hover:bg-indigo-100' : 'border-transparent text-gray-400 hover:border-indigo-100 hover:bg-indigo-50 hover:text-indigo-600'}`}
+                          onClick={() => {
+                            const isPremium = product.productPageConfig?.pageStyle === 'premium'
+                              || product.productPageConfig?.theme === 'premium_product'
+                              || Boolean(product.productPageConfig?.premiumPage)
+                              || product._pageData?.pageStyle === 'premium'
+                              || Boolean(product._pageData?.premium_page);
+                            navigate(`${basePath}/products/${product._id}/${isPremium ? 'premium-builder' : 'builder'}`);
+                          }}
+                          className={`rounded-xl border p-2 transition ${product.pageBuilder?.enabled || product.productPageConfig?.premiumPage ? 'border-indigo-100 bg-indigo-50 text-indigo-600 hover:bg-indigo-100' : 'border-transparent text-gray-400 hover:border-indigo-100 hover:bg-indigo-50 hover:text-indigo-600'}`}
                           title="Page Builder"
                         >
                           <Layers className="w-4 h-4" />
@@ -1540,7 +1566,14 @@ const StoreProductsList = () => {
                   >
                     Voir
                   </button>
-                  <button onClick={() => navigate(`${basePath}/products/${product._id}/builder`)} className={`rounded-xl px-3 py-2 text-xs font-medium ${product.pageBuilder?.enabled ? 'bg-indigo-50 text-indigo-700' : 'bg-gray-100 text-gray-600'}`}>Builder</button>
+                  <button onClick={() => {
+                    const isPremium = product.productPageConfig?.pageStyle === 'premium'
+                      || product.productPageConfig?.theme === 'premium_product'
+                      || Boolean(product.productPageConfig?.premiumPage)
+                      || product._pageData?.pageStyle === 'premium'
+                      || Boolean(product._pageData?.premium_page);
+                    navigate(`${basePath}/products/${product._id}/${isPremium ? 'premium-builder' : 'builder'}`);
+                  }} className={`rounded-xl px-3 py-2 text-xs font-medium ${product.pageBuilder?.enabled || product.productPageConfig?.premiumPage ? 'bg-indigo-50 text-indigo-700' : 'bg-gray-100 text-gray-600'}`}>Builder</button>
                   <button onClick={() => handleDuplicate(product)} className="rounded-xl bg-amber-50 px-3 py-2 text-xs font-medium text-amber-700">Copier</button>
                   <button onClick={() => handleExportSingleProductCsv(product)} className="rounded-xl bg-gray-100 px-3 py-2 text-xs font-medium text-gray-700">Exporter CSV</button>
                   <button onClick={() => navigate(`${basePath}/products/${product._id}/edit`)} className="rounded-xl bg-primary-50 px-3 py-2 text-xs font-medium text-primary-700">Modifier</button>

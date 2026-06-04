@@ -15,6 +15,7 @@ import {
   RotateCw,
   Layers3,
   Wand2,
+  Crown,
 } from 'lucide-react';
 
 const API_ORIGIN = import.meta.env.DEV ? '' : (import.meta.env.VITE_API_URL || '');
@@ -59,6 +60,8 @@ function formatTaskDate(value) {
 
 function getTaskThumbnail(task) {
   return task.product?.heroImage
+    || task.product?.premiumImages?.hero
+    || task.images?.premiumImages?.hero
     || task.images?.heroImage
     || task.product?.heroPosterImage
     || task.images?.heroPosterImage
@@ -169,10 +172,15 @@ export default function GenerationsPage() {
   ]), [counts]);
 
   const openTask = useCallback((taskId) => {
-    navigate('/ecom/boutique/products/generator', {
+    const task = tasks.find((item) => item._id === taskId);
+    const isPremium = task?.product?.pageStyle === 'premium'
+      || task?.product?.layout === 'premium_product_page'
+      || task?.product?.theme === 'premium_product'
+      || Boolean(task?.product?.premium_page);
+    navigate(isPremium ? '/ecom/boutique/products/premium-generator' : '/ecom/boutique/products/generator', {
       state: { loadTaskId: taskId, from: location.pathname },
     });
-  }, [location.pathname, navigate]);
+  }, [location.pathname, navigate, tasks]);
 
   const handleDelete = async (taskId) => {
     if (!window.confirm('Supprimer cette generation ?')) return;
@@ -275,6 +283,13 @@ export default function GenerationsPage() {
           >
             <Plus className="w-4 h-4" />
             Nouvelle generation
+          </button>
+          <button
+            onClick={() => navigate('/ecom/boutique/products/premium-generator', { state: { from: location.pathname } })}
+            className="inline-flex items-center gap-2 px-4 py-2 border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-800 text-sm font-black rounded-xl transition"
+          >
+            <Crown className="w-4 h-4" />
+            Nouvelle premium
           </button>
         </div>
       </div>
@@ -397,6 +412,10 @@ function TaskCard({ task, deleting, retrying, onDelete, onOpen, onApply, onRetry
   const isDone = task.status === 'done';
   const isError = task.status === 'error';
   const hasSavedContent = Boolean(task.product);
+  const isPremium = task.product?.pageStyle === 'premium'
+    || task.product?.layout === 'premium_product_page'
+    || task.product?.theme === 'premium_product'
+    || Boolean(task.product?.premium_page);
   const thumbnail = getTaskThumbnail(task);
 
   return (
@@ -419,6 +438,12 @@ function TaskCard({ task, deleting, retrying, onDelete, onOpen, onApply, onRetry
               <StatusIcon className={`w-3 h-3 ${config.animate ? 'animate-spin' : ''}`} />
               {config.label}
             </span>
+            {isPremium && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-black px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
+                <Crown className="w-3 h-3" />
+                Premium
+              </span>
+            )}
             {isError && hasSavedContent && (
               <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
                 <AlertCircle className="w-3 h-3" />

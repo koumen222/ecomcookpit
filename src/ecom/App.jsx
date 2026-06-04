@@ -147,7 +147,9 @@ const StoreSetup = lazy(() => import('./pages/StoreSetup.jsx'));
 const StoreProductsList = lazy(() => import('./pages/StoreProductsList.jsx'));
 const StoreProductForm = lazy(() => import('./pages/StoreProductForm.jsx'));
 const ProductPageGeneratorWizard = lazy(() => import('./pages/ProductPageGeneratorWizard.jsx'));
+const PremiumProductPageGeneratorWizard = lazy(() => import('./pages/PremiumProductPageGeneratorWizard.jsx'));
 const ProductPageBuilder = lazy(() => import('./pages/ProductPageBuilder.jsx'));
+const PremiumPageBuilder = lazy(() => import('./pages/PremiumPageBuilder.jsx'));
 const GenerationsPage = lazy(() => import('./pages/GenerationsPage.jsx'));
 const StoreAnalytics = lazy(() => import('./pages/StoreAnalytics.jsx'));
 const StoreDashboard = lazy(() => import('./pages/StoreDashboard.jsx'));
@@ -805,7 +807,9 @@ const EcomApp = () => {
                 <Route path="/ecom/boutique/nouvelle" element={<ProtectedRoute requiredRole="ecom_admin"><StoreCreationWizard /></ProtectedRoute>} />
                 {/* Builders — full screen, outside BoutiqueLayout */}
                 <Route path="/ecom/boutique/products/generator" element={<ProtectedRoute requiredRole="ecom_admin"><ProductPageGeneratorWizard /></ProtectedRoute>} />
+                <Route path="/ecom/boutique/products/premium-generator" element={<ProtectedRoute requiredRole="ecom_admin"><PremiumProductPageGeneratorWizard /></ProtectedRoute>} />
                 <Route path="/ecom/boutique/products/:id/builder" element={<ProtectedRoute requiredRole="ecom_admin"><RequireStore><ProductPageBuilder /></RequireStore></ProtectedRoute>} />
+                <Route path="/ecom/boutique/products/:id/premium-builder" element={<ProtectedRoute requiredRole="ecom_admin"><RequireStore><PremiumPageBuilder /></RequireStore></ProtectedRoute>} />
                 <Route path="/ecom/boutique/pages" element={<ProtectedRoute requiredRole="ecom_admin"><RequireStore><BoutiquePages /></RequireStore></ProtectedRoute>} />
                 <Route path="/ecom/boutique/page-builder" element={<ProtectedRoute requiredRole="ecom_admin"><RequireStore><StorepageBuilder /></RequireStore></ProtectedRoute>} />
                 <Route element={<ProtectedRoute requiredRole="ecom_admin"><RequireStore><KeyedBoutiqueLayout /></RequireStore></ProtectedRoute>}>

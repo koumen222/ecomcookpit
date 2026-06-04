@@ -233,7 +233,12 @@ router.get('/:subdomain/products/:slug', readLimiter, resolveStoreBySubdomain, a
         category: product.category,
         tags: product.tags,
         seoTitle: product.seoTitle,
-        seoDescription: product.seoDescription
+        seoDescription: product.seoDescription,
+        _pageData: product._pageData || null,
+        productPageConfig: product.productPageConfig || null,
+        premiumImages: product.premiumImages || null,
+        testimonials: product.testimonials || [],
+        faq: product.faq || []
       }
     });
   } catch (error) {

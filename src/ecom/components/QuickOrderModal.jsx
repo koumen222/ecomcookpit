@@ -58,6 +58,17 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, pixels, store, p
   const formConfig = productPageConfig?.form || {};
   const conversionConfig = productPageConfig?.conversion || {};
 
+  // ── Upsells / Bump / Exit ─────────────────────────────────────────────────
+  const upsellConfig = productPageConfig?.upsells || {};
+  const upsellOffers = (upsellConfig.offers || []).filter(o => o.isActive !== false);
+  const orderBumpConfig = upsellConfig.bump || {};
+  const exitOfferConfig = upsellConfig.exit || {};
+
+  const [upsellStep, setUpsellStep] = useState(-1); // -1 = not started, 0..N = showing offer N
+  const [bumpChecked, setBumpChecked] = useState(false);
+  const [showExitOffer, setShowExitOffer] = useState(false);
+  const [exitOfferDismissed, setExitOfferDismissed] = useState(false);
+
   const offerDesign = conversionConfig.offerDesign || null;
   const btnColor = design.formButtonColor || design.ctaButtonColor || design.buttonColor || '#0F6B4F';
   const od = offerDesign || {};
@@ -316,7 +327,8 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, pixels, store, p
       // Append selected variants (size, color…) to notes
       const variantEntries = Object.entries(selectedVariants).filter(([, v]) => v);
       const variantNote = variantEntries.length ? variantEntries.map(([k, v]) => `${k}: ${v}`).join(' | ') : '';
-      const combinedNotes = [finalNotes, variantNote].filter(Boolean).join(' — ');
+      const bumpNote = bumpChecked && orderBumpConfig.title ? `+ ${orderBumpConfig.title}` : '';
+      const combinedNotes = [finalNotes, variantNote, bumpNote].filter(Boolean).join(' — ');
 
       const res = await publicStoreApi.placeOrder(subdomain, {
         customerName: finalCustomerName,
@@ -355,12 +367,89 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, pixels, store, p
   };
 
   const handleClose = () => {
+    // Show exit offer if configured and not already dismissed and form not submitted
+    if (!success && !exitOfferDismissed && exitOfferConfig.isActive && exitOfferConfig.title) {
+      setShowExitOffer(true);
+      return;
+    }
     setForm({ customerName: '', phone: '', city: '', address: '', notes: '', quantity: 1 });
     setError(''); setSuccess(false); setOrderResult(null);
+    setShowExitOffer(false); setExitOfferDismissed(false); setUpsellStep(-1); setBumpChecked(false);
+    onClose();
+  };
+
+  const confirmClose = () => {
+    setForm({ customerName: '', phone: '', city: '', address: '', notes: '', quantity: 1 });
+    setError(''); setSuccess(false); setOrderResult(null);
+    setShowExitOffer(false); setExitOfferDismissed(false); setUpsellStep(-1); setBumpChecked(false);
     onClose();
   };
 
   if (!isOpen) return null;
+
+  // ── Upsell séquentiel — présenté après soumission réussie ─────────────────
+  if (success && orderResult && upsellOffers.length > 0 && upsellStep >= 0 && upsellStep < upsellOffers.length) {
+    const offer = upsellOffers[upsellStep];
+    const offerPrice = Number(offer.offerPrice) || 0;
+    const origPrice = Number(offer.originalPrice) || 0;
+    const disc = origPrice > offerPrice && offerPrice > 0 ? Math.round((1 - offerPrice / origPrice) * 100) : 0;
+    const advance = () => setUpsellStep(s => s + 1);
+    return (
+      <div style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}>
+        <div style={{ backgroundColor: bgColor, borderRadius: design.formBorderRadius || 24, boxShadow, width: '100%', maxWidth: 420, overflow: 'hidden' }}>
+          <div style={{ height: 4, backgroundColor: effectiveBtnColor }} />
+          <div style={{ padding: '24px 24px 28px', textAlign: 'center' }}>
+            {/* Step indicator */}
+            {upsellOffers.length > 1 && (
+              <div style={{ display: 'flex', justifyContent: 'center', gap: 6, marginBottom: 16 }}>
+                {upsellOffers.map((_, i) => (
+                  <div key={i} style={{ width: i === upsellStep ? 20 : 7, height: 7, borderRadius: 4, backgroundColor: i === upsellStep ? effectiveBtnColor : '#E5E7EB', transition: 'all 0.2s' }} />
+                ))}
+              </div>
+            )}
+            <p style={{ fontSize: 11, fontWeight: 700, color: effectiveBtnColor, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>
+              Offre exclusive — 1 clic
+            </p>
+            <h2 style={{ fontSize: 20, fontWeight: 800, color: '#111827', margin: '0 0 8px', lineHeight: 1.3 }}>
+              {offer.title}
+            </h2>
+            {offer.description && (
+              <p style={{ fontSize: 13.5, color: '#6B7280', margin: '0 0 20px', lineHeight: 1.6 }}>{offer.description}</p>
+            )}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 20 }}>
+              {offerPrice > 0 && (
+                <span style={{ fontSize: 28, fontWeight: 800, color: effectiveBtnColor }}>{fmt(offerPrice, currency)}</span>
+              )}
+              {origPrice > 0 && origPrice !== offerPrice && (
+                <span style={{ fontSize: 15, color: '#9CA3AF', textDecoration: 'line-through' }}>{fmt(origPrice, currency)}</span>
+              )}
+              {disc > 0 && (
+                <span style={{ fontSize: 12, fontWeight: 700, backgroundColor: effectiveBtnColor + '18', color: effectiveBtnColor, padding: '3px 8px', borderRadius: 6 }}>-{disc}%</span>
+              )}
+            </div>
+            <button
+              onClick={advance}
+              style={{ width: '100%', padding: '14px 20px', borderRadius: 14, border: 'none', backgroundColor: effectiveBtnColor, color: '#fff', fontWeight: 700, fontSize: 15, cursor: 'pointer', marginBottom: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+            >
+              <Check size={16} strokeWidth={2.5} /> Oui, j&apos;ajoute cette offre
+            </button>
+            <button
+              onClick={advance}
+              style={{ background: 'none', border: 'none', color: '#9CA3AF', fontSize: 13, cursor: 'pointer', textDecoration: 'underline', padding: '4px 0' }}
+            >
+              Non merci, je passe cette offre
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Déclencher les upsells après soumission ───────────────────────────────
+  if (success && orderResult && upsellOffers.length > 0 && upsellStep === -1) {
+    // Auto-start upsell sequence on next render
+    setTimeout(() => setUpsellStep(0), 0);
+  }
 
   // ── Écran de succès ──────────────────────────────────────────────────────────
   if (success && orderResult) {
@@ -453,6 +542,48 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, pixels, store, p
                 Continuer les achats
               </button>
             </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Pop-up exit intent ────────────────────────────────────────────────────
+  if (showExitOffer && exitOfferConfig.isActive && exitOfferConfig.title) {
+    const discValue = exitOfferConfig.discountValue;
+    const discType = exitOfferConfig.discountType || 'percent';
+    const discLabel = discType === 'percent' ? `${discValue}% de remise` : discType === 'fixed' ? `${Number(discValue).toLocaleString('fr-FR')} FCFA` : 'Offre spéciale';
+    return (
+      <div style={{ position: 'fixed', inset: 0, zIndex: 1010, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, backgroundColor: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)' }}>
+        <div style={{ backgroundColor: bgColor, borderRadius: design.formBorderRadius || 24, boxShadow, width: '100%', maxWidth: 380, overflow: 'hidden' }}>
+          <div style={{ height: 4, backgroundColor: '#EF4444' }} />
+          <div style={{ padding: '24px 24px 28px', textAlign: 'center' }}>
+            <div style={{ fontSize: 36, marginBottom: 8 }}>⚡</div>
+            <h2 style={{ fontSize: 19, fontWeight: 800, color: '#111827', margin: '0 0 8px', lineHeight: 1.3 }}>
+              {exitOfferConfig.title}
+            </h2>
+            {exitOfferConfig.desc && (
+              <p style={{ fontSize: 13.5, color: '#6B7280', margin: '0 0 16px', lineHeight: 1.6 }}>{exitOfferConfig.desc}</p>
+            )}
+            <div style={{ display: 'inline-block', backgroundColor: effectiveBtnColor + '12', border: `1.5px dashed ${effectiveBtnColor}`, borderRadius: 12, padding: '12px 20px', marginBottom: 20 }}>
+              <p style={{ margin: 0, fontSize: 12, color: '#6B7280', marginBottom: 4 }}>Votre remise</p>
+              <p style={{ margin: 0, fontSize: 22, fontWeight: 800, color: effectiveBtnColor }}>{discLabel}</p>
+              {exitOfferConfig.couponCode && (
+                <p style={{ margin: '6px 0 0', fontSize: 13, fontFamily: 'monospace', fontWeight: 700, color: '#111827', backgroundColor: '#F3F4F6', padding: '4px 10px', borderRadius: 6, display: 'inline-block' }}>{exitOfferConfig.couponCode}</p>
+              )}
+            </div>
+            <button
+              onClick={() => { setShowExitOffer(false); setExitOfferDismissed(true); }}
+              style={{ width: '100%', padding: '13px 20px', borderRadius: 14, border: 'none', backgroundColor: effectiveBtnColor, color: '#fff', fontWeight: 700, fontSize: 15, cursor: 'pointer', marginBottom: 10 }}
+            >
+              Profiter de l&apos;offre
+            </button>
+            <button
+              onClick={confirmClose}
+              style={{ background: 'none', border: 'none', color: '#9CA3AF', fontSize: 13, cursor: 'pointer', textDecoration: 'underline', padding: '4px 0' }}
+            >
+              Non merci, je ferme quand même
+            </button>
           </div>
         </div>
       </div>
@@ -1047,6 +1178,43 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, pixels, store, p
                 return (
                   <React.Fragment key={field.name}>
                     {hasCustomAnim && <style>{ANIMATION_CSS}</style>}
+                    {/* ── Order Bump (1-Tick) ──────────────────────────── */}
+                    {orderBumpConfig.isActive && orderBumpConfig.title && (
+                      <div
+                        onClick={() => setBumpChecked(v => !v)}
+                        style={{
+                          display: 'flex', alignItems: 'flex-start', gap: 12, padding: '12px 14px',
+                          borderRadius: 12, cursor: 'pointer', marginBottom: 4,
+                          border: `2px solid ${bumpChecked ? effectiveBtnColor : inputBorderColor}`,
+                          backgroundColor: bumpChecked ? effectiveBtnColor + '0D' : inputBgColor,
+                          transition: 'all 0.15s',
+                        }}
+                      >
+                        <div style={{
+                          width: 20, height: 20, borderRadius: 6, flexShrink: 0, marginTop: 1,
+                          border: `2px solid ${bumpChecked ? effectiveBtnColor : '#D1D5DB'}`,
+                          backgroundColor: bumpChecked ? effectiveBtnColor : 'transparent',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s',
+                        }}>
+                          {bumpChecked && <Check size={12} color="#fff" strokeWidth={3} />}
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <p style={{ margin: 0, fontSize: 13.5, fontWeight: 700, color: textColor }}>
+                            {orderBumpConfig.title}
+                            {orderBumpConfig.price > 0 && (
+                              <span style={{ marginLeft: 6, color: effectiveBtnColor }}>
+                                +{fmt(Number(orderBumpConfig.price), currency)}
+                              </span>
+                            )}
+                          </p>
+                          {orderBumpConfig.desc && (
+                            <p style={{ margin: '3px 0 0', fontSize: 12, color: labelColorResolved, lineHeight: 1.5 }}>
+                              {orderBumpConfig.desc}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    )}
                     <style>{`@keyframes spin{to{transform:rotate(360deg)}}@keyframes pulse{0%,100%{opacity:1}50%{opacity:.7}}@keyframes glow{from{box-shadow:0 0 5px ${ctaBgColor}60}to{box-shadow:0 0 20px ${ctaBgColor}90}}`}</style>
                     <button type="submit" disabled={submitting}
                       className={ctaAnimClass}

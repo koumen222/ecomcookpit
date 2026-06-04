@@ -289,20 +289,23 @@ const buildTemplateTheme = (templateId) => ({
   ...(TEMPLATE_THEME_PRESETS[templateId] || TEMPLATE_THEME_PRESETS.general),
 });
 
-const buildGeneratedProductPageConfig = (templateTheme, product = {}) => ({
-  design: {
-    buttonColor: templateTheme.primary,
-    ctaButtonColor: templateTheme.primary,
-    badgeColor: templateTheme.accent,
-    backgroundColor: templateTheme.background,
-    textColor: templateTheme.text,
-    fieldTextColor: templateTheme.text,
-    fieldBgColor: templateTheme.surface,
-  },
-  button: {
-    text: product.hero_cta || templateTheme.cta || 'Commander maintenant',
-  },
-});
+const buildGeneratedProductPageConfig = (templateTheme, product = {}, pageStyle = 'classic') => {
+  return {
+    pageStyle,
+    design: {
+      buttonColor: templateTheme.primary,
+      ctaButtonColor: templateTheme.primary,
+      badgeColor: templateTheme.accent,
+      backgroundColor: templateTheme.background,
+      textColor: templateTheme.text,
+      fieldTextColor: templateTheme.text,
+      fieldBgColor: templateTheme.surface,
+    },
+    button: {
+      text: product.hero_cta || templateTheme.cta || 'Commander maintenant',
+    },
+  };
+};
 
 function FinalPagePreview({ product, templateTheme, selectedTemplate }) {
   if (!product) return null;
@@ -699,6 +702,9 @@ const IMAGE_GENERATION_MODES = [
 ];
 
 const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initialTaskId = null, initialPageStyle = 'classic' }) => {
+  const normalizedInitialPageStyle = ['classic', 'infographics', 'hero_page', 'hero'].includes(initialPageStyle)
+    ? initialPageStyle
+    : 'classic';
   // Helper to extract workspaceId from ecomWorkspace JSON in localStorage
   const getWsId = () => {
     try { const ws = JSON.parse(localStorage.getItem('ecomWorkspace') || 'null'); return ws?._id || ws?.id || ''; }
@@ -735,7 +741,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
     } catch { return null; }
   });
   const [step, setStep] = useState(1); // 1: Base info, 2: Copywriting, 3: Advanced (optional)
-  const [pageStyle, setPageStyle] = useState(initialPageStyle || 'classic'); // 'classic' | 'infographics' | 'hero_page' | 'hero'
+  const [pageStyle, setPageStyle] = useState(normalizedInitialPageStyle); // 'classic' | 'infographics' | 'hero_page' | 'hero'
   const [productSubstep, setProductSubstep] = useState(1);
   const [inputMode, setInputMode] = useState('url'); // 'url' ou 'description'
   const [url, setUrl] = useState('');
@@ -824,6 +830,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
   const hasRequiredPhotos = photos.length > 0;
   const totalProductSubsteps = PRODUCT_SUBSTEPS.length;
   const selectedTemplate = VISUAL_TEMPLATES.find((template) => template.id === visualTemplate) || VISUAL_TEMPLATES[0];
+  const usesStandardProductGenerator = ['classic', 'hero_page'].includes(pageStyle);
   const targetAvatarSummary = buildTargetAvatarSummary({
     gender: targetGender,
     ageRange: targetAgeRange,
@@ -894,7 +901,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
     let cancelled = false;
     const authHeaders = getAuthHeaders();
     const pollStart = Date.now();
-    const MAX_POLL_MS = 8 * 60 * 1000; // 8 minutes max — GPT Image 2 can take 2+ min per image
+    const MAX_POLL_MS = 60 * 60 * 1000; // 60 min — aligné sur le timeout backend "illimité" : on attend la fin de génération au lieu d'abandonner
 
     const finishPoll = (data) => {
       // Merge whatever images arrived (may be partial or empty on error/timeout)
@@ -988,7 +995,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
     const poll = async () => {
       if (cancelled) return;
 
-      // Hard timeout — stop after 5 min and show whatever text/images we have
+      // Hard timeout — stop after MAX_POLL_MS and show whatever text/images we have
       if (Date.now() - pollStart > MAX_POLL_MS) {
         console.warn('⏱️ Image polling timeout — showing page with available content');
         finishPoll(null);
@@ -1079,6 +1086,15 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
           setShowTaskList(false);
           setPhase('input');
           setActiveTab('page');
+          return;
+        }
+
+        if (data.task.product.pageStyle === 'premium'
+          || data.task.product.layout === 'premium_product_page'
+          || data.task.product.theme === 'premium_product'
+          || data.task.product.premium_page) {
+          setError('Cette génération est une page produit premium. Ouvre-la avec le générateur premium séparé.');
+          setShowTaskList(false);
           return;
         }
 
@@ -1488,6 +1504,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
     }
     
     formData.append('withImages', 'true'); // hero_page still generates the hero image via AI
+    formData.append('pageStyle', pageStyle);
     if (pageStyle === 'hero_page') formData.append('heroMode', 'true');
     formData.append('imageGenerationMode', imageGenerationMode);
     formData.append('imageAspectRatio', imageGenerationMode === 'ad_4_5' ? '4:5' : '1:1');
@@ -1862,7 +1879,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
     const beforeAfterImages = Array.isArray(product.beforeAfterImages) && product.beforeAfterImages.length > 0
       ? product.beforeAfterImages
       : (product.beforeAfterImage ? [product.beforeAfterImage] : []);
-    const generatedProductPageConfig = buildGeneratedProductPageConfig(templateTheme, product);
+    const generatedProductPageConfig = buildGeneratedProductPageConfig(templateTheme, product, pageStyle);
 
     const pushUniqueImage = (target, url, alt, type) => {
       if (!url || target.find((image) => image.url === url)) return;
@@ -2235,7 +2252,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
                   <Layers className="h-4 w-4 text-gray-400" />
                   <label className="text-sm font-bold text-gray-900">Style de page</label>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <button
                     type="button"
                     onClick={() => { setPageStyle('classic'); setInfographicsTaskResult(null); }}
@@ -2478,7 +2495,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
               )}
 
               {/* ÉTAPE 1: Informations produit */}
-              {['classic', 'hero_page'].includes(pageStyle) && step === 1 && (
+              {usesStandardProductGenerator && step === 1 && (
                 <>
                   {/* Template de page produit */}
                   {productSubstep === 1 && (
@@ -2860,7 +2877,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
               )}
 
               {/* ÉTAPE 2: Méthode Copywriting (simplifié) */}
-              {['classic', 'hero_page'].includes(pageStyle) && step === 2 && (
+              {usesStandardProductGenerator && step === 2 && (
                 <>
                   {/* 3 Méthodes Copywriting */}
                   <div className="rounded-[30px] border border-gray-200 bg-white p-5 shadow-[0_16px_40px_rgba(15,23,42,0.06)] sm:p-6">
@@ -2906,7 +2923,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
               )}
 
               {/* ÉTAPE 3: Paramètres avancés (simplifié) */}
-              {['classic', 'hero_page'].includes(pageStyle) && step === 3 && (
+              {usesStandardProductGenerator && step === 3 && (
                 <>
                   {/* Header */}
                   <div className="text-center space-y-2 mb-4">
@@ -4020,7 +4037,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
 
         {/* Footer */}
               <div className={pageMode ? 'border-t border-gray-200 bg-white px-6 py-4 shadow-[0_-14px_40px_rgba(15,23,42,0.04)] backdrop-blur-sm shrink-0' : 'px-6 py-4 border-t border-gray-100 shrink-0'}>
-          {phase === 'input' && ['classic', 'hero_page'].includes(pageStyle) && (
+          {phase === 'input' && usesStandardProductGenerator && (
             <>
               {/* Info générations restantes / mode gratuit */}
               {pageStyle === 'hero_page' && !pageMode && (

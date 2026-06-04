@@ -1,5 +1,5 @@
 import React, {
-  useState, useEffect, useCallback, useRef, useMemo,
+  useState, useEffect, useCallback, useRef,
 } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -15,7 +15,7 @@ import {
   RefreshCw, ExternalLink, Plus, GripVertical, EyeOff, Trash2, Copy,
   ChevronLeft, ChevronRight, Image, X, Upload, AlertCircle, Layers,
   Type, Star, HelpCircle, Phone, Layout, Zap, ShoppingBag, AlignLeft,
-  AlignCenter, AlignRight, ChevronDown, ChevronUp, Pencil,
+  AlignCenter, AlignRight, ChevronDown, ChevronUp, Pencil, Undo2, Redo2,
 } from 'lucide-react';
 import { storeManageApi, storeProductsApi } from '../services/storeApi';
 import { useStore } from '../contexts/StoreContext.jsx';
@@ -1055,11 +1055,52 @@ function SectionEditor({ section, onChange }) {
   }
 }
 
+// ─── Inline editable text component ─────────────────────────────────────────
+
+function EditableText({ value, onChange, tag: Tag = 'span', className = '', style = {}, placeholder = 'Cliquez pour éditer...' }) {
+  const ref = useRef(null);
+  const [editing, setEditing] = useState(false);
+
+  const handleBlur = () => {
+    setEditing(false);
+    const text = ref.current?.innerText || '';
+    if (text !== value) onChange(text);
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' && Tag !== 'p') {
+      e.preventDefault();
+      ref.current?.blur();
+    }
+  };
+
+  const handleClick = (e) => {
+    e.stopPropagation();
+    setEditing(true);
+    setTimeout(() => ref.current?.focus(), 0);
+  };
+
+  return (
+    <Tag
+      ref={ref}
+      contentEditable={editing}
+      suppressContentEditableWarning
+      onClick={handleClick}
+      onBlur={handleBlur}
+      onKeyDown={handleKeyDown}
+      className={`${className} ${editing ? 'outline-none ring-2 ring-indigo-400 ring-offset-1 rounded px-1 bg-white/90' : 'cursor-pointer hover:ring-2 hover:ring-indigo-300/50 hover:ring-offset-1 rounded transition-all'}`}
+      style={{ ...style, minWidth: '20px', display: 'inline-block' }}
+    >
+      {value || placeholder}
+    </Tag>
+  );
+}
+
 // ─── Live section renders (canvas preview — instantaneous) ───────────────────
 
 const PADDING_MAP = { sm: '24px 32px', md: '48px 32px', lg: '80px 32px' };
 
-function LiveHero({ config, selected }) {
+function LiveHero({ config, selected, onUpdate }) {
   const bg = config.backgroundType === 'image' && config.backgroundImage
     ? `url(${config.backgroundImage}) center/cover no-repeat`
     : config.backgroundColor || '#0F6B4F';
@@ -1073,27 +1114,42 @@ function LiveHero({ config, selected }) {
         <div className="absolute inset-0" style={{ background: `rgba(0,0,0,${(config.overlayOpacity ?? 50) / 100})` }} />
       )}
       <div className={`relative z-10 w-full px-8 py-12 ${align === 'center' ? 'text-center' : align === 'right' ? 'text-right' : 'text-left'}`} style={{ color: config.textColor || '#fff' }}>
-        <h1 className="text-4xl font-extrabold leading-tight mb-4" style={{ textShadow: config.backgroundImage ? '0 2px 12px rgba(0,0,0,.4)' : 'none' }}>
-          {config.title || 'Votre titre'}
-        </h1>
-        {config.subtitle && <p className="text-lg opacity-90 mb-6 max-w-xl mx-auto">{config.subtitle}</p>}
+        <EditableText
+          tag="h1"
+          value={config.title}
+          onChange={(v) => onUpdate('title', v)}
+          className="text-4xl font-extrabold leading-tight mb-4"
+          style={{ textShadow: config.backgroundImage ? '0 2px 12px rgba(0,0,0,.4)' : 'none' }}
+          placeholder="Votre titre"
+        />
+        <EditableText
+          tag="p"
+          value={config.subtitle}
+          onChange={(v) => onUpdate('subtitle', v)}
+          className="text-lg opacity-90 mb-6 max-w-xl mx-auto"
+          placeholder="Sous-titre..."
+        />
         {config.ctaText && (
-          <span className="inline-block px-6 py-3 bg-white font-bold rounded-full text-sm" style={{ color: config.backgroundColor || '#0F6B4F' }}>
-            {config.ctaText}
-          </span>
+          <EditableText
+            tag="span"
+            value={config.ctaText}
+            onChange={(v) => onUpdate('ctaText', v)}
+            className="inline-block px-6 py-3 bg-white font-bold rounded-full text-sm"
+            style={{ color: config.backgroundColor || '#0F6B4F' }}
+          />
         )}
       </div>
     </div>
   );
 }
 
-function LiveProducts({ config, selected }) {
+function LiveProducts({ config, selected, onUpdate }) {
   const cols = config.columns || 3;
   const count = Math.min(config.limit || 6, 8);
   return (
     <div className={`py-12 px-8 ${selected ? 'ring-2 ring-inset ring-indigo-400' : ''}`} style={{ background: config.backgroundColor || '#fff' }}>
-      {config.title && <h2 className="text-2xl font-bold text-center mb-2">{config.title}</h2>}
-      {config.subtitle && <p className="text-center text-gray-500 mb-8">{config.subtitle}</p>}
+      <EditableText tag="h2" value={config.title} onChange={(v) => onUpdate('title', v)} className="text-2xl font-bold text-center mb-2" placeholder="Titre..." />
+      <EditableText tag="p" value={config.subtitle} onChange={(v) => onUpdate('subtitle', v)} className="text-center text-gray-500 mb-8" placeholder="Sous-titre..." />
       <div className={`grid gap-4`} style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }}>
         {Array.from({ length: count }).map((_, i) => (
           <div key={i} className="rounded-xl overflow-hidden border border-gray-100 shadow-sm bg-white">
@@ -1112,18 +1168,18 @@ function LiveProducts({ config, selected }) {
   );
 }
 
-function LiveText({ config, selected }) {
+function LiveText({ config, selected, onUpdate }) {
   const align = config.alignment || 'left';
   const pad = PADDING_MAP[config.padding || 'md'] || PADDING_MAP.md;
   return (
     <div className={`${selected ? 'ring-2 ring-inset ring-indigo-400' : ''}`} style={{ background: config.backgroundColor || '#fff', padding: pad, textAlign: align, color: config.textColor || '#111827' }}>
-      {config.title && <h2 className="text-2xl font-bold mb-4">{config.title}</h2>}
-      {config.content && <p className="text-base leading-relaxed opacity-80 whitespace-pre-line">{config.content}</p>}
+      <EditableText tag="h2" value={config.title} onChange={(v) => onUpdate('title', v)} className="text-2xl font-bold mb-4" placeholder="Titre..." />
+      <EditableText tag="p" value={config.content} onChange={(v) => onUpdate('content', v)} className="text-base leading-relaxed opacity-80 whitespace-pre-line" placeholder="Contenu..." />
     </div>
   );
 }
 
-function LiveImageText({ config, selected }) {
+function LiveImageText({ config, selected, onUpdate }) {
   const isLeft = (config.layout || 'image-left') === 'image-left';
   return (
     <div className={`py-12 px-8 ${selected ? 'ring-2 ring-inset ring-indigo-400' : ''}`} style={{ background: config.backgroundColor || '#fff' }}>
@@ -1136,10 +1192,10 @@ function LiveImageText({ config, selected }) {
           )}
         </div>
         <div className="flex-1">
-          {config.title && <h2 className="text-2xl font-bold mb-4">{config.title}</h2>}
-          {config.content && <p className="text-gray-600 leading-relaxed">{config.content}</p>}
+          <EditableText tag="h2" value={config.title} onChange={(v) => onUpdate('title', v)} className="text-2xl font-bold mb-4" placeholder="Titre..." />
+          <EditableText tag="p" value={config.content} onChange={(v) => onUpdate('content', v)} className="text-gray-600 leading-relaxed" placeholder="Contenu..." />
           {config.ctaText && (
-            <div className="mt-6 inline-block px-5 py-2.5 bg-indigo-600 text-white font-semibold rounded-lg text-sm">{config.ctaText}</div>
+            <EditableText tag="span" value={config.ctaText} onChange={(v) => onUpdate('ctaText', v)} className="mt-6 inline-block px-5 py-2.5 bg-indigo-600 text-white font-semibold rounded-lg text-sm" />
           )}
         </div>
       </div>
@@ -1147,12 +1203,12 @@ function LiveImageText({ config, selected }) {
   );
 }
 
-function LiveGallery({ config, selected }) {
+function LiveGallery({ config, selected, onUpdate }) {
   const cols = config.columns || 3;
   const images = config.images || [];
   return (
     <div className={`py-10 px-8 ${selected ? 'ring-2 ring-inset ring-indigo-400' : ''}`} style={{ background: config.backgroundColor || '#f9fafb' }}>
-      {config.title && <h2 className="text-2xl font-bold text-center mb-8">{config.title}</h2>}
+      <EditableText tag="h2" value={config.title} onChange={(v) => onUpdate('title', v)} className="text-2xl font-bold text-center mb-8" placeholder="Titre..." />
       <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }}>
         {images.length > 0 ? images.map((img, i) => (
           <div key={i} className="rounded-xl overflow-hidden shadow-sm" style={{ aspectRatio: '1' }}>
@@ -1168,11 +1224,11 @@ function LiveGallery({ config, selected }) {
   );
 }
 
-function LiveTestimonials({ config, selected }) {
+function LiveTestimonials({ config, selected, onUpdate }) {
   const items = config.items || [];
   return (
     <div className={`py-12 px-8 ${selected ? 'ring-2 ring-inset ring-indigo-400' : ''}`} style={{ background: config.backgroundColor || '#f9fafb' }}>
-      {config.title && <h2 className="text-2xl font-bold text-center mb-10">{config.title}</h2>}
+      <EditableText tag="h2" value={config.title} onChange={(v) => onUpdate('title', v)} className="text-2xl font-bold text-center mb-10" placeholder="Titre..." />
       <div className={`grid gap-5 ${config.layout === 'carousel' ? 'grid-cols-1 max-w-lg mx-auto' : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'}`}>
         {items.map((item, i) => (
           <div key={i} className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
@@ -1193,12 +1249,12 @@ function LiveTestimonials({ config, selected }) {
   );
 }
 
-function LiveFaq({ config, selected }) {
+function LiveFaq({ config, selected, onUpdate }) {
   const [open, setOpen] = useState(null);
   const items = config.items || [];
   return (
     <div className={`py-12 px-8 ${selected ? 'ring-2 ring-inset ring-indigo-400' : ''}`} style={{ background: config.backgroundColor || '#fff' }}>
-      {config.title && <h2 className="text-2xl font-bold text-center mb-10">{config.title}</h2>}
+      <EditableText tag="h2" value={config.title} onChange={(v) => onUpdate('title', v)} className="text-2xl font-bold text-center mb-10" placeholder="Titre..." />
       <div className="max-w-2xl mx-auto space-y-2">
         {items.map((item, i) => (
           <div key={i} className="border border-gray-200 rounded-xl overflow-hidden">
@@ -1219,11 +1275,11 @@ function LiveFaq({ config, selected }) {
   );
 }
 
-function LiveContact({ config, selected }) {
+function LiveContact({ config, selected, onUpdate }) {
   return (
     <div className={`py-12 px-8 text-center ${selected ? 'ring-2 ring-inset ring-indigo-400' : ''}`} style={{ background: config.backgroundColor || '#0F6B4F', color: config.textColor || '#fff' }}>
-      {config.title && <h2 className="text-2xl font-bold mb-2">{config.title}</h2>}
-      {config.subtitle && <p className="opacity-80 mb-8">{config.subtitle}</p>}
+      <EditableText tag="h2" value={config.title} onChange={(v) => onUpdate('title', v)} className="text-2xl font-bold mb-2" placeholder="Titre..." />
+      <EditableText tag="p" value={config.subtitle} onChange={(v) => onUpdate('subtitle', v)} className="opacity-80 mb-8" placeholder="Sous-titre..." />
       <div className="flex flex-wrap justify-center gap-4">
         {config.whatsapp && (
           <div className="flex items-center gap-2 bg-white/10 rounded-xl px-4 py-3">
@@ -1246,12 +1302,12 @@ function LiveContact({ config, selected }) {
   );
 }
 
-function LiveBanner({ config, selected }) {
+function LiveBanner({ config, selected, onUpdate }) {
   return (
     <div className={`flex items-center justify-center gap-4 px-6 py-3 ${selected ? 'ring-2 ring-inset ring-indigo-400' : ''}`} style={{ background: config.backgroundColor || '#fef3c7' }}>
-      <p className="text-sm font-medium" style={{ color: config.textColor || '#92400e' }}>{config.text}</p>
+      <EditableText tag="p" value={config.text} onChange={(v) => onUpdate('text', v)} className="text-sm font-medium" style={{ color: config.textColor || '#92400e' }} placeholder="Texte du bandeau..." />
       {config.ctaText && (
-        <span className="text-xs font-bold px-3 py-1 rounded-full border" style={{ color: config.textColor || '#92400e', borderColor: config.textColor || '#92400e' }}>{config.ctaText}</span>
+        <EditableText tag="span" value={config.ctaText} onChange={(v) => onUpdate('ctaText', v)} className="text-xs font-bold px-3 py-1 rounded-full border" style={{ color: config.textColor || '#92400e', borderColor: config.textColor || '#92400e' }} />
       )}
     </div>
   );
@@ -1263,7 +1319,7 @@ function LiveSpacer({ config, selected }) {
   );
 }
 
-function LiveSectionRender({ section, selected, onClick }) {
+function LiveSectionRender({ section, selected, onClick, onFieldUpdate }) {
   const { type, config, visible } = section;
   if (!visible) {
     return (
@@ -1276,7 +1332,7 @@ function LiveSectionRender({ section, selected, onClick }) {
     );
   }
 
-  const props = { config, selected };
+  const props = { config, selected, onUpdate: (key, val) => onFieldUpdate(section.id, key, val) };
   let rendered;
   switch (type) {
     case 'hero':        rendered = <LiveHero {...props} />; break;
@@ -1294,15 +1350,58 @@ function LiveSectionRender({ section, selected, onClick }) {
   }
 
   return (
-    <div onClick={onClick} className="relative cursor-pointer group/live">
+    <div className="relative cursor-pointer group/live">
       {rendered}
       {/* Hover overlay — click to select */}
-      <div className={`absolute inset-0 border-2 rounded transition-all pointer-events-none ${selected ? 'border-indigo-500' : 'border-transparent group-hover/live:border-indigo-300'}`} />
+      <div className={`absolute inset-0 border-2 rounded transition-all pointer-events-none ${selected ? 'border-indigo-500 bg-indigo-500/5' : 'border-transparent group-hover/live:border-indigo-300 group-hover/live:bg-indigo-500/[0.02]'}`} />
+      {/* Hover edit hint */}
+      {!selected && (
+        <div className="absolute top-2 right-2 opacity-0 group-hover/live:opacity-100 transition-opacity pointer-events-none flex items-center gap-1 bg-white text-gray-700 text-[10px] font-semibold px-2 py-1 rounded-full shadow-md border border-gray-200 z-20">
+          <Pencil className="w-2.5 h-2.5" />Modifier
+        </div>
+      )}
       {selected && (
-        <div className="absolute top-2 right-2 bg-indigo-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full z-20 pointer-events-none">
+        <div className="absolute top-2 right-2 bg-indigo-600 text-white text-[10px] font-bold px-2 py-1 rounded-full z-20 pointer-events-none flex items-center gap-1">
+          <Pencil className="w-2.5 h-2.5" />
           {SECTION_TYPES[type]?.label || type}
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Sortable wrapper for live preview sections ─────────────────────────────
+
+function SortableLiveSection({ section, selected, onClick, onFieldUpdate }) {
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({
+    id: section.id,
+  });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    position: 'relative',
+    zIndex: isDragging ? 50 : 'auto',
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} onClick={onClick} {...attributes} className="relative group/sortlive">
+      <LiveSectionRender
+        section={section}
+        selected={selected}
+        onClick={onClick}
+        onFieldUpdate={onFieldUpdate}
+      />
+      {/* Drag handle overlay — uses setActivatorNodeRef */}
+      <div
+        ref={setActivatorNodeRef}
+        {...listeners}
+        className="absolute top-2 left-2 opacity-0 group-hover/sortlive:opacity-100 transition-opacity z-30 cursor-grab active:cursor-grabbing p-1.5 bg-white rounded-lg shadow-md border border-gray-200 text-gray-400 hover:text-gray-700"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <GripVertical className="w-3.5 h-3.5" />
+      </div>
     </div>
   );
 }
@@ -1362,11 +1461,63 @@ const StorepageBuilder = () => {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [dirty, setDirty] = useState(false);
-  const iframeRef = useRef(null);
-  const sectionsRef = useRef([]);
+
+  // ─ Undo / Redo history ─
+  const historyRef = useRef([]);
+  const futureRef = useRef([]);
+  const MAX_HISTORY = 50;
+
+  const pushHistory = useCallback((prev) => {
+    historyRef.current = [...historyRef.current.slice(-(MAX_HISTORY - 1)), prev];
+    futureRef.current = [];
+  }, []);
+
+  const [, forceRender] = useState(0);
+
+  const undo = useCallback(() => {
+    if (historyRef.current.length === 0) return;
+    const prev = historyRef.current[historyRef.current.length - 1];
+    historyRef.current = historyRef.current.slice(0, -1);
+    setSections((current) => {
+      futureRef.current = [...futureRef.current, current];
+      return prev;
+    });
+    setDirty(true);
+    forceRender((n) => n + 1);
+  }, []);
+
+  const redo = useCallback(() => {
+    if (futureRef.current.length === 0) return;
+    const next = futureRef.current[futureRef.current.length - 1];
+    futureRef.current = futureRef.current.slice(0, -1);
+    setSections((current) => {
+      historyRef.current = [...historyRef.current, current];
+      return next;
+    });
+    setDirty(true);
+    forceRender((n) => n + 1);
+  }, []);
+
+  const canUndo = historyRef.current.length > 0;
+  const canRedo = futureRef.current.length > 0;
+
+  // Keyboard shortcut: Ctrl+Z / Ctrl+Shift+Z
+  useEffect(() => {
+    const handler = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        undo();
+      }
+      if ((e.ctrlKey || e.metaKey) && ((e.key === 'z' && e.shiftKey) || e.key === 'y')) {
+        e.preventDefault();
+        redo();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [undo, redo]);
 
   const subdomain = activeStore?.subdomain || workspace?.subdomain || '';
-  const iframeUrl = subdomain ? `/store/${subdomain}?builderPreview` : null;
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -1378,7 +1529,10 @@ const StorepageBuilder = () => {
       setLoading(true);
       try {
         const res = await storeManageApi.getPages();
-        setSections(res.data?.data?.sections || []);
+        const loaded = res.data?.data?.sections || [];
+        setSections(loaded);
+        historyRef.current = [];
+        futureRef.current = [];
       } catch {
         setSections([]);
       } finally {
@@ -1388,92 +1542,81 @@ const StorepageBuilder = () => {
     load();
   }, [activeStore?._id]);
 
-  // Keep ref in sync so onLoad always sees latest sections
-  useEffect(() => { sectionsRef.current = sections; }, [sections]);
-
-  // ─ postMessage live update to iframe ─
-  const broadcastToIframe = useCallback((secs) => {
-    if (!iframeRef.current?.contentWindow) return;
-    iframeRef.current.contentWindow.postMessage(
-      { type: 'storefront-builder:update-sections', sections: secs },
-      window.location.origin,
-    );
-  }, []);
-
-  // ─ Derived ─
-  const selectedSection = useMemo(() => sections.find((s) => s.id === selectedId) || null, [sections, selectedId]);
-
-  // ─ Mutations ─
-  const updateSections = useCallback((next) => {
-    setSections(next);
-    setDirty(true);
-    broadcastToIframe(next);
-  }, [broadcastToIframe]);
-
+  // ─ Mutations (all push to history) ─
   const addSection = useCallback((type) => {
     const sec = makeSection(type);
     setSections((prev) => {
-      const next = [...prev, sec];
-      broadcastToIframe(next);
-      return next;
+      pushHistory(prev);
+      return [...prev, sec];
     });
     setSelectedId(sec.id);
     setDirty(true);
-  }, [broadcastToIframe]);
+    forceRender((n) => n + 1);
+  }, [pushHistory]);
 
   const deleteSection = useCallback((id) => {
     if (!window.confirm('Supprimer cette section ?')) return;
     setSections((prev) => {
-      const next = prev.filter((s) => s.id !== id);
-      broadcastToIframe(next);
-      return next;
+      pushHistory(prev);
+      return prev.filter((s) => s.id !== id);
     });
     setSelectedId((sel) => sel === id ? null : sel);
     setDirty(true);
-  }, [broadcastToIframe]);
+    forceRender((n) => n + 1);
+  }, [pushHistory]);
 
   const duplicateSection = useCallback((id) => {
     setSections((prev) => {
+      pushHistory(prev);
       const idx = prev.findIndex((s) => s.id === id);
       if (idx === -1) return prev;
       const copy = { ...prev[idx], id: genId() };
       const next = [...prev];
       next.splice(idx + 1, 0, copy);
-      broadcastToIframe(next);
       return next;
     });
     setDirty(true);
-  }, [broadcastToIframe]);
+    forceRender((n) => n + 1);
+  }, [pushHistory]);
 
   const toggleVisible = useCallback((id) => {
     setSections((prev) => {
-      const next = prev.map((s) => s.id === id ? { ...s, visible: !s.visible } : s);
-      broadcastToIframe(next);
-      return next;
+      pushHistory(prev);
+      return prev.map((s) => s.id === id ? { ...s, visible: !s.visible } : s);
     });
     setDirty(true);
-  }, [broadcastToIframe]);
+    forceRender((n) => n + 1);
+  }, [pushHistory]);
 
   const updateSelected = useCallback((updated) => {
     setSections((prev) => {
-      const next = prev.map((s) => s.id === updated.id ? updated : s);
-      broadcastToIframe(next);
-      return next;
+      pushHistory(prev);
+      return prev.map((s) => s.id === updated.id ? updated : s);
     });
     setDirty(true);
-  }, [broadcastToIframe]);
+    forceRender((n) => n + 1);
+  }, [pushHistory]);
 
   const handleDragEnd = useCallback(({ active, over }) => {
     if (!over || active.id === over.id) return;
     setSections((prev) => {
+      pushHistory(prev);
       const from = prev.findIndex((s) => s.id === active.id);
       const to = prev.findIndex((s) => s.id === over.id);
-      const next = arrayMove(prev, from, to);
-      broadcastToIframe(next);
-      return next;
+      return arrayMove(prev, from, to);
     });
     setDirty(true);
-  }, [broadcastToIframe]);
+    forceRender((n) => n + 1);
+  }, [pushHistory]);
+
+  const onFieldUpdate = useCallback((sectionId, key, val) => {
+    setSections((prev) => {
+      pushHistory(prev);
+      return prev.map((s) => s.id === sectionId ? { ...s, config: { ...s.config, [key]: val } } : s);
+    });
+    setDirty(true);
+    forceRender((n) => n + 1);
+  }, [pushHistory]);
 
   // ─ Save ─
   const handleSave = async () => {
@@ -1514,9 +1657,9 @@ const StorepageBuilder = () => {
       {/* ── Top bar ─────────────────────────────────────────────────────────── */}
       <header className="flex items-center justify-between h-14 px-4 bg-white border-b border-gray-200 flex-shrink-0 z-30">
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate(-1)} className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 transition font-medium">
+          <button onClick={() => navigate(-1)} className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition font-semibold">
             <ArrowLeft className="w-4 h-4" />
-            <span className="hidden sm:inline">Retour</span>
+            Retour
           </button>
           <div className="w-px h-5 bg-gray-200" />
           <div className="flex items-center gap-2">
@@ -1529,6 +1672,28 @@ const StorepageBuilder = () => {
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Undo / Redo */}
+          <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
+            <button
+              onClick={undo}
+              disabled={!canUndo}
+              title="Annuler (Ctrl+Z)"
+              className={`p-2 rounded-md transition ${canUndo ? 'text-gray-700 hover:bg-white hover:shadow' : 'text-gray-300 cursor-not-allowed'}`}
+            >
+              <Undo2 className="w-4 h-4" />
+            </button>
+            <button
+              onClick={redo}
+              disabled={!canRedo}
+              title="Rétablir (Ctrl+Shift+Z)"
+              className={`p-2 rounded-md transition ${canRedo ? 'text-gray-700 hover:bg-white hover:shadow' : 'text-gray-300 cursor-not-allowed'}`}
+            >
+              <Redo2 className="w-4 h-4" />
+            </button>
+          </div>
+
+          <div className="w-px h-5 bg-gray-200" />
+
           {/* Device switcher */}
           <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
             {[
@@ -1633,48 +1798,49 @@ const StorepageBuilder = () => {
           {showAddPanel && <AddSectionPanel onAdd={addSection} onClose={() => setShowAddPanel(false)} />}
         </div>
 
-        {/* ── Right: live iframe preview ───────────────────────────────────── */}
+        {/* ── Right: live inline preview ───────────────────────────────────── */}
         <div className="flex-1 overflow-auto bg-gray-100 p-4">
-          {!iframeUrl ? (
-            <div className="flex flex-col items-center justify-center h-full text-center">
-              <Monitor className="w-12 h-12 text-gray-300 mb-3" />
-              <p className="text-sm font-semibold text-gray-600">Aucun sous-domaine configuré</p>
-            </div>
-          ) : (
-            <div className={`${iframeContainerCls} h-full flex flex-col bg-white rounded-2xl shadow-xl overflow-hidden transition-all duration-300`}>
-              {/* Browser chrome */}
-              <div className="h-9 bg-gray-50 border-b border-gray-200 flex items-center px-3 gap-2 flex-shrink-0">
-                <div className="flex gap-1.5">
-                  <div className="w-2.5 h-2.5 rounded-full bg-red-400" />
-                  <div className="w-2.5 h-2.5 rounded-full bg-yellow-400" />
-                  <div className="w-2.5 h-2.5 rounded-full bg-green-400" />
-                </div>
-                <div className="flex-1 bg-white border border-gray-100 rounded px-2 py-0.5 text-[11px] text-gray-400 font-mono truncate">
-                  {window.location.origin}/store/{subdomain}
-                </div>
-                <span className="text-[10px] text-primary-600 font-semibold bg-primary-50 px-2 py-0.5 rounded-full flex-shrink-0">● Live</span>
+          <div className={`${iframeContainerCls} bg-white rounded-2xl shadow-xl overflow-hidden transition-all duration-300`}>
+            {/* Browser chrome */}
+            <div className="h-9 bg-gray-50 border-b border-gray-200 flex items-center px-3 gap-2 flex-shrink-0">
+              <div className="flex gap-1.5">
+                <div className="w-2.5 h-2.5 rounded-full bg-red-400" />
+                <div className="w-2.5 h-2.5 rounded-full bg-yellow-400" />
+                <div className="w-2.5 h-2.5 rounded-full bg-green-400" />
               </div>
-
-              <iframe
-                ref={iframeRef}
-                src={iframeUrl}
-                className="w-full border-0 flex-1"
-                title="Aperçu boutique"
-                sandbox="allow-scripts allow-same-origin allow-forms"
-                onLoad={() => {
-                  setTimeout(() => {
-                    const current = sectionsRef.current;
-                    if (iframeRef.current?.contentWindow && current.length > 0) {
-                      iframeRef.current.contentWindow.postMessage(
-                        { type: 'storefront-builder:update-sections', sections: current },
-                        window.location.origin,
-                      );
-                    }
-                  }, 400);
-                }}
-              />
+              <div className="flex-1 bg-white border border-gray-100 rounded px-2 py-0.5 text-[11px] text-gray-400 font-mono truncate">
+                {subdomain ? `${window.location.origin}/store/${subdomain}` : 'Aperçu en direct'}
+              </div>
+              <span className="text-[10px] text-primary-600 font-semibold bg-primary-50 px-2 py-0.5 rounded-full flex-shrink-0">● Live</span>
             </div>
-          )}
+
+            {/* Inline rendered sections — click to select, drag to reorder */}
+            <div className="min-h-[400px]">
+              {sections.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-24 text-center px-8">
+                  <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mb-4">
+                    <Layers className="w-8 h-8 text-gray-300" />
+                  </div>
+                  <p className="text-sm font-semibold text-gray-600">Aucune section</p>
+                  <p className="text-xs text-gray-400 mt-1">Ajoutez des sections pour construire votre page</p>
+                </div>
+              ) : (
+                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                  <SortableContext items={sections.map((s) => s.id)} strategy={verticalListSortingStrategy}>
+                    {sections.map((sec) => (
+                      <SortableLiveSection
+                        key={sec.id}
+                        section={sec}
+                        selected={selectedId === sec.id}
+                        onClick={() => setSelectedId(sec.id)}
+                        onFieldUpdate={onFieldUpdate}
+                      />
+                    ))}
+                  </SortableContext>
+                </DndContext>
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </div>

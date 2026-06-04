@@ -16,7 +16,7 @@ import multer from 'multer';
 import sharp from 'sharp';
 import axios from 'axios';
 import { requireEcomAuth, validateEcomAccess } from '../middleware/ecomAuth.js';
-import { analyzeWithVision, generateDescriptionGifFromImages, generatePosterImage, generateInfographicsProductPage, INFOGRAPHIC_SLIDE_TYPES, downloadAndUploadToR2 } from '../services/productPageGeneratorService.js';
+import { analyzeWithVision, analyzePremiumProductPage, generateDescriptionGifFromImages, generatePosterImage, generateInfographicsProductPage, INFOGRAPHIC_SLIDE_TYPES, downloadAndUploadToR2 } from '../services/productPageGeneratorService.js';
 import { uploadImage } from '../services/cloudflareImagesService.js';
 import { extractProductInfo } from '../services/geminiProductExtractor.js';
 import EcomWorkspace from '../models/Workspace.js';
@@ -29,7 +29,12 @@ const router = express.Router();
 
 // ─── In-memory store for async image generation jobs (legacy + cache) ─────────
 const imageJobs = new Map();
-const JOB_TTL = 30 * 60 * 1000; // 30min
+// TTL du job de génération en mémoire. Il DOIT couvrir toute la durée de
+// génération (désormais sans plafond court) — sinon le job est supprimé en plein
+// vol et le front affiche « échec ». Override via IMAGE_JOB_TTL_MS (ms).
+const JOB_TTL = Number(process.env.IMAGE_JOB_TTL_MS) > 0
+  ? Number(process.env.IMAGE_JOB_TTL_MS)
+  : 24 * 60 * 60 * 1000; // 24h (≈ illimité)
 setInterval(() => {
   const now = Date.now();
   for (const [id, job] of imageJobs) {
@@ -73,6 +78,7 @@ function buildGeneratedContentTypes(product = {}, options = {}) {
   if ((product.testimonials || []).length) contentTypes.push('testimonials');
   if ((product.benefits_bullets || []).length) contentTypes.push('benefits');
   if ((product.conversion_blocks || []).length) contentTypes.push('conversion_blocks');
+  if (product.premium_page || product.premiumPage) contentTypes.push('premium_product_page');
   if (shouldGenerateImages) contentTypes.push('visual_assets_requested');
   if (generatedImageCount > 0) contentTypes.push('generated_images');
   if (generatedGifCount > 0) contentTypes.push('animated_gifs');
@@ -109,6 +115,19 @@ function buildTaskImagesPayload(imageData = {}) {
     descriptionGifs: Array.isArray(imageData.descriptionGifs)
       ? imageData.descriptionGifs.filter((entry) => entry?.url)
       : [],
+    premiumImages: imageData.premiumImages && typeof imageData.premiumImages === 'object'
+      ? {
+        hero: imageData.premiumImages.hero || null,
+        problem: imageData.premiumImages.problem || null,
+        mechanism: imageData.premiumImages.mechanism || null,
+        science: imageData.premiumImages.science || null,
+        ritual: imageData.premiumImages.ritual || null,
+        closing: imageData.premiumImages.closing || null,
+        testimonials: Array.isArray(imageData.premiumImages.testimonials)
+          ? imageData.premiumImages.testimonials.filter((entry) => entry?.url)
+          : [],
+      }
+      : null,
   };
 }
 
@@ -123,6 +142,16 @@ function mergeTaskProductWithImages(task = {}) {
   if (imgs.beforeAfterImages.length) product.beforeAfterImages = imgs.beforeAfterImages;
   if (imgs.descriptionGifs.length) product.descriptionGifs = imgs.descriptionGifs;
   if (imgs.socialProofImages.length) product.socialProofImages = imgs.socialProofImages;
+  if (imgs.premiumImages) {
+    product.premiumImages = {
+      ...(product.premiumImages || {}),
+      ...imgs.premiumImages,
+      testimonials: imgs.premiumImages.testimonials?.length
+        ? imgs.premiumImages.testimonials
+        : (product.premiumImages?.testimonials || []),
+    };
+    if (imgs.premiumImages.hero) product.heroImage = imgs.premiumImages.hero;
+  }
 
   if (imgs.angles.length) {
     product.angles = (product.angles || []).map((angle, index) => {
@@ -138,6 +167,15 @@ function mergeTaskProductWithImages(task = {}) {
     ...(imgs.heroImage ? [imgs.heroImage] : []),
     ...(imgs.heroPosterImage ? [imgs.heroPosterImage] : []),
     ...(imgs.beforeAfterImages || []),
+    ...(imgs.premiumImages ? [
+      imgs.premiumImages.hero,
+      imgs.premiumImages.problem,
+      imgs.premiumImages.mechanism,
+      imgs.premiumImages.science,
+      imgs.premiumImages.ritual,
+      imgs.premiumImages.closing,
+      ...(imgs.premiumImages.testimonials || []).map((entry) => entry?.url),
+    ] : []),
     ...((product.angles || []).map((angle) => angle.poster_url).filter(Boolean)),
   ];
   product.allImages = [...new Set([...(product.allImages || []), ...allImages])];
@@ -315,7 +353,7 @@ async function resolveReferenceImageBuffer({ sourceBuffer = null, photoUrl = '',
 
   if (photoUrl) {
     try {
-      const response = await axios.get(photoUrl, { responseType: 'arraybuffer', timeout: 10000, maxRedirects: 3 });
+      const response = await axios.get(photoUrl, { responseType: 'arraybuffer', timeout: 30000, maxRedirects: 3 });
       return await sharp(Buffer.from(response.data))
         .resize(768, 768, { fit: 'inside', withoutEnlargement: true })
         .jpeg({ quality: 88 })
@@ -328,7 +366,7 @@ async function resolveReferenceImageBuffer({ sourceBuffer = null, photoUrl = '',
   if (cleanUrl) {
     try {
       const pageResponse = await axios.get(cleanUrl, {
-        timeout: 12000,
+        timeout: 30000,
         headers: { 'User-Agent': 'Mozilla/5.0 (compatible; EcomBot/1.0)' },
         maxRedirects: 5,
         responseType: 'text',
@@ -342,7 +380,7 @@ async function resolveReferenceImageBuffer({ sourceBuffer = null, photoUrl = '',
 
       const imageResponse = await axios.get(ogImageUrl, {
         responseType: 'arraybuffer',
-        timeout: 10000,
+        timeout: 30000,
         headers: { 'User-Agent': 'Mozilla/5.0 (compatible; EcomBot/1.0)' },
         maxRedirects: 3,
       });
@@ -430,7 +468,7 @@ async function runBackgroundImageGeneration({
         if (generatedDataUrl.startsWith('data:')) {
           imageBuffer = Buffer.from(generatedDataUrl.split(',')[1], 'base64');
         } else {
-          const response = await axios.get(generatedDataUrl, { responseType: 'arraybuffer', timeout: 30000 });
+          const response = await axios.get(generatedDataUrl, { responseType: 'arraybuffer', timeout: 120000 });
           imageBuffer = Buffer.from(response.data);
         }
 
@@ -693,6 +731,296 @@ async function runBackgroundImageGeneration({
         ].filter(Boolean).length,
         generatedGifCount: (jobData.descriptionGifs || []).length,
       }),
+    });
+  }
+}
+
+function getPremiumImageEntries(productData = {}) {
+  const premium = productData.premium_page || productData.premiumPage || {};
+  const prompts = productData.premium_image_prompts || {};
+  const productName = productData.title || premium.brandName || 'Produit';
+  const basePrompt = 'Photorealistic premium Shopify product page section, modern African ecommerce campaign, authentic Black African people when people are present, bright high-end interior, clean spacing, product visible, no fake press logos, no long text overlay.';
+  const entries = [
+    {
+      key: 'hero',
+      label: 'Hero premium',
+      mode: 'hero',
+      aspectRatio: '1:1',
+      prompt: prompts.hero || premium.hero?.imagePrompt || `Large premium product hero packshot for ${productName}, product and packaging sharp on white ecommerce background, soft shadows. ${basePrompt}`,
+    },
+    {
+      key: 'problem',
+      label: 'Problème premium',
+      mode: 'scene',
+      aspectRatio: '4:5',
+      prompt: prompts.problem || premium.problemSection?.imagePrompt || `Lifestyle scene showing the concrete problem solved by ${productName}, emotional but realistic, modern home or workplace. ${basePrompt}`,
+    },
+    {
+      key: 'mechanism',
+      label: 'Cause premium',
+      mode: 'scene',
+      aspectRatio: '4:5',
+      prompt: prompts.mechanism || premium.mechanismSection?.imagePrompt || `Explanatory premium lifestyle scene showing why ordinary alternatives fail and how ${productName} addresses the core mechanism. ${basePrompt}`,
+    },
+    {
+      key: 'science',
+      label: 'Science premium',
+      mode: 'scene',
+      aspectRatio: '4:5',
+      prompt: prompts.science || premium.scienceSection?.imagePrompt || `Premium explainer board for ${productName}, ingredient or technology callouts, product visible, refined ecommerce style. ${basePrompt}`,
+    },
+    {
+      key: 'ritual',
+      label: 'Rituel premium',
+      mode: 'scene',
+      aspectRatio: '4:5',
+      prompt: prompts.ritual || premium.ritualSection?.imagePrompt || `Simple daily ritual scene using ${productName}, step-by-step premium lifestyle mood, modern interior. ${basePrompt}`,
+    },
+    {
+      key: 'closing',
+      label: 'Closing premium',
+      mode: 'scene',
+      aspectRatio: '1:1',
+      prompt: prompts.closing || premium.closingSection?.imagePrompt || `Large premium product callout image for ${productName}, product sharp with elegant feature lines and spacious white background. ${basePrompt}`,
+    },
+  ];
+
+  const testimonialPrompts = Array.isArray(prompts.testimonials) ? prompts.testimonials : [];
+  const testimonialItems = Array.isArray(premium.testimonialGallery?.items) ? premium.testimonialGallery.items : [];
+  testimonialItems.slice(0, 4).forEach((item, index) => {
+    entries.push({
+      key: `testimonial_${index + 1}`,
+      label: `Témoignage premium ${index + 1}`,
+      mode: 'social_proof',
+      aspectRatio: '3:4',
+      prompt: testimonialPrompts[index] || item?.imagePrompt || `Realistic verified customer photo for ${productName}, satisfied Black African ecommerce customer holding or using the product, natural light, authentic expression. ${basePrompt}`,
+      testimonialIndex: index,
+    });
+  });
+
+  return entries.filter((entry) => entry.prompt);
+}
+
+function countPremiumImages(premiumImages = {}) {
+  return [
+    premiumImages.hero,
+    premiumImages.problem,
+    premiumImages.mechanism,
+    premiumImages.science,
+    premiumImages.ritual,
+    premiumImages.closing,
+    ...((premiumImages.testimonials || []).map((entry) => entry?.url).filter(Boolean)),
+  ].filter(Boolean).length;
+}
+
+function buildPremiumImageSeed(realPhotos = []) {
+  const photos = (Array.isArray(realPhotos) ? realPhotos : [])
+    .map((photo) => (typeof photo === 'string' ? photo : photo?.url))
+    .filter(Boolean);
+
+  if (!photos.length) return { testimonials: [] };
+
+  const pick = (index) => photos[index % photos.length] || null;
+  return {
+    hero: pick(0),
+    problem: pick(1),
+    mechanism: pick(2),
+    science: pick(3),
+    ritual: pick(4),
+    closing: pick(5),
+    testimonials: photos.slice(0, 4).map((url, index) => ({ index, url })),
+  };
+}
+
+async function runBackgroundPremiumImageGeneration({
+  taskId,
+  generationLogId = null,
+  workspaceId,
+  userId,
+  productData,
+  realPhotos = [],
+  cleanUrl = '',
+  sourceBuffer = null,
+  imageJobId = null,
+  existingImages = null,
+}) {
+  const jobData = {
+    status: 'generating',
+    progress: 0,
+    total: 0,
+    createdAt: Date.now(),
+    premiumImages: existingImages?.premiumImages || productData.premiumImages || { testimonials: [] },
+  };
+
+  if (imageJobId) imageJobs.set(imageJobId, jobData);
+
+  try {
+    const baseImageBuffer = await resolveReferenceImageBuffer({
+      sourceBuffer,
+      photoUrl: realPhotos[0] || '',
+      cleanUrl,
+    });
+
+    if (!baseImageBuffer) {
+      const errorMessage = 'Aucune image produit fournie — impossible de générer les visuels premium';
+      jobData.status = 'error';
+      await updateTask(taskId, {
+        status: 'error',
+        currentStep: 'Échec partiel — contenu premium sauvegardé',
+        errorMessage,
+        images: buildTaskImagesPayload(jobData),
+      });
+      await updateGenerationLog(generationLogId, {
+        status: 'partial_failure',
+        completedAt: new Date(),
+        errorMessage,
+      });
+      return;
+    }
+
+    const generateAndUpload = async (prompt, filename, mode = 'scene', aspectRatio = '4:5') => {
+      const attempt = async () => {
+        const generatedDataUrl = await generatePosterImage(prompt, baseImageBuffer, { mode, aspectRatio });
+        if (!generatedDataUrl) throw new Error('generatePosterImage returned null');
+
+        let imageBuffer;
+        if (generatedDataUrl.startsWith('data:')) {
+          imageBuffer = Buffer.from(generatedDataUrl.split(',')[1], 'base64');
+        } else {
+          const response = await axios.get(generatedDataUrl, { responseType: 'arraybuffer', timeout: 120000 });
+          imageBuffer = Buffer.from(response.data);
+        }
+
+        const [ratioWidth, ratioHeight] = aspectRatio.split(':').map(Number);
+        const targetWidth = 1080;
+        const targetHeight = Math.round(targetWidth * ((ratioHeight || 5) / (ratioWidth || 4)));
+        imageBuffer = await sharp(imageBuffer)
+          .resize(targetWidth, targetHeight, { fit: 'cover', position: 'centre' })
+          .jpeg({ quality: 92 })
+          .toBuffer();
+
+        const uploaded = await uploadImage(imageBuffer, filename.replace(/\.[^.]+$/, '.jpg'), {
+          workspaceId,
+          uploadedBy: userId,
+          mimeType: 'image/jpeg',
+          optimize: false,
+        });
+
+        if (!uploaded?.url) throw new Error('Upload retourné sans URL');
+        return uploaded.url;
+      };
+
+      for (let attemptIndex = 1; attemptIndex <= 5; attemptIndex += 1) {
+        try {
+          return await attempt();
+        } catch (error) {
+          console.warn(`⚠️ Image premium ${filename} tentative ${attemptIndex}/5 échouée: ${error.message}`);
+          if (attemptIndex === 5) return null;
+          await new Promise((resolve) => setTimeout(resolve, Math.min(2000 * Math.pow(2, attemptIndex - 1), 60000)));
+        }
+      }
+      return null;
+    };
+
+    const imageEntries = getPremiumImageEntries(productData);
+    jobData.total = imageEntries.length;
+    jobData.premiumImages = {
+      hero: jobData.premiumImages?.hero || null,
+      problem: jobData.premiumImages?.problem || null,
+      mechanism: jobData.premiumImages?.mechanism || null,
+      science: jobData.premiumImages?.science || null,
+      ritual: jobData.premiumImages?.ritual || null,
+      closing: jobData.premiumImages?.closing || null,
+      testimonials: Array.isArray(jobData.premiumImages?.testimonials) ? jobData.premiumImages.testimonials : [],
+    };
+
+    await updateTask(taskId, {
+      status: 'generating_images',
+      progress: 0,
+      totalImages: imageEntries.length,
+      progressPercent: 40,
+      currentStep: 'Génération des sections premium...',
+      images: buildTaskImagesPayload(jobData),
+    });
+
+    for (const entry of imageEntries) {
+      const url = await generateAndUpload(entry.prompt, `premium-${entry.key}-${Date.now()}.png`, entry.mode, entry.aspectRatio);
+      if (url) {
+        if (entry.testimonialIndex !== undefined) {
+          const nextTestimonials = [...(jobData.premiumImages.testimonials || [])].filter((item) => item?.index !== entry.testimonialIndex);
+          nextTestimonials.push({ index: entry.testimonialIndex, url });
+          jobData.premiumImages.testimonials = nextTestimonials.sort((left, right) => left.index - right.index);
+        } else {
+          jobData.premiumImages[entry.key] = url;
+          if (entry.key === 'hero') jobData.heroImage = url;
+        }
+      }
+      jobData.progress += 1;
+
+      await updateTask(taskId, {
+        status: 'generating_images',
+        progress: jobData.progress,
+        totalImages: jobData.total,
+        progressPercent: Math.min(95, 40 + Math.round((jobData.progress / Math.max(jobData.total || 1, 1)) * 55)),
+        currentStep: `${entry.label} généré...`,
+        images: buildTaskImagesPayload(jobData),
+      });
+    }
+
+    const generatedImageCount = countPremiumImages(jobData.premiumImages);
+    const expectedImageCount = imageEntries.length;
+    const missingImageCount = Math.max(0, expectedImageCount - generatedImageCount);
+    jobData.status = missingImageCount > 0 ? 'partial_failure' : 'done';
+    jobData.generatedImageCount = generatedImageCount;
+    jobData.expectedImageCount = expectedImageCount;
+    jobData.missingImageCount = missingImageCount;
+    if (missingImageCount > 0) {
+      jobData.errorMessage = `${missingImageCount} visuel${missingImageCount > 1 ? 's premium manquants' : ' premium manquant'} sur ${expectedImageCount}`;
+    }
+
+    await updateTask(taskId, {
+      status: jobData.status,
+      progress: jobData.progress,
+      totalImages: jobData.total,
+      progressPercent: 100,
+      currentStep: jobData.status === 'done' ? 'Page premium prête' : 'Échec partiel — retry conseillé',
+      errorMessage: jobData.errorMessage || null,
+      images: buildTaskImagesPayload(jobData),
+      'product.premiumImages': jobData.premiumImages,
+      ...(jobData.premiumImages.hero ? { 'product.heroImage': jobData.premiumImages.hero } : {}),
+    });
+
+    await updateGenerationLog(generationLogId, {
+      status: jobData.status === 'done' ? 'completed' : 'partial_failure',
+      completedAt: new Date(),
+      errorMessage: jobData.errorMessage || '',
+      stats: buildGenerationStats(productData, {
+        uploadedPhotoCount: realPhotos.length,
+        generatedImageCount,
+        generatedGifCount: 0,
+      }),
+      generatedContentTypes: buildGeneratedContentTypes(productData, {
+        shouldGenerateImages: true,
+        generatedImageCount,
+        generatedGifCount: 0,
+      }),
+    });
+  } catch (error) {
+    console.error('❌ [PremiumBG] Erreur génération images premium:', error.message);
+    jobData.status = 'error';
+    await updateTask(taskId, {
+      status: 'error',
+      progress: jobData.progress,
+      totalImages: jobData.total,
+      progressPercent: Math.max(40, Math.min(95, Math.round((jobData.progress / Math.max(jobData.total || 1, 1)) * 100))),
+      currentStep: 'Échec partiel — contenu premium sauvegardé',
+      errorMessage: error.message,
+      images: buildTaskImagesPayload(jobData),
+    });
+    await updateGenerationLog(generationLogId, {
+      status: 'partial_failure',
+      completedAt: new Date(),
+      errorMessage: error.message,
     });
   }
 }
@@ -1600,14 +1928,26 @@ router.get('/images/:jobId', requireEcomAuth, (req, res) => {
   if (job.angles?.length) images.angles = job.angles;
   if (job.socialProofImages?.length) images.socialProofImages = job.socialProofImages;
   if (job.descriptionGifs?.length) images.descriptionGifs = job.descriptionGifs;
+  if (job.premiumImages) images.premiumImages = job.premiumImages;
 
   // Compte réel d'images générées — permet au frontend de détecter "0 images"
+  const premiumImageCount = job.premiumImages
+    ? [
+      job.premiumImages.hero,
+      job.premiumImages.problem,
+      job.premiumImages.mechanism,
+      job.premiumImages.science,
+      job.premiumImages.ritual,
+      job.premiumImages.closing,
+      ...((job.premiumImages.testimonials || []).map((entry) => entry?.url).filter(Boolean)),
+    ].filter(Boolean).length
+    : 0;
   const generatedImageCount = job.generatedImageCount ?? [
     job.heroImage,
     ...(job.beforeAfterImages || []),
     ...(job.socialProofImages || []),
     ...((job.angles || []).map((a) => a?.poster_url).filter(Boolean)),
-  ].filter(Boolean).length;
+  ].filter(Boolean).length + premiumImageCount;
 
   res.json({
     success: true,
@@ -1654,6 +1994,8 @@ router.get('/tasks/:id', requireEcomAuth, async (req, res) => {
         progressPercent: task.progressPercent,
         currentStep: task.currentStep,
         errorMessage: task.errorMessage,
+        imageJobId: task.imageJobId || null,
+        images: task.images || {},
         product: mergedProduct,
         createdAt: task.createdAt,
         updatedAt: task.updatedAt,
@@ -1707,20 +2049,40 @@ router.post('/tasks/:id/retry', requireEcomAuth, validateEcomAccess('products', 
     task.retryCount = (task.retryCount || 0) + 1;
     await task.save();
 
-    void runBackgroundImageGeneration({
-      taskId: task._id.toString(),
-      workspaceId: req.workspaceId,
-      userId: req.user?._id || req.user?.id,
-      productData: task.product,
-      visualTemplate,
-      visualContext,
-      approach: task.input?.marketingApproach || 'PAS',
-      realPhotos,
-      cleanUrl: task.input?.url || task.product?.sourceUrl || '',
-      sourceBuffer,
-      imageJobId,
-      existingImages: task.images || {},
-    });
+    const isPremiumTask = task.product?.pageStyle === 'premium'
+      || task.product?.layout === 'premium_product_page'
+      || task.product?.layout === 'premium'
+      || task.product?.theme === 'premium_product'
+      || Boolean(task.product?.premium_page);
+
+    if (isPremiumTask) {
+      void runBackgroundPremiumImageGeneration({
+        taskId: task._id.toString(),
+        workspaceId: req.workspaceId,
+        userId: req.user?._id || req.user?.id,
+        productData: task.product,
+        realPhotos,
+        cleanUrl: task.input?.url || task.product?.sourceUrl || '',
+        sourceBuffer,
+        imageJobId,
+        existingImages: task.images || {},
+      });
+    } else {
+      void runBackgroundImageGeneration({
+        taskId: task._id.toString(),
+        workspaceId: req.workspaceId,
+        userId: req.user?._id || req.user?.id,
+        productData: task.product,
+        visualTemplate,
+        visualContext,
+        approach: task.input?.marketingApproach || 'PAS',
+        realPhotos,
+        cleanUrl: task.input?.url || task.product?.sourceUrl || '',
+        sourceBuffer,
+        imageJobId,
+        existingImages: task.images || {},
+      });
+    }
 
     return res.json({
       success: true,
@@ -1752,6 +2114,396 @@ router.delete('/tasks/:id', requireEcomAuth, async (req, res) => {
   } catch (err) {
     console.error('[Tasks] Delete error:', err.message);
     res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+router.post('/premium', requireEcomAuth, validateEcomAccess('products', 'write'), upload.array('images', 8), async (req, res) => {
+  const userId = req.user?.id || req.user?._id || 'anonymous';
+  console.log(`🚀 [PremiumPG] Requête génération premium — user=${userId} workspace=${req.workspaceId} files=${(req.files || []).length}`);
+
+  const {
+    url,
+    description: userDescription,
+    skipScraping,
+    withImages,
+    targetAvatar,
+    targetGender,
+    targetAgeRange,
+    targetProfile,
+    mainProblem,
+    tone,
+    language,
+    themeColor: rawThemeColor,
+    customThemeColor: rawCustomThemeColor,
+  } = req.body || {};
+
+  const imageFiles = req.files || [];
+  const isDescriptionMode = skipScraping === 'true' || skipScraping === true;
+  const shouldGenerateImages = withImages !== 'false';
+  const cleanUrl = url?.trim() || '';
+  const themeColor = typeof rawCustomThemeColor === 'string' && /^#[0-9A-Fa-f]{6}$/.test(rawCustomThemeColor.trim())
+    ? rawCustomThemeColor.trim()
+    : (typeof rawThemeColor === 'string' && /^#[0-9A-Fa-f]{6}$/.test(rawThemeColor.trim()) ? rawThemeColor.trim() : '#0F766E');
+
+  if (isDescriptionMode) {
+    if (!userDescription || typeof userDescription !== 'string' || userDescription.trim().length < 20) {
+      return res.status(400).json({ success: false, message: 'Description requise (minimum 20 caractères)' });
+    }
+  } else {
+    if (!cleanUrl || cleanUrl.length < 10 || (!cleanUrl.startsWith('http://') && !cleanUrl.startsWith('https://'))) {
+      return res.status(400).json({ success: false, message: 'URL produit valide requise' });
+    }
+  }
+
+  if (shouldGenerateImages && imageFiles.length === 0) {
+    return res.status(400).json({ success: false, message: 'Au moins une photo produit est requise pour la page premium' });
+  }
+
+  let workspace = null;
+  let storeContext = {};
+  let consumedCreditSource = 'unknown';
+  let generationLogId = null;
+  let taskId = null;
+  let scraped = null;
+  let premiumResult = null;
+  let realPhotos = [];
+
+  try {
+    if (req.workspaceId) {
+      workspace = await EcomWorkspace.findById(req.workspaceId)
+        .select('storeSettings.country storeSettings.city storeSettings.storeName storeSettings.storeCurrency storeSettings.currency name plan freeGenerationsRemaining paidGenerationsRemaining totalGenerations simpleGenerationsRemaining');
+
+      if (!workspace) {
+        return res.status(404).json({ success: false, message: 'Workspace introuvable' });
+      }
+
+      storeContext = {
+        country: workspace?.storeSettings?.country || '',
+        city: workspace?.storeSettings?.city || '',
+        currency: workspace?.storeSettings?.storeCurrency || workspace?.storeSettings?.currency || '',
+        shopName: workspace?.storeSettings?.storeName || workspace?.name || '',
+      };
+
+      const pricingConfig = await GenerationPricingConfig.getSingleton();
+      const pricing = pricingConfig.getSnapshot();
+      const simpleRemaining = workspace.simpleGenerationsRemaining || 0;
+      const freeRemaining = workspace.freeGenerationsRemaining || 0;
+      const paidRemaining = workspace.paidGenerationsRemaining || 0;
+      const totalRemaining = simpleRemaining + freeRemaining + paidRemaining;
+
+      if (totalRemaining <= 0) {
+        return res.status(403).json({
+          success: false,
+          limitReached: true,
+          message: '🎯 Tu n\'as plus de crédits !\n\nAchète des crédits pour générer des pages produit.',
+          remaining: 0,
+          totalGenerations: workspace.totalGenerations || 0,
+          pricing,
+        });
+      }
+
+      if (simpleRemaining > 0) {
+        workspace.simpleGenerationsRemaining = simpleRemaining - 1;
+        consumedCreditSource = 'simple';
+      } else if (freeRemaining > 0) {
+        workspace.freeGenerationsRemaining = freeRemaining - 1;
+        consumedCreditSource = 'free';
+      } else {
+        workspace.paidGenerationsRemaining = paidRemaining - 1;
+        consumedCreditSource = 'paid';
+      }
+
+      workspace.totalGenerations = (workspace.totalGenerations || 0) + 1;
+      workspace.lastGenerationAt = new Date();
+      await workspace.save();
+    }
+
+    const avatarSummary = buildTargetAvatarSummary({
+      targetAvatar,
+      targetGender,
+      targetAgeRange,
+      targetProfile,
+    });
+
+    const generationTask = await GenerationTask.create({
+      workspaceId: req.workspaceId,
+      userId: req.user._id || req.user.id,
+      status: 'generating_text',
+      productName: isDescriptionMode ? (userDescription || '').slice(0, 60) : cleanUrl,
+      currentStep: 'Analyse premium du produit...',
+      progressPercent: 5,
+      input: {
+        url: cleanUrl || null,
+        description: isDescriptionMode ? (userDescription || '').slice(0, 2000) : null,
+        skipScraping: isDescriptionMode,
+        pageStyle: 'premium',
+        premiumSystem: true,
+        themeColor,
+        tone: tone || 'premium',
+        language: language || 'français',
+        targetAvatar: avatarSummary,
+        targetGender: ['female', 'male', 'mixed'].includes(targetGender) ? targetGender : 'auto',
+        targetAgeRange: targetAgeRange || 'auto',
+        targetProfile: targetProfile || 'auto',
+        mainProblem: mainProblem || '',
+      },
+    });
+    taskId = generationTask._id.toString();
+
+    try {
+      const generationLog = await ProductPageGenerationLog.create({
+        workspaceId: req.workspaceId,
+        userId: req.user._id || req.user.id,
+        taskId: generationTask._id,
+        status: 'started',
+        inputType: isDescriptionMode ? 'description' : 'url',
+        outputMode: shouldGenerateImages ? 'premium_page_with_images' : 'premium_page_only',
+        creditSource: consumedCreditSource,
+        creditsUsed: 1,
+        productName: isDescriptionMode ? (userDescription || '').slice(0, 120) : '',
+        productUrl: cleanUrl || '',
+        generatedContentTypes: ['premium_product_page'],
+        requestMeta: {
+          pageStyle: 'premium',
+          premiumSystem: true,
+          themeColor,
+          tone: tone || 'premium',
+          language: language || 'français',
+        },
+        userSnapshot: {
+          name: req.user?.name || '',
+          email: req.user?.email || '',
+        },
+        workspaceSnapshot: {
+          name: workspace?.name || '',
+          plan: workspace?.plan || '',
+        },
+      });
+      generationLogId = generationLog._id.toString();
+    } catch (logError) {
+      console.warn('[PremiumPG] GenerationLog create failed:', logError.message);
+    }
+
+    if (isDescriptionMode) {
+      scraped = {
+        title: 'Produit',
+        description: userDescription.trim(),
+        rawText: userDescription.trim(),
+      };
+    } else {
+      scraped = await extractProductInfo(cleanUrl);
+    }
+
+    await updateTask(taskId, {
+      productName: scraped?.title?.slice(0, 80) || (isDescriptionMode ? (userDescription || '').slice(0, 60) : 'Produit premium'),
+      currentStep: 'Rédaction premium par l\'IA...',
+      progressPercent: 15,
+    });
+
+    const imageBuffers = imageFiles.map((file) => file.buffer);
+    const UPLOAD_TIMEOUT_MS = 120000;
+    const uploadWithTimeout = (uploadPromise) =>
+      Promise.race([
+        uploadPromise,
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Upload timeout')), UPLOAD_TIMEOUT_MS)),
+      ]);
+
+    const [premiumResultSettled, uploadResults] = await Promise.all([
+      analyzePremiumProductPage(scraped, imageBuffers, storeContext, {
+        targetAvatar: avatarSummary,
+        targetGender: ['female', 'male', 'mixed'].includes(targetGender) ? targetGender : 'auto',
+        targetAgeRange: targetAgeRange || 'auto',
+        targetProfile: targetProfile || 'auto',
+        mainProblem: mainProblem || '',
+        tone: tone || 'premium',
+        language: language || 'français',
+        themeColor,
+      }),
+      Promise.allSettled(
+        imageFiles.slice(0, 8).map((file) =>
+          uploadWithTimeout(
+            uploadImage(file.buffer, file.originalname || `premium-photo-${Date.now()}.jpg`, {
+              workspaceId: req.workspaceId,
+              uploadedBy: userId,
+              mimeType: file.mimetype,
+            })
+          )
+        )
+      ),
+    ]);
+
+    premiumResult = premiumResultSettled;
+
+    for (const uploadResult of uploadResults) {
+      if (uploadResult.status === 'fulfilled' && uploadResult.value?.url) realPhotos.push(uploadResult.value.url);
+      else if (uploadResult.status === 'rejected') console.warn('⚠️ Upload photo premium échoué:', uploadResult.reason?.message);
+    }
+
+    const jobId = shouldGenerateImages ? `premium_${Date.now()}_${Math.random().toString(36).slice(2, 8)}` : null;
+    const premiumImageSeed = buildPremiumImageSeed(realPhotos);
+    const finalTestimonials = (premiumResult.testimonials || []).map((testimonial) => ({ ...testimonial, image: '' }));
+
+    const productPage = {
+      title: premiumResult.title || scraped.title || '',
+      currency: storeContext.currency || '',
+      targetMarket: storeContext.country || '',
+      country: storeContext.country || '',
+      city: storeContext.city || '',
+      locale: '',
+      hero_headline: premiumResult.hero_headline || premiumResult.premium_page?.hero?.headline || null,
+      hero_slogan: premiumResult.hero_slogan || premiumResult.premium_page?.hero?.subheadline || null,
+      hero_baseline: premiumResult.hero_baseline || premiumResult.premium_page?.hero?.eyebrow || null,
+      hero_cta: premiumResult.hero_cta || premiumResult.premium_page?.hero?.ctaLabel || 'Commander',
+      urgency_badge: premiumResult.urgency_badge || premiumResult.premium_page?.hero?.eyebrow || null,
+      problem_section: premiumResult.problem_section || null,
+      solution_section: premiumResult.solution_section || null,
+      stats_bar: premiumResult.stats_bar || [],
+      offer_block: premiumResult.offer_block || null,
+      seo: premiumResult.seo || null,
+      heroImage: null,
+      heroPosterImage: null,
+      beforeAfterImage: null,
+      beforeAfterImages: [],
+      socialProofImages: [],
+      descriptionGifs: [],
+      premiumImages: premiumImageSeed,
+      premium_image_prompts: premiumResult.premium_image_prompts || null,
+      angles: [],
+      raisons_acheter: premiumResult.raisons_acheter || [],
+      benefits_bullets: premiumResult.benefits_bullets || [],
+      conversion_blocks: premiumResult.conversion_blocks || [],
+      urgency_elements: premiumResult.urgency_elements || null,
+      faq: premiumResult.faq || [],
+      testimonials: finalTestimonials,
+      reassurance: premiumResult.reassurance || null,
+      guide_utilisation: premiumResult.guide_utilisation || null,
+      description: '',
+      realPhotos,
+      allImages: [],
+      sourceUrl: cleanUrl,
+      createdByAI: true,
+      generatedAt: new Date().toISOString(),
+      imageJobId: jobId,
+      visualTemplate: 'premium',
+      pageStyle: 'premium',
+      layout: 'premium_product_page',
+      theme: 'premium_product',
+      premium_page: premiumResult.premium_page || null,
+      themeColor,
+      _targetGender: ['female', 'male', 'mixed'].includes(targetGender) ? targetGender : 'auto',
+    };
+
+    const updatedWorkspace = workspace ? await EcomWorkspace.findById(workspace._id)
+      .select('freeGenerationsRemaining paidGenerationsRemaining totalGenerations simpleGenerationsRemaining')
+      .lean() : null;
+
+    const generationsInfo = updatedWorkspace ? {
+      remaining: (updatedWorkspace.simpleGenerationsRemaining || 0) + (updatedWorkspace.freeGenerationsRemaining || 0) + (updatedWorkspace.paidGenerationsRemaining || 0),
+      totalUsed: updatedWorkspace.totalGenerations || 0,
+    } : null;
+
+    if (req.workspaceId && req.user) {
+      FeatureUsageLog.create({
+        workspaceId: req.workspaceId,
+        userId: req.user._id || req.user.id,
+        feature: 'premium_product_page_generator',
+        meta: {
+          productUrl: cleanUrl || null,
+          productName: premiumResult?.title || scraped?.title || null,
+          generationType: consumedCreditSource,
+          success: true,
+        },
+      }).catch(() => {});
+    }
+
+    await updateGenerationLog(generationLogId, {
+      status: shouldGenerateImages ? 'processing_images' : 'completed',
+      completedAt: shouldGenerateImages ? null : new Date(),
+      errorMessage: '',
+      productName: productPage.title || 'Produit premium',
+      productUrl: cleanUrl || '',
+      stats: buildGenerationStats(productPage, {
+        uploadedPhotoCount: realPhotos.length,
+        generatedImageCount: 0,
+        generatedGifCount: 0,
+      }),
+      generatedContentTypes: buildGeneratedContentTypes(productPage, { shouldGenerateImages }),
+    });
+
+    await updateTask(taskId, {
+      status: shouldGenerateImages ? 'generating_images' : 'done',
+      productName: productPage.title || 'Produit premium',
+      product: productPage,
+      imageJobId: jobId,
+      currentStep: shouldGenerateImages ? 'Génération des images premium...' : 'Page premium prête',
+      progressPercent: shouldGenerateImages ? 40 : 100,
+      'input.photoUrls': realPhotos,
+    });
+
+    res.json({
+      success: true,
+      product: productPage,
+      generations: generationsInfo,
+      imageJobId: jobId,
+      taskId,
+    });
+
+    if (shouldGenerateImages) {
+      void runBackgroundPremiumImageGeneration({
+        taskId,
+        generationLogId,
+        workspaceId: req.workspaceId,
+        userId,
+        productData: productPage,
+        realPhotos,
+        cleanUrl,
+        sourceBuffer: imageFiles[0]?.buffer || null,
+        imageJobId: jobId,
+      });
+    }
+  } catch (error) {
+    console.error('❌ [PremiumPG] Erreur génération:', error.message);
+    console.error('❌ [PremiumPG] Stack:', error.stack);
+
+    if (workspace && consumedCreditSource && consumedCreditSource !== 'unknown') {
+      try {
+        const workspaceToRefund = await EcomWorkspace.findById(workspace._id);
+        if (workspaceToRefund) {
+          if (consumedCreditSource === 'simple') {
+            workspaceToRefund.simpleGenerationsRemaining = (workspaceToRefund.simpleGenerationsRemaining || 0) + 1;
+          } else if (consumedCreditSource === 'free') {
+            workspaceToRefund.freeGenerationsRemaining = (workspaceToRefund.freeGenerationsRemaining || 0) + 1;
+          } else if (consumedCreditSource === 'paid') {
+            workspaceToRefund.paidGenerationsRemaining = (workspaceToRefund.paidGenerationsRemaining || 0) + 1;
+          }
+          workspaceToRefund.totalGenerations = Math.max(0, (workspaceToRefund.totalGenerations || 0) - 1);
+          await workspaceToRefund.save();
+        }
+      } catch (refundError) {
+        console.error('❌ [PremiumPG] Erreur remboursement crédit:', refundError.message);
+      }
+    }
+
+    if (taskId) {
+      await updateTask(taskId, {
+        status: 'error',
+        currentStep: 'Erreur',
+        errorMessage: error.message || 'Erreur génération premium',
+        progressPercent: 100,
+      });
+    }
+
+    await updateGenerationLog(generationLogId, {
+      status: 'failed',
+      completedAt: new Date(),
+      errorMessage: error.message || 'Erreur génération premium',
+    });
+
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors de la génération premium',
+      error: error.message,
+    });
   }
 });
 
@@ -1788,10 +2540,12 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
     themeColor: rawThemeColor,
     customThemeColor: rawCustomThemeColor,
     heroMode: rawHeroMode,
+    pageStyle: rawPageStyle,
   } = req.body || {};
   const imageFiles = req.files || [];
   const approach = marketingApproach || 'PAS';
   const visualTemplate = rawVisualTemplate || 'general';
+  const pageStyle = ['classic', 'hero_page', 'infographics'].includes(rawPageStyle) ? rawPageStyle : 'classic';
   const imageGenerationMode = rawImageGenerationMode === 'standard' ? 'standard' : 'ad_4_5';
   const isHeroMode = rawHeroMode === 'true' || rawHeroMode === true;
   // heroMode always generates images (just the hero only) — withImages: 'false' means skip all images
@@ -1815,7 +2569,8 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
     avatar: avatarSummary,
     problem: mainProblem || '',
     tone: tone || 'urgence',
-    language: language || 'français'
+    language: language || 'français',
+    pageStyle
   };
 
   const themeColor = typeof rawCustomThemeColor === 'string' && /^#[0-9A-Fa-f]{6}$/.test(rawCustomThemeColor.trim())
@@ -1847,6 +2602,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
     titleColor,
     contentColor,
     fashionConfig,
+    pageStyle,
     targetGender: ['female', 'male', 'mixed'].includes(targetGender) ? targetGender : 'auto',
   };
 
@@ -1964,6 +2720,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
           skipScraping: isDescriptionMode,
           marketingApproach: approach,
           visualTemplate,
+          pageStyle,
           imageGenerationMode,
           imageAspectRatio,
           preferredColor,
@@ -1997,6 +2754,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
         generatedContentTypes: [],
         requestMeta: {
           visualTemplate: visualTemplate || '',
+          pageStyle,
           marketingApproach: approach || '',
           imageGenerationMode: imageGenerationMode || '',
           imageAspectRatio: imageAspectRatio || '',
@@ -2052,7 +2810,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
     const imageBuffers = (imageFiles || []).map(f => f.buffer);
 
     // Lancer les deux en parallèle
-    const UPLOAD_TIMEOUT_MS = 30000; // 30s max par photo
+    const UPLOAD_TIMEOUT_MS = 120000; // 120s max par photo
     const uploadWithTimeout = (uploadPromise) =>
       Promise.race([
         uploadPromise,
@@ -2146,6 +2904,9 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       imageGenerationMode,
       imageAspectRatio,
       visualTemplate,
+      pageStyle,
+      layout: pageStyle === 'premium' ? 'premium' : 'classic',
+      premium_page: gptResult.premium_page || null,
       preferredColor,
       themeColor,
       heroVisualDirection,

@@ -25,6 +25,20 @@ const KIE_IMAGE_TO_VIDEO_MODEL = process.env.KIE_IMAGE_TO_VIDEO_MODEL || 'grok-i
 const NANOBANANA_PRO_COST_USD = 0.09; // 1K Pro
 const USD_TO_FCFA = 600;
 
+// ── Timeout de génération d'image — "illimité" par défaut ─────────────────────
+// La génération peut être lente quand les providers IA sont chargés. Pour ne plus
+// voir le message « Toutes les images ont échoué … timeout », on n'impose plus de
+// plafond court sur l'attente du résultat. Valeur en ms, configurable via
+// IMAGE_GEN_MAX_WAIT_MS :
+//   - non défini        → 24h (≈ illimité, mais libère le slot si une tâche reste bloquée)
+//   - "0" / invalide    → Infinity (vraiment aucune limite)
+const IMAGE_GEN_MAX_WAIT_MS = (() => {
+  const raw = process.env.IMAGE_GEN_MAX_WAIT_MS;
+  if (raw === undefined || raw === '') return 24 * 60 * 60 * 1000;
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? n : Infinity;
+})();
+
 // ── Rate limiter: max 15 createTask calls per 10s window (API limit is 20) ───
 const RATE_WINDOW_MS = 10000;
 const RATE_MAX = 15; // leave headroom below 20
@@ -159,7 +173,7 @@ async function submitKieTask(body, maxRetries = 3) {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${KIE_API_KEY}`,
           },
-          timeout: 30000,
+          timeout: 60000,
         }
       );
 
@@ -194,17 +208,18 @@ async function submitKieTask(body, maxRetries = 3) {
   }
 }
 
-async function pollKieTask(taskId, { maxWaitMs = 180000, mediaType = 'image', label = 'Kie.ai' } = {}) {
+async function pollKieTask(taskId, { maxWaitMs = IMAGE_GEN_MAX_WAIT_MS, mediaType = 'image', label = 'Kie.ai' } = {}) {
   const pollInterval = 3000;
   const startTime = Date.now();
 
+  // maxWaitMs === Infinity → la condition est toujours vraie : on attend sans limite.
   while (Date.now() - startTime < maxWaitMs) {
     const response = await axios.get(
       `${KIE_BASE}/recordInfo`,
       {
         params: { taskId },
         headers: { 'Authorization': `Bearer ${KIE_API_KEY}` },
-        timeout: 15000,
+        timeout: 30000,
       }
     );
 
@@ -277,7 +292,7 @@ async function submitGptImage2ImageToImageTask(prompt, imageUrls, aspectRatio = 
  * Poll Kie.ai task until completion
  * state: waiting | queuing | generating | success | fail
  */
-async function pollGrokImagineTask(taskId, maxWaitMs = 180000) {
+async function pollGrokImagineTask(taskId, maxWaitMs = IMAGE_GEN_MAX_WAIT_MS) {
   return pollKieTask(taskId, { maxWaitMs, mediaType: 'image', label: 'NanoBanana Pro' });
 }
 
@@ -466,7 +481,7 @@ export async function generateGptImage2ImageToImage(prompt, imageInput, aspectRa
     const taskId = await submitGptImage2ImageToImageTask(prompt, imageUrls, aspectRatio);
     console.log(`📋 GPT Image 2 task submitted: ${taskId}`);
 
-    const imageUrl = await pollKieTask(taskId, { maxWaitMs: 180000, mediaType: 'image', label: 'GPT Image 2' });
+    const imageUrl = await pollKieTask(taskId, { maxWaitMs: IMAGE_GEN_MAX_WAIT_MS, mediaType: 'image', label: 'GPT Image 2' });
 
     const costFcfa = Math.round(NANOBANANA_PRO_COST_USD * USD_TO_FCFA);
     sessionStats.totalImages++;

@@ -5,7 +5,7 @@ import {
   Search, PackageSearch, Link, Sparkles, Globe, FileText, ChevronDown,
   ChevronUp, ShoppingBag, Layers, ChevronRight, Target, Lightbulb,
   BarChart3, Star, Shield, Zap, BookOpen, Type, Trash2, Download,
-  Upload, ExternalLink
+  Upload, ExternalLink, HelpCircle
 } from 'lucide-react';
 import { storeProductsApi } from '../services/storeApi.js';
 import AlibabaImportModal from '../components/AlibabaImportModal.jsx';
@@ -47,6 +47,27 @@ function buildProductCarouselImages(productData = {}, fallbackName = '') {
   if (!output.length) incomingImages.slice(0, 2).forEach((img, i) => push(img, `${productName} — image ${i + 1}`, img?.type || 'product'));
   return output;
 }
+
+const isPremiumPageData = (pageData = {}, productPageConfig = {}) => (
+  pageData?.pageStyle === 'premium'
+  || pageData?.layout === 'premium_product_page'
+  || pageData?.theme === 'premium_product'
+  || Boolean(pageData?.premium_page)
+  || productPageConfig?.pageStyle === 'premium'
+  || productPageConfig?.theme === 'premium_product'
+  || Boolean(productPageConfig?.premiumPage)
+);
+
+const syncPageDataHeroImage = (pageData, primaryImage, productPageConfig) => {
+  if (!pageData) return pageData;
+  if (isPremiumPageData(pageData, productPageConfig)) {
+    return {
+      ...pageData,
+      heroImage: pageData.heroImage || pageData.premiumImages?.hero || primaryImage || null,
+    };
+  }
+  return { ...pageData, heroImage: primaryImage };
+};
 
 function clearPublicStoreSessionCaches() {
   if (typeof window === 'undefined' || !window.sessionStorage) return;
@@ -248,7 +269,8 @@ const StoreProductForm = () => {
       const images = Array.isArray(next.images) ? next.images : [];
       const primaryImage = images[0]?.url || null;
       const nextPageData = next._pageData || prev._pageData || null;
-      return { ...next, _pageData: nextPageData ? { ...nextPageData, heroImage: primaryImage } : nextPageData };
+      const nextProductPageConfig = next.productPageConfig || prev.productPageConfig || null;
+      return { ...next, _pageData: syncPageDataHeroImage(nextPageData, primaryImage, nextProductPageConfig) };
     });
   };
 
@@ -441,7 +463,7 @@ const StoreProductForm = () => {
 
     setSaving(true);
     const primaryImage = form.images?.[0]?.url || null;
-    const syncedPageData = form._pageData ? { ...form._pageData, heroImage: primaryImage } : form._pageData;
+    const syncedPageData = syncPageDataHeroImage(form._pageData, primaryImage, form.productPageConfig);
 
     const payload = {
       name: form.name.trim(),
@@ -541,7 +563,10 @@ const StoreProductForm = () => {
             {isEdit && (
               <button
                 type="button"
-                onClick={() => navigate(`${basePath}/products/${id}/builder`)}
+                onClick={() => {
+                  const isPremium = isPremiumPageData(form._pageData, form.productPageConfig);
+                  navigate(`${basePath}/products/${id}/${isPremium ? 'premium-builder' : 'builder'}`);
+                }}
                 className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-700 transition shadow-sm"
               >
                 <Layers className="w-3.5 h-3.5" /> Page Builder
@@ -895,6 +920,92 @@ const StoreProductForm = () => {
                 <SectionRow icon={<BookOpen className="w-4 h-4 text-indigo-500" />} label="Guide d'utilisation" open={openSections.guide} onToggle={() => toggleSection('guide')}>
                   <textarea value={getPageData('guide_utilisation', '')} onChange={(e) => setPageData('guide_utilisation', e.target.value)} placeholder="Expliquez comment utiliser le produit étape par étape..." rows={4} className={textareaCls} />
                 </SectionRow>
+
+                {/* ── Premium: Accordéons Hero + FAQ ──────────────────── */}
+                {isPremiumPageData(form._pageData, form.productPageConfig) && (
+                  <>
+                    <SectionRow icon={<ChevronDown className="w-4 h-4 text-teal-500" />} label="Barres dépliables (sous CTA)" open={openSections.heroAccordions} onToggle={() => toggleSection('heroAccordions')}>
+                      {(form.productPageConfig?.premiumPage?.hero?.accordions || []).map((acc, i) => (
+                        <div key={i} className="p-3 bg-gray-50 border border-gray-200 rounded-lg space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-bold text-gray-500">#{i + 1}</span>
+                            <button type="button" onClick={() => {
+                              const next = { ...form.productPageConfig };
+                              const accordions = [...(next.premiumPage?.hero?.accordions || [])];
+                              accordions.splice(i, 1);
+                              next.premiumPage = { ...next.premiumPage, hero: { ...next.premiumPage?.hero, accordions } };
+                              setForm(f => ({ ...f, productPageConfig: next }));
+                            }} className="p-1 text-red-400 hover:text-red-600 rounded"><Trash2 className="w-3.5 h-3.5" /></button>
+                          </div>
+                          <input type="text" value={acc.title || ''} placeholder="Titre" className={inputCls} onChange={(e) => {
+                            const next = { ...form.productPageConfig };
+                            const accordions = [...(next.premiumPage?.hero?.accordions || [])];
+                            accordions[i] = { ...accordions[i], title: e.target.value };
+                            next.premiumPage = { ...next.premiumPage, hero: { ...next.premiumPage?.hero, accordions } };
+                            setForm(f => ({ ...f, productPageConfig: next }));
+                          }} />
+                          <textarea value={acc.content || ''} placeholder="Contenu" rows={3} className={textareaCls} onChange={(e) => {
+                            const next = { ...form.productPageConfig };
+                            const accordions = [...(next.premiumPage?.hero?.accordions || [])];
+                            accordions[i] = { ...accordions[i], content: e.target.value };
+                            next.premiumPage = { ...next.premiumPage, hero: { ...next.premiumPage?.hero, accordions } };
+                            setForm(f => ({ ...f, productPageConfig: next }));
+                          }} />
+                        </div>
+                      ))}
+                      <button type="button" onClick={() => {
+                        const next = { ...form.productPageConfig };
+                        const accordions = [...(next.premiumPage?.hero?.accordions || []), { title: '', content: '' }];
+                        next.premiumPage = { ...next.premiumPage, hero: { ...next.premiumPage?.hero, accordions } };
+                        setForm(f => ({ ...f, productPageConfig: next }));
+                      }} className="text-sm text-violet-600 hover:text-violet-700 font-medium flex items-center gap-1.5"><Plus className="w-3.5 h-3.5" /> Ajouter une barre</button>
+                    </SectionRow>
+
+                    <SectionRow icon={<HelpCircle className="w-4 h-4 text-orange-500" />} label="FAQ Premium" open={openSections.premiumFaq} onToggle={() => toggleSection('premiumFaq')}>
+                      <Field label="Titre de la section">
+                        <input type="text" value={form.productPageConfig?.premiumPage?.faq?.headline || ''} className={inputCls} placeholder="Questions fréquentes" onChange={(e) => {
+                          const next = { ...form.productPageConfig };
+                          next.premiumPage = { ...next.premiumPage, faq: { ...next.premiumPage?.faq, headline: e.target.value } };
+                          setForm(f => ({ ...f, productPageConfig: next }));
+                        }} />
+                      </Field>
+                      {(form.productPageConfig?.premiumPage?.faq?.items || []).map((item, i) => (
+                        <div key={i} className="p-3 bg-gray-50 border border-gray-200 rounded-lg space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-bold text-gray-500">Question {i + 1}</span>
+                            <button type="button" onClick={() => {
+                              const next = { ...form.productPageConfig };
+                              const items = [...(next.premiumPage?.faq?.items || [])];
+                              items.splice(i, 1);
+                              next.premiumPage = { ...next.premiumPage, faq: { ...next.premiumPage?.faq, items } };
+                              setForm(f => ({ ...f, productPageConfig: next }));
+                            }} className="p-1 text-red-400 hover:text-red-600 rounded"><Trash2 className="w-3.5 h-3.5" /></button>
+                          </div>
+                          <input type="text" value={item.question || ''} placeholder="Question" className={inputCls} onChange={(e) => {
+                            const next = { ...form.productPageConfig };
+                            const items = [...(next.premiumPage?.faq?.items || [])];
+                            items[i] = { ...items[i], question: e.target.value };
+                            next.premiumPage = { ...next.premiumPage, faq: { ...next.premiumPage?.faq, items } };
+                            setForm(f => ({ ...f, productPageConfig: next }));
+                          }} />
+                          <textarea value={item.answer || ''} placeholder="Réponse" rows={2} className={textareaCls} onChange={(e) => {
+                            const next = { ...form.productPageConfig };
+                            const items = [...(next.premiumPage?.faq?.items || [])];
+                            items[i] = { ...items[i], answer: e.target.value };
+                            next.premiumPage = { ...next.premiumPage, faq: { ...next.premiumPage?.faq, items } };
+                            setForm(f => ({ ...f, productPageConfig: next }));
+                          }} />
+                        </div>
+                      ))}
+                      <button type="button" onClick={() => {
+                        const next = { ...form.productPageConfig };
+                        const items = [...(next.premiumPage?.faq?.items || []), { question: '', answer: '' }];
+                        next.premiumPage = { ...next.premiumPage, faq: { ...next.premiumPage?.faq, items } };
+                        setForm(f => ({ ...f, productPageConfig: next }));
+                      }} className="text-sm text-violet-600 hover:text-violet-700 font-medium flex items-center gap-1.5"><Plus className="w-3.5 h-3.5" /> Ajouter une question</button>
+                    </SectionRow>
+                  </>
+                )}
               </div>
 
               {/* ── Offres quantité ──────────────────────────────────────── */}
@@ -985,7 +1096,10 @@ const StoreProductForm = () => {
                   <ShoppingBag className="w-4 h-4 flex-shrink-0" /> Importer d'Alibaba
                 </button>
                 {isEdit && (
-                  <button type="button" onClick={() => navigate(`${basePath}/products/${id}/builder`)}
+                  <button type="button" onClick={() => {
+                    const isPremium = isPremiumPageData(form._pageData, form.productPageConfig);
+                    navigate(`${basePath}/products/${id}/${isPremium ? 'premium-builder' : 'builder'}`);
+                  }}
                     className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl bg-indigo-50 border border-indigo-100 text-sm font-semibold text-indigo-700 hover:bg-indigo-100 transition">
                     <Layers className="w-4 h-4 flex-shrink-0" /> Page Builder
                   </button>

@@ -38,7 +38,15 @@ if (GEMINI_API_KEY) {
   console.warn('⚠️ Gemini key NOT configured');
 }
 const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
-const GEMINI_TIMEOUT_MS = 60000;
+// Timeout d'un appel de génération Gemini (fallback). Par défaut très large pour
+// ne plus échouer sur une génération lente. Override via GEMINI_TIMEOUT_MS (ms) ;
+// mettre "0" désactive complètement la limite côté axios (attente illimitée).
+const GEMINI_TIMEOUT_MS = (() => {
+  const raw = process.env.GEMINI_TIMEOUT_MS;
+  if (raw === undefined || raw === '') return 10 * 60 * 1000; // 10 min
+  const n = Number(raw);
+  return Number.isFinite(n) && n >= 0 ? n : 10 * 60 * 1000;
+})();
 
 export function isGeminiConfigured() {
   return Boolean(GEMINI_API_KEY);
@@ -51,7 +59,7 @@ async function normalizeImageForGemini(input) {
 
   if (typeof input === 'string' && /^https?:\/\//i.test(input)) {
     // URL distante — on télécharge pour pouvoir l'envoyer inline à Gemini
-    const res = await axios.get(input, { responseType: 'arraybuffer', timeout: 20000 });
+    const res = await axios.get(input, { responseType: 'arraybuffer', timeout: 60000 });
     buffer = Buffer.from(res.data);
     mimeType = res.headers['content-type']?.split(';')[0]?.trim() || 'image/jpeg';
   } else if (typeof input === 'string' && input.startsWith('data:')) {

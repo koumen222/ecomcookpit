@@ -16,6 +16,7 @@ import ConversionBlocks, { UrgencyBadge } from '../components/ConversionBlocks';
 import ProductTestimonials from '../components/ProductTestimonials';
 import { StorefrontHeader, StorefrontFooter } from '../components/StorefrontShared';
 import StoreProductPageInfographics from '../components/StoreProductPageInfographics';
+import StoreProductPagePremium from '../components/StoreProductPagePremium';
 // socket.io-client chargé dynamiquement pour ne pas bloquer le rendu initial
 import { setDocumentMeta } from '../utils/pageMeta';
 import { trackStorefrontEvent } from '../utils/pixelTracking';
@@ -1680,6 +1681,28 @@ const StoreProductPage = () => {
   }, [store?.productPageConfig, product?.productPageConfig, livePageConfig, product?.quantityOffers, product?.quantityOfferDesign]);
 
   const ppTheme = productPC?.theme || productPageConfig?.theme || store?.template || storePC?.theme || 'classic';
+  const productPageData = product?._pageData || {};
+  const isPremiumProductPage = (
+    ppTheme === 'premium_product'
+    || productPC?.pageStyle === 'premium'
+    || productPC?.theme === 'premium_product'
+    || Boolean(productPC?.premiumPage)
+    || productPageConfig?.pageStyle === 'premium'
+    || productPageConfig?.theme === 'premium_product'
+    || Boolean(productPageConfig?.premiumPage)
+    || productPageData?.pageStyle === 'premium'
+    || productPageData?.layout === 'premium_product_page'
+    || productPageData?.theme === 'premium_product'
+    || Boolean(productPageData?.premium_page)
+    || Boolean(productPageData?.premiumPage)
+  );
+  const premiumProductPageConfig = isPremiumProductPage ? {
+    ...productPageConfig,
+    theme: 'premium_product',
+    pageStyle: 'premium',
+    premiumPage: productPageConfig?.premiumPage || productPageData?.premium_page || productPageData?.premiumPage,
+    premiumImages: productPageConfig?.premiumImages || productPageData?.premiumImages || product?.premiumImages,
+  } : productPageConfig;
   const ppGeneral = productPageConfig?.general || {};
   const ppDesign = productPageConfig?.design || {};
   const ppButton = productPageConfig?.button || {};
@@ -2119,6 +2142,19 @@ const StoreProductPage = () => {
       </div>
     </div>
   );
+
+  if (isPremiumProductPage) {
+    return (
+      <StoreProductPagePremium
+        product={product}
+        store={store}
+        productPageConfig={premiumProductPageConfig}
+        subdomain={subdomain}
+        pixels={pixels}
+        prefix={prefix}
+      />
+    );
+  }
 
   if (ppTheme === 'infographics') {
     return (
