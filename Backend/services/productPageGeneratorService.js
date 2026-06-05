@@ -99,7 +99,7 @@ function getLocalizedTestimonialLocations(country = '', city = '') {
     locations.push(`Client vérifié ${i++}`);
   }
 
-  return locations.slice(0, 4);
+  return locations.slice(0, 6);
 }
 
 function buildStoreLocaleInstruction(country = '', city = '') {
@@ -120,6 +120,41 @@ const removeLeadingMarker = (value = '') => compactText(value, 220)
   .replace(/^[^\p{L}\p{N}#]+/u, '')
   .trim();
 
+const GENERIC_PREMIUM_LABELS = new Set([
+  'illustration',
+  'qualite',
+  'verifie',
+  'acheteur verifie',
+  'conforme',
+  'pratique',
+  'resultat',
+  'ingredient actif',
+  'premiers resultats',
+  'formule et fonctionnement',
+  'resultats produit',
+  'produit a',
+  'produit b',
+]);
+
+function isWeakPremiumText(value = '', minLength = 20) {
+  const text = compactText(value, 600);
+  if (!text || text.length < minLength) return true;
+  return GENERIC_PREMIUM_LABELS.has(normalizeLocaleKey(text));
+}
+
+function uniqueMeaningfulStrings(items = [], minLength = 20) {
+  const seen = new Set();
+  return (Array.isArray(items) ? items : [])
+    .map((item) => removeLeadingMarker(item))
+    .filter((item) => !isWeakPremiumText(item, minLength))
+    .filter((item) => {
+      const key = normalizeLocaleKey(item);
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+}
+
 const normalizeStatValue = (entry) => {
   if (typeof entry === 'string') return entry;
   if (!entry || typeof entry !== 'object') return '';
@@ -138,7 +173,7 @@ STRUCTURE À RESPECTER ET ADAPTER AU PRODUIT :
 1. Header simple : nom de marque/produit centré, contact à gauche, icônes compte/panier à droite.
 2. Hero split : grande image produit à gauche, rating/preuve sociale, titre, sous-titre, prix, bénéfices checkés, bloc offre spéciale, CTA clair, réassurance.
 3. Bande d'autorité : 3 à 5 mini citations crédibles. Ne JAMAIS inventer Vogue, People, Shape, Refinery29 ou une vraie presse si la source produit ne les mentionne pas. Utilise plutôt "Clients vérifiés", "Communauté", "Routine populaire", "Qualité contrôlée", etc.
-4. Galerie témoignages : headline émotionnel, sous-texte, 3 à 4 cartes avis avec photo prompt, tags, étoiles, acheteur vérifié.
+4. Galerie témoignages : headline émotionnel, sous-texte, EXACTEMENT 6 cartes avis détaillées (2 à 4 phrases chacune) de personnes ayant réellement utilisé le produit, avec photo prompt, tags, étoiles, acheteur vérifié.
 5. Section problème : gros titre + 4 douleurs concrètes + image lifestyle montrant la gêne réelle.
 6. Section cause/mécanisme : expliquer pourquoi le problème arrive. Pour santé/beauté, rester simple et crédible, sans diagnostic médical. Pour tech/home/fashion, transformer cette section en "ce qui bloque / pourquoi les solutions classiques échouent".
 7. Section science/ingrédients/technologie : liste d'actifs, matières, composants ou fonctionnalités + image explicative. Si complément ou soin, parler de formule/actifs; si produit tech, parler de technologie; si maison, parler de mécanisme; si mode, parler de matière/coupe.
@@ -149,6 +184,9 @@ STRUCTURE À RESPECTER ET ADAPTER AU PRODUIT :
 RÈGLES PREMIUM :
 - Tout doit être spécifique au produit et à ce qu'il fait, jamais copié tel quel des exemples.
 - Titres courts, très lisibles, beaucoup d'espace, style premium Shopify.
+- IMPORTANT — beaucoup de texte : développe chaque bloc de contenu (problème, mécanisme, science, rituel, closing, FAQ, témoignages) avec 3 à 5 phrases concrètes, utiles et spécifiques au produit, jamais une seule phrase. Seuls les TITRES restent courts.
+- PUCES = PHRASES COMPLÈTES : chaque bénéfice et chaque puce (hero benefits, closingSection.bullets, problemSection.bullets) doit être une phrase complète et concrète de 6 à 12 mots. INTERDIT d'écrire des étiquettes courtes de 1 à 3 mots comme "Facile à utiliser", "Résultats rapides" ou "Confiance en soi" : développe-les (ex. "Très facile à utiliser au quotidien, en une seule étape simple").
+- DEVISE : n'écris JAMAIS de prix en dollars ($) ni "USD". Laisse priceLabel, price et oldPrice vides : le prix réel est injecté automatiquement dans la devise locale de la boutique (FCFA par défaut).
 - Les imagePrompt doivent être en anglais, photoréalistes, modernes, avec personnes africaines authentiques quand humains présents.
 - Pas de fausses promesses médicales, pas de guérison, pas de chiffres inventés trop précis. Si tu utilises des chiffres, ils doivent rester marketing et crédibles.
 - Le champ premium_page doit être généré même si certaines infos manquent, avec des formulations prudentes.
@@ -169,7 +207,7 @@ function buildPremiumJsonContract(enabled = false) {
       "headline": "Titre hero premium adapté au produit",
       "subheadline": "Promesse claire et crédible en une phrase",
       "priceLabel": "",
-      "benefits": ["Bénéfice hero 1", "Bénéfice hero 2", "Bénéfice hero 3", "Bénéfice hero 4"],
+      "benefits": ["Bénéfice hero complet décrit en 6 à 12 mots", "Deuxième bénéfice en phrase complète et concrète", "Troisième bénéfice en phrase complète et concrète", "Quatrième bénéfice en phrase complète et concrète"],
       "offerTitle": "OFFRE SPÉCIALE",
       "countdownLabel": "L'offre expire bientôt",
       "offerCards": [{"title": "1 + 1 OFFERT", "badge": "Économisez", "price": "", "oldPrice": ""}],
@@ -190,15 +228,16 @@ function buildPremiumJsonContract(enabled = false) {
       "headline": "Titre émotionnel sur la transformation",
       "subheadline": "Phrase invitant à rejoindre les clients satisfaits",
       "items": [
-        {"name": "Prénom N.", "text": "Avis crédible", "tags": ["Tag 1", "Tag 2"], "rating": 5, "verified": true, "imagePrompt": "English photorealistic customer photo prompt"}
-      ]
+        {"name": "Prénom N.", "text": "Avis détaillé et crédible de 2 à 4 phrases d'une personne ayant vraiment utilisé le produit : contexte d'achat, bénéfice ressenti, qualité, livraison ou paiement à la livraison", "tags": ["Tag 1", "Tag 2"], "rating": 5, "verified": true, "imagePrompt": "English photorealistic customer photo prompt"}
+      ],
+      "_instruction": "Génère EXACTEMENT 6 objets différents dans items, chacun avec un prénom distinct et un avis détaillé de 2 à 4 phrases."
     },
-    "problemSection": {"headline": "Titre problème puissant", "bullets": ["Douleur 1", "Douleur 2", "Douleur 3", "Douleur 4"], "imagePrompt": "English photorealistic problem scene prompt"},
-    "mechanismSection": {"headline": "Titre expliquant la vraie cause", "body": "Paragraphe simple et crédible", "imagePrompt": "English explanatory lifestyle prompt"},
-    "scienceSection": {"headline": "Titre science/formule/technologie", "subheadline": "Sous-titre", "items": [{"name": "Actif ou fonctionnalité", "description": "Rôle concret", "imagePrompt": "English close-up prompt"}], "imagePrompt": "English explanatory diagram or product board prompt"},
+    "problemSection": {"headline": "Titre problème puissant", "bullets": ["Douleur concrète décrite en une phrase complète", "Douleur 2 en une phrase", "Douleur 3 en une phrase", "Douleur 4 en une phrase"], "imagePrompt": "English photorealistic problem scene prompt"},
+    "mechanismSection": {"headline": "Titre expliquant la vraie cause", "body": "Paragraphe développé de 3 à 5 phrases, simple, concret et crédible", "imagePrompt": "English explanatory lifestyle prompt"},
+    "scienceSection": {"headline": "Titre science/formule/technologie", "subheadline": "Sous-titre développé en une à deux phrases", "items": [{"name": "Actif ou fonctionnalité", "description": "Rôle concret expliqué en 2 à 3 phrases", "imagePrompt": "English close-up prompt"}], "imagePrompt": "English explanatory diagram or product board prompt"},
     "ritualSection": {"headline": "Titre rituel", "subheadline": "Sous-titre", "resultsTimeline": [{"label": "Jour 1", "description": "Résultat crédible"}], "steps": [{"label": "Étape 1", "title": "Action courte", "description": "Détail"}], "imagePrompt": "English ritual/results prompt"},
     "comparisonSection": {"columns": ["Votre produit", "Alternative 1", "Alternative 2"], "rows": [{"label": "Critère concret", "values": [true, false, false]}]},
-    "closingSection": {"headline": "Titre final bénéfice émotionnel", "subheadline": "Phrase finale", "bullets": ["Bénéfice final 1", "Bénéfice final 2", "Bénéfice final 3"], "imagePrompt": "English product callout prompt"},
+    "closingSection": {"headline": "Titre final bénéfice émotionnel", "subheadline": "Phrase finale développée en une à deux phrases", "bullets": ["Bénéfice final en phrase complète de 6 à 12 mots", "Deuxième bénéfice final en phrase complète", "Troisième bénéfice final en phrase complète"], "imagePrompt": "English product callout prompt"},
     "faq": {"headline": "Questions fréquentes", "subheadline": "Tout ce que vous devez savoir", "items": [{"question": "Question pertinente 1", "answer": "Réponse claire et rassurante"}, {"question": "Question pertinente 2", "answer": "Réponse claire"}, {"question": "Question pertinente 3", "answer": "Réponse claire"}, {"question": "Question pertinente 4", "answer": "Réponse claire"}, {"question": "Question pertinente 5", "answer": "Réponse claire"}]}
   }`;
 }
@@ -216,7 +255,7 @@ function buildFallbackPremiumPage(result = {}, productTitle = '', storeContext =
     .map(removeLeadingMarker)
     .filter(Boolean)
     .slice(0, 4);
-  const testimonials = (Array.isArray(result.testimonials) ? result.testimonials : []).slice(0, 4);
+  const testimonials = (Array.isArray(result.testimonials) ? result.testimonials : []).slice(0, 6);
   const stats = (Array.isArray(result.stats_bar) ? result.stats_bar : []).map(normalizeStatValue).filter(Boolean);
   const fallbackBenefits = benefits.length ? benefits : [
     `Une solution simple pour profiter pleinement de ${productName}`,
@@ -232,7 +271,7 @@ function buildFallbackPremiumPage(result = {}, productTitle = '', storeContext =
   ];
   const scienceItems = (reasons.length ? reasons : fallbackBenefits).slice(0, 4).map((item, index) => ({
     name: compactText(item.split(/[,:—-]/)[0] || `Point clé ${index + 1}`, 48),
-    description: compactText(item, 160),
+    description: compactText(item, 300),
     imagePrompt: `photorealistic premium close-up visual representing ${item} for ${productName}, clean ecommerce style, no text overlay`,
   }));
   const location = storeContext.city || storeContext.country || 'Afrique francophone';
@@ -258,8 +297,8 @@ function buildFallbackPremiumPage(result = {}, productTitle = '', storeContext =
       ctaLabel: result.hero_cta || 'Commander',
       reassurance: result.reassurance?.points?.length ? result.reassurance.points.slice(0, 3) : ['Paiement à la livraison', 'Livraison rapide', 'Support WhatsApp'],
       accordions: [
-        { title: 'Comment ça marche ?', content: compactText(result.solution_section?.description || `${productName} agit efficacement pour vous offrir des résultats visibles.`, 300) },
-        { title: 'Ingrédients clés', content: compactText((result.raisons_acheter || []).slice(0, 3).join('. ') || 'Formule naturelle et efficace à base d\'ingrédients sélectionnés.', 300) },
+        { title: 'Comment ça marche ?', content: compactText(result.solution_section?.description || `${productName} agit efficacement pour vous offrir des résultats visibles.`, 520) },
+        { title: 'Ingrédients clés', content: compactText((result.raisons_acheter || []).slice(0, 4).join('. ') || 'Formule naturelle et efficace à base d\'ingrédients sélectionnés.', 520) },
         { title: 'Et si cela ne fonctionne pas ?', content: 'Nous offrons une garantie de satisfaction totale. Contactez-nous pour un remboursement intégral, sans aucune question.' },
       ],
     },
@@ -287,7 +326,7 @@ function buildFallbackPremiumPage(result = {}, productTitle = '', storeContext =
     },
     mechanismSection: {
       headline: result.solution_section?.title || 'La différence vient de ce que le produit corrige vraiment',
-      body: compactText(result.solution_section?.description || fallbackBenefits.join(' '), 520),
+      body: compactText(result.solution_section?.description || fallbackBenefits.join(' '), 1000),
       imagePrompt: `premium explanatory lifestyle image showing how ${productName} solves its core problem, product visible, modern African ecommerce campaign, no text overlay`,
     },
     scienceSection: {
@@ -399,7 +438,7 @@ function buildInfographicLocaleInstruction(country = '', city = '') {
     return 'Keep names, expressions, and social proof credible for a real African e-commerce market.';
   }
 
-  const locations = getLocalizedTestimonialLocations(cleanCountry, city).slice(0, 4);
+  const locations = getLocalizedTestimonialLocations(cleanCountry, city).slice(0, 6);
   return `The market focus is ${cleanCountry}${city ? ` with ${cleanScrapedText(city)} as a reference city` : ''}. Review cards, names, styling cues, language tone and city labels must feel native to this country. Prefer locations such as ${locations.join(', ')}. Do not mix multiple countries in the same slide.`;
 }
 
@@ -484,9 +523,25 @@ function buildDefaultTestimonials(productName, country = '', city = '') {
       name: 'Koffi A.',
       location: locations[3],
       rating: 5,
-      text: `Franchement satisfait. Le produit est conforme, agréable à utiliser et le résultat est visible dans un cadre normal d'utilisation. Je referai confiance à cette boutique.`,
+      text: `Franchement satisfait. Le produit est conforme, agréable à utiliser et le résultat est visible dans un cadre normal d'utilisation. La commande a été simple et la livraison rapide. Je referai confiance à cette boutique sans hésiter.`,
       verified: true,
       date: 'Il y a 2 semaines'
+    },
+    {
+      name: 'Grace E.',
+      location: locations[4],
+      rating: 5,
+      text: `J'ai commandé ce ${productName} un peu par curiosité et je suis agréablement surprise. La qualité est vraiment au rendez-vous, l'utilisation est simple et le résultat se ressent au quotidien. Le paiement à la livraison m'a beaucoup rassurée.`,
+      verified: true,
+      date: 'Il y a 4 jours'
+    },
+    {
+      name: 'Salif K.',
+      location: locations[5],
+      rating: 5,
+      text: `Très bon rapport qualité-prix. Ce ${productName} tient ses promesses, il est solide et bien pensé. Je l'utilise tous les jours depuis plusieurs semaines et je le recommande à tous mes proches. Service client réactif sur WhatsApp.`,
+      verified: true,
+      date: 'Il y a 6 jours'
     }
   ];
 }
@@ -657,6 +712,244 @@ function mergePremiumPage(fallbackPremiumPage = {}, generatedPremiumPage = {}) {
   };
 }
 
+function strengthenPremiumPageContent(premiumPage = {}, fallbackPremiumPage = {}, result = {}) {
+  const productName = compactText(result.title || premiumPage.brandName || fallbackPremiumPage.brandName || 'Produit', 80);
+  const fallbackHeroBenefits = uniqueMeaningfulStrings([
+    ...(premiumPage.hero?.benefits || []),
+    ...(fallbackPremiumPage.hero?.benefits || []),
+    ...(result.benefits_bullets || []),
+  ], 18);
+  const benefitBase = fallbackHeroBenefits.length ? fallbackHeroBenefits : [
+    `${productName} aide à traiter le besoin principal avec une routine simple et facile à suivre.`,
+    `La solution s'intègre au quotidien sans multiplier les gestes compliqués.`,
+    `L'expérience d'achat reste rassurante grâce au paiement à la livraison et au support WhatsApp.`,
+    `Le produit est pensé pour retrouver plus de confort, d'assurance et de régularité.`,
+  ];
+
+  const fillStrings = (primary = [], fallback = [], defaults = [], minCount = 4, minLength = 20) => {
+    const merged = uniqueMeaningfulStrings([...primary, ...fallback, ...defaults], minLength);
+    return merged.slice(0, Math.max(minCount, merged.length));
+  };
+
+  const problemBullets = fillStrings(
+    premiumPage.problemSection?.bullets,
+    fallbackPremiumPage.problemSection?.bullets,
+    [
+      `Quand le problème revient malgré les solutions classiques, il finit par peser sur la confiance au quotidien.`,
+      `Les moments de proximité, de travail ou de déplacement deviennent moins naturels quand on doute de soi.`,
+      `Les produits de surface peuvent masquer temporairement, sans offrir une réponse régulière et rassurante.`,
+      `Le vrai besoin est de retrouver une sensation de contrôle, sans routine compliquée ni promesse irréaliste.`,
+    ],
+    4,
+    34,
+  );
+
+  const mechanismBody = isWeakPremiumText(premiumPage.mechanismSection?.body, 80)
+    ? compactText(
+      fallbackPremiumPage.mechanismSection?.body
+      || `${productName} se distingue des solutions classiques parce qu'il s'intègre dans une routine régulière et cible le besoin réel décrit par le produit. L'objectif n'est pas de promettre un miracle, mais d'apporter une réponse plus simple, plus constante et plus rassurante dans les situations où le client veut se sentir à l'aise.`,
+      1200,
+    )
+    : compactText(premiumPage.mechanismSection.body, 1200);
+
+  const scienceDefaults = [
+    {
+      name: 'Action ciblée',
+      description: `${productName} est présenté comme une solution orientée vers le besoin principal du client, avec une logique plus régulière que les alternatives utilisées seulement au dernier moment.`,
+    },
+    {
+      name: 'Routine facile',
+      description: `Le format et l'usage doivent rester simples à comprendre, pour que le client puisse l'intégrer sans changer complètement ses habitudes.`,
+    },
+    {
+      name: 'Expérience rassurante',
+      description: `La page met en avant une utilisation claire, un achat sans pression et un service client disponible pour répondre aux questions avant la commande.`,
+    },
+    {
+      name: 'Résultat progressif',
+      description: `Le bénéfice est formulé de façon crédible : une amélioration ressentie avec la régularité, sans promesse médicale ni chiffre inventé.`,
+    },
+  ];
+  const scienceItems = [
+    ...(Array.isArray(premiumPage.scienceSection?.items) ? premiumPage.scienceSection.items : []),
+    ...(Array.isArray(fallbackPremiumPage.scienceSection?.items) ? fallbackPremiumPage.scienceSection.items : []),
+    ...scienceDefaults,
+  ].reduce((acc, item, index) => {
+    const name = compactText(item?.name || '', 60);
+    const description = compactText(item?.description || '', 420);
+    if (isWeakPremiumText(name, 6) || isWeakPremiumText(description, 60)) return acc;
+    const key = normalizeLocaleKey(name);
+    if (acc.some((existing) => normalizeLocaleKey(existing.name) === key)) return acc;
+    acc.push({
+      ...item,
+      name,
+      description,
+      imagePrompt: item?.imagePrompt || `premium ecommerce close-up visual for ${productName}, section ${index + 1}, clean product feature explanation, no text overlay`,
+    });
+    return acc;
+  }, []).slice(0, 4);
+
+  const timelineDefaults = [
+    { label: 'Jour 1', description: `Le client découvre la routine ${productName} et commence à l'utiliser dans un moment simple de la journée.` },
+    { label: 'Jour 7', description: `L'usage devient plus naturel, avec une sensation de contrôle et de régularité plus facile à maintenir.` },
+    { label: 'Jour 15', description: `La routine s'installe et le client se sent plus à l'aise dans les situations où il hésitait auparavant.` },
+    { label: 'Jour 30', description: `Le produit devient un réflexe pratique pour conserver une expérience plus stable et rassurante.` },
+  ];
+  const resultsTimeline = [
+    ...(Array.isArray(premiumPage.ritualSection?.resultsTimeline) ? premiumPage.ritualSection.resultsTimeline : []),
+    ...(Array.isArray(fallbackPremiumPage.ritualSection?.resultsTimeline) ? fallbackPremiumPage.ritualSection.resultsTimeline : []),
+    ...timelineDefaults,
+  ].reduce((acc, item) => {
+    const label = compactText(item?.label || '', 32);
+    const description = compactText(item?.description || '', 260);
+    if (isWeakPremiumText(label, 4) || isWeakPremiumText(description, 45)) return acc;
+    const key = normalizeLocaleKey(label);
+    if (acc.some((existing) => normalizeLocaleKey(existing.label) === key)) return acc;
+    acc.push({ ...item, label, description });
+    return acc;
+  }, []).slice(0, 4);
+
+  const stepDefaults = [
+    { label: 'Étape 1', title: `Utilisez ${productName} régulièrement`, description: `Suivez l'usage recommandé avec un verre d'eau ou selon les indications du produit.` },
+    { label: 'Étape 2', title: 'Gardez une routine simple', description: `Placez le produit dans un moment facile à répéter : matin, repas ou préparation avant sortie.` },
+    { label: 'Étape 3', title: 'Observez votre confort', description: `Notez les situations où vous vous sentez plus à l'aise et ajustez votre routine sans excès.` },
+    { label: 'Étape 4', title: 'Maintenez la régularité', description: `La constance rend l'expérience plus fiable et évite de dépendre uniquement des solutions de dernière minute.` },
+  ];
+  const steps = [
+    ...(Array.isArray(premiumPage.ritualSection?.steps) ? premiumPage.ritualSection.steps : []),
+    ...(Array.isArray(fallbackPremiumPage.ritualSection?.steps) ? fallbackPremiumPage.ritualSection.steps : []),
+    ...stepDefaults,
+  ].reduce((acc, item, index) => {
+    const label = compactText(item?.label || `Étape ${index + 1}`, 32);
+    const title = compactText(item?.title || item?.action || '', 90);
+    const description = compactText(item?.description || item?.detail || '', 260);
+    if (isWeakPremiumText(title, 12) || isWeakPremiumText(description, 35)) return acc;
+    const key = normalizeLocaleKey(title);
+    if (acc.some((existing) => normalizeLocaleKey(existing.title) === key)) return acc;
+    acc.push({ ...item, label, title, description });
+    return acc;
+  }, []).slice(0, 4);
+
+  const comparisonColumns = (Array.isArray(premiumPage.comparisonSection?.columns) ? premiumPage.comparisonSection.columns : [])
+    .map((column) => compactText(column, 40))
+    .filter((column) => !isWeakPremiumText(column, 5));
+  const columns = comparisonColumns.length >= 3
+    ? comparisonColumns.slice(0, 3)
+    : [productName, 'Solution classique', 'Alternative rapide'];
+  const comparisonDefaults = [
+    { label: 'Cible le besoin principal avec une routine claire', values: [true, false, false] },
+    { label: 'Facile à intégrer dans la journée', values: [true, true, false] },
+    { label: 'Pensé pour une expérience rassurante avant achat', values: [true, false, false] },
+    { label: 'Convient aux moments où la confiance compte', values: [true, false, false] },
+    { label: 'Support client disponible pour accompagner la commande', values: [true, false, false] },
+  ];
+  const comparisonRows = [
+    ...(Array.isArray(premiumPage.comparisonSection?.rows) ? premiumPage.comparisonSection.rows : []),
+    ...(Array.isArray(fallbackPremiumPage.comparisonSection?.rows) ? fallbackPremiumPage.comparisonSection.rows : []),
+    ...comparisonDefaults,
+  ].reduce((acc, row) => {
+    const label = compactText(row?.label || '', 130);
+    if (isWeakPremiumText(label, 28)) return acc;
+    const key = normalizeLocaleKey(label);
+    if (acc.some((existing) => normalizeLocaleKey(existing.label) === key)) return acc;
+    const values = Array.isArray(row?.values) && row.values.length >= 3 ? row.values.slice(0, 3) : [true, false, false];
+    acc.push({ ...row, label, values });
+    return acc;
+  }, []).slice(0, 6);
+
+  const sanitizeTags = (tags = [], fallbackIndex = 0) => {
+    const defaults = ['Confiance', 'Routine simple', 'Expérience réelle', 'Livraison rapide', 'Service réactif'];
+    const clean = uniqueMeaningfulStrings(tags, 4).filter((tag) => !['verifie', 'acheteur verifie'].includes(normalizeLocaleKey(tag)));
+    while (clean.length < 2) clean.push(defaults[(fallbackIndex + clean.length) % defaults.length]);
+    return clean.slice(0, 2);
+  };
+  const testimonialFallbacks = Array.isArray(fallbackPremiumPage.testimonialGallery?.items) ? fallbackPremiumPage.testimonialGallery.items : [];
+  const testimonials = [
+    ...(Array.isArray(premiumPage.testimonialGallery?.items) ? premiumPage.testimonialGallery.items : []),
+    ...testimonialFallbacks,
+  ].reduce((acc, item, index) => {
+    const text = compactText(item?.text || '', 520);
+    if (isWeakPremiumText(text, 80)) return acc;
+    const name = compactText(item?.name || `Client ${index + 1}`, 40);
+    const key = normalizeLocaleKey(`${name}-${text.slice(0, 60)}`);
+    if (acc.some((existing) => normalizeLocaleKey(`${existing.name}-${existing.text.slice(0, 60)}`) === key)) return acc;
+    acc.push({
+      ...item,
+      name,
+      text,
+      tags: sanitizeTags(item?.tags, index),
+      rating: Number(item?.rating) || 5,
+      verified: item?.verified !== false,
+    });
+    return acc;
+  }, []).slice(0, 6);
+
+  return {
+    ...premiumPage,
+    hero: {
+      ...(premiumPage.hero || {}),
+      benefits: fillStrings(premiumPage.hero?.benefits, fallbackPremiumPage.hero?.benefits, benefitBase, 4, 22).slice(0, 4),
+    },
+    testimonialGallery: {
+      ...(premiumPage.testimonialGallery || {}),
+      headline: isWeakPremiumText(premiumPage.testimonialGallery?.headline, 24)
+        ? `Ils utilisent ${productName} avec plus de confiance`
+        : premiumPage.testimonialGallery.headline,
+      subheadline: isWeakPremiumText(premiumPage.testimonialGallery?.subheadline, 45)
+        ? `Des clients partagent des expériences concrètes autour de ${productName}, de la commande jusqu'à l'utilisation quotidienne.`
+        : premiumPage.testimonialGallery.subheadline,
+      items: testimonials.length >= 4 ? testimonials : testimonialFallbacks.slice(0, 4),
+    },
+    problemSection: {
+      ...(premiumPage.problemSection || {}),
+      headline: isWeakPremiumText(premiumPage.problemSection?.headline, 24)
+        ? `Pourquoi ce problème revient souvent`
+        : premiumPage.problemSection.headline,
+      bullets: problemBullets.slice(0, 4),
+    },
+    mechanismSection: {
+      ...(premiumPage.mechanismSection || {}),
+      headline: isWeakPremiumText(premiumPage.mechanismSection?.headline, 24)
+        ? `Pourquoi les solutions classiques ne suffisent pas toujours`
+        : premiumPage.mechanismSection.headline,
+      body: mechanismBody,
+    },
+    scienceSection: {
+      ...(premiumPage.scienceSection || {}),
+      headline: isWeakPremiumText(premiumPage.scienceSection?.headline, 24)
+        ? `Ce qui rend ${productName} différent`
+        : premiumPage.scienceSection.headline,
+      subheadline: isWeakPremiumText(premiumPage.scienceSection?.subheadline, 45)
+        ? `Une explication claire des éléments qui rendent le produit pratique, crédible et simple à utiliser.`
+        : premiumPage.scienceSection.subheadline,
+      items: scienceItems,
+    },
+    ritualSection: {
+      ...(premiumPage.ritualSection || {}),
+      headline: isWeakPremiumText(premiumPage.ritualSection?.headline, 22)
+        ? `Votre rituel avec ${productName}`
+        : premiumPage.ritualSection.headline,
+      subheadline: isWeakPremiumText(premiumPage.ritualSection?.subheadline, 38)
+        ? `Une routine courte, répétable et facile à garder dans la durée.`
+        : premiumPage.ritualSection.subheadline,
+      resultsTimeline,
+      steps,
+    },
+    comparisonSection: {
+      ...(premiumPage.comparisonSection || {}),
+      headline: isWeakPremiumText(premiumPage.comparisonSection?.headline, 12)
+        ? `Comparaison`
+        : premiumPage.comparisonSection.headline,
+      columns,
+      rows: comparisonRows,
+    },
+    closingSection: {
+      ...(premiumPage.closingSection || {}),
+      bullets: fillStrings(premiumPage.closingSection?.bullets, fallbackPremiumPage.closingSection?.bullets, benefitBase, 3, 20).slice(0, 4),
+    },
+  };
+}
+
 function buildPremiumImagePrompts(result = {}) {
   const premium = result.premium_page || {};
   const productName = result.title || premium.brandName || 'product';
@@ -730,14 +1023,14 @@ export async function analyzePremiumProductPage(scrapedData, imageBuffers = [], 
     "testimonialGallery": {
       "headline": "Titre émotionnel comme LEUR SECRET POUR...",
       "subheadline": "Phrase sociale",
-      "items": [{"name": "Prénom N.", "text": "Avis", "tags": ["Tag 1", "Tag 2"], "rating": 5, "verified": true, "imagePrompt": "English customer photo prompt"}]
+      "items": [{"name": "Prénom N.", "text": "Avis détaillé de 90 à 160 mots, avec situation réelle, hésitation, résultat ressenti et détail de livraison/service", "tags": ["Bénéfice concret", "Usage réel"], "rating": 5, "verified": true, "imagePrompt": "English customer photo prompt"}]
     },
-    "problemSection": {"headline": "Titre problème fort", "bullets": ["4 douleurs"], "imagePrompt": "English problem scene prompt"},
-    "mechanismSection": {"headline": "Titre cause/mécanisme", "body": "Paragraphe explicatif", "imagePrompt": "English mechanism image prompt"},
-    "scienceSection": {"headline": "Titre science/formule/technologie", "subheadline": "Sous-titre", "items": [{"name": "Actif ou fonction", "description": "Rôle concret", "imagePrompt": "English close-up prompt"}], "imagePrompt": "English explainer image prompt"},
-    "ritualSection": {"headline": "Titre rituel", "subheadline": "Sous-titre", "resultsTimeline": [{"label": "Jour 1", "description": "Résultat crédible"}], "steps": [{"label": "Étape 1", "title": "Action", "description": "Détail"}], "imagePrompt": "English ritual image prompt"},
-    "comparisonSection": {"columns": ["Produit", "Alternative 1", "Alternative 2"], "rows": [{"label": "Critère", "values": [true, false, false]}]},
-    "closingSection": {"headline": "Titre final", "subheadline": "Phrase finale", "bullets": ["3 bénéfices"], "imagePrompt": "English product callout prompt"}
+    "problemSection": {"headline": "Titre problème fort", "bullets": ["4 douleurs concrètes en phrases complètes de 16 à 28 mots"], "imagePrompt": "English problem scene prompt"},
+    "mechanismSection": {"headline": "Titre cause/mécanisme", "body": "Paragraphe explicatif consistant de 90 à 150 mots, adapté au produit", "imagePrompt": "English mechanism image prompt"},
+    "scienceSection": {"headline": "Titre science/formule/technologie", "subheadline": "Sous-titre de 35 à 70 mots", "items": [{"name": "Actif ou fonction spécifique", "description": "Rôle concret expliqué en 45 à 90 mots, sans promesse médicale", "imagePrompt": "English close-up prompt"}], "imagePrompt": "English explainer image prompt"},
+    "ritualSection": {"headline": "Titre rituel", "subheadline": "Sous-titre de 30 à 60 mots", "resultsTimeline": [{"label": "Jour 1", "description": "Résultat crédible en phrase complète"}], "steps": [{"label": "Étape 1", "title": "Action courte", "description": "Détail de 25 à 55 mots"}], "imagePrompt": "English ritual image prompt"},
+    "comparisonSection": {"columns": ["Nom du produit", "Solution classique", "Alternative rapide"], "rows": [{"label": "Critère concret en phrase complète", "values": [true, false, false]}]},
+    "closingSection": {"headline": "Titre final", "subheadline": "Phrase finale de 35 à 70 mots", "bullets": ["3 à 4 bénéfices concrets"], "imagePrompt": "English product callout prompt"}
   }
 }`;
 
@@ -757,6 +1050,10 @@ STRUCTURE PREMIUM OBLIGATOIRE :
 
 RÈGLES :
 - Chaque section doit être spécifique au produit et à ce qu'il fait.
+- La page doit être consistante : pas de titres isolés sans paragraphe, pas de bullet d'un seul mot, pas de ligne "Illustration", "Ingrédient actif", "Produit A", "Produit B", "Vérifié" utilisée comme contenu.
+- Minimums obligatoires : 4 avis détaillés, 4 douleurs problème, 4 items science/formule/fonctionnement, 4 étapes de rituel, 4 entrées de timeline, 5 lignes de comparaison.
+- Les avis doivent varier : noms différents, situations différentes, structure de phrase différente. Ne répète pas le nom dans le texte de l'avis. Ne mets jamais "Vérifié" comme tag, car l'interface l'affiche déjà.
+- Les textes doivent parler du produit réel : usage, contexte, hésitation avant achat, bénéfice ressenti, livraison, paiement à la livraison ou WhatsApp quand pertinent.
 - Style premium Shopify, titres courts, spacing généreux, pas de wording générique.
 - Langue principale : ${language}. Ton : ${tone}.
 - Marché : ${storeCountry || 'Afrique francophone'}${storeCity ? `, ville référence ${storeCity}` : ''}. ${localeLine}
@@ -869,7 +1166,11 @@ ${premiumContract}`;
   result.theme = 'premium_product';
 
   const fallbackPremiumPage = buildFallbackPremiumPage(result, title, storeContext);
-  result.premium_page = mergePremiumPage(fallbackPremiumPage, result.premium_page);
+  result.premium_page = strengthenPremiumPageContent(
+    mergePremiumPage(fallbackPremiumPage, result.premium_page),
+    fallbackPremiumPage,
+    result,
+  );
   result.premium_image_prompts = buildPremiumImagePrompts(result);
 
   return result;

@@ -519,6 +519,52 @@ async function ensureLinkedProductForImport({ existingLinkedProductId, requested
   return systemProduct._id;
 }
 
+function sameObjectId(left, right) {
+  return String(left || '') === String(right || '');
+}
+
+async function resolveUniqueStoreProductSlug({ baseSlug, name, workspaceId, excludeId = null }) {
+  const root = sanitizeSlug(baseSlug || name || 'produit') || `produit-${Date.now().toString(36)}`;
+  let slug = root;
+
+  for (let suffix = 2; suffix < 1000; suffix += 1) {
+    const existing = await StoreProduct.findOne({ workspaceId, slug }).select('_id').lean();
+    if (!existing || sameObjectId(existing._id, excludeId)) return slug;
+    slug = `${root}-${suffix}`;
+  }
+
+  return `${root}-${Date.now().toString(36)}`;
+}
+
+function canUpdateImportSlugMatch(req, product) {
+  if (!product) return false;
+  const activeStoreId = req.activeStoreId ? String(req.activeStoreId) : '';
+  const productStoreId = product.storeId ? String(product.storeId) : '';
+  return !activeStoreId || !productStoreId || activeStoreId === productStoreId;
+}
+
+async function findExistingStoreProductForImport(req, importedProduct) {
+  let existingProduct = null;
+
+  if (mongoose.Types.ObjectId.isValid(importedProduct.linkedProductId || '')) {
+    existingProduct = await StoreProduct.findOne({
+      linkedProductId: importedProduct.linkedProductId,
+      ...buildStoreFilter(req),
+    });
+  }
+
+  const importedSlug = sanitizeSlug(importedProduct.slug);
+  if (!existingProduct && importedSlug) {
+    const slugMatch = await StoreProduct.findOne({
+      workspaceId: req.workspaceId,
+      slug: importedSlug,
+    });
+    if (canUpdateImportSlugMatch(req, slugMatch)) existingProduct = slugMatch;
+  }
+
+  return existingProduct;
+}
+
 // Configure multer for memory storage (files uploaded to Cloudflare, not local disk)
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -757,7 +803,12 @@ router.post('/:id/import/csv', requireEcomAuth, requireWorkspace, requireStoreOw
     };
 
     const importedSlug = sanitizeSlug(importedProduct.slug);
-    if (importedSlug) update.slug = importedSlug;
+    update.slug = await resolveUniqueStoreProductSlug({
+      baseSlug: importedSlug || existingProduct.slug || name,
+      name,
+      workspaceId: req.workspaceId,
+      excludeId: existingProduct._id,
+    });
 
     const product = await StoreProduct.findOneAndUpdate(
       { _id: req.params.id, workspaceId: req.workspaceId },
@@ -822,13 +873,7 @@ router.post('/import/csv', requireEcomAuth, requireWorkspace, requireStoreOwner,
       }
 
       try {
-        let existingProduct = null;
-        if (mongoose.Types.ObjectId.isValid(importedProduct.linkedProductId || '')) {
-          existingProduct = await StoreProduct.findOne({ linkedProductId: importedProduct.linkedProductId, ...buildStoreFilter(req) });
-        }
-        if (!existingProduct && importedProduct.slug) {
-          existingProduct = await StoreProduct.findOne({ slug: sanitizeSlug(importedProduct.slug), ...buildStoreFilter(req) });
-        }
+        const existingProduct = await findExistingStoreProductForImport(req, importedProduct);
 
         const linkedProductId = await ensureLinkedProductForImport({
           existingLinkedProductId: existingProduct?.linkedProductId,
@@ -872,9 +917,15 @@ router.post('/import/csv', requireEcomAuth, requireWorkspace, requireStoreOwner,
 
         const importedSlug = sanitizeSlug(importedProduct.slug);
         if (existingProduct) {
+          const resolvedSlug = await resolveUniqueStoreProductSlug({
+            baseSlug: importedSlug || existingProduct.slug || name,
+            name,
+            workspaceId: req.workspaceId,
+            excludeId: existingProduct._id,
+          });
           const update = {
             ...payload,
-            slug: importedSlug || existingProduct.slug,
+            slug: resolvedSlug,
           };
 
           await StoreProduct.updateOne(
@@ -883,10 +934,15 @@ router.post('/import/csv', requireEcomAuth, requireWorkspace, requireStoreOwner,
           );
           stats.updated += 1;
         } else {
+          const resolvedSlug = await resolveUniqueStoreProductSlug({
+            baseSlug: importedSlug || name,
+            name,
+            workspaceId: req.workspaceId,
+          });
           const product = new StoreProduct({
             ...payload,
             createdBy: req.user.id,
-            ...(importedSlug && { slug: importedSlug }),
+            slug: resolvedSlug,
           });
           await product.save();
           stats.created += 1;

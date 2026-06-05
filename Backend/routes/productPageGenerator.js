@@ -118,6 +118,9 @@ function buildTaskImagesPayload(imageData = {}) {
     premiumImages: imageData.premiumImages && typeof imageData.premiumImages === 'object'
       ? {
         hero: imageData.premiumImages.hero || null,
+        heroGallery: Array.isArray(imageData.premiumImages.heroGallery)
+          ? imageData.premiumImages.heroGallery.filter((entry) => entry?.url)
+          : [],
         problem: imageData.premiumImages.problem || null,
         mechanism: imageData.premiumImages.mechanism || null,
         science: imageData.premiumImages.science || null,
@@ -146,6 +149,9 @@ function mergeTaskProductWithImages(task = {}) {
     product.premiumImages = {
       ...(product.premiumImages || {}),
       ...imgs.premiumImages,
+      heroGallery: imgs.premiumImages.heroGallery?.length
+        ? imgs.premiumImages.heroGallery
+        : (product.premiumImages?.heroGallery || []),
       testimonials: imgs.premiumImages.testimonials?.length
         ? imgs.premiumImages.testimonials
         : (product.premiumImages?.testimonials || []),
@@ -169,6 +175,7 @@ function mergeTaskProductWithImages(task = {}) {
     ...(imgs.beforeAfterImages || []),
     ...(imgs.premiumImages ? [
       imgs.premiumImages.hero,
+      ...(imgs.premiumImages.heroGallery || []).map((entry) => entry?.url),
       imgs.premiumImages.problem,
       imgs.premiumImages.mechanism,
       imgs.premiumImages.science,
@@ -740,14 +747,24 @@ function getPremiumImageEntries(productData = {}) {
   const prompts = productData.premium_image_prompts || {};
   const productName = productData.title || premium.brandName || 'Produit';
   const basePrompt = 'Photorealistic premium Shopify product page section, modern African ecommerce campaign, authentic Black African people when people are present, bright high-end interior, clean spacing, product visible, no fake press logos, no long text overlay.';
-  const entries = [
-    {
-      key: 'hero',
-      label: 'Hero premium',
-      mode: 'hero',
-      aspectRatio: '1:1',
-      prompt: prompts.hero || premium.hero?.imagePrompt || `Large premium product hero packshot for ${productName}, product and packaging sharp on white ecommerce background, soft shadows. ${basePrompt}`,
-    },
+  // Set d'images HERO dédié (5 boards distincts), séparé des sections et des UGC.
+  const heroPrompts = Array.isArray(prompts.hero) ? prompts.hero : [];
+  const heroBoardPrompts = [
+    heroPrompts[0] || premium.hero?.imagePrompt || `Large premium product hero packshot for ${productName}, the product and its packaging large, sharp and centered on a clean studio ecommerce background, soft premium shadow. ${basePrompt}`,
+    heroPrompts[1] || `Premium ingredient and composition board for ${productName}: the product next to a clean infographic panel listing key ingredients or specs with short labels, modern Shopify look. ${basePrompt}`,
+    heroPrompts[2] || `Premium how-to-use board for ${productName}: a 2x2 grid of an authentic Black African person using the product step by step with short captions, modern lifestyle. ${basePrompt}`,
+    heroPrompts[3] || `Premium comparison board for ${productName}: two columns "AUTRES" versus the product with short green ticks showing why the product wins, clean ecommerce infographic. ${basePrompt}`,
+    heroPrompts[4] || `Premium benefits callout board for ${productName}: the product large and sharp with elegant lines pointing to 4 short key benefits on a spacious background. ${basePrompt}`,
+  ];
+  const entries = heroBoardPrompts.map((prompt, index) => ({
+    key: index === 0 ? 'hero' : `hero_board_${index + 1}`,
+    label: `Hero premium ${index + 1}`,
+    mode: index === 0 ? 'hero' : 'scene',
+    aspectRatio: '1:1',
+    prompt,
+    heroIndex: index,
+  }));
+  entries.push(
     {
       key: 'problem',
       label: 'Problème premium',
@@ -783,20 +800,32 @@ function getPremiumImageEntries(productData = {}) {
       aspectRatio: '1:1',
       prompt: prompts.closing || premium.closingSection?.imagePrompt || `Large premium product callout image for ${productName}, product sharp with elegant feature lines and spacious white background. ${basePrompt}`,
     },
-  ];
+  );
 
   const testimonialPrompts = Array.isArray(prompts.testimonials) ? prompts.testimonials : [];
-  const testimonialItems = Array.isArray(premium.testimonialGallery?.items) ? premium.testimonialGallery.items : [];
-  testimonialItems.slice(0, 4).forEach((item, index) => {
+  // Au moins 6 photos UGC ultra naturelles (iPhone), personne réelle avec le produit en main, AUCUN texte/titre sur l'image.
+  const ugcScenes = [
+    'in a bright home kitchen',
+    'in a cozy living room with soft daylight',
+    'outdoors on a sunny street',
+    'near a window in a bedroom',
+    'taking a casual mirror selfie in a bathroom',
+    'sitting at a table with a glass of water',
+  ];
+  const noTextSuffix = ' ABSOLUTELY NO text, no caption, no title, no quote, no typography, no watermark and no logo overlay anywhere on the image — just the real person and the product.';
+  const TESTIMONIAL_IMAGE_COUNT = 6;
+  for (let index = 0; index < TESTIMONIAL_IMAGE_COUNT; index += 1) {
+    const scene = ugcScenes[index % ugcScenes.length];
+    const ugcPrompt = `Authentic candid amateur smartphone photo shot on an iPhone, a real satisfied Black African customer ${scene}, naturally holding ${productName} in hand and smiling, ultra natural user-generated content (UGC) selfie style, realistic skin texture and small imperfections, natural lighting, slightly imperfect framing, looks like a genuine customer review photo.${noTextSuffix}`;
     entries.push({
       key: `testimonial_${index + 1}`,
       label: `Témoignage premium ${index + 1}`,
       mode: 'social_proof',
       aspectRatio: '3:4',
-      prompt: testimonialPrompts[index] || item?.imagePrompt || `Realistic verified customer photo for ${productName}, satisfied Black African ecommerce customer holding or using the product, natural light, authentic expression. ${basePrompt}`,
+      prompt: testimonialPrompts[index] ? `${testimonialPrompts[index]}${noTextSuffix}` : ugcPrompt,
       testimonialIndex: index,
     });
-  });
+  }
 
   return entries.filter((entry) => entry.prompt);
 }
@@ -804,6 +833,7 @@ function getPremiumImageEntries(productData = {}) {
 function countPremiumImages(premiumImages = {}) {
   return [
     premiumImages.hero,
+    ...((premiumImages.heroGallery || []).map((entry) => entry?.url).filter(Boolean)),
     premiumImages.problem,
     premiumImages.mechanism,
     premiumImages.science,
@@ -823,12 +853,13 @@ function buildPremiumImageSeed(realPhotos = []) {
   const pick = (index) => photos[index % photos.length] || null;
   return {
     hero: pick(0),
+    heroGallery: photos.slice(0, 5).map((url, index) => ({ index, url })),
     problem: pick(1),
     mechanism: pick(2),
     science: pick(3),
     ritual: pick(4),
     closing: pick(5),
-    testimonials: photos.slice(0, 4).map((url, index) => ({ index, url })),
+    testimonials: photos.slice(0, 6).map((url, index) => ({ index, url })),
   };
 }
 
@@ -926,6 +957,7 @@ async function runBackgroundPremiumImageGeneration({
     jobData.total = imageEntries.length;
     jobData.premiumImages = {
       hero: jobData.premiumImages?.hero || null,
+      heroGallery: Array.isArray(jobData.premiumImages?.heroGallery) ? jobData.premiumImages.heroGallery : [],
       problem: jobData.premiumImages?.problem || null,
       mechanism: jobData.premiumImages?.mechanism || null,
       science: jobData.premiumImages?.science || null,
@@ -946,7 +978,15 @@ async function runBackgroundPremiumImageGeneration({
     for (const entry of imageEntries) {
       const url = await generateAndUpload(entry.prompt, `premium-${entry.key}-${Date.now()}.png`, entry.mode, entry.aspectRatio);
       if (url) {
-        if (entry.testimonialIndex !== undefined) {
+        if (entry.heroIndex !== undefined) {
+          const nextHero = [...(jobData.premiumImages.heroGallery || [])].filter((item) => item?.index !== entry.heroIndex);
+          nextHero.push({ index: entry.heroIndex, url });
+          jobData.premiumImages.heroGallery = nextHero.sort((left, right) => left.index - right.index);
+          if (entry.heroIndex === 0) {
+            jobData.premiumImages.hero = url;
+            jobData.heroImage = url;
+          }
+        } else if (entry.testimonialIndex !== undefined) {
           const nextTestimonials = [...(jobData.premiumImages.testimonials || [])].filter((item) => item?.index !== entry.testimonialIndex);
           nextTestimonials.push({ index: entry.testimonialIndex, url });
           jobData.premiumImages.testimonials = nextTestimonials.sort((left, right) => left.index - right.index);

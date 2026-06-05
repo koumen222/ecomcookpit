@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { ArrowUpDown, Plus, Trash2, Edit3, ChevronUp, ChevronDown, ToggleLeft, ToggleRight, CheckSquare, X, Tag, Zap, AlertTriangle, GripVertical, Check } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { ArrowUpDown, Plus, Trash2, Edit3, ChevronUp, ChevronDown, ToggleLeft, ToggleRight, CheckSquare, X, Tag, Zap, AlertTriangle, GripVertical, Check, Package } from 'lucide-react';
+import { storeProductsApi } from '../services/storeApi.js';
 
 // ── Tab IDs ────────────────────────────────────────────────────────────────
 const TABS = [
@@ -110,47 +111,163 @@ const DiscountTypeSelector = ({ value, onChange }) => (
   </div>
 );
 
+const readProducts = (response) => {
+  const raw = response?.data?.data;
+  if (Array.isArray(raw)) return raw;
+  if (Array.isArray(raw?.items)) return raw.items;
+  if (Array.isArray(raw?.products)) return raw.products;
+  return [];
+};
+
+const getProductId = (product) => product?._id || product?.id || '';
+const getProductName = (product) => product?.name || product?.title || 'Produit sans nom';
+
+const normalizeUpsellOffer = (offer) => ({
+  id: offer.id,
+  targetProductId: offer.targetProductId,
+  targetProductName: offer.targetProductName,
+  title: offer.title,
+  productName: offer.productName,
+  originalPrice: offer.originalPrice,
+  offerPrice: offer.offerPrice,
+  discountType: offer.discountType,
+  discountValue: offer.discountValue,
+  description: offer.description,
+  isActive: offer.isActive,
+});
+
+const normalizeExitOffer = (offer) => ({
+  id: offer.id,
+  targetProductId: offer.targetProductId,
+  targetProductName: offer.targetProductName,
+  title: offer.title,
+  desc: offer.desc,
+  discountType: offer.discountType,
+  discountValue: offer.discountValue,
+  couponCode: offer.couponCode,
+  triggerDelay: offer.triggerDelay,
+  isActive: offer.isActive,
+});
+
+const ProductTargetSelector = ({ value, onChange, products, loading, error }) => {
+  const selected = products.find(product => getProductId(product) === value);
+
+  return (
+    <div className="space-y-2">
+      <select
+        value={value || ''}
+        disabled={loading || products.length === 0}
+        onChange={(event) => {
+          const product = products.find(item => getProductId(item) === event.target.value);
+          onChange({
+            targetProductId: event.target.value,
+            targetProductName: product ? getProductName(product) : '',
+          });
+        }}
+        className="w-full h-10 px-3 rounded-xl border border-gray-200 text-sm outline-none focus:border-green-600 focus:ring-2 focus:ring-green-100 transition-all bg-white disabled:bg-gray-50 disabled:text-gray-400"
+      >
+        <option value="">{loading ? 'Chargement des produits...' : 'Choisir le produit concerné'}</option>
+        {products.map(product => (
+          <option key={getProductId(product)} value={getProductId(product)}>
+            {getProductName(product)}
+          </option>
+        ))}
+      </select>
+      {selected && (
+        <div className="flex items-center gap-2 rounded-xl border border-green-100 bg-green-50 px-3 py-2 text-xs text-green-800">
+          <Package size={13} />
+          <span className="font-medium">Cette offre s'applique à : {getProductName(selected)}</span>
+        </div>
+      )}
+      {!loading && products.length === 0 && (
+        <p className="text-[10px] text-red-500">{error || 'Aucun produit disponible. Créez un produit avant de configurer cette offre.'}</p>
+      )}
+    </div>
+  );
+};
+
 // ═══════════════════════════════════════════════════════════════════════════
 // Tab 1 — 1-Click Upsells
 // ═══════════════════════════════════════════════════════════════════════════
-const BLANK_UPSELL = { id: null, title: '', productName: '', originalPrice: '', offerPrice: '', discountType: 'percent', discountValue: '', description: '', isActive: true };
+const BLANK_UPSELL = { id: null, targetProductId: '', targetProductName: '', title: '', productName: '', originalPrice: '', offerPrice: '', discountType: 'percent', discountValue: '', description: '', isActive: true };
 
-const UpsellsTab = () => {
+const UpsellsTab = ({ products, loadingProducts, productError, saveProductUpsells }) => {
   const [offers, setOffers] = useState([
-    { id: 1, title: 'Protection expédition', productName: 'Pack Protection', originalPrice: 2500, offerPrice: 1500, discountType: 'fixed', discountValue: 1000, description: 'Protégez votre commande contre la perte ou les dommages.', isActive: true },
+    { id: 1, targetProductId: '', targetProductName: 'Produit à choisir', title: 'Protection expédition', productName: 'Pack Protection', originalPrice: 2500, offerPrice: 1500, discountType: 'fixed', discountValue: 1000, description: 'Protégez votre commande contre la perte ou les dommages.', isActive: true },
   ]);
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(BLANK_UPSELL);
+  const [formError, setFormError] = useState('');
+  const [saving, setSaving] = useState(false);
 
   const openNew = () => {
     setEditing(null);
     setForm({ ...BLANK_UPSELL, id: Date.now() });
+    setFormError('');
     setShowModal(true);
   };
-  const openEdit = (o) => { setEditing(o.id); setForm({ ...o }); setShowModal(true); };
+  const openEdit = (o) => { setEditing(o.id); setForm({ ...o }); setFormError(''); setShowModal(true); };
   const closeModal = () => setShowModal(false);
 
-  const save = () => {
-    if (!form.title.trim()) return;
-    if (editing) {
-      setOffers(prev => prev.map(o => o.id === editing ? { ...form } : o));
-    } else {
-      if (offers.length >= 5) return;
-      setOffers(prev => [...prev, { ...form }]);
-    }
-    closeModal();
+  const syncUpsellsForProduct = async (productId, nextOffers) => {
+    if (!productId) return;
+    const productOffers = nextOffers.filter(offer => offer.targetProductId === productId).slice(0, 5);
+    await saveProductUpsells(productId, (upsells = {}) => ({
+      ...upsells,
+      offers: productOffers.map(normalizeUpsellOffer),
+    }));
   };
 
-  const remove = (id) => setOffers(prev => prev.filter(o => o.id !== id));
-  const toggle = (id) => setOffers(prev => prev.map(o => o.id === id ? { ...o, isActive: !o.isActive } : o));
-  const move = (id, dir) => {
+  const save = async () => {
+    if (!form.title.trim()) return;
+    if (!form.targetProductId) {
+      setFormError("Choisissez le produit sur lequel cette offre va s'appliquer.");
+      return;
+    }
+    setSaving(true);
+    setFormError('');
+    try {
+      const previousOffer = offers.find(o => o.id === editing);
+      const nextOffers = editing
+        ? offers.map(o => o.id === editing ? { ...form } : o)
+        : [...offers, { ...form }];
+
+      if (!editing && offers.length >= 5) return;
+      await syncUpsellsForProduct(form.targetProductId, nextOffers);
+      if (previousOffer?.targetProductId && previousOffer.targetProductId !== form.targetProductId) {
+        await syncUpsellsForProduct(previousOffer.targetProductId, nextOffers);
+      }
+      setOffers(nextOffers);
+      closeModal();
+    } catch {
+      setFormError("Impossible d'enregistrer cette offre sur le produit choisi.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const remove = async (id) => {
+    const removed = offers.find(o => o.id === id);
+    const nextOffers = offers.filter(o => o.id !== id);
+    setOffers(nextOffers);
+    if (removed?.targetProductId) await syncUpsellsForProduct(removed.targetProductId, nextOffers).catch(() => {});
+  };
+  const toggle = async (id) => {
+    const nextOffers = offers.map(o => o.id === id ? { ...o, isActive: !o.isActive } : o);
+    const changed = nextOffers.find(o => o.id === id);
+    setOffers(nextOffers);
+    if (changed?.targetProductId) await syncUpsellsForProduct(changed.targetProductId, nextOffers).catch(() => {});
+  };
+  const move = async (id, dir) => {
     const idx = offers.findIndex(o => o.id === id);
     const next = idx + dir;
     if (next < 0 || next >= offers.length) return;
     const arr = [...offers];
     [arr[idx], arr[next]] = [arr[next], arr[idx]];
     setOffers(arr);
+    const changedProductIds = [...new Set([arr[idx]?.targetProductId, arr[next]?.targetProductId].filter(Boolean))];
+    await Promise.all(changedProductIds.map(productId => syncUpsellsForProduct(productId, arr).catch(() => {})));
   };
 
   const fmt = (n) => n ? `${Number(n).toLocaleString('fr-FR')} FCFA` : '—';
@@ -222,6 +339,8 @@ const UpsellsTab = () => {
                     <Badge color={o.isActive ? 'green' : 'gray'}>{o.isActive ? 'Actif' : 'Inactif'}</Badge>
                   </div>
                   <div className="flex items-center gap-3 text-xs text-gray-500">
+                    <span className="inline-flex items-center gap-1"><Package size={10} /> {o.targetProductName || 'Produit à choisir'}</span>
+                    <span className="text-gray-300">·</span>
                     <span>{o.productName || '—'}</span>
                     <span className="text-gray-300">·</span>
                     <span className="font-medium text-green-700">{fmt(o.offerPrice)}</span>
@@ -262,6 +381,15 @@ const UpsellsTab = () => {
             <FormField label="Titre de l'offre *">
               <Input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="Ex: Protection expédition" />
             </FormField>
+            <FormField label="Produit concerné *" hint="L'upsell sera affiché uniquement quand ce produit est commandé.">
+              <ProductTargetSelector
+                value={form.targetProductId}
+                onChange={(selection) => setForm(f => ({ ...f, ...selection }))}
+                products={products}
+                loading={loadingProducts}
+                error={productError}
+              />
+            </FormField>
             <FormField label="Nom du produit">
               <Input value={form.productName} onChange={e => setForm(f => ({ ...f, productName: e.target.value }))} placeholder="Ex: Pack Protection Premium" />
             </FormField>
@@ -288,12 +416,13 @@ const UpsellsTab = () => {
               <span className="text-sm font-medium text-gray-700">Activer cette offre</span>
               <Toggle on={form.isActive} onChange={v => setForm(f => ({ ...f, isActive: v }))} />
             </div>
+            {formError && <p className="rounded-xl bg-red-50 px-3 py-2 text-xs font-medium text-red-600">{formError}</p>}
             <div className="flex gap-2 pt-2">
               <button onClick={closeModal} className="flex-1 h-11 bg-gray-100 text-gray-700 rounded-2xl text-sm font-medium hover:bg-gray-200 transition-colors">
                 Annuler
               </button>
-              <button onClick={save} className="flex-1 h-11 bg-green-600 text-white rounded-2xl text-sm font-medium hover:bg-green-700 transition-colors">
-                {editing ? 'Enregistrer' : "Créer l'offre"}
+              <button onClick={save} disabled={saving} className="flex-1 h-11 bg-green-600 text-white rounded-2xl text-sm font-medium hover:bg-green-700 disabled:opacity-60 transition-colors">
+                {saving ? 'Enregistrement...' : editing ? 'Enregistrer' : "Créer l'offre"}
               </button>
             </div>
           </div>
@@ -314,11 +443,13 @@ const BUMP_PRESETS = [
   { id: 'custom', label: 'Personnalisé', desc: 'Définir votre propre offre' },
 ];
 
-const BLANK_BUMP = { preset: 'shipping', title: '', desc: '', price: '', isActive: false };
+const BLANK_BUMP = { preset: 'shipping', targetProductId: '', targetProductName: '', title: '', desc: '', price: '', isActive: false };
 
-const OrderBumpTab = () => {
-  const [bump, setBump] = useState({ preset: 'shipping', title: 'Protection expédition', desc: 'Protège votre commande contre la perte ou les dommages pendant la livraison.', price: '500', isActive: true });
+const OrderBumpTab = ({ products, loadingProducts, productError, saveProductUpsells }) => {
+  const [bump, setBump] = useState({ preset: 'shipping', targetProductId: '', targetProductName: '', title: 'Protection expédition', desc: 'Protège votre commande contre la perte ou les dommages pendant la livraison.', price: '500', isActive: true });
   const [saved, setSaved] = useState(false);
+  const [formError, setFormError] = useState('');
+  const [saving, setSaving] = useState(false);
 
   const preset = BUMP_PRESETS.find(p => p.id === bump.preset);
 
@@ -330,9 +461,25 @@ const OrderBumpTab = () => {
     }
   };
 
-  const save = () => {
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2500);
+  const save = async () => {
+    if (!bump.targetProductId) {
+      setFormError("Choisissez le produit où afficher ce Order Bump.");
+      return;
+    }
+    setFormError('');
+    setSaving(true);
+    try {
+      await saveProductUpsells(bump.targetProductId, (upsells = {}) => ({
+        ...upsells,
+        bump: { ...bump },
+      }));
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } catch {
+      setFormError("Impossible d'enregistrer ce Order Bump sur le produit choisi.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -382,6 +529,15 @@ const OrderBumpTab = () => {
       <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-4">
         <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Configuration</p>
         <div className="space-y-3">
+          <FormField label="Produit concerné *" hint="La case Order Bump sera visible dans le checkout de ce produit.">
+            <ProductTargetSelector
+              value={bump.targetProductId}
+              onChange={(selection) => setBump(b => ({ ...b, ...selection }))}
+              products={products}
+              loading={loadingProducts}
+              error={productError}
+            />
+          </FormField>
           <FormField label="Titre affiché *">
             <Input value={bump.title} onChange={e => setBump(b => ({ ...b, title: e.target.value }))} placeholder="Ex: Protection expédition" />
           </FormField>
@@ -398,6 +554,11 @@ const OrderBumpTab = () => {
       {bump.title && (
         <div className="bg-white rounded-xl border border-gray-200 p-4">
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Aperçu dans le formulaire</p>
+          {bump.targetProductName && (
+            <p className="mb-2 inline-flex items-center gap-1 rounded-lg bg-gray-100 px-2 py-1 text-[10px] font-semibold text-gray-600">
+              <Package size={11} /> Produit : {bump.targetProductName}
+            </p>
+          )}
           <div className="border-2 border-dashed border-gray-200 rounded-xl p-4">
             <div className="flex items-start gap-3">
               <div className="w-5 h-5 rounded border-2 border-green-600 bg-green-600 flex items-center justify-center mt-0.5 shrink-0">
@@ -415,12 +576,14 @@ const OrderBumpTab = () => {
       {/* Save */}
       <button
         onClick={save}
+        disabled={saving}
         className={`w-full h-11 rounded-xl text-sm font-medium flex items-center justify-center gap-2 transition-all ${
-          saved ? 'bg-green-50 border border-green-200 text-green-700' : 'bg-green-600 text-white hover:bg-green-700'
+          saved ? 'bg-green-50 border border-green-200 text-green-700' : 'bg-green-600 text-white hover:bg-green-700 disabled:opacity-60'
         }`}
       >
-        {saved ? <><Check size={15} /> Enregistré</> : 'Enregistrer le Order Bump'}
+        {saving ? 'Enregistrement...' : saved ? <><Check size={15} /> Enregistré</> : 'Enregistrer le Order Bump'}
       </button>
+      {formError && <p className="rounded-xl bg-red-50 px-3 py-2 text-xs font-medium text-red-600">{formError}</p>}
     </div>
   );
 };
@@ -428,32 +591,69 @@ const OrderBumpTab = () => {
 // ═══════════════════════════════════════════════════════════════════════════
 // Tab 3 — Exit-intent / Offres supplémentaires
 // ═══════════════════════════════════════════════════════════════════════════
-const BLANK_EXIT = { id: null, title: '', desc: '', discountType: 'percent', discountValue: '', couponCode: '', triggerDelay: '3', isActive: true };
+const BLANK_EXIT = { id: null, targetProductId: '', targetProductName: '', title: '', desc: '', discountType: 'percent', discountValue: '', couponCode: '', triggerDelay: '3', isActive: true };
 
-const ExitOffersTab = () => {
+const ExitOffersTab = ({ products, loadingProducts, productError, saveProductUpsells }) => {
   const [offers, setOffers] = useState([
-    { id: 1, title: 'Attendez ! Voici 10% de remise', desc: 'Utilisez ce code exclusif avant de partir.', discountType: 'percent', discountValue: '10', couponCode: 'RESTE10', triggerDelay: '3', isActive: true },
+    { id: 1, targetProductId: '', targetProductName: 'Produit à choisir', title: 'Attendez ! Voici 10% de remise', desc: 'Utilisez ce code exclusif avant de partir.', discountType: 'percent', discountValue: '10', couponCode: 'RESTE10', triggerDelay: '3', isActive: true },
   ]);
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(BLANK_EXIT);
+  const [formError, setFormError] = useState('');
+  const [saving, setSaving] = useState(false);
 
-  const openNew = () => { setEditing(null); setForm({ ...BLANK_EXIT, id: Date.now() }); setShowModal(true); };
-  const openEdit = (o) => { setEditing(o.id); setForm({ ...o }); setShowModal(true); };
+  const openNew = () => { setEditing(null); setForm({ ...BLANK_EXIT, id: Date.now() }); setFormError(''); setShowModal(true); };
+  const openEdit = (o) => { setEditing(o.id); setForm({ ...o }); setFormError(''); setShowModal(true); };
   const closeModal = () => setShowModal(false);
 
-  const save = () => {
+  const save = async () => {
     if (!form.title.trim()) return;
-    if (editing) {
-      setOffers(prev => prev.map(o => o.id === editing ? { ...form } : o));
-    } else {
-      setOffers(prev => [...prev, { ...form }]);
+    if (!form.targetProductId) {
+      setFormError("Choisissez le produit sur lequel cette offre supplémentaire va s'appliquer.");
+      return;
     }
-    closeModal();
+    setSaving(true);
+    setFormError('');
+    try {
+      await saveProductUpsells(form.targetProductId, (upsells = {}) => ({
+        ...upsells,
+        exit: normalizeExitOffer(form),
+      }));
+      if (editing) {
+        setOffers(prev => prev.map(o => o.id === editing ? { ...form } : o));
+      } else {
+        setOffers(prev => [...prev, { ...form }]);
+      }
+      closeModal();
+    } catch {
+      setFormError("Impossible d'enregistrer cette offre sur le produit choisi.");
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const remove = (id) => setOffers(prev => prev.filter(o => o.id !== id));
-  const toggle = (id) => setOffers(prev => prev.map(o => o.id === id ? { ...o, isActive: !o.isActive } : o));
+  const remove = async (id) => {
+    const removed = offers.find(o => o.id === id);
+    setOffers(prev => prev.filter(o => o.id !== id));
+    if (removed?.targetProductId) {
+      await saveProductUpsells(removed.targetProductId, (upsells = {}) => ({
+        ...upsells,
+        exit: upsells.exit?.id === id ? null : upsells.exit,
+      })).catch(() => {});
+    }
+  };
+  const toggle = async (id) => {
+    const nextOffers = offers.map(o => o.id === id ? { ...o, isActive: !o.isActive } : o);
+    const changed = nextOffers.find(o => o.id === id);
+    setOffers(nextOffers);
+    if (changed?.targetProductId) {
+      await saveProductUpsells(changed.targetProductId, (upsells = {}) => ({
+        ...upsells,
+        exit: normalizeExitOffer(changed),
+      })).catch(() => {});
+    }
+  };
 
   const discountLabel = (o) => {
     if (o.discountType === 'percent') return `${o.discountValue}% de remise`;
@@ -511,6 +711,8 @@ const ExitOffersTab = () => {
                   </div>
                   <div className="flex items-center gap-3 text-xs text-gray-500">
                     <span className="font-medium text-green-700">{discountLabel(o)}</span>
+                    <span className="text-gray-300">·</span>
+                    <span className="inline-flex items-center gap-1"><Package size={10} /> {o.targetProductName || 'Produit à choisir'}</span>
                     {o.couponCode && (
                       <>
                         <span className="text-gray-300">·</span>
@@ -555,6 +757,15 @@ const ExitOffersTab = () => {
             <FormField label="Titre du pop-up *">
               <Input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="Ex: Attendez ! Voici 10% de remise" />
             </FormField>
+            <FormField label="Produit concerné *" hint="Le pop-up sera rattaché uniquement à ce produit.">
+              <ProductTargetSelector
+                value={form.targetProductId}
+                onChange={(selection) => setForm(f => ({ ...f, ...selection }))}
+                products={products}
+                loading={loadingProducts}
+                error={productError}
+              />
+            </FormField>
             <FormField label="Message">
               <Textarea value={form.desc} onChange={e => setForm(f => ({ ...f, desc: e.target.value }))} placeholder="Texte principal du pop-up…" />
             </FormField>
@@ -576,12 +787,13 @@ const ExitOffersTab = () => {
               <span className="text-sm font-medium text-gray-700">Activer cette offre</span>
               <Toggle on={form.isActive} onChange={v => setForm(f => ({ ...f, isActive: v }))} />
             </div>
+            {formError && <p className="rounded-xl bg-red-50 px-3 py-2 text-xs font-medium text-red-600">{formError}</p>}
             <div className="flex gap-2 pt-2">
               <button onClick={closeModal} className="flex-1 h-11 bg-gray-100 text-gray-700 rounded-2xl text-sm font-medium hover:bg-gray-200 transition-colors">
                 Annuler
               </button>
-              <button onClick={save} className="flex-1 h-11 bg-green-600 text-white rounded-2xl text-sm font-medium hover:bg-green-700 transition-colors">
-                {editing ? 'Enregistrer' : "Créer l'offre"}
+              <button onClick={save} disabled={saving} className="flex-1 h-11 bg-green-600 text-white rounded-2xl text-sm font-medium hover:bg-green-700 disabled:opacity-60 transition-colors">
+                {saving ? 'Enregistrement...' : editing ? 'Enregistrer' : "Créer l'offre"}
               </button>
             </div>
           </div>
@@ -596,6 +808,47 @@ const ExitOffersTab = () => {
 // ═══════════════════════════════════════════════════════════════════════════
 const FormUpsellsPage = () => {
   const [activeTab, setActiveTab] = useState('upsells');
+  const [products, setProducts] = useState([]);
+  const [loadingProducts, setLoadingProducts] = useState(true);
+  const [productError, setProductError] = useState('');
+
+  useEffect(() => {
+    let mounted = true;
+    setLoadingProducts(true);
+    storeProductsApi.getProducts({ limit: 200 })
+      .then((response) => {
+        if (!mounted) return;
+        setProducts(readProducts(response));
+        setProductError('');
+      })
+      .catch(() => {
+        if (!mounted) return;
+        setProducts([]);
+        setProductError('Impossible de charger les produits.');
+      })
+      .finally(() => {
+        if (mounted) setLoadingProducts(false);
+      });
+    return () => { mounted = false; };
+  }, []);
+
+  const saveProductUpsells = async (productId, updater) => {
+    const localProduct = products.find(product => getProductId(product) === productId);
+    const product = localProduct || (await storeProductsApi.getProduct(productId)).data?.data;
+    const currentConfig = product?.productPageConfig || {};
+    const currentUpsells = currentConfig.upsells || {};
+    const nextUpsells = updater(currentUpsells);
+    const nextConfig = {
+      ...currentConfig,
+      upsells: nextUpsells,
+    };
+
+    await storeProductsApi.updateProduct(productId, { productPageConfig: nextConfig });
+    setProducts(prev => prev.map(item => (
+      getProductId(item) === productId ? { ...item, productPageConfig: nextConfig } : item
+    )));
+    return nextConfig;
+  };
 
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6">
@@ -627,9 +880,9 @@ const FormUpsellsPage = () => {
       </div>
 
       {/* Tab content */}
-      {activeTab === 'upsells' && <UpsellsTab />}
-      {activeTab === 'bump' && <OrderBumpTab />}
-      {activeTab === 'exit' && <ExitOffersTab />}
+      {activeTab === 'upsells' && <UpsellsTab products={products} loadingProducts={loadingProducts} productError={productError} saveProductUpsells={saveProductUpsells} />}
+      {activeTab === 'bump' && <OrderBumpTab products={products} loadingProducts={loadingProducts} productError={productError} saveProductUpsells={saveProductUpsells} />}
+      {activeTab === 'exit' && <ExitOffersTab products={products} loadingProducts={loadingProducts} productError={productError} saveProductUpsells={saveProductUpsells} />}
     </div>
   );
 };
