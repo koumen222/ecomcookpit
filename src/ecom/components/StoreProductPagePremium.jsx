@@ -361,7 +361,7 @@ const StoreProductPagePremium = ({ product, store, productPageConfig, subdomain,
         .premium-carousel-track { display: flex; transition: transform .35s ease; }
         .premium-carousel-slide { min-width: 100%; flex: 0 0 100%; display: flex; align-items: center; justify-content: center; background: #fff; }
         .premium-carousel-slide { aspect-ratio: 1 / 1; }
-        .premium-carousel-slide img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .premium-carousel-slide img { width: 100%; height: 100%; object-fit: contain; display: block; }
         .premium-carousel-arrow { position: absolute; top: 50%; transform: translateY(-50%); width: 38px; height: 38px; border-radius: 999px; border: 0; background: rgba(255,255,255,0.92); box-shadow: 0 4px 14px rgba(0,0,0,0.12); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; color: #1f2933; z-index: 3; }
         .premium-carousel-arrow:hover { background: #fff; }
         .premium-carousel-arrow.prev { left: 10px; }
