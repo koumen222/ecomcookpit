@@ -72,6 +72,7 @@ const StoreProductPagePremium = ({ product, store, productPageConfig, subdomain,
   const [showOrderModal, setShowOrderModal] = useState(false);
   const [openFaq, setOpenFaq] = useState(null);
   const [openHeroAccordion, setOpenHeroAccordion] = useState(null);
+  const [activeHeroImage, setActiveHeroImage] = useState(0);
   const { cartCount } = useStoreCart(subdomain);
   const premium = productPageConfig?.premiumPage || product?._pageData?.premium_page || product?._pageData?.premiumPage || {};
   const design = productPageConfig?.design || {};
@@ -180,8 +181,14 @@ const StoreProductPagePremium = ({ product, store, productPageConfig, subdomain,
         .premium-cart-count { position: absolute; right: -10px; bottom: -8px; min-width: 20px; height: 20px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; background: var(--premium-accent); color: white; font-size: 11px; font-weight: 900; }
         .premium-section { padding: clamp(42px, 7vw, 96px) clamp(18px, 4vw, 86px); }
         .premium-hero { background: #fff; display: grid; grid-template-columns: minmax(0, 1.12fr) minmax(360px, 0.88fr); gap: clamp(28px, 5vw, 80px); align-items: center; padding-top: clamp(34px, 6vw, 86px); }
-        .premium-media { position: relative; overflow: hidden; min-height: 520px; background: #fff; display: flex; align-items: center; justify-content: center; }
-        .premium-media img { width: 100%; height: 100%; max-height: 720px; object-fit: contain; display: block; }
+        .premium-media { position: relative; overflow: hidden; min-height: 520px; background: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .premium-media-main { width: 100%; flex: 1; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+        .premium-media-main img { width: 100%; height: 100%; max-height: 620px; object-fit: contain; display: block; }
+        .premium-media-thumbs { display: flex; gap: 8px; padding: 12px 16px; overflow-x: auto; width: 100%; justify-content: center; }
+        .premium-media-thumb { width: 64px; height: 64px; border-radius: 10px; overflow: hidden; border: 2px solid transparent; cursor: pointer; flex-shrink: 0; opacity: 0.6; transition: all .15s; }
+        .premium-media-thumb.active { border-color: var(--premium-accent); opacity: 1; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .premium-media-thumb:hover { opacity: 1; }
+        .premium-media-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
         .premium-seal { position: absolute; top: 28px; left: 28px; width: 148px; height: 148px; border-radius: 50%; background: #B42318; color: white; display: flex; align-items: center; justify-content: center; text-align: center; font-weight: 950; font-size: 18px; line-height: 1.15; transform: rotate(-10deg); padding: 16px; box-shadow: 0 16px 36px rgba(180,35,24,0.22); }
         .premium-rating { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 28px; font-weight: 750; color: #34373d; }
         .premium-stars { display: inline-flex; gap: 2px; color: #FACC15; }
@@ -262,6 +269,8 @@ const StoreProductPagePremium = ({ product, store, productPageConfig, subdomain,
           .premium-brand { font-size: 24px; text-align: left; }
           .premium-hero, .premium-split { grid-template-columns: 1fr; }
           .premium-media { min-height: 320px; }
+          .premium-media-thumb { width: 52px; height: 52px; }
+          .premium-media-thumbs { padding: 8px 12px; gap: 6px; }
           .premium-seal { width: 112px; height: 112px; font-size: 14px; top: 18px; left: 18px; }
           .premium-card-grid { grid-template-columns: 1fr 1fr; gap: 12px; }
           .premium-split.reverse .premium-copy { order: initial; }
@@ -304,7 +313,18 @@ const StoreProductPagePremium = ({ product, store, productPageConfig, subdomain,
       <main>
         <section className="premium-section premium-hero">
           <div className="premium-media">
-            {heroImage && <img src={heroImage} alt={productName} />}
+            <div className="premium-media-main">
+              {gallery[activeHeroImage] && <img src={gallery[activeHeroImage]} alt={productName} />}
+            </div>
+            {gallery.length > 1 && (
+              <div className="premium-media-thumbs">
+                {gallery.slice(0, 6).map((img, idx) => (
+                  <div key={idx} className={`premium-media-thumb ${activeHeroImage === idx ? 'active' : ''}`} onClick={() => setActiveHeroImage(idx)}>
+                    <img src={img} alt={`${productName} ${idx + 1}`} />
+                  </div>
+                ))}
+              </div>
+            )}
             {textValue(product?._pageData?.urgency_badge || premium.hero?.eyebrow) && (
               <div className="premium-seal">{textValue(product?._pageData?.urgency_badge || premium.hero?.eyebrow, 'Offre limitée')}</div>
             )}
