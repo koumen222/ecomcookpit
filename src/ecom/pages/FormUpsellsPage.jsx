@@ -192,14 +192,28 @@ const ProductTargetSelector = ({ value, onChange, products, loading, error }) =>
 const BLANK_UPSELL = { id: null, targetProductId: '', targetProductName: '', title: '', productName: '', originalPrice: '', offerPrice: '', discountType: 'percent', discountValue: '', description: '', isActive: true };
 
 const UpsellsTab = ({ products, loadingProducts, productError, saveProductUpsells }) => {
-  const [offers, setOffers] = useState([
-    { id: 1, targetProductId: '', targetProductName: 'Produit à choisir', title: 'Protection expédition', productName: 'Pack Protection', originalPrice: 2500, offerPrice: 1500, discountType: 'fixed', discountValue: 1000, description: 'Protégez votre commande contre la perte ou les dommages.', isActive: true },
-  ]);
+  const [offers, setOffers] = useState([]);
+  const [loaded, setLoaded] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(BLANK_UPSELL);
   const [formError, setFormError] = useState('');
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (loadingProducts || loaded) return;
+    const existing = [];
+    for (const product of products) {
+      const upsells = product?.productPageConfig?.upsells;
+      if (upsells?.offers?.length) {
+        for (const offer of upsells.offers) {
+          existing.push({ ...offer, id: offer.id || Date.now() + Math.random(), targetProductId: getProductId(product), targetProductName: getProductName(product) });
+        }
+      }
+    }
+    setOffers(existing);
+    setLoaded(true);
+  }, [products, loadingProducts, loaded]);
 
   const openNew = () => {
     setEditing(null);
@@ -446,10 +460,23 @@ const BUMP_PRESETS = [
 const BLANK_BUMP = { preset: 'shipping', targetProductId: '', targetProductName: '', title: '', desc: '', price: '', isActive: false };
 
 const OrderBumpTab = ({ products, loadingProducts, productError, saveProductUpsells }) => {
-  const [bump, setBump] = useState({ preset: 'shipping', targetProductId: '', targetProductName: '', title: 'Protection expédition', desc: 'Protège votre commande contre la perte ou les dommages pendant la livraison.', price: '500', isActive: true });
+  const [bump, setBump] = useState(BLANK_BUMP);
+  const [loaded, setLoaded] = useState(false);
   const [saved, setSaved] = useState(false);
   const [formError, setFormError] = useState('');
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (loadingProducts || loaded) return;
+    for (const product of products) {
+      const bumpData = product?.productPageConfig?.upsells?.bump;
+      if (bumpData && bumpData.title) {
+        setBump({ ...BLANK_BUMP, ...bumpData, targetProductId: getProductId(product), targetProductName: getProductName(product) });
+        break;
+      }
+    }
+    setLoaded(true);
+  }, [products, loadingProducts, loaded]);
 
   const preset = BUMP_PRESETS.find(p => p.id === bump.preset);
 
@@ -594,14 +621,26 @@ const OrderBumpTab = ({ products, loadingProducts, productError, saveProductUpse
 const BLANK_EXIT = { id: null, targetProductId: '', targetProductName: '', title: '', desc: '', discountType: 'percent', discountValue: '', couponCode: '', triggerDelay: '3', isActive: true };
 
 const ExitOffersTab = ({ products, loadingProducts, productError, saveProductUpsells }) => {
-  const [offers, setOffers] = useState([
-    { id: 1, targetProductId: '', targetProductName: 'Produit à choisir', title: 'Attendez ! Voici 10% de remise', desc: 'Utilisez ce code exclusif avant de partir.', discountType: 'percent', discountValue: '10', couponCode: 'RESTE10', triggerDelay: '3', isActive: true },
-  ]);
+  const [offers, setOffers] = useState([]);
+  const [loaded, setLoaded] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(BLANK_EXIT);
   const [formError, setFormError] = useState('');
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (loadingProducts || loaded) return;
+    const existing = [];
+    for (const product of products) {
+      const exitData = product?.productPageConfig?.upsells?.exit;
+      if (exitData && exitData.title) {
+        existing.push({ ...exitData, id: exitData.id || Date.now() + Math.random(), targetProductId: getProductId(product), targetProductName: getProductName(product) });
+      }
+    }
+    setOffers(existing);
+    setLoaded(true);
+  }, [products, loadingProducts, loaded]);
 
   const openNew = () => { setEditing(null); setForm({ ...BLANK_EXIT, id: Date.now() }); setFormError(''); setShowModal(true); };
   const openEdit = (o) => { setEditing(o.id); setForm({ ...o }); setFormError(''); setShowModal(true); };

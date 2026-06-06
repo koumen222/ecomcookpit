@@ -288,11 +288,7 @@ async function resolveRequestMeta(req) {
     };
   }
 
-  const workspace = await EcomWorkspace.findOne({
-    subdomain: routeContext.subdomain,
-    isActive: true,
-    'storeSettings.isStoreEnabled': true,
-  }).select('name subdomain storeSettings').lean();
+  const workspace = await _resolveStoreFast(routeContext.subdomain);
 
   if (!workspace) {
     return {
@@ -307,13 +303,13 @@ async function resolveRequestMeta(req) {
     };
   }
 
-  const storeName = normalizeText(workspace.storeSettings?.storeName || workspace.name) || 'Boutique';
+  const storeName = normalizeText(workspace.storeSettings?.name || workspace.storeSettings?.storeName || workspace.name) || 'Boutique';
   const storeDescription = truncateText(
-    normalizeText(workspace.storeSettings?.storeDescription || `Découvrez la boutique ${storeName} en ligne.`),
+    normalizeText(workspace.storeSettings?.description || workspace.storeSettings?.storeDescription || `Découvrez la boutique ${storeName} en ligne.`),
     180,
   );
-  const storeLogo = workspace.storeSettings?.storeLogo || '';
-  const storeBanner = workspace.storeSettings?.storeBanner || '';
+  const storeLogo = workspace.storeSettings?.logo || workspace.storeSettings?.storeLogo || '';
+  const storeBanner = workspace.storeSettings?.banner || workspace.storeSettings?.storeBanner || '';
   const defaultStoreVisual = toAbsoluteUrl(storeLogo || storeBanner || '/icon.png', req) || DEFAULT_PLATFORM_IMAGE;
 
   const absoluteLogo = toAbsoluteUrl(storeLogo || '', req);
@@ -342,8 +338,11 @@ async function resolveRequestMeta(req) {
   }
 
   if (routeContext.pageType === 'product' && routeContext.slug) {
+    const productFilter = workspace._storeId
+      ? { workspaceId: workspace._workspaceId, storeId: workspace._storeId }
+      : { workspaceId: workspace._workspaceId };
     const product = await StoreProduct.findOne({
-      workspaceId: workspace._id,
+      ...productFilter,
       slug: routeContext.slug,
       isPublished: true,
     }).select('name seoTitle seoDescription description images').lean();
@@ -426,13 +425,13 @@ function _buildStorePayload(workspace) {
   };
   return {
     _id: workspace._id,
-    name: settings.storeName || workspace.name,
-    description: settings.storeDescription || '',
-    logo: settings.storeLogo || settings.logo || '',
-    banner: settings.storeBanner || settings.banner || '',
-    phone: settings.storePhone || settings.phone || '',
-    whatsapp: settings.storeWhatsApp || settings.whatsapp || '',
-    themeColor: settings.storeThemeColor || settings.themeColor || '#0F6B4F',
+    name: settings.name || settings.storeName || workspace.name,
+    description: settings.description || settings.storeDescription || '',
+    logo: settings.logo || settings.storeLogo || '',
+    banner: settings.banner || settings.storeBanner || '',
+    phone: settings.phone || settings.storePhone || '',
+    whatsapp: settings.whatsapp || settings.storeWhatsApp || '',
+    themeColor: settings.themeColor || settings.storeThemeColor || '#0F6B4F',
     currency: settings.storeCurrency || settings.currency || 'XAF',
     country: settings.country || settings.storeCountry || '',
     subdomain: workspace.subdomain,
@@ -448,7 +447,7 @@ function _buildStorePayload(workspace) {
     facebook: settings.facebook || '',
     instagram: settings.instagram || '',
     tiktok: settings.tiktok || '',
-    productPageConfig: settings.productPageConfig || null,
+    productPageConfig: settings.productPageConfig || theme.productPageConfig || null,
     pixels: {
       metaPixelId: pixels.metaPixelId || '',
       tiktokPixelId: pixels.tiktokPixelId || '',
@@ -477,7 +476,7 @@ async function fetchInitialData(routeContext) {
     // Champs envoyés pour les "aperçus produit" du __SCALOR_INITIAL__ —
     // assez complets pour que useStoreProduct rende quasi toute la page produit
     // instantanément lors d'une navigation SPA (toProductPreview lit ces champs).
-    const PREVIEW_FIELDS = 'name slug description price compareAtPrice currency country targetMarket city locale stock images category tags seoTitle seoDescription features faq';
+    const PREVIEW_FIELDS = 'name slug description price compareAtPrice currency country targetMarket city locale stock images category tags seoTitle seoDescription features faq productPageConfig _pageData.pageStyle _pageData.layout _pageData.theme';
     const previewMap = (p) => ({
       _id: p._id,
       name: p.name,
@@ -499,6 +498,8 @@ async function fetchInitialData(routeContext) {
       seoDescription: p.seoDescription || '',
       features: p.features || [],
       faq: p.faq || [],
+      productPageConfig: p.productPageConfig || null,
+      _pageData: p._pageData || null,
     });
 
     if (routeContext.pageType === 'product' && routeContext.slug) {
