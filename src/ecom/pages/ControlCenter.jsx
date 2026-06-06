@@ -22,7 +22,7 @@ import {
   Wallet,
 } from 'lucide-react';
 
-const STORAGE_KEY = 'scalor_control_center_v1';
+const STORAGE_KEY = 'scalor_control_center_v2';
 const PROFIT_TARGET = 4000;
 const CITIES = ['Douala', 'Yaoundé'];
 const OFFER_TYPES = ['simple', '1 acheté = 1 offert'];
@@ -52,42 +52,13 @@ const TEAM_ROLES = [
 const today = () => new Date().toISOString().slice(0, 10);
 
 const createInitialData = () => ({
-  products: [
-    { id: 'prd-gel', name: 'Gel exfoliant', price: 12500, cost: 3500, offer: '1 acheté = 1 offert', deliveryCost: 1500, teamFees: 900 },
-    { id: 'prd-deo', name: 'Déo', price: 15000, cost: 2000, offer: '1 acheté = 1 offert', deliveryCost: 1500, teamFees: 900 },
-    { id: 'prd-mullein', name: 'Mullein', price: 12900, cost: 3000, offer: 'simple', deliveryCost: 1500, teamFees: 900 },
-    { id: 'prd-magnesium', name: 'Magnésium', price: 11900, cost: 2500, offer: 'simple', deliveryCost: 1500, teamFees: 900 },
-  ],
-  stockRows: [
-    { id: 'stk-1', date: today(), city: 'Douala', productId: 'prd-gel', stockStart: 80, entries: 0, courierOut: 18, delivered: 11, returns: 3, finalReal: 65, responsible: 'Responsable stock' },
-    { id: 'stk-2', date: today(), city: 'Yaoundé', productId: 'prd-gel', stockStart: 28, entries: 0, courierOut: 12, delivered: 7, returns: 2, finalReal: 18, responsible: 'Agence Yaoundé' },
-    { id: 'stk-3', date: today(), city: 'Douala', productId: 'prd-deo', stockStart: 64, entries: 0, courierOut: 20, delivered: 14, returns: 3, finalReal: 47, responsible: 'Responsable stock' },
-    { id: 'stk-4', date: today(), city: 'Yaoundé', productId: 'prd-deo', stockStart: 0, entries: 0, courierOut: 0, delivered: 0, returns: 0, finalReal: 0, responsible: 'Agence Yaoundé' },
-    { id: 'stk-5', date: today(), city: 'Douala', productId: 'prd-mullein', stockStart: 26, entries: 0, courierOut: 9, delivered: 5, returns: 1, finalReal: 18, responsible: 'Responsable stock' },
-    { id: 'stk-6', date: today(), city: 'Yaoundé', productId: 'prd-magnesium', stockStart: 8, entries: 0, courierOut: 4, delivered: 2, returns: 0, finalReal: 4, responsible: 'Agence Yaoundé' },
-  ],
-  orders: [
-    { id: 'ord-1', date: today(), clientName: 'Client Douala 01', phone: '690000001', city: 'Douala', district: 'Akwa', productId: 'prd-deo', amount: 15000, closer: 'Amina', status: 'Livrée encaissée', stockReserved: true, carrier: 'Livreur Douala', deliveryDate: today(), deliveryResult: 'Livrée', cashCollected: 15000, problem: '' },
-    { id: 'ord-2', date: today(), clientName: 'Client Yaoundé 02', phone: '690000002', city: 'Yaoundé', district: 'Mvan', productId: 'prd-gel', amount: 12500, closer: 'Prisca', status: 'Confirmée', stockReserved: true, carrier: 'Agence Yaoundé', deliveryDate: today(), deliveryResult: 'Prévue', cashCollected: 0, problem: '' },
-    { id: 'ord-3', date: today(), clientName: 'Client Douala 03', phone: '690000003', city: 'Douala', district: 'Bonamoussadi', productId: 'prd-mullein', amount: 12900, closer: 'Amina', status: 'Livrée encaissée', stockReserved: true, carrier: 'Livreur Douala', deliveryDate: today(), deliveryResult: 'Livrée', cashCollected: 12900, problem: '' },
-  ],
-  ads: [
-    { id: 'ad-1', date: today(), productId: 'prd-deo', city: 'Douala', budget: 18000, generated: 12, confirmed: 8, delivered: 6, revenue: 90000, decision: 'Augmenter', note: 'Bon coût livré' },
-    { id: 'ad-2', date: today(), productId: 'prd-gel', city: 'Yaoundé', budget: 14000, generated: 8, confirmed: 5, delivered: 2, revenue: 25000, decision: 'Réduire', note: 'Stock à surveiller' },
-    { id: 'ad-3', date: today(), productId: 'prd-magnesium', city: 'Yaoundé', budget: 6000, generated: 4, confirmed: 2, delivered: 0, revenue: 0, decision: 'Couper', note: 'Pas de vente livrée' },
-  ],
-  deliveries: [
-    { id: 'del-1', date: today(), city: 'Douala', carrier: 'Livreur Douala', productId: 'prd-deo', received: 14, delivered: 11, returns: 2, expectedCash: 165000, cashCollected: 165000, problem: '', status: 'Terminé' },
-    { id: 'del-2', date: today(), city: 'Yaoundé', carrier: 'Agence Yaoundé', productId: 'prd-gel', received: 8, delivered: 3, returns: 3, expectedCash: 62500, cashCollected: 37500, problem: 'Retours à confirmer', status: 'Retours à récupérer' },
-  ],
-  finances: [
-    { id: 'fin-1', date: today(), revenue: 127900, adsSpent: 38000, productCost: 25500, deliveryPaid: 12000, salaries: 7000, transport: 3000, misc: 2000, cashAvailable: 40400, cashPub: 12000, cashStock: 15000, cashDelivery: 5000, cashSalaries: 4000, cashProfit: 4400 },
-  ],
-  team: [
-    { id: 'team-1', name: 'Amina', role: 'Closeuse principale', city: 'Douala', dailyGoal: 12, handled: 18, confirmed: 11, delivered: 8, revenue: 119000, problems: '' },
-    { id: 'team-2', name: 'Prisca', role: 'Closeuse secondaire', city: 'Yaoundé', dailyGoal: 8, handled: 11, confirmed: 5, delivered: 2, revenue: 25000, problems: 'Relances en retard' },
-    { id: 'team-3', name: 'Livreur Douala', role: 'Livreur Douala', city: 'Douala', dailyGoal: 12, handled: 14, confirmed: 14, delivered: 11, revenue: 165000, problems: '' },
-  ],
+  products: [],
+  stockRows: [],
+  orders: [],
+  ads: [],
+  deliveries: [],
+  finances: [],
+  team: [],
   report: {
     date: today(),
     revenue: 0,
