@@ -265,7 +265,17 @@ const UpsellsTab = ({ products, loadingProducts, productError, saveProductUpsell
     const removed = offers.find(o => o.id === id);
     const nextOffers = offers.filter(o => o.id !== id);
     setOffers(nextOffers);
-    if (removed?.targetProductId) await syncUpsellsForProduct(removed.targetProductId, nextOffers).catch(() => {});
+    if (removed?.targetProductId) {
+      await syncUpsellsForProduct(removed.targetProductId, nextOffers).catch(() => {});
+    } else {
+      for (const product of products) {
+        const upsells = product?.productPageConfig?.upsells;
+        if (upsells?.offers?.some(o => o.id === id)) {
+          await syncUpsellsForProduct(getProductId(product), nextOffers).catch(() => {});
+          break;
+        }
+      }
+    }
   };
   const toggle = async (id) => {
     const nextOffers = offers.map(o => o.id === id ? { ...o, isActive: !o.isActive } : o);
@@ -675,10 +685,15 @@ const ExitOffersTab = ({ products, loadingProducts, productError, saveProductUps
   const remove = async (id) => {
     const removed = offers.find(o => o.id === id);
     setOffers(prev => prev.filter(o => o.id !== id));
-    if (removed?.targetProductId) {
-      await saveProductUpsells(removed.targetProductId, (upsells = {}) => ({
+    let targetId = removed?.targetProductId;
+    if (!targetId) {
+      const p = products.find(pr => pr?.productPageConfig?.upsells?.exit?.id === id);
+      if (p) targetId = getProductId(p);
+    }
+    if (targetId) {
+      await saveProductUpsells(targetId, (upsells = {}) => ({
         ...upsells,
-        exit: upsells.exit?.id === id ? null : upsells.exit,
+        exit: null,
       })).catch(() => {});
     }
   };

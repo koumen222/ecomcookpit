@@ -148,11 +148,18 @@ const ecomUserSchema = new mongoose.Schema({
 });
 
 // Hash password avant sauvegarde
+// Coût 10 (défaut bcrypt) au lieu de 12 : bcryptjs est du JS pur et bloque
+// l'event loop. Coût 12 = ~4× plus de CPU que coût 10, soit ~0,5–1,5 s sur une
+// petite instance Railway — c'est ce qui faisait traîner /auth/register et
+// exposait la requête aux coupures de connexion (« Impossible de contacter le
+// serveur »). Coût 10 reste sûr et est rétro-compatible : bcrypt.compare lit le
+// coût directement depuis le hash stocké, donc les comptes existants (coût 12)
+// continuent de fonctionner.
 ecomUserSchema.pre('save', async function() {
   if (!this.isModified('password')) return;
-  
+
   try {
-    const salt = await bcrypt.genSalt(12);
+    const salt = await bcrypt.genSalt(10);
     this.password = await bcrypt.hash(this.password, salt);
   } catch (error) {
     throw error;
