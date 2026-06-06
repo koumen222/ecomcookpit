@@ -539,7 +539,13 @@ router.post('/verify-otp', async (req, res) => {
 // POST /api/ecom/auth/register - Création d'un compte (sans workspace ni rôle)
 router.post('/register', validateEmail, validatePassword, async (req, res) => {
   try {
-    const { email, password, name, phone, superAdmin, acceptPrivacy, affiliateCode } = req.body;
+    const { password, name, phone, superAdmin, acceptPrivacy, affiliateCode, setupToken } = req.body;
+
+    // Normaliser l'email AVANT toute vérification.
+    // Sans cela, "John@Mail.com" passait le contrôle de doublon (qui cherchait
+    // la casse exacte) puis échouait à l'enregistrement sur l'index unique
+    // (l'email est stocké en minuscules) → "Erreur serveur" aléatoire.
+    const email = String(req.body.email || '').toLowerCase().trim();
 
     // Vérifier l'acceptation de la politique de confidentialité
     if (!superAdmin && !acceptPrivacy) {
@@ -558,8 +564,23 @@ router.post('/register', validateEmail, validatePassword, async (req, res) => {
       });
     }
 
-    // Création super admin (une seule fois)
+    // ─── Bootstrap Super Admin (sécurisé) ──────────────────────────────────
+    // SÉCURITÉ : le rôle super_admin ne peut JAMAIS être obtenu via une simple
+    // inscription publique. Auparavant, n'importe quelle requête contenant
+    // « superAdmin: true » devenait super_admin tant qu'aucun n'existait — d'où
+    // des inscrits qui se retrouvaient super admin. Désormais il faut un secret
+    // serveur (SUPERADMIN_SETUP_TOKEN) ET qu'aucun super admin n'existe déjà.
+    // Pour provisionner le super admin, préférez le script create-super-admin.js.
     if (superAdmin) {
+      const expectedToken = process.env.SUPERADMIN_SETUP_TOKEN;
+      if (!expectedToken || setupToken !== expectedToken) {
+        console.warn(`🚨 Tentative de création super_admin refusée pour ${email} (token absent ou invalide)`);
+        return res.status(403).json({
+          success: false,
+          message: 'Création de super administrateur non autorisée.'
+        });
+      }
+
       const superAdminExists = await EcomUser.exists({ role: 'super_admin' });
       if (superAdminExists) {
         return res.status(400).json({
@@ -568,19 +589,29 @@ router.post('/register', validateEmail, validatePassword, async (req, res) => {
         });
       }
 
-      const user = new EcomUser({ email, password, role: 'super_admin' });
-      await user.save();
-      const token = generateEcomToken(user);
+      try {
+        const admin = new EcomUser({ email, password, name: name?.trim() || '', role: 'super_admin', isActive: true });
+        await admin.save();
+        const token = generateEcomToken(admin);
 
-      return res.status(201).json({
-        success: true,
-        message: 'Compte Super Admin créé avec succès',
-        data: {
-          token,
-          user: { id: user._id, email: user.email, role: user.role, isActive: user.isActive, currency: user.currency, workspaceId: null },
-          workspace: null
+        return res.status(201).json({
+          success: true,
+          message: 'Compte Super Admin créé avec succès',
+          data: {
+            token,
+            user: { id: admin._id, email: admin.email, role: admin.role, isActive: admin.isActive, currency: admin.currency, workspaceId: null },
+            workspace: null
+          }
+        });
+      } catch (e) {
+        if (e?.code === 11000) {
+          return res.status(400).json({
+            success: false,
+            message: 'Un super administrateur existe déjà ou cet email est déjà utilisé.'
+          });
         }
-      });
+        throw e;
+      }
     }
 
     // Créer l'utilisateur SANS workspace ni rôle
@@ -618,6 +649,11 @@ router.post('/register', validateEmail, validatePassword, async (req, res) => {
       }
     });
   } catch (error) {
+    // E11000 = doublon (ex. deux inscriptions du même email en simultané) :
+    // renvoyer un message clair plutôt qu'une « Erreur serveur ».
+    if (error?.code === 11000) {
+      return res.status(400).json({ success: false, message: 'Cet email est déjà utilisé' });
+    }
     console.error('Erreur register e-commerce:', error);
     res.status(500).json({ success: false, message: 'Erreur serveur' });
   }

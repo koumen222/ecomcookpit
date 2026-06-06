@@ -116,6 +116,10 @@ const storeOrderSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
+  orderBump: {
+    title: { type: String, default: '' },
+    price: { type: Number, default: 0 }
+  },
   notes: {
     type: String,
     trim: true,

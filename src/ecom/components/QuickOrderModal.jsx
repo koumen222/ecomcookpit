@@ -275,7 +275,10 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, pixels, store, p
   const flatCostEffective = flatShippingEnabled && flatShippingFee > 0
     ? (freeShippingThreshold > 0 && subtotal >= freeShippingThreshold ? 0 : flatShippingFee)
     : 0;
-  const total = subtotal + flatCostEffective;
+  const bumpPrice = bumpChecked && orderBumpConfig.isActive && Number(orderBumpConfig.price) > 0
+    ? Number(orderBumpConfig.price)
+    : 0;
+  const total = subtotal + flatCostEffective + bumpPrice;
 
   const set = (field, value) => { setForm(prev => ({ ...prev, [field]: value })); setError(''); };
 
@@ -344,6 +347,7 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, pixels, store, p
         callSchedule: form.call_schedule || '',
         variants: variantEntries.length ? variantEntries.map(([k, v]) => ({ name: k, value: v })) : undefined,
         products: [{ productId: product._id, quantity: form.quantity, ...offerPriceOverride }],
+        orderBump: bumpPrice > 0 ? { title: orderBumpConfig.title, price: bumpPrice } : undefined,
         channel: 'store',
         metaEventId: purchaseEventId,
         metaSourceUrl: typeof window !== 'undefined' ? window.location.href : '',

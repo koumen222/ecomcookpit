@@ -21,9 +21,7 @@ export const isStoreReadyForBoutique = (store) => (
 export const getStorefrontUrl = (store, path = '/') => {
   const customDomain = String(store?.customDomain || store?.storeDomains?.customDomain || '').trim();
   const isCustomDomainReady = store?.sslStatus === 'active'
-    || store?.dnsVerified === true
-    || store?.storeDomains?.sslStatus === 'active'
-    || store?.storeDomains?.dnsVerified === true;
+    || store?.storeDomains?.sslStatus === 'active';
   const rawBase = store?.storeUrl
     || store?.publicUrl
     || store?.accessUrl

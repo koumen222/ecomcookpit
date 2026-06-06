@@ -97,14 +97,15 @@ const RETRY_DELAY_MAX_MS = 6000;
 // Ils sont idempotents ou protégés côté serveur : un blip de connexion passager
 // (fréquent quand le backend "cold start") est réessayé en silence au lieu
 // d'afficher "Impossible de contacter le serveur" à l'utilisateur.
-// NOTE : /auth/register est volontairement exclu — rejouer après une réponse
-// perdue pourrait créer un compte en double.
+// /auth/register est sûr : le backend a un index unique sur email, donc un
+// replay retourne 400 "Cet email est déjà utilisé" — pas de doublon possible.
 const NETWORK_RETRY_SAFE_PATHS = [
   '/auth/login',
   '/auth/send-otp',
   '/auth/verify-otp',
   '/auth/refresh',
   '/auth/google',
+  '/auth/register',
 ];
 
 function isNetworkRetrySafePath(url = '') {
@@ -398,7 +399,16 @@ ecomApi.interceptors.response.use(
         return Promise.reject(error);
       }
 
+      // Ne pas redirect si l'utilisateur est sur une page d'auth (register/login/reset).
+      // Le loadUser() initial du Provider peut recevoir un 401 pour un vieux token
+      // APRÈS que Register ait supprimé le token de localStorage — dans ce cas,
+      // un hard redirect casserait le flux d'inscription.
+      const isOnAuthPage = /\/(register|login|forgot-password|reset-password|setup-admin)/.test(
+        window.location.pathname
+      );
+
       if (isRefreshing) {
+        if (isOnAuthPage) return Promise.reject(error);
         // Attendre que le refresh en cours se termine
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });
@@ -409,11 +419,12 @@ ecomApi.interceptors.response.use(
       }
 
       originalRequest._retry = true;
-      
+
       // Vérifier si on a un token avant de tenter un refresh
       const token = localStorage.getItem('ecomToken');
       if (!token) {
         logAuthEvent('token_missing_on_401', { url: originalRequest.url });
+        if (isOnAuthPage) return Promise.reject(error);
         localStorage.removeItem('ecomToken');
         localStorage.removeItem('ecomUser');
         localStorage.removeItem('ecomWorkspace');
@@ -447,6 +458,7 @@ ecomApi.interceptors.response.use(
         logAuthEvent('token_refresh_fail', { message: refreshError.message, url: originalRequest.url });
         processQueue(refreshError, null);
 
+        if (isOnAuthPage) return Promise.reject(refreshError);
         // Token invalide — déconnecter l'utilisateur
         localStorage.removeItem('ecomToken');
         localStorage.removeItem('ecomUser');

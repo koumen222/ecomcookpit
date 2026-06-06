@@ -834,7 +834,7 @@ router.post('/:subdomain/orders', orderLimiter, async (req, res) => {
       }
     }
 
-    const { customerName, phone, phoneCode, email, address, city, country, products, notes, channel, deliveryType, deliveryCost, metaEventId, metaSourceUrl, affiliateCode, affiliateLinkCode } = req.body;
+    const { customerName, phone, phoneCode, email, address, city, country, products, notes, channel, deliveryType, deliveryCost, orderBump, metaEventId, metaSourceUrl, affiliateCode, affiliateLinkCode } = req.body;
 
     if (!customerName || !phone || !products?.length) {
       return res.status(400).json({
@@ -931,6 +931,18 @@ router.post('/:subdomain/orders', orderLimiter, async (req, res) => {
       total += itemTotal;
     }
 
+    // Validate and apply order bump if provided
+    let sanitizedBumpPrice = 0;
+    let orderBumpData = null;
+    if (orderBump && orderBump.price > 0) {
+      const firstProduct = dbProducts[0];
+      const bumpConfig = firstProduct?.productPageConfig?.upsells?.bump;
+      if (bumpConfig && bumpConfig.isActive && Number(bumpConfig.price) === Number(orderBump.price)) {
+        sanitizedBumpPrice = Number(bumpConfig.price);
+        orderBumpData = { title: bumpConfig.title || orderBump.title, price: sanitizedBumpPrice };
+      }
+    }
+
     const resolvedOrderCurrency = orderCurrencies.size === 1
       ? Array.from(orderCurrencies)[0]
       : (workspace.storeSettings?.storeCurrency || 'XAF');
@@ -952,7 +964,8 @@ router.post('/:subdomain/orders', orderLimiter, async (req, res) => {
       deliveryCost: sanitizedDeliveryCost,
       deliveryZone: city?.trim() || '',
       products: orderProducts,
-      total: total + sanitizedDeliveryCost,
+      total: total + sanitizedDeliveryCost + sanitizedBumpPrice,
+      orderBump: orderBumpData,
       currency: resolvedOrderCurrency,
       channel: channel || 'store',
       notes: notes?.trim() || '',

@@ -3518,45 +3518,53 @@ router.put('/:id', requireEcomAuth, async (req, res) => {
       console.log(`📱 [Orders] Push statut envoyé via notifyOrderStatus: ${updatedOrder._id} -> ${req.body.status}`);
 
       // ══════════════════════════════════════════════════════════════════════════
-      // DÉCRÉMENTATION DU STOCK LORS DE LA LIVRAISON (via StockLocation)
+      // DÉCRÉMENTATION DU STOCK LORS DE LA LIVRAISON
       // ══════════════════════════════════════════════════════════════════════════
-      if (req.body.status === 'delivered' && updatedOrder.productId) {
+      if (req.body.status === 'delivered') {
         try {
-          const { decrementStockForDelivery } = await import('../services/stockService.js');
-          const result = await decrementStockForDelivery({
-            workspaceId: req.workspaceId,
-            productId: updatedOrder.productId,
-            quantity: updatedOrder.quantity || 1,
-            orderId: updatedOrder.orderId
-          });
+          let resolvedProductId = updatedOrder.productId;
 
-          if (result.success) {
-            // Vérifier si le stock total est bas
-            const StockLocation = mongoose.model('StockLocation');
-            const locations = await StockLocation.find({
-              productId: updatedOrder.productId,
-              workspaceId: req.workspaceId
-            });
-            const totalStock = locations.reduce((sum, loc) => sum + loc.quantity, 0);
-
-            // Récupérer le produit pour le seuil
+          // Si pas de productId, chercher par nom de produit
+          if (!resolvedProductId && updatedOrder.product) {
             const Product = mongoose.model('EcomProduct');
-            const product = await Product.findById(updatedOrder.productId).select('name reorderThreshold');
+            const matched = await Product.findOne({
+              workspaceId: req.workspaceId,
+              name: { $regex: new RegExp(`^${updatedOrder.product.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') }
+            }).select('_id');
+            if (matched) {
+              resolvedProductId = matched._id;
+              // Sauvegarder le productId pour les prochaines fois
+              await Order.updateOne({ _id: updatedOrder._id }, { $set: { productId: matched._id } });
+            }
+          }
 
-            if (product && totalStock <= (product.reorderThreshold || 5)) {
-              createNotification({
-                workspaceId: req.workspaceId,
-                type: 'low_stock',
-                title: '⚠️ Stock faible',
-                message: `${product.name}: ${totalStock} unités restantes (seuil: ${product.reorderThreshold || 5})`,
-                icon: 'warning',
-                link: `/ecom/stock`
-              }).catch(() => {});
+          if (resolvedProductId) {
+            const { decrementStockForDelivery } = await import('../services/stockService.js');
+            const result = await decrementStockForDelivery({
+              workspaceId: req.workspaceId,
+              productId: resolvedProductId,
+              quantity: updatedOrder.quantity || 1,
+              orderId: updatedOrder.orderId
+            });
+
+            if (result.success) {
+              const Product = mongoose.model('EcomProduct');
+              const product = await Product.findById(resolvedProductId).select('name stock reorderThreshold');
+
+              if (product && product.stock <= (product.reorderThreshold || 5)) {
+                createNotification({
+                  workspaceId: req.workspaceId,
+                  type: 'low_stock',
+                  title: '⚠️ Stock faible',
+                  message: `${product.name}: ${product.stock} unités restantes (seuil: ${product.reorderThreshold || 5})`,
+                  icon: 'warning',
+                  link: `/ecom/stock`
+                }).catch(() => {});
+              }
             }
           }
         } catch (stockErr) {
           console.error(`❌ [Stock] Erreur décrémentation stock pour commande ${updatedOrder.orderId}:`, stockErr.message);
-          // Ne pas bloquer la mise à jour de la commande si la décrémentation échoue
         }
       }
     }
@@ -3687,45 +3695,52 @@ router.patch('/:id/status', requireEcomAuth, async (req, res) => {
       console.log(`📱 [Orders] Push statut envoyé via notifyOrderStatus: ${order._id} -> ${status}`);
 
       // ══════════════════════════════════════════════════════════════════════════
-      // DÉCRÉMENTATION DU STOCK LORS DE LA LIVRAISON (via StockLocation)
+      // DÉCRÉMENTATION DU STOCK LORS DE LA LIVRAISON
       // ══════════════════════════════════════════════════════════════════════════
-      if (status === 'delivered' && order.productId) {
+      if (status === 'delivered') {
         try {
-          const { decrementStockForDelivery } = await import('../services/stockService.js');
-          const result = await decrementStockForDelivery({
-            workspaceId: req.workspaceId,
-            productId: order.productId,
-            quantity: order.quantity || 1,
-            orderId: order.orderId
-          });
+          let resolvedProductId = order.productId;
 
-          if (result.success) {
-            // Vérifier si le stock total est bas
-            const StockLocation = mongoose.model('StockLocation');
-            const locations = await StockLocation.find({
-              productId: order.productId,
-              workspaceId: req.workspaceId
-            });
-            const totalStock = locations.reduce((sum, loc) => sum + loc.quantity, 0);
-
-            // Récupérer le produit pour le seuil
+          if (!resolvedProductId && order.product) {
             const Product = mongoose.model('EcomProduct');
-            const product = await Product.findById(order.productId).select('name reorderThreshold');
+            const matched = await Product.findOne({
+              workspaceId: req.workspaceId,
+              name: { $regex: new RegExp(`^${order.product.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') }
+            }).select('_id');
+            if (matched) {
+              resolvedProductId = matched._id;
+              order.productId = matched._id;
+              await order.save();
+            }
+          }
 
-            if (product && totalStock <= (product.reorderThreshold || 5)) {
-              createNotification({
-                workspaceId: req.workspaceId,
-                type: 'low_stock',
-                title: '⚠️ Stock faible',
-                message: `${product.name}: ${totalStock} unités restantes (seuil: ${product.reorderThreshold || 5})`,
-                icon: 'warning',
-                link: `/ecom/stock`
-              }).catch(() => {});
+          if (resolvedProductId) {
+            const { decrementStockForDelivery } = await import('../services/stockService.js');
+            const result = await decrementStockForDelivery({
+              workspaceId: req.workspaceId,
+              productId: resolvedProductId,
+              quantity: order.quantity || 1,
+              orderId: order.orderId
+            });
+
+            if (result.success) {
+              const Product = mongoose.model('EcomProduct');
+              const product = await Product.findById(resolvedProductId).select('name stock reorderThreshold');
+
+              if (product && product.stock <= (product.reorderThreshold || 5)) {
+                createNotification({
+                  workspaceId: req.workspaceId,
+                  type: 'low_stock',
+                  title: '⚠️ Stock faible',
+                  message: `${product.name}: ${product.stock} unités restantes (seuil: ${product.reorderThreshold || 5})`,
+                  icon: 'warning',
+                  link: `/ecom/stock`
+                }).catch(() => {});
+              }
             }
           }
         } catch (stockErr) {
           console.error(`❌ [Stock] Erreur décrémentation stock pour commande ${order.orderId}:`, stockErr.message);
-          // Ne pas bloquer la mise à jour de la commande si la décrémentation échoue
         }
       }
 
@@ -3875,6 +3890,36 @@ router.patch('/:id/livreur-action', requireEcomAuth, async (req, res) => {
     }
 
     if (newStatus !== oldStatus) {
+      // Décrémentation stock si livré
+      if (newStatus === 'delivered') {
+        try {
+          let resolvedProductId = order.productId;
+          if (!resolvedProductId && order.product) {
+            const Product = mongoose.model('EcomProduct');
+            const matched = await Product.findOne({
+              workspaceId: req.workspaceId,
+              name: { $regex: new RegExp(`^${order.product.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') }
+            }).select('_id');
+            if (matched) {
+              resolvedProductId = matched._id;
+              order.productId = matched._id;
+              await order.save();
+            }
+          }
+          if (resolvedProductId) {
+            const { decrementStockForDelivery } = await import('../services/stockService.js');
+            await decrementStockForDelivery({
+              workspaceId: req.workspaceId,
+              productId: resolvedProductId,
+              quantity: order.quantity || 1,
+              orderId: order.orderId
+            });
+          }
+        } catch (stockErr) {
+          console.error(`❌ [Stock] Erreur décrémentation (livreur-action) commande ${order.orderId}:`, stockErr.message);
+        }
+      }
+
       // Notifier admins + closeuses via notification individuelle
       notifyAdminsLivreurAction(req.workspaceId, req.ecomUser, order, action).catch(() => {});
       // Émettre la mise à jour de la commande en temps réel à tout le workspace (admin/closeuse)

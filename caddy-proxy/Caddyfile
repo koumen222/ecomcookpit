@@ -1,7 +1,7 @@
 {
-	email admin@scalor.net
+	email {$ACME_EMAIL}
 	on_demand_tls {
-		ask https://ecomcookpit-production-c8a6.up.railway.app/api/caddy/check-domain
+		ask {$CADDY_ASK_URL}?token={$CADDY_AUTH_TOKEN}
 	}
 }
 
@@ -20,8 +20,8 @@ https:// {
 	tls {
 		on_demand
 	}
-	reverse_proxy https://ecomcookpit-production-c8a6.up.railway.app {
-		header_up Host ecomcookpit-production-c8a6.up.railway.app
+	reverse_proxy {$RAILWAY_BACKEND} {
+		header_up Host {upstream_hostport}
 		header_up X-Forwarded-Host {host}
 		header_up X-Real-IP {remote_host}
 	}

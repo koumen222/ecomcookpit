@@ -108,6 +108,12 @@ export const decrementStockForDelivery = async ({ workspaceId, productId, quanti
   const wsId = toObjectId(workspaceId);
   const pId = toObjectId(productId);
 
+  // Toujours décrémenter le champ stock du produit directement
+  await Product.findOneAndUpdate(
+    { _id: pId, workspaceId: wsId, stock: { $gte: quantity } },
+    { $inc: { stock: -quantity } }
+  );
+
   // Récupérer toutes les locations du produit
   const locations = await StockLocation.find({
     workspaceId: wsId,
@@ -115,8 +121,7 @@ export const decrementStockForDelivery = async ({ workspaceId, productId, quanti
   }).sort({ quantity: -1 });
 
   if (locations.length === 0) {
-    // Aucune StockLocation trouvée, ne rien faire (le stock n'est pas géré par locations)
-    return { success: false, decremented: 0, locations: [], reason: 'NO_STOCK_LOCATIONS' };
+    return { success: true, decremented: quantity, locations: [], reason: 'NO_STOCK_LOCATIONS_PRODUCT_DECREMENTED' };
   }
 
   // Calculer le stock total disponible (quantity - sales)

@@ -199,7 +199,10 @@ const BoutiqueDomains = () => {
       setDnsResult(data);
       if (data.ok) {
         setDnsVerified(true);
-        setSslStatus('active');
+        setSslStatus(data.sslStatus === 'active' ? 'active' : 'pending');
+      } else {
+        setDnsVerified(false);
+        setSslStatus(data.sslStatus || 'none');
       }
     } catch {
       setDnsResult({ ok: false });
@@ -258,7 +261,7 @@ const BoutiqueDomains = () => {
 
   // Auto-poll toutes les 30s en étape 2 tant que le domaine n'est pas actif
   useEffect(() => {
-    if (activeStep !== 2 || !customDomain || dnsVerified) return;
+    if (activeStep !== 2 || !customDomain || sslStatus === 'active') return;
 
     const silentCheck = async () => {
       try {
@@ -267,20 +270,20 @@ const BoutiqueDomains = () => {
         setDnsResult(data);
         if (data.ok) {
           setDnsVerified(true);
-          setSslStatus('active');
-          clearInterval(pollRef.current);
-        } else if (data.sslStatus) {
           setSslStatus(data.sslStatus === 'active' ? 'active' : 'pending');
+          if (data.sslStatus === 'active') clearInterval(pollRef.current);
+        } else {
+          setSslStatus(data.sslStatus || 'none');
         }
       } catch { /* silent */ }
     };
 
     pollRef.current = setInterval(silentCheck, 30000);
     return () => clearInterval(pollRef.current);
-  }, [activeStep, customDomain, dnsVerified]);
+  }, [activeStep, customDomain, sslStatus]);
 
   const subdomainUrl = subdomain ? `${subdomain}.scalor.net` : '';
-  const isConnected = dnsVerified && customDomain;
+  const isConnected = dnsVerified && customDomain && sslStatus === 'active';
 
   return (
     <div className="p-4 lg:p-6 max-w-3xl mx-auto space-y-6">
@@ -541,11 +544,20 @@ const BoutiqueDomains = () => {
 
               {/* DNS check result */}
               {!checking && dnsResult !== null && (
-                <div className={`px-4 py-3 rounded-xl space-y-2 ${dnsResult.ok ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
+                <div className={`px-4 py-3 rounded-xl space-y-2 ${
+                  dnsResult.ok && sslStatus === 'active'
+                    ? 'bg-green-50 border border-green-200'
+                    : dnsResult.ok
+                      ? 'bg-amber-50 border border-amber-200'
+                      : 'bg-red-50 border border-red-200'
+                }`}>
                   <div className="flex items-center gap-2">
-                    {dnsResult.ok ? (
+                    {dnsResult.ok && sslStatus === 'active' ? (
                       <><svg className="w-4 h-4 text-green-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
                       <span className="text-sm text-green-700 font-semibold">Domaine actif — <a href={`https://${customDomain}`} target="_blank" rel="noopener noreferrer" className="hover:underline">https://{customDomain}</a></span></>
+                    ) : dnsResult.ok ? (
+                      <><svg className="w-4 h-4 text-amber-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v3.75m0 3.75h.008v.008H12V16.5zm9-4.5a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                      <span className="text-sm text-amber-700 font-semibold">DNS détecté — SSL en attente</span></>
                     ) : (
                       <><svg className="w-4 h-4 text-red-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                       <span className="text-sm text-red-700 font-semibold">En attente de validation</span></>
@@ -563,6 +575,11 @@ const BoutiqueDomains = () => {
                       <span className="font-semibold">CNAME :</span> {dnsResult.cnameRecords.join(', ')}
                       {dnsResult.cnameOk ? <span className="text-green-600 ml-1">✓</span> : <span className="text-red-600 ml-1">✗</span>}
                     </div>
+                  )}
+                  {dnsResult.ok && dnsResult.httpsReady === false && (
+                    <p className="text-xs text-amber-600">
+                      Le DNS pointe vers Scalor, mais le certificat HTTPS n'est pas encore servi par le proxy. La vérification va continuer automatiquement.
+                    </p>
                   )}
                   {!dnsResult.ok && !dnsResult.aRecords?.length && !dnsResult.cnameRecords?.length && (
                     <p className="text-xs text-red-600">Aucun enregistrement détecté. Vérifiez votre configuration DNS.</p>

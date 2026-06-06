@@ -1,5 +1,6 @@
 import express from 'express';
 import mongoose from 'mongoose';
+import tls from 'tls';
 import Workspace from '../models/Workspace.js';
 import Order from '../models/Order.js';
 import StoreOrder from '../models/StoreOrder.js';
@@ -664,7 +665,7 @@ router.put('/payments', requireEcomAuth, requireWorkspace, async (req, res) => {
 
 function buildPublicStoreUrl(storeLike) {
   const customDomain = String(storeLike?.storeDomains?.customDomain || '').trim().toLowerCase();
-  const isCustomDomainReady = storeLike?.storeDomains?.sslStatus === 'active' || storeLike?.storeDomains?.dnsVerified === true;
+  const isCustomDomainReady = storeLike?.storeDomains?.sslStatus === 'active';
 
   if (customDomain && isCustomDomainReady) {
     return `https://${customDomain}`;
@@ -675,6 +676,28 @@ function buildPublicStoreUrl(storeLike) {
   }
 
   return null;
+}
+
+function checkHttpsReady(domain) {
+  return new Promise((resolve) => {
+    const socket = tls.connect({
+      host: domain,
+      port: 443,
+      servername: domain,
+      rejectUnauthorized: true,
+      timeout: 8000,
+    });
+
+    const finish = (ready) => {
+      socket.removeAllListeners();
+      socket.destroy();
+      resolve(ready);
+    };
+
+    socket.once('secureConnect', () => finish(socket.authorized === true));
+    socket.once('timeout', () => finish(false));
+    socket.once('error', () => finish(false));
+  });
 }
 
 router.get('/domains', requireEcomAuth, requireWorkspace, async (req, res) => {
@@ -772,6 +795,13 @@ router.put('/domains', requireEcomAuth, requireWorkspace, async (req, res) => {
     }
 
     if (customDomain !== undefined) {
+      customDomain = String(customDomain || '')
+        .trim()
+        .toLowerCase()
+        .replace(/^https?:\/\//, '')
+        .replace(/\/.*$/, '')
+        .replace(/^www\./, '');
+
       update['storeDomains.customDomain'] = customDomain;
       // Reset verification when domain changes
       if (customDomain) {
@@ -863,13 +893,15 @@ router.post('/domains/check-dns', requireEcomAuth, requireWorkspace, async (req,
     } catch { /* no CNAME */ }
 
     const ok = results.aOk || results.cnameOk;
+    const httpsReady = ok ? await checkHttpsReady(cleanDomain) : false;
+    const sslStatus = httpsReady ? 'active' : (ok ? 'pending' : 'none');
 
     const activeStore = req.activeStoreId
       ? await Store.findOne({ _id: req.activeStoreId, workspaceId: req.workspaceId, isActive: true }).select('_id').lean()
       : null;
 
     if (ok) {
-      const dbUpdate = { 'storeDomains.sslStatus': 'active', 'storeDomains.dnsVerified': true };
+      const dbUpdate = { 'storeDomains.sslStatus': sslStatus, 'storeDomains.dnsVerified': true };
       if (activeStore) {
         await Store.findByIdAndUpdate(activeStore._id, { $set: dbUpdate });
         const workspace = await Workspace.findById(req.workspaceId).select('primaryStoreId').lean();
@@ -889,6 +921,8 @@ router.post('/domains/check-dns', requireEcomAuth, requireWorkspace, async (req,
         cnameRecords: results.cnameRecords,
         aOk: results.aOk,
         cnameOk: results.cnameOk,
+        sslStatus,
+        httpsReady,
         expected: { cnameTarget: CNAME_TARGET, acceptedIps: ACCEPTED_IPS }
       }
     });

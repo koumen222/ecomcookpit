@@ -50,6 +50,7 @@ const StockOrdersList = lazy(() => import('./pages/StockOrdersList.jsx'));
 const StockManagement = lazy(() => import('./pages/StockManagement.jsx'));
 const TransactionsList = lazy(() => import('./pages/TransactionsList.jsx'));
 const TeamChat = lazy(() => import('./pages/TeamChat.jsx'));
+const ControlCenter = lazy(() => import('./pages/ControlCenter.jsx'));
 
 const CloseuseDashboard = lazy(() => import('./pages/CloseuseDashboard.jsx'));
 const ComptaDashboard = lazy(() => import('./pages/ComptaDashboard.jsx'));
@@ -212,6 +213,7 @@ const PLATFORM_TITLE_RULES = [
   { path: '/ecom/dashboard/admin', title: 'Dashboard Admin' },
   { path: '/ecom/dashboard/closeuse', title: 'Dashboard Closeuse' },
   { path: '/ecom/dashboard/compta', title: 'Dashboard Compta' },
+  { path: '/ecom/centre-controle', title: 'Centre de contrôle' },
   { path: '/ecom/products/new', title: 'Nouveau produit' },
   { path: '/ecom/products/:id/edit', title: 'Modifier le produit' },
   { path: '/ecom/products/:id', title: 'Détail produit' },
@@ -677,6 +679,7 @@ const EcomApp = () => {
               <Route path="/ecom/dashboard/closeuse" element={<LayoutRoute requiredRole="ecom_closeuse"><CloseuseDashboard /></LayoutRoute>} />
               <Route path="/ecom/commissions" element={<LayoutRoute requiredRole="ecom_closeuse"><Commissions /></LayoutRoute>} />
               <Route path="/ecom/dashboard/compta" element={<LayoutRoute requiredRole="ecom_compta"><ComptaDashboard /></LayoutRoute>} />
+              <Route path="/ecom/centre-controle" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse', 'ecom_compta']}><ControlCenter /></LayoutRoute>} />
 
               {/* Routes produits */}
               <Route path="/ecom/products" element={<LayoutRoute requiredRole="ecom_admin"><ProductsList /></LayoutRoute>} />

@@ -181,7 +181,7 @@ export const EcomAuthProvider = ({ children }) => {
     logAuthEvent(token ? 'token_found' : 'token_missing', {
       tokenPrefix: token ? token.slice(0, 20) + '…' : null
     });
-    
+
     if (!token) {
       dispatch({ type: 'LOAD_USER_FAILURE' });
       loadingRef.current = false;
@@ -199,7 +199,15 @@ export const EcomAuthProvider = ({ children }) => {
     try {
       logAuthEvent('load_user_start', { tokenPrefix: token.slice(0, 20) + '…' });
       const response = await authApi.getProfile();
-      
+
+      // Si le token a changé pendant la requête (ex: register() a sauvé un
+      // nouveau token entre-temps), ignorer cette réponse obsolète.
+      const currentToken = localStorage.getItem('ecomToken');
+      if (currentToken && currentToken !== token) {
+        logAuthEvent('load_user_stale', { message: 'Token changé pendant getProfile, réponse ignorée' });
+        return;
+      }
+
       const wsData = normalizeWorkspace(response.data.data.workspace);
       if (wsData) {
         localStorage.setItem('ecomWorkspace', JSON.stringify(wsData));
@@ -214,7 +222,7 @@ export const EcomAuthProvider = ({ children }) => {
         workspaceId: wsData?._id,
         workspaceName: wsData?.name,
       });
-      
+
       dispatch({
         type: 'LOAD_USER_SUCCESS',
         payload: { user: userData, workspace: wsData }
@@ -228,7 +236,16 @@ export const EcomAuthProvider = ({ children }) => {
         message: error.message,
         isNetwork: !error.response,
       });
-      
+
+      // Si le token a changé pendant la requête (ex: register() a sauvé un
+      // nouveau token), ne pas effacer la nouvelle session — l'erreur 401
+      // concerne l'ancien token, pas le nouveau.
+      const currentToken = localStorage.getItem('ecomToken');
+      if (currentToken && currentToken !== token) {
+        logAuthEvent('load_user_stale_error', { message: 'Token changé pendant getProfile, erreur ignorée' });
+        return;
+      }
+
       // NE déconnecter que pour les vraies erreurs 401 (token invalide)
       // PAS pour les erreurs réseau (backend inaccessible)
       if (error.response?.status === 401) {
@@ -326,7 +343,7 @@ export const EcomAuthProvider = ({ children }) => {
       logUserAction('register_attempt', { email: userData.email });
       const response = await authApi.register(userData);
       const { token, user, workspace } = response.data.data;
-      
+
       // Auto-login après inscription
       saveToken(token, user, workspace);
       logAuthEvent('login_success', { userEmail: user?.email, userRole: user?.role, source: 'register' });
@@ -338,9 +355,29 @@ export const EcomAuthProvider = ({ children }) => {
       // PostHog: identify user + track register
       phIdentify(user, workspace);
       phTrack('register_success', { workspaceId: workspace?._id || workspace?.id });
-      
+
       return response.data;
     } catch (error) {
+      // Si le register échoue avec "email déjà utilisé", c'est probablement un
+      // retry réseau : la première requête a créé le compte mais la réponse s'est
+      // perdue. On tente un login automatique avec les mêmes identifiants.
+      const isDuplicate = error.response?.status === 400 &&
+        /déjà utilisé|already/i.test(error.response?.data?.message || '');
+      if (isDuplicate && userData.password) {
+        logUserAction('register_duplicate_fallback_login', { email: userData.email });
+        try {
+          const loginResp = await authApi.login({ email: userData.email, password: userData.password });
+          const { token, user, workspace } = loginResp.data.data;
+          saveToken(token, user, workspace);
+          logAuthEvent('login_success', { userEmail: user?.email, source: 'register_fallback' });
+          dispatch({ type: 'LOGIN_SUCCESS', payload: { token, user, workspace } });
+          phIdentify(user, workspace);
+          return loginResp.data;
+        } catch (loginErr) {
+          logUserAction('register_fallback_login_failed', { email: userData.email });
+          // Si le login échoue aussi, on renvoie l'erreur d'origine du register
+        }
+      }
       const errorMessage = error.response?.data?.message || 'Erreur d\'inscription';
       logUserAction('register_failure', { email: userData.email, message: errorMessage });
       throw error;

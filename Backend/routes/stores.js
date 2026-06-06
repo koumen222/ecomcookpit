@@ -30,7 +30,7 @@ function generateSubdomain(name) {
 
 function buildStorePublicUrl(store) {
   const customDomain = String(store?.storeDomains?.customDomain || '').trim().toLowerCase();
-  const isCustomDomainReady = store?.storeDomains?.sslStatus === 'active' || store?.storeDomains?.dnsVerified === true;
+  const isCustomDomainReady = store?.storeDomains?.sslStatus === 'active';
 
   if (customDomain && isCustomDomainReady) {
     return `https://${customDomain}`;
