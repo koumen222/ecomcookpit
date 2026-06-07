@@ -137,6 +137,9 @@ const StoreProductForm = () => {
   const basePath = location.pathname.startsWith('/ecom/boutique') ? '/ecom/boutique' : '/ecom/store';
   const isEdit = !!id;
   const navState = location.state?.prefill || null;
+  // Quand on arrive depuis le générateur de page produit : page publiée,
+  // stock pré-rempli et prix par défaut, pour que la page soit live tout de suite.
+  const fromGenerator = location.state?.fromGenerator || false;
 
   // ── Core state ──────────────────────────────────────────────────────────────
   const [loading, setLoading] = useState(isEdit);
@@ -174,17 +177,17 @@ const StoreProductForm = () => {
   const [form, setForm] = useState({
     name: navState?.name || '',
     description: navState?.description || '',
-    price: navState?.price || '',
+    price: navState?.price || (fromGenerator ? '10000' : ''),
     compareAtPrice: '',
     currency: navState?.currency || '',
     targetMarket: navState?.targetMarket || '',
     country: navState?.country || '',
     city: navState?.city || '',
     locale: navState?.locale || '',
-    stock: '0',
+    stock: fromGenerator ? '1000' : '0',
     category: navState?.category || '',
     tags: navState?.tags || '',
-    isPublished: false,
+    isPublished: fromGenerator,
     seoTitle: navState?.seoTitle || '',
     seoDescription: navState?.seoDescription || '',
     images: navState?.images || [],

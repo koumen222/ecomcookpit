@@ -67,74 +67,15 @@ const LazySection = ({ children, minHeight = 80, style = {} }) => {
   );
 };
 
-// ── Skeleton de la page produit (chargement initial) ─────────────────────────
-// Ne s'affiche qu'après un court délai pour éviter le flash sur les requêtes rapides.
-const ProductPageSkeleton = ({ delayMs = 0 }) => {
-  const [show, setShow] = useState(delayMs === 0);
-  useEffect(() => {
-    if (delayMs === 0) return;
-    const id = setTimeout(() => setShow(true), delayMs);
-    return () => clearTimeout(id);
-  }, [delayMs]);
-  if (!show) return (
-    <div style={{ minHeight: '100vh', background: 'var(--s-bg, #fff)', position: 'relative' }}>
-      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, height: 2, background: '#10b981', zIndex: 9999, animation: 'pp-pbar 1.8s ease-in-out infinite' }} />
-      <style>{`@keyframes pp-pbar { 0%{transform:scaleX(0);transform-origin:left} 50%{transform:scaleX(0.7);transform-origin:left} 100%{transform:scaleX(1);transform-origin:left;opacity:0} }`}</style>
-    </div>
-  );
-
-  const shimmer = {
-    background: 'linear-gradient(90deg, #f1f5f9 0%, #e2e8f0 50%, #f1f5f9 100%)',
-    backgroundSize: '200% 100%',
-    animation: 'sf-shimmer 1.2s ease-in-out infinite',
-    borderRadius: 8,
-  };
-  const block = (style = {}) => ({ ...shimmer, ...style });
-
-  return (
-    <div style={{ minHeight: '100vh', background: 'var(--s-bg, #fff)', fontFamily: 'var(--s-font, Inter, sans-serif)' }}>
-      {/* Header */}
-      <div style={{ height: 56, borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', padding: '0 16px', gap: 12 }}>
-        <div style={block({ width: 28, height: 28, borderRadius: '50%' })} />
-        <div style={block({ flex: 1, maxWidth: 120, height: 16 })} />
-      </div>
-      {/* Hero image + colonne infos */}
-      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '16px', display: 'grid', gridTemplateColumns: 'minmax(0,1fr)', gap: 24 }}>
-        <div style={block({ width: '100%', aspectRatio: '1 / 1', borderRadius: 16 })} />
-        {/* Thumbs */}
-        <div style={{ display: 'flex', gap: 8 }}>
-          {[0, 1, 2, 3].map(i => <div key={i} style={block({ width: 64, height: 64, borderRadius: 10 })} />)}
-        </div>
-        {/* Titre */}
-        <div style={block({ width: '70%', height: 24 })} />
-        {/* Prix */}
-        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-          <div style={block({ width: 110, height: 28 })} />
-          <div style={block({ width: 70, height: 18, opacity: 0.6 })} />
-        </div>
-        {/* Description courte */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <div style={block({ width: '95%', height: 12 })} />
-          <div style={block({ width: '88%', height: 12 })} />
-          <div style={block({ width: '60%', height: 12 })} />
-        </div>
-        {/* CTA */}
-        <div style={block({ width: '100%', height: 52, borderRadius: 14, marginTop: 4 })} />
-        <div style={block({ width: '100%', height: 44, borderRadius: 12, opacity: 0.7 })} />
-        {/* Bandeau confiance */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginTop: 8 }}>
-          {[0, 1, 2].map(i => (
-            <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'center' }}>
-              <div style={block({ width: 28, height: 28, borderRadius: '50%' })} />
-              <div style={block({ width: '80%', height: 10 })} />
-            </div>
-          ))}
-        </div>
-      </div>
-      <style>{`@keyframes sf-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }`}</style>
-    </div>
-  );
-};
+// ── Chargement de la page produit ────────────────────────────────────────────
+// Plus de squelette : on affiche seulement une fine barre de progression en haut,
+// le contenu s'affiche dès qu'il est prêt (pas de blocs gris qui clignotent).
+const ProductPageSkeleton = () => (
+  <div style={{ minHeight: '100vh', background: 'var(--s-bg, #fff)', position: 'relative' }}>
+    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, height: 2, background: 'var(--s-primary, #10b981)', zIndex: 9999, animation: 'pp-pbar 1.8s ease-in-out infinite' }} />
+    <style>{`@keyframes pp-pbar { 0%{transform:scaleX(0);transform-origin:left} 50%{transform:scaleX(0.7);transform-origin:left} 100%{transform:scaleX(1);transform-origin:left;opacity:0} }`}</style>
+  </div>
+);
 
 const deepClone = (obj) => JSON.parse(JSON.stringify(obj));
 
