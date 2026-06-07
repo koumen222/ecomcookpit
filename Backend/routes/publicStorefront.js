@@ -549,11 +549,15 @@ function injectInitialData(html, initialData) {
   const safeJson = JSON.stringify(initialData).replace(/<\/script>/gi, '<\\/script>');
   const scriptTag = `<script>window.__SCALOR_INITIAL__=${safeJson};</script>`;
 
-  // Inject preload for product hero image so the browser starts downloading it immediately
+  // Préchargement de l'image hero — en priorité BASSE volontairement.
+  // L'image se télécharge en parallèle (connexion réchauffée) MAIS sans voler la
+  // bande passante au JS critique : le contenu / squelette s'affiche donc AVANT
+  // les images, surtout sur mobile / connexions lentes (marché cible).
+  // (fetchpriority="high" forçait l'image à concurrencer le bundle JS → écran vide plus long.)
   let preloadTag = '';
   const heroImg = initialData.product?.images?.[0]?.url;
   if (heroImg && heroImg.startsWith('http')) {
-    preloadTag = `<link rel="preload" as="image" href="${escapeHtml(heroImg)}" fetchpriority="high" />`;
+    preloadTag = `<link rel="preload" as="image" href="${escapeHtml(heroImg)}" fetchpriority="low" />`;
   }
 
   const inject = preloadTag + scriptTag;

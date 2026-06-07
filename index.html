@@ -110,8 +110,10 @@
           animation: _skel-shine 1.4s ease-in-out infinite;
           border-radius: 6px;
         }
-        /* Hide skeleton once React mounts */
-        #root:not(:empty) ._pre-skeleton { display: none; }
+        /* Le squelette vit DANS #root : React (createRoot) vide #root au montage
+           et le retire donc automatiquement. Pas de règle de masquage ici —
+           l'ancienne (#root:not(:empty) ._pre-skeleton) masquait le squelette
+           dès le départ et laissait un écran vide pendant le chargement du JS. */
       </style>
     </head>
 

@@ -381,13 +381,23 @@ router.post('/:subdomain/orders', orderLimiter, resolveStoreBySubdomain, async (
         });
       }
 
-      const qty = Math.max(1, parseInt(item.quantity) || 1);
+      // Offre de quantité : le prix de l'offre est pris TEL QUEL (jamais prix unitaire × quantité).
+      const offerPrice = Number(item.offerPrice) > 0 ? Number(item.offerPrice) : null;
+      const offerQty = Math.max(0, parseInt(item.offerQty) || 0);
+      // Nombre réel d'unités (pour le stock) : la quantité de l'offre si une offre est choisie.
+      const qty = offerPrice != null
+        ? Math.max(1, offerQty || parseInt(item.quantity) || 1)
+        : Math.max(1, parseInt(item.quantity) || 1);
+
       if (dbProduct.stock < qty) {
         return res.status(400).json({
           success: false,
           message: `Stock insuffisant pour "${dbProduct.name}" (${dbProduct.stock} disponible)`
         });
       }
+
+      // Total de la ligne : prix de l'offre tel quel, sinon prix unitaire × quantité.
+      const lineTotal = offerPrice != null ? offerPrice : dbProduct.price * qty;
 
       orderProducts.push({
         productId: dbProduct._id,
@@ -397,7 +407,7 @@ router.post('/:subdomain/orders', orderLimiter, resolveStoreBySubdomain, async (
         image: dbProduct.images?.[0]?.url || ''
       });
 
-      total += dbProduct.price * qty;
+      total += lineTotal;
     }
 
     // Create order
@@ -425,10 +435,11 @@ router.post('/:subdomain/orders', orderLimiter, resolveStoreBySubdomain, async (
     await order.save();
 
     // Decrement stock (bulk update for performance)
-    const bulkOps = products.map(item => ({
+    // Décrémenter le stock par le vrai nombre d'unités (quantité de l'offre incluse).
+    const bulkOps = orderProducts.map(p => ({
       updateOne: {
-        filter: { _id: new mongoose.Types.ObjectId(item.productId), workspaceId: req.storeWorkspaceId },
-        update: { $inc: { stock: -(parseInt(item.quantity) || 1) } }
+        filter: { _id: p.productId, workspaceId: req.storeWorkspaceId },
+        update: { $inc: { stock: -(p.quantity || 1) } }
       }
     }));
     await StoreProduct.bulkWrite(bulkOps);
@@ -509,7 +520,9 @@ router.post('/:subdomain/orders', orderLimiter, resolveStoreBySubdomain, async (
           city: normalizedCityVal,
           address: order.address,
           product: productSummary,
-          quantity: orderProducts.reduce((sum, p) => sum + p.quantity, 0),
+          // quantity = 1 : le prix ci-dessous est DÉJÀ le total de la commande.
+          // (Sinon price × quantity multiplierait le prix dans les stats / le centre de contrôle.)
+          quantity: 1,
           price: order.total,
           currency: order.currency,
           status: 'pending',
