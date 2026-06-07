@@ -1001,7 +1001,7 @@ router.post(
       if (!isConfigured()) {
         return res.status(503).json({
           success: false,
-          message: 'Cloudflare Images not configured',
+          message: 'le service Images not configured',
           code: 'CLOUDFLARE_NOT_CONFIGURED'
         });
       }
@@ -1077,7 +1077,7 @@ router.post('/generate', requireEcomAuth, requireWorkspace, async (req, res) => 
     if (!ai) {
       return res.status(503).json({
         success: false,
-        message: 'Génération IA non configurée. Veuillez configurer OPENAI_API_KEY.'
+        message: 'Génération IA non configurée. Veuillez configurer le service.'
       });
     }
 
@@ -1147,7 +1147,7 @@ Si le prix n'est pas mentionné, mettre 0. Répondre en français.`;
   } catch (error) {
     console.error('❌ POST /store-products/generate error:', error.message);
     if (error?.status === 429) {
-      return res.status(429).json({ success: false, message: 'Quota OpenAI dépassé. Réessayez plus tard.' });
+      return res.status(429).json({ success: false, message: 'Quota du service dépassé. Réessayez plus tard.' });
     }
     res.status(500).json({ success: false, message: 'Erreur lors de la génération IA' });
   }
@@ -1165,7 +1165,7 @@ router.post('/generate-reviews', requireEcomAuth, requireWorkspace, async (req, 
     if (!ai) {
       return res.status(503).json({
         success: false,
-        message: 'Génération IA non configurée. Veuillez configurer OPENAI_API_KEY.'
+        message: 'Génération IA non configurée. Veuillez configurer le service.'
       });
     }
 
@@ -1243,7 +1243,7 @@ Format JSON strict :
   } catch (error) {
     console.error('❌ POST /store-products/generate-reviews error:', error.message);
     if (error?.status === 429) {
-      return res.status(429).json({ success: false, message: 'Quota OpenAI dépassé. Réessayez plus tard.' });
+      return res.status(429).json({ success: false, message: 'Quota du service dépassé. Réessayez plus tard.' });
     }
     res.status(500).json({ success: false, message: 'Erreur lors de la génération des avis' });
   }
@@ -1289,12 +1289,12 @@ router.post('/generate-product-image', requireEcomAuth, requireWorkspace, async 
 
     if (submitRes.data?.code !== 200 || !submitRes.data?.data?.taskId) {
       const msg = submitRes.data?.msg || submitRes.data?.message || 'KIE.AI task creation failed';
-      console.error('❌ KIE.AI generate-product-image submit failed:', msg);
+      console.error('❌ le service generate-product-image submit failed:', msg);
       return res.status(502).json({ success: false, message: `Erreur génération image : ${msg}` });
     }
 
     const taskId = submitRes.data.data.taskId;
-    console.log(`🎨 KIE.AI gpt-image-2 task submitted: ${taskId}`);
+    console.log(`🎨 le service gpt-image-2 task submitted: ${taskId}`);
 
     // Poll for result (max 120s)
     const maxWaitMs = 120000;
@@ -1334,21 +1334,21 @@ router.post('/generate-product-image', requireEcomAuth, requireWorkspace, async 
         }
 
         if (!imageUrl) {
-          console.error('❌ KIE.AI gpt-image-2 success but no URL. Response:', JSON.stringify(data).slice(0, 400));
+          console.error('❌ le service gpt-image-2 success but no URL. Response:', JSON.stringify(data).slice(0, 400));
           return res.status(502).json({ success: false, message: 'Image générée mais URL introuvable' });
         }
 
-        console.log(`✅ KIE.AI gpt-image-2 image: ${imageUrl.slice(0, 80)}...`);
+        console.log(`✅ le service gpt-image-2 image: ${imageUrl.slice(0, 80)}...`);
         return res.json({ success: true, data: { url: imageUrl } });
       }
 
       if (data.state === 'fail' || data.state === 'failed' || data.state === 'error') {
         const msg = data.failMsg || data.failCode || data.message || 'Échec de la génération';
-        console.error('❌ KIE.AI gpt-image-2 task failed:', msg);
+        console.error('❌ le service gpt-image-2 task failed:', msg);
         return res.status(502).json({ success: false, message: `Génération échouée : ${msg}` });
       }
 
-      console.log(`⏳ KIE.AI gpt-image-2 [${taskId}] state="${data.state}" elapsed=${Math.round((Date.now() - startTime) / 1000)}s`);
+      console.log(`⏳ le service gpt-image-2 [${taskId}] state="${data.state}" elapsed=${Math.round((Date.now() - startTime) / 1000)}s`);
     }
 
     return res.status(504).json({ success: false, message: 'Délai dépassé pour la génération image (120s)' });

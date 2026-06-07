@@ -22,7 +22,7 @@ const initGroq = () => {
  */
 const analyzeImage = async (base64Image, mimetype, workspaceId) => {
   initGroq();
-  if (!groq) throw new Error('Groq non configuré – GROQ_API_KEY manquante');
+  if (!groq) throw new Error('le service non configuré – le service manquante');
 
   // 1. Récupérer le catalogue produits du workspace
   const [storeProducts, productConfigs] = await Promise.all([

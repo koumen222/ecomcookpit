@@ -196,7 +196,7 @@ router.post(
       
       // Check specific error types
       if (error.message?.includes('OpenAI API key')) {
-        errorMessage = 'Clé API OpenAI manquante. Configurez OPENAI_API_KEY dans les variables d\'environnement.';
+        errorMessage = 'Clé du service manquante. Configurez le service dans les variables d\'environnement.';
       } else if (error.message?.includes('timeout')) {
         errorMessage = 'Timeout lors de l\'analyse. Veuillez réessayer avec une URL plus simple.';
       } else if (error.message?.includes('fetch')) {

@@ -13,7 +13,7 @@ import { callKieChatCompletion, isKieConfigured } from './kieChatService.js';
 const GEMINI_API_KEY = process.env.NANOBANANA_API_KEY || process.env.GEMINI_API_KEY;
 
 if (!GEMINI_API_KEY) {
-  console.warn('⚠️ GEMINI_API_KEY non configuré - l\'extraction de produit ne fonctionnera pas');
+  console.warn('⚠️ le service non configuré - l\'extraction de produit ne fonctionnera pas');
 }
 
 let _groq = null;
@@ -121,17 +121,17 @@ IMPORTANT: Ne retourne QUE le JSON, sans markdown ni texte supplémentaire.`;
   });
 
   const text = response.choices?.[0]?.message?.content || '';
-  console.log('✅ Réponse Groq reçue, longueur:', text.length);
+  console.log('✅ Réponse le service reçue, longueur:', text.length);
 
   let data = parseGeminiJSON(text);
   if (!data) {
     data = extractFromPlainText(text, url);
   }
   if (!data?.title || !data?.description) {
-    throw new Error('Groq: données incomplètes');
+    throw new Error('le service: données incomplètes');
   }
-  if (data.title.length < 5) throw new Error('Groq: titre trop court');
-  if (data.description.length < 50) throw new Error('Groq: description trop courte');
+  if (data.title.length < 5) throw new Error('le service: titre trop court');
+  if (data.description.length < 50) throw new Error('le service: description trop courte');
 
   const title = data.title
     .replace(/\s*[|–-]\s*(Amazon|Alibaba|AliExpress|eBay).*$/i, '')
@@ -142,16 +142,16 @@ IMPORTANT: Ne retourne QUE le JSON, sans markdown ni texte supplémentaire.`;
   const description = data.description.trim();
   const rawText = `${title}\n\n${description}`.slice(0, 3000);
 
-  console.log(`✅ Groq extraction OK:`, { title: title.slice(0, 60) + '...', descLength: description.length });
+  console.log(`✅ le service extraction OK:`, { title: title.slice(0, 60) + '...', descLength: description.length });
   return { title, description, rawText };
 }
 
 export async function extractProductInfo(url) {
   if (!GEMINI_API_KEY) {
-    throw new Error('GEMINI_API_KEY non configuré. Ajoutez-le dans votre .env');
+    throw new Error('le service non configuré. Ajoutez-le dans votre .env');
   }
 
-  console.log('🤖 Gemini extraction pour:', url);
+  console.log('🤖 le service extraction pour:', url);
 
   const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
   console.log(`🔍 Extraction avec ${GEMINI_MODEL}...`);
@@ -184,7 +184,7 @@ IMPORTANT: Ne retourne QUE le JSON, sans markdown ni texte supplémentaire.`;
 
     const result = await model.generateContent(prompt);
     const text = result.response.text();
-    console.log('✅ Réponse Gemini reçue, longueur:', text.length);
+    console.log('✅ Réponse le service reçue, longueur:', text.length);
 
     // Parse JSON de la réponse - extraction robuste
     let data = parseGeminiJSON(text);
@@ -224,7 +224,7 @@ IMPORTANT: Ne retourne QUE le JSON, sans markdown ni texte supplémentaire.`;
     // ── Fallback KIE (Gemini 3.1 Pro via endpoint OpenAI-compatible) ─────
     if (isKieConfigured()) {
       try {
-        console.log('🔄 Fallback KIE pour extraction...');
+        console.log('🔄 service de secours pour extraction...');
         const kieResp = await callKieChatCompletion({
           messages: [{ role: 'user', content: prompt }],
           temperature: 0.4,
@@ -236,9 +236,9 @@ IMPORTANT: Ne retourne QUE le JSON, sans markdown ni texte supplémentaire.`;
         const text = kieResp.content || '';
         let data = parseGeminiJSON(text);
         if (!data) data = extractFromPlainText(text, url);
-        if (!data?.title || !data?.description) throw new Error('KIE: données incomplètes');
-        if (data.title.length < 5) throw new Error('KIE: titre trop court');
-        if (data.description.length < 50) throw new Error('KIE: description trop courte');
+        if (!data?.title || !data?.description) throw new Error('le service: données incomplètes');
+        if (data.title.length < 5) throw new Error('le service: titre trop court');
+        if (data.description.length < 50) throw new Error('le service: description trop courte');
 
         const title = data.title
           .replace(/\s*[|–-]\s*(Amazon|Alibaba|AliExpress|eBay).*$/i, '')
@@ -249,10 +249,10 @@ IMPORTANT: Ne retourne QUE le JSON, sans markdown ni texte supplémentaire.`;
         const description = data.description.trim();
         const rawText = `${title}\n\n${description}`.slice(0, 3000);
 
-        console.log(`✅ KIE extraction OK:`, { title: title.slice(0, 60) + '...', descLength: description.length });
+        console.log(`✅ le service extraction OK:`, { title: title.slice(0, 60) + '...', descLength: description.length });
         return { title, description, rawText };
       } catch (kieErr) {
-        console.error('❌ KIE fallback échoué:', kieErr.message);
+        console.error('❌ le service fallback échoué:', kieErr.message);
       }
     }
     
@@ -260,10 +260,10 @@ IMPORTANT: Ne retourne QUE le JSON, sans markdown ni texte supplémentaire.`;
     const groq = getGroq();
     if (groq) {
       try {
-        console.log('🔄 Fallback Groq pour extraction...');
+        console.log('🔄 service de secours pour extraction...');
         return await extractWithGroq(groq, url);
       } catch (groqErr) {
-        console.error('❌ Groq fallback échoué:', groqErr.message);
+        console.error('❌ le service fallback échoué:', groqErr.message);
       }
     }
     

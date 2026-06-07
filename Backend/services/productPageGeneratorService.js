@@ -971,7 +971,7 @@ function buildPremiumImagePrompts(result = {}) {
 
 export async function analyzePremiumProductPage(scrapedData, imageBuffers = [], storeContext = {}, premiumContext = {}) {
   const groq = getGroq();
-  if (!groq) throw new Error('Clé Groq API non configurée.');
+  if (!groq) throw new Error('Clé du service API non configurée.');
 
   const title = cleanScrapedText(scrapedData.title || 'Produit');
   const description = cleanScrapedText(scrapedData.description || scrapedData.rawText || '');
@@ -1116,7 +1116,7 @@ ${premiumContract}`;
       try {
         response = await callGroqWithTimeout(process.env.GROQ_VISION_MODEL || 'meta-llama/llama-4-scout-17b-16e-instruct', messages);
       } catch (visionError) {
-        console.warn(`⚠️ Premium Groq Vision échoué (${visionError.message}), fallback texte...`);
+        console.warn(`⚠️ Premium le service Vision échoué (${visionError.message}), fallback texte...`);
         response = await callGroqWithTimeout(process.env.GROQ_MODEL || 'openai/gpt-oss-20b', [
           messages[0],
           { role: 'user', content: userPrompt },
@@ -1142,9 +1142,9 @@ ${premiumContract}`;
         includeThoughts: false,
       });
       result = parseGroqJSON(kie.content || '{}');
-      if (!result) throw new Error('KIE premium JSON non parsable');
+      if (!result) throw new Error('le service premium JSON non parsable');
     } catch (kieError) {
-      throw new Error(`Erreur IA premium: Groq=${error.message} | KIE=${kieError.message}`);
+      throw new Error(`Erreur IA premium: le service=${error.message} | le service=${kieError.message}`);
     }
   }
 
@@ -1180,7 +1180,7 @@ ${premiumContract}`;
 
 export async function analyzeWithVision(scrapedData, imageBuffers = [], marketingApproach = 'AIDA', storeContext = {}, copywritingContext = {}, visualContext = {}) {
   const groq = getGroq();
-  if (!groq) throw new Error('Clé Groq API non configurée.');
+  if (!groq) throw new Error('Clé du service API non configurée.');
 
   const title = cleanScrapedText(scrapedData.title || '');
   const description = cleanScrapedText(scrapedData.description || scrapedData.rawText || '');
@@ -1644,7 +1644,7 @@ Le champ "prompt_avant_apres" doit décrire un AVANT/APRÈS SPÉCIFIQUE à CE pr
 
   // Groq supporte la vision via Llama 4 Scout
   if (imageBuffers.length > 0) {
-    console.log(`🖼️ ${imageBuffers.length} image(s) disponible(s) — analyse avec Groq Vision`);
+    console.log(`🖼️ ${imageBuffers.length} image(s) disponible(s) — analyse avec le service Vision`);
     const imageContent = imageBuffers.slice(0, 3).map(buf => ({
       type: 'image_url',
       image_url: {
@@ -1690,10 +1690,10 @@ Le champ "prompt_avant_apres" doit décrire un AVANT/APRÈS SPÉCIFIQUE à CE pr
     if (imageBuffers.length > 0) {
       try {
         const groqVisionModel = process.env.GROQ_VISION_MODEL || 'meta-llama/llama-4-scout-17b-16e-instruct';
-        console.log(`🔍 Tentative Groq Vision (${groqVisionModel})...`);
+        console.log(`🔍 Tentative le service Vision (${groqVisionModel})...`);
         response = await callGroqWithTimeout(groqVisionModel, messages, true);
       } catch (visionErr) {
-        console.warn(`⚠️ Groq Vision échoué (${visionErr.message}), fallback text-only...`);
+        console.warn(`⚠️ le service Vision échoué (${visionErr.message}), fallback text-only...`);
         // Fallback text-only : remplacer le contenu image par du texte
         const textOnlyMessages = [
           messages[0],
@@ -1706,21 +1706,21 @@ Le champ "prompt_avant_apres" doit décrire un AVANT/APRÈS SPÉCIFIQUE à CE pr
     }
 
     const raw = response.choices[0]?.message?.content || '{}';
-    console.log('📝 Groq raw response length:', raw.length);
+    console.log('📝 le service raw response length:', raw.length);
 
     // Parse robuste : gère markdown, newlines littéraux, virgules traînantes
     result = parseGroqJSON(raw);
     if (!result) {
-      console.warn('⚠️ Groq raw (début):', raw.slice(0, 400));
+      console.warn('⚠️ le service raw (début):', raw.slice(0, 400));
       throw new Error('Réponse IA invalide — JSON non parsable');
     }
-    console.log('✅ Groq JSON parsé, clés:', Object.keys(result).join(', '));
+    console.log('✅ le service JSON parsé, clés:', Object.keys(result).join(', '));
   } catch (error) {
-    console.error('❌ Groq API error:', error.message);
+    console.error('❌ le service API error:', error.message);
     // Fallback KIE (texte) pour garantir la génération même si Groq échoue
     if (isKieConfigured()) {
       try {
-        console.log('🔄 Fallback KIE pour génération page produit...');
+        console.log('🔄 service de secours pour génération page produit...');
         const kie = await callKieChatCompletion({
           messages: [
             messages[0],
@@ -1738,14 +1738,14 @@ Le champ "prompt_avant_apres" doit décrire un AVANT/APRÈS SPÉCIFIQUE à CE pr
         });
 
         result = parseGroqJSON(kie.content || '{}');
-        if (!result) throw new Error('KIE JSON non parsable');
-        console.log('✅ KIE JSON parsé, clés:', Object.keys(result).join(', '));
+        if (!result) throw new Error('le service JSON non parsable');
+        console.log('✅ le service JSON parsé, clés:', Object.keys(result).join(', '));
       } catch (kieErr) {
-        console.error('❌ KIE fallback error:', kieErr.message);
-        throw new Error(`Erreur IA: Groq=${error.message} | KIE=${kieErr.message}`);
+        console.error('❌ le service fallback error:', kieErr.message);
+        throw new Error(`Erreur IA: le service=${error.message} | le service=${kieErr.message}`);
       }
     } else {
-      throw new Error(`Erreur Groq: ${error.message}`);
+      throw new Error(`Erreur du service: ${error.message}`);
     }
   }
 
@@ -1933,7 +1933,7 @@ export async function generatePosterImage(promptAffiche, originalImageBuffer = n
       : (isThreeByFour
         ? 'FORMAT OVERRIDE: Generate the final image in VERTICAL 3:4 (1080×1440). Ignore any previous mention of 4:5, 1:1, portrait variants, or other aspect ratios elsewhere in the prompt.'
         : 'FORMAT OVERRIDE: Generate the final image in VERTICAL 4:5 (1080×1250). Ignore any previous mention of 3:4, 1:1, or other aspect ratios elsewhere in the prompt.');
-    console.log(`🎨 Generating ${mode} image with NanoBanana...`);
+    console.log(`🎨 Generating ${mode} image with le service...`);
 
     if (!originalImageBuffer) {
       console.warn(`⚠️ Skipping ${mode} generation: missing base product image for image-to-image workflow.`);
@@ -2063,7 +2063,7 @@ ${modeRules}`;
 
     return result;
   } catch (err) {
-    console.warn(`⚠️ Erreur génération affiche NanoBanana: ${err.message}`);
+    console.warn(`⚠️ Erreur génération affiche le service: ${err.message}`);
     // STRICT: throw so upstream generateAndUpload retry logic can retry
     throw err;
   }

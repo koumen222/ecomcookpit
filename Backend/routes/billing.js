@@ -563,7 +563,7 @@ router.post('/checkout', requireEcomAuth, async (req, res) => {
     const { statut, token: mfToken, url: paymentUrl, message } = mfResponse.data;
 
     if (!statut || !mfToken) {
-      console.error('[billing] MoneyFusion bad response:', mfResponse.data);
+      console.error('[billing] le service bad response:', mfResponse.data);
       return res.status(502).json({
         success: false,
         message: message || 'Erreur lors de l\'initialisation du paiement'
@@ -603,14 +603,14 @@ router.post('/checkout', requireEcomAuth, async (req, res) => {
     });
   } catch (err) {
     if (err.code === 'ECONNABORTED') {
-      console.error('[billing] MoneyFusion timeout on /checkout:', err.message);
+      console.error('[billing] le service timeout on /checkout:', err.message);
       return res.status(504).json({
         success: false,
         message: 'Le service de paiement met trop de temps à répondre. Veuillez réessayer dans quelques instants.'
       });
     }
     if (err.response) {
-      console.error('[billing] MoneyFusion API error:', err.response.status, err.response.data);
+      console.error('[billing] le service API error:', err.response.status, err.response.data);
       return res.status(502).json({
         success: false,
         message: 'Erreur de communication avec le prestataire de paiement'
@@ -745,7 +745,7 @@ router.post('/buy-generation', requireEcomAuth, async (req, res) => {
     const { statut, token: mfToken, url: paymentUrl, message } = mfResponse.data;
 
     if (!statut || !mfToken) {
-      console.error('[billing] MoneyFusion bad response:', mfResponse.data);
+      console.error('[billing] le service bad response:', mfResponse.data);
       return res.status(502).json({
         success: false,
         message: message || 'Erreur lors de l\'initialisation du paiement'
@@ -778,14 +778,14 @@ router.post('/buy-generation', requireEcomAuth, async (req, res) => {
     });
   } catch (err) {
     if (err.code === 'ECONNABORTED') {
-      console.error('[billing] MoneyFusion timeout on /buy-generation:', err.message);
+      console.error('[billing] le service timeout on /buy-generation:', err.message);
       return res.status(504).json({
         success: false,
         message: 'Le service de paiement met trop de temps à répondre. Veuillez réessayer dans quelques instants.'
       });
     }
     if (err.response) {
-      console.error('[billing] MoneyFusion API error:', err.response.status, err.response.data);
+      console.error('[billing] le service API error:', err.response.status, err.response.data);
       return res.status(502).json({
         success: false,
         message: 'Erreur de communication avec le prestataire de paiement'

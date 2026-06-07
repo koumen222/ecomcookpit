@@ -105,7 +105,7 @@ const router = express.Router();
 
 const getResend = () => {
   const key = process.env.RESEND_API_KEY;
-  if (!key) throw new Error('RESEND_API_KEY non configuré');
+  if (!key) throw new Error('le service non configuré');
   return new Resend(key);
 };
 

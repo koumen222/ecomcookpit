@@ -67,7 +67,7 @@ export async function callKieChatCompletion({
 }) {
   const groq = getGroq();
   if (!groq) {
-    throw new Error('GROQ_API_KEY non configuré');
+    throw new Error('le service non configuré');
   }
 
   const payload = {
@@ -85,7 +85,7 @@ export async function callKieChatCompletion({
 
   const text = completion.choices?.[0]?.message?.content?.trim() || '';
   if (!text) {
-    throw new Error('Groq response vide');
+    throw new Error('le service response vide');
   }
 
   return {

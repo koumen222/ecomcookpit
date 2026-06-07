@@ -626,7 +626,7 @@ RÈGLES DE QUALITÉ NON-NÉGOCIABLES:
     if (textResult.status === 'fulfilled') {
       sections = textResult.value;
     } else {
-      console.warn('⚠️ Groq text generation failed, using fallback:', textResult.reason?.message);
+      console.warn('⚠️ le service text generation failed, using fallback:', textResult.reason?.message);
       sections = buildFallbackSections(s);
     }
 
@@ -648,7 +648,7 @@ RÈGLES DE QUALITÉ NON-NÉGOCIABLES:
 
     return sections;
   } catch (aiError) {
-    console.warn('⚠️ Groq homepage generation failed, using fallback:', aiError.message);
+    console.warn('⚠️ le service homepage generation failed, using fallback:', aiError.message);
     return buildFallbackSections(s);
   }
 }

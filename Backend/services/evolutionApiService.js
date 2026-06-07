@@ -46,7 +46,7 @@ class EvolutionApiService {
           }
         );
 
-        console.log(`✅ [Evolution API] Message envoyé à ${cleanNumber} via ${instanceName}`);
+        console.log(`✅ [le service] Message envoyé à ${cleanNumber} via ${instanceName}`);
         console.log(`   📋 Response: ${JSON.stringify(response.data?.key || response.data?.status || 'OK').substring(0, 200)}`);
 
         return {
@@ -76,7 +76,7 @@ class EvolutionApiService {
         }
 
         // Log l'erreur complète pour diagnostic
-        console.error(`❌ Erreur Evolution API (sendMessage) [${error.response?.status || 'network'}]:`, JSON.stringify(errorData, null, 2) || error.message);
+        console.error(`❌ Erreur du service (sendMessage) [${error.response?.status || 'network'}]:`, JSON.stringify(errorData, null, 2) || error.message);
         console.error(`   Numéro: ${number}, Instance: ${instanceName}`);
 
         // exists:false ignoré (bug API connu)
@@ -86,7 +86,7 @@ class EvolutionApiService {
         );
 
         if (hasExistsFalse) {
-          console.warn(`⚠️ Evolution API signale exists:false pour ${cleanNumber} - envoi quand même (bug API connu)`);
+          console.warn(`⚠️ le service signale exists:false pour ${cleanNumber} - envoi quand même (bug API connu)`);
           return {
             success: true,
             warning: 'exists:false ignoré',
@@ -134,21 +134,21 @@ class EvolutionApiService {
 
     // ── Résoudre le média : fichier local → base64, URL externe → envoi direct ──
     let mediaPayload = mediaUrl;
-    console.log(`📸 [Evolution] sendMedia — URL source: ${mediaUrl}`);
+    console.log(`📸 [le service] sendMedia — URL source: ${mediaUrl}`);
     try {
       // Détecter si c'est une URL locale (api.scalor.net/uploads/...) → lire depuis le disque
       const localMatch = mediaUrl.match(/(?:https?:\/\/(?:api\.scalor\.net|localhost[:\d]*))\/uploads\/(.+)$/);
       if (localMatch) {
         const decodedFile = decodeURIComponent(localMatch[1]);
         const localPath = path.resolve(__dirname, '..', 'uploads', decodedFile);
-        console.log(`📸 [Evolution] Fichier local détecté: ${localPath}`);
+        console.log(`📸 [le service] Fichier local détecté: ${localPath}`);
         if (fs.existsSync(localPath)) {
           const fileBuffer = fs.readFileSync(localPath);
           const b64 = fileBuffer.toString('base64');
           mediaPayload = `data:${mimetype};base64,${b64}`;
-          console.log(`📸 [Evolution] Fichier local lu (${Math.round(fileBuffer.byteLength / 1024)} KB) → envoi base64`);
+          console.log(`📸 [le service] Fichier local lu (${Math.round(fileBuffer.byteLength / 1024)} KB) → envoi base64`);
         } else {
-          console.warn(`⚠️ [Evolution] Fichier local introuvable: ${localPath} — image perdue (stockage éphémère)`);
+          console.warn(`⚠️ [le service] Fichier local introuvable: ${localPath} — image perdue (stockage éphémère)`);
           return { success: false, error: `Fichier local introuvable: ${decodedFile} — l'image doit être re-uploadée vers R2` };
         }
       } else if (mediaUrl.startsWith('http://') || mediaUrl.startsWith('https://')) {
@@ -160,10 +160,10 @@ class EvolutionApiService {
         if (urlExt && mimetypes[urlExt]) {
           mimetype = mimetypes[urlExt];
         }
-        console.log(`📸 [Evolution] URL externe → envoi direct à Evolution API (mimetype: ${mimetype})`);
+        console.log(`📸 [le service] URL externe → envoi direct au service (mimetype: ${mimetype})`);
       }
     } catch (dlErr) {
-      console.error(`❌ [Evolution] Erreur résolution média: ${dlErr.message}`);
+      console.error(`❌ [le service] Erreur résolution média: ${dlErr.message}`);
       console.error(`   URL: ${mediaUrl}`);
     }
 
@@ -186,12 +186,12 @@ class EvolutionApiService {
         }
       );
 
-      console.log(`✅ [Evolution API] Média envoyé à ${cleanNumber} via ${instanceName}`);
+      console.log(`✅ [le service] Média envoyé à ${cleanNumber} via ${instanceName}`);
       console.log(`   📋 Response: ${JSON.stringify(response.data?.key || response.data?.status || 'OK').substring(0, 200)}`);
       return { success: true, data: response.data };
     } catch (error) {
       const errorData = error.response?.data;
-      console.error(`❌ Erreur Evolution API (sendMedia):`, JSON.stringify(errorData, null, 2) || error.message);
+      console.error(`❌ Erreur du service (sendMedia):`, JSON.stringify(errorData, null, 2) || error.message);
       console.error(`   URL tentée: ${this.baseUrl}/message/sendMedia/${instanceName}`);
       console.error(`   Numéro: ${cleanNumber}, Media: ${mediaUrl}`);
 
@@ -215,7 +215,7 @@ class EvolutionApiService {
 
     // ── Résoudre la vidéo : fichier local → base64, URL externe → envoi direct ──
     let mediaPayload = videoUrl;
-    console.log(`🎬 [Evolution] sendVideo — URL source: ${videoUrl}`);
+    console.log(`🎬 [le service] sendVideo — URL source: ${videoUrl}`);
     try {
       // Détecter si c'est une URL locale (api.scalor.net/uploads/...) → lire depuis le disque
       const localMatch = videoUrl.match(/(?:https?:\/\/(?:api\.scalor\.net|localhost[:\d]*))\/uploads\/(.+)$/);
@@ -224,10 +224,10 @@ class EvolutionApiService {
         const filePath = path.join(process.cwd(), 'uploads', decodedFile);
         const fileData = fs.readFileSync(filePath);
         mediaPayload = `data:${mimetype};base64,${fileData.toString('base64')}`;
-        console.log(`🎬 [Evolution] Vidéo locale détectée → conversion base64`);
+        console.log(`🎬 [le service] Vidéo locale détectée → conversion base64`);
       }
     } catch (readErr) {
-      console.warn(`⚠️ [Evolution] Impossible de lire vidéo locale, tentative URL directe:`, readErr.message);
+      console.warn(`⚠️ [le service] Impossible de lire vidéo locale, tentative URL directe:`, readErr.message);
       mediaPayload = videoUrl;
     }
 
@@ -237,11 +237,11 @@ class EvolutionApiService {
         { number: cleanNumber, mediatype: 'video', mimetype, caption, media: mediaPayload, fileName, delay: 1500 },
         { headers: { 'Content-Type': 'application/json', 'apikey': instanceToken }, timeout: 60000 }
       );
-      console.log(`✅ [Evolution API] Vidéo envoyée à ${cleanNumber}`);
+      console.log(`✅ [le service] Vidéo envoyée à ${cleanNumber}`);
       return { success: true, data: response.data };
     } catch (error) {
       const errorData = error.response?.data;
-      console.error(`❌ Erreur Evolution API (sendVideo):`, JSON.stringify(errorData, null, 2) || error.message);
+      console.error(`❌ Erreur du service (sendVideo):`, JSON.stringify(errorData, null, 2) || error.message);
       console.error(`   URL tentée: ${videoUrl}`);
       console.error(`   Numéro: ${cleanNumber}`);
       let detailedError = errorData?.message || error.message;
@@ -292,7 +292,7 @@ class EvolutionApiService {
       };
     } catch (error) {
       const errorData = error.response?.data;
-      console.error(`❌ Erreur Evolution API (sendAudio):`, errorData || error.message);
+      console.error(`❌ Erreur du service (sendAudio):`, errorData || error.message);
       return {
         success: false,
         error: errorData?.message || error.message
@@ -322,7 +322,7 @@ class EvolutionApiService {
       if (d?.base64) return { base64: d.base64, mimetype: d.mimetype || 'audio/ogg' };
       return null;
     } catch (error) {
-      console.error(`❌ Erreur Evolution API (getMediaBase64):`, error.response?.data || error.message);
+      console.error(`❌ Erreur du service (getMediaBase64):`, error.response?.data || error.message);
       return null;
     }
   }
@@ -344,7 +344,7 @@ class EvolutionApiService {
       );
       return response.data;
     } catch (error) {
-      console.error(`❌ Erreur Evolution API (getInstanceStatus):`, error.message);
+      console.error(`❌ Erreur du service (getInstanceStatus):`, error.message);
       return null;
     }
   }
@@ -363,10 +363,10 @@ class EvolutionApiService {
           timeout: 15000
         }
       );
-      console.log(`✅ [Evolution API] Webhook configuré pour ${instanceName}`);
+      console.log(`✅ [le service] Webhook configuré pour ${instanceName}`);
       return { success: true, data: response.data };
     } catch (error) {
-      console.error(`❌ Erreur Evolution API (setWebhook):`, error.response?.data || error.message);
+      console.error(`❌ Erreur du service (setWebhook):`, error.response?.data || error.message);
       return { success: false, error: error.response?.data?.message || error.message };
     }
   }
@@ -386,7 +386,7 @@ class EvolutionApiService {
       );
       return { success: true, data: response.data };
     } catch (error) {
-      console.error(`❌ Erreur Evolution API (getWebhook):`, error.response?.data || error.message);
+      console.error(`❌ Erreur du service (getWebhook):`, error.response?.data || error.message);
       return { success: false, error: error.response?.data?.message || error.message };
     }
   }
@@ -402,8 +402,8 @@ class EvolutionApiService {
   async testConnection() {
     const masterKey = process.env.EVOLUTION_ADMIN_TOKEN || process.env.EVOLUTION_MASTER_API_KEY || this.apiKey;
     try {
-      console.log(`🔍 [Evolution API] Test connexion vers ${this.baseUrl}`);
-      console.log(`🔑 [Evolution API] Token: ${masterKey ? masterKey.substring(0, 8) + '...' : 'NON CONFIGURÉ'}`);
+      console.log(`🔍 [le service] Test connexion vers ${this.baseUrl}`);
+      console.log(`🔑 [le service] Token: ${masterKey ? masterKey.substring(0, 8) + '...' : 'NON CONFIGURÉ'}`);
 
       const response = await axios.get(
         `${this.baseUrl}/instance/fetchInstances`,
@@ -412,12 +412,12 @@ class EvolutionApiService {
           timeout: 10000,
         }
       );
-      console.log(`✅ [Evolution API] Connexion OK - ${response.data?.length || 0} instance(s) existante(s)`);
+      console.log(`✅ [le service] Connexion OK - ${response.data?.length || 0} instance(s) existante(s)`);
       return { success: true, instances: response.data };
     } catch (error) {
       const status = error.response?.status;
       const data = error.response?.data;
-      console.error(`❌ [Evolution API] Échec connexion:`, { status, data: JSON.stringify(data), message: error.message });
+      console.error(`❌ [le service] Échec connexion:`, { status, data: JSON.stringify(data), message: error.message });
       return {
         success: false,
         error: data?.message || error.message,
@@ -458,10 +458,10 @@ class EvolutionApiService {
           timeout: 30000,
         }
       );
-      console.log(`✅ [Evolution API] Instance "${instanceName}" créée`);
+      console.log(`✅ [le service] Instance "${instanceName}" créée`);
       return { success: true, data: response.data };
     } catch (error) {
-      console.error(`❌ Erreur Evolution API (createInstance):`, error.response?.data || error.message);
+      console.error(`❌ Erreur du service (createInstance):`, error.response?.data || error.message);
       return { success: false, error: error.response?.data?.message || error.message };
     }
   }
@@ -484,10 +484,10 @@ class EvolutionApiService {
         }
       );
       const qr = response.data?.base64 || response.data?.qrcode?.base64 || response.data?.code;
-      console.log(`📱 [Evolution API] QR code récupéré pour "${instanceName}"`);
+      console.log(`📱 [le service] QR code récupéré pour "${instanceName}"`);
       return { success: true, qrcode: qr, pairingCode: response.data?.pairingCode, raw: response.data };
     } catch (error) {
-      console.error(`❌ Erreur Evolution API (getQrCode):`, error.response?.data || error.message);
+      console.error(`❌ Erreur du service (getQrCode):`, error.response?.data || error.message);
       return { success: false, error: error.response?.data?.message || error.message };
     }
   }
@@ -504,10 +504,10 @@ class EvolutionApiService {
         `${this.baseUrl}/instance/delete/${instanceName}`,
         { headers: { 'apikey': masterKey }, timeout: 15000 }
       );
-      console.log(`🗑️ [Evolution API] Instance "${instanceName}" supprimée`);
+      console.log(`🗑️ [le service] Instance "${instanceName}" supprimée`);
       return { success: true };
     } catch (error) {
-      console.error(`❌ Erreur Evolution API (deleteInstance):`, error.response?.data || error.message);
+      console.error(`❌ Erreur du service (deleteInstance):`, error.response?.data || error.message);
       return { success: false, error: error.response?.data?.message || error.message };
     }
   }
@@ -523,10 +523,10 @@ class EvolutionApiService {
         `${this.baseUrl}/instance/logout/${instanceName}`,
         { headers: { 'apikey': instanceToken }, timeout: 15000 }
       );
-      console.log(`🔌 [Evolution API] Instance "${instanceName}" déconnectée`);
+      console.log(`🔌 [le service] Instance "${instanceName}" déconnectée`);
       return { success: true };
     } catch (error) {
-      console.error(`❌ Erreur Evolution API (logoutInstance):`, error.response?.data || error.message);
+      console.error(`❌ Erreur du service (logoutInstance):`, error.response?.data || error.message);
       return { success: false, error: error.response?.data?.message || error.message };
     }
   }
@@ -558,7 +558,7 @@ class EvolutionApiService {
           timeout: 10000,
         }
       );
-      console.log(`📇 [Evolution API] Contact enregistré sur l'appareil: ${displayName} (${cleanPhone})`);
+      console.log(`📇 [le service] Contact enregistré sur l'appareil: ${displayName} (${cleanPhone})`);
       return { success: true };
     } catch {
       // Silencieux — certaines versions d'Evolution API n'exposent pas cet endpoint
@@ -688,18 +688,18 @@ class EvolutionApiService {
             maxBodyLength: 50 * 1024 * 1024,
           }
         );
-        console.log(`✅ [Evolution API] Statut publié via ${instanceName}`);
+        console.log(`✅ [le service] Statut publié via ${instanceName}`);
         return { success: true, data: response.data };
       } catch (error) {
         lastError = error;
         const errorData = error.response?.data;
         const detailedError = formatStatusError(errorData, error.message);
-        console.error(`❌ Erreur Evolution API (sendStatus):`, JSON.stringify(errorData, null, 2) || error.message);
+        console.error(`❌ Erreur du service (sendStatus):`, JSON.stringify(errorData, null, 2) || error.message);
         console.error(`   URL tentée: ${variant.url}`);
 
         const isTimeout = error.code === 'ECONNABORTED' || /timeout/i.test(detailedError || '');
         if (isTimeout) {
-          console.warn(`⚠️ [Evolution API] Timeout sendStatus pour ${instanceName} — statut probablement publié`);
+          console.warn(`⚠️ [le service] Timeout sendStatus pour ${instanceName} — statut probablement publié`);
           return {
             success: true,
             assumedSuccess: true,
@@ -747,10 +747,10 @@ class EvolutionApiService {
           timeout: 30000,
         }
       );
-      console.log(`✅ [Evolution API] Groupe créé: "${subject}"`);
+      console.log(`✅ [le service] Groupe créé: "${subject}"`);
       return { success: true, data: response.data };
     } catch (error) {
-      console.error(`❌ Erreur Evolution API (createGroup):`, error.response?.data || error.message);
+      console.error(`❌ Erreur du service (createGroup):`, error.response?.data || error.message);
       return { success: false, error: error.response?.data?.message || error.message };
     }
   }
@@ -776,10 +776,10 @@ class EvolutionApiService {
           timeout: 30000,
         }
       );
-      console.log(`✅ [Evolution API] ${participants.length} participant(s) ajouté(s) au groupe`);
+      console.log(`✅ [le service] ${participants.length} participant(s) ajouté(s) au groupe`);
       return { success: true, data: response.data };
     } catch (error) {
-      console.error(`❌ Erreur Evolution API (addGroupParticipants):`, error.response?.data || error.message);
+      console.error(`❌ Erreur du service (addGroupParticipants):`, error.response?.data || error.message);
       return { success: false, error: error.response?.data?.message || error.message };
     }
   }
@@ -802,10 +802,10 @@ class EvolutionApiService {
       );
       const code = response.data?.inviteCode || response.data?.code || response.data;
       const inviteCode = typeof code === 'string' ? code : String(code);
-      console.log(`🔗 [Evolution API] Invite code obtenu pour groupe`);
+      console.log(`🔗 [le service] Invite code obtenu pour groupe`);
       return { success: true, inviteCode, inviteUrl: `https://chat.whatsapp.com/${inviteCode}` };
     } catch (error) {
-      console.error(`❌ Erreur Evolution API (getGroupInviteCode):`, error.response?.data || error.message);
+      console.error(`❌ Erreur du service (getGroupInviteCode):`, error.response?.data || error.message);
       return { success: false, error: error.response?.data?.message || error.message };
     }
   }
@@ -827,7 +827,7 @@ class EvolutionApiService {
       const groups = Array.isArray(response.data) ? response.data : (response.data?.groups || []);
       return { success: true, groups };
     } catch (error) {
-      console.error(`❌ Erreur Evolution API (listGroups):`, error.response?.data || error.message);
+      console.error(`❌ Erreur du service (listGroups):`, error.response?.data || error.message);
       return { success: false, error: error.response?.data?.message || error.message, groups: [] };
     }
   }
@@ -855,7 +855,7 @@ class EvolutionApiService {
       );
       return { success: true, data: response.data };
     } catch (error) {
-      console.error(`❌ Erreur Evolution API (sendGroupMessage):`, error.response?.data || error.message);
+      console.error(`❌ Erreur du service (sendGroupMessage):`, error.response?.data || error.message);
       return { success: false, error: error.response?.data?.message || error.message };
     }
   }
@@ -880,7 +880,7 @@ class EvolutionApiService {
       );
       return { success: true, data: response.data };
     } catch (error) {
-      console.error(`❌ Erreur Evolution API (sendGroupMedia):`, error.response?.data || error.message);
+      console.error(`❌ Erreur du service (sendGroupMedia):`, error.response?.data || error.message);
       return { success: false, error: error.response?.data?.message || error.message };
     }
   }
@@ -903,10 +903,10 @@ class EvolutionApiService {
         }
       );
       const groupJid = response.data?.groupJid || response.data?.id || response.data?.gid || response.data;
-      console.log(`✅ [Evolution API] Rejoint le groupe via invite: ${inviteCode}`);
+      console.log(`✅ [le service] Rejoint le groupe via invite: ${inviteCode}`);
       return { success: true, groupJid: typeof groupJid === 'string' ? groupJid : String(groupJid) };
     } catch (error) {
-      console.error(`❌ Erreur Evolution API (acceptGroupInvite):`, error.response?.data || error.message);
+      console.error(`❌ Erreur du service (acceptGroupInvite):`, error.response?.data || error.message);
       return { success: false, error: error.response?.data?.message || error.message };
     }
   }

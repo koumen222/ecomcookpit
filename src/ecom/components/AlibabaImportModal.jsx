@@ -131,7 +131,7 @@ const AlibabaImportModal = ({ onClose, onApply }) => {
           try {
             const text = await resp.text();
             console.error('Error response text:', text);
-            if (text.includes('OpenAI')) errorMessage = 'Clé API OpenAI manquante ou invalide';
+            if (text.includes('OpenAI')) errorMessage = 'Clé du service manquante ou invalide';
             else if (text.includes('auth')) errorMessage = 'Problème d\'authentification';
           } catch {}
         }
@@ -193,7 +193,7 @@ const AlibabaImportModal = ({ onClose, onApply }) => {
       if (err?.name === 'TypeError' && String(err?.message || '').toLowerCase().includes('failed to fetch')) {
         errorMessage = `Connexion impossible au backend (${BACKEND_URL}). Vérifiez que le serveur fonctionne.`;
       } else if (errorMessage.includes('OpenAI')) {
-        errorMessage = 'Configuration OpenAI manquante. Vérifiez la clé API dans les variables d\'environnement.';
+        errorMessage = 'Configuration du service manquante. Vérifiez la clé API dans les variables d\'environnement.';
       } else if (errorMessage.includes('auth')) {
         errorMessage = 'Problème d\'authentification. Reconnectez-vous et réessayez.';
       }

@@ -187,7 +187,7 @@ export async function sendWhatsAppMessage({ to, message, workspaceId, userId, fi
     );
 
     if (!result.success) {
-      console.error(`❌ Evolution API a refusé l'envoi — numéro: ${cleanNumber}, erreur: ${result.error}`);
+      console.error(`❌ le service a refusé l'envoi — numéro: ${cleanNumber}, erreur: ${result.error}`);
       await _handleSendFailure(instance, result.error);
       throw new Error(_friendlyError(result.error));
     }

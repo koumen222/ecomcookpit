@@ -33,9 +33,9 @@ const GEMINI_MODEL = process.env.GEMINI_IMAGE_MODEL || 'gemini-3-pro-image-previ
 // Log au démarrage pour pouvoir diagnostiquer quelle source de clé est active
 if (GEMINI_API_KEY) {
   const source = process.env.GEMINI_API_KEY ? 'env GEMINI_API_KEY' : 'hardcoded fallback';
-  console.log(`🌙 Gemini key source: ${source} (prefix ${GEMINI_API_KEY.slice(0, 10)}..., len ${GEMINI_API_KEY.length})`);
+  console.log(`🌙 le service key source: ${source} (prefix ${GEMINI_API_KEY.slice(0, 10)}..., len ${GEMINI_API_KEY.length})`);
 } else {
-  console.warn('⚠️ Gemini key NOT configured');
+  console.warn('⚠️ le service key NOT configured');
 }
 const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
 // Timeout d'un appel de génération Gemini (fallback). Par défaut très large pour
@@ -64,7 +64,7 @@ async function normalizeImageForGemini(input) {
     mimeType = res.headers['content-type']?.split(';')[0]?.trim() || 'image/jpeg';
   } else if (typeof input === 'string' && input.startsWith('data:')) {
     const match = input.match(/^data:(image\/[a-z+]+);base64,(.*)$/);
-    if (!match) throw new Error('Gemini: data URL invalide');
+    if (!match) throw new Error('le service: data URL invalide');
     mimeType = match[1];
     buffer = Buffer.from(match[2], 'base64');
   } else if (Buffer.isBuffer(input)) {
@@ -73,7 +73,7 @@ async function normalizeImageForGemini(input) {
     // base64 brut
     buffer = Buffer.from(input, 'base64');
   } else {
-    throw new Error('Gemini: type d\'entrée image non supporté');
+    throw new Error('le service: type d\'entrée image non supporté');
   }
 
   // Redimensionne pour limiter la taille payload (Gemini accepte jusqu'à ~7MB inline)
@@ -84,7 +84,7 @@ async function normalizeImageForGemini(input) {
       .toBuffer();
     mimeType = 'image/jpeg';
   } catch (err) {
-    console.warn(`⚠️ Gemini resize fallback (utilise original) : ${err.message}`);
+    console.warn(`⚠️ le service resize fallback (utilise original) : ${err.message}`);
   }
 
   return { base64: buffer.toString('base64'), mimeType };
@@ -123,7 +123,7 @@ function extractImageFromResponse(data) {
   }
   // Bloqué pour des raisons de safety ?
   const block = candidates[0]?.finishReason || data?.promptFeedback?.blockReason;
-  throw new Error(`Gemini: aucune image dans la réponse (finishReason=${block || 'unknown'})`);
+  throw new Error(`le service: aucune image dans la réponse (finishReason=${block || 'unknown'})`);
 }
 
 /**
@@ -138,10 +138,10 @@ function extractImageFromResponse(data) {
  */
 export async function generateGeminiImageToImage(prompt, imageInput, aspectRatio = 'auto', logoInput = null) {
   if (!GEMINI_API_KEY) {
-    throw new Error('GEMINI_API_KEY non configurée — fallback Gemini désactivé');
+    throw new Error('le service non configurée — service de secours désactivé');
   }
   if (!imageInput) {
-    throw new Error('Gemini I2I : image de référence obligatoire');
+    throw new Error('le service I2I : image de référence obligatoire');
   }
 
   const product = await normalizeImageForGemini(imageInput);
@@ -154,9 +154,9 @@ export async function generateGeminiImageToImage(prompt, imageInput, aspectRatio
     try {
       const logo = await normalizeImageForGemini(logoInput);
       parts.push({ inline_data: { mime_type: logo.mimeType, data: logo.base64 } });
-      console.log(`🏷️ Gemini : logo référence ajouté`);
+      console.log(`🏷️ le service : logo référence ajouté`);
     } catch (logoErr) {
-      console.warn(`⚠️ Gemini logo upload skip : ${logoErr.message}`);
+      console.warn(`⚠️ le service logo upload skip : ${logoErr.message}`);
     }
   }
 
@@ -170,7 +170,7 @@ export async function generateGeminiImageToImage(prompt, imageInput, aspectRatio
     },
   };
 
-  console.log(`🌙 Gemini [${GEMINI_MODEL}] image-to-image (${aspectRatio}, ${parts.length - 1} refs)...`);
+  console.log(`🌙 le service [${GEMINI_MODEL}] image-to-image (${aspectRatio}, ${parts.length - 1} refs)...`);
   const url = `${GEMINI_BASE}/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
 
   let response;
@@ -182,7 +182,7 @@ export async function generateGeminiImageToImage(prompt, imageInput, aspectRatio
   } catch (err) {
     const status = err.response?.status;
     const message = err.response?.data?.error?.message || err.message;
-    throw new Error(`Gemini API ${status || ''} : ${message}`);
+    throw new Error(`le service API ${status || ''} : ${message}`);
   }
 
   const { base64, mimeType } = extractImageFromResponse(response.data);
@@ -193,9 +193,9 @@ export async function generateGeminiImageToImage(prompt, imageInput, aspectRatio
   const fileName = `gemini-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
   const r2 = await uploadToR2(buffer, fileName, mimeType);
   if (!r2?.success || !r2?.url) {
-    throw new Error(`Gemini : upload R2 échoué (${r2?.error || 'no url'})`);
+    throw new Error(`le service : upload R2 échoué (${r2?.error || 'no url'})`);
   }
-  console.log(`✅ Gemini image générée : ${r2.url.slice(0, 80)}...`);
+  console.log(`✅ le service image générée : ${r2.url.slice(0, 80)}...`);
   return r2.url;
 }
 
@@ -205,7 +205,7 @@ export async function generateGeminiImageToImage(prompt, imageInput, aspectRatio
  */
 export async function generateGeminiTextToImage(prompt, aspectRatio = '1:1') {
   if (!GEMINI_API_KEY) {
-    throw new Error('GEMINI_API_KEY non configurée');
+    throw new Error('le service non configurée');
   }
   const body = {
     contents: [{ role: 'user', parts: [{ text: `${prompt}${aspectRatioHint(aspectRatio)}` }] }],
@@ -214,7 +214,7 @@ export async function generateGeminiTextToImage(prompt, aspectRatio = '1:1') {
       temperature: 0.9,
     },
   };
-  console.log(`🌙 Gemini [${GEMINI_MODEL}] text-to-image (${aspectRatio})...`);
+  console.log(`🌙 le service [${GEMINI_MODEL}] text-to-image (${aspectRatio})...`);
   const url = `${GEMINI_BASE}/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
   let response;
   try {
@@ -225,7 +225,7 @@ export async function generateGeminiTextToImage(prompt, aspectRatio = '1:1') {
   } catch (err) {
     const status = err.response?.status;
     const message = err.response?.data?.error?.message || err.message;
-    throw new Error(`Gemini API ${status || ''} : ${message}`);
+    throw new Error(`le service API ${status || ''} : ${message}`);
   }
   const { base64, mimeType } = extractImageFromResponse(response.data);
   const buffer = Buffer.from(base64, 'base64');
@@ -233,8 +233,8 @@ export async function generateGeminiTextToImage(prompt, aspectRatio = '1:1') {
   const fileName = `gemini-t2i-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
   const r2 = await uploadToR2(buffer, fileName, mimeType);
   if (!r2?.success || !r2?.url) {
-    throw new Error(`Gemini : upload R2 échoué (${r2?.error || 'no url'})`);
+    throw new Error(`le service : upload R2 échoué (${r2?.error || 'no url'})`);
   }
-  console.log(`✅ Gemini t2i générée : ${r2.url.slice(0, 80)}...`);
+  console.log(`✅ le service t2i générée : ${r2.url.slice(0, 80)}...`);
   return r2.url;
 }

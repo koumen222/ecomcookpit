@@ -22,7 +22,7 @@ for (const config of configs) {
   console.log(`instanceId: ${config.instanceId || '(vide)'}`);
 }
 
-console.log('\n\n🧪 Test Groq API avec config réelle...');
+console.log('\n\n🧪 Test le service API avec config réelle...');
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 try {
@@ -38,11 +38,11 @@ try {
     reasoning_effort: 'medium',
   });
   const content = r.choices[0]?.message?.content;
-  console.log('✅ Réponse Groq:', content);
+  console.log('✅ Réponse le service:', content);
   console.log('Finish reason:', r.choices[0]?.finish_reason);
   console.log('Tokens usage:', JSON.stringify(r.usage));
 } catch (e) {
-  console.error('❌ Erreur Groq:', e.message);
+  console.error('❌ Erreur du service:', e.message);
   console.error('Status:', e.status);
 }
 

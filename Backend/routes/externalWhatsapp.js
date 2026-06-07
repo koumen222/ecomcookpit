@@ -656,19 +656,19 @@ router.post('/link', requireEcomAuth, async (req, res) => {
     // ÉTAPE 1 : Vérifier l'instance auprès d'Evolution API EXTERNE
     // L'instance ne sera PAS créée si la vérification échoue
     // ═══════════════════════════════════════════════════════════════
-    console.log(`🔍 [LINK] Vérification Evolution API pour : ${instanceName}`);
-    console.log(`🔍 [LINK] URL Evolution API : ${evolutionApiService.baseUrl}`);
+    console.log(`🔍 [LINK] Vérification le service pour : ${instanceName}`);
+    console.log(`🔍 [LINK] URL le service : ${evolutionApiService.baseUrl}`);
 
     const apiStatus = await evolutionApiService.getInstanceStatus(instanceName, instanceToken);
 
-    console.log(`🔍 [LINK] Réponse Evolution API :`, JSON.stringify(apiStatus));
+    console.log(`🔍 [LINK] Réponse le service :`, JSON.stringify(apiStatus));
 
     // Si aucune réponse ou instance introuvable → REFUSER la création
     if (!apiStatus || !apiStatus.instance) {
-      console.warn(`❌ [LINK] REFUSÉ : Instance "${instanceName}" introuvable sur Evolution API`);
+      console.warn(`❌ [LINK] REFUSÉ : Instance "${instanceName}" introuvable sur le service`);
       return res.status(400).json({
         success: false,
-        error: `Instance "${instanceName}" introuvable sur Evolution API. Vérifiez le nom de l'instance et le token, puis réessayez.`,
+        error: `Instance "${instanceName}" introuvable sur le service. Vérifiez le nom de l'instance et le token, puis réessayez.`,
         verified: false
       });
     }
@@ -689,7 +689,7 @@ router.post('/link', requireEcomAuth, async (req, res) => {
       console.warn(`❌ [LINK] REFUSÉ : Instance "${instanceName}" état inconnu : ${state}`);
       return res.status(400).json({
         success: false,
-        error: `Instance "${instanceName}" retourne un état inconnu ("${state}"). Vérifiez la configuration sur Evolution API.`,
+        error: `Instance "${instanceName}" retourne un état inconnu ("${state}"). Vérifiez la configuration sur le service.`,
         verified: false
       });
     }
@@ -715,7 +715,7 @@ router.post('/link', requireEcomAuth, async (req, res) => {
 
     const verificationMessage = status === 'connected'
       ? 'Instance vérifiée et connectée à WhatsApp ✅'
-      : 'Instance trouvée sur Evolution API mais non connectée à WhatsApp. Scannez le QR code dans Evolution.';
+      : 'Instance trouvée mais non connectée à WhatsApp. Scannez le QR code.';
 
     console.log(`✅ [LINK] Instance SAUVEGARDÉE dans MongoDB:`);
     console.log(`   - ID: ${instance._id}`);
@@ -745,15 +745,15 @@ router.post('/link', requireEcomAuth, async (req, res) => {
     let errorMessage = "Erreur lors de la liaison de l'instance";
 
     if (error.message?.includes('ECONNREFUSED') || error.message?.includes('ENOTFOUND')) {
-      errorMessage = "Impossible de contacter le serveur Evolution API. Vérifiez votre connexion internet.";
+      errorMessage = "Impossible de contacter le serveur le service. Vérifiez votre connexion internet.";
     } else if (error.message?.includes('timeout') || error.message?.includes('ETIMEDOUT')) {
-      errorMessage = "Le serveur Evolution API ne répond pas (timeout). Réessayez dans quelques instants.";
+      errorMessage = "Le serveur le service ne répond pas (timeout). Réessayez dans quelques instants.";
     } else if (error.response?.status === 401 || error.response?.status === 403) {
       errorMessage = "Token d'accès invalide ou expiré. Vérifiez votre token ZenChat.";
     } else if (error.response?.status === 404) {
-      errorMessage = "Instance non trouvée sur Evolution API. Vérifiez le nom de l'instance.";
+      errorMessage = "Instance non trouvée sur le service. Vérifiez le nom de l'instance.";
     } else if (error.message?.includes('instance') && error.message?.includes('not found')) {
-      errorMessage = "Instance non disponible. Cette instance n'existe pas sur Evolution API.";
+      errorMessage = "Instance non disponible. Cette instance n'existe pas sur le service.";
     }
 
     res.status(500).json({
@@ -782,7 +782,7 @@ router.post('/verify-instance', async (req, res) => {
       return res.status(404).json({ success: false, error: "Instance introuvable en base de données" });
     }
 
-    console.log(`🔍 [VERIFY] Test Evolution API pour : ${instance.instanceName}`);
+    console.log(`🔍 [VERIFY] Test le service pour : ${instance.instanceName}`);
     console.log(`🔍 [VERIFY] URL : ${evolutionApiService.baseUrl}/instance/connectionState/${instance.instanceName}`);
 
     const apiStatus = await evolutionApiService.getInstanceStatus(instance.instanceName, instance.instanceToken);
@@ -793,7 +793,7 @@ router.post('/verify-instance', async (req, res) => {
       await WhatsAppInstance.findByIdAndUpdate(instanceId, { status: 'disconnected', lastSeen: new Date() });
       return res.status(200).json({
         success: false,
-        error: `Impossible de joindre l'instance "${instance.instanceName}" sur Evolution API. Elle n'existe peut-être plus.`,
+        error: `Impossible de joindre l'instance "${instance.instanceName}" sur le service. Elle n'existe peut-être plus.`,
         status: 'disconnected'
       });
     }
@@ -807,7 +807,7 @@ router.post('/verify-instance', async (req, res) => {
       message = `Instance "${instance.customName || instance.instanceName}" connectée à WhatsApp ✅`;
     } else if (state === 'close') {
       newStatus = 'disconnected';
-      message = `Instance trouvée mais déconnectée de WhatsApp. Scannez le QR code dans Evolution.`;
+      message = `Instance trouvée mais déconnectée de WhatsApp. Scannez le QR code dans le service.`;
     } else if (state === 'connecting') {
       newStatus = 'disconnected';
       message = `Instance en cours de connexion à WhatsApp. Patientez ou scannez le QR code.`;
@@ -830,7 +830,7 @@ router.post('/verify-instance', async (req, res) => {
     let errorMessage = "Erreur lors de la vérification";
 
     if (error.message?.includes('ECONNREFUSED') || error.message?.includes('ENOTFOUND')) {
-      errorMessage = "Serveur Evolution API injoignable. Vérifiez votre connexion.";
+      errorMessage = "Serveur le service injoignable. Vérifiez votre connexion.";
     } else if (error.message?.includes('timeout')) {
       errorMessage = "Timeout - Le serveur met trop de temps à répondre.";
     } else if (error.message?.includes('token') || error.message?.includes('auth')) {
@@ -944,7 +944,7 @@ router.post('/send', async (req, res) => {
     } else {
       return res.status(500).json({
         success: false,
-        error: "Échec de l'envoi du message via Evolution API",
+        error: "Échec de l'envoi du message via le service",
         details: result.error
       });
     }
@@ -1206,7 +1206,7 @@ router.post('/activate', async (req, res) => {
     const isLocalWebhook = /localhost|127\.0\.0\.1|0\.0\.0\.0/i.test(webhookUrl);
     console.log(`🔧 [ACTIVATE] Webhook URL: ${webhookUrl}`);
     if (isLocalWebhook) {
-      console.log('⚠️ [ACTIVATE] Webhook local détecté. Evolution API doit pouvoir joindre cette machine (même réseau, tunnel ngrok/cloudflared, ou Evolution local).');
+      console.log('⚠️ [ACTIVATE] Webhook local détecté. le service doit pouvoir joindre cette machine (même réseau, tunnel ngrok/cloudflared, ou le service local).');
     }
     console.log(`🔧 [ACTIVATE] Events: ${events.join(', ')}`);
 
@@ -1425,7 +1425,7 @@ router.get('/incoming', async (req, res) => {
   res.status(200).json({
     success: true,
     message: 'Webhook WhatsApp Rita disponible',
-    method: 'Utiliser POST pour les événements Evolution API',
+    method: 'Utiliser POST pour les événements webhook',
     webhookUrl: 'https://api.scalor.net/api/ecom/v1/external/whatsapp/incoming'
   });
 });
@@ -3550,7 +3550,7 @@ router.post('/create-instance', requireEcomAuth, async (req, res) => {
     // 1. Créer l'instance sur Evolution API
     const result = await evolutionApiService.createInstance(instanceName);
     if (!result.success) {
-      return res.status(400).json({ success: false, error: result.error || "Impossible de créer l'instance sur Evolution API" });
+      return res.status(400).json({ success: false, error: result.error || "Impossible de créer l'instance sur le service" });
     }
 
     // Extraire le token de l'instance créée

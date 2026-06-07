@@ -15,7 +15,7 @@ const initGroq = () => {
     groqClient = new Groq({
       apiKey: process.env.GROQ_API_KEY
     });
-    console.log('✅ Service Agent Groq initialisé');
+    console.log('✅ Service Agent le service initialisé');
   }
   return groqClient;
 };
@@ -431,7 +431,7 @@ Génère une réponse qui:
 const generateAgentResponse = async (conversation, clientMessage, intent, sentiment) => {
   const groq = initGroq();
   if (!isKieConfigured() && !groq) {
-    throw new Error('Aucun modele texte configure (KIE_API_KEY ou GROQ_API_KEY manquant)');
+    throw new Error('Aucun modele texte configure (le service ou le service manquant)');
   }
 
   // Charger ProductConfig + RitaConfig en parallèle
@@ -461,7 +461,7 @@ const generateAgentResponse = async (conversation, clientMessage, intent, sentim
 
     try {
       if (!groq) {
-        throw new Error('GROQ_API_KEY non configuré');
+        throw new Error('le service non configuré');
       }
       const completion = await groq.chat.completions.create({
         model: process.env.AGENT_GROQ_MODEL || 'openai/gpt-oss-20b',
@@ -475,7 +475,7 @@ const generateAgentResponse = async (conversation, clientMessage, intent, sentim
       response = completion.choices[0].message.content.trim();
       tokensUsed = completion.usage?.total_tokens || 0;
     } catch (groqErr) {
-      console.warn(`⚠️ [AGENT] Groq indisponible, fallback KIE: ${groqErr.message}`);
+      console.warn(`⚠️ [AGENT] le service indisponible, service de secours: ${groqErr.message}`);
       const kieResult = await callKieChatCompletion({
         messages: [
           { role: 'system', content: systemPrompt },
@@ -507,7 +507,7 @@ const generateAgentResponse = async (conversation, clientMessage, intent, sentim
       processingTime
     };
   } catch (error) {
-    console.error('❌ Erreur génération réponse Groq:', error.message);
+    console.error('❌ Erreur génération réponse le service:', error.message);
     throw error;
   }
 };
@@ -1046,7 +1046,7 @@ const processIncomingImageMessage = async (conversation, base64Image, mimetype, 
  */
 const generateAgentImageResponse = async (conversation, imageContext, caption) => {
   const groq = initGroq();
-  if (!isKieConfigured() && !groq) throw new Error('Aucun modele texte configure (KIE_API_KEY ou GROQ_API_KEY manquant)');
+  if (!isKieConfigured() && !groq) throw new Error('Aucun modele texte configure (le service ou le service manquant)');
 
   const productConfig = await ProductConfig.findByProductName(
     conversation.workspaceId,
@@ -1080,7 +1080,7 @@ Génère une réponse naturelle qui:
 
   try {
     if (!groq) {
-      throw new Error('GROQ_API_KEY non configuré');
+      throw new Error('le service non configuré');
     }
     const completion = await groq.chat.completions.create({
       model: process.env.AGENT_GROQ_MODEL || 'meta-llama/llama-4-scout-17b-16e-instruct',
@@ -1094,7 +1094,7 @@ Génère une réponse naturelle qui:
     response = completion.choices[0].message.content.trim();
     tokensUsed = completion.usage?.total_tokens || 0;
   } catch (groqErr) {
-    console.warn(`⚠️ [AGENT] Groq indisponible (image-context), fallback KIE: ${groqErr.message}`);
+    console.warn(`⚠️ [AGENT] le service indisponible (image-context), service de secours: ${groqErr.message}`);
     const kieResult = await callKieChatCompletion({
       messages: [
         { role: 'system', content: systemPrompt },

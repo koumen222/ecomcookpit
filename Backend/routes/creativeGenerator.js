@@ -101,13 +101,13 @@ async function analyzeProduct({ url, description }) {
   // If URL provided, try to extract info from it
   if (url) {
     try {
-      console.log('📊 Extracting product info from URL via Gemini...');
+      console.log('📊 Extracting product info from URL via le service...');
       const extracted = await extractProductInfo(url);
       productInfo.title = extracted?.title || '';
       productInfo.description = (description ? description + '\n\n' : '') + (extracted?.description || '');
-      console.log('✅ Gemini extraction:', productInfo.title || 'unknown');
+      console.log('✅ le service extraction:', productInfo.title || 'unknown');
     } catch (err) {
-      console.warn('⚠️ Gemini extraction failed:', err.message);
+      console.warn('⚠️ le service extraction failed:', err.message);
       if (!description) {
         const urlParts = new URL(url);
         productInfo.title = urlParts.pathname.split('/').pop()?.replace(/[-_]/g, ' ') || urlParts.hostname;
@@ -122,7 +122,7 @@ async function analyzeProduct({ url, description }) {
 
   // Marketing analysis via Groq
   const groq = getGroq();
-  if (!groq) throw new Error('Clé GROQ_API_KEY non configurée');
+  if (!groq) throw new Error('Clé du service non configurée');
 
   const contextParts = [];
   if (url) contextParts.push(`- URL: ${url}`);
@@ -177,7 +177,7 @@ IMPORTANT:
   let cleaned = raw.replace(/```(?:json)?\s*/gi, '').replace(/```/g, '').trim();
   const start = cleaned.indexOf('{');
   const end = cleaned.lastIndexOf('}');
-  if (start === -1 || end === -1) throw new Error('Réponse Groq invalide');
+  if (start === -1 || end === -1) throw new Error('Réponse le service invalide');
   cleaned = cleaned.slice(start, end + 1);
 
   try {
@@ -788,11 +788,11 @@ router.post('/', requireEcomAuth, upload.fields([
               finalUrl = uploaded.url;
               console.log(`  💾 ${format.id} stored → ${finalUrl.slice(0, 80)}`);
             } else {
-              console.warn(`  ⚠️ ${format.id} R2 upload returned no URL — keeping Kie.ai URL`);
+              console.warn(`  ⚠️ ${format.id} R2 upload returned no URL — keeping le service URL`);
             }
           }
         } catch (uploadErr) {
-          console.error(`  ❌ ${format.id} R2 upload failed: ${uploadErr.message} — keeping Kie.ai URL`);
+          console.error(`  ❌ ${format.id} R2 upload failed: ${uploadErr.message} — keeping le service URL`);
         }
 
         creatives.push({ id: format.id, label: format.label, aspectRatio: format.aspectRatio, imageUrl: finalUrl, usedProductImage: true });

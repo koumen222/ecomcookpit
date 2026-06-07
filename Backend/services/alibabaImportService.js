@@ -105,7 +105,7 @@ export async function scrapeAlibaba(url) {
 export async function analyzeWithGPT(scraped) {
   const openai = getOpenAI();
   if (!isKieConfigured() && !openai) {
-    throw new Error('Aucune clé IA configurée. Ajoutez KIE_API_KEY ou OPENAI_API_KEY dans les variables d\'environnement.');
+    throw new Error('Aucune clé IA configurée. Ajoutez le service ou le service dans les variables d\'environnement.');
   }
 
   const contextLines = [
@@ -203,7 +203,7 @@ RÈGLES STRICTES:
     raw = kieResp.content || '{}';
   } catch (kieErr) {
     if (!openai) throw kieErr;
-    console.warn(`⚠️ [AlibabaImport] KIE indisponible, fallback OpenAI: ${kieErr.message}`);
+    console.warn(`⚠️ [AlibabaImport] le service indisponible, service de secours: ${kieErr.message}`);
     const completion = await openai.chat.completions.create({
       model: process.env.OPENAI_MODEL || 'gpt-4o',
       messages: [{ role: 'user', content: prompt }],

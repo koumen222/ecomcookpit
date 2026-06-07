@@ -102,12 +102,12 @@ async function uploadToKieAi(base64Data, mimeType = 'image/jpeg') {
   // Kie.ai returns downloadUrl (not fileUrl)
   const fileUrl = rd?.data?.downloadUrl || rd?.data?.fileUrl || rd?.data?.url || rd?.fileUrl || rd?.url;
   if (fileUrl) {
-    console.log(`📎 Uploaded to Kie.ai: ${fileUrl.slice(0, 80)}...`);
+    console.log(`📎 Uploaded to le service: ${fileUrl.slice(0, 80)}...`);
     return fileUrl;
   }
   // Log full response for debugging
-  console.warn('⚠️ Kie.ai upload response:', JSON.stringify(rd).slice(0, 500));
-  throw new Error(`Kie.ai file upload failed: ${rd?.msg || rd?.message || 'no fileUrl in response'}`);
+  console.warn('⚠️ le service upload response:', JSON.stringify(rd).slice(0, 500));
+  throw new Error(`le service file upload failed: ${rd?.msg || rd?.message || 'no fileUrl in response'}`);
 }
 
 function extractTaskResultUrl(data, mediaType = 'image') {
@@ -178,31 +178,31 @@ async function submitKieTask(body, maxRetries = 3) {
       );
 
       if (response.data?.code === 200 && response.data?.data?.taskId) {
-        console.log(`✅ Kie.ai task created: ${response.data.data.taskId} (model=${body?.model || 'unknown'})`);
+        console.log(`✅ le service task created: ${response.data.data.taskId} (model=${body?.model || 'unknown'})`);
         return response.data.data.taskId;
       }
 
       const errMsg = response.data?.msg || response.data?.message || JSON.stringify(response.data).slice(0, 400);
-      console.warn(`⚠️ Kie submit attempt ${attempt}/${maxRetries} failed (code ${response.data?.code}): ${errMsg}`);
+      console.warn(`⚠️ le service submit attempt ${attempt}/${maxRetries} failed (code ${response.data?.code}): ${errMsg}`);
 
       if (attempt < maxRetries) {
         const delay = attempt * 2000;
         console.log(`⏳ Retry in ${delay / 1000}s...`);
         await new Promise((resolve) => setTimeout(resolve, delay));
       } else {
-        throw new Error(`Kie submit failed after ${maxRetries} attempts: ${errMsg}`);
+        throw new Error(`le service submit failed after ${maxRetries} attempts: ${errMsg}`);
       }
     } catch (err) {
       if (err.message.startsWith('Kie submit failed after')) throw err;
       const errMsg = err.response?.data?.msg || err.response?.data?.message || err.message;
       const status = err.response?.status;
-      console.warn(`⚠️ Kie submit attempt ${attempt}/${maxRetries} error (HTTP ${status || '?'}): ${errMsg}`);
+      console.warn(`⚠️ le service submit attempt ${attempt}/${maxRetries} error (HTTP ${status || '?'}): ${errMsg}`);
       if (attempt < maxRetries) {
         const delay = status === 429 ? 10000 + attempt * 2000 : attempt * 2000;
         console.log(`⏳ Retry in ${delay / 1000}s...`);
         await new Promise((resolve) => setTimeout(resolve, delay));
       } else {
-        throw new Error(`Kie submit failed after ${maxRetries} attempts: ${errMsg}`);
+        throw new Error(`le service submit failed after ${maxRetries} attempts: ${errMsg}`);
       }
     }
   }
@@ -224,7 +224,7 @@ async function pollKieTask(taskId, { maxWaitMs = IMAGE_GEN_MAX_WAIT_MS, mediaTyp
     );
 
     const data = response.data?.data;
-    if (!data) throw new Error('Kie.ai: empty poll response');
+    if (!data) throw new Error('le service: empty poll response');
 
     if (data.state === 'success' || data.state === 'completed') {
       const mediaUrl = extractTaskResultUrl(data, mediaType);
@@ -301,17 +301,17 @@ async function pollGrokImagineTask(taskId, maxWaitMs = IMAGE_GEN_MAX_WAIT_MS) {
  * Returns image URL string (not data URL)
  */
 async function generateViaGrokImagine(prompt, imageUrls = [], aspectRatio = '1:1') {
-  console.log(`🤖 NanoBanana Pro [${NANOBANANA_MODEL}] (${imageUrls.length > 0 ? 'image-to-image' : 'text-to-image'}, ${aspectRatio}, 1K)...`);
+  console.log(`🤖 le service [${NANOBANANA_MODEL}] (${imageUrls.length > 0 ? 'image-to-image' : 'text-to-image'}, ${aspectRatio}, 1K)...`);
   const taskId = await submitGrokImagineTask(prompt, imageUrls, aspectRatio);
-  console.log(`📋 NanoBanana Pro task submitted: ${taskId}`);
+  console.log(`📋 le service task submitted: ${taskId}`);
 
   const imageUrl = await pollGrokImagineTask(taskId);
   const costFcfa = Math.round(NANOBANANA_PRO_COST_USD * USD_TO_FCFA);
   sessionStats.totalImages++;
   sessionStats.totalCostUsd += NANOBANANA_PRO_COST_USD;
   sessionStats.totalCostFcfa += costFcfa;
-  console.log(`💰 NanoBanana Pro → ~$${NANOBANANA_PRO_COST_USD} (~${costFcfa} FCFA) | SESSION: ${sessionStats.totalImages} img, ~$${sessionStats.totalCostUsd.toFixed(3)}`);
-  console.log(`✅ NanoBanana Pro image: ${imageUrl.slice(0, 80)}...`);
+  console.log(`💰 le service → ~$${NANOBANANA_PRO_COST_USD} (~${costFcfa} FCFA) | SESSION: ${sessionStats.totalImages} img, ~$${sessionStats.totalCostUsd.toFixed(3)}`);
+  console.log(`✅ le service image: ${imageUrl.slice(0, 80)}...`);
   return imageUrl;
 }
 
@@ -319,7 +319,7 @@ async function generateViaGrokImagine(prompt, imageUrls = [], aspectRatio = '1:1
  * Text-to-image — nano-banana-2 supports text-to-image natively.
  */
 export async function generateNanoBananaImage(prompt, aspectRatio = '4:5', numImages = 1) {
-  console.log(`🎨 NanoBanana 2 text-to-image (${aspectRatio})...`);
+  console.log(`🎨 le service 2 text-to-image (${aspectRatio})...`);
   return await generateViaGrokImagine(prompt, [], aspectRatio);
 }
 
@@ -344,7 +344,7 @@ export async function generateNanoBananaImageToImage(prompt, imageInput, aspectR
   }
 
   try {
-    console.log(`🎨 NanoBanana 2 image-to-image...`);
+    console.log(`🎨 le service 2 image-to-image...`);
     let imageUrls = [];
     if (base64Image) {
       // 1st try: R2 (reliable public URL, works with all models)
@@ -359,7 +359,7 @@ export async function generateNanoBananaImageToImage(prompt, imageInput, aspectR
           throw new Error(r2Result?.error || 'R2 upload returned no URL');
         }
       } catch (r2Err) {
-        console.warn(`⚠️ R2 upload failed: ${r2Err.message} — trying Kie.ai upload...`);
+        console.warn(`⚠️ R2 upload failed: ${r2Err.message} — trying le service upload...`);
         // 2nd try: Kie.ai upload endpoint
         try {
           const kieUrl = await uploadToKieAi(base64Image, imageMimeType);
@@ -374,7 +374,7 @@ export async function generateNanoBananaImageToImage(prompt, imageInput, aspectR
     }
     return await generateViaGrokImagine(prompt, imageUrls, aspectRatio);
   } catch (err) {
-    console.error(`❌ NanoBanana Pro image-to-image failed: ${err.message}`);
+    console.error(`❌ le service image-to-image failed: ${err.message}`);
     // STRICT: throw instead of returning null — the caller requires image-to-image.
     // Returning null would silently skip the image; throwing lets upstream retry logic work.
     throw err;
@@ -404,19 +404,19 @@ async function bufferToPublicUrl(buffer, label = 'ref') {
   } else if (typeof buffer === 'string') {
     base64Image = buffer;
   }
-  if (!base64Image) throw new Error(`GPT Image 2 I2I: invalid ${label} input`);
+  if (!base64Image) throw new Error(`le service I2I: invalid ${label} input`);
 
   try {
     const imgBuffer = Buffer.from(base64Image, 'base64');
     const tempName = `gptimg2-${label}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.jpg`;
     const r2Result = await uploadToR2(imgBuffer, tempName, imageMimeType);
     if (r2Result?.success && r2Result?.url) {
-      console.log(`📎 GPT Image 2 ${label} uploaded R2: ${r2Result.url.slice(0, 80)}...`);
+      console.log(`📎 le service ${label} uploaded R2: ${r2Result.url.slice(0, 80)}...`);
       return r2Result.url;
     }
     throw new Error(r2Result?.error || 'R2 upload returned no URL');
   } catch (r2Err) {
-    console.warn(`⚠️ GPT Image 2 R2 upload failed for ${label}: ${r2Err.message} — trying Kie.ai upload...`);
+    console.warn(`⚠️ le service R2 upload failed for ${label}: ${r2Err.message} — trying le service upload...`);
     return uploadToKieAi(base64Image, imageMimeType);
   }
 }
@@ -425,19 +425,19 @@ async function bufferToPublicUrl(buffer, label = 'ref') {
 // Retourne l'URL R2 si succès, relance l'erreur sinon (avec contexte combiné).
 async function tryGeminiFallback(prompt, imageInput, aspectRatio, logoInput, originalErr) {
   if (!isGeminiConfigured()) {
-    console.warn(`⚠️ Gemini fallback indisponible (GEMINI_API_KEY absente) — rethrow erreur Kie.ai`);
+    console.warn(`⚠️ le service fallback indisponible (le service absente) — rethrow erreur du service`);
     throw originalErr;
   }
-  console.warn(`↪️ Kie.ai a échoué (${originalErr.message}) — bascule sur Gemini Nano Banana 2...`);
+  console.warn(`↪️ le service a échoué (${originalErr.message}) — bascule sur le service de secours de secours de secours le service 2...`);
   try {
     const url = await generateGeminiImageToImage(prompt, imageInput, aspectRatio, logoInput);
-    console.log(`✅ Gemini fallback OK : ${url.slice(0, 80)}...`);
+    console.log(`✅ le service fallback OK : ${url.slice(0, 80)}...`);
     sessionStats.totalImages++;
     return url;
   } catch (geminiErr) {
-    console.error(`❌ Gemini fallback aussi en échec : ${geminiErr.message}`);
+    console.error(`❌ le service fallback aussi en échec : ${geminiErr.message}`);
     // On lance une erreur combinée pour conserver le contexte des deux providers
-    const combined = new Error(`Kie.ai: ${originalErr.message} | Gemini: ${geminiErr.message}`);
+    const combined = new Error(`le service: ${originalErr.message} | le service: ${geminiErr.message}`);
     combined.cause = { primary: originalErr, fallback: geminiErr };
     throw combined;
   }
@@ -447,10 +447,10 @@ export async function generateGptImage2ImageToImage(prompt, imageInput, aspectRa
   // Si Kie.ai n'est pas configuré du tout, on bascule directement sur Gemini.
   if (!KIE_API_KEY) {
     if (isGeminiConfigured()) {
-      console.warn('⚠️ NANOBANANA_PRO_API_KEY absent — utilisation directe de Gemini Nano Banana 2');
+      console.warn('⚠️ le service absent — utilisation directe du service 2');
       return await generateGeminiImageToImage(prompt, imageInput, aspectRatio, logoInput);
     }
-    throw new Error('Kie.ai API key not configured (NANOBANANA_PRO_API_KEY) et GEMINI_API_KEY absent');
+    throw new Error('le service API key not configured (le service) et le service absent');
   }
 
   try {
@@ -469,17 +469,17 @@ export async function generateGptImage2ImageToImage(prompt, imageInput, aspectRa
           ? logoInput
           : await bufferToPublicUrl(logoInput, 'logo');
         imageUrls.push(logoUrl);
-        console.log(`🏷️ GPT Image 2 logo reference added (${imageUrls.length} images total)`);
+        console.log(`🏷️ le service logo reference added (${imageUrls.length} images total)`);
       } catch (logoErr) {
         console.warn(`⚠️ Logo upload failed, generating without logo: ${logoErr.message}`);
       }
     }
 
-    if (!imageUrls.length) throw new Error('GPT Image 2 I2I: no reference image URL available');
+    if (!imageUrls.length) throw new Error('le service I2I: no reference image URL available');
 
     console.log(`🤖 GPT Image 2 image-to-image [${GPT_IMAGE_2_IMG2IMG_MODEL}] (${aspectRatio}, ${imageUrls.length} ref images)...`);
     const taskId = await submitGptImage2ImageToImageTask(prompt, imageUrls, aspectRatio);
-    console.log(`📋 GPT Image 2 task submitted: ${taskId}`);
+    console.log(`📋 le service task submitted: ${taskId}`);
 
     const imageUrl = await pollKieTask(taskId, { maxWaitMs: IMAGE_GEN_MAX_WAIT_MS, mediaType: 'image', label: 'GPT Image 2' });
 
@@ -487,7 +487,7 @@ export async function generateGptImage2ImageToImage(prompt, imageInput, aspectRa
     sessionStats.totalImages++;
     sessionStats.totalCostUsd += NANOBANANA_PRO_COST_USD;
     sessionStats.totalCostFcfa += costFcfa;
-    console.log(`✅ GPT Image 2 result: ${imageUrl.slice(0, 80)}...`);
+    console.log(`✅ le service result: ${imageUrl.slice(0, 80)}...`);
     return imageUrl;
   } catch (kieErr) {
     // Fallback vers Gemini si configuré, sinon on remonte l'erreur d'origine.
@@ -497,7 +497,7 @@ export async function generateGptImage2ImageToImage(prompt, imageInput, aspectRa
 
 export async function generateKieImageToVideo(prompt, imageInput, options = {}) {
   if (!KIE_API_KEY) {
-    throw new Error('Kie.ai API key not configured');
+    throw new Error('le service API key not configured');
   }
 
   const {
@@ -541,7 +541,7 @@ export async function generateKieImageToVideo(prompt, imageInput, options = {}) 
         throw new Error(r2Result?.error || 'R2 upload returned no URL');
       }
     } catch (r2Err) {
-      console.warn(`⚠️ Kie image-to-video R2 upload failed: ${r2Err.message} — trying Kie.ai upload...`);
+      console.warn(`⚠️ le service image-to-video R2 upload failed: ${r2Err.message} — trying le service upload...`);
       const kieUrl = await uploadToKieAi(base64Image, imageMimeType);
       imageUrls = [kieUrl];
     }
@@ -567,11 +567,11 @@ export async function generateKieImageToVideo(prompt, imageInput, options = {}) 
     }
   };
 
-  console.log(`🎬 Kie image-to-video (${aspectRatio}, ${duration}s, ${resolution})...`);
+  console.log(`🎬 le service image-to-video (${aspectRatio}, ${duration}s, ${resolution})...`);
   const taskId = await submitKieTask(body, 3);
-  console.log(`📋 Kie image-to-video task submitted: ${taskId}`);
+  console.log(`📋 le service image-to-video task submitted: ${taskId}`);
   const videoUrl = await pollKieTask(taskId, { maxWaitMs, mediaType: 'video', label: 'Kie image-to-video' });
-  console.log(`✅ Kie image-to-video: ${videoUrl.slice(0, 80)}...`);
+  console.log(`✅ le service image-to-video: ${videoUrl.slice(0, 80)}...`);
   return videoUrl;
 }
 
@@ -697,7 +697,7 @@ export async function generateAnimatedGifFromImages(imageInputs = [], options = 
  */
 export async function getNanoBananaCredits() {
   if (!KIE_API_KEY) {
-    return { credits: 0, error: 'Kie.ai API key not configured' };
+    return { credits: 0, error: 'le service API key not configured' };
   }
   return { credits: 999, status: 'active', provider: 'kie.ai' };
 }

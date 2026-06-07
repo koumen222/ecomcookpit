@@ -344,7 +344,7 @@ router.post('/analyze-global',
   async (req, res) => {
     try {
       if (!process.env.KIE_API_KEY) {
-        return res.status(500).json({ success: false, message: 'KIE_API_KEY manquant' });
+        return res.status(500).json({ success: false, message: 'le service manquant' });
       }
 
       const { date, startDate, endDate } = req.body || {};
@@ -380,7 +380,7 @@ Contraintes:
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        return res.status(response.status).json({ success: false, message: errorData.error?.message || 'Erreur KIE.AI' });
+        return res.status(response.status).json({ success: false, message: errorData.error?.message || 'Erreur du service' });
       }
 
       const data = await response.json();

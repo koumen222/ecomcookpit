@@ -663,7 +663,7 @@ async function runBackgroundImageGeneration({
 
     if (allImagesFailed) {
       jobData.status = 'partial_failure';
-      jobData.errorMessage = 'Toutes les images ont échoué — les providers IA (Kie.ai / Gemini) sont indisponibles ou la photo source ne convient pas. Réessayez ou utilisez une photo plus nette.';
+      jobData.errorMessage = 'Toutes les images ont échoué — le service de génération sont indisponibles ou la photo source ne convient pas. Réessayez ou utilisez une photo plus nette.';
     } else if (someImagesMissing) {
       jobData.status = 'partial_failure';
       jobData.errorMessage = `${missingImageCount} image${missingImageCount > 1 ? 's manquantes' : ' manquante'} sur ${expectedImageCount} — réessayez pour générer celles qui manquent.`;
@@ -2819,7 +2819,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
     // ÉTAPE 1 : Extraction des infos produit avec Gemini OU utilisation de la description directe
     // ══════════════════════════════════════════════════════════════════════════
     if (isDescriptionMode) {
-      console.log('📝 Étape 1: Mode description directe (skip extraction Gemini)');
+      console.log('📝 Étape 1: Mode description directe (skip extraction le service)');
       scraped = {
         title: 'Produit',
         description: userDescription.trim(),
@@ -2827,9 +2827,9 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       };
       console.log('✅ Description utilisée:', userDescription.slice(0, 100));
     } else {
-      console.log('🤖 Étape 1: Extraction Gemini depuis', cleanUrl);
+      console.log('🤖 Étape 1: Extraction le service depuis', cleanUrl);
       scraped = await extractProductInfo(cleanUrl);
-      console.log('✅ Extraction Gemini OK:', { title: scraped.title?.slice(0, 50) });
+      console.log('✅ Extraction le service OK:', { title: scraped.title?.slice(0, 50) });
     }
 
     // Update task: extraction done, starting AI analysis
@@ -2845,7 +2845,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
     // ══════════════════════════════════════════════════════════════════════════
     // ÉTAPES 2 & 3 EN PARALLÈLE : Groq analyse + Upload photos simultanément
     // ══════════════════════════════════════════════════════════════════════════
-    console.log('🧠⚡ Étape 2+3: Groq analyse + Upload photos EN PARALLÈLE');
+    console.log('🧠⚡ Étape 2+3: le service analyse + Upload photos EN PARALLÈLE');
 
     const imageBuffers = (imageFiles || []).map(f => f.buffer);
 

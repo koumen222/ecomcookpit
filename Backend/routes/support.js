@@ -25,11 +25,11 @@ const ADMIN_NOTIFICATION_COOLDOWN_MS = 10 * 60 * 1000;
 
 async function callKieAI(prompt) {
   if (!KIE_API_KEY) {
-    console.warn('[Support AI KIE] KIE_API_KEY not set, skipping AI reply');
+    console.warn('[Support AI le service] le service not set, skipping AI reply');
     return null;
   }
   try {
-    console.log('[Support AI KIE] Calling API...');
+    console.log('[Support AI le service] Calling API...');
     const res = await fetch(`${KIE_BASE_URL}/codex/v1/responses`, {
       method: 'POST',
       headers: {
@@ -45,16 +45,16 @@ async function callKieAI(prompt) {
     });
     if (!res.ok) {
       const errBody = await res.text().catch(() => '');
-      console.error('[Support AI KIE] HTTP error:', res.status, errBody.slice(0, 200));
+      console.error('[Support AI le service] HTTP error:', res.status, errBody.slice(0, 200));
       return null;
     }
     const data = await res.json();
     const message = data?.output?.find(o => o.type === 'message');
     const text = message?.content?.find(c => c.type === 'output_text')?.text || '';
-    console.log('[Support AI KIE] Reply:', text.slice(0, 80));
+    console.log('[Support AI le service] Reply:', text.slice(0, 80));
     return text.trim() || null;
   } catch (err) {
-    console.error('[Support AI KIE] Error:', err.message);
+    console.error('[Support AI le service] Error:', err.message);
     return null;
   }
 }
@@ -85,7 +85,7 @@ async function callGroqAI(prompt) {
 async function callSupportAI(prompt) {
   const kieReply = await callKieAI(prompt);
   if (kieReply) return kieReply;
-  console.log('[Support AI] KIE failed, trying GROQ fallback...');
+  console.log('[Support AI] le service failed, trying GROQ fallback...');
   return callGroqAI(prompt);
 }
 

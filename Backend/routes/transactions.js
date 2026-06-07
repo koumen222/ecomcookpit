@@ -52,12 +52,12 @@ async function kieAiChat(prompt, maxTokens = 2000, retries = 3) {
 
     if (isOverload && attempt < retries) {
       const delay = attempt * 5000; // 5s, 10s
-      console.warn(`⚠️  KIE.AI overloaded — retry ${attempt}/${retries} in ${delay}ms`);
+      console.warn(`⚠️  le service overloaded — retry ${attempt}/${retries} in ${delay}ms`);
       await new Promise(r => setTimeout(r, delay));
       continue;
     }
 
-    throw new Error(err.error?.message || `KIE.AI error ${response.status}`);
+    throw new Error(err.error?.message || `le service error ${response.status}`);
   }
 }
 

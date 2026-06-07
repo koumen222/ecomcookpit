@@ -974,7 +974,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
         setImageGenerationFailed({
           message: data?.errorMessage || (!data
             ? "La génération d'images prend plus de temps que prévu. Vous pouvez réessayer ou revenir plus tard — le contenu texte est sauvegardé."
-            : "Aucune image n'a pu être générée. Les fournisseurs d'IA (Kie.ai / Gemini) sont peut-être indisponibles, ou la photo source ne permet pas la génération image-to-image."),
+            : "Aucune image n'a pu être générée. Le service de génération est peut-être indisponible, ou la photo source ne permet pas la génération image-to-image."),
           status: data?.status || 'timeout',
         });
         return; // ← important : on reste en phase 'loading' avec l'état d'échec
@@ -1222,7 +1222,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
 
   const resumePendingGenerationPayment = useCallback(() => {
     if (!pendingGenerationPayment?.paymentUrl) {
-      setPaymentStatusError('Impossible de relancer le paiement MoneyFusion. Réessaie depuis le pack.');
+      setPaymentStatusError('Impossible de relancer le paiement le service. Réessaie depuis le pack.');
       return false;
     }
 
@@ -1648,9 +1648,9 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
       if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
         errorMessage = 'Erreur de connexion: impossible de contacter le serveur. Vérifiez votre connexion internet.';
       } else if (error.message.includes('OpenAI')) {
-        errorMessage = `Erreur OpenAI: ${error.message}`;
+        errorMessage = `Erreur du service: ${error.message}`;
       } else if (error.message.includes('NanoBanana')) {
-        errorMessage = `Erreur NanoBanana: ${error.message}`;
+        errorMessage = `Erreur du service: ${error.message}`;
       } else if (error.message.includes('Scraping')) {
         errorMessage = `Erreur Scraping: ${error.message}`;
       } else if (!error.message.startsWith('Erreur')) {

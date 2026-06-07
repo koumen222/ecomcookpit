@@ -672,7 +672,7 @@ async function callKieChatCompletion({
   includeThoughts = false,
 }) {
   if (!KIE_API_KEY) {
-    throw new Error('KIE_API_KEY non configuré');
+    throw new Error('le service non configuré');
   }
 
   const payload = {
@@ -694,7 +694,7 @@ async function callKieChatCompletion({
 
   const text = extractKieContent(response.data);
   if (!text) {
-    throw new Error('KIE response vide');
+    throw new Error('le service response vide');
   }
   return text;
 }
@@ -706,7 +706,7 @@ async function callGroqTextCompletion({
   models = DEFAULT_RITA_GROQ_MODELS,
 }) {
   if (!HAS_GROQ_API_KEY) {
-    throw new Error('GROQ_API_KEY non configuré');
+    throw new Error('le service non configuré');
   }
 
   let lastError = null;
@@ -746,7 +746,7 @@ async function callGroqTextCompletion({
     }
   }
 
-  throw lastError || new Error('Groq response vide');
+  throw lastError || new Error('le service response vide');
 }
 
 async function callPreferredRitaTextCompletion({
@@ -778,7 +778,7 @@ async function callPreferredRitaTextCompletion({
       } catch (error) {
         lastError = error;
         const hasFallback = providers.includes('kie');
-        console.warn(`⚠️ [${contextLabel}] Groq indisponible: ${error.message}${hasFallback ? ' — fallback KIE' : ''}`);
+        console.warn(`⚠️ [${contextLabel}] le service indisponible: ${error.message}${hasFallback ? ' — service de secours' : ''}`);
       }
       continue;
     }
@@ -799,7 +799,7 @@ async function callPreferredRitaTextCompletion({
     } catch (error) {
       lastError = error;
       const hasFallback = providers.includes('groq');
-      console.warn(`⚠️ [${contextLabel}] KIE indisponible: ${error.message}${hasFallback ? ' — fallback Groq' : ''}`);
+      console.warn(`⚠️ [${contextLabel}] le service indisponible: ${error.message}${hasFallback ? ' — service de secours' : ''}`);
     }
   }
 
@@ -4095,7 +4095,7 @@ export async function processBossMessage(userId, from, text) {
     }
     return reply || null;
   } catch (error) {
-    console.error('❌ [RITA-BOSS] Erreur Groq:', error.message);
+    console.error('❌ [RITA-BOSS] Erreur du service:', error.message);
     return null;
   }
 }
@@ -4275,7 +4275,7 @@ export async function processIncomingMessage(userId, from, text, opts = {}) {
   }
 
   try {
-    console.log(`🤖 [RITA] Réponse brute Groq (${rawContent?.length || 0} chars): "${(rawContent || '').substring(0, 200)}"`);
+    console.log(`🤖 [RITA] Réponse brute le service (${rawContent?.length || 0} chars): "${(rawContent || '').substring(0, 200)}"`);
     const reply = sanitizeReply(rawContent, config);
     console.log(`🤖 [RITA] Réponse sanitizée (${reply?.length || 0} chars): "${(reply || '').substring(0, 200)}"`);
     if (reply) {
