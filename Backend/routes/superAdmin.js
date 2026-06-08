@@ -2235,16 +2235,18 @@ router.get('/dashboard-summary',
       const { range = '30d' } = req.query;
 
       // ── Serve from cache ───────────────────────────────────────────────────
-      const cached = _dashCache.get(range);
+      const bypassCache = req.query._bypassCache === 'true' || req.query._bypassCache === true;
+      const cached = !bypassCache ? _dashCache.get(range) : null;
       if (cached) return res.json({ success: true, data: cached, cached: true });
 
       const { since, until } = dashDateFilter(range);
       const now   = new Date();
       const day1  = new Date(now.getTime() - 86400000);
       const day7  = new Date(now.getTime() - 604800000);
+      const day10 = new Date(now.getTime() - 10 * 24 * 60 * 60 * 1000);
       const day30 = new Date(now.getTime() - 2592000000);
 
-      // ── ALL 27 queries in one parallel pool (≤10 concurrent) ──────────────
+      // ── Dashboard queries in one parallel pool (≤10 concurrent) ────────────
       // Previously 3 sequential waves — each wave waited for the prior to finish.
       // Now they all start together; total time ≈ slowest single query, not their sum.
       const r = await runCapped([
@@ -2377,6 +2379,19 @@ router.get('/dashboard-summary',
         ]),
         // [33] Funnel: visitors count (sessions in range)
         () => AnalyticsSession.aggregate([{ $match: { startedAt: { $gte: since, $lte: until } } }, { $group: { _id: null, count: { $sum: 1 } } }]),
+        // [34] Session inactivity churn: open user sessions inactive for more than 10 days
+        () => AnalyticsSession.aggregate([
+          { $match: { userId: { $ne: null }, endedAt: null } },
+          { $addFields: { activityAt: { $ifNull: ['$lastActivityAt', '$startedAt'] } } },
+          {
+            $group: {
+              _id: null,
+              totalOpenSessions: { $sum: 1 },
+              activeSessions10d: { $sum: { $cond: [{ $gte: ['$activityAt', day10] }, 1, 0] } },
+              inactiveSessions10d: { $sum: { $cond: [{ $lt: ['$activityAt', day10] }, 1, 0] } },
+            }
+          }
+        ]),
       ], 10);
 
       // ── Unpack results by index ────────────────────────────────────────────
@@ -2414,6 +2429,7 @@ router.get('/dashboard-summary',
       const pagesRaw          = settled(r[31], []);
       const activityDaily     = settled(r[32], []);
       const funnelVisitors    = settled(r[33], []);
+      const sessionChurnArr   = settled(r[34], []);
 
       // ── Derived stats ──────────────────────────────────────────────────────
       let totalActive = 0, totalInactive = 0, neverLoggedIn = 0;
@@ -2445,6 +2461,11 @@ router.get('/dashboard-summary',
       const conversionActivation = totalUsers > 0 ? Math.round((usersWithWs / totalUsers) * 100) : 0;
       const retained             = retainedResult[0]?.users?.length || 0;
       const retention7d          = signedUp7dAgo > 0 ? Math.round((retained / signedUp7dAgo) * 100) : 0;
+      const sessionChurnStats    = sessionChurnArr[0] || {};
+      const totalOpenSessions    = sessionChurnStats.totalOpenSessions || 0;
+      const activeSessions10d    = sessionChurnStats.activeSessions10d || 0;
+      const inactiveSessions10d  = sessionChurnStats.inactiveSessions10d || 0;
+      const churnRate10d         = totalOpenSessions > 0 ? Math.round((inactiveSessions10d / totalOpenSessions) * 100) : 0;
 
       const fVisitors = funnelVisitors[0]?.count || 0;
       const fAccounts = signups;
@@ -2477,7 +2498,7 @@ router.get('/dashboard-summary',
           totalMembers,
         },
         overview: {
-          kpis: { totalSessions, uniqueVisitors, totalPageViews, avgSessionDuration, bounceRate, signups, activatedUsers, workspacesCreated, dau, wau, mau, conversionSignup, conversionActivation, retention7d },
+          kpis: { totalSessions, uniqueVisitors, totalPageViews, avgSessionDuration, bounceRate, signups, activatedUsers, workspacesCreated, dau, wau, mau, conversionSignup, conversionActivation, retention7d, totalOpenSessions, activeSessions10d, inactiveSessions10d, churnRate10d },
           trends: { dailySessions, dailySignups }
         },
         funnel: { funnel: funnelSteps, dropoffs },
