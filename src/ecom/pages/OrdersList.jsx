@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useMemo, useCallback, useRef, useLayoutEffect } from 'react';
+﻿import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useEcomAuth } from '../hooks/useEcomAuth';
 import { usePlanGate } from '../contexts/PlanGateContext.jsx';
@@ -83,6 +83,8 @@ const COUNTRIES = [
 
 const SCROLL_STORAGE_KEY = 'orders_list_scroll';
 const FILTERS_STORAGE_KEY = 'orders_list_filters';
+const LIST_STATE_STORAGE_KEY = 'orders_list_state';
+const LIST_STATE_MAX_AGE_MS = 30 * 60 * 1000;
 
 const OrdersList = () => {
   const navigate = useNavigate();
@@ -96,20 +98,42 @@ const OrdersList = () => {
   const isSuperAdmin = user?.role === 'super_admin';
   const isCloseuse = user?.role === 'ecom_closeuse';
   const listContainerRef = useRef(null);
-  const shouldRestoreScroll = useRef(false);
+
+  const savedListState = useMemo(() => {
+    try {
+      const raw = sessionStorage.getItem(LIST_STATE_STORAGE_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      const isFresh = parsed?.savedAt && Date.now() - parsed.savedAt < LIST_STATE_MAX_AGE_MS;
+      if (!isFresh) {
+        sessionStorage.removeItem(LIST_STATE_STORAGE_KEY);
+        return null;
+      }
+      return parsed;
+    } catch {
+      sessionStorage.removeItem(LIST_STATE_STORAGE_KEY);
+      return null;
+    }
+  }, []);
+
+  const hasRestoredListState = Boolean(savedListState);
+  const restoredOrders = Array.isArray(savedListState?.orders) ? savedListState.orders : [];
+  const shouldRestoreScroll = useRef(hasRestoredListState);
+  const skipNextOrdersFetch = useRef(hasRestoredListState);
 
   // Restore saved filters from sessionStorage (when coming back from detail)
   const savedFilters = useMemo(() => {
+    if (savedListState?.filters) return savedListState.filters;
     try {
       const raw = sessionStorage.getItem(FILTERS_STORAGE_KEY);
       if (raw) return JSON.parse(raw);
     } catch {}
     return null;
-  }, []);
+  }, [savedListState]);
 
-    const [orders, setOrders] = useState([]);
-  const [stats, setStats] = useState({});
-  const [loading, setLoading] = useState(true);
+  const [orders, setOrders] = useState(() => restoredOrders);
+  const [stats, setStats] = useState(() => savedListState?.stats || {});
+  const [loading, setLoading] = useState(() => !hasRestoredListState);
   const [refreshing, setRefreshing] = useState(false);
   const [syncClients, setSyncClients] = useState(false);
   const [syncProgress, setSyncProgress] = useState(null);
@@ -132,14 +156,14 @@ const OrdersList = () => {
   const [config, setConfig] = useState({ spreadsheetId: '', sheetName: 'Sheet1' });
   const [configLoading, setConfigLoading] = useState(false);
   const [sources, setSources] = useState([]);
-  const [selectedSourceId, setSelectedSourceId] = useState('');
+  const [selectedSourceId, setSelectedSourceId] = useState(savedFilters?.selectedSourceId || '');
   const [sourcesConfig, setSourcesConfig] = useState({});
   const [lastSyncs, setLastSyncs] = useState({});
   const [expandedId, setExpandedId] = useState(null);
   const [page, setPage] = useState(savedFilters?.page || 1);
-  const [pagination, setPagination] = useState({});
+  const [pagination, setPagination] = useState(() => savedListState?.pagination || {});
   const [itemsPerPage, setItemsPerPage] = useState(savedFilters?.itemsPerPage || 100);
-  const [sortOrder, setSortOrder] = useState('newest_first'); // 'newest_first' | 'oldest_first'
+  const [sortOrder, setSortOrder] = useState(savedFilters?.sortOrder || 'newest_first'); // 'newest_first' | 'oldest_first'
   const [viewMode, setViewMode] = useState('table');
   const [showSourceSelector, setShowSourceSelector] = useState(true);
   const [showWhatsAppConfig, setShowWhatsAppConfig] = useState(false);
@@ -200,17 +224,17 @@ const OrdersList = () => {
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedOrders, setSelectedOrders] = useState(new Set());
   const [deletingSelected, setDeletingSelected] = useState(false);
-  const [viewAllWorkspaces, setViewAllWorkspaces] = useState(false);
+  const [viewAllWorkspaces, setViewAllWorkspaces] = useState(Boolean(savedFilters?.viewAllWorkspaces));
   const [commissions, setCommissions] = useState(null);
   const [commissionPeriod, setCommissionPeriod] = useState('month');
   const [showImportMenu, setShowImportMenu] = useState(false);
   const importMenuRef = useRef(null);
   const [loadingCommissions, setLoadingCommissions] = useState(false);
 
-  const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [debouncedCity, setDebouncedCity] = useState('');
-  const [debouncedProduct, setDebouncedProduct] = useState('');
-  const [debouncedTag, setDebouncedTag] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState((savedFilters?.search || '').trim());
+  const [debouncedCity, setDebouncedCity] = useState((savedFilters?.filterCity || '').trim());
+  const [debouncedProduct, setDebouncedProduct] = useState((savedFilters?.filterProduct || '').trim());
+  const [debouncedTag, setDebouncedTag] = useState((savedFilters?.filterTag || '').trim());
 
   // Fonction pour générer les champs à afficher selon les colonnes détectées
   const getDisplayFields = (sourceId) => {
@@ -900,7 +924,7 @@ const OrdersList = () => {
   }, [location.search]);
 
   useEffect(() => {
-    const init = async () => {
+    const init = async ({ forceFetch = false } = {}) => {
       if (isAdmin || isSuperAdmin) {
         fetchConfig();
         fetchWhatsAppConfig();
@@ -908,6 +932,10 @@ const OrdersList = () => {
       } else if (isCloseuse) {
         await fetchCloseuseSources();
         fetchCommissions('month');
+      }
+      if (hasRestoredListState && !forceFetch) {
+        setLoading(false);
+        return;
       }
       await fetchOrders();
       setLoading(false);
@@ -927,8 +955,16 @@ const OrdersList = () => {
       setFilterTag('');
       setFilterStartDate('');
       setFilterEndDate('');
+      setSelectedSourceId('');
+      setDebouncedSearch('');
+      setDebouncedCity('');
+      setDebouncedProduct('');
+      setDebouncedTag('');
+      skipNextOrdersFetch.current = false;
       sessionStorage.removeItem(FILTERS_STORAGE_KEY);
-      init();
+      sessionStorage.removeItem(SCROLL_STORAGE_KEY);
+      sessionStorage.removeItem(LIST_STATE_STORAGE_KEY);
+      init({ forceFetch: true });
     };
     window.addEventListener('scalor:store-switch', onStoreSwitch);
     return () => window.removeEventListener('scalor:store-switch', onStoreSwitch);
@@ -946,7 +982,13 @@ const OrdersList = () => {
     return () => clearTimeout(t);
   }, [search, filterCity, filterProduct, filterTag]);
 
-  useEffect(() => { if (!loading) fetchOrders(false); }, [debouncedSearch, filterStatus, debouncedCity, debouncedProduct, debouncedTag, filterStartDate, filterEndDate, selectedSourceId, page, viewAllWorkspaces, itemsPerPage, sortOrder]);
+  useEffect(() => {
+    if (skipNextOrdersFetch.current) {
+      skipNextOrdersFetch.current = false;
+      return;
+    }
+    if (!loading) fetchOrders(false);
+  }, [debouncedSearch, filterStatus, debouncedCity, debouncedProduct, debouncedTag, filterStartDate, filterEndDate, selectedSourceId, page, viewAllWorkspaces, itemsPerPage, sortOrder]);
 
   // Scroll-to-top à chaque changement de page (sauf restauration)
   const previousPageRef = useRef(page);
@@ -964,11 +1006,19 @@ const OrdersList = () => {
     if (!loading && orders.length > 0 && shouldRestoreScroll.current) {
       shouldRestoreScroll.current = false;
       try {
-        const savedScroll = sessionStorage.getItem(SCROLL_STORAGE_KEY);
-        if (savedScroll) {
+        const savedScroll = sessionStorage.getItem(SCROLL_STORAGE_KEY) ?? savedListState?.scrollY;
+        if (savedScroll !== null && savedScroll !== undefined) {
           const scrollY = parseInt(savedScroll, 10);
           requestAnimationFrame(() => {
-            window.scrollTo(0, scrollY);
+            if (Number.isFinite(scrollY)) {
+              window.scrollTo(0, scrollY);
+              return;
+            }
+            if (savedListState?.selectedOrderId) {
+              document
+                .querySelector(`[data-order-id="${savedListState.selectedOrderId}"]`)
+                ?.scrollIntoView({ block: 'center' });
+            }
           });
           sessionStorage.removeItem(SCROLL_STORAGE_KEY);
         }
@@ -978,22 +1028,59 @@ const OrdersList = () => {
 
   // On first mount, check if we should restore scroll (coming back from detail)
   useEffect(() => {
-    if (savedFilters) {
+    if (savedFilters && !hasRestoredListState) {
       shouldRestoreScroll.current = true;
     }
   }, []);
 
+  const buildListFilters = useCallback(() => ({
+    search,
+    filterStatus,
+    filterCity,
+    filterProduct,
+    filterTag,
+    filterStartDate,
+    filterEndDate,
+    selectedSourceId,
+    page,
+    itemsPerPage,
+    sortOrder,
+    viewAllWorkspaces
+  }), [search, filterStatus, filterCity, filterProduct, filterTag, filterStartDate, filterEndDate, selectedSourceId, page, itemsPerPage, sortOrder, viewAllWorkspaces]);
+
   // Save filters to sessionStorage whenever they change
   useEffect(() => {
-    const filters = { search, filterStatus, filterCity, filterProduct, filterTag, filterStartDate, filterEndDate, page, itemsPerPage };
-    sessionStorage.setItem(FILTERS_STORAGE_KEY, JSON.stringify(filters));
-  }, [search, filterStatus, filterCity, filterProduct, filterTag, filterStartDate, filterEndDate, page, itemsPerPage]);
+    sessionStorage.setItem(FILTERS_STORAGE_KEY, JSON.stringify(buildListFilters()));
+  }, [buildListFilters]);
+
+  const saveOrdersListState = useCallback((selectedOrderId) => {
+    const scrollY = window.scrollY;
+    const filters = buildListFilters();
+    try {
+      sessionStorage.setItem(SCROLL_STORAGE_KEY, String(scrollY));
+      sessionStorage.setItem(FILTERS_STORAGE_KEY, JSON.stringify(filters));
+      sessionStorage.setItem(LIST_STATE_STORAGE_KEY, JSON.stringify({
+        savedAt: Date.now(),
+        selectedOrderId,
+        scrollY,
+        filters,
+        orders,
+        stats,
+        pagination
+      }));
+    } catch {
+      try {
+        sessionStorage.setItem(SCROLL_STORAGE_KEY, String(scrollY));
+        sessionStorage.setItem(FILTERS_STORAGE_KEY, JSON.stringify(filters));
+      } catch {}
+    }
+  }, [buildListFilters, orders, stats, pagination]);
 
   // Helper to save scroll position before navigating to order detail
   const navigateToOrder = useCallback((orderId) => {
-    sessionStorage.setItem(SCROLL_STORAGE_KEY, String(window.scrollY));
-    navigate(`/ecom/orders/${orderId}`);
-  }, [navigate]);
+    saveOrdersListState(orderId);
+    navigate(`/ecom/orders/${orderId}`, { state: { fromOrdersList: true } });
+  }, [navigate, saveOrdersListState]);
 
   // ••• Silent background polling (10s) — no loader, no messages ••••••••••••••
   const lastPollRef = useRef(new Date().toISOString());
@@ -2704,7 +2791,7 @@ const OrdersList = () => {
               const isSelected = selectedOrders.has(o._id);
 
               return (
-                <div key={o._id} className={`bg-white rounded-xl border transition-colors duration-150 group ${selectionMode ? 'cursor-default' : 'cursor-pointer hover:border-gray-300 hover:bg-gray-50/40'} ${isSelected ? 'border-primary-500 ring-1 ring-primary-400' : 'border-gray-200'}`} onClick={() => selectionMode ? toggleOrderSelection(o._id) : navigateToOrder(o._id)}>
+                <div key={o._id} data-order-id={o._id} className={`bg-white rounded-xl border transition-colors duration-150 group ${selectionMode ? 'cursor-default' : 'cursor-pointer hover:border-gray-300 hover:bg-gray-50/40'} ${isSelected ? 'border-primary-500 ring-1 ring-primary-400' : 'border-gray-200'}`} onClick={() => selectionMode ? toggleOrderSelection(o._id) : navigateToOrder(o._id)}>
                   <div className="p-3">
                     <div className="flex items-center justify-between gap-4">
                       {/* Checkbox (selection mode) */}
@@ -2851,7 +2938,7 @@ const OrdersList = () => {
               const isSelected = selectedOrders.has(o._id);
 
               return (
-                <div key={o._id} className={`bg-white rounded-2xl border overflow-hidden transition-all duration-150 ${selectionMode ? 'cursor-default' : 'active:scale-[0.99]'} ${isSelected ? 'border-primary-400 ring-2 ring-primary-100' : 'border-gray-100 shadow-sm'}`} onClick={() => selectionMode ? toggleOrderSelection(o._id) : navigateToOrder(o._id)}>
+                <div key={o._id} data-order-id={o._id} className={`bg-white rounded-2xl border overflow-hidden transition-all duration-150 ${selectionMode ? 'cursor-default' : 'active:scale-[0.99]'} ${isSelected ? 'border-primary-400 ring-2 ring-primary-100' : 'border-gray-100 shadow-sm'}`} onClick={() => selectionMode ? toggleOrderSelection(o._id) : navigateToOrder(o._id)}>
                   <div className="px-4 pt-4 pb-3">
                     {/* Header: Avatar + Name/Phone + Price */}
                     <div className="flex items-center justify-between gap-3">

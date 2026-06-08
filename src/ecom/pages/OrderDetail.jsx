@@ -1,5 +1,5 @@
 ﻿import React, { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useEcomAuth } from '../hooks/useEcomAuth';
 import { useMoney } from '../hooks/useMoney.js';
 import { formatMoney } from '../utils/currency.js';
@@ -17,6 +17,22 @@ const SC = {
   called: 'bg-blue-50 text-blue-700 border-blue-100',
   postponed: 'bg-purple-50 text-purple-700 border-purple-100',
   reported: 'bg-purple-50 text-purple-700 border-purple-100'
+};
+
+const LIST_STATE_STORAGE_KEY = 'orders_list_state';
+
+const updateOrdersListCache = (updater) => {
+  try {
+    const raw = sessionStorage.getItem(LIST_STATE_STORAGE_KEY);
+    if (!raw) return;
+    const current = JSON.parse(raw);
+    const next = updater(current);
+    if (!next) return;
+    sessionStorage.setItem(LIST_STATE_STORAGE_KEY, JSON.stringify({
+      ...next,
+      savedAt: Date.now()
+    }));
+  } catch {}
 };
 
 // Résout le nom du produit depuis order.product ou rawData.line_items (Shopify/Skelo)
@@ -60,6 +76,7 @@ const getEffectivePhone = (order) => {
 const OrderDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, workspace } = useEcomAuth();
   const { fmt, symbol } = useMoney();
   // Affiche le montant avec conversion vers la devise de l'utilisateur
@@ -97,6 +114,15 @@ const OrderDetail = () => {
   const [copiedOrder, setCopiedOrder] = useState(false);
   const optionsMenuRef = useRef(null);
   const livreurMenuRef = useRef(null);
+  const fromOrdersList = Boolean(location.state?.fromOrdersList);
+
+  const goBackToOrders = () => {
+    if (fromOrdersList && window.history.length > 1) {
+      navigate(-1);
+      return;
+    }
+    navigate('/ecom/orders');
+  };
 
   const fetchOrder = async () => {
     if (!id || !/^[a-f0-9]{24}$/i.test(id)) {
@@ -110,8 +136,15 @@ const OrderDetail = () => {
     for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
       try {
         const res = await ecomApi.get(`/orders/${id}`);
-        setOrder(res.data.data);
-        setEditData(res.data.data);
+        const fetchedOrder = res.data.data;
+        setOrder(fetchedOrder);
+        setEditData(fetchedOrder);
+        updateOrdersListCache((state) => ({
+          ...state,
+          orders: Array.isArray(state.orders)
+            ? state.orders.map((o) => String(o._id) === String(fetchedOrder._id) ? { ...o, ...fetchedOrder } : o)
+            : state.orders
+        }));
         setLoading(false);
         return; // succès
       } catch (err) {
@@ -189,8 +222,17 @@ const OrderDetail = () => {
     setDeleting(true);
     try {
       await ecomApi.delete(`/orders/${id}`);
+      updateOrdersListCache((state) => ({
+        ...state,
+        orders: Array.isArray(state.orders)
+          ? state.orders.filter((o) => String(o._id) !== String(id))
+          : state.orders,
+        pagination: state.pagination
+          ? { ...state.pagination, total: Math.max(0, Number(state.pagination.total || 0) - 1) }
+          : state.pagination
+      }));
       setSuccess('Commande supprimée');
-      setTimeout(() => navigate('/ecom/orders'), 1000);
+      setTimeout(goBackToOrders, 1000);
     } catch {
       setError('Erreur lors de la suppression');
       setDeleting(false);
@@ -457,7 +499,7 @@ const OrderDetail = () => {
     <div className="p-6 max-w-3xl mx-auto">
       <div className="bg-red-50 text-red-800 rounded-xl p-6 text-center border border-red-200">
         <p className="font-medium">{error}</p>
-        <Link to="/ecom/orders" className="text-sm text-red-600 underline mt-2 inline-block">Retour aux commandes</Link>
+        <button onClick={goBackToOrders} className="text-sm text-red-600 underline mt-2 inline-block">Retour aux commandes</button>
       </div>
     </div>
   );
@@ -485,7 +527,7 @@ const OrderDetail = () => {
 
       {/* ── Header ── */}
       <div className="flex items-center gap-3 mb-5">
-        <button onClick={() => navigate('/ecom/orders')} aria-label="Retour" className="w-9 h-9 flex items-center justify-center rounded-xl bg-white border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors cursor-pointer">
+        <button onClick={goBackToOrders} aria-label="Retour" className="w-9 h-9 flex items-center justify-center rounded-xl bg-white border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors cursor-pointer">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7"/></svg>
         </button>
         <div className="flex-1 min-w-0">
