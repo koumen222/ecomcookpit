@@ -296,9 +296,9 @@ const SuperAdminDashboard = () => {
   // Prefer backend-computed totals; fall back to client-side aggregation
   const totalMembers  = workspaceSummary.totalMembers || workspaces.reduce((s, w) => s + (w.memberCount || 0), 0);
   const activeWs      = workspaceSummary.totalActive  || workspaces.filter(w => w.isActive).length;
-  const activeSessions10d = kpis.activeSessions10d ?? 0;
-  const inactiveSessions10d = kpis.inactiveSessions10d ?? 0;
-  const totalOpenSessions = kpis.totalOpenSessions ?? (activeSessions10d + inactiveSessions10d);
+  const activeSessionUsers10d = kpis.activeSessionUsers10d ?? kpis.activeSessions10d ?? 0;
+  const inactiveSessionUsers10d = kpis.inactiveSessionUsers10d ?? kpis.inactiveSessions10d ?? 0;
+  const totalSessionUsers = kpis.totalSessionUsers ?? kpis.totalOpenSessions ?? (activeSessionUsers10d + inactiveSessionUsers10d);
   const churnRate = kpis.churnRate10d ?? 0;
 
   const roleCounts = useMemo(() => {
@@ -385,9 +385,9 @@ const SuperAdminDashboard = () => {
             sparkColor="#2563eb"
           />
           <KpiCard
-            label="Churn sessions"
+            label="Churn comptes"
             value={`${churnRate}%`}
-            sub={`${inactiveSessions10d.toLocaleString()} inactives depuis +10j`}
+            sub={`${inactiveSessionUsers10d.toLocaleString()} comptes sans ouverture +10j`}
             icon={TrendingDown}
             accent="#b45309"
             accentLight="#fef3c7"
@@ -413,21 +413,21 @@ const SuperAdminDashboard = () => {
           </Panel>
 
           <Panel>
-            <SH icon={Shield} title="Santé des sessions" subtitle="Churn basé sur l'inactivité réelle" color="#b45309" />
+            <SH icon={Shield} title="Santé des comptes" subtitle="Dernière activité de session" color="#b45309" />
             <div className="space-y-4">
               <div>
                 <div className="mb-1 flex items-center justify-between text-sm">
-                  <span className="font-medium text-slate-600">Sessions actives</span>
-                  <span className="font-semibold text-slate-900">{activeSessions10d.toLocaleString()}</span>
+                  <span className="font-medium text-slate-600">Ouverts ces 10j</span>
+                  <span className="font-semibold text-slate-900">{activeSessionUsers10d.toLocaleString()}</span>
                 </div>
-                <Bar value={activeSessions10d} max={totalOpenSessions || 1} color="#0f766e" />
+                <Bar value={activeSessionUsers10d} max={totalSessionUsers || 1} color="#0f766e" />
               </div>
               <div>
                 <div className="mb-1 flex items-center justify-between text-sm">
-                  <span className="font-medium text-slate-600">Inactives +10j</span>
-                  <span className="font-semibold text-slate-900">{inactiveSessions10d.toLocaleString()}</span>
+                  <span className="font-medium text-slate-600">Sans ouverture +10j</span>
+                  <span className="font-semibold text-slate-900">{inactiveSessionUsers10d.toLocaleString()}</span>
                 </div>
-                <Bar value={inactiveSessions10d} max={totalOpenSessions || 1} color="#b45309" />
+                <Bar value={inactiveSessionUsers10d} max={totalSessionUsers || 1} color="#b45309" />
               </div>
               <div className="grid grid-cols-2 gap-3 pt-2">
                 <MiniStat label="Rétention 7j" value={`${kpis.retention7d ?? 0}%`} color="#2563eb" />

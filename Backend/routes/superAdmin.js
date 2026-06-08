@@ -2379,16 +2379,36 @@ router.get('/dashboard-summary',
         ]),
         // [33] Funnel: visitors count (sessions in range)
         () => AnalyticsSession.aggregate([{ $match: { startedAt: { $gte: since, $lte: until } } }, { $group: { _id: null, count: { $sum: 1 } } }]),
-        // [34] Session inactivity churn: open user sessions inactive for more than 10 days
+        // [34] Account inactivity churn: users with a tracked session, by latest activity
         () => AnalyticsSession.aggregate([
-          { $match: { userId: { $ne: null }, endedAt: null } },
+          { $match: { userId: { $ne: null } } },
           { $addFields: { activityAt: { $ifNull: ['$lastActivityAt', '$startedAt'] } } },
           {
             $group: {
+              _id: '$userId',
+              lastActivityAt: { $max: '$activityAt' },
+              sessions: { $sum: 1 },
+            }
+          },
+          {
+            $group: {
               _id: null,
-              totalOpenSessions: { $sum: 1 },
-              activeSessions10d: { $sum: { $cond: [{ $gte: ['$activityAt', day10] }, 1, 0] } },
-              inactiveSessions10d: { $sum: { $cond: [{ $lt: ['$activityAt', day10] }, 1, 0] } },
+              totalSessionUsers: { $sum: 1 },
+              activeSessionUsers10d: { $sum: { $cond: [{ $gte: ['$lastActivityAt', day10] }, 1, 0] } },
+              inactiveSessionUsers10d: { $sum: { $cond: [{ $lt: ['$lastActivityAt', day10] }, 1, 0] } },
+              totalTrackedSessions: { $sum: '$sessions' },
+            }
+          },
+          {
+            $project: {
+              _id: 0,
+              totalSessionUsers: 1,
+              activeSessionUsers10d: 1,
+              inactiveSessionUsers10d: 1,
+              totalTrackedSessions: 1,
+              totalOpenSessions: '$totalSessionUsers',
+              activeSessions10d: '$activeSessionUsers10d',
+              inactiveSessions10d: '$inactiveSessionUsers10d',
             }
           }
         ]),
@@ -2462,10 +2482,11 @@ router.get('/dashboard-summary',
       const retained             = retainedResult[0]?.users?.length || 0;
       const retention7d          = signedUp7dAgo > 0 ? Math.round((retained / signedUp7dAgo) * 100) : 0;
       const sessionChurnStats    = sessionChurnArr[0] || {};
-      const totalOpenSessions    = sessionChurnStats.totalOpenSessions || 0;
-      const activeSessions10d    = sessionChurnStats.activeSessions10d || 0;
-      const inactiveSessions10d  = sessionChurnStats.inactiveSessions10d || 0;
-      const churnRate10d         = totalOpenSessions > 0 ? Math.round((inactiveSessions10d / totalOpenSessions) * 100) : 0;
+      const totalSessionUsers    = sessionChurnStats.totalSessionUsers || sessionChurnStats.totalOpenSessions || 0;
+      const activeSessionUsers10d = sessionChurnStats.activeSessionUsers10d || sessionChurnStats.activeSessions10d || 0;
+      const inactiveSessionUsers10d = sessionChurnStats.inactiveSessionUsers10d || sessionChurnStats.inactiveSessions10d || 0;
+      const totalTrackedSessions = sessionChurnStats.totalTrackedSessions || 0;
+      const churnRate10d         = totalSessionUsers > 0 ? Math.round((inactiveSessionUsers10d / totalSessionUsers) * 100) : 0;
 
       const fVisitors = funnelVisitors[0]?.count || 0;
       const fAccounts = signups;
@@ -2498,7 +2519,31 @@ router.get('/dashboard-summary',
           totalMembers,
         },
         overview: {
-          kpis: { totalSessions, uniqueVisitors, totalPageViews, avgSessionDuration, bounceRate, signups, activatedUsers, workspacesCreated, dau, wau, mau, conversionSignup, conversionActivation, retention7d, totalOpenSessions, activeSessions10d, inactiveSessions10d, churnRate10d },
+          kpis: {
+            totalSessions,
+            uniqueVisitors,
+            totalPageViews,
+            avgSessionDuration,
+            bounceRate,
+            signups,
+            activatedUsers,
+            workspacesCreated,
+            dau,
+            wau,
+            mau,
+            conversionSignup,
+            conversionActivation,
+            retention7d,
+            totalSessionUsers,
+            activeSessionUsers10d,
+            inactiveSessionUsers10d,
+            totalTrackedSessions,
+            // Legacy aliases kept for the current dashboard payload consumers.
+            totalOpenSessions: totalSessionUsers,
+            activeSessions10d: activeSessionUsers10d,
+            inactiveSessions10d: inactiveSessionUsers10d,
+            churnRate10d,
+          },
           trends: { dailySessions, dailySignups }
         },
         funnel: { funnel: funnelSteps, dropoffs },
