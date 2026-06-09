@@ -16,7 +16,9 @@ import {
   Layers3,
   Wand2,
   Crown,
+  FileText,
 } from 'lucide-react';
+import DigitalProductEbookModal from '../components/DigitalProductEbookModal.jsx';
 
 const API_ORIGIN = import.meta.env.DEV ? '' : (import.meta.env.VITE_API_URL || '');
 
@@ -79,6 +81,10 @@ export default function GenerationsPage() {
   const [creditsInfo, setCreditsInfo] = useState(null);
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState(null);
+  const [digitalProductLoading, setDigitalProductLoading] = useState(null);
+  const [digitalProductTarget, setDigitalProductTarget] = useState(null);
+  const [digitalProductError, setDigitalProductError] = useState('');
+  const [digitalProductResult, setDigitalProductResult] = useState(null);
   const pageMeta = useMemo(() => getPageMeta(location.pathname), [location.pathname]);
   const [activeFilter, setActiveFilter] = useState(pageMeta.defaultFilter);
 
@@ -241,6 +247,48 @@ export default function GenerationsPage() {
     }
   };
 
+  const openDigitalProductModal = (task) => {
+    setDigitalProductTarget(task);
+    setDigitalProductError('');
+    setDigitalProductResult(null);
+  };
+
+  const handleGenerateDigitalProduct = async (brief = {}) => {
+    const taskId = digitalProductTarget?._id;
+    if (!taskId) return;
+    setDigitalProductLoading(taskId);
+    setDigitalProductError('');
+    setDigitalProductResult(null);
+    try {
+      const response = await fetch(`${API_ORIGIN}/api/ai/product-generator/tasks/${taskId}/digital-product`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getHeaders(),
+        },
+        body: JSON.stringify({ brief }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.success) {
+        throw new Error(data?.message || 'Impossible de générer le produit digital');
+      }
+      setTasks((current) => current.map((task) => (
+        task._id === taskId
+          ? { ...task, product: data.product || { ...(task.product || {}), ebook: data.ebook } }
+          : task
+      )));
+      setDigitalProductResult({
+        ebook: data.ebook,
+        digitalProduct: data.digitalProduct,
+        pdf: data.ebook?.pdf,
+      });
+    } catch (error) {
+      setDigitalProductError(error.message || 'Erreur lors de la génération du produit digital');
+    } finally {
+      setDigitalProductLoading(null);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-[60vh]">
@@ -372,11 +420,29 @@ export default function GenerationsPage() {
                 onOpen={openTask}
                 onApply={openTask}
                 onRetry={handleRetry}
+                onGenerateDigitalProduct={openDigitalProductModal}
+                digitalProductLoading={digitalProductLoading}
               />
             ))}
           </div>
         )}
       </div>
+      <DigitalProductEbookModal
+        open={Boolean(digitalProductTarget)}
+        productName={digitalProductTarget?.productName || digitalProductTarget?.product?.title || ''}
+        existingEbook={digitalProductTarget?.product?.ebook || null}
+        loading={digitalProductLoading === digitalProductTarget?._id}
+        error={digitalProductError}
+        generatedResult={digitalProductResult}
+        onClose={() => {
+          if (!digitalProductLoading) {
+            setDigitalProductTarget(null);
+            setDigitalProductResult(null);
+          }
+        }}
+        onGenerate={handleGenerateDigitalProduct}
+        onRegenerate={() => setDigitalProductResult(null)}
+      />
     </div>
   );
 }
@@ -405,13 +471,14 @@ function StudioCard({ label, value, hint, tone, icon }) {
   );
 }
 
-function TaskCard({ task, deleting, retrying, onDelete, onOpen, onApply, onRetry }) {
+function TaskCard({ task, deleting, retrying, digitalProductLoading, onDelete, onOpen, onApply, onRetry, onGenerateDigitalProduct }) {
   const config = statusConfig[task.status] || statusConfig.pending;
   const StatusIcon = config.icon;
   const isActive = !['done', 'error'].includes(task.status);
   const isDone = task.status === 'done';
   const isError = task.status === 'error';
   const hasSavedContent = Boolean(task.product);
+  const hasDigitalProduct = Boolean(task.product?.ebook || task.product?.digitalProduct);
   const isPremium = task.product?.pageStyle === 'premium'
     || task.product?.layout === 'premium_product_page'
     || task.product?.theme === 'premium_product'
@@ -442,6 +509,12 @@ function TaskCard({ task, deleting, retrying, onDelete, onOpen, onApply, onRetry
               <span className="inline-flex items-center gap-1 text-[11px] font-black px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
                 <Crown className="w-3 h-3" />
                 Premium
+              </span>
+            )}
+            {hasDigitalProduct && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-black px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                <FileText className="w-3 h-3" />
+                Digital
               </span>
             )}
             {isError && hasSavedContent && (
@@ -496,6 +569,26 @@ function TaskCard({ task, deleting, retrying, onDelete, onOpen, onApply, onRetry
             >
               <Eye className="w-3.5 h-3.5" />
               Voir contenu
+            </button>
+          )}
+
+          {hasSavedContent && (
+            <button
+              onClick={() => onGenerateDigitalProduct(task)}
+              disabled={digitalProductLoading === task._id}
+              className={`inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-xl transition disabled:opacity-60 ${
+                hasDigitalProduct
+                  ? 'border border-emerald-100 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                  : 'border border-gray-200 text-gray-600 hover:bg-gray-50'
+              }`}
+              title="Produit digital de ce produit"
+            >
+              {digitalProductLoading === task._id ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <FileText className="w-3.5 h-3.5" />
+              )}
+              Produit digital de ce produit
             </button>
           )}
 

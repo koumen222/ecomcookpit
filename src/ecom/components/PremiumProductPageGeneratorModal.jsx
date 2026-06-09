@@ -4,6 +4,7 @@ import {
   ArrowLeft,
   CheckCircle,
   Crown,
+  FileText,
   Image as ImageIcon,
   Loader2,
   Palette,
@@ -12,6 +13,7 @@ import {
   Wand2,
   X,
 } from 'lucide-react';
+import DigitalProductEbookModal from './DigitalProductEbookModal.jsx';
 
 const API_ORIGIN = (() => {
   const raw = String(import.meta.env.VITE_BACKEND_URL || '').trim();
@@ -175,6 +177,10 @@ const PremiumProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, 
   const [notice, setNotice] = useState('');
   const [imageJobId, setImageJobId] = useState(null);
   const [currentTaskId, setCurrentTaskId] = useState(initialTaskId);
+  const [digitalProductLoading, setDigitalProductLoading] = useState(false);
+  const [showDigitalProductModal, setShowDigitalProductModal] = useState(false);
+  const [digitalProductError, setDigitalProductError] = useState('');
+  const [digitalProductResult, setDigitalProductResult] = useState(null);
   const [progress, setProgress] = useState(0);
   const [stepLabel, setStepLabel] = useState(initialTaskId ? 'Chargement de la génération premium...' : '');
 
@@ -415,6 +421,57 @@ const PremiumProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, 
     }
   };
 
+  const openDigitalProductModal = () => {
+    if (!currentTaskId) {
+      setError('Recharge cette génération depuis le Studio pour créer le produit digital.');
+      return;
+    }
+    setDigitalProductError('');
+    setDigitalProductResult(null);
+    setShowDigitalProductModal(true);
+  };
+
+  const handleGenerateDigitalProduct = async (brief = {}) => {
+    if (!currentTaskId) {
+      setDigitalProductError('Recharge cette génération depuis le Studio pour créer le produit digital.');
+      return;
+    }
+
+    setDigitalProductLoading(true);
+    setNotice('');
+    setDigitalProductError('');
+    setDigitalProductResult(null);
+    try {
+      const response = await fetch(`${API_ORIGIN}/api/ai/product-generator/tasks/${currentTaskId}/digital-product`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders(),
+        },
+        body: JSON.stringify({ brief }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || 'Impossible de générer le produit digital');
+      }
+      setProduct((current) => data.product || {
+        ...(current || {}),
+        ebook: data.ebook,
+        digitalProduct: data.digitalProduct || current?.digitalProduct,
+      });
+      setDigitalProductResult({
+        ebook: data.ebook,
+        digitalProduct: data.digitalProduct,
+        pdf: data.ebook?.pdf,
+      });
+      setNotice('Produit digital généré et ajouté à cette page premium.');
+    } catch (digitalError) {
+      setDigitalProductError(digitalError.message || 'Erreur lors de la génération du produit digital');
+    } finally {
+      setDigitalProductLoading(false);
+    }
+  };
+
   const handleApply = () => {
     if (!product) return;
     const premium = product.premium_page || {};
@@ -439,6 +496,7 @@ const PremiumProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, 
         pageStyle: 'premium',
         premiumPage: premium,
         premiumImages: product.premiumImages || {},
+        ...(product.productPageConfig?.conversion ? { conversion: product.productPageConfig.conversion } : {}),
         design: {
           buttonColor: themeColor,
           ctaButtonColor: themeColor,
@@ -462,6 +520,7 @@ const PremiumProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, 
   };
 
   const content = (
+    <>
     <div className={pageMode ? 'min-h-screen bg-slate-50' : 'fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4'}>
       <div className={pageMode ? 'min-h-screen bg-slate-50' : 'max-h-[92vh] w-full max-w-6xl overflow-hidden rounded-3xl bg-slate-50 shadow-2xl'}>
         <div className="sticky top-0 z-10 border-b border-slate-200 bg-white/95 px-5 py-4 backdrop-blur">
@@ -680,6 +739,23 @@ const PremiumProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, 
           {phase === 'preview' && product && (
             <div className="space-y-5">
               <PremiumPreview product={product} accent={themeColor} />
+              <div className="flex flex-col gap-3 rounded-3xl border border-emerald-100 bg-emerald-50 p-5 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <p className="text-sm font-black text-emerald-950">Produit digital lié</p>
+                  <p className="mt-1 text-xs font-medium text-emerald-700">
+                    {product?.ebook ? 'Un ebook est déjà attaché à cette page premium.' : 'Génère l’ebook uniquement après la page premium.'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={openDigitalProductModal}
+                  disabled={digitalProductLoading || !currentTaskId}
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-700 px-5 py-3 text-xs font-black text-white shadow-sm transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:bg-emerald-300"
+                >
+                  {digitalProductLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
+                  Produit digital de ce produit
+                </button>
+              </div>
               <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
                 <button type="button" onClick={() => setPhase('input')} className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50">
                   Modifier la source
@@ -698,6 +774,23 @@ const PremiumProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, 
         </div>
       </div>
     </div>
+      <DigitalProductEbookModal
+        open={showDigitalProductModal}
+        productName={product?.title || product?.name || ''}
+        existingEbook={product?.ebook || null}
+        loading={digitalProductLoading}
+        error={digitalProductError}
+        generatedResult={digitalProductResult}
+        onClose={() => {
+          if (!digitalProductLoading) {
+            setShowDigitalProductModal(false);
+            setDigitalProductResult(null);
+          }
+        }}
+        onGenerate={handleGenerateDigitalProduct}
+        onRegenerate={() => setDigitalProductResult(null)}
+      />
+    </>
   );
 
   return content;

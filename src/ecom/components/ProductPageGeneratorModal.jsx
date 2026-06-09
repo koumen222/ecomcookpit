@@ -9,6 +9,7 @@ import TestimonialsCarousel from './TestimonialsCarousel';
 import PaymentModalFrame from './PaymentModalFrame.jsx';
 import InfographicsGeneratorPanel from './InfographicsGeneratorPanel.jsx';
 import ErrorBanner from './ErrorBanner.jsx';
+import DigitalProductEbookModal from './DigitalProductEbookModal.jsx';
 
 // Product-generator is mounted at /api/ai/product-generator (outside /api/ecom).
 // We must always use API origin only, never a base path like /api/ecom.
@@ -290,6 +291,7 @@ const buildTemplateTheme = (templateId) => ({
 });
 
 const buildGeneratedProductPageConfig = (templateTheme, product = {}, pageStyle = 'classic') => {
+  const digitalConversion = product.productPageConfig?.conversion || null;
   return {
     pageStyle,
     design: {
@@ -304,6 +306,7 @@ const buildGeneratedProductPageConfig = (templateTheme, product = {}, pageStyle 
     button: {
       text: product.hero_cta || templateTheme.cta || 'Commander maintenant',
     },
+    ...(digitalConversion ? { conversion: digitalConversion } : {}),
   };
 };
 
@@ -815,6 +818,11 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
   // affiche un message + retry au lieu d'aller en preview avec des placeholders.
   const [imageGenerationFailed, setImageGenerationFailed] = useState(null);
   const [currentTaskId, setCurrentTaskId] = useState(null);
+  const [digitalProductLoading, setDigitalProductLoading] = useState(false);
+  const [digitalProductNotice, setDigitalProductNotice] = useState('');
+  const [showDigitalProductModal, setShowDigitalProductModal] = useState(false);
+  const [digitalProductError, setDigitalProductError] = useState('');
+  const [digitalProductResult, setDigitalProductResult] = useState(null);
   const [infographicsTaskResult, setInfographicsTaskResult] = useState(null);
   const [backgroundTasks, setBackgroundTasks] = useState([]);
   const [showTaskList, setShowTaskList] = useState(false);
@@ -1952,6 +1960,61 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
     setDraftBanner(null);
   };
 
+  const openDigitalProductModal = () => {
+    if (!currentTaskId) {
+      setError('Recharge cette génération depuis le Studio pour créer le produit digital.');
+      return;
+    }
+    setDigitalProductError('');
+    setDigitalProductResult(null);
+    setShowDigitalProductModal(true);
+  };
+
+  const handleGenerateDigitalProduct = async (brief = {}) => {
+    if (!currentTaskId) {
+      setDigitalProductError('Recharge cette génération depuis le Studio pour créer le produit digital.');
+      return;
+    }
+
+    setDigitalProductLoading(true);
+    setDigitalProductNotice('');
+    setDigitalProductError('');
+    setDigitalProductResult(null);
+    try {
+      const response = await fetch(`${API_ORIGIN}/api/ai/product-generator/tasks/${currentTaskId}/digital-product`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders(),
+        },
+        body: JSON.stringify({ brief }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || 'Impossible de générer le produit digital');
+      }
+
+      const nextProduct = data.product || {
+        ...product,
+        ebook: data.ebook,
+        digitalProduct: data.digitalProduct || product.digitalProduct,
+      };
+      setProduct(nextProduct);
+      saveDraft(nextProduct, visualTemplate);
+      setActiveTab('page');
+      setDigitalProductResult({
+        ebook: data.ebook,
+        digitalProduct: data.digitalProduct,
+        pdf: data.ebook?.pdf,
+      });
+      setDigitalProductNotice('Produit digital généré et ajouté à cette page.');
+    } catch (digitalError) {
+      setDigitalProductError(digitalError.message || 'Erreur lors de la génération du produit digital');
+    } finally {
+      setDigitalProductLoading(false);
+    }
+  };
+
   const handleRestart = () => {
     setProduct(null);
     setInfographicsTaskResult(null);
@@ -2129,6 +2192,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
   };
 
   return (
+    <>
     <div className={pageMode ? 'min-h-screen bg-white' : 'fixed inset-0 z-50 h-screen w-screen overflow-hidden bg-black/50 backdrop-blur-sm'}>
       <div className={pageMode ? 'mx-auto min-h-screen w-full max-w-[1120px] px-4 py-6 sm:px-6 lg:px-8' : 'flex h-full w-full items-stretch justify-stretch'}>
         <div className={pageMode ? 'relative flex min-h-[calc(100vh-3rem)] w-full flex-col overflow-hidden rounded-[24px] border border-gray-200 bg-white shadow-sm' : 'relative flex h-full w-full flex-col overflow-hidden bg-white shadow-2xl'}>
@@ -4130,6 +4194,27 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
                 </p>
               </div>
 
+              <div className="flex flex-col gap-3 rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <p className="text-sm font-bold text-emerald-950">Produit digital lié</p>
+                  <p className="mt-0.5 text-xs text-emerald-700">
+                    {product?.ebook ? 'Un ebook est déjà attaché à cette page.' : 'Génère l’ebook uniquement après avoir obtenu la page produit.'}
+                  </p>
+                  {digitalProductNotice && (
+                    <p className="mt-1 text-xs font-semibold text-emerald-800">{digitalProductNotice}</p>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={openDigitalProductModal}
+                  disabled={digitalProductLoading || !currentTaskId}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-700 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:bg-emerald-300"
+                >
+                  {digitalProductLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
+                  Produit digital de ce produit
+                </button>
+              </div>
+
               <div className="flex gap-3">
                 <button
                   type="button"
@@ -4156,6 +4241,23 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
       </div>
     </div>
   </div>
+    <DigitalProductEbookModal
+      open={showDigitalProductModal}
+      productName={product?.title || product?.name || ''}
+      existingEbook={product?.ebook || null}
+      loading={digitalProductLoading}
+      error={digitalProductError}
+      generatedResult={digitalProductResult}
+      onClose={() => {
+        if (!digitalProductLoading) {
+          setShowDigitalProductModal(false);
+          setDigitalProductResult(null);
+        }
+      }}
+      onGenerate={handleGenerateDigitalProduct}
+      onRegenerate={() => setDigitalProductResult(null)}
+    />
+    </>
   );
 };
 

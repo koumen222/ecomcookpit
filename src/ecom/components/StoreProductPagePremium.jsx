@@ -2,6 +2,7 @@ import React, { useMemo, useRef, useState, useCallback, useEffect } from 'react'
 import {
   Award,
   BadgeCheck,
+  BookOpen,
   Check,
   CheckCircle,
   ChevronDown,
@@ -16,6 +17,8 @@ import {
   X,
   Camera,
   Loader2,
+  Gift,
+  Download,
 } from 'lucide-react';
 import QuickOrderModal from './QuickOrderModal.jsx';
 import { StorefrontHeader } from './StorefrontShared.jsx';
@@ -148,6 +151,63 @@ const boolIcon = (value, accent) => value ? (
   <span className="premium-bool premium-bool-no" aria-label="Non"><X size={14} /></span>
 );
 
+const PremiumBonusEbook = ({ ebook, accent, onOrder, ctaLabel = 'Commander' }) => {
+  if (!ebook || typeof ebook !== 'object') return null;
+  const sales = ebook.sales_section || {};
+  const cover = ebook.cover || {};
+  const toc = asArray(ebook.table_of_contents);
+  const chapters = asArray(ebook.chapters);
+  const title = textValue(sales.headline, ebook.title || cover.cover_title || 'Bonus offert avec votre commande');
+  const bonusText = textValue(sales.bonus_text, ebook.short_description || ebook.subtitle);
+  const valueText = textValue(sales.value_text, ebook.estimated_value);
+  const buttonText = textValue(sales.cta_text, ctaLabel);
+  const pdfUrl = ebook.pdf?.url || ebook.pdfUrl || ebook.digitalProduct?.pdfUrl || '';
+
+  if (!title && !bonusText && !valueText) return null;
+
+  return (
+    <section className="premium-section premium-bonus">
+      <div className="premium-bonus-card">
+        <div className="premium-bonus-copy">
+          <div className="premium-bonus-kicker"><Gift size={16} />{textValue(cover.badge_text, 'Bonus offert')}</div>
+          <h2 className="premium-heading">{title}</h2>
+          {bonusText && <p className="premium-lead">{bonusText}</p>}
+          {valueText && <p className="premium-bonus-value">{valueText}</p>}
+          {toc.length > 0 && (
+            <div className="premium-bonus-toc">
+              {toc.slice(0, 4).map((item, index) => (
+                <span key={index}><Check size={13} />{textValue(item.chapter_title || item.chapter_summary, `Chapitre ${index + 1}`)}</span>
+              ))}
+            </div>
+          )}
+          <button type="button" className="premium-cta premium-bonus-cta" onClick={onOrder}>
+            <ShoppingCart size={18} />
+            {buttonText}
+          </button>
+          {pdfUrl && (
+            <a
+              href={pdfUrl}
+              target="_blank"
+              rel="noreferrer"
+              download={ebook.pdf?.fileName || 'ebook-bonus.pdf'}
+              className="premium-cta premium-bonus-cta"
+              style={{ marginTop: 10, background: '#fff', color: accent, border: `1px solid ${accent}`, textDecoration: 'none' }}
+            >
+              <Download size={17} />
+              Télécharger le PDF
+            </a>
+          )}
+        </div>
+        <div className="premium-bonus-cover" style={{ background: `linear-gradient(160deg, ${accent}, #111827)` }}>
+          <BookOpen size={34} />
+          <span>{textValue(cover.cover_title, ebook.title || 'Guide offert')}</span>
+          <small>{chapters.length || toc.length || 5} chapitres</small>
+        </div>
+      </div>
+    </section>
+  );
+};
+
 const StoreProductPagePremium = ({ product, store, productPageConfig, subdomain, pixels, prefix = '' }) => {
   const [showOrderModal, setShowOrderModal] = useState(false);
   const [openFaq, setOpenFaq] = useState(null);
@@ -209,6 +269,7 @@ const StoreProductPagePremium = ({ product, store, productPageConfig, subdomain,
     : (testimonialFallback[index] || testimonialFallback[0] || ''));
   const heroImage = sectionImage('hero', 0);
   const productName = textValue(premium.brandName, product?.name || store?.name || 'Produit');
+  const bonusEbook = pageData.ebook || product?.ebook || productPageConfig?.ebook || null;
 
   // Devise: priorité à la boutique, jamais USD/$. Repli FCFA (XAF).
   const resolveCurrency = (code) => (code && String(code).toUpperCase() !== 'USD' ? code : null);
@@ -397,6 +458,18 @@ const StoreProductPagePremium = ({ product, store, productPageConfig, subdomain,
         .premium-authority-label { font-size: clamp(17px, 1.7vw, 25px); line-height: 1; font-weight: 900; color: #030712; }
         .premium-authority-quote { margin: 10px 0 0; font-size: 14px; line-height: 1.5; color: #444a52; }
         @keyframes premium-marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+        .premium-bonus { background: #fff; padding-top: clamp(24px, 4vw, 42px); padding-bottom: clamp(24px, 4vw, 42px); }
+        .premium-bonus-card { max-width: 1120px; margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1fr) minmax(210px, 280px); gap: clamp(18px, 4vw, 44px); align-items: center; border: 1px solid rgba(15,23,42,0.08); border-radius: 18px; background: linear-gradient(135deg, color-mix(in srgb, var(--premium-accent) 10%, white), #fff); padding: clamp(20px, 4vw, 38px); box-shadow: 0 18px 44px rgba(15,23,42,0.08); }
+        .premium-bonus-copy .premium-heading { text-align: left; }
+        .premium-bonus-kicker { display: inline-flex; align-items: center; gap: 8px; margin-bottom: 12px; color: var(--premium-accent); font-size: 13px; font-weight: 900; text-transform: uppercase; letter-spacing: 0; }
+        .premium-bonus-value { margin: 12px 0 0; color: var(--premium-accent); font-size: 14px; line-height: 1.55; font-weight: 850; }
+        .premium-bonus-toc { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+        .premium-bonus-toc span { display: inline-flex; align-items: center; gap: 6px; border: 1px solid rgba(15,23,42,0.08); border-radius: 999px; background: #fff; color: #3f4650; padding: 8px 10px; font-size: 12px; font-weight: 800; }
+        .premium-bonus-toc svg { color: var(--premium-accent); flex-shrink: 0; }
+        .premium-bonus-cta { max-width: 360px; }
+        .premium-bonus-cover { min-height: 250px; border-radius: 16px; padding: 22px; color: #fff; display: flex; flex-direction: column; justify-content: space-between; box-shadow: 0 20px 45px rgba(15,23,42,0.22); }
+        .premium-bonus-cover span { font-size: clamp(20px, 2.1vw, 28px); line-height: 1.08; font-weight: 950; text-transform: uppercase; }
+        .premium-bonus-cover small { font-size: 12px; font-weight: 900; text-transform: uppercase; opacity: 0.78; }
         .premium-centered { text-align: center; max-width: 980px; margin: 0 auto 32px; }
         .premium-eyebrow { display: inline-flex; align-items: center; gap: 7px; margin-bottom: 12px; font-size: 13px; font-weight: 800; color: #38424c; }
         .premium-heading { margin: 0; font-size: clamp(23px, 3vw, 37px); line-height: 1.16; font-weight: 900; letter-spacing: 0; color: #05070a; text-transform: uppercase; }
@@ -460,6 +533,8 @@ const StoreProductPagePremium = ({ product, store, productPageConfig, subdomain,
           .premium-card-grid { grid-template-columns: 1fr 1fr; gap: 12px; }
           .premium-reviews-carousel .premium-testimonial-card { flex-basis: 80%; }
           .premium-split.reverse .premium-copy { order: initial; }
+          .premium-bonus-card { grid-template-columns: 1fr; }
+          .premium-bonus-cover { min-height: 190px; }
           .premium-offer-card { grid-template-columns: 56px 1fr; }
           .premium-offer-price { grid-column: 1 / -1; text-align: left; }
           .premium-step { grid-template-columns: 60px 1fr; gap: 10px; }
@@ -613,6 +688,15 @@ const StoreProductPagePremium = ({ product, store, productPageConfig, subdomain,
             ))}
           </div>
         </section>
+
+        {bonusEbook && (
+          <PremiumBonusEbook
+            ebook={bonusEbook}
+            accent={accent}
+            onOrder={openOrder}
+            ctaLabel={textValue(premium.hero?.ctaLabel, productPageConfig?.button?.text || 'Commander')}
+          />
+        )}
 
         <section className="premium-section premium-testimonials">
           <div className="premium-centered">

@@ -1,19 +1,11 @@
-import Groq from 'groq-sdk';
+import axios from 'axios';
 
-const GROQ_API_KEY = process.env.GROQ_API_KEY || '';
-const GROQ_TEXT_MODEL = process.env.GROQ_TEXT_MODEL || 'openai/gpt-oss-20b';
-
-let _groq = null;
-
-function getGroq() {
-  if (!_groq && GROQ_API_KEY) {
-    _groq = new Groq({ apiKey: GROQ_API_KEY });
-  }
-  return _groq;
-}
+const KIE_API_KEY = process.env.KIE_API_KEY || '';
+const KIE_BASE_URL = (process.env.KIE_BASE_URL || 'https://api.kie.ai').replace(/\/+$/, '');
+const KIE_TIMEOUT_MS = Number(process.env.KIE_TIMEOUT_MS) || 120000;
 
 export function isKieConfigured() {
-  return !!GROQ_API_KEY;
+  return !!KIE_API_KEY;
 }
 
 export function normalizeKieMessages(messages = []) {
@@ -23,21 +15,38 @@ export function normalizeKieMessages(messages = []) {
       : 'user';
 
     if (Array.isArray(message?.content)) {
-      // Flatten to string for Groq text model
-      const text = message.content
-        .map((c) => (typeof c === 'string' ? c : c?.text || ''))
-        .join('');
-      return { role, content: text };
+      const content = message.content.map((c) => {
+        if (typeof c === 'string') return { type: 'input_text', text: c };
+        if (c?.type === 'text') return { type: 'input_text', text: c.text || '' };
+        if (c?.type === 'input_text') return c;
+        if (c?.type === 'image_url') return { type: 'input_image', image_url: c.image_url?.url || c.image_url || '' };
+        if (c?.type === 'input_image') return c;
+        return { type: 'input_text', text: String(c?.text || c || '') };
+      });
+      return { role, content };
     }
 
     return {
       role,
-      content: String(message?.content || ''),
+      content: [{ type: 'input_text', text: String(message?.content || '') }],
     };
   });
 }
 
 export function extractKieContent(data = {}) {
+  if (Array.isArray(data?.output)) {
+    const messagePart = data.output.find((o) => o.type === 'message');
+    if (messagePart?.content) {
+      if (typeof messagePart.content === 'string') return messagePart.content.trim();
+      if (Array.isArray(messagePart.content)) {
+        return messagePart.content
+          .map((c) => (typeof c === 'string' ? c : c?.text || ''))
+          .join('')
+          .trim();
+      }
+    }
+  }
+
   const content = data?.choices?.[0]?.message?.content;
   if (typeof content === 'string') return content.trim();
 
@@ -60,37 +69,49 @@ export async function callKieChatCompletion({
   temperature = 0.4,
   maxTokens = 4096,
   tools,
-  // legacy params kept for call-site compatibility, unused
-  reasoningEffort,
+  reasoningEffort = 'low',
   includeThoughts,
   timeoutMs,
 }) {
-  const groq = getGroq();
-  if (!groq) {
-    throw new Error('le service non configuré');
+  if (!KIE_API_KEY) {
+    throw new Error('KIE_API_KEY non configurée');
   }
 
+  const normalizedMessages = normalizeKieMessages(messages);
+
   const payload = {
-    model: GROQ_TEXT_MODEL,
-    messages: normalizeKieMessages(messages),
-    temperature,
-    max_tokens: maxTokens,
+    model: 'gpt-5-4',
+    stream: false,
+    input: normalizedMessages,
+    reasoning: {
+      effort: reasoningEffort || 'low',
+    },
   };
 
   if (Array.isArray(tools) && tools.length > 0) {
     payload.tools = tools;
   }
 
-  const completion = await groq.chat.completions.create(payload);
+  const response = await axios.post(
+    `${KIE_BASE_URL}/codex/v1/responses`,
+    payload,
+    {
+      headers: {
+        'Authorization': `Bearer ${KIE_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      timeout: timeoutMs || KIE_TIMEOUT_MS,
+    }
+  );
 
-  const text = completion.choices?.[0]?.message?.content?.trim() || '';
+  const text = extractKieContent(response.data);
   if (!text) {
-    throw new Error('le service response vide');
+    throw new Error('GPT 5.4 response vide');
   }
 
   return {
     content: text,
-    usage: completion.usage || null,
-    raw: completion,
+    usage: response.data?.usage || null,
+    raw: response.data,
   };
 }

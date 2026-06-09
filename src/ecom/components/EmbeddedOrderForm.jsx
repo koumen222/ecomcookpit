@@ -290,7 +290,7 @@ const EmbeddedOrderForm = ({ product, subdomain, store, pixels, productPageConfi
     setError('');
     try {
       const offerPriceOverride = offersEnabled && offers[selectedOfferIdx]?.price > 0
-        ? { offerPrice: offers[selectedOfferIdx].price, offerQty: offers[selectedOfferIdx].qty }
+        ? { offerPrice: offers[selectedOfferIdx].price, offerQty: offers[selectedOfferIdx].qty || offers[selectedOfferIdx].quantity || 1 }
         : {};
 
       const getFieldValue = (knownKey, fallbackTypes) => {
@@ -483,7 +483,10 @@ const EmbeddedOrderForm = ({ product, subdomain, store, pixels, productPageConfi
                   {offersEnabled ? (
                     <div style={offerDisplayType === 'grid' ? { display: 'grid', gridTemplateColumns: `repeat(${offers.length}, 1fr)`, gap: 6 } : { display: 'flex', flexDirection: 'column', gap: 5 }}>
                       {offers.map((offer, i) => {
-                        const displayPrice = offer.price > 0 ? offer.price : (product?.price || 0) * (offer.qty || 1);
+                        const offerQty = offer.qty || offer.quantity || 1;
+                        const offerTitle = offer.title || `${offerQty} ${offerQty === 1 ? 'unité' : 'unités'}`;
+                        const offerSubtitle = offer.subtitle || offer.digitalProductBonus?.title || '';
+                        const displayPrice = offer.price > 0 ? offer.price : (product?.price || 0) * offerQty;
                         const displayCompare = offer.comparePrice > 0 ? offer.comparePrice : 0;
                         const disc = displayCompare > displayPrice && displayPrice > 0 ? Math.round((1 - displayPrice / displayCompare) * 100) : 0;
                         const sel = selectedOfferIdx === i;
@@ -499,7 +502,7 @@ const EmbeddedOrderForm = ({ product, subdomain, store, pixels, productPageConfi
                         // ── Grille (colonnes) ──
                         if (offerDisplayType === 'grid') {
                           return (
-                            <div key={i} onClick={() => { setSelectedOfferIdx(i); set('quantity', offer.qty); }}
+                            <div key={i} onClick={() => { setSelectedOfferIdx(i); set('quantity', offerQty); }}
                               style={{ borderRadius: offerBorderRadius, cursor: 'pointer', borderWidth: sel ? 2 : 1.5, borderStyle: 'solid', borderColor: sel ? offerBorderSel : offerBorderUnsel, backgroundColor: sel ? offerBgSel : offerBgUnsel, display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '10px 8px 12px', gap: 5, position: 'relative', overflow: 'hidden', transition: 'all 0.15s ease' }}>
                               {offer.badge && (
                                 <div style={{ position: 'absolute', top: 0, left: 0, right: 0, textAlign: 'center', background: offerBadgeBg, color: offerBadgeTextColor, fontSize: offerBadgeFontSize, fontWeight: 700, padding: '2px 0' }}>{offer.badge}</div>
@@ -511,8 +514,9 @@ const EmbeddedOrderForm = ({ product, subdomain, store, pixels, productPageConfi
                                 }
                               </div>
                               <div style={{ fontSize: offerTitleFontSize - 1, fontWeight: offerTitleFontWeight, color: offerTitleColor, textAlign: 'center' }}>
-                                {offer.qty} {offer.qty === 1 ? 'unité' : 'unités'}
+                                {offerTitle}
                               </div>
+                              {offerSubtitle && <div style={{ fontSize: 10.5, color: '#6B7280', textAlign: 'center', lineHeight: 1.25 }}>{offerSubtitle}</div>}
                               {disc > 0 && (
                                 <div style={{ background: offerDiscBg, padding: '2px 8px', borderRadius: 20 }}>
                                   <span style={{ fontSize: 9, fontWeight: 700, color: offerDiscText }}>Économisez {disc}%</span>
@@ -531,7 +535,7 @@ const EmbeddedOrderForm = ({ product, subdomain, store, pixels, productPageConfi
                         // ── Image + texte (liste) ──
                         if (offerDisplayType === 'image-row') {
                           return (
-                            <div key={i} onClick={() => { setSelectedOfferIdx(i); set('quantity', offer.qty); }}
+                            <div key={i} onClick={() => { setSelectedOfferIdx(i); set('quantity', offerQty); }}
                               style={{ padding: '10px 12px', borderRadius: offerBorderRadius, cursor: 'pointer', borderWidth: sel ? 2 : 1.5, borderStyle: 'solid', borderColor: sel ? offerBorderSel : offerBorderUnsel, backgroundColor: sel ? offerBgSel : offerBgUnsel, display: 'flex', alignItems: 'center', gap: 10, transition: 'all 0.15s ease' }}>
                               <div style={{ width: 52, height: 52, borderRadius: 8, overflow: 'hidden', flexShrink: 0, backgroundColor: '#F3F4F6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                 {getImgSrc(product?.images?.[0])
@@ -541,8 +545,9 @@ const EmbeddedOrderForm = ({ product, subdomain, store, pixels, productPageConfi
                               </div>
                               <div style={{ flex: 1, minWidth: 0 }}>
                                 <div style={{ fontSize: offerTitleFontSize, fontWeight: offerTitleFontWeight, color: offerTitleColor }}>
-                                  {offer.qty} {offer.qty === 1 ? 'unité' : 'unités'}
+                                  {offerTitle}
                                 </div>
+                                {offerSubtitle && <div style={{ marginTop: 2, fontSize: 11, lineHeight: 1.25, color: '#6B7280' }}>{offerSubtitle}</div>}
                                 {disc > 0 && (
                                   <div style={{ display: 'inline-flex', alignItems: 'center', background: offerDiscBg, padding: '1px 7px', borderRadius: 20, marginTop: 2 }}>
                                     <span style={{ fontSize: 10, fontWeight: 700, color: offerDiscText }}>Économisez {disc}%</span>
@@ -577,13 +582,14 @@ const EmbeddedOrderForm = ({ product, subdomain, store, pixels, productPageConfi
                                 <div style={{ position: 'absolute', top: 9, right: -13, width: 65, textAlign: 'center', transform: 'rotate(45deg)', background: offerBadgeBg, color: offerBadgeTextColor, fontSize: offerBadgeFontSize, fontWeight: 700, padding: '2px 0' }}>{offer.badge}</div>
                               </div>
                             )}
-                            <div onClick={() => { setSelectedOfferIdx(i); set('quantity', offer.qty); }}
+                            <div onClick={() => { setSelectedOfferIdx(i); set('quantity', offerQty); }}
                               style={{ padding: '10px 12px', borderRadius: offerBorderRadius, cursor: 'pointer', borderWidth: sel ? 2 : 1.5, borderStyle: offerBorderStyle === 'flat' ? 'solid' : offerBorderStyle, borderColor: sel ? offerBorderSel : offerBorderUnsel, backgroundColor: sel ? offerBgSel : offerBgUnsel, display: 'flex', alignItems: 'center', gap: 10, transition: 'all 0.15s ease' }}>
                               <div style={{ width: 16, height: 16, borderRadius: '50%', border: sel ? `4px solid ${offerRadioColor}` : '2px solid #D1D5DB', flexShrink: 0 }} />
                               <div style={{ flex: 1 }}>
                                 <div style={{ fontSize: offerTitleFontSize, fontWeight: offerTitleFontWeight, color: offerTitleColor }}>
-                                  {offer.qty} {offer.qty === 1 ? 'unité' : 'unités'}
+                                  {offerTitle}
                                 </div>
+                                {offerSubtitle && <div style={{ marginTop: 2, fontSize: 11, lineHeight: 1.25, color: '#6B7280' }}>{offerSubtitle}</div>}
                                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 5, marginTop: 2, flexWrap: 'wrap' }}>
                                   <span style={{ fontSize: offerPriceFontSize, fontWeight: offerPriceFontWeight, color: offerPriceColor }}>{fmt(displayPrice, currency)}</span>
                                   {displayCompare > displayPrice && displayPrice > 0 && (

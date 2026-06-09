@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Package, Plus, Search, Edit, Trash2, Eye, EyeOff, ChevronLeft, ChevronRight, Loader2, AlertCircle, Image, Sparkles, ExternalLink, Zap, Layers, Copy, Download, Upload, Crown } from 'lucide-react';
+import { Package, Plus, Search, Edit, Trash2, Eye, EyeOff, ChevronLeft, ChevronRight, Loader2, AlertCircle, Image, Sparkles, ExternalLink, Zap, Layers, Copy, Download, Upload, Crown, FileText } from 'lucide-react';
 import { storeProductsApi, storeManageApi } from '../services/storeApi.js';
 import ecomApi from '../services/ecommApi.js';
 import { formatMoney } from '../utils/currency.js';
+import DigitalProductEbookModal from '../components/DigitalProductEbookModal.jsx';
 
 const PRODUCT_VIEWS = {
   catalog: {
@@ -67,6 +68,10 @@ const StoreProductsList = () => {
   const [stockDrafts, setStockDrafts] = useState({});
   const [stockSaving, setStockSaving] = useState(false);
   const [csvBusy, setCsvBusy] = useState(false);
+  const [digitalProductLoading, setDigitalProductLoading] = useState(null);
+  const [digitalProductTarget, setDigitalProductTarget] = useState(null);
+  const [digitalProductError, setDigitalProductError] = useState('');
+  const [digitalProductResult, setDigitalProductResult] = useState(null);
   const fileInputRef = useRef(null);
 
   // Récupérer le subdomain du store pour l'aperçu
@@ -290,6 +295,47 @@ const StoreProductsList = () => {
       }
     } catch (err) {
       setError(err?.response?.data?.message || 'Erreur lors de la duplication');
+    }
+  };
+
+  const hasDigitalProduct = (product) => Boolean(
+    product?._pageData?.ebook
+    || product?.productPageConfig?.ebook
+    || product?._pageData?.digitalProduct
+    || product?.productPageConfig?.digitalProduct
+  );
+
+  const openDigitalProductModal = (product) => {
+    setDigitalProductTarget(product);
+    setDigitalProductError('');
+    setDigitalProductResult(null);
+  };
+
+  const handleGenerateDigitalProduct = async (brief = {}) => {
+    const product = digitalProductTarget;
+    if (!product?._id) return;
+    setDigitalProductLoading(product._id);
+    setDigitalProductError('');
+    setDigitalProductResult(null);
+    setError('');
+    try {
+      const res = await storeProductsApi.generateDigitalProduct(product._id, brief);
+      const updated = res.data?.data;
+      if (!res.data?.success || !updated) {
+        throw new Error(res.data?.message || 'Impossible de générer le produit digital');
+      }
+      setProducts((previous) => previous.map((item) => (
+        item._id === product._id ? updated : item
+      )));
+      setDigitalProductResult({
+        ebook: res.data?.ebook || updated?._pageData?.ebook || updated?.productPageConfig?.ebook,
+        digitalProduct: res.data?.digitalProduct || updated?._pageData?.digitalProduct,
+        pdf: res.data?.ebook?.pdf || updated?._pageData?.ebook?.pdf,
+      });
+    } catch (err) {
+      setDigitalProductError(err?.response?.data?.message || err.message || 'Erreur lors de la génération du produit digital');
+    } finally {
+      setDigitalProductLoading(null);
     }
   };
 
@@ -1400,6 +1446,7 @@ const StoreProductsList = () => {
               <tbody className="divide-y divide-gray-100">
                 {(viewMode === 'stock' ? stockFilteredProducts : sortedProducts).map((product) => {
                   const stockBadge = getStockBadge(product.stock || 0);
+                  const digitalReady = hasDigitalProduct(product);
                   return (
                   <tr key={product._id} className="transition hover:bg-gray-50/70">
                     <td className="px-5 py-4">
@@ -1423,6 +1470,11 @@ const StoreProductsList = () => {
                             {product.pageBuilder?.enabled && (
                               <span className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2 py-0.5 font-medium text-indigo-700">
                                 <Layers className="h-3 w-3" /> Builder
+                              </span>
+                            )}
+                            {digitalReady && (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 font-medium text-emerald-700">
+                                <FileText className="h-3 w-3" /> Digital
                               </span>
                             )}
                           </div>
@@ -1471,6 +1523,19 @@ const StoreProductsList = () => {
                           title="Voir le produit"
                         >
                           <ExternalLink className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => openDigitalProductModal(product)}
+                          disabled={digitalProductLoading === product._id}
+                          className={`rounded-xl border p-2 transition disabled:opacity-60 ${
+                            digitalReady
+                              ? 'border-emerald-100 bg-emerald-50 text-emerald-600 hover:bg-emerald-100'
+                              : 'border-transparent text-gray-400 hover:border-emerald-100 hover:bg-emerald-50 hover:text-emerald-600'
+                          }`}
+                          title="Produit digital de ce produit"
+                        >
+                          {digitalProductLoading === product._id ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
                         </button>
                         <button
                           onClick={() => {
@@ -1527,6 +1592,7 @@ const StoreProductsList = () => {
           <div className="md:hidden divide-y divide-gray-100">
             {(viewMode === 'stock' ? stockFilteredProducts : sortedProducts).map((product) => {
               const stockBadge = getStockBadge(product.stock || 0);
+              const digitalReady = hasDigitalProduct(product);
               return (
               <div key={product._id} className="space-y-4 p-4">
                 <div className="flex items-start gap-3">
@@ -1548,6 +1614,12 @@ const StoreProductsList = () => {
                         {product.isPublished ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
                         {product.isPublished ? 'Publié' : 'Brouillon'}
                       </span>
+                      {digitalReady && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700">
+                          <FileText className="h-3 w-3" />
+                          Digital
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1574,6 +1646,14 @@ const StoreProductsList = () => {
                       || Boolean(product._pageData?.premium_page);
                     navigate(`${basePath}/products/${product._id}/${isPremium ? 'premium-builder' : 'builder'}`);
                   }} className={`rounded-xl px-3 py-2 text-xs font-medium ${product.pageBuilder?.enabled || product.productPageConfig?.premiumPage ? 'bg-indigo-50 text-indigo-700' : 'bg-gray-100 text-gray-600'}`}>Builder</button>
+                  <button
+                    onClick={() => openDigitalProductModal(product)}
+                    disabled={digitalProductLoading === product._id}
+                    className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-medium disabled:opacity-60 ${digitalReady ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-600'}`}
+                  >
+                    {digitalProductLoading === product._id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileText className="h-3.5 w-3.5" />}
+                    Produit digital de ce produit
+                  </button>
                   <button onClick={() => handleDuplicate(product)} className="rounded-xl bg-amber-50 px-3 py-2 text-xs font-medium text-amber-700">Copier</button>
                   <button onClick={() => handleExportSingleProductCsv(product)} className="rounded-xl bg-gray-100 px-3 py-2 text-xs font-medium text-gray-700">Exporter CSV</button>
                   <button onClick={() => navigate(`${basePath}/products/${product._id}/edit`)} className="rounded-xl bg-primary-50 px-3 py-2 text-xs font-medium text-primary-700">Modifier</button>
@@ -1609,6 +1689,23 @@ const StoreProductsList = () => {
           </div>
         </div>
       )}
+
+      <DigitalProductEbookModal
+        open={Boolean(digitalProductTarget)}
+        productName={digitalProductTarget?.name || ''}
+        existingEbook={digitalProductTarget?._pageData?.ebook || digitalProductTarget?.productPageConfig?.ebook || null}
+        loading={digitalProductLoading === digitalProductTarget?._id}
+        error={digitalProductError}
+        generatedResult={digitalProductResult}
+        onClose={() => {
+          if (!digitalProductLoading) {
+            setDigitalProductTarget(null);
+            setDigitalProductResult(null);
+          }
+        }}
+        onGenerate={handleGenerateDigitalProduct}
+        onRegenerate={() => setDigitalProductResult(null)}
+      />
     </div>
   );
 };

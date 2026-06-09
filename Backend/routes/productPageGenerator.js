@@ -16,7 +16,7 @@ import multer from 'multer';
 import sharp from 'sharp';
 import axios from 'axios';
 import { requireEcomAuth, validateEcomAccess } from '../middleware/ecomAuth.js';
-import { analyzeWithVision, analyzePremiumProductPage, generateDescriptionGifFromImages, generatePosterImage, generateInfographicsProductPage, INFOGRAPHIC_SLIDE_TYPES, downloadAndUploadToR2 } from '../services/productPageGeneratorService.js';
+import { analyzeWithVision, analyzePremiumProductPage, generateProductBonusEbook, generateDescriptionGifFromImages, generatePosterImage, generateInfographicsProductPage, INFOGRAPHIC_SLIDE_TYPES, downloadAndUploadToR2 } from '../services/productPageGeneratorService.js';
 import { uploadImage } from '../services/cloudflareImagesService.js';
 import { extractProductInfo } from '../services/geminiProductExtractor.js';
 import EcomWorkspace from '../models/Workspace.js';
@@ -24,6 +24,7 @@ import FeatureUsageLog from '../models/FeatureUsageLog.js';
 import GenerationTask from '../models/GenerationTask.js';
 import GenerationPricingConfig from '../models/GenerationPricingConfig.js';
 import ProductPageGenerationLog from '../models/ProductPageGenerationLog.js';
+import { createAndStoreEbookPdf } from '../services/ebookPdfService.js';
 
 const router = express.Router();
 
@@ -65,6 +66,140 @@ function uniqStrings(values = []) {
   return [...new Set(values.filter(Boolean))];
 }
 
+function buildWorkspaceStoreContext(workspace = {}) {
+  return {
+    country: workspace?.storeSettings?.country || '',
+    city: workspace?.storeSettings?.city || '',
+    currency: workspace?.storeSettings?.storeCurrency || workspace?.storeSettings?.currency || '',
+    shopName: workspace?.storeSettings?.storeName || workspace?.name || '',
+  };
+}
+
+function plainText(value = '', max = 1600) {
+  return String(value || '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, max);
+}
+
+function buildDigitalProductMeta(ebook = {}, pdf = {}, options = {}) {
+  return {
+    type: 'ebook',
+    source: 'product_page',
+    title: ebook.title || ebook.cover?.cover_title || 'Produit digital',
+    pdfUrl: pdf.url || ebook.pdf?.url || '',
+    fileName: pdf.fileName || ebook.pdf?.fileName || '',
+    offerEnabled: options.offerEnabled === true,
+    status: 'ready',
+    generatedAt: ebook.generatedAt || new Date().toISOString(),
+  };
+}
+
+function shouldAddDigitalProductAsOffer(brief = {}) {
+  return brief.addAsOffer !== false;
+}
+
+function buildDigitalProductOfferConfig(currentConfig = {}, product = {}, ebook = {}, digitalProduct = {}) {
+  const conversion = currentConfig?.conversion || {};
+  const existingOffers = Array.isArray(conversion.offers) ? conversion.offers : [];
+  const productPrice = Number(product.price || product.suggestedPrice || 0);
+  const comparePrice = Number(product.compareAtPrice || product.oldPrice || 0);
+  const bonusTitle = ebook.title || ebook.cover?.cover_title || digitalProduct.title || 'Ebook PDF offert';
+  const bonus = {
+    type: 'digital_bonus',
+    title: bonusTitle,
+    pdfUrl: digitalProduct.pdfUrl || ebook.pdf?.url || '',
+    fileName: digitalProduct.fileName || ebook.pdf?.fileName || '',
+  };
+  const selectedIndex = Math.max(0, existingOffers.findIndex((offer) => offer?.selected));
+  const baseOffer = {
+    qty: 1,
+    price: productPrice,
+    comparePrice: comparePrice > productPrice ? comparePrice : 0,
+    badge: 'Ebook PDF offert',
+    selected: true,
+    title: '1 unité + ebook PDF offert',
+    subtitle: bonusTitle,
+    digitalProductBonus: bonus,
+  };
+  const offers = existingOffers.length > 0
+    ? existingOffers.map((offer, index) => (
+      index === selectedIndex
+        ? {
+          ...offer,
+          badge: offer.badge || 'Ebook PDF offert',
+          title: offer.title || `${offer.qty || offer.quantity || 1} unité + ebook PDF offert`,
+          subtitle: offer.subtitle || bonusTitle,
+          selected: true,
+          digitalProductBonus: bonus,
+        }
+        : { ...offer, selected: Boolean(offer.selected && index === selectedIndex) }
+    ))
+    : [baseOffer];
+
+  return {
+    ...currentConfig,
+    conversion: {
+      ...conversion,
+      offersEnabled: true,
+      offerSectionLabel: conversion.offerSectionLabel || 'Choisissez votre offre',
+      offerDesign: {
+        ...(conversion.offerDesign || {}),
+        sectionLabel: conversion.offerDesign?.sectionLabel || 'Choisissez votre offre',
+      },
+      offers,
+      digitalProductOfferEnabled: true,
+    },
+  };
+}
+
+function buildEbookSourceFromProduct(product = {}, input = {}, brief = {}) {
+  const problemSection = product.problem_section || {};
+  const solutionSection = product.solution_section || {};
+  const title = product.title || product.name || input.productName || 'Produit';
+  const description = plainText(
+    product.description
+    || product.hero_slogan
+    || solutionSection.description
+    || input.description
+    || '',
+    1400
+  );
+
+  return {
+    scrapedData: {
+      title,
+      description,
+      rawText: [
+        description,
+        plainText(product.hero_headline || product.hero_slogan || '', 500),
+        plainText(problemSection.title || '', 500),
+        plainText(solutionSection.description || '', 700),
+      ].filter(Boolean).join('\n'),
+      category: product.category || '',
+    },
+    context: {
+      productName: title,
+      productCategory: product.category || '',
+      productPrice: product.price || product.suggestedPrice || '',
+      targetAvatar: input.targetAvatar || product.targetAvatar || '',
+      targetAudience: brief.audience || input.targetAvatar || product.targetMarket || product.country || '',
+      mainProblem: brief.problem || input.mainProblem || problemSection.title || problemSection.pain_points?.[0] || '',
+      problem: brief.problem || input.mainProblem || problemSection.title || '',
+      benefits: product.benefits_bullets || product.raisons_acheter || [],
+      tone: input.tone || (product.pageStyle === 'premium' ? 'premium' : 'urgence'),
+      language: input.language || 'français',
+      ebookTheme: brief.theme || '',
+      ebookGoal: brief.goal || '',
+      ebookOfferAngle: brief.offerAngle || '',
+      chapterCount: brief.chapterCount || 5,
+    },
+  };
+}
+
 function buildGeneratedContentTypes(product = {}, options = {}) {
   const {
     shouldGenerateImages = false,
@@ -79,6 +214,7 @@ function buildGeneratedContentTypes(product = {}, options = {}) {
   if ((product.benefits_bullets || []).length) contentTypes.push('benefits');
   if ((product.conversion_blocks || []).length) contentTypes.push('conversion_blocks');
   if (product.premium_page || product.premiumPage) contentTypes.push('premium_product_page');
+  if (product.ebook || product.bonusEbook) contentTypes.push('bonus_ebook');
   if (shouldGenerateImages) contentTypes.push('visual_assets_requested');
   if (generatedImageCount > 0) contentTypes.push('generated_images');
   if (generatedGifCount > 0) contentTypes.push('animated_gifs');
@@ -2141,6 +2277,84 @@ router.post('/tasks/:id/retry', requireEcomAuth, validateEcomAccess('products', 
   }
 });
 
+// ── POST /tasks/:id/digital-product — Generate ebook after page generation ───
+router.post('/tasks/:id/digital-product', requireEcomAuth, validateEcomAccess('products', 'write'), async (req, res) => {
+  try {
+    const task = await GenerationTask.findOne({ _id: req.params.id, workspaceId: req.workspaceId });
+    if (!task) {
+      return res.status(404).json({ success: false, message: 'Génération introuvable' });
+    }
+
+    const product = mergeTaskProductWithImages(task);
+    if (!product) {
+      return res.status(400).json({ success: false, message: 'Aucune page produit disponible pour générer le produit digital' });
+    }
+
+    const workspace = req.workspaceId
+      ? await EcomWorkspace.findById(req.workspaceId)
+        .select('storeSettings.country storeSettings.city storeSettings.storeName storeSettings.storeCurrency storeSettings.currency name')
+        .lean()
+      : null;
+    const storeContext = buildWorkspaceStoreContext(workspace);
+    const brief = req.body?.brief && typeof req.body.brief === 'object' ? req.body.brief : (req.body || {});
+    const ebookSource = buildEbookSourceFromProduct(product, task.input || {}, brief);
+
+    const ebook = await generateProductBonusEbook(
+      ebookSource.scrapedData,
+      product,
+      storeContext,
+      ebookSource.context
+    );
+    const pdf = await createAndStoreEbookPdf({
+      ebook,
+      productData: product,
+      storeContext,
+      workspaceId: req.workspaceId,
+      userId: req.ecomUser?._id,
+    });
+    ebook.pdf = pdf;
+    const addAsOffer = shouldAddDigitalProductAsOffer(brief);
+    const digitalProduct = buildDigitalProductMeta(ebook, pdf, { offerEnabled: addAsOffer });
+    const nextProductPageConfig = addAsOffer
+      ? buildDigitalProductOfferConfig(product.productPageConfig || {}, product, ebook, digitalProduct)
+      : product.productPageConfig;
+
+    await GenerationTask.findOneAndUpdate(
+      { _id: task._id, workspaceId: req.workspaceId },
+      {
+        $set: {
+          'product.ebook': ebook,
+          'product.digitalProduct': digitalProduct,
+          ...(nextProductPageConfig ? { 'product.productPageConfig': nextProductPageConfig } : {}),
+        },
+      }
+    );
+
+    await ProductPageGenerationLog.findOneAndUpdate(
+      { taskId: task._id, workspaceId: req.workspaceId },
+      { $addToSet: { generatedContentTypes: 'bonus_ebook' } }
+    ).catch((logError) => {
+      console.warn('[DigitalProduct] GenerationLog update failed:', logError.message);
+    });
+
+    return res.json({
+      success: true,
+      message: 'Produit digital généré',
+      ebook,
+      product: {
+        ...product,
+        ebook,
+        digitalProduct,
+        ...(nextProductPageConfig ? { productPageConfig: nextProductPageConfig } : {}),
+      },
+      digitalProduct,
+    });
+  } catch (error) {
+    console.error('[DigitalProduct] Task ebook generation error:', error.message);
+    return res.status(500).json({ success: false, message: 'Erreur lors de la génération du produit digital' });
+  }
+});
+
 // ── DELETE /tasks/:id — Cancel / delete a generation task ─────────────────────
 router.delete('/tasks/:id', requireEcomAuth, async (req, res) => {
   try {
@@ -2417,6 +2631,7 @@ router.post('/premium', requireEcomAuth, validateEcomAccess('products', 'write')
       testimonials: finalTestimonials,
       reassurance: premiumResult.reassurance || null,
       guide_utilisation: premiumResult.guide_utilisation || null,
+      ebook: null,
       description: '',
       realPhotos,
       allImages: [],
@@ -2934,6 +3149,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       testimonialsSocialProofImage: null,
       reassurance: gptResult.reassurance || null,
       guide_utilisation: gptResult.guide_utilisation || null,
+      ebook: null,
       description: '',
       realPhotos,
       allImages: [],

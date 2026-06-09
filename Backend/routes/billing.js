@@ -32,8 +32,8 @@ import { validatePromoCode, markPromoCodeUsed } from '../services/promoCodeServi
 const router = express.Router();
 
 // ─── Config ──────────────────────────────────────────────────────────────────
-const MF_API_URL = 'https://www.pay.moneyfusion.net/scalor/597e2cf962834532/pay/';
-const MF_STATUS_URL = (token) => `https://www.pay.moneyfusion.net/paiementNotif/${token}`;
+const MF_API_URL = 'https://pay.moneyfusion.net/scalor/597e2cf962834532/pay/';
+const MF_STATUS_URL = (token) => `https://pay.moneyfusion.net/paiementNotif/${token}`;
 
 const TRIAL_DAYS = 7;
 

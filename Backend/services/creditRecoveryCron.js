@@ -27,7 +27,7 @@ import axios from 'axios';
 import GenerationPayment from '../models/GenerationPayment.js';
 import EcomWorkspace from '../models/Workspace.js';
 
-const MF_STATUS_URL = (token) => `https://www.pay.moneyfusion.net/paiementNotif/${token}`;
+const MF_STATUS_URL = (token) => `https://pay.moneyfusion.net/paiementNotif/${token}`;
 const POLL_INTERVAL_MS = 5 * 60 * 1000; // toutes les 5 min
 const PENDING_MIN_AGE_MS = 10 * 60 * 1000; // ne re-poll que si pending > 10 min
 const MAX_PENDING_AGE_MS = 7 * 24 * 60 * 60 * 1000; // arrête de poll après 7 j

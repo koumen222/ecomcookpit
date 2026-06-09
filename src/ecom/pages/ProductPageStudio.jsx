@@ -17,7 +17,9 @@ import {
   XCircle,
   Zap,
   ShieldCheck,
+  FileText,
 } from 'lucide-react';
+import DigitalProductEbookModal from '../components/DigitalProductEbookModal.jsx';
 
 const API_ORIGIN = import.meta.env.DEV ? '' : (import.meta.env.VITE_API_URL || '');
 
@@ -55,6 +57,10 @@ export default function ProductPageStudio() {
   const [loading, setLoading] = useState(true);
   const [retrying, setRetrying] = useState(null);
   const [deleting, setDeleting] = useState(null);
+  const [digitalProductLoading, setDigitalProductLoading] = useState(null);
+  const [digitalProductTarget, setDigitalProductTarget] = useState(null);
+  const [digitalProductError, setDigitalProductError] = useState('');
+  const [digitalProductResult, setDigitalProductResult] = useState(null);
   const [activeFilter, setActiveFilter] = useState('all');
 
   const getHeaders = useCallback(() => {
@@ -180,6 +186,48 @@ export default function ProductPageStudio() {
       window.alert(error.message || 'Erreur lors de la reprise');
     } finally {
       setRetrying(null);
+    }
+  };
+
+  const openDigitalProductModal = (task) => {
+    setDigitalProductTarget(task);
+    setDigitalProductError('');
+    setDigitalProductResult(null);
+  };
+
+  const handleGenerateDigitalProduct = async (brief = {}) => {
+    const taskId = digitalProductTarget?._id;
+    if (!taskId) return;
+    setDigitalProductLoading(taskId);
+    setDigitalProductError('');
+    setDigitalProductResult(null);
+    try {
+      const response = await fetch(`${API_ORIGIN}/api/ai/product-generator/tasks/${taskId}/digital-product`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getHeaders(),
+        },
+        body: JSON.stringify({ brief }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.success) {
+        throw new Error(data?.message || 'Impossible de générer le produit digital');
+      }
+      setTasks((current) => current.map((task) => (
+        task._id === taskId
+          ? { ...task, product: data.product || { ...(task.product || {}), ebook: data.ebook } }
+          : task
+      )));
+      setDigitalProductResult({
+        ebook: data.ebook,
+        digitalProduct: data.digitalProduct,
+        pdf: data.ebook?.pdf,
+      });
+    } catch (error) {
+      setDigitalProductError(error.message || 'Erreur lors de la génération du produit digital');
+    } finally {
+      setDigitalProductLoading(null);
     }
   };
 
@@ -370,11 +418,29 @@ export default function ProductPageStudio() {
                 onDelete={handleDelete}
                 onOpen={handleOpenTask}
                 onRetry={handleRetry}
+                onGenerateDigitalProduct={openDigitalProductModal}
+                digitalProductLoading={digitalProductLoading}
               />
             ))}
           </div>
         )}
       </div>
+      <DigitalProductEbookModal
+        open={Boolean(digitalProductTarget)}
+        productName={digitalProductTarget?.productName || digitalProductTarget?.product?.title || ''}
+        existingEbook={digitalProductTarget?.product?.ebook || null}
+        loading={digitalProductLoading === digitalProductTarget?._id}
+        error={digitalProductError}
+        generatedResult={digitalProductResult}
+        onClose={() => {
+          if (!digitalProductLoading) {
+            setDigitalProductTarget(null);
+            setDigitalProductResult(null);
+          }
+        }}
+        onGenerate={handleGenerateDigitalProduct}
+        onRegenerate={() => setDigitalProductResult(null)}
+      />
     </div>
   );
 }
@@ -448,13 +514,14 @@ function InsightRow({ label, value, hint }) {
   );
 }
 
-function TaskDetailCard({ task, deleting, retrying, onDelete, onOpen, onRetry }) {
+function TaskDetailCard({ task, deleting, retrying, digitalProductLoading, onDelete, onOpen, onRetry, onGenerateDigitalProduct }) {
   const config = statusConfig[task.status] || statusConfig.pending;
   const StatusIcon = config.icon;
   const isActive = !['done', 'error'].includes(task.status);
   const isDone = task.status === 'done';
   const isError = task.status === 'error';
   const hasSavedContent = Boolean(task.product);
+  const hasDigitalProduct = Boolean(task.product?.ebook || task.product?.digitalProduct);
   const thumbnail = getTaskThumbnail(task);
 
   return (
@@ -530,6 +597,26 @@ function TaskDetailCard({ task, deleting, retrying, onDelete, onOpen, onRetry })
             >
               <Eye className="w-3.5 h-3.5" />
               Voir contenu
+            </button>
+          )}
+
+          {hasSavedContent && (
+            <button
+              onClick={() => onGenerateDigitalProduct(task)}
+              disabled={digitalProductLoading === task._id}
+              className={`inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-xl transition disabled:opacity-60 ${
+                hasDigitalProduct
+                  ? 'border border-emerald-100 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                  : 'border border-gray-200 text-gray-600 hover:bg-gray-50'
+              }`}
+              title="Produit digital de ce produit"
+            >
+              {digitalProductLoading === task._id ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <FileText className="w-3.5 h-3.5" />
+              )}
+              Produit digital de ce produit
             </button>
           )}
 

@@ -648,6 +648,257 @@ function parseGroqJSON(text) {
   return null;
 }
 
+const compactEbookText = (value = '', max = 900) => cleanScrapedText(String(value || '')).slice(0, max);
+
+const asCleanArray = (value, limit = 6) => (Array.isArray(value) ? value : [])
+  .map((item) => (typeof item === 'string' ? compactEbookText(item, 500) : item))
+  .filter(Boolean)
+  .slice(0, limit);
+
+function buildFallbackBonusEbook({ productName = 'ce produit', storeName = '', productDescription = '', customerProblem = '', benefits = [] } = {}) {
+  const safeProductName = compactEbookText(productName, 120) || 'ce produit';
+  const brand = compactEbookText(storeName, 80) || 'Notre boutique';
+  const mainBenefit = benefits[0] || `mieux utiliser ${safeProductName} au quotidien`;
+  const shortDescription = productDescription
+    ? `Un guide simple pour comprendre comment profiter de ${safeProductName} avec une routine claire et rassurante.`
+    : `Un guide pratique offert pour profiter de ${safeProductName} avec plus de confiance.`;
+
+  return {
+    title: `Le guide pratique ${safeProductName}`,
+    subtitle: `Conseils simples pour ${mainBenefit}`,
+    short_description: shortDescription,
+    target_reader: customerProblem || `Toute personne qui veut acheter ${safeProductName} et l'utiliser correctement.`,
+    main_promise: `Vous aider à profiter de votre achat avec des conseils simples, crédibles et faciles à appliquer.`,
+    estimated_value: 'Bonus offert inclus avec votre commande',
+    cover: {
+      cover_title: `Guide ${safeProductName}`,
+      cover_subtitle: `Conseils pratiques pour bien l'utiliser`,
+      badge_text: 'Bonus offert',
+      author_or_brand: brand,
+      visual_style: 'Couverture ebook moderne, premium, claire et professionnelle',
+      color_palette: ['#0F766E', '#FFFFFF', '#111827'],
+      cover_description: `Une couverture professionnelle qui présente ${safeProductName} comme une offre plus complète et plus rassurante.`,
+      image_generation_prompt: `Modern professional ebook cover for "${safeProductName}", clean premium ecommerce style, readable French title "Guide ${safeProductName}", badge "Bonus offert", brand "${brand}", refined green and white palette, clear composition with clean text space, product-related visual background, high-end digital guide cover.`,
+    },
+    sales_section: {
+      headline: `Bonus offert avec votre commande`,
+      bonus_text: `Recevez gratuitement un guide pratique pour mieux utiliser ${safeProductName} et profiter d'une meilleure expérience au quotidien.`,
+      value_text: `Un contenu bonus utile qui rend votre achat plus complet, plus rassurant et plus simple à utiliser.`,
+      cta_text: `Commander et recevoir mon bonus`,
+    },
+    table_of_contents: [
+      { chapter_number: 1, chapter_title: 'Bien démarrer', chapter_summary: `Comprendre à quoi sert ${safeProductName} et comment l'intégrer simplement.` },
+      { chapter_number: 2, chapter_title: 'Les bons gestes', chapter_summary: 'Conseils pratiques pour utiliser le produit avec régularité et confiance.' },
+      { chapter_number: 3, chapter_title: 'Erreurs à éviter', chapter_summary: 'Les habitudes qui peuvent réduire la qualité de l’expérience.' },
+      { chapter_number: 4, chapter_title: 'Routine simple', chapter_summary: 'Un plan d’action facile à suivre après réception du produit.' },
+      { chapter_number: 5, chapter_title: 'Profiter pleinement de son achat', chapter_summary: 'Recommandations finales pour une utilisation sereine.' },
+    ],
+    chapters: [
+      { chapter_number: 1, chapter_title: 'Bien démarrer', chapter_content: `Avant d'utiliser ${safeProductName}, prenez le temps de lire les informations essentielles et d'identifier votre objectif principal. Une bonne première utilisation commence par une compréhension claire du produit, de ses limites et de la façon dont il peut s'intégrer dans votre quotidien.` },
+      { chapter_number: 2, chapter_title: 'Les bons gestes', chapter_content: `Utilisez ${safeProductName} avec régularité, dans un contexte adapté, et suivez les recommandations fournies avec le produit. Gardez une routine simple : mieux vaut une utilisation claire et répétable qu'une approche compliquée difficile à tenir.` },
+      { chapter_number: 3, chapter_title: 'Erreurs à éviter', chapter_content: `Évitez les attentes irréalistes, les utilisations excessives ou les comparaisons avec des résultats non vérifiés. Un bon achat se juge sur une expérience crédible, progressive et adaptée à votre besoin réel.` },
+      { chapter_number: 4, chapter_title: 'Routine simple', chapter_content: `Définissez un moment précis pour utiliser le produit, préparez-le correctement et observez ce qui fonctionne le mieux pour vous. Cette routine vous aide à rester constant et à profiter d'une expérience plus fluide.` },
+      { chapter_number: 5, chapter_title: 'Profiter pleinement de son achat', chapter_content: `Merci pour votre confiance. Utilisez ${safeProductName} correctement, conservez les informations utiles et contactez la boutique si vous avez une question avant ou après votre commande.` },
+    ],
+    final_page: {
+      title: 'Merci pour votre confiance',
+      message: `Nous espérons que ce guide vous aidera à profiter de ${safeProductName} avec plus de sérénité.`,
+      cta: `Passez commande et recevez votre bonus offert.`,
+    },
+  };
+}
+
+function normalizeBonusEbook(payload = {}, fallback = {}) {
+  const raw = payload?.ebook && typeof payload.ebook === 'object' ? payload.ebook : payload;
+  const ebook = raw && typeof raw === 'object' ? raw : {};
+  const normalized = {
+    ...fallback,
+    ...ebook,
+    cover: {
+      ...(fallback.cover || {}),
+      ...(ebook.cover && typeof ebook.cover === 'object' ? ebook.cover : {}),
+    },
+    sales_section: {
+      ...(fallback.sales_section || {}),
+      ...(ebook.sales_section && typeof ebook.sales_section === 'object' ? ebook.sales_section : {}),
+    },
+    final_page: {
+      ...(fallback.final_page || {}),
+      ...(ebook.final_page && typeof ebook.final_page === 'object' ? ebook.final_page : {}),
+    },
+  };
+
+  normalized.title = compactEbookText(normalized.title || fallback.title, 160);
+  normalized.subtitle = compactEbookText(normalized.subtitle || fallback.subtitle, 220);
+  normalized.short_description = compactEbookText(normalized.short_description || fallback.short_description, 420);
+  normalized.target_reader = compactEbookText(normalized.target_reader || fallback.target_reader, 420);
+  normalized.main_promise = compactEbookText(normalized.main_promise || fallback.main_promise, 420);
+  normalized.estimated_value = compactEbookText(normalized.estimated_value || fallback.estimated_value, 120);
+  normalized.cover.color_palette = asCleanArray(normalized.cover.color_palette || fallback.cover?.color_palette, 6);
+  normalized.table_of_contents = asCleanArray(normalized.table_of_contents || fallback.table_of_contents, 7);
+  normalized.chapters = asCleanArray(normalized.chapters || fallback.chapters, 7);
+  normalized.generatedAt = new Date().toISOString();
+  return normalized;
+}
+
+export async function generateProductBonusEbook(scrapedData = {}, productData = {}, storeContext = {}, context = {}) {
+  const requestedChapterCount = [5, 6, 7].includes(Number(context.chapterCount)) ? Number(context.chapterCount) : 5;
+  const requestedTheme = compactEbookText(context.ebookTheme || context.theme || '', 220);
+  const requestedGoal = compactEbookText(context.ebookGoal || context.goal || '', 180);
+  const requestedOfferAngle = compactEbookText(context.ebookOfferAngle || context.offerAngle || '', 420);
+  const productDescription = compactEbookText(
+    scrapedData.description
+    || scrapedData.rawText
+    || productData.hero_slogan
+    || productData.description
+    || '',
+    1400
+  );
+  const rawProductName = compactEbookText(productData.title || scrapedData.title || context.productName || '', 140);
+  const inferredProductName = normalizeLocaleKey(rawProductName) === 'produit'
+    ? compactEbookText(productDescription.split(/[.\n:;|-]/)[0], 100)
+    : rawProductName;
+  const productName = compactEbookText(inferredProductName || 'Produit', 140);
+  const benefits = asCleanArray(productData.benefits_bullets || productData.raisons_acheter || context.benefits, 6)
+    .map((item) => (typeof item === 'string' ? item : compactEbookText(item?.text || item?.title || item?.description, 260)))
+    .filter(Boolean);
+  const customerProblem = compactEbookText(
+    context.mainProblem
+    || context.problem
+    || productData.problem_section?.title
+    || productData.problem_section?.pain_points?.[0]
+    || '',
+    360
+  );
+  const fallback = buildFallbackBonusEbook({
+    productName,
+    storeName: storeContext.shopName || storeContext.storeName || '',
+    productDescription,
+    customerProblem,
+    benefits,
+  });
+
+  const prompt = `Tu es un expert en e-commerce, copywriting, creation de produits digitaux, design d'ebooks et offres irresistibles.
+
+Ta mission est de creer automatiquement un ebook bonus associe a un produit physique vendu en ligne.
+Objectif : augmenter la valeur percue de l'offre, rassurer le client, rendre le produit plus desirable et donner l'impression que le client achete une offre complete, pas seulement un simple produit.
+
+Informations produit :
+- Nom du produit : ${productName || 'Non disponible'}
+- Description du produit : ${productDescription || 'Non disponible'}
+- Categorie du produit : ${compactEbookText(context.productCategory || productData.category || scrapedData.category || 'A deduire du produit', 160)}
+- Prix du produit : ${compactEbookText(context.productPrice || productData.price || 'Non fourni', 80)}
+- Public cible : ${compactEbookText(context.targetAudience || context.targetAvatar || context.avatar || 'A deduire du produit', 320)}
+- Probleme principal du client : ${customerProblem || 'A deduire du produit'}
+- Benefices du produit : ${benefits.length ? benefits.join(' | ') : 'A deduire du produit'}
+- Marque ou boutique : ${compactEbookText(storeContext.shopName || storeContext.storeName || 'La boutique', 100)}
+
+Brief utilisateur pour ce produit digital :
+- Theme ou titre souhaite : ${requestedTheme || 'A deduire intelligemment du produit'}
+- Objectif principal de l'ebook : ${requestedGoal || 'Guide utile qui aide a utiliser et comprendre le produit'}
+- Angle de vente a mettre en avant : ${requestedOfferAngle || 'Bonus offert qui augmente la valeur percue de la commande'}
+- Nombre de chapitres attendu : ${requestedChapterCount}
+
+Regles importantes :
+- Si le brief utilisateur contient une information concrete, respecte-la en priorite.
+- Ne fais jamais de promesses exagerees.
+- Ne dis jamais qu'un produit guerit, soigne ou remplace un traitement medical.
+- Pour les produits sante ou complements, utilise des formulations prudentes : "peut aider a", "contribue a", "accompagne", "favorise", "peut soutenir".
+- Le contenu doit etre simple, utile, credible, professionnel, chaleureux, clair et rassurant.
+- L'ebook doit donner envie d'acheter le produit sans fausse garantie de resultat.
+- Ne mentionne jamais l'IA, les bases de donnees, le code ou la technique.
+- Pour la couverture, cree une vraie direction de couverture premium et un image_generation_prompt complet.
+- Genere exactement ${requestedChapterCount} chapitres utiles. Chaque chapitre doit contenir un contenu complet avec conseils pratiques, erreurs a eviter ou routine si pertinent.
+- La section sales_section sera affichee sur la page produit pour presenter le bonus et donner envie de commander.
+
+Reponds uniquement en JSON valide avec cette structure exacte :
+{
+  "ebook": {
+    "title": "",
+    "subtitle": "",
+    "short_description": "",
+    "target_reader": "",
+    "main_promise": "",
+    "estimated_value": "",
+    "cover": {
+      "cover_title": "",
+      "cover_subtitle": "",
+      "badge_text": "",
+      "author_or_brand": "",
+      "visual_style": "",
+      "color_palette": [],
+      "cover_description": "",
+      "image_generation_prompt": ""
+    },
+    "sales_section": {
+      "headline": "",
+      "bonus_text": "",
+      "value_text": "",
+      "cta_text": ""
+    },
+    "table_of_contents": [
+      {"chapter_number": 1, "chapter_title": "", "chapter_summary": ""}
+    ],
+    "chapters": [
+      {"chapter_number": 1, "chapter_title": "", "chapter_content": ""}
+    ],
+    "final_page": {
+      "title": "",
+      "message": "",
+      "cta": ""
+    }
+  }
+}`;
+
+  const messages = [
+    {
+      role: 'system',
+      content: 'Tu generes uniquement un JSON valide. Tu crees un ebook bonus e-commerce utile, prudent, credible et vendeur, en francais naturel.',
+    },
+    { role: 'user', content: prompt },
+  ];
+
+  try {
+    if (isKieConfigured()) {
+      const kie = await callKieChatCompletion({
+        messages,
+        temperature: 0.62,
+        maxTokens: 8000,
+        reasoningEffort: process.env.KIE_REASONING_EFFORT || 'high',
+        includeThoughts: false,
+      });
+      const parsed = parseGroqJSON(kie.content || '{}');
+      if (parsed) return normalizeBonusEbook(parsed, fallback);
+    }
+
+    const groq = getGroq();
+    if (groq) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 90000);
+      try {
+        const response = await groq.chat.completions.create(
+          {
+            model: process.env.GROQ_MODEL || 'openai/gpt-oss-20b',
+            messages,
+            max_tokens: 8000,
+            temperature: 0.62,
+            response_format: { type: 'json_object' },
+          },
+          { signal: controller.signal }
+        );
+        const parsed = parseGroqJSON(response.choices[0]?.message?.content || '{}');
+        if (parsed) return normalizeBonusEbook(parsed, fallback);
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+  } catch (error) {
+    console.warn('⚠️ Génération ebook bonus échouée, fallback local utilisé:', error.message);
+  }
+
+  return normalizeBonusEbook(fallback, fallback);
+}
+
 function mergePremiumPage(fallbackPremiumPage = {}, generatedPremiumPage = {}) {
   const generated = generatedPremiumPage && typeof generatedPremiumPage === 'object' ? generatedPremiumPage : {};
   const mergeObject = (key) => ({
@@ -1111,26 +1362,7 @@ ${premiumContract}`;
 
   let result;
   try {
-    let response;
-    if (imageBuffers.length > 0) {
-      try {
-        response = await callGroqWithTimeout(process.env.GROQ_VISION_MODEL || 'meta-llama/llama-4-scout-17b-16e-instruct', messages);
-      } catch (visionError) {
-        console.warn(`⚠️ Premium le service Vision échoué (${visionError.message}), fallback texte...`);
-        response = await callGroqWithTimeout(process.env.GROQ_MODEL || 'openai/gpt-oss-20b', [
-          messages[0],
-          { role: 'user', content: userPrompt },
-        ]);
-      }
-    } else {
-      response = await callGroqWithTimeout(process.env.GROQ_MODEL || 'openai/gpt-oss-20b', messages);
-    }
-
-    result = parseGroqJSON(response.choices[0]?.message?.content || '{}');
-    if (!result) throw new Error('Réponse premium JSON non parsable');
-  } catch (error) {
-    if (!isKieConfigured()) throw new Error(`Erreur IA premium: ${error.message}`);
-    try {
+    if (isKieConfigured()) {
       const kie = await callKieChatCompletion({
         messages: [
           messages[0],
@@ -1138,13 +1370,50 @@ ${premiumContract}`;
         ],
         temperature: 0.62,
         maxTokens: 7000,
-        reasoningEffort: process.env.KIE_REASONING_EFFORT || 'low',
+        reasoningEffort: process.env.KIE_REASONING_EFFORT || 'high',
         includeThoughts: false,
       });
       result = parseGroqJSON(kie.content || '{}');
-      if (!result) throw new Error('le service premium JSON non parsable');
-    } catch (kieError) {
-      throw new Error(`Erreur IA premium: le service=${error.message} | le service=${kieError.message}`);
+      if (!result) throw new Error('GPT 5.4 premium JSON non parsable');
+    } else {
+      let response;
+      if (imageBuffers.length > 0) {
+        try {
+          response = await callGroqWithTimeout(process.env.GROQ_VISION_MODEL || 'meta-llama/llama-4-scout-17b-16e-instruct', messages);
+        } catch (visionError) {
+          console.warn(`⚠️ Premium le service Vision échoué (${visionError.message}), fallback texte...`);
+          response = await callGroqWithTimeout(process.env.GROQ_MODEL || 'openai/gpt-oss-20b', [
+            messages[0],
+            { role: 'user', content: userPrompt },
+          ]);
+        }
+      } else {
+        response = await callGroqWithTimeout(process.env.GROQ_MODEL || 'openai/gpt-oss-20b', messages);
+      }
+      result = parseGroqJSON(response.choices[0]?.message?.content || '{}');
+      if (!result) throw new Error('Réponse premium JSON non parsable');
+    }
+  } catch (error) {
+    const groq = getGroq();
+    if (!groq) throw new Error(`Erreur IA premium: ${error.message}`);
+    try {
+      let response;
+      if (imageBuffers.length > 0) {
+        try {
+          response = await callGroqWithTimeout(process.env.GROQ_VISION_MODEL || 'meta-llama/llama-4-scout-17b-16e-instruct', messages);
+        } catch (_) {
+          response = await callGroqWithTimeout(process.env.GROQ_MODEL || 'openai/gpt-oss-20b', [
+            messages[0],
+            { role: 'user', content: userPrompt },
+          ]);
+        }
+      } else {
+        response = await callGroqWithTimeout(process.env.GROQ_MODEL || 'openai/gpt-oss-20b', messages);
+      }
+      result = parseGroqJSON(response.choices[0]?.message?.content || '{}');
+      if (!result) throw new Error('Groq fallback JSON non parsable');
+    } catch (groqError) {
+      throw new Error(`Erreur IA premium: GPT5.4=${error.message} | Groq=${groqError.message}`);
     }
   }
 

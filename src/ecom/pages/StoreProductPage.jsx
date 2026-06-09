@@ -2,9 +2,10 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { safeHtml } from '../utils/sanitize';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import {
+  BookOpen,
   ChevronLeft, ChevronRight, ShoppingCart, MessageCircle,
   ShoppingBag, Shield, RotateCcw, Truck, Check, Share2,
-  ChevronDown, ChevronUp, Star,
+  ChevronDown, ChevronUp, Star, Gift, Download,
 } from 'lucide-react';
 import { useSubdomain } from '../hooks/useSubdomain';
 import { useStoreProduct, injectStoreCssVars, prefetchStoreProduct } from '../hooks/useStoreData';
@@ -1269,6 +1270,130 @@ const TrustBadges = ({ compact = false, accentColor = 'var(--s-section-trust, va
   );
 };
 
+const ProductBonusEbook = ({ ebook, onOrder, accentColor = 'var(--s-primary)', ctaLabel = 'Commander' }) => {
+  if (!ebook || typeof ebook !== 'object') return null;
+  const sales = ebook.sales_section || {};
+  const cover = ebook.cover || {};
+  const title = normalizeMetaText(sales.headline || ebook.title || cover.cover_title || 'Bonus offert avec votre commande');
+  const subtitle = normalizeMetaText(sales.bonus_text || ebook.short_description || ebook.subtitle || '');
+  const valueText = normalizeMetaText(sales.value_text || ebook.estimated_value || '');
+  const buttonText = normalizeMetaText(sales.cta_text || ctaLabel || 'Commander');
+  const pdfUrl = ebook.pdf?.url || ebook.pdfUrl || ebook.digitalProduct?.pdfUrl || '';
+  const toc = Array.isArray(ebook.table_of_contents) ? ebook.table_of_contents : [];
+  const chapters = Array.isArray(ebook.chapters) ? ebook.chapters : [];
+
+  if (!title && !subtitle && !valueText) return null;
+
+  return (
+    <section style={{
+      margin: '0 0 18px',
+      padding: 16,
+      borderRadius: 'var(--pp-card-radius)',
+      border: `1px solid ${accentColor}`,
+      background: `linear-gradient(135deg, color-mix(in srgb, ${accentColor} 12%, white) 0%, #fff 100%)`,
+      boxShadow: '0 10px 28px rgba(15,23,42,0.08)',
+      overflow: 'hidden',
+    }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 88px', gap: 14, alignItems: 'center' }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, marginBottom: 8, color: accentColor, fontSize: 12, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+            <Gift size={15} /> {normalizeMetaText(cover.badge_text || 'Bonus offert')}
+          </div>
+          <h2 style={{ margin: 0, color: 'var(--s-text)', fontSize: 'clamp(17px, 3.6vw, 22px)', lineHeight: 1.18, fontWeight: 900, letterSpacing: 0 }}>
+            {title}
+          </h2>
+          {subtitle && (
+            <p style={{ margin: '8px 0 0', color: 'var(--s-text2)', fontSize: 13.5, lineHeight: 1.5, fontWeight: 600 }}>
+              {subtitle}
+            </p>
+          )}
+          {valueText && (
+            <p style={{ margin: '8px 0 0', color: accentColor, fontSize: 12.5, lineHeight: 1.45, fontWeight: 800 }}>
+              {valueText}
+            </p>
+          )}
+          {toc.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 12 }}>
+              {toc.slice(0, 3).map((item, index) => (
+                <span key={index} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 8px', borderRadius: 999, background: '#fff', border: '1px solid var(--s-border)', color: 'var(--s-text2)', fontSize: 11.5, fontWeight: 750 }}>
+                  <Check size={12} color={accentColor} /> {normalizeMetaText(item.chapter_title || item.chapter_summary || `Chapitre ${index + 1}`)}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div style={{
+          minHeight: 120,
+          borderRadius: 12,
+          padding: 10,
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'space-between',
+          background: `linear-gradient(160deg, ${accentColor}, #111827)`,
+          color: '#fff',
+          boxShadow: '0 12px 24px rgba(15,23,42,0.18)',
+        }}>
+          <BookOpen size={23} />
+          <div>
+            <div style={{ fontSize: 10, fontWeight: 900, opacity: 0.82, textTransform: 'uppercase' }}>{chapters.length || toc.length || 5} chapitres</div>
+            <div style={{ marginTop: 4, fontSize: 12, lineHeight: 1.15, fontWeight: 900 }}>{normalizeMetaText(cover.cover_title || ebook.title || 'Guide offert')}</div>
+          </div>
+        </div>
+      </div>
+
+      <button
+        type="button"
+        onClick={onOrder}
+        style={{
+          width: '100%',
+          minHeight: 44,
+          marginTop: 14,
+          border: 'none',
+          borderRadius: 'var(--pp-card-radius)',
+          background: accentColor,
+          color: '#fff',
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 8,
+          fontSize: 14,
+          fontWeight: 900,
+          cursor: 'pointer',
+        }}
+      >
+        <ShoppingCart size={16} /> {buttonText}
+      </button>
+      {pdfUrl && (
+        <a
+          href={pdfUrl}
+          target="_blank"
+          rel="noreferrer"
+          download={ebook.pdf?.fileName || 'ebook-bonus.pdf'}
+          style={{
+            width: '100%',
+            minHeight: 40,
+            marginTop: 8,
+            borderRadius: 'var(--pp-card-radius)',
+            border: '1px solid var(--s-border)',
+            background: '#fff',
+            color: accentColor,
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 8,
+            fontSize: 13,
+            fontWeight: 900,
+            textDecoration: 'none',
+          }}
+        >
+          <Download size={15} /> Télécharger le PDF
+        </a>
+      )}
+    </section>
+  );
+};
+
 const SPACING_PRESETS = {
   compact: {
     gap: '24px',
@@ -1974,6 +2099,7 @@ const StoreProductPage = () => {
   const ctaAnimClass = getButtonAnimationClass(ctaAnimation);
   const shareUrl = typeof window !== 'undefined' ? window.location.href : '';
   const shareText = product?.name ? `${product.name} - ${shareUrl}` : shareUrl;
+  const bonusEbook = product?._pageData?.ebook || product?.ebook || productPageConfig?.ebook || null;
 
   const handleShare = async () => {
     if (!shareUrl || typeof navigator === 'undefined') return;
@@ -2054,6 +2180,15 @@ const StoreProductPage = () => {
         currency: effectiveCurrency,
       },
     });
+  };
+
+  const handleBonusOrder = () => {
+    if (!inStock) return;
+    if (ppFormType === 'embedded') {
+      ctaButtonsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+    openOrderModal();
   };
 
   // Show skeleton immediately — no 400ms blank screen anymore
@@ -2451,6 +2586,15 @@ const StoreProductPage = () => {
                     </>
                   )}
                 </div>
+
+                {bonusEbook && (
+                  <ProductBonusEbook
+                    ebook={bonusEbook}
+                    accentColor={aiVisualTheme?.primary || 'var(--s-primary)'}
+                    ctaLabel={ppButton.text || product?._pageData?.hero_cta || 'Commander'}
+                    onOrder={handleBonusOrder}
+                  />
+                )}
 
                 {/* Sections rendered in config order */}
                 {enabledSectionIds.map(sectionId => {

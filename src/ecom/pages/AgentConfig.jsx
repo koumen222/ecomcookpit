@@ -6,6 +6,19 @@ import { useEcomAuth } from '../hooks/useEcomAuth';
 import ProductImportLocal from '../components/ProductImportLocal.jsx';
 
 const ACCENT = '#0F6B4F';
+const VIDEO_UPLOAD_TIMEOUT_MS = 10 * 60 * 1000;
+
+const getMediaUploadConfig = (file, field) => {
+  const uploadConfig = {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  };
+
+  if (field === 'videos' || file?.type?.startsWith('video/')) {
+    uploadConfig.timeout = VIDEO_UPLOAD_TIMEOUT_MS;
+  }
+
+  return uploadConfig;
+};
 
 // ─── Tabs ───
 const TABS = [
@@ -1295,9 +1308,7 @@ export default function AgentConfig() {
         const formData = new FormData();
         formData.append('file', file);
 
-        const { data } = await ecomApi.post('/media/upload', formData, {
-          headers: { 'Content-Type': 'multipart/form-data' },
-        });
+        const { data } = await ecomApi.post('/media/upload', formData, getMediaUploadConfig(file, field));
 
         const mediaUrl = data?.mediaUrl || data?.url;
         if (data?.success && mediaUrl) {
@@ -1345,9 +1356,7 @@ export default function AgentConfig() {
       for (const file of selectedFiles) {
         const formData = new FormData();
         formData.append('file', file);
-        const { data } = await ecomApi.post('/media/upload', formData, {
-          headers: { 'Content-Type': 'multipart/form-data' },
-        });
+        const { data } = await ecomApi.post('/media/upload', formData, getMediaUploadConfig(file, field));
         const mediaUrl = data?.mediaUrl || data?.url;
         if (data?.success && mediaUrl) uploadedUrls.push(mediaUrl);
       }
@@ -4982,7 +4991,7 @@ export default function AgentConfig() {
                                   setCampaignMediaUploading(true);
                                   const fd = new FormData(); fd.append('file', file);
                                   try {
-                                    const { data } = await ecomApi.post('/v1/external/whatsapp/upload-image', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+                                    const { data } = await ecomApi.post('/v1/external/whatsapp/upload-image', fd, getMediaUploadConfig(file));
                                     if (data.url) setCampaignForm(f => ({ ...f, mediaUrl: data.url }));
                                   } catch { setGroupMsg({ ok: false, text: 'Erreur upload' }); }
                                   setCampaignMediaUploading(false);
@@ -5164,7 +5173,7 @@ export default function AgentConfig() {
                               if (!file) return;
                               const fd = new FormData(); fd.append('file', file);
                               try {
-                                const { data } = await ecomApi.post('/v1/external/whatsapp/upload-image', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+                                const { data } = await ecomApi.post('/v1/external/whatsapp/upload-image', fd, getMediaUploadConfig(file));
                                 if (data.url) setBcMediaUrl(data.url);
                               } catch { setBcMediaUrl(''); }
                               e.target.value = '';

@@ -225,6 +225,7 @@ export const storeProductsApi = {
   getProduct: (id) => ecomApi.get(`/store-products/${id}`),
   createProduct: (data) => ecomApi.post('/store-products', data),
   updateProduct: (id, data) => ecomApi.put(`/store-products/${id}`, data),
+  generateDigitalProduct: (id, brief = {}) => ecomApi.post(`/store-products/${id}/digital-product`, { brief }),
   deleteProduct: (id) => ecomApi.delete(`/store-products/${id}`),
   getCategories: () => ecomApi.get('/store-products/categories/list'),
   exportCsv: (params = {}) => ecomApi.get('/store-products/export/csv', { params, responseType: 'blob' }),

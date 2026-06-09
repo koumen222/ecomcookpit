@@ -12,6 +12,7 @@ import AlibabaImportModal from '../components/AlibabaImportModal.jsx';
 import RichTextEditor from '../components/RichTextEditor.jsx';
 import QuantityOffersManager from '../components/QuantityOffersManager.jsx';
 import ReviewGenerator from '../components/ReviewGenerator.jsx';
+import DigitalProductEbookModal from '../components/DigitalProductEbookModal.jsx';
 import { getErrorMessage } from '../utils/errorMessages.js';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -146,6 +147,7 @@ const StoreProductForm = () => {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [csvBusy, setCsvBusy] = useState(false);
+  const [digitalProductLoading, setDigitalProductLoading] = useState(false);
   const [toast, setToast] = useState(null);
 
   // ── Image upload state ──────────────────────────────────────────────────────
@@ -172,6 +174,9 @@ const StoreProductForm = () => {
   const [aiGenerating, setAiGenerating] = useState(false);
   const [aiError, setAiError] = useState('');
   const [aiGenerated, setAiGenerated] = useState(null);
+  const [showDigitalProductModal, setShowDigitalProductModal] = useState(false);
+  const [digitalProductError, setDigitalProductError] = useState('');
+  const [digitalProductResult, setDigitalProductResult] = useState(null);
 
   // ── Form state ────────────────────────────────────────────────────────────
   const [form, setForm] = useState({
@@ -458,6 +463,49 @@ const StoreProductForm = () => {
     }
   };
 
+  const openDigitalProductModal = () => {
+    if (!isEdit || !id) {
+      showToast('error', "Enregistrez d'abord le produit avant de créer son produit digital.");
+      return;
+    }
+    setDigitalProductError('');
+    setDigitalProductResult(null);
+    setShowDigitalProductModal(true);
+  };
+
+  const handleGenerateDigitalProduct = async (brief = {}) => {
+    if (!isEdit || !id) return;
+    setDigitalProductLoading(true);
+    setDigitalProductError('');
+    setDigitalProductResult(null);
+    try {
+      const res = await storeProductsApi.generateDigitalProduct(id, brief);
+      const updated = res.data?.data;
+      if (!res.data?.success || !updated) {
+        throw new Error(res.data?.message || 'Impossible de générer le produit digital');
+      }
+      setForm((previous) => ({
+        ...previous,
+        _pageData: updated._pageData || {
+          ...(previous._pageData || {}),
+          ebook: res.data?.ebook || previous._pageData?.ebook,
+        },
+        productPageConfig: updated.productPageConfig || previous.productPageConfig,
+      }));
+      clearPublicStoreSessionCaches();
+      setDigitalProductResult({
+        ebook: res.data?.ebook || updated?._pageData?.ebook,
+        digitalProduct: res.data?.digitalProduct || updated?._pageData?.digitalProduct,
+        pdf: res.data?.ebook?.pdf || updated?._pageData?.ebook?.pdf,
+      });
+      showToast('success', 'Produit digital généré et ajouté à cette page.');
+    } catch (err) {
+      setDigitalProductError(err?.response?.data?.message || err.message || 'Erreur lors de la génération du produit digital');
+    } finally {
+      setDigitalProductLoading(false);
+    }
+  };
+
   // ── Submit ────────────────────────────────────────────────────────────────
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -518,6 +566,13 @@ const StoreProductForm = () => {
       </div>
     );
   }
+
+  const digitalProductReady = Boolean(
+    form._pageData?.ebook
+    || form.productPageConfig?.ebook
+    || form._pageData?.digitalProduct
+    || form.productPageConfig?.digitalProduct
+  );
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -1107,6 +1162,21 @@ const StoreProductForm = () => {
                     <Layers className="w-4 h-4 flex-shrink-0" /> Page Builder
                   </button>
                 )}
+                {isEdit && (
+                  <button
+                    type="button"
+                    onClick={openDigitalProductModal}
+                    disabled={digitalProductLoading}
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border text-sm font-semibold transition disabled:opacity-60 ${
+                      digitalProductReady
+                        ? 'bg-emerald-50 border-emerald-100 text-emerald-700 hover:bg-emerald-100'
+                        : 'bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100'
+                    }`}
+                  >
+                    {digitalProductLoading ? <Loader2 className="w-4 h-4 flex-shrink-0 animate-spin" /> : <FileText className="w-4 h-4 flex-shrink-0" />}
+                    Produit digital de ce produit
+                  </button>
+                )}
               </div>
 
               {/* Lier au catalogue */}
@@ -1153,6 +1223,23 @@ const StoreProductForm = () => {
       </div>
 
       {/* ── Modals ──────────────────────────────────────────────────────── */}
+
+      <DigitalProductEbookModal
+        open={showDigitalProductModal}
+        productName={form.name}
+        existingEbook={form._pageData?.ebook || form.productPageConfig?.ebook || null}
+        loading={digitalProductLoading}
+        error={digitalProductError}
+        generatedResult={digitalProductResult}
+        onClose={() => {
+          if (!digitalProductLoading) {
+            setShowDigitalProductModal(false);
+            setDigitalProductResult(null);
+          }
+        }}
+        onGenerate={handleGenerateDigitalProduct}
+        onRegenerate={() => setDigitalProductResult(null)}
+      />
 
       {showAlibabaModal && (
         <AlibabaImportModal onClose={() => setShowAlibabaModal(false)} onApply={handleAlibabaApply} />
