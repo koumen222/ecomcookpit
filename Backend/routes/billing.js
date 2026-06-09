@@ -685,6 +685,62 @@ async function applyCreativePayment(payment) {
   }
 }
 
+async function applyCreditPayment(payment) {
+  if (!payment) return null;
+  if ((payment.type || 'generation') === 'creative') {
+    await applyCreativePayment(payment);
+  } else {
+    await applyGenerationPayment(payment);
+  }
+  return GenerationPayment.findById(payment._id).lean();
+}
+
+async function syncCreditPaymentStatus(payment) {
+  if (payment.status === 'paid') {
+    if (payment.creditApplied !== true) {
+      const updated = await applyCreditPayment(payment);
+      return { status: 'paid', payment: updated || payment };
+    }
+    return { status: 'paid', payment };
+  }
+
+  const mfResp = await axios.get(MF_STATUS_URL(payment.mfToken), { timeout: 10000 });
+  const { statut, data: mfData } = mfResp.data;
+
+  if (!statut || !mfData) {
+    return { status: payment.status, payment };
+  }
+
+  const mfStatus = mfData.statut; // 'paid' | 'pending' | 'failure' | 'no paid'
+  const ancillaryUpdates = {};
+  if (mfData.moyen) ancillaryUpdates.paymentMethod = mfData.moyen;
+  if (mfData.numeroTransaction) ancillaryUpdates.transactionNumber = mfData.numeroTransaction;
+  if (mfData.frais !== undefined) ancillaryUpdates.fees = mfData.frais;
+
+  if (Object.keys(ancillaryUpdates).length) {
+    await GenerationPayment.findByIdAndUpdate(payment._id, { $set: ancillaryUpdates });
+  }
+
+  if (mfStatus === 'paid') {
+    const updated = await applyCreditPayment(payment);
+    return { status: 'paid', payment: updated || payment };
+  }
+
+  if (['pending', 'failure', 'no paid'].includes(mfStatus) && mfStatus !== payment.status) {
+    const updated = await GenerationPayment.findByIdAndUpdate(
+      payment._id,
+      { $set: { status: mfStatus, ...ancillaryUpdates } },
+      { new: true }
+    ).lean();
+    return { status: mfStatus, payment: updated || payment };
+  }
+
+  const updated = Object.keys(ancillaryUpdates).length
+    ? await GenerationPayment.findById(payment._id).lean()
+    : payment;
+  return { status: payment.status, payment: updated || payment };
+}
+
 // ─── POST /buy-generation ─────────────────────────────────────────────────────
 router.post('/buy-generation', requireEcomAuth, async (req, res) => {
   try {
@@ -875,10 +931,16 @@ router.get('/status/:token', requireEcomAuth, async (req, res) => {
       return res.status(400).json({ success: false, message: 'Token invalide' });
     }
 
-    // Find local record first
+    // Find local record first. /status is kept as the generic status endpoint
+    // because older frontend flows poll it for creative-credit purchases.
     const payment = await PlanPayment.findOne({ mfToken: token });
     if (!payment) {
-      return res.status(404).json({ success: false, message: 'Paiement introuvable' });
+      const creditPayment = await GenerationPayment.findOne({ mfToken: token });
+      if (!creditPayment) {
+        return res.status(404).json({ success: false, message: 'Paiement introuvable' });
+      }
+      const result = await syncCreditPaymentStatus(creditPayment);
+      return res.json({ success: true, status: result.status, payment: result.payment });
     }
 
     // If already paid, return immediately
@@ -937,42 +999,8 @@ router.get('/generation-status/:token', requireEcomAuth, async (req, res) => {
       return res.status(404).json({ success: false, message: 'Paiement introuvable' });
     }
 
-    // If already paid, return immediately
-    if (payment.status === 'paid') {
-      return res.json({ success: true, status: 'paid', payment });
-    }
-
-    // Fetch fresh status from MoneyFusion
-    const mfResp = await axios.get(MF_STATUS_URL(token), { timeout: 10000 });
-    const { statut, data: mfData } = mfResp.data;
-
-    if (!statut || !mfData) {
-      return res.json({ success: true, status: payment.status, payment });
-    }
-
-    const mfStatus = mfData.statut; // 'paid' | 'pending' | 'failure' | 'no paid'
-
-    if (mfStatus === payment.status) {
-      return res.json({ success: true, status: payment.status, payment });
-    }
-
-    // Update ancillary fields (non-critical, best-effort)
-    if (mfData.moyen) payment.paymentMethod = mfData.moyen;
-    if (mfData.numeroTransaction) payment.transactionNumber = mfData.numeroTransaction;
-    if (mfData.frais) payment.fees = mfData.frais;
-
-    if (mfStatus === 'paid') {
-      // applyGenerationPayment is atomic — safe to call concurrently with webhook
-      await applyGenerationPayment(payment);
-      // Reload after atomic update so the response reflects the final state
-      const updated = await GenerationPayment.findById(payment._id).lean();
-      return res.json({ success: true, status: 'paid', payment: updated || payment });
-    } else {
-      payment.status = mfStatus;
-      await payment.save();
-    }
-
-    res.json({ success: true, status: mfStatus, payment });
+    const result = await syncCreditPaymentStatus(payment);
+    res.json({ success: true, status: result.status, payment: result.payment });
   } catch (err) {
     if (err.response) {
       console.error('[billing] MF generation status check error:', err.response.status, err.response.data);
@@ -1004,11 +1032,7 @@ router.post('/recover-credits', requireEcomAuth, async (req, res) => {
 
     let recovered = 0;
     for (const p of stuck) {
-      if (p.type === 'creative') {
-        await applyCreativePayment(p);
-      } else {
-        await applyGenerationPayment(p);
-      }
+      await applyCreditPayment(p);
       // Re-check : si maintenant creditApplied=true, on compte
       const updated = await GenerationPayment.findById(p._id).lean();
       if (updated?.creditApplied) recovered++;
@@ -1028,8 +1052,7 @@ router.post('/recover-credits', requireEcomAuth, async (req, res) => {
         const mfResp = await axios.get(MF_STATUS_URL(p.mfToken), { timeout: 10000 });
         const mfStatus = mfResp.data?.data?.statut;
         if (mfStatus === 'paid') {
-          if (p.type === 'creative') await applyCreativePayment(p);
-          else await applyGenerationPayment(p);
+          await applyCreditPayment(p);
           synced++;
         } else if (mfStatus === 'failure' || mfStatus === 'no paid') {
           p.status = mfStatus;
@@ -1067,29 +1090,44 @@ router.post('/sync-pending-generations', requireEcomAuth, async (req, res) => {
   }
 
   try {
+    const stuckPaid = await GenerationPayment.find({
+      workspaceId,
+      status: 'paid',
+      creditApplied: { $ne: true },
+    });
+    let credited = 0;
+
+    for (const p of stuckPaid) {
+      const updated = await applyCreditPayment(p);
+      if (updated?.creditApplied) credited += p.quantity;
+    }
+
     const pending = await GenerationPayment.find({ workspaceId, status: 'pending' }).lean();
 
     if (!pending.length) {
       const workspace = await EcomWorkspace.findById(workspaceId)
-        .select('paidGenerationsRemaining freeGenerationsRemaining simpleGenerationsRemaining')
+        .select('paidGenerationsRemaining freeGenerationsRemaining simpleGenerationsRemaining creativeCreditsRemaining')
         .lean();
       const remaining = (workspace?.paidGenerationsRemaining || 0)
         + (workspace?.freeGenerationsRemaining || 0)
         + (workspace?.simpleGenerationsRemaining || 0);
-      return res.json({ success: true, credited: 0, remaining });
+      return res.json({
+        success: true,
+        credited,
+        remaining,
+        creative: workspace?.creativeCreditsRemaining || 0,
+      });
     }
-
-    let credited = 0;
 
     for (const p of pending) {
       try {
         const mfResp = await axios.get(MF_STATUS_URL(p.mfToken), { timeout: 10000 });
         const mfStatus = mfResp.data?.data?.statut;
         if (mfStatus === 'paid') {
-          // Re-fetch so applyGenerationPayment has a live mongoose doc
+          // Re-fetch so applyCreditPayment has a live mongoose doc
           const doc = await GenerationPayment.findById(p._id);
-          if (doc && doc.status !== 'paid') {
-            await applyGenerationPayment(doc);
+          if (doc) {
+            await applyCreditPayment(doc);
             credited += p.quantity;
           }
         } else if (mfStatus === 'failure' || mfStatus === 'no paid') {
@@ -1101,13 +1139,18 @@ router.post('/sync-pending-generations', requireEcomAuth, async (req, res) => {
     }
 
     const workspace = await EcomWorkspace.findById(workspaceId)
-      .select('paidGenerationsRemaining freeGenerationsRemaining simpleGenerationsRemaining')
+      .select('paidGenerationsRemaining freeGenerationsRemaining simpleGenerationsRemaining creativeCreditsRemaining')
       .lean();
     const remaining = (workspace?.paidGenerationsRemaining || 0)
       + (workspace?.freeGenerationsRemaining || 0)
       + (workspace?.simpleGenerationsRemaining || 0);
 
-    res.json({ success: true, credited, remaining });
+    res.json({
+      success: true,
+      credited,
+      remaining,
+      creative: workspace?.creativeCreditsRemaining || 0,
+    });
   } catch (err) {
     console.error('[billing] POST /sync-pending-generations error:', err.message);
     res.status(500).json({ success: false, message: 'Erreur lors de la synchronisation' });
@@ -1233,9 +1276,6 @@ router.post('/webhook', async (req, res) => {
       incomingStatus = 'pending';
     }
 
-    // Idempotency: ignore if no status change
-    if (incomingStatus === payment.status) return;
-
     // Update ancillary fields before applying
     const ancillaryUpdates = {};
     if (req.body.moyen) ancillaryUpdates.paymentMethod = req.body.moyen;
@@ -1243,19 +1283,21 @@ router.post('/webhook', async (req, res) => {
     if (req.body.frais !== undefined) ancillaryUpdates.fees = req.body.frais;
 
     if (incomingStatus === 'paid') {
+      if (!isGenerationPayment && incomingStatus === payment.status) return;
+
       // Persist ancillary fields alongside the atomic status update handled inside apply*
       if (Object.keys(ancillaryUpdates).length) {
         const Model = isGenerationPayment ? GenerationPayment : PlanPayment;
         await Model.findByIdAndUpdate(payment._id, { $set: ancillaryUpdates });
       }
-      if (isGenerationPayment && payment.type === 'creative') {
-        await applyCreativePayment(payment);
-      } else if (isGenerationPayment) {
-        await applyGenerationPayment(payment);
+      if (isGenerationPayment) {
+        await applyCreditPayment(payment);
       } else {
         await applyPlanPayment(payment);
       }
     } else {
+      // Idempotency: ignore non-paid events that do not change anything.
+      if (incomingStatus === payment.status) return;
       payment.status = incomingStatus;
       await payment.save();
     }

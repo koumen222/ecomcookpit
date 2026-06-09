@@ -116,8 +116,8 @@ const CreativeGenerator = () => {
     pendingTokenRef.current = token;
     pollIntervalRef.current = setInterval(async () => {
       try {
-        const r = await ecomApi.get(`/billing/status/${token}`);
-        const s = r.data?.payment?.status;
+        const r = await ecomApi.get(`/billing/generation-status/${token}`);
+        const s = r.data?.status || r.data?.payment?.status;
         if (s === 'paid') {
           clearInterval(pollIntervalRef.current);
           setBuySuccess('Paiement confirmé ! Vos crédits ont été ajoutés.');
