@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import mongoose from 'mongoose';
-import rateLimit from 'express-rate-limit';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 
 // ═══════════════════════════════════════════════════════════════
 // VÉRIFICATION DES VARIABLES CRITIQUES AU DÉMARRAGE
@@ -341,14 +341,25 @@ export function auditSensitiveAccess(action, resourceType = '') {
 // 5. RATE LIMITERS
 // ═══════════════════════════════════════════════════════════════
 
-// Authentification : 10 tentatives par 15 minutes par IP
+// Cloudflare/Railway: req.ip relies on trust proxy which can collapse all
+// clients into a single Railway proxy IP. Use cf-connecting-ip (set by
+// Cloudflare) → x-forwarded-for first entry → req.ip as last resort.
+function getClientIp(req) {
+  const raw = req.headers['cf-connecting-ip']
+    || (req.headers['x-forwarded-for'] || '').split(',')[0].trim()
+    || req.ip;
+  return ipKeyGenerator(raw);
+}
+
+// Authentification : 20 tentatives par 15 minutes par IP réelle
 export const authRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 10,
+  max: 20,
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: getClientIp,
   message: { success: false, message: 'Trop de tentatives de connexion. Réessayez dans 15 minutes.' },
-  skipSuccessfulRequests: false,
+  skipSuccessfulRequests: true,
 });
 
 // Mot de passe oublié : 5 requêtes par heure par IP
@@ -357,6 +368,7 @@ export const forgotPasswordRateLimiter = rateLimit({
   max: 5,
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: getClientIp,
   message: { success: false, message: 'Trop de demandes de réinitialisation. Réessayez dans 1 heure.' },
 });
 
@@ -366,6 +378,7 @@ export const apiRateLimiter = rateLimit({
   max: 300,
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: getClientIp,
   message: { success: false, message: 'Trop de requêtes. Ralentissez.' },
   skip: (req) => req.ecomUser?.role === 'super_admin',
 });

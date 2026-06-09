@@ -152,21 +152,30 @@ app.get('/api/version', (_req, res) => {
 });
 
 // ─── Rate Limiters ────────────────────────────────────────────────────────────
-app.use('/api/ecom/auth/login', authRateLimiter);
-app.use('/api/ecom/auth/forgot-password', forgotPasswordRateLimiter);
+// Skip OPTIONS preflight requests — they must never be rate-limited (CORS).
+app.use('/api/ecom/auth/login', (req, res, next) => {
+  if (req.method === 'OPTIONS') return next();
+  return authRateLimiter(req, res, next);
+});
+app.use('/api/ecom/auth/forgot-password', (req, res, next) => {
+  if (req.method === 'OPTIONS') return next();
+  return forgotPasswordRateLimiter(req, res, next);
+});
 
 // ⚠️  Webhook endpoints MUST be exempt from rate limiting.
 // Evolution API (WhatsApp), Shopify and other external services can send
 // dozens of requests per second and must never receive a 429.
 app.use('/api/', (req, res, next) => {
+  if (req.method === 'OPTIONS') return next();
   const p = req.path || '';
   if (
     p.startsWith('/ecom/v1/external/whatsapp/incoming') || // Evolution API WhatsApp messages
     p.startsWith('/webhooks/shopify/')                    || // Shopify order webhooks
     p.startsWith('/scalor/webhooks/')                     || // Scalor internal webhooks
-    p.includes('/incoming')                                  // generic incoming webhook catch-all
+    p.includes('/incoming')                               || // generic incoming webhook catch-all
+    p.startsWith('/ecom/auth/')                              // auth has its own dedicated limiter
   ) {
-    return next(); // bypass rate limit for external webhook callers
+    return next(); // bypass generic rate limit
   }
   return apiRateLimiter(req, res, next);
 });
