@@ -733,7 +733,7 @@ function buildFallbackBonusEbook({ productName = 'ce produit', storeName = '', p
   };
 }
 
-function normalizeBonusEbook(payload = {}, fallback = {}) {
+function normalizeBonusEbook(payload = {}, fallback = {}, overrides = {}) {
   const raw = payload?.ebook && typeof payload.ebook === 'object' ? payload.ebook : payload;
   const ebook = raw && typeof raw === 'object' ? raw : {};
   const normalized = {
@@ -759,7 +759,13 @@ function normalizeBonusEbook(payload = {}, fallback = {}) {
   normalized.target_reader = compactEbookText(normalized.target_reader || fallback.target_reader, 420);
   normalized.main_promise = compactEbookText(normalized.main_promise || fallback.main_promise, 420);
   normalized.estimated_value = compactEbookText(normalized.estimated_value || fallback.estimated_value, 120);
-  normalized.cover.color_palette = asCleanArray(normalized.cover.color_palette || fallback.cover?.color_palette, 6);
+  // User-chosen accent color overrides AI-generated palette
+  if (overrides.accentColor && /^#[0-9A-Fa-f]{6}$/.test(overrides.accentColor)) {
+    normalized.cover.color_palette = [overrides.accentColor, '#FFFFFF', '#111827'];
+  } else {
+    normalized.cover.color_palette = asCleanArray(normalized.cover.color_palette || fallback.cover?.color_palette, 6);
+  }
+  if (overrides.coverStyle) normalized.cover.cover_style = overrides.coverStyle;
   normalized.table_of_contents = asCleanArray(normalized.table_of_contents || fallback.table_of_contents, 20);
   // Normalize chapters without crushing paragraph breaks in chapter_content
   const rawChapters = Array.isArray(normalized.chapters || fallback.chapters)
@@ -838,6 +844,11 @@ export async function generateProductBonusEbook(scrapedData = {}, productData = 
     benefits,
   });
 
+  const userOverrides = {
+    accentColor: context.accentColor || '',
+    coverStyle: context.coverStyle || 'light',
+  };
+
   const systemPrompt = `Expert ebook writer. Output ONLY valid JSON, no text before or after. Use \\n\\n between paragraphs inside JSON strings.`;
 
   const userPrompt = `Write a premium bonus ebook for this product. Return JSON only.
@@ -877,7 +888,7 @@ JSON structure:
         const parsed = parseGroqJSON(rawContent || '{}');
         if (parsed && (parsed.ebook || parsed.title)) {
           console.log('[EbookGen] Claude OK');
-          return normalizeBonusEbook(parsed, fallback);
+          return normalizeBonusEbook(parsed, fallback, userOverrides);
         }
         console.warn('[EbookGen] Claude response non parseable');
         break; // contenu invalide → pas la peine de retenter
@@ -912,7 +923,7 @@ JSON structure:
       const parsed = parseGroqJSON(kie.content || '{}');
       if (parsed && (parsed.ebook || parsed.title)) {
         console.log('[EbookGen] GPT5 OK');
-        return normalizeBonusEbook(parsed, fallback);
+        return normalizeBonusEbook(parsed, fallback, userOverrides);
       }
       console.warn('[EbookGen] GPT5 response non parseable — passage Groq...');
     } catch (kieErr) {
@@ -945,7 +956,7 @@ JSON structure:
         const parsed = parseGroqJSON(response.choices[0]?.message?.content || '{}');
         if (parsed && (parsed.ebook || parsed.title)) {
           console.log('[EbookGen] Groq OK');
-          return normalizeBonusEbook(parsed, fallback);
+          return normalizeBonusEbook(parsed, fallback, userOverrides);
         }
         console.warn('[EbookGen] Groq response non parseable');
       } finally {
@@ -957,7 +968,7 @@ JSON structure:
   }
 
   console.warn('[EbookGen] Tous les providers ont échoué — fallback local (5 chapitres)');
-  return normalizeBonusEbook(fallback, fallback);
+  return normalizeBonusEbook(fallback, fallback, userOverrides);
 }
 
 function mergePremiumPage(fallbackPremiumPage = {}, generatedPremiumPage = {}) {

@@ -195,7 +195,9 @@ function buildEbookSourceFromProduct(product = {}, input = {}, brief = {}) {
       ebookTheme: brief.theme || '',
       ebookGoal: brief.goal || '',
       ebookOfferAngle: brief.offerAngle || '',
-      chapterCount: brief.chapterCount || 5,
+      chapterCount: brief.chapterCount || 10,
+      accentColor: brief.accentColor || '',
+      coverStyle: brief.coverStyle || 'light',
     },
   };
 }

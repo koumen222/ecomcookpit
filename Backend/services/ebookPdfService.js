@@ -402,26 +402,42 @@ export function generateEbookPdfBuffer(ebook = {}, productData = {}, storeContex
   const productName = cleanText(productData.title || productData.name || '', 140);
 
   // ── Page 1 : Couverture ──────────────────────────────────────────────────
+  const coverStyle = cover.cover_style || 'light';
   if (coverImageJpegBuffer) {
     doc.addCoverImageCmd();
     doc.rect(0, 0, PAGE_WIDTH, PAGE_HEIGHT * 0.55, [0.05, 0.07, 0.12]);
     doc.rect(0, PAGE_HEIGHT - 70, PAGE_WIDTH, 70, [0.04, 0.06, 0.12]);
+  } else if (coverStyle === 'dark') {
+    doc.rect(0, 0, PAGE_WIDTH, PAGE_HEIGHT, [0.05, 0.07, 0.12]);
+    doc.rect(0, PAGE_HEIGHT - 6, PAGE_WIDTH, 6, accent);
+    doc.rect(0, 0, PAGE_WIDTH, 6, accent);
+  } else if (coverStyle === 'vibrant') {
+    doc.rect(0, 0, PAGE_WIDTH, PAGE_HEIGHT, accent);
   } else {
-    doc.rect(0, PAGE_HEIGHT - 190, PAGE_WIDTH, 190, accent);
+    // light (default): accent header band + white body
+    doc.rect(0, PAGE_HEIGHT - 220, PAGE_WIDTH, 220, accent);
   }
 
-  doc.line('EBOOK BONUS', MARGIN_X, 735, 13, 'F2', [1, 1, 1]);
+  // Text colours depend on background: dark/vibrant/cover-image → white; light → dark text in lower band
+  const isDarkBg = coverImageJpegBuffer || coverStyle === 'dark' || coverStyle === 'vibrant';
+  const coverTextMain  = [1, 1, 1];
+  const coverTextSoft  = [0.82, 0.85, 0.88];
+  const coverTextDark  = isDarkBg ? [1, 1, 1] : dark;
+  const coverTextMuted = isDarkBg ? [0.82, 0.85, 0.88] : soft;
+  const coverTextHl    = isDarkBg ? [0.98, 0.82, 0.20] : accent;
+
+  doc.line('EBOOK BONUS', MARGIN_X, 735, 13, 'F2', coverStyle === 'light' && !coverImageJpegBuffer ? accent : coverTextMain);
   wrapText(title, 28, PAGE_WIDTH - (MARGIN_X * 2)).slice(0, 3).forEach((entry, index) => {
-    doc.line(entry, MARGIN_X, 690 - (index * 35), 28, 'F2', [1, 1, 1]);
+    doc.line(entry, MARGIN_X, 690 - (index * 35), 28, 'F2', coverTextMain);
   });
   doc.setY(575);
-  if (subtitle) doc.textBlock(subtitle, { size: 14, font: 'F1', color: [1, 1, 1], x: MARGIN_X, width: PAGE_WIDTH - (MARGIN_X * 2), gap: 12, leading: 19 });
+  if (subtitle) doc.textBlock(subtitle, { size: 14, font: 'F1', color: coverTextSoft, x: MARGIN_X, width: PAGE_WIDTH - (MARGIN_X * 2), gap: 12, leading: 19 });
   doc.setY(520);
-  if (productName) doc.textBlock(`Produit associe : ${productName}`, { size: 13, font: 'F2', color: coverImageJpegBuffer ? [1, 1, 1] : dark, gap: 8 });
-  if (ebook.short_description) doc.textBlock(ebook.short_description, { size: 12.5, color: coverImageJpegBuffer ? [0.85, 0.87, 0.90] : soft, gap: 16 });
-  if (ebook.main_promise) doc.textBlock(`Promesse : ${ebook.main_promise}`, { size: 13, font: 'F2', color: coverImageJpegBuffer ? [0.98, 0.82, 0.20] : accent, gap: 18 });
-  doc.line(brand, MARGIN_X, 95, 12, 'F2', coverImageJpegBuffer ? [1, 1, 1] : dark);
-  doc.line(`Genere le ${new Date(ebook.generatedAt || Date.now()).toLocaleDateString('fr-FR')}`, MARGIN_X, 76, 10, 'F1', coverImageJpegBuffer ? [0.75, 0.78, 0.82] : soft);
+  if (productName) doc.textBlock(`Produit associe : ${productName}`, { size: 13, font: 'F2', color: coverTextDark, gap: 8 });
+  if (ebook.short_description) doc.textBlock(ebook.short_description, { size: 12.5, color: coverTextMuted, gap: 16 });
+  if (ebook.main_promise) doc.textBlock(`Promesse : ${ebook.main_promise}`, { size: 13, font: 'F2', color: coverTextHl, gap: 18 });
+  doc.line(brand, MARGIN_X, 95, 12, 'F2', coverTextDark);
+  doc.line(`Genere le ${new Date(ebook.generatedAt || Date.now()).toLocaleDateString('fr-FR')}`, MARGIN_X, 76, 10, 'F1', coverTextMuted);
 
   // ── Page 2 : À propos ────────────────────────────────────────────────────
   doc.pageBreak();
