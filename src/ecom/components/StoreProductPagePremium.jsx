@@ -18,7 +18,7 @@ import {
   Camera,
   Loader2,
   Gift,
-  Download,
+
 } from 'lucide-react';
 import QuickOrderModal from './QuickOrderModal.jsx';
 import { StorefrontHeader } from './StorefrontShared.jsx';
@@ -151,69 +151,84 @@ const boolIcon = (value, accent) => value ? (
   <span className="premium-bool premium-bool-no" aria-label="Non"><X size={14} /></span>
 );
 
-const PremiumBonusEbook = ({ ebook, accent, onOrder, ctaLabel = 'Commander' }) => {
+const PremiumBonusEbook = ({ ebook, accent, onOrder, ctaLabel = 'Commander', productImage = '' }) => {
   if (!ebook || typeof ebook !== 'object') return null;
   const sales = ebook.sales_section || {};
   const cover = ebook.cover || {};
   const toc = asArray(ebook.table_of_contents);
   const chapters = asArray(ebook.chapters);
-  const title = textValue(sales.headline, ebook.title || cover.cover_title || 'Bonus offert avec votre commande');
-  const bonusText = textValue(sales.bonus_text, ebook.short_description || ebook.subtitle);
+  const title = textValue(ebook.title || cover.cover_title, sales.headline || 'Guide bonus offert');
+  const bonusText = (textValue(sales.bonus_text, ebook.short_description || ebook.subtitle) || '').slice(0, 90);
   const valueText = textValue(sales.value_text, ebook.estimated_value);
   const buttonText = textValue(sales.cta_text, ctaLabel);
   const pdfUrl = ebook.pdf?.url || ebook.pdfUrl || ebook.digitalProduct?.pdfUrl || '';
-  const coverImg = ebook.cover?.generatedImageUrl || ebook.pdf?.coverImageUrl || '';
+  const coverImg = ebook.cover?.generatedImageUrl || ebook.pdf?.coverImageUrl || productImage || '';
 
   if (!title && !bonusText && !valueText) return null;
+
+  const chapterCount = chapters.length || toc.length || 5;
 
   return (
     <section className="premium-section premium-bonus">
       <div className="premium-bonus-card">
+
+        {/* ── Left: content ── */}
         <div className="premium-bonus-copy">
-          <div className="premium-bonus-kicker"><Gift size={16} />{textValue(cover.badge_text, 'Bonus offert')}</div>
+          <div className="premium-bonus-kicker">
+            <Gift size={15} />
+            {textValue(cover.badge_text, 'Bonus offert')}
+          </div>
           <h2 className="premium-heading">{title}</h2>
           {bonusText && <p className="premium-lead">{bonusText}</p>}
           {valueText && <p className="premium-bonus-value">{valueText}</p>}
+
           {toc.length > 0 && (
-            <div className="premium-bonus-toc">
+            <ul className="premium-bonus-toc">
               {toc.slice(0, 5).map((item, index) => (
-                <span key={index}><Check size={13} />{textValue(item.chapter_title || item.chapter_summary, `Chapitre ${index + 1}`)}</span>
+                <li key={index}>
+                  <span className="premium-bonus-toc-num">{index + 1}</span>
+                  {textValue(item.chapter_title || item.chapter_summary, `Chapitre ${index + 1}`)}
+                  <Check size={13} className="premium-bonus-toc-check" />
+                </li>
               ))}
+            </ul>
+          )}
+
+          <div className="premium-bonus-actions">
+            <button type="button" className="premium-cta premium-bonus-cta" onClick={onOrder}>
+              <ShoppingCart size={18} />
+              {buttonText}
+            </button>
+          </div>
+        </div>
+
+        {/* ── Right: book mockup ── */}
+        <div className="premium-bonus-visual">
+          <div className="premium-bonus-book">
+            <div className="premium-bonus-book-spine" />
+            <div className="premium-bonus-book-pages" />
+            <div className="premium-bonus-book-cover">
+              {coverImg ? (
+                <img
+                  src={coverImg}
+                  alt={textValue(cover.cover_title, ebook.title || 'Guide offert')}
+                />
+              ) : (
+                <div className="premium-bonus-book-placeholder" style={{ background: `linear-gradient(145deg, ${accent}, color-mix(in srgb, ${accent} 60%, #000))` }}>
+                  <BookOpen size={36} />
+                  <span>{textValue(cover.cover_title, ebook.title || 'Guide offert')}</span>
+                  <small>{chapterCount} chapitres</small>
+                </div>
+              )}
+              <div className="premium-bonus-book-ribbon">Offert</div>
             </div>
-          )}
-          <button type="button" className="premium-cta premium-bonus-cta" onClick={onOrder}>
-            <ShoppingCart size={18} />
-            {buttonText}
-          </button>
-          {pdfUrl && (
-            <a
-              href={pdfUrl}
-              target="_blank"
-              rel="noreferrer"
-              download={ebook.pdf?.fileName || 'ebook-bonus.pdf'}
-              className="premium-cta premium-bonus-cta"
-              style={{ marginTop: 10, background: '#fff', color: accent, border: `1px solid ${accent}`, textDecoration: 'none' }}
-            >
-              <Download size={17} />
-              Télécharger le PDF
-            </a>
-          )}
+          </div>
+          <div className="premium-bonus-badge-free">
+            <span>100%</span>
+            Gratuit
+          </div>
         </div>
-        <div className="premium-bonus-cover" style={coverImg ? {} : { background: `linear-gradient(160deg, ${accent}, #111827)` }}>
-          {coverImg ? (
-            <img
-              src={coverImg}
-              alt={textValue(cover.cover_title, ebook.title || 'Guide offert')}
-              style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 12, display: 'block' }}
-            />
-          ) : (
-            <>
-              <BookOpen size={34} />
-              <span>{textValue(cover.cover_title, ebook.title || 'Guide offert')}</span>
-              <small>{chapters.length || toc.length || 5} chapitres</small>
-            </>
-          )}
-        </div>
+
       </div>
     </section>
   );
@@ -469,18 +484,35 @@ const StoreProductPagePremium = ({ product, store, productPageConfig, subdomain,
         .premium-authority-label { font-size: clamp(17px, 1.7vw, 25px); line-height: 1; font-weight: 900; color: #030712; }
         .premium-authority-quote { margin: 10px 0 0; font-size: 14px; line-height: 1.5; color: #444a52; }
         @keyframes premium-marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
-        .premium-bonus { background: #fff; padding-top: clamp(24px, 4vw, 42px); padding-bottom: clamp(24px, 4vw, 42px); }
-        .premium-bonus-card { max-width: 1120px; margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1fr) minmax(210px, 280px); gap: clamp(18px, 4vw, 44px); align-items: center; border: 1px solid rgba(15,23,42,0.08); border-radius: 18px; background: linear-gradient(135deg, color-mix(in srgb, var(--premium-accent) 10%, white), #fff); padding: clamp(20px, 4vw, 38px); box-shadow: 0 18px 44px rgba(15,23,42,0.08); }
-        .premium-bonus-copy .premium-heading { text-align: left; }
-        .premium-bonus-kicker { display: inline-flex; align-items: center; gap: 8px; margin-bottom: 12px; color: var(--premium-accent); font-size: 13px; font-weight: 900; text-transform: uppercase; letter-spacing: 0; }
-        .premium-bonus-value { margin: 12px 0 0; color: var(--premium-accent); font-size: 14px; line-height: 1.55; font-weight: 850; }
-        .premium-bonus-toc { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
-        .premium-bonus-toc span { display: inline-flex; align-items: center; gap: 6px; border: 1px solid rgba(15,23,42,0.08); border-radius: 999px; background: #fff; color: #3f4650; padding: 8px 10px; font-size: 12px; font-weight: 800; }
-        .premium-bonus-toc svg { color: var(--premium-accent); flex-shrink: 0; }
-        .premium-bonus-cta { max-width: 360px; }
-        .premium-bonus-cover { min-height: 250px; border-radius: 16px; padding: 22px; color: #fff; display: flex; flex-direction: column; justify-content: space-between; box-shadow: 0 20px 45px rgba(15,23,42,0.22); }
-        .premium-bonus-cover span { font-size: clamp(20px, 2.1vw, 28px); line-height: 1.08; font-weight: 950; text-transform: uppercase; }
-        .premium-bonus-cover small { font-size: 12px; font-weight: 900; text-transform: uppercase; opacity: 0.78; }
+        /* ── Bonus section ── */
+        .premium-bonus { background: linear-gradient(180deg, #f8fafc 0%, #fff 100%); padding-top: clamp(32px, 5vw, 56px); padding-bottom: clamp(32px, 5vw, 56px); }
+        .premium-bonus-card { max-width: 1080px; margin: 0 auto; display: grid; grid-template-columns: minmax(0,1fr) 280px; gap: clamp(24px, 5vw, 56px); align-items: center; background: #fff; border: 1px solid #e8edf3; border-radius: 24px; padding: clamp(24px, 4vw, 44px); box-shadow: 0 4px 6px -1px rgba(15,23,42,.04), 0 16px 40px -8px rgba(15,23,42,.08); position: relative; overflow: hidden; }
+        .premium-bonus-card::before { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse 60% 80% at 100% 50%, color-mix(in srgb, var(--premium-accent) 6%, transparent), transparent); pointer-events: none; }
+        .premium-bonus-copy .premium-heading { text-align: left; font-size: clamp(22px, 2.6vw, 32px); }
+        .premium-bonus-kicker { display: inline-flex; align-items: center; gap: 7px; margin-bottom: 14px; background: color-mix(in srgb, var(--premium-accent) 10%, transparent); color: var(--premium-accent); font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .8px; padding: 5px 12px; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--premium-accent) 25%, transparent); }
+        .premium-bonus-value { margin: 10px 0 0; color: var(--premium-accent); font-size: 14px; line-height: 1.6; font-weight: 700; }
+        .premium-bonus-toc { list-style: none; margin: 20px 0 0; padding: 0; display: flex; flex-direction: column; gap: 9px; }
+        .premium-bonus-toc li { display: flex; align-items: center; gap: 10px; background: #f8fafc; border: 1px solid #e8edf3; border-radius: 10px; padding: 10px 14px; font-size: 13.5px; font-weight: 600; color: #1e293b; transition: border-color .18s, background .18s; }
+        .premium-bonus-toc li:hover { background: color-mix(in srgb, var(--premium-accent) 5%, white); border-color: color-mix(in srgb, var(--premium-accent) 30%, transparent); }
+        .premium-bonus-toc-num { width: 22px; height: 22px; border-radius: 50%; background: linear-gradient(135deg, var(--premium-accent), color-mix(in srgb, var(--premium-accent) 70%, #fbbf24)); color: #fff; font-size: 11px; font-weight: 800; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+        .premium-bonus-toc-check { margin-left: auto; flex-shrink: 0; color: #16a34a; }
+        .premium-bonus-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 24px; }
+        .premium-bonus-cta { max-width: 380px; }
+        .premium-bonus-pdf-btn { max-width: 380px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 13px 20px; border-radius: 12px; border: 1.5px solid color-mix(in srgb, var(--premium-accent) 35%, transparent); background: #fff; color: var(--premium-accent); font-size: 14px; font-weight: 700; text-decoration: none; transition: background .18s, border-color .18s; cursor: pointer; }
+        .premium-bonus-pdf-btn:hover { background: color-mix(in srgb, var(--premium-accent) 6%, white); border-color: var(--premium-accent); }
+        /* Book mockup */
+        .premium-bonus-visual { display: flex; flex-direction: column; align-items: center; gap: 16px; position: relative; z-index: 1; }
+        .premium-bonus-book { position: relative; width: 200px; transform: perspective(640px) rotateY(-16deg) rotateX(3deg); filter: drop-shadow(-10px 18px 28px rgba(15,23,42,.22)); }
+        .premium-bonus-book-spine { position: absolute; left: -18px; top: 0; width: 18px; height: 100%; background: color-mix(in srgb, var(--premium-accent) 80%, #000); border-radius: 4px 0 0 4px; }
+        .premium-bonus-book-pages { position: absolute; right: -5px; top: 3px; bottom: 3px; width: 6px; background: repeating-linear-gradient(90deg, #f0ede8 0px, #e4e0d8 2px, #f0ede8 4px); border-radius: 0 2px 2px 0; }
+        .premium-bonus-book-cover { width: 200px; min-height: 266px; border-radius: 3px 10px 10px 3px; overflow: hidden; position: relative; }
+        .premium-bonus-book-cover img { width: 100%; height: 100%; object-fit: cover; display: block; border-radius: 0 8px 8px 0; }
+        .premium-bonus-book-placeholder { width: 100%; min-height: 266px; display: flex; flex-direction: column; justify-content: space-between; padding: 20px 16px; color: #fff; }
+        .premium-bonus-book-placeholder span { font-size: 15px; font-weight: 800; line-height: 1.25; text-transform: uppercase; }
+        .premium-bonus-book-placeholder small { font-size: 11px; font-weight: 700; opacity: .8; text-transform: uppercase; letter-spacing: .5px; }
+        .premium-bonus-book-ribbon { position: absolute; top: 14px; right: -14px; background: linear-gradient(135deg, #16a34a, #22c55e); color: #fff; font-size: 9.5px; font-weight: 800; padding: 4px 22px; letter-spacing: .5px; text-transform: uppercase; transform: rotate(30deg); box-shadow: 0 2px 8px rgba(22,163,74,.35); z-index: 10; }
+        .premium-bonus-badge-free { display: flex; flex-direction: column; align-items: center; background: #f0fdf4; border: 1.5px solid #bbf7d0; border-radius: 14px; padding: 10px 20px; color: #15803d; font-size: 12px; font-weight: 700; line-height: 1.3; }
+        .premium-bonus-badge-free span { font-size: 22px; font-weight: 900; line-height: 1; }
         .premium-centered { text-align: center; max-width: 980px; margin: 0 auto 32px; }
         .premium-eyebrow { display: inline-flex; align-items: center; gap: 7px; margin-bottom: 12px; font-size: 13px; font-weight: 800; color: #38424c; }
         .premium-heading { margin: 0; font-size: clamp(23px, 3vw, 37px); line-height: 1.16; font-weight: 900; letter-spacing: 0; color: #05070a; text-transform: uppercase; }
@@ -545,7 +577,8 @@ const StoreProductPagePremium = ({ product, store, productPageConfig, subdomain,
           .premium-reviews-carousel .premium-testimonial-card { flex-basis: 80%; }
           .premium-split.reverse .premium-copy { order: initial; }
           .premium-bonus-card { grid-template-columns: 1fr; }
-          .premium-bonus-cover { min-height: 190px; }
+          .premium-bonus-visual { order: -1; }
+          .premium-bonus-book { transform: perspective(640px) rotateY(-10deg) rotateX(2deg); }
           .premium-offer-card { grid-template-columns: 56px 1fr; }
           .premium-offer-price { grid-column: 1 / -1; text-align: left; }
           .premium-step { grid-template-columns: 60px 1fr; gap: 10px; }
@@ -706,6 +739,7 @@ const StoreProductPagePremium = ({ product, store, productPageConfig, subdomain,
             accent={accent}
             onOrder={openOrder}
             ctaLabel={textValue(premium.hero?.ctaLabel, productPageConfig?.button?.text || 'Commander')}
+            productImage={heroImage}
           />
         )}
 

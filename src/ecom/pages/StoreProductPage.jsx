@@ -5,7 +5,7 @@ import {
   BookOpen,
   ChevronLeft, ChevronRight, ShoppingCart, MessageCircle,
   ShoppingBag, Shield, RotateCcw, Truck, Check, Share2,
-  ChevronDown, ChevronUp, Star, Gift, Download,
+  ChevronDown, ChevronUp, Star, Gift,
 } from 'lucide-react';
 import { useSubdomain } from '../hooks/useSubdomain';
 import { useStoreProduct, injectStoreCssVars, prefetchStoreProduct } from '../hooks/useStoreData';
@@ -1274,8 +1274,8 @@ const ProductBonusEbook = ({ ebook, onOrder, accentColor = 'var(--s-primary)', c
   if (!ebook || typeof ebook !== 'object') return null;
   const sales = ebook.sales_section || {};
   const cover = ebook.cover || {};
-  const title = normalizeMetaText(sales.headline || ebook.title || cover.cover_title || 'Bonus offert avec votre commande');
-  const subtitle = normalizeMetaText(sales.bonus_text || ebook.short_description || ebook.subtitle || '');
+  const title = normalizeMetaText(ebook.title || cover.cover_title || sales.headline || 'Guide bonus offert');
+  const subtitle = normalizeMetaText(sales.bonus_text || ebook.short_description || ebook.subtitle || '').slice(0, 90);
   const valueText = normalizeMetaText(sales.value_text || ebook.estimated_value || '');
   const buttonText = normalizeMetaText(sales.cta_text || ctaLabel || 'Commander');
   const pdfUrl = ebook.pdf?.url || ebook.pdfUrl || ebook.digitalProduct?.pdfUrl || '';
@@ -1373,32 +1373,6 @@ const ProductBonusEbook = ({ ebook, onOrder, accentColor = 'var(--s-primary)', c
       >
         <ShoppingCart size={16} /> {buttonText}
       </button>
-      {pdfUrl && (
-        <a
-          href={pdfUrl}
-          target="_blank"
-          rel="noreferrer"
-          download={ebook.pdf?.fileName || 'ebook-bonus.pdf'}
-          style={{
-            width: '100%',
-            minHeight: 40,
-            marginTop: 8,
-            borderRadius: 'var(--pp-card-radius)',
-            border: '1px solid var(--s-border)',
-            background: '#fff',
-            color: accentColor,
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 8,
-            fontSize: 13,
-            fontWeight: 900,
-            textDecoration: 'none',
-          }}
-        >
-          <Download size={15} /> Télécharger le PDF
-        </a>
-      )}
     </section>
   );
 };
