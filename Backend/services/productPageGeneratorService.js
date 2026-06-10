@@ -756,7 +756,42 @@ function normalizeBonusEbook(payload = {}, fallback = {}) {
   normalized.estimated_value = compactEbookText(normalized.estimated_value || fallback.estimated_value, 120);
   normalized.cover.color_palette = asCleanArray(normalized.cover.color_palette || fallback.cover?.color_palette, 6);
   normalized.table_of_contents = asCleanArray(normalized.table_of_contents || fallback.table_of_contents, 20);
-  normalized.chapters = asCleanArray(normalized.chapters || fallback.chapters, 20);
+  // Normalize chapters without crushing paragraph breaks in chapter_content
+  const rawChapters = Array.isArray(normalized.chapters || fallback.chapters)
+    ? (normalized.chapters || fallback.chapters)
+    : [];
+  normalized.chapters = rawChapters.filter(Boolean).slice(0, 20).map((ch) => {
+    if (!ch || typeof ch !== 'object') return null;
+    return {
+      ...ch,
+      chapter_title: compactEbookText(ch.chapter_title || '', 180),
+      chapter_intro: compactEbookText(ch.chapter_intro || '', 500),
+      // Preserve \n paragraph breaks — only collapse multiple spaces within each line
+      chapter_content: String(ch.chapter_content || ch.content || ch.chapter_summary || '')
+        .replace(/[ \t]+/g, ' ')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim()
+        .slice(0, 10000),
+      chapter_summary: compactEbookText(ch.chapter_summary || '', 280),
+      key_quote: compactEbookText(ch.key_quote || '', 300),
+      action_step: compactEbookText(ch.action_step || '', 500),
+      illustration_prompt: compactEbookText(ch.illustration_prompt || '', 400),
+      illustration_caption: compactEbookText(ch.illustration_caption || '', 140),
+      key_points: Array.isArray(ch.key_points)
+        ? ch.key_points.filter(Boolean).slice(0, 6).map(p => compactEbookText(String(p), 300))
+        : [],
+      chapter_table: ch.chapter_table && Array.isArray(ch.chapter_table.rows)
+        ? {
+            headers: Array.isArray(ch.chapter_table.headers)
+              ? ch.chapter_table.headers.slice(0, 6).map(h => compactEbookText(String(h || ''), 80))
+              : [],
+            rows: ch.chapter_table.rows.slice(0, 8).map(row =>
+              Array.isArray(row) ? row.slice(0, 6).map(c => compactEbookText(String(c || ''), 200)) : []
+            ),
+          }
+        : undefined,
+    };
+  }).filter(Boolean);
   normalized.generatedAt = new Date().toISOString();
   return normalized;
 }
@@ -799,8 +834,9 @@ export async function generateProductBonusEbook(scrapedData = {}, productData = 
   });
 
   const systemPrompt = `Tu es un auteur expert en e-commerce, copywriting et creation de guides pratiques.
-Tu generes UNIQUEMENT du JSON valide. Aucun texte avant ou apres le JSON.
-Tu dois produire un ebook de qualite professionnelle, dense et utile, en francais naturel.`;
+Tu generes UNIQUEMENT du JSON valide et complet. Aucun texte avant ou apres le JSON.
+Tu dois produire un ebook de qualite professionnelle, tres dense et utile, en francais naturel.
+IMPORTANT : dans les valeurs JSON de type chaine, utilise \\n pour les sauts de paragraphe (exemple : "Premier paragraphe.\\n\\nDeuxieme paragraphe."). Ne jamais abreger ou tronquer le contenu. Ecrire tout le contenu demande.`;
 
   const userPrompt = `Cree un ebook bonus complet associe a ce produit e-commerce.
 

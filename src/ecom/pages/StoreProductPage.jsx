@@ -1323,23 +1323,32 @@ const ProductBonusEbook = ({ ebook, onOrder, accentColor = 'var(--s-primary)', c
           )}
         </div>
 
-        <div style={{
-          minHeight: 120,
-          borderRadius: 12,
-          padding: 10,
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'space-between',
-          background: `linear-gradient(160deg, ${accentColor}, #111827)`,
-          color: '#fff',
-          boxShadow: '0 12px 24px rgba(15,23,42,0.18)',
-        }}>
-          <BookOpen size={23} />
-          <div>
-            <div style={{ fontSize: 10, fontWeight: 900, opacity: 0.82, textTransform: 'uppercase' }}>{chapters.length || toc.length || 5} chapitres</div>
-            <div style={{ marginTop: 4, fontSize: 12, lineHeight: 1.15, fontWeight: 900 }}>{normalizeMetaText(cover.cover_title || ebook.title || 'Guide offert')}</div>
-          </div>
-        </div>
+        {(() => {
+          const coverImg = ebook.cover?.generatedImageUrl || ebook.pdf?.coverImageUrl || '';
+          return coverImg ? (
+            <div style={{ minHeight: 120, borderRadius: 12, overflow: 'hidden', boxShadow: '0 12px 24px rgba(15,23,42,0.18)', flexShrink: 0 }}>
+              <img src={coverImg} alt={normalizeMetaText(cover.cover_title || ebook.title || 'Guide offert')} style={{ width: '100%', height: '100%', minHeight: 120, objectFit: 'cover', display: 'block' }} />
+            </div>
+          ) : (
+            <div style={{
+              minHeight: 120,
+              borderRadius: 12,
+              padding: 10,
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+              background: `linear-gradient(160deg, ${accentColor}, #111827)`,
+              color: '#fff',
+              boxShadow: '0 12px 24px rgba(15,23,42,0.18)',
+            }}>
+              <BookOpen size={23} />
+              <div>
+                <div style={{ fontSize: 10, fontWeight: 900, opacity: 0.82, textTransform: 'uppercase' }}>{chapters.length || toc.length || 5} chapitres</div>
+                <div style={{ marginTop: 4, fontSize: 12, lineHeight: 1.15, fontWeight: 900 }}>{normalizeMetaText(cover.cover_title || ebook.title || 'Guide offert')}</div>
+              </div>
+            </div>
+          );
+        })()}
       </div>
 
       <button
