@@ -1274,101 +1274,61 @@ const ProductBonusEbook = ({ ebook, onOrder, accentColor = 'var(--s-primary)', c
   if (!ebook || typeof ebook !== 'object') return null;
   const sales = ebook.sales_section || {};
   const cover = ebook.cover || {};
-  const title = normalizeMetaText(ebook.title || cover.cover_title || sales.headline || 'Guide bonus offert');
-  const subtitle = normalizeMetaText(sales.bonus_text || ebook.short_description || ebook.subtitle || '').slice(0, 90);
-  const valueText = normalizeMetaText(sales.value_text || ebook.estimated_value || '');
+  const title = normalizeMetaText(ebook.title || cover.cover_title || 'Guide bonus offert');
+  const subtitle = normalizeMetaText(ebook.subtitle || ebook.short_description || sales.bonus_text || '').slice(0, 72);
   const buttonText = normalizeMetaText(sales.cta_text || ctaLabel || 'Commander');
-  const pdfUrl = ebook.pdf?.url || ebook.pdfUrl || ebook.digitalProduct?.pdfUrl || '';
-  const toc = Array.isArray(ebook.table_of_contents) ? ebook.table_of_contents : [];
-  const chapters = Array.isArray(ebook.chapters) ? ebook.chapters : [];
+  const coverImg = ebook.cover?.generatedImageUrl || ebook.pdf?.coverImageUrl || '';
 
-  if (!title && !subtitle && !valueText) return null;
+  if (!title) return null;
 
   return (
     <section style={{
       margin: '0 0 18px',
-      padding: 16,
+      padding: 14,
       borderRadius: 'var(--pp-card-radius)',
-      border: `1px solid ${accentColor}`,
-      background: `linear-gradient(135deg, color-mix(in srgb, ${accentColor} 12%, white) 0%, #fff 100%)`,
-      boxShadow: '0 10px 28px rgba(15,23,42,0.08)',
-      overflow: 'hidden',
+      border: `1px solid color-mix(in srgb, ${accentColor} 30%, transparent)`,
+      background: `linear-gradient(135deg, color-mix(in srgb, ${accentColor} 8%, white) 0%, #fff 100%)`,
+      boxShadow: '0 6px 20px rgba(15,23,42,0.07)',
     }}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 88px', gap: 14, alignItems: 'center' }}>
+      {/* badge */}
+      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginBottom: 10, color: accentColor, fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+        <Gift size={13} /> {normalizeMetaText(cover.badge_text || 'Bonus offert')}
+      </div>
+
+      {/* content row */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 76px', gap: 12, alignItems: 'center', marginBottom: 12 }}>
         <div style={{ minWidth: 0 }}>
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, marginBottom: 8, color: accentColor, fontSize: 12, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-            <Gift size={15} /> {normalizeMetaText(cover.badge_text || 'Bonus offert')}
-          </div>
-          <h2 style={{ margin: 0, color: 'var(--s-text)', fontSize: 'clamp(17px, 3.6vw, 22px)', lineHeight: 1.18, fontWeight: 900, letterSpacing: 0 }}>
+          <h2 style={{ margin: 0, color: 'var(--s-text)', fontSize: 'clamp(15px, 3.4vw, 19px)', lineHeight: 1.2, fontWeight: 800 }}>
             {title}
           </h2>
           {subtitle && (
-            <p style={{ margin: '8px 0 0', color: 'var(--s-text2)', fontSize: 13.5, lineHeight: 1.5, fontWeight: 600 }}>
+            <p style={{ margin: '5px 0 0', color: 'var(--s-text2)', fontSize: 13, lineHeight: 1.45, fontWeight: 500 }}>
               {subtitle}
             </p>
           )}
-          {valueText && (
-            <p style={{ margin: '8px 0 0', color: accentColor, fontSize: 12.5, lineHeight: 1.45, fontWeight: 800 }}>
-              {valueText}
-            </p>
-          )}
-          {toc.length > 0 && (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 12 }}>
-              {toc.slice(0, 3).map((item, index) => (
-                <span key={index} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 8px', borderRadius: 999, background: '#fff', border: '1px solid var(--s-border)', color: 'var(--s-text2)', fontSize: 11.5, fontWeight: 750 }}>
-                  <Check size={12} color={accentColor} /> {normalizeMetaText(item.chapter_title || item.chapter_summary || `Chapitre ${index + 1}`)}
-                </span>
-              ))}
-            </div>
-          )}
         </div>
 
-        {(() => {
-          const coverImg = ebook.cover?.generatedImageUrl || ebook.pdf?.coverImageUrl || '';
-          return coverImg ? (
-            <div style={{ minHeight: 120, borderRadius: 12, overflow: 'hidden', boxShadow: '0 12px 24px rgba(15,23,42,0.18)', flexShrink: 0 }}>
-              <img src={coverImg} alt={normalizeMetaText(cover.cover_title || ebook.title || 'Guide offert')} style={{ width: '100%', height: '100%', minHeight: 120, objectFit: 'cover', display: 'block' }} />
-            </div>
-          ) : (
-            <div style={{
-              minHeight: 120,
-              borderRadius: 12,
-              padding: 10,
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'space-between',
-              background: `linear-gradient(160deg, ${accentColor}, #111827)`,
-              color: '#fff',
-              boxShadow: '0 12px 24px rgba(15,23,42,0.18)',
-            }}>
-              <BookOpen size={23} />
-              <div>
-                <div style={{ fontSize: 10, fontWeight: 900, opacity: 0.82, textTransform: 'uppercase' }}>{chapters.length || toc.length || 5} chapitres</div>
-                <div style={{ marginTop: 4, fontSize: 12, lineHeight: 1.15, fontWeight: 900 }}>{normalizeMetaText(cover.cover_title || ebook.title || 'Guide offert')}</div>
+        {/* cover image — always shown, gradient fallback if not yet generated */}
+        <div style={{ width: 76, height: 108, borderRadius: 8, overflow: 'hidden', flexShrink: 0, boxShadow: '0 8px 20px rgba(15,23,42,0.16)' }}>
+          {coverImg
+            ? <img src={coverImg} alt={title} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+            : <div style={{ width: '100%', height: '100%', background: `linear-gradient(160deg, ${accentColor}, #0f172a)`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <BookOpen size={26} color="rgba(255,255,255,.7)" />
               </div>
-            </div>
-          );
-        })()}
+          }
+        </div>
       </div>
 
+      {/* CTA */}
       <button
         type="button"
         onClick={onOrder}
         style={{
-          width: '100%',
-          minHeight: 44,
-          marginTop: 14,
-          border: 'none',
+          width: '100%', minHeight: 44, border: 'none',
           borderRadius: 'var(--pp-card-radius)',
-          background: accentColor,
-          color: '#fff',
-          display: 'inline-flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: 8,
-          fontSize: 14,
-          fontWeight: 900,
-          cursor: 'pointer',
+          background: accentColor, color: '#fff',
+          display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+          fontSize: 14, fontWeight: 900, cursor: 'pointer',
         }}
       >
         <ShoppingCart size={16} /> {buttonText}

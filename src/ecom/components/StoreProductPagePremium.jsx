@@ -155,18 +155,12 @@ const PremiumBonusEbook = ({ ebook, accent, onOrder, ctaLabel = 'Commander', pro
   if (!ebook || typeof ebook !== 'object') return null;
   const sales = ebook.sales_section || {};
   const cover = ebook.cover || {};
-  const toc = asArray(ebook.table_of_contents);
-  const chapters = asArray(ebook.chapters);
-  const title = textValue(ebook.title || cover.cover_title, sales.headline || 'Guide bonus offert');
-  const bonusText = (textValue(sales.bonus_text, ebook.short_description || ebook.subtitle) || '').slice(0, 90);
-  const valueText = textValue(sales.value_text, ebook.estimated_value);
+  const title = textValue(ebook.title || cover.cover_title, 'Guide bonus offert');
+  const subtitle = (textValue(ebook.subtitle || ebook.short_description, sales.bonus_text) || '').slice(0, 72);
   const buttonText = textValue(sales.cta_text, ctaLabel);
-  const pdfUrl = ebook.pdf?.url || ebook.pdfUrl || ebook.digitalProduct?.pdfUrl || '';
   const coverImg = ebook.cover?.generatedImageUrl || ebook.pdf?.coverImageUrl || productImage || '';
 
-  if (!title && !bonusText && !valueText) return null;
-
-  const chapterCount = chapters.length || toc.length || 5;
+  if (!title) return null;
 
   return (
     <section className="premium-section premium-bonus">
@@ -179,20 +173,7 @@ const PremiumBonusEbook = ({ ebook, accent, onOrder, ctaLabel = 'Commander', pro
             {textValue(cover.badge_text, 'Bonus offert')}
           </div>
           <h2 className="premium-heading">{title}</h2>
-          {bonusText && <p className="premium-lead">{bonusText}</p>}
-          {valueText && <p className="premium-bonus-value">{valueText}</p>}
-
-          {toc.length > 0 && (
-            <ul className="premium-bonus-toc">
-              {toc.slice(0, 5).map((item, index) => (
-                <li key={index}>
-                  <span className="premium-bonus-toc-num">{index + 1}</span>
-                  {textValue(item.chapter_title || item.chapter_summary, `Chapitre ${index + 1}`)}
-                  <Check size={13} className="premium-bonus-toc-check" />
-                </li>
-              ))}
-            </ul>
-          )}
+          {subtitle && <p className="premium-lead">{subtitle}</p>}
 
           <div className="premium-bonus-actions">
             <button type="button" className="premium-cta premium-bonus-cta" onClick={onOrder}>
@@ -202,30 +183,21 @@ const PremiumBonusEbook = ({ ebook, accent, onOrder, ctaLabel = 'Commander', pro
           </div>
         </div>
 
-        {/* ── Right: book mockup ── */}
+        {/* ── Right: cover image ── */}
         <div className="premium-bonus-visual">
           <div className="premium-bonus-book">
             <div className="premium-bonus-book-spine" />
             <div className="premium-bonus-book-pages" />
             <div className="premium-bonus-book-cover">
               {coverImg ? (
-                <img
-                  src={coverImg}
-                  alt={textValue(cover.cover_title, ebook.title || 'Guide offert')}
-                />
+                <img src={coverImg} alt={title} />
               ) : (
                 <div className="premium-bonus-book-placeholder" style={{ background: `linear-gradient(145deg, ${accent}, color-mix(in srgb, ${accent} 60%, #000))` }}>
                   <BookOpen size={36} />
-                  <span>{textValue(cover.cover_title, ebook.title || 'Guide offert')}</span>
-                  <small>{chapterCount} chapitres</small>
                 </div>
               )}
               <div className="premium-bonus-book-ribbon">Offert</div>
             </div>
-          </div>
-          <div className="premium-bonus-badge-free">
-            <span>100%</span>
-            Gratuit
           </div>
         </div>
 

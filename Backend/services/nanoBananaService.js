@@ -14,8 +14,8 @@ import os from 'os';
 import path from 'path';
 import { spawn } from 'child_process';
 
-// Kie.ai NanoBanana Pro API
-const KIE_API_KEY = process.env.NANOBANANA_PRO_API_KEY;
+// Kie.ai NanoBanana Pro API — fallback to KIE_API_KEY if NANOBANANA_PRO_API_KEY absent
+const KIE_API_KEY = process.env.NANOBANANA_PRO_API_KEY || process.env.KIE_API_KEY;
 const KIE_BASE = 'https://api.kie.ai/api/v1/jobs';
 const KIE_UPLOAD_BASE = 'https://kieai.redpandaai.co';
 const NANOBANANA_MODEL = process.env.NANOBANANA_MODEL || 'gpt-image-2-text-to-image';
