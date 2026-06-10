@@ -922,15 +922,25 @@ JSON attendu (structure EXACTE) :
   }
 }`;
 
-  try {
-    if (KIE_API_KEY) {
+  // Each provider has its own try/catch so a 500 on Claude doesn't skip GPT5 and Groq
+
+  if (KIE_API_KEY) {
+    try {
       console.log('[EbookGen] Calling Claude Sonnet 4.6 via Kie...');
       const rawContent = await callClaudeForEbook(systemPrompt, userPrompt);
       const parsed = parseGroqJSON(rawContent || '{}');
-      if (parsed && (parsed.ebook || parsed.title)) return normalizeBonusEbook(parsed, fallback);
+      if (parsed && (parsed.ebook || parsed.title)) {
+        console.log('[EbookGen] Claude OK');
+        return normalizeBonusEbook(parsed, fallback);
+      }
+      console.warn('[EbookGen] Claude returned unparseable content, trying next provider');
+    } catch (claudeErr) {
+      console.warn('[EbookGen] Claude failed:', claudeErr.message, '— trying GPT5 via Kie...');
     }
+  }
 
-    if (isKieConfigured()) {
+  if (isKieConfigured()) {
+    try {
       const messages = [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt },
@@ -943,11 +953,19 @@ JSON attendu (structure EXACTE) :
         includeThoughts: false,
       });
       const parsed = parseGroqJSON(kie.content || '{}');
-      if (parsed) return normalizeBonusEbook(parsed, fallback);
+      if (parsed && (parsed.ebook || parsed.title)) {
+        console.log('[EbookGen] GPT5 via Kie OK');
+        return normalizeBonusEbook(parsed, fallback);
+      }
+      console.warn('[EbookGen] GPT5 via Kie returned unparseable content, trying Groq...');
+    } catch (kieErr) {
+      console.warn('[EbookGen] GPT5 via Kie failed:', kieErr.message, '— trying Groq...');
     }
+  }
 
-    const groq = getGroq();
-    if (groq) {
+  const groq = getGroq();
+  if (groq) {
+    try {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), 120000);
       try {
@@ -965,15 +983,19 @@ JSON attendu (structure EXACTE) :
           { signal: controller.signal }
         );
         const parsed = parseGroqJSON(response.choices[0]?.message?.content || '{}');
-        if (parsed) return normalizeBonusEbook(parsed, fallback);
+        if (parsed && (parsed.ebook || parsed.title)) {
+          console.log('[EbookGen] Groq OK');
+          return normalizeBonusEbook(parsed, fallback);
+        }
       } finally {
         clearTimeout(timer);
       }
+    } catch (groqErr) {
+      console.warn('[EbookGen] Groq also failed:', groqErr.message);
     }
-  } catch (error) {
-    console.warn('⚠️ Génération ebook bonus échouée, fallback local utilisé:', error.message);
   }
 
+  console.warn('[EbookGen] All providers failed — using local fallback ebook');
   return normalizeBonusEbook(fallback, fallback);
 }
 

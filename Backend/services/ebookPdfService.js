@@ -4,6 +4,7 @@ import axios from 'axios';
 import sharp from 'sharp';
 import { s3Client, R2_CONFIG, getR2PublicUrl } from '../config/r2.js';
 import { generateNanoBananaImage } from './nanoBananaService.js';
+import { generateGeminiTextToImage, isGeminiConfigured } from './geminiImageService.js';
 
 const PAGE_WIDTH = 595.28;
 const PAGE_HEIGHT = 841.89;
@@ -555,11 +556,30 @@ export function generateEbookPdfBuffer(ebook = {}, productData = {}, storeContex
   return buildPdfBuffer(doc.finish(), coverImageJpegBuffer, chapterImages);
 }
 
+// Try KIE NanoBanana first, fall back to Gemini if KIE fails (401, 500, timeout)
+async function generateImageUrl(prompt, aspectRatio) {
+  try {
+    const url = await generateNanoBananaImage(prompt, aspectRatio);
+    if (url) return url;
+  } catch (kieErr) {
+    console.warn(`[EbookPDF] KIE image failed (${kieErr.message}) — trying Gemini...`);
+  }
+  if (isGeminiConfigured()) {
+    try {
+      const url = await generateGeminiTextToImage(prompt, aspectRatio);
+      if (url) { console.log('[EbookPDF] Gemini image fallback OK'); return url; }
+    } catch (gemErr) {
+      console.warn(`[EbookPDF] Gemini image also failed: ${gemErr.message}`);
+    }
+  }
+  return null;
+}
+
 async function generateCoverImageJpeg(imagePrompt) {
   if (!imagePrompt) return { buffer: null, url: null };
   try {
     console.log('[EbookPDF] Generating cover image...');
-    const imageUrl = await generateNanoBananaImage(imagePrompt, '3:4');
+    const imageUrl = await generateImageUrl(imagePrompt, '3:4');
     if (!imageUrl) return { buffer: null, url: null };
 
     const response = await axios.get(imageUrl, { responseType: 'arraybuffer', timeout: 30000 });
@@ -579,7 +599,6 @@ async function generateCoverImageJpeg(imagePrompt) {
 }
 
 async function generateChapterIllustrations(chapters = []) {
-  // Generate at most 4 illustrations (for chapters that have illustration_prompt)
   const targets = [];
   chapters.forEach((ch, i) => {
     if (ch.illustration_prompt && targets.length < 4) {
@@ -593,7 +612,7 @@ async function generateChapterIllustrations(chapters = []) {
   await Promise.allSettled(
     targets.map(async ({ index, prompt }) => {
       try {
-        const imgUrl = await generateNanoBananaImage(prompt, '16:9');
+        const imgUrl = await generateImageUrl(prompt, '16:9');
         if (!imgUrl) return;
         const resp = await axios.get(imgUrl, { responseType: 'arraybuffer', timeout: 30000 });
         const jpeg = await sharp(Buffer.from(resp.data))
