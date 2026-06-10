@@ -849,6 +849,14 @@ export async function generateProductBonusEbook(scrapedData = {}, productData = 
     coverStyle: context.coverStyle || 'light',
   };
 
+  // Build design hints for the prompt so AI uses the chosen color & style
+  const accentHex = userOverrides.accentColor && /^#[0-9A-Fa-f]{6}$/.test(userOverrides.accentColor)
+    ? userOverrides.accentColor : null;
+  const coverStyleHint = userOverrides.coverStyle || 'light';
+  const designLine = accentHex
+    ? `Design: accent color ${accentHex}, cover style "${coverStyleHint}" — use "${accentHex}" as the first value in color_palette and reference this color in image_generation_prompt`
+    : '';
+
   const systemPrompt = `Expert ebook writer. Output ONLY valid JSON, no text before or after. Use \\n\\n between paragraphs inside JSON strings.`;
 
   const userPrompt = `Write a premium bonus ebook for this product. Return JSON only.
@@ -860,26 +868,49 @@ Problem: ${customerProblem || 'N/A'}
 Benefits: ${benefits.slice(0, 3).join(', ') || 'N/A'}
 Brand: ${compactEbookText(storeContext.shopName || 'La boutique', 80)}
 Chapters: ${requestedChapterCount}
-Language: French
+Language: French${designLine ? `\n${designLine}` : ''}
 
 Rules:
 - Exactly ${requestedChapterCount} chapters
 - chapter_content: min 500 words, multiple paragraphs (use \\n\\n), real advice, examples, steps
 - chapter_table: 3 columns, 3-5 rows relevant to chapter topic
 - key_quote: short impactful quote or stat
-- 4 chapters must have illustration_prompt (English, descriptive)
+- 4 chapters must have illustration_prompt (English, descriptive${accentHex ? `, coherent with color ${accentHex}` : ''})
 - key_points: 3-4 bullet points
 - No medical promises, no AI mention
 
 JSON structure:
-{"ebook":{"title":"...","subtitle":"...","short_description":"...","target_reader":"...","main_promise":"...","estimated_value":"Valeur X€ - Offert","cover":{"cover_title":"...","cover_subtitle":"...","badge_text":"BONUS OFFERT","author_or_brand":"...","color_palette":["#hex"],"image_generation_prompt":"detailed English prompt"},"sales_section":{"headline":"...","bonus_text":"...","value_text":"...","cta_text":"..."},"table_of_contents":[{"chapter_number":1,"chapter_title":"...","chapter_summary":"..."}],"chapters":[{"chapter_number":1,"chapter_title":"...","chapter_intro":"...","chapter_content":"para1\\n\\npara2\\n\\npara3","key_quote":"...","chapter_table":{"headers":["A","B","C"],"rows":[["a1","b1","c1"]]},"illustration_prompt":"...or null","illustration_caption":"...","key_points":["...","...","..."],"action_step":"..."}],"final_page":{"title":"...","message":"...","cta":"..."}}}`;
+{"ebook":{"title":"...","subtitle":"...","short_description":"...","target_reader":"...","main_promise":"...","estimated_value":"Valeur X€ - Offert","cover":{"cover_title":"...","cover_subtitle":"...","badge_text":"BONUS OFFERT","author_or_brand":"...","color_palette":["${accentHex || '#0D9488'}","#FFFFFF","#111827"],"image_generation_prompt":"detailed English prompt"},"sales_section":{"headline":"...","bonus_text":"...","value_text":"...","cta_text":"..."},"table_of_contents":[{"chapter_number":1,"chapter_title":"...","chapter_summary":"..."}],"chapters":[{"chapter_number":1,"chapter_title":"...","chapter_intro":"...","chapter_content":"para1\\n\\npara2\\n\\npara3","key_quote":"...","chapter_table":{"headers":["A","B","C"],"rows":[["a1","b1","c1"]]},"illustration_prompt":"...or null","illustration_caption":"...","key_points":["...","...","..."],"action_step":"..."}],"final_page":{"title":"...","message":"...","cta":"..."}}}`;
 
-  // Each provider has its own try/catch so a 500 on Claude doesn't skip GPT5 and Groq
-
-  // Helper: sleep ms
+  // Each provider has its own try/catch so a failure doesn't skip the next
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-  // ── 1. Claude Sonnet 4.6 via Kie (2 attempts, 8s apart) ─────────────────
+  // ── 1. GPT 5.4 via Kie (primary) ─────────────────────────────────────────
+  if (isKieConfigured()) {
+    try {
+      console.log('[EbookGen] GPT 5.4 via Kie...');
+      const kie = await callKieChatCompletion({
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+        temperature: 0.6,
+        maxTokens: 14000,
+        reasoningEffort: 'low',
+        includeThoughts: false,
+      });
+      const parsed = parseGroqJSON(kie.content || '{}');
+      if (parsed && (parsed.ebook || parsed.title)) {
+        console.log('[EbookGen] GPT 5.4 OK');
+        return normalizeBonusEbook(parsed, fallback, userOverrides);
+      }
+      console.warn('[EbookGen] GPT 5.4 response non parseable — passage Claude...');
+    } catch (kieErr) {
+      console.warn(`[EbookGen] GPT 5.4 échoué (${kieErr.message}) — passage Claude...`);
+    }
+  }
+
+  // ── 2. Claude Sonnet 4.6 via Kie (fallback, 2 attempts) ──────────────────
   if (KIE_API_KEY) {
     for (let attempt = 1; attempt <= 2; attempt++) {
       try {
@@ -891,43 +922,17 @@ JSON structure:
           return normalizeBonusEbook(parsed, fallback, userOverrides);
         }
         console.warn('[EbookGen] Claude response non parseable');
-        break; // contenu invalide → pas la peine de retenter
+        break;
       } catch (claudeErr) {
         const isTransient = claudeErr.message.includes('500') || claudeErr.message.includes('502') || claudeErr.message.includes('503') || claudeErr.message.includes('timeout');
         if (attempt < 2 && isTransient) {
           console.warn(`[EbookGen] Claude erreur transitoire (${claudeErr.message}) — retry dans 8s...`);
           await sleep(8000);
         } else {
-          console.warn(`[EbookGen] Claude échoué (${claudeErr.message}) — passage GPT5 Kie...`);
+          console.warn(`[EbookGen] Claude échoué (${claudeErr.message}) — passage Groq...`);
           break;
         }
       }
-    }
-  }
-
-  // ── 2. GPT5 via Kie ──────────────────────────────────────────────────────
-  if (isKieConfigured()) {
-    try {
-      console.log('[EbookGen] GPT5 via Kie...');
-      const messages = [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
-      ];
-      const kie = await callKieChatCompletion({
-        messages,
-        temperature: 0.62,
-        maxTokens: 12000,
-        reasoningEffort: 'low',
-        includeThoughts: false,
-      });
-      const parsed = parseGroqJSON(kie.content || '{}');
-      if (parsed && (parsed.ebook || parsed.title)) {
-        console.log('[EbookGen] GPT5 OK');
-        return normalizeBonusEbook(parsed, fallback, userOverrides);
-      }
-      console.warn('[EbookGen] GPT5 response non parseable — passage Groq...');
-    } catch (kieErr) {
-      console.warn(`[EbookGen] GPT5 échoué (${kieErr.message}) — passage Groq...`);
     }
   }
 
