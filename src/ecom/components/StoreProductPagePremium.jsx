@@ -162,6 +162,7 @@ const PremiumBonusEbook = ({ ebook, accent, onOrder, ctaLabel = 'Commander' }) =
   const valueText = textValue(sales.value_text, ebook.estimated_value);
   const buttonText = textValue(sales.cta_text, ctaLabel);
   const pdfUrl = ebook.pdf?.url || ebook.pdfUrl || ebook.digitalProduct?.pdfUrl || '';
+  const coverImg = ebook.cover?.generatedImageUrl || ebook.pdf?.coverImageUrl || '';
 
   if (!title && !bonusText && !valueText) return null;
 
@@ -175,7 +176,7 @@ const PremiumBonusEbook = ({ ebook, accent, onOrder, ctaLabel = 'Commander' }) =
           {valueText && <p className="premium-bonus-value">{valueText}</p>}
           {toc.length > 0 && (
             <div className="premium-bonus-toc">
-              {toc.slice(0, 4).map((item, index) => (
+              {toc.slice(0, 5).map((item, index) => (
                 <span key={index}><Check size={13} />{textValue(item.chapter_title || item.chapter_summary, `Chapitre ${index + 1}`)}</span>
               ))}
             </div>
@@ -198,10 +199,20 @@ const PremiumBonusEbook = ({ ebook, accent, onOrder, ctaLabel = 'Commander' }) =
             </a>
           )}
         </div>
-        <div className="premium-bonus-cover" style={{ background: `linear-gradient(160deg, ${accent}, #111827)` }}>
-          <BookOpen size={34} />
-          <span>{textValue(cover.cover_title, ebook.title || 'Guide offert')}</span>
-          <small>{chapters.length || toc.length || 5} chapitres</small>
+        <div className="premium-bonus-cover" style={coverImg ? {} : { background: `linear-gradient(160deg, ${accent}, #111827)` }}>
+          {coverImg ? (
+            <img
+              src={coverImg}
+              alt={textValue(cover.cover_title, ebook.title || 'Guide offert')}
+              style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 12, display: 'block' }}
+            />
+          ) : (
+            <>
+              <BookOpen size={34} />
+              <span>{textValue(cover.cover_title, ebook.title || 'Guide offert')}</span>
+              <small>{chapters.length || toc.length || 5} chapitres</small>
+            </>
+          )}
         </div>
       </div>
     </section>

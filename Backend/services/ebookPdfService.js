@@ -19,6 +19,18 @@ const cleanText = (value = '', max = 5000) => String(value || '')
   .trim()
   .slice(0, max);
 
+// Preserves paragraph breaks (for chapter body content)
+const cleanBlock = (value = '', max = 9000) => String(value || '')
+  .replace(/<br\s*\/?>/gi, '\n')
+  .replace(/<\/p>/gi, '\n\n')
+  .replace(/<[^>]+>/g, ' ')
+  .replace(/&nbsp;/g, ' ')
+  .replace(/&amp;/g, '&')
+  .replace(/[^\S\n]+/g, ' ')
+  .replace(/\n{3,}/g, '\n\n')
+  .trim()
+  .slice(0, max);
+
 const slugify = (value = 'ebook') => cleanText(value, 120)
   .normalize('NFD')
   .replace(/[\u0300-\u036f]/g, '')
@@ -84,11 +96,23 @@ function createPdfDocument() {
   const pages = [];
   let current = '';
   let y = TOP_Y;
+  let pageNumber = 0;
+  let skipNextPageNumber = false;
 
-  const addPage = () => {
-    if (current) pages.push(current);
+  const addPage = (opts = {}) => {
+    if (current) {
+      // Add page number at bottom center — skip cover (pageNumber === 0) and flagged pages
+      if (pageNumber > 0 && !skipNextPageNumber) {
+        const pnText = hexText(String(pageNumber + 1));
+        const pnX = (PAGE_WIDTH / 2 - 8).toFixed(2);
+        current += `0.600 0.620 0.660 rg\nBT /F1 9 Tf ${pnX} 28.00 Td ${pnText} Tj ET\n`;
+      }
+      pages.push(current);
+    }
+    skipNextPageNumber = opts.skipPageNumber || false;
     current = '';
     y = TOP_Y;
+    pageNumber++;
   };
 
   const ensure = (height = 24) => {
@@ -125,7 +149,7 @@ function createPdfDocument() {
     y -= gap;
   };
 
-  const pageBreak = () => addPage();
+  const pageBreak = (opts) => addPage(opts);
 
   return {
     pages,
@@ -141,9 +165,17 @@ function createPdfDocument() {
       current += `q ${PAGE_WIDTH.toFixed(2)} 0 0 ${PAGE_HEIGHT.toFixed(2)} 0 0 cm /CoverImg Do Q\n`;
     },
     finish: () => {
-      if (current) pages.push(current);
+      if (current) {
+        if (pageNumber > 0 && !skipNextPageNumber) {
+          const pnText = hexText(String(pageNumber + 1));
+          const pnX = (PAGE_WIDTH / 2 - 8).toFixed(2);
+          current += `0.600 0.620 0.660 rg\nBT /F1 9 Tf ${pnX} 28.00 Td ${pnText} Tj ET\n`;
+        }
+        pages.push(current);
+      }
       return pages;
     },
+    getPageNumber: () => pageNumber,
   };
 }
 
@@ -315,8 +347,8 @@ export function generateEbookPdfBuffer(ebook = {}, productData = {}, storeContex
       doc.setY(doc.getY() - 16);
     }
 
-    // Contenu principal
-    const content = cleanText(chapter.chapter_content || chapter.content || chapter.chapter_summary || '', 8000);
+    // Contenu principal (preserve paragraph breaks)
+    const content = cleanBlock(chapter.chapter_content || chapter.content || chapter.chapter_summary || '', 9000);
     if (content) {
       doc.textBlock(content, { size: 12, color: [0.15, 0.18, 0.25], gap: 10, leading: 20 });
     }
@@ -329,6 +361,8 @@ export function generateEbookPdfBuffer(ebook = {}, productData = {}, storeContex
       keyPoints.forEach((point) => {
         const pt = cleanText(typeof point === 'string' ? point : String(point || ''), 280);
         if (pt) {
+          // Ensure space before drawing bullet + text together
+          if (doc.getY() - 36 < MARGIN_BOTTOM) doc.pageBreak();
           const ptY = doc.getY();
           doc.line('>', MARGIN_X, ptY, 12, 'F2', accent);
           doc.textBlock(pt, { size: 12, color: dark, gap: 5, leading: 18, x: MARGIN_X + 14, width: PAGE_WIDTH - (MARGIN_X * 2) - 14 });
@@ -347,7 +381,7 @@ export function generateEbookPdfBuffer(ebook = {}, productData = {}, storeContex
 
   // ── Page finale ──────────────────────────────────────────────────
   if (ebook.final_page?.title || ebook.final_page?.message || ebook.final_page?.cta) {
-    doc.pageBreak();
+    doc.pageBreak({ skipPageNumber: true });
     doc.rect(0, 0, PAGE_WIDTH, PAGE_HEIGHT, accent);
     const finalTitle = cleanText(ebook.final_page.title || 'Merci pour votre confiance', 160);
     const finalMsg = cleanText(ebook.final_page.message || '', 600);
@@ -369,32 +403,31 @@ export function generateEbookPdfBuffer(ebook = {}, productData = {}, storeContex
 }
 
 async function generateCoverImageJpeg(imagePrompt) {
-  if (!imagePrompt) return null;
+  if (!imagePrompt) return { buffer: null, url: null };
   try {
     console.log('[EbookPDF] Generating cover image...');
     const imageUrl = await generateNanoBananaImage(imagePrompt, '3:4');
-    if (!imageUrl) return null;
+    if (!imageUrl) return { buffer: null, url: null };
 
     const response = await axios.get(imageUrl, { responseType: 'arraybuffer', timeout: 30000 });
     const rawBuffer = Buffer.from(response.data);
 
-    // Resize/convert to exact PDF page dimensions as JPEG
     const jpegBuffer = await sharp(rawBuffer)
       .resize(595, 842, { fit: 'cover', position: 'centre' })
       .jpeg({ quality: 88 })
       .toBuffer();
 
     console.log(`[EbookPDF] Cover image ready: ${Math.round(jpegBuffer.length / 1024)}KB`);
-    return jpegBuffer;
+    return { buffer: jpegBuffer, url: imageUrl };
   } catch (err) {
     console.warn('[EbookPDF] Cover image generation failed, using text-only cover:', err.message);
-    return null;
+    return { buffer: null, url: null };
   }
 }
 
 export async function createAndStoreEbookPdf({ ebook = {}, productData = {}, storeContext = {}, workspaceId = '', userId = '' } = {}) {
   const imagePrompt = ebook.cover?.image_generation_prompt || null;
-  const coverImageJpegBuffer = await generateCoverImageJpeg(imagePrompt);
+  const { buffer: coverImageJpegBuffer, url: coverImageUrl } = await generateCoverImageJpeg(imagePrompt);
   const pdfBuffer = generateEbookPdfBuffer(ebook, productData, storeContext, coverImageJpegBuffer);
   const fileName = `${slugify(ebook.title || productData.title || productData.name || 'ebook')}.pdf`;
   const generatedAt = new Date().toISOString();
@@ -406,6 +439,7 @@ export async function createAndStoreEbookPdf({ ebook = {}, productData = {}, sto
       mimeType: 'application/pdf',
       size: pdfBuffer.length,
       storage: 'inline',
+      coverImageUrl: coverImageUrl || null,
       generatedAt,
     };
   }
@@ -437,6 +471,7 @@ export async function createAndStoreEbookPdf({ ebook = {}, productData = {}, sto
       size: pdfBuffer.length,
       storageKey,
       storage: 'r2',
+      coverImageUrl: coverImageUrl || null,
       generatedAt,
     };
   } catch (error) {
@@ -447,6 +482,7 @@ export async function createAndStoreEbookPdf({ ebook = {}, productData = {}, sto
       mimeType: 'application/pdf',
       size: pdfBuffer.length,
       storage: 'inline-fallback',
+      coverImageUrl: coverImageUrl || null,
       generatedAt,
     };
   }

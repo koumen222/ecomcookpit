@@ -202,10 +202,7 @@ export function securityHeaders(req, res, next) {
   res.setHeader('X-XSS-Protection', '1; mode=block');
   // Empêcher le clickjacking (SAMEORIGIN permet l'iframe du builder)
   res.setHeader('X-Frame-Options', 'SAMEORIGIN');
-  // COOP must be absent (unsafe-none) for Google Sign-In popup postMessage to work.
-  // same-origin-allow-popups still breaks it in Chrome 92+ because the Google popup
-  // itself sets COOP: same-origin, making window.opener null on both sides.
-  res.removeHeader('Cross-Origin-Opener-Policy');
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
   // Strict Transport Security — toujours envoyé (Cloudflare/Railway gère HTTPS)
   res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
   // Referrer Policy

@@ -2313,6 +2313,7 @@ router.post('/tasks/:id/digital-product', requireEcomAuth, validateEcomAccess('p
       userId: req.ecomUser?._id,
     });
     ebook.pdf = pdf;
+    if (pdf.coverImageUrl) ebook.cover = { ...(ebook.cover || {}), generatedImageUrl: pdf.coverImageUrl };
     const addAsOffer = shouldAddDigitalProductAsOffer(brief);
     const digitalProduct = buildDigitalProductMeta(ebook, pdf, { offerEnabled: addAsOffer });
     const nextProductPageConfig = addAsOffer
