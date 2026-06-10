@@ -292,6 +292,7 @@ const SuperAdminDashboard = () => {
   const kpis            = overview?.kpis   || {};
   const trends          = overview?.trends || {};
   const dailySessions   = trends.dailySessions || [];
+  const dailySignups    = trends.dailySignups  || [];
 
   // Prefer backend-computed totals; fall back to client-side aggregation
   const totalMembers  = workspaceSummary.totalMembers || workspaces.reduce((s, w) => s + (w.memberCount || 0), 0);
@@ -404,12 +405,12 @@ const SuperAdminDashboard = () => {
 
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.35fr_0.65fr]">
           <Panel>
-            <SH icon={Activity} title="Trafic" subtitle={`Sessions quotidiennes sur ${rangeLabel}`} color="#2563eb">
+            <SH icon={Activity} title="Inscriptions" subtitle={`Nouveaux utilisateurs par jour sur ${rangeLabel}`} color="#2563eb">
               <span className="text-xs font-semibold text-slate-500">
-                {(kpis.totalPageViews ?? 0).toLocaleString()} pages vues
+                {(kpis.signups ?? 0).toLocaleString()} inscriptions sur la période
               </span>
             </SH>
-            <AreaChart data={dailySessions} dataKey="sessions" color="#2563eb" h={210} />
+            <AreaChart data={dailySignups} dataKey="count" color="#2563eb" h={210} />
           </Panel>
 
           <Panel>
