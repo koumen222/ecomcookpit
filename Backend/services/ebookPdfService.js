@@ -10,6 +10,8 @@ const PAGE_HEIGHT = 841.89;
 const MARGIN_X = 54;
 const MARGIN_BOTTOM = 58;
 const TOP_Y = 775;
+const IMG_INLINE_W = PAGE_WIDTH - MARGIN_X * 2;   // 487.28
+const IMG_INLINE_H = Math.round(IMG_INLINE_W * 9 / 16); // ~274
 
 const cleanText = (value = '', max = 5000) => String(value || '')
   .replace(/<[^>]+>/g, ' ')
@@ -19,7 +21,6 @@ const cleanText = (value = '', max = 5000) => String(value || '')
   .trim()
   .slice(0, max);
 
-// Preserves paragraph breaks (for chapter body content)
 const cleanBlock = (value = '', max = 9000) => String(value || '')
   .replace(/<br\s*\/?>/gi, '\n')
   .replace(/<\/p>/gi, '\n\n')
@@ -33,14 +34,14 @@ const cleanBlock = (value = '', max = 9000) => String(value || '')
 
 const slugify = (value = 'ebook') => cleanText(value, 120)
   .normalize('NFD')
-  .replace(/[\u0300-\u036f]/g, '')
+  .replace(/[̀-ͯ]/g, '')
   .toLowerCase()
   .replace(/[^a-z0-9]+/g, '-')
   .replace(/^-|-$/g, '')
   .slice(0, 80) || 'ebook';
 
 const hexText = (value = '') => {
-  const bytes = Buffer.from(`\uFEFF${String(value)}`, 'utf16le');
+  const bytes = Buffer.from(`﻿${String(value)}`, 'utf16le');
   for (let i = 0; i < bytes.length; i += 2) {
     const current = bytes[i];
     bytes[i] = bytes[i + 1];
@@ -92,6 +93,96 @@ function wrapText(text = '', fontSize = 12, width = PAGE_WIDTH - (MARGIN_X * 2))
   return lines;
 }
 
+// ── Key quote / stat callout box ────────────────────────────────────────────
+function drawKeyQuote(doc, quote, accent) {
+  if (!quote) return;
+  const q = cleanText(quote, 320);
+  if (!q) return;
+  const textW = PAGE_WIDTH - MARGIN_X * 2 - 28;
+  const qLines = wrapText(`" ${q} "`, 12.5, textW).filter(Boolean);
+  if (!qLines.length) return;
+  const padY = 13;
+  const leading = 19;
+  const boxH = qLines.length * leading + padY * 2;
+  if (doc.getY() - boxH - 10 < MARGIN_BOTTOM) doc.pageBreak();
+  const topY = doc.getY();
+  const botY = topY - boxH;
+  const [r, g, b] = accent;
+  // Light tinted background
+  doc.rect(MARGIN_X, botY, PAGE_WIDTH - MARGIN_X * 2, boxH, [r * 0.10 + 0.90, g * 0.10 + 0.90, b * 0.10 + 0.90]);
+  // Left accent bar (4px)
+  doc.rect(MARGIN_X, botY, 4, boxH, accent);
+  // Quote text
+  qLines.forEach((ln, i) => {
+    doc.line(ln, MARGIN_X + 14, topY - padY - i * leading, 12.5, 'F2', accent);
+  });
+  doc.setY(botY - 14);
+}
+
+// ── Table renderer ──────────────────────────────────────────────────────────
+function drawTable(doc, headers, rows, accent) {
+  if (!headers?.length || !rows?.length) return;
+  const colCount = headers.length;
+  const totalW = PAGE_WIDTH - MARGIN_X * 2;
+  const colW = totalW / colCount;
+  const cellPadX = 7;
+  const cellPadY = 9;
+  const fontSize = 10;
+  const leading = 15;
+  const headerH = leading + cellPadY * 2;
+  if (doc.getY() - headerH * 3 < MARGIN_BOTTOM) doc.pageBreak();
+
+  // Header row
+  let topY = doc.getY();
+  doc.rect(MARGIN_X, topY - headerH, totalW, headerH, accent);
+  headers.forEach((hdr, ci) => {
+    doc.line(
+      cleanText(String(hdr || ''), 80),
+      MARGIN_X + ci * colW + cellPadX,
+      topY - cellPadY,
+      fontSize, 'F2', [1, 1, 1]
+    );
+  });
+  topY -= headerH;
+  doc.setY(topY);
+
+  // Data rows
+  rows.forEach((row, ri) => {
+    const cells = Array.isArray(row) ? row : [];
+    const wrapped = cells.map(cell =>
+      wrapText(cleanText(String(cell || ''), 260), fontSize, colW - cellPadX * 2).filter(Boolean)
+    );
+    const maxLines = Math.max(1, ...wrapped.map(l => l.length));
+    const rowH = maxLines * leading + cellPadY * 2;
+    if (topY - rowH < MARGIN_BOTTOM) { doc.pageBreak(); topY = doc.getY(); }
+    const rowBg = ri % 2 === 0 ? [0.95, 0.96, 0.975] : [1, 1, 1];
+    doc.rect(MARGIN_X, topY - rowH, totalW, rowH, rowBg);
+    wrapped.forEach((lines, ci) => {
+      lines.forEach((ln, li) => {
+        doc.line(ln, MARGIN_X + ci * colW + cellPadX, topY - cellPadY - li * leading, fontSize, 'F1', [0.12, 0.14, 0.20]);
+      });
+    });
+    topY -= rowH;
+    doc.setY(topY);
+    // Thin bottom separator
+    doc.rect(MARGIN_X, topY, totalW, 0.5, [0.82, 0.84, 0.88]);
+  });
+  doc.setY(doc.getY() - 16);
+}
+
+// ── Inline chapter illustration ─────────────────────────────────────────────
+function drawChapterImage(doc, chapterIndex, caption) {
+  const neededH = IMG_INLINE_H + 30;
+  if (doc.getY() - neededH < MARGIN_BOTTOM) doc.pageBreak();
+  const imgBottomY = doc.getY() - IMG_INLINE_H;
+  // Rounded rectangle placeholder bg in case image fails (not rendered but XObject may be absent)
+  doc.raw(`q ${IMG_INLINE_W.toFixed(2)} 0 0 ${IMG_INLINE_H.toFixed(2)} ${MARGIN_X.toFixed(2)} ${imgBottomY.toFixed(2)} cm /CI${chapterIndex} Do Q\n`);
+  doc.setY(imgBottomY - 6);
+  const cap = cleanText(caption || 'Illustration', 120);
+  doc.line(cap, MARGIN_X, doc.getY(), 9, 'F1', [0.55, 0.58, 0.65]);
+  doc.setY(doc.getY() - 18);
+}
+
 function createPdfDocument() {
   const pages = [];
   let current = '';
@@ -101,7 +192,6 @@ function createPdfDocument() {
 
   const addPage = (opts = {}) => {
     if (current) {
-      // Add page number at bottom center — skip cover (pageNumber === 0) and flagged pages
       if (pageNumber > 0 && !skipNextPageNumber) {
         const pnText = hexText(String(pageNumber + 1));
         const pnX = (PAGE_WIDTH / 2 - 8).toFixed(2);
@@ -161,6 +251,7 @@ function createPdfDocument() {
     pageBreak,
     getY: () => y,
     setY: (nextY) => { y = nextY; },
+    raw: (cmd) => { current += cmd; },
     addCoverImageCmd: () => {
       current += `q ${PAGE_WIDTH.toFixed(2)} 0 0 ${PAGE_HEIGHT.toFixed(2)} 0 0 cm /CoverImg Do Q\n`;
     },
@@ -179,44 +270,50 @@ function createPdfDocument() {
   };
 }
 
-function buildPdfBuffer(pageContents = [], coverImageJpegBuffer = null) {
+// chapterImages: Array indexed by chapter — null | { buffer, width, height }
+function buildPdfBuffer(pageContents = [], coverImageJpegBuffer = null, chapterImages = []) {
+  // Build ordered list of all image XObjects
+  const imageXObjects = [];
+  if (coverImageJpegBuffer?.length) {
+    imageXObjects.push({ name: 'CoverImg', buffer: coverImageJpegBuffer, width: 595, height: 842 });
+  }
+  (chapterImages || []).forEach((img, i) => {
+    if (img?.buffer?.length) {
+      imageXObjects.push({ name: `CI${i}`, buffer: img.buffer, width: img.width || 487, height: img.height || 274 });
+    }
+  });
+
   const objects = [];
-  const addObject = (body) => {
-    objects.push(body);
-    return objects.length;
-  };
+  const addObject = (body) => { objects.push(body); return objects.length; };
 
   addObject('<< /Type /Catalog /Pages 2 0 R >>');
   addObject('PAGES_PLACEHOLDER');
   addObject('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>');
   addObject('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>');
 
-  // Embed cover image as XObject (object 5) if provided
-  let hasCoverImage = false;
-  if (coverImageJpegBuffer && Buffer.isBuffer(coverImageJpegBuffer) && coverImageJpegBuffer.length > 0) {
-    hasCoverImage = true;
-    // Raw binary JPEG stream — width/height from buffer parsed elsewhere
-    objects.push(`<< /Type /XObject /Subtype /Image /Width 595 /Height 842 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${coverImageJpegBuffer.length} >>\nstream\nCOVER_IMAGE_PLACEHOLDerendstream`);
-  }
+  // One PDF object per image XObject (objects 5, 6, 7, ...)
+  const imgObjNums = {};
+  imageXObjects.forEach((img, i) => {
+    imgObjNums[img.name] = 5 + i;
+    objects.push(`IMG_BINARY:${img.name}`); // replaced with binary during build
+  });
+
+  // All pages share the same XObject resource dict (covers cover + all chapter images)
+  const xObjEntries = Object.entries(imgObjNums).map(([n, num]) => `/${n} ${num} 0 R`).join(' ');
+  const xObjRes = xObjEntries ? `/XObject << ${xObjEntries} >>` : '';
 
   const kids = [];
-  pageContents.forEach((content, pageIndex) => {
-    const pageObjectNumber = objects.length + 1;
-    const contentObjectNumber = objects.length + 2;
-    kids.push(`${pageObjectNumber} 0 R`);
-
-    // First page: add cover image XObject to resources if present
-    if (pageIndex === 0 && hasCoverImage) {
-      addObject(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PAGE_WIDTH} ${PAGE_HEIGHT}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> /XObject << /CoverImg 5 0 R >> >> /Contents ${contentObjectNumber} 0 R >>`);
-    } else {
-      addObject(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PAGE_WIDTH} ${PAGE_HEIGHT}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ${contentObjectNumber} 0 R >>`);
-    }
+  pageContents.forEach((content, _pageIndex) => {
+    const pageObjNum = objects.length + 1;
+    const contentObjNum = objects.length + 2;
+    kids.push(`${pageObjNum} 0 R`);
+    addObject(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PAGE_WIDTH} ${PAGE_HEIGHT}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> ${xObjRes} >> /Contents ${contentObjNum} 0 R >>`);
     addObject(`<< /Length ${Buffer.byteLength(content, 'utf8')} >>\nstream\n${content}endstream`);
   });
 
   objects[1] = `<< /Type /Pages /Kids [${kids.join(' ')}] /Count ${kids.length} >>`;
 
-  // Build binary PDF — cover image must be embedded as raw binary
+  // Binary assembly
   const headerStr = '%PDF-1.4\n%\xE2\xE3\xCF\xD3\n';
   const parts = [Buffer.from(headerStr, 'binary')];
   const offsets = [0];
@@ -224,13 +321,13 @@ function buildPdfBuffer(pageContents = [], coverImageJpegBuffer = null) {
   objects.forEach((body, index) => {
     offsets.push(parts.reduce((sum, p) => sum + p.length, 0));
     const objNum = index + 1;
-    if (hasCoverImage && index === 4) {
-      // Object 5: embed raw JPEG binary
-      const prefix = `${objNum} 0 obj\n<< /Type /XObject /Subtype /Image /Width 595 /Height 842 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${coverImageJpegBuffer.length} >>\nstream\n`;
-      const suffix = `\nendstream\nendobj\n`;
+    if (typeof body === 'string' && body.startsWith('IMG_BINARY:')) {
+      const imgName = body.slice('IMG_BINARY:'.length);
+      const img = imageXObjects.find(x => x.name === imgName);
+      const prefix = `${objNum} 0 obj\n<< /Type /XObject /Subtype /Image /Width ${img.width} /Height ${img.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${img.buffer.length} >>\nstream\n`;
       parts.push(Buffer.from(prefix, 'binary'));
-      parts.push(coverImageJpegBuffer);
-      parts.push(Buffer.from(suffix, 'binary'));
+      parts.push(img.buffer);
+      parts.push(Buffer.from('\nendstream\nendobj\n', 'binary'));
     } else {
       parts.push(Buffer.from(`${objNum} 0 obj\n${body}\nendobj\n`, 'binary'));
     }
@@ -248,7 +345,8 @@ function buildPdfBuffer(pageContents = [], coverImageJpegBuffer = null) {
   return Buffer.concat(parts);
 }
 
-export function generateEbookPdfBuffer(ebook = {}, productData = {}, storeContext = {}, coverImageJpegBuffer = null) {
+// chapterImages: Array indexed by chapter — null | { buffer, width, height }
+export function generateEbookPdfBuffer(ebook = {}, productData = {}, storeContext = {}, coverImageJpegBuffer = null, chapterImages = []) {
   const doc = createPdfDocument();
   const cover = ebook.cover || {};
   const palette = Array.isArray(cover.color_palette) && cover.color_palette[0] ? cover.color_palette[0] : '#0F766E';
@@ -260,15 +358,12 @@ export function generateEbookPdfBuffer(ebook = {}, productData = {}, storeContex
   const brand = cleanText(cover.author_or_brand || storeContext.shopName || 'Scalor', 90);
   const productName = cleanText(productData.title || productData.name || '', 140);
 
+  // ── Page 1 : Couverture ──────────────────────────────────────────────────
   if (coverImageJpegBuffer) {
-    // Full-page cover image with dark overlay for text legibility
     doc.addCoverImageCmd();
-    // Dark overlay on bottom 55% of page for text legibility
     doc.rect(0, 0, PAGE_WIDTH, PAGE_HEIGHT * 0.55, [0.05, 0.07, 0.12]);
-    // Dark gradient strip at top for badge
     doc.rect(0, PAGE_HEIGHT - 70, PAGE_WIDTH, 70, [0.04, 0.06, 0.12]);
   } else {
-    // Fallback: solid colored header band
     doc.rect(0, PAGE_HEIGHT - 190, PAGE_WIDTH, 190, accent);
   }
 
@@ -285,7 +380,7 @@ export function generateEbookPdfBuffer(ebook = {}, productData = {}, storeContex
   doc.line(brand, MARGIN_X, 95, 12, 'F2', coverImageJpegBuffer ? [1, 1, 1] : dark);
   doc.line(`Genere le ${new Date(ebook.generatedAt || Date.now()).toLocaleDateString('fr-FR')}`, MARGIN_X, 76, 10, 'F1', coverImageJpegBuffer ? [0.75, 0.78, 0.82] : soft);
 
-  // ── Page 2 : À propos de cet ebook ──────────────────────────────
+  // ── Page 2 : À propos ────────────────────────────────────────────────────
   doc.pageBreak();
   doc.rect(0, PAGE_HEIGHT - 8, PAGE_WIDTH, 8, accent);
   doc.heading('A propos de cet ebook', { size: 22, color: dark, gap: 14 });
@@ -302,7 +397,7 @@ export function generateEbookPdfBuffer(ebook = {}, productData = {}, storeContex
     doc.textBlock(`[ ${ebook.estimated_value} ]`, { size: 13, font: 'F2', color: accent, gap: 6 });
   }
 
-  // ── Page 3 : Sommaire ────────────────────────────────────────────
+  // ── Page 3 : Sommaire ────────────────────────────────────────────────────
   const toc = Array.isArray(ebook.table_of_contents) ? ebook.table_of_contents : [];
   if (toc.length) {
     doc.pageBreak();
@@ -313,25 +408,23 @@ export function generateEbookPdfBuffer(ebook = {}, productData = {}, storeContex
       const chapterTitle = cleanText(item.chapter_title || `Chapitre ${num}`, 180);
       const summary = cleanText(item.chapter_summary || '', 260);
       const rowY = doc.getY();
-      // Numéro en accent + titre en gras sur la même ligne
       doc.line(`${String(num).padStart(2, '0')}.`, MARGIN_X, rowY, 13, 'F2', accent);
       doc.line(chapterTitle, MARGIN_X + 28, rowY, 13, 'F2', dark);
       doc.setY(rowY - 20);
       if (summary) doc.textBlock(summary, { size: 11, color: soft, gap: 2, leading: 15, x: MARGIN_X + 28 });
-      // Séparateur léger
       doc.rect(MARGIN_X, doc.getY() - 2, PAGE_WIDTH - (MARGIN_X * 2), 0.5, [0.88, 0.90, 0.92]);
       doc.setY(doc.getY() - 12);
     });
   }
 
-  // ── Chapitres ────────────────────────────────────────────────────
+  // ── Chapitres ────────────────────────────────────────────────────────────
   const chapters = Array.isArray(ebook.chapters) ? ebook.chapters : [];
   chapters.forEach((chapter, index) => {
     doc.pageBreak();
     const num = chapter.chapter_number || index + 1;
     const chapterTitle = cleanText(chapter.chapter_title || `Chapitre ${num}`, 180);
 
-    // Bande colorée header de chapitre
+    // Bande colorée en-tête de chapitre
     doc.rect(0, PAGE_HEIGHT - 110, PAGE_WIDTH, 110, accent);
     doc.line(`CHAPITRE ${num}`, MARGIN_X, PAGE_HEIGHT - 30, 11, 'F2', [0.8, 0.88, 0.92]);
     wrapText(chapterTitle, 22, PAGE_WIDTH - (MARGIN_X * 2)).slice(0, 2).forEach((entry, i) => {
@@ -339,7 +432,7 @@ export function generateEbookPdfBuffer(ebook = {}, productData = {}, storeContex
     });
     doc.setY(PAGE_HEIGHT - 130);
 
-    // Intro du chapitre
+    // Intro (bold accroche)
     const intro = cleanText(chapter.chapter_intro || '', 400);
     if (intro) {
       doc.textBlock(intro, { size: 13, font: 'F2', color: [0.14, 0.18, 0.28], gap: 16, leading: 21 });
@@ -347,13 +440,32 @@ export function generateEbookPdfBuffer(ebook = {}, productData = {}, storeContex
       doc.setY(doc.getY() - 16);
     }
 
-    // Contenu principal (preserve paragraph breaks)
+    // Illustration inline (si générée)
+    const chapterImg = Array.isArray(chapterImages) ? chapterImages[index] : null;
+    if (chapterImg?.buffer) {
+      drawChapterImage(doc, index, chapter.illustration_caption || `Illustration - ${chapterTitle}`);
+    }
+
+    // Contenu principal (paragraphes préservés)
     const content = cleanBlock(chapter.chapter_content || chapter.content || chapter.chapter_summary || '', 9000);
     if (content) {
       doc.textBlock(content, { size: 12, color: [0.15, 0.18, 0.25], gap: 10, leading: 20 });
     }
 
-    // Points clés (key_points)
+    // Tableau récapitulatif (chapter_table)
+    const chTable = chapter.chapter_table;
+    if (chTable?.headers?.length && chTable?.rows?.length) {
+      doc.setY(doc.getY() - 6);
+      doc.textBlock('Tableau recapitulatif :', { size: 11, font: 'F2', color: accent, gap: 8 });
+      drawTable(doc, chTable.headers, chTable.rows, accent);
+    }
+
+    // Citation / stat clé (key_quote)
+    if (chapter.key_quote) {
+      drawKeyQuote(doc, chapter.key_quote, accent);
+    }
+
+    // Points clés
     const keyPoints = Array.isArray(chapter.key_points) ? chapter.key_points : [];
     if (keyPoints.length) {
       doc.setY(doc.getY() - 8);
@@ -361,7 +473,6 @@ export function generateEbookPdfBuffer(ebook = {}, productData = {}, storeContex
       keyPoints.forEach((point) => {
         const pt = cleanText(typeof point === 'string' ? point : String(point || ''), 280);
         if (pt) {
-          // Ensure space before drawing bullet + text together
           if (doc.getY() - 36 < MARGIN_BOTTOM) doc.pageBreak();
           const ptY = doc.getY();
           doc.line('>', MARGIN_X, ptY, 12, 'F2', accent);
@@ -379,7 +490,7 @@ export function generateEbookPdfBuffer(ebook = {}, productData = {}, storeContex
     }
   });
 
-  // ── Page finale ──────────────────────────────────────────────────
+  // ── Page finale ──────────────────────────────────────────────────────────
   if (ebook.final_page?.title || ebook.final_page?.message || ebook.final_page?.cta) {
     doc.pageBreak({ skipPageNumber: true });
     doc.rect(0, 0, PAGE_WIDTH, PAGE_HEIGHT, accent);
@@ -399,7 +510,7 @@ export function generateEbookPdfBuffer(ebook = {}, productData = {}, storeContex
     doc.line(brand, MARGIN_X, 80, 12, 'F2', [1, 1, 1]);
   }
 
-  return buildPdfBuffer(doc.finish(), coverImageJpegBuffer);
+  return buildPdfBuffer(doc.finish(), coverImageJpegBuffer, chapterImages);
 }
 
 async function generateCoverImageJpeg(imagePrompt) {
@@ -417,18 +528,58 @@ async function generateCoverImageJpeg(imagePrompt) {
       .jpeg({ quality: 88 })
       .toBuffer();
 
-    console.log(`[EbookPDF] Cover image ready: ${Math.round(jpegBuffer.length / 1024)}KB`);
+    console.log(`[EbookPDF] Cover ready: ${Math.round(jpegBuffer.length / 1024)}KB`);
     return { buffer: jpegBuffer, url: imageUrl };
   } catch (err) {
-    console.warn('[EbookPDF] Cover image generation failed, using text-only cover:', err.message);
+    console.warn('[EbookPDF] Cover generation failed:', err.message);
     return { buffer: null, url: null };
   }
 }
 
+async function generateChapterIllustrations(chapters = []) {
+  // Generate at most 4 illustrations (for chapters that have illustration_prompt)
+  const targets = [];
+  chapters.forEach((ch, i) => {
+    if (ch.illustration_prompt && targets.length < 4) {
+      targets.push({ index: i, prompt: ch.illustration_prompt });
+    }
+  });
+
+  const chapterImages = new Array(chapters.length).fill(null);
+  if (!targets.length) return chapterImages;
+
+  await Promise.allSettled(
+    targets.map(async ({ index, prompt }) => {
+      try {
+        const imgUrl = await generateNanoBananaImage(prompt, '16:9');
+        if (!imgUrl) return;
+        const resp = await axios.get(imgUrl, { responseType: 'arraybuffer', timeout: 30000 });
+        const jpeg = await sharp(Buffer.from(resp.data))
+          .resize(487, 274, { fit: 'cover', position: 'centre' })
+          .jpeg({ quality: 82 })
+          .toBuffer();
+        chapterImages[index] = { buffer: jpeg, width: 487, height: 274 };
+        console.log(`[EbookPDF] Illustration ch${index + 1}: ${Math.round(jpeg.length / 1024)}KB`);
+      } catch (err) {
+        console.warn(`[EbookPDF] Illustration ch${index + 1} failed: ${err.message}`);
+      }
+    })
+  );
+
+  return chapterImages;
+}
+
 export async function createAndStoreEbookPdf({ ebook = {}, productData = {}, storeContext = {}, workspaceId = '', userId = '' } = {}) {
   const imagePrompt = ebook.cover?.image_generation_prompt || null;
-  const { buffer: coverImageJpegBuffer, url: coverImageUrl } = await generateCoverImageJpeg(imagePrompt);
-  const pdfBuffer = generateEbookPdfBuffer(ebook, productData, storeContext, coverImageJpegBuffer);
+  const chapters = Array.isArray(ebook.chapters) ? ebook.chapters : [];
+
+  // Cover image + chapter illustrations in parallel
+  const [{ buffer: coverImageJpegBuffer, url: coverImageUrl }, chapterImages] = await Promise.all([
+    generateCoverImageJpeg(imagePrompt),
+    generateChapterIllustrations(chapters),
+  ]);
+
+  const pdfBuffer = generateEbookPdfBuffer(ebook, productData, storeContext, coverImageJpegBuffer, chapterImages);
   const fileName = `${slugify(ebook.title || productData.title || productData.name || 'ebook')}.pdf`;
   const generatedAt = new Date().toISOString();
 
@@ -475,7 +626,7 @@ export async function createAndStoreEbookPdf({ ebook = {}, productData = {}, sto
       generatedAt,
     };
   } catch (error) {
-    console.warn('[EbookPDF] Upload R2 échoué, PDF conservé inline:', error.message);
+    console.warn('[EbookPDF] Upload R2 échoué, inline fallback:', error.message);
     return {
       url: `data:application/pdf;base64,${pdfBuffer.toString('base64')}`,
       fileName,

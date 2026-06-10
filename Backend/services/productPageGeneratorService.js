@@ -821,11 +821,14 @@ BRIEF :
 
 REGLES ABSOLUES :
 - Genere exactement ${requestedChapterCount} chapitres
-- Chaque chapitre doit avoir un chapter_content d'AU MINIMUM 400 mots (conseils detailles, exemples concrets, etapes pratiques, erreurs a eviter, astuces avancees)
-- Le contenu doit etre utile, credible, professionnel, dense
+- Chaque chapitre doit avoir un chapter_content d'AU MINIMUM 600 mots (plusieurs paragraphes, conseils detailles, exemples concrets, etapes numerotees, erreurs a eviter, astuces avancees, anecdotes)
+- Chaque chapitre doit avoir un chapter_table avec 2 a 4 colonnes et 3 a 6 lignes (comparaison, checklist, etapes, statistiques liees au sujet)
+- Chaque chapitre doit avoir un key_quote : une citation inspirante ou stat choc liee au sujet du chapitre (courte, percutante)
+- Au moins 4 chapitres sur ${requestedChapterCount} doivent avoir un illustration_prompt en anglais pour generer une image d'illustration
+- Le contenu doit etre utile, credible, professionnel, tres dense, avec des transitions fluides entre paragraphes
 - Formulations prudentes pour la sante : "peut aider", "contribue a", "favorise", "accompagne"
 - Jamais de promesses medicales, jamais de mention de l'IA
-- Chaque chapitre = une vraie valeur ajoutee autonome
+- Chaque chapitre = une vraie valeur ajoutee autonome, lisible seul
 
 JSON attendu (structure EXACTE) :
 {
@@ -859,10 +862,20 @@ JSON attendu (structure EXACTE) :
       {
         "chapter_number": 1,
         "chapter_title": "Titre complet du chapitre",
-        "chapter_intro": "Phrase d'accroche du chapitre",
-        "chapter_content": "Contenu principal detaille minimum 400 mots avec conseils pratiques, exemples, etapes, erreurs a eviter, astuces",
-        "key_points": ["Point cle 1", "Point cle 2", "Point cle 3"],
-        "action_step": "Action concrete a faire apres lecture"
+        "chapter_intro": "Phrase d'accroche du chapitre (2-3 phrases percutantes)",
+        "chapter_content": "Contenu tres detaille MINIMUM 600 mots — plusieurs paragraphes separes par \\n\\n, etapes numerotees, exemples concrets, anecdotes, astuces avancees, erreurs a eviter",
+        "key_quote": "Citation ou statistique choc courte et percutante liee au sujet",
+        "chapter_table": {
+          "headers": ["Colonne 1", "Colonne 2", "Colonne 3"],
+          "rows": [
+            ["Valeur A1", "Valeur A2", "Valeur A3"],
+            ["Valeur B1", "Valeur B2", "Valeur B3"]
+          ]
+        },
+        "illustration_prompt": "Detailed English prompt for generating a relevant illustration image (only on 4 chapters, omit on others)",
+        "illustration_caption": "Legende courte pour l'image",
+        "key_points": ["Point cle 1 detaille", "Point cle 2 detaille", "Point cle 3 detaille", "Point cle 4 detaille"],
+        "action_step": "Action concrete et precise a faire apres lecture (2-3 etapes claires)"
       }
     ],
     "final_page": {
