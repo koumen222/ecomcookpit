@@ -40,14 +40,56 @@ const slugify = (value = 'ebook') => cleanText(value, 120)
   .replace(/^-|-$/g, '')
   .slice(0, 80) || 'ebook';
 
-const hexText = (value = '') => {
-  const bytes = Buffer.from(`﻿${String(value)}`, 'utf16le');
-  for (let i = 0; i < bytes.length; i += 2) {
-    const current = bytes[i];
-    bytes[i] = bytes[i + 1];
-    bytes[i + 1] = current;
+// Win1252 encoding table for codepoints 0x80–0x9F (the "CP1252 extension" block)
+// Everything else maps directly: 0x00-0x7F = ASCII, 0xA0-0xFF = Latin-1
+const WIN1252_EXT = {
+  0x20AC: 0x80, 0x201A: 0x82, 0x0192: 0x83, 0x201E: 0x84, 0x2026: 0x85,
+  0x2020: 0x86, 0x2021: 0x87, 0x02C6: 0x88, 0x2030: 0x89, 0x0160: 0x8A,
+  0x2039: 0x8B, 0x0152: 0x8C, 0x017D: 0x8E, 0x2018: 0x91, 0x2019: 0x92,
+  0x201C: 0x93, 0x201D: 0x94, 0x2022: 0x95, 0x2013: 0x96, 0x2014: 0x97,
+  0x02DC: 0x98, 0x2122: 0x99, 0x0161: 0x9A, 0x203A: 0x9B, 0x0153: 0x9C,
+  0x017E: 0x9E, 0x0178: 0x9F,
+};
+// Fallback map for chars that have no Win1252 equivalent
+const ACCENT_FALLBACK = {
+  0x2018: "'", 0x2019: "'", 0x201C: '"', 0x201D: '"',
+  0x2013: '-', 0x2014: '-', 0x2026: '...', 0x2022: '-',
+};
+
+function toWin1252(str) {
+  const out = [];
+  for (const ch of String(str || '')) {
+    const cp = ch.codePointAt(0);
+    if (cp <= 0xFF) {
+      // Direct Latin-1 / ASCII (skips 0x81,0x8D,0x8F,0x90,0x9D which are undefined in Win1252)
+      if (cp === 0x81 || cp === 0x8D || cp === 0x8F || cp === 0x90 || cp === 0x9D) {
+        out.push(0x3F); // '?'
+      } else {
+        out.push(cp);
+      }
+    } else if (WIN1252_EXT[cp] !== undefined) {
+      out.push(WIN1252_EXT[cp]);
+    } else if (ACCENT_FALLBACK[cp]) {
+      for (const c of ACCENT_FALLBACK[cp]) out.push(c.charCodeAt(0));
+    } else {
+      out.push(0x3F); // '?' for unmappable
+    }
   }
-  return `<${bytes.toString('hex').toUpperCase()}>`;
+  return Buffer.from(out);
+}
+
+// Encode text as a PDF literal string with Win1252 bytes, escaped for PDF syntax
+const pdfStr = (value = '') => {
+  const buf = toWin1252(String(value || ''));
+  let s = '';
+  for (const b of buf) {
+    if (b === 0x28) s += '\\(';        // (
+    else if (b === 0x29) s += '\\)';   // )
+    else if (b === 0x5C) s += '\\\\';  // backslash
+    else if (b < 0x20 || b > 0x7E) s += `\\${b.toString(8).padStart(3, '0')}`; // octal for non-ASCII
+    else s += String.fromCharCode(b);
+  }
+  return `(${s})`;
 };
 
 const rgb = (hex = '#0F766E') => {
@@ -193,7 +235,7 @@ function createPdfDocument() {
   const addPage = (opts = {}) => {
     if (current) {
       if (pageNumber > 0 && !skipNextPageNumber) {
-        const pnText = hexText(String(pageNumber + 1));
+        const pnText = pdfStr(String(pageNumber + 1));
         const pnX = (PAGE_WIDTH / 2 - 8).toFixed(2);
         current += `0.600 0.620 0.660 rg\nBT /F1 9 Tf ${pnX} 28.00 Td ${pnText} Tj ET\n`;
       }
@@ -216,7 +258,7 @@ function createPdfDocument() {
 
   const line = (text, x, lineY, size = 12, font = 'F1', color = [0.07, 0.09, 0.15]) => {
     const [r, g, b] = color;
-    current += `${r.toFixed(3)} ${g.toFixed(3)} ${b.toFixed(3)} rg\nBT /${font} ${size} Tf ${x.toFixed(2)} ${lineY.toFixed(2)} Td ${hexText(text)} Tj ET\n`;
+    current += `${r.toFixed(3)} ${g.toFixed(3)} ${b.toFixed(3)} rg\nBT /${font} ${size} Tf ${x.toFixed(2)} ${lineY.toFixed(2)} Td ${pdfStr(text)} Tj ET\n`;
   };
 
   const textBlock = (text, { size = 12, font = 'F1', color = [0.14, 0.16, 0.22], gap = 16, leading = null, width = PAGE_WIDTH - (MARGIN_X * 2), x = MARGIN_X } = {}) => {
@@ -258,7 +300,7 @@ function createPdfDocument() {
     finish: () => {
       if (current) {
         if (pageNumber > 0 && !skipNextPageNumber) {
-          const pnText = hexText(String(pageNumber + 1));
+          const pnText = pdfStr(String(pageNumber + 1));
           const pnX = (PAGE_WIDTH / 2 - 8).toFixed(2);
           current += `0.600 0.620 0.660 rg\nBT /F1 9 Tf ${pnX} 28.00 Td ${pnText} Tj ET\n`;
         }
@@ -288,8 +330,8 @@ function buildPdfBuffer(pageContents = [], coverImageJpegBuffer = null, chapterI
 
   addObject('<< /Type /Catalog /Pages 2 0 R >>');
   addObject('PAGES_PLACEHOLDER');
-  addObject('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>');
-  addObject('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>');
+  addObject('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
+  addObject('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>');
 
   // One PDF object per image XObject (objects 5, 6, 7, ...)
   const imgObjNums = {};
