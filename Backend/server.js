@@ -236,11 +236,10 @@ app.use(
     xFrameOptions: { action: 'sameorigin' },
     crossOriginResourcePolicy: { policy: 'cross-origin' },
     crossOriginEmbedderPolicy: false,
-    // Par défaut helmet met COOP = 'same-origin', ce qui s'exécute APRÈS
-    // securityHeaders et écrase sa valeur → bloque le popup Google Sign-In
-    // (« Cross-Origin-Opener-Policy policy would block the window.postMessage call »).
-    // On aligne helmet sur la valeur permissive pour les popups.
-    crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' }
+    // Disable COOP entirely — required for Google Sign-In popup postMessage.
+    // same-origin-allow-popups still breaks it: Google's popup sets its own
+    // COOP: same-origin which nulls window.opener on both sides (Chrome 92+).
+    crossOriginOpenerPolicy: false
   })
 );
 
