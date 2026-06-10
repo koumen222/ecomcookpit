@@ -1,38 +1,46 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, Download, Eye, FileText, Loader2, RefreshCw, Sparkles, X, BookOpen, Pen, Palette, Cpu, Package, ToggleLeft, ToggleRight } from 'lucide-react';
+import {
+  BookOpen, CheckCircle2, ChevronRight, Download, Eye,
+  FileText, Loader2, Palette, Pen, Package, Cpu,
+  RefreshCw, Sparkles, X,
+} from 'lucide-react';
+
+/* ─────────────────────────── constants ─────────────────────────────────── */
 
 const GOALS = [
   { value: 'guide_utilisation', label: "Guide d'utilisation" },
-  { value: 'routine', label: "Routine / plan d'action" },
-  { value: 'erreurs', label: "Erreurs à éviter" },
-  { value: 'conseils', label: 'Conseils pratiques' },
-  { value: 'rassurance', label: 'Rassurer avant achat' },
+  { value: 'routine',           label: "Routine / plan d'action" },
+  { value: 'erreurs',           label: 'Erreurs à éviter' },
+  { value: 'conseils',          label: 'Conseils pratiques' },
+  { value: 'rassurance',        label: 'Rassurer avant achat' },
 ];
 
 const COLOR_PRESETS = [
-  { name: 'Émeraude', value: '#0F766E' },
+  { name: 'Émeraude', value: '#0D9488' },
+  { name: 'Indigo',   value: '#4F46E5' },
   { name: 'Violet',   value: '#7C3AED' },
-  { name: 'Bleu',     value: '#1D4ED8' },
+  { name: 'Rose',     value: '#E11D48' },
   { name: 'Orange',   value: '#EA580C' },
-  { name: 'Rose',     value: '#DB2777' },
-  { name: 'Or',       value: '#B45309' },
-  { name: 'Ardoise',  value: '#334155' },
-  { name: 'Rouge',    value: '#DC2626' },
+  { name: 'Bleu',     value: '#2563EB' },
+  { name: 'Or',       value: '#D97706' },
+  { name: 'Ardoise',  value: '#475569' },
 ];
 
 const COVER_STYLES = [
-  { value: 'light',    label: 'Classique',  desc: 'Bande colorée en haut, fond blanc' },
-  { value: 'dark',     label: 'Sombre',     desc: 'Fond noir, accents colorés' },
-  { value: 'vibrant',  label: 'Coloré',     desc: 'Couverture pleine couleur' },
+  { value: 'light',   label: 'Classique' },
+  { value: 'dark',    label: 'Sombre' },
+  { value: 'vibrant', label: 'Coloré' },
 ];
 
-const GENERATION_STEPS = [
-  { icon: Cpu,      label: "Analyse du produit par l'IA",  duration: 8000 },
-  { icon: Pen,      label: 'Rédaction des chapitres',       duration: 20000 },
-  { icon: BookOpen, label: 'Structuration du contenu',      duration: 15000 },
-  { icon: Palette,  label: 'Mise en page et design PDF',    duration: 12000 },
-  { icon: Package,  label: 'Finalisation et export',        duration: 8000 },
+const STEPS = [
+  { icon: Cpu,      label: "Analyse produit" },
+  { icon: Pen,      label: 'Rédaction chapitres' },
+  { icon: BookOpen, label: 'Structure & contenu' },
+  { icon: Palette,  label: 'Design PDF' },
+  { icon: Package,  label: 'Export final' },
 ];
+
+const STEP_DURATIONS = [8000, 20000, 15000, 12000, 8000];
 
 const initialForm = {
   theme: '',
@@ -41,25 +49,52 @@ const initialForm = {
   problem: '',
   offerAngle: '',
   chapterCount: '10',
-  accentColor: '#0F766E',
+  accentColor: '#0D9488',
   coverStyle: 'light',
   addAsOffer: true,
 };
 
-/* ── Loading screen ──────────────────────────────────────────────────────── */
+/* ─────────────────────── mini cover preview ────────────────────────────── */
+
+const MiniCover = ({ color, style }) => {
+  const bg =
+    style === 'dark'    ? '#0d1117' :
+    style === 'vibrant' ? color     :
+    '#ffffff';
+  const bandColor = style === 'dark' ? color : style === 'vibrant' ? 'rgba(0,0,0,.18)' : color;
+  const textLight = style === 'light' ? '#1e293b' : '#ffffff';
+  const textMuted = style === 'light' ? '#94a3b8' : 'rgba(255,255,255,.55)';
+
+  return (
+    <div style={{ background: bg, width: '100%', height: '100%', borderRadius: 8, overflow: 'hidden', display: 'flex', flexDirection: 'column', padding: 0 }}>
+      {/* top band */}
+      <div style={{ background: bandColor, height: style === 'light' ? '38%' : '6px', flexShrink: 0 }} />
+      {/* body */}
+      <div style={{ flex: 1, padding: '8px 10px', display: 'flex', flexDirection: 'column', justifyContent: style === 'light' ? 'flex-start' : 'flex-end' }}>
+        <div style={{ height: 5, borderRadius: 99, background: textMuted, width: '60%', marginBottom: 4 }} />
+        <div style={{ height: 7, borderRadius: 99, background: textLight, width: '90%', marginBottom: 3 }} />
+        <div style={{ height: 7, borderRadius: 99, background: textLight, width: '70%', marginBottom: 8 }} />
+        <div style={{ height: 4, borderRadius: 99, background: textMuted, width: '45%' }} />
+      </div>
+    </div>
+  );
+};
+
+/* ─────────────────────── generating screen ─────────────────────────────── */
+
 const GeneratingScreen = ({ productName }) => {
   const [stepIndex, setStepIndex] = useState(0);
   const [progress, setProgress] = useState(0);
 
   useEffect(() => {
     let elapsed = 0;
-    const total = GENERATION_STEPS.reduce((s, st) => s + st.duration, 0);
+    const total = STEP_DURATIONS.reduce((s, d) => s + d, 0);
     const id = setInterval(() => {
       elapsed += 200;
-      setProgress(Math.min(95, (elapsed / total) * 100));
+      setProgress(Math.min(97, (elapsed / total) * 100));
       let acc = 0;
-      for (let i = 0; i < GENERATION_STEPS.length; i++) {
-        acc += GENERATION_STEPS[i].duration;
+      for (let i = 0; i < STEP_DURATIONS.length; i++) {
+        acc += STEP_DURATIONS[i];
         if (elapsed < acc) { setStepIndex(i); break; }
       }
       if (elapsed >= total) clearInterval(id);
@@ -68,77 +103,180 @@ const GeneratingScreen = ({ productName }) => {
   }, []);
 
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden">
-        <div className="bg-gradient-to-br from-emerald-600 to-teal-700 px-6 py-8 text-center">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-white/20">
-            <Sparkles className="h-8 w-8 text-white animate-pulse" />
-          </div>
-          <h2 className="text-xl font-black text-white">Génération de l'ebook en cours</h2>
-          <p className="mt-1 text-sm text-emerald-100 font-medium">{productName}</p>
+    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, background: 'rgba(15,23,42,.55)', backdropFilter: 'blur(6px)' }}>
+      <div style={{ width: '100%', maxWidth: 420, background: '#fff', borderRadius: 24, overflow: 'hidden', boxShadow: '0 32px 64px -12px rgba(15,23,42,.18), 0 0 0 1px rgba(15,23,42,.06)' }}>
+
+        {/* progress line */}
+        <div style={{ height: 3, background: '#f1f5f9' }}>
+          <div style={{ height: '100%', background: 'linear-gradient(90deg,#0D9488,#6366f1)', borderRadius: 99, transition: 'width .3s ease-out', width: `${progress}%` }} />
         </div>
-        <div className="px-6 py-6">
-          <div className="mb-6">
-            <div className="flex justify-between text-xs font-bold text-slate-500 mb-2">
-              <span>Progression</span><span>{Math.round(progress)}%</span>
-            </div>
-            <div className="h-2.5 w-full rounded-full bg-slate-100 overflow-hidden">
-              <div className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 transition-all duration-200" style={{ width: `${progress}%` }} />
+
+        <div style={{ padding: '36px 32px 32px' }}>
+
+          {/* animated icon */}
+          <div style={{ margin: '0 auto 24px', width: 72, height: 72, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            {/* outer pulse ring */}
+            <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: 'rgba(13,148,136,.08)', animation: 'ebPulse 2s ease-in-out infinite' }} />
+            {/* spinning ring */}
+            <div style={{ position: 'absolute', inset: 4, borderRadius: '50%', border: '2px solid transparent', borderTopColor: '#0D9488', borderRightColor: '#6366f1', animation: 'ebSpin 1.1s linear infinite' }} />
+            {/* center */}
+            <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'linear-gradient(135deg,#f0fdf4,#ede9fe)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Sparkles size={20} color="#0D9488" />
             </div>
           </div>
-          <div className="space-y-3">
-            {GENERATION_STEPS.map((step, i) => {
+
+          <style>{`
+            @keyframes ebSpin  { to { transform: rotate(360deg); } }
+            @keyframes ebPulse { 0%,100% { transform: scale(1); opacity:.6; } 50% { transform: scale(1.15); opacity:1; } }
+            @keyframes ebBounce { 0%,80%,100% { transform:translateY(0); } 40% { transform:translateY(-5px); } }
+          `}</style>
+
+          <h2 style={{ margin: 0, textAlign: 'center', fontSize: 18, fontWeight: 700, color: '#0f172a', letterSpacing: '-.02em' }}>
+            Génération de l'ebook
+          </h2>
+          {productName && (
+            <p style={{ margin: '4px 0 0', textAlign: 'center', fontSize: 13, color: '#94a3b8', fontWeight: 500 }}>
+              {productName}
+            </p>
+          )}
+
+          {/* progress percentage */}
+          <p style={{ margin: '14px 0 0', textAlign: 'center', fontSize: 28, fontWeight: 800, color: '#0f172a', letterSpacing: '-.03em' }}>
+            {Math.round(progress)}<span style={{ fontSize: 16, color: '#94a3b8', fontWeight: 500 }}>%</span>
+          </p>
+
+          {/* steps */}
+          <div style={{ marginTop: 24, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {STEPS.map((step, i) => {
               const StepIcon = step.icon;
               const isDone = i < stepIndex;
               const isActive = i === stepIndex;
               return (
-                <div key={i} className={`flex items-center gap-3 rounded-xl px-4 py-3 transition-all ${isActive ? 'bg-emerald-50 border border-emerald-200' : isDone ? 'bg-slate-50 opacity-60' : 'opacity-30'}`}>
-                  <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${isDone ? 'bg-emerald-100 text-emerald-600' : isActive ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-400'}`}>
-                    {isDone ? <CheckCircle2 className="h-4 w-4" /> : isActive ? <Loader2 className="h-4 w-4 animate-spin" /> : <StepIcon className="h-4 w-4" />}
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, transition: 'opacity .3s', opacity: isActive ? 1 : isDone ? .45 : .18 }}>
+                  <div style={{
+                    width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    background: isDone ? '#f0fdf4' : isActive ? 'linear-gradient(135deg,#f0fdf4,#ede9fe)' : '#f8fafc',
+                  }}>
+                    {isDone
+                      ? <CheckCircle2 size={14} color="#10b981" />
+                      : isActive
+                        ? <Loader2 size={14} color="#0D9488" style={{ animation: 'ebSpin 1s linear infinite' }} />
+                        : <StepIcon size={14} color="#cbd5e1" />
+                    }
                   </div>
-                  <span className={`text-sm font-semibold ${isActive ? 'text-emerald-900' : isDone ? 'text-slate-500' : 'text-slate-400'}`}>{step.label}</span>
-                  {isActive && <span className="ml-auto text-xs font-bold text-emerald-500 animate-pulse">En cours…</span>}
-                  {isDone && <span className="ml-auto text-xs font-bold text-emerald-400">✓</span>}
+                  <span style={{ fontSize: 13, fontWeight: isActive ? 600 : 400, color: isActive ? '#1e293b' : isDone ? '#64748b' : '#94a3b8', flex: 1 }}>
+                    {step.label}
+                  </span>
+                  {isActive && (
+                    <div style={{ display: 'flex', gap: 3 }}>
+                      {[0, 1, 2].map(j => (
+                        <div key={j} style={{ width: 4, height: 4, borderRadius: '50%', background: '#0D9488', animation: 'ebBounce 1.1s ease-in-out infinite', animationDelay: `${j * 160}ms` }} />
+                      ))}
+                    </div>
+                  )}
+                  {isDone && <span style={{ fontSize: 11, color: '#10b981', fontWeight: 700 }}>✓</span>}
                 </div>
               );
             })}
           </div>
-          <p className="mt-5 text-center text-xs text-slate-400 font-medium">La génération peut prendre 1 à 3 minutes. Ne fermez pas cette fenêtre.</p>
+
+          <p style={{ margin: '24px 0 0', textAlign: 'center', fontSize: 12, color: '#cbd5e1' }}>
+            1 à 3 minutes · Ne fermez pas cette fenêtre
+          </p>
         </div>
       </div>
     </div>
   );
 };
 
-/* ── Main modal ──────────────────────────────────────────────────────────── */
-const DigitalProductEbookModal = ({ open, productName = '', existingEbook = null, loading = false, error = '', generatedResult = null, onClose, onGenerate, onRegenerate }) => {
+/* ─────────────────────── shared field components ───────────────────────── */
+
+const Label = ({ children }) => (
+  <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '.06em', color: '#94a3b8', textTransform: 'uppercase', marginBottom: 6 }}>
+    {children}
+  </div>
+);
+
+const inputStyle = {
+  width: '100%', boxSizing: 'border-box',
+  background: '#f8fafc', border: '1.5px solid #f1f5f9', borderRadius: 12,
+  padding: '10px 14px', fontSize: 13.5, color: '#0f172a', outline: 'none',
+  transition: 'border-color .15s, box-shadow .15s',
+  fontFamily: 'inherit',
+};
+
+const SoftInput = ({ value, onChange, placeholder, type = 'text' }) => {
+  const [focused, setFocused] = useState(false);
+  return (
+    <input
+      type={type}
+      value={value}
+      onChange={onChange}
+      placeholder={placeholder}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
+      style={{ ...inputStyle, borderColor: focused ? '#0D9488' : '#f1f5f9', boxShadow: focused ? '0 0 0 3px rgba(13,148,136,.1)' : 'none' }}
+    />
+  );
+};
+
+const SoftSelect = ({ value, onChange, children }) => {
+  const [focused, setFocused] = useState(false);
+  return (
+    <select
+      value={value}
+      onChange={onChange}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
+      style={{ ...inputStyle, appearance: 'none', cursor: 'pointer', borderColor: focused ? '#0D9488' : '#f1f5f9', boxShadow: focused ? '0 0 0 3px rgba(13,148,136,.1)' : 'none' }}
+    >
+      {children}
+    </select>
+  );
+};
+
+/* ─────────────────────── section divider ───────────────────────────────── */
+
+const SectionTitle = ({ children }) => (
+  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+    <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: '#cbd5e1' }}>{children}</span>
+    <div style={{ flex: 1, height: 1, background: '#f1f5f9' }} />
+  </div>
+);
+
+/* ─────────────────────── main modal ────────────────────────────────────── */
+
+const DigitalProductEbookModal = ({
+  open, productName = '', existingEbook = null,
+  loading = false, error = '', generatedResult = null,
+  onClose, onGenerate, onRegenerate,
+}) => {
   const [form, setForm] = useState(initialForm);
   const [showPreview, setShowPreview] = useState(false);
 
   useEffect(() => {
     if (!open) { setShowPreview(false); return; }
-    const existingColor = existingEbook?.cover?.color_palette?.[0] || '#0F766E';
     setForm({
       ...initialForm,
       theme: existingEbook?.title || '',
       audience: existingEbook?.target_reader || '',
       offerAngle: existingEbook?.main_promise || '',
-      accentColor: existingColor,
+      accentColor: existingEbook?.cover?.color_palette?.[0] || '#0D9488',
       coverStyle: existingEbook?.cover?.cover_style || 'light',
     });
   }, [existingEbook, open]);
 
   useEffect(() => { if (generatedResult) setShowPreview(true); }, [generatedResult]);
 
-  const title = useMemo(() => existingEbook ? 'Régénérer le produit digital' : 'Créer le produit digital', [existingEbook]);
+  const isEdit = useMemo(() => !!existingEbook, [existingEbook]);
 
   if (!open) return null;
   if (loading) return <GeneratingScreen productName={productName} />;
 
-  const update = (field, value) => setForm((f) => ({ ...f, [field]: value }));
+  const update = (field, value) => setForm(f => ({ ...f, [field]: value }));
 
-  const handleSubmit = (e) => {
-    e?.preventDefault();
+  const handleSubmit = () => {
     onGenerate?.({
       theme: form.theme.trim(),
       goal: form.goal,
@@ -152,85 +290,101 @@ const DigitalProductEbookModal = ({ open, productName = '', existingEbook = null
     });
   };
 
-  /* Preview screen */
+  /* ── Preview ─────────────────────────────────────────────────────────── */
+
   const pdfUrl = generatedResult?.pdf?.url || generatedResult?.ebook?.pdf?.url || null;
   const ebookTitle = String(generatedResult?.ebook?.title || generatedResult?.title || '');
   const ebookChapters = Array.isArray(generatedResult?.ebook?.chapters) ? generatedResult.ebook.chapters : [];
 
   if (showPreview && generatedResult) {
     return (
-      <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm">
-        <div className="flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
-          <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-5 py-4">
-            <div className="flex items-start gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
-                <CheckCircle2 className="h-5 w-5" />
+      <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, background: 'rgba(15,23,42,.5)', backdropFilter: 'blur(6px)' }}>
+        <div style={{ width: '100%', maxWidth: 860, maxHeight: '90vh', background: '#fff', borderRadius: 24, overflow: 'hidden', boxShadow: '0 32px 64px -12px rgba(15,23,42,.18), 0 0 0 1px rgba(15,23,42,.06)', display: 'flex', flexDirection: 'column' }}>
+
+          {/* header */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px', borderBottom: '1px solid #f1f5f9' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ width: 36, height: 36, borderRadius: 10, background: '#f0fdf4', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <CheckCircle2 size={18} color="#0D9488" />
               </div>
               <div>
-                <h2 className="text-base font-black text-slate-950">Ebook généré avec succès</h2>
-                <p className="mt-1 text-sm text-slate-500">{ebookTitle || productName}</p>
+                <div style={{ fontSize: 15, fontWeight: 700, color: '#0f172a' }}>Ebook généré avec succès</div>
+                <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 1 }}>{ebookTitle || productName}</div>
               </div>
             </div>
-            <button type="button" onClick={onClose} className="rounded-xl border border-slate-200 p-2 text-slate-400 transition hover:bg-slate-50 hover:text-slate-700"><X className="h-4 w-4" /></button>
-          </div>
-
-          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
-            <div className="grid gap-5 lg:grid-cols-2">
-              <div className="flex flex-col gap-3">
-                <h3 className="text-sm font-bold text-slate-700 flex items-center gap-2"><Eye className="h-4 w-4 text-emerald-600" />Aperçu du PDF</h3>
-                {pdfUrl ? (
-                  <div className="relative aspect-[3/4] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50 shadow-inner">
-                    <iframe src={pdfUrl} title="Aperçu ebook PDF" className="h-full w-full" style={{ border: 'none' }} />
-                  </div>
-                ) : (
-                  <div className="flex aspect-[3/4] w-full items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50">
-                    <p className="text-sm text-slate-400">Aperçu non disponible</p>
-                  </div>
-                )}
-              </div>
-              <div className="flex flex-col gap-4">
-                <h3 className="text-sm font-bold text-slate-700 flex items-center gap-2"><FileText className="h-4 w-4 text-emerald-600" />Contenu</h3>
-                {ebookTitle && (
-                  <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3">
-                    <p className="text-xs font-bold uppercase tracking-wide text-emerald-600">Titre</p>
-                    <p className="mt-1 text-sm font-bold text-emerald-900">{ebookTitle}</p>
-                  </div>
-                )}
-                {ebookChapters.length > 0 && (
-                  <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
-                    <p className="text-xs font-bold uppercase tracking-wide text-slate-500 mb-2">Chapitres ({ebookChapters.length})</p>
-                    <ul className="space-y-1.5 max-h-48 overflow-y-auto">
-                      {ebookChapters.map((ch, i) => (
-                        <li key={i} className="flex items-start gap-2 text-sm text-slate-700">
-                          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-slate-500">{i + 1}</span>
-                          <span className="font-medium">{String(ch?.chapter_title || ch?.title || ch || '')}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                {generatedResult?.digitalProduct?.offer && (
-                  <div className="rounded-xl border border-violet-100 bg-violet-50 px-4 py-3">
-                    <p className="text-xs font-bold uppercase tracking-wide text-violet-600">Offre bonus activée</p>
-                    <p className="mt-1 text-sm font-semibold text-violet-800">{generatedResult.digitalProduct.offer.label || 'Ebook offert avec la commande'}</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <div className="flex flex-col-reverse gap-3 border-t border-slate-100 px-5 py-4 sm:flex-row sm:justify-between">
-            <button type="button" onClick={() => { setShowPreview(false); onRegenerate?.(); }} className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-700 transition hover:bg-slate-50">
-              <RefreshCw className="h-4 w-4" />Régénérer
+            <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid #f1f5f9', background: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}>
+              <X size={16} />
             </button>
-            <div className="flex gap-3">
+          </div>
+
+          {/* body */}
+          <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: 24, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+            {/* pdf preview */}
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '.06em', color: '#94a3b8', textTransform: 'uppercase', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Eye size={13} />Aperçu PDF
+              </div>
+              {pdfUrl ? (
+                <div style={{ aspectRatio: '3/4', borderRadius: 14, overflow: 'hidden', border: '1px solid #f1f5f9', background: '#f8fafc' }}>
+                  <iframe src={pdfUrl} title="Aperçu ebook PDF" style={{ width: '100%', height: '100%', border: 'none' }} />
+                </div>
+              ) : (
+                <div style={{ aspectRatio: '3/4', borderRadius: 14, border: '1.5px dashed #e2e8f0', background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <span style={{ fontSize: 13, color: '#cbd5e1' }}>Aperçu non disponible</span>
+                </div>
+              )}
+            </div>
+
+            {/* chapters + info */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '.06em', color: '#94a3b8', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <FileText size={13} />Contenu
+              </div>
+              {ebookTitle && (
+                <div style={{ background: '#f0fdf4', borderRadius: 12, padding: '12px 14px', border: '1px solid #d1fae5' }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: '#0D9488', marginBottom: 4 }}>Titre</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: '#0f172a' }}>{ebookTitle}</div>
+                </div>
+              )}
+              {ebookChapters.length > 0 && (
+                <div style={{ background: '#f8fafc', borderRadius: 12, padding: '12px 14px', border: '1px solid #f1f5f9', flex: 1, minHeight: 0 }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: '#94a3b8', marginBottom: 10 }}>
+                    {ebookChapters.length} chapitres
+                  </div>
+                  <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 260, overflowY: 'auto' }}>
+                    {ebookChapters.map((ch, i) => (
+                      <li key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 12.5, color: '#475569' }}>
+                        <span style={{ minWidth: 20, height: 20, borderRadius: '50%', background: '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: '#64748b', flexShrink: 0 }}>{i + 1}</span>
+                        <span style={{ fontWeight: 500, lineHeight: 1.4 }}>{String(ch?.chapter_title || ch?.title || ch || '')}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {generatedResult?.digitalProduct?.offer && (
+                <div style={{ background: '#faf5ff', borderRadius: 12, padding: '12px 14px', border: '1px solid #ede9fe' }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: '#7c3aed', marginBottom: 4 }}>Offre bonus activée</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#4c1d95' }}>
+                    {generatedResult.digitalProduct.offer.label || 'Ebook offert avec la commande'}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* footer */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 24px', borderTop: '1px solid #f1f5f9' }}>
+            <button onClick={() => { setShowPreview(false); onRegenerate?.(); }} style={{ display: 'flex', alignItems: 'center', gap: 7, background: 'transparent', border: '1px solid #e2e8f0', borderRadius: 10, padding: '9px 16px', fontSize: 13, fontWeight: 600, color: '#64748b', cursor: 'pointer' }}>
+              <RefreshCw size={14} />Régénérer
+            </button>
+            <div style={{ display: 'flex', gap: 10 }}>
               {pdfUrl && (
-                <a href={pdfUrl} target="_blank" rel="noopener noreferrer" download className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-bold text-emerald-700 transition hover:bg-emerald-100">
-                  <Download className="h-4 w-4" />Télécharger
+                <a href={pdfUrl} target="_blank" rel="noopener noreferrer" download style={{ display: 'flex', alignItems: 'center', gap: 7, background: '#f0fdf4', border: '1px solid #d1fae5', borderRadius: 10, padding: '9px 16px', fontSize: 13, fontWeight: 600, color: '#0D9488', textDecoration: 'none' }}>
+                  <Download size={14} />Télécharger
                 </a>
               )}
-              <button type="button" onClick={onClose} className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-700 px-5 py-2.5 text-sm font-black text-white transition hover:bg-emerald-800">
-                <CheckCircle2 className="h-4 w-4" />Terminé
+              <button onClick={onClose} style={{ display: 'flex', alignItems: 'center', gap: 7, background: '#0D9488', border: 'none', borderRadius: 10, padding: '9px 20px', fontSize: 13, fontWeight: 700, color: '#fff', cursor: 'pointer' }}>
+                <CheckCircle2 size={14} />Terminé
               </button>
             </div>
           </div>
@@ -239,153 +393,207 @@ const DigitalProductEbookModal = ({ open, productName = '', existingEbook = null
     );
   }
 
-  /* Configuration form */
-  return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm">
-      <div className="flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+  /* ── Config form ─────────────────────────────────────────────────────── */
 
-        {/* Header */}
-        <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-5 py-4">
-          <div className="flex items-start gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
-              <FileText className="h-5 w-5" />
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, background: 'rgba(15,23,42,.5)', backdropFilter: 'blur(6px)' }}>
+      <div style={{ width: '100%', maxWidth: 640, maxHeight: '92vh', background: '#fff', borderRadius: 24, overflow: 'hidden', boxShadow: '0 32px 64px -12px rgba(15,23,42,.18), 0 0 0 1px rgba(15,23,42,.06)', display: 'flex', flexDirection: 'column' }}>
+
+        {/* ── Header ── */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px 0' }}>
+          <div>
+            <div style={{ fontSize: 17, fontWeight: 800, color: '#0f172a', letterSpacing: '-.02em' }}>
+              {isEdit ? 'Régénérer l\'ebook' : 'Créer l\'ebook bonus'}
             </div>
-            <div>
-              <h2 className="text-base font-black text-slate-950">{title}</h2>
-              <p className="mt-1 text-sm text-slate-500">{productName ? `Produit : ${productName}` : 'Configure ton ebook bonus'}</p>
-            </div>
+            {productName && (
+              <div style={{ fontSize: 12.5, color: '#94a3b8', marginTop: 2, fontWeight: 500 }}>{productName}</div>
+            )}
           </div>
-          <button type="button" onClick={onClose} className="rounded-xl border border-slate-200 p-2 text-slate-400 transition hover:bg-slate-50 hover:text-slate-700"><X className="h-4 w-4" /></button>
+          <button onClick={onClose} style={{ width: 34, height: 34, borderRadius: 10, border: '1.5px solid #f1f5f9', background: '#f8fafc', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', flexShrink: 0 }}>
+            <X size={15} />
+          </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="min-h-0 flex-1 overflow-y-auto px-5 py-5 space-y-6">
+        {/* ── Scrollable body ── */}
+        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '20px 24px' }}>
 
-          {/* ── Section 1 : Contenu ── */}
-          <div>
-            <p className="mb-3 text-xs font-black uppercase tracking-widest text-slate-400">Contenu</p>
-            <div className="space-y-4">
+          {/* two-column: form (left) + live preview (right) */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 160px', gap: 24, alignItems: 'start' }}>
+
+            {/* ── Left: form fields ── */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+              {/* Contenu */}
               <div>
-                <label className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-500">Thème / titre de l'ebook</label>
-                <input type="text" value={form.theme} onChange={(e) => update('theme', e.target.value)} placeholder="Ex: Guide complet pour bien utiliser ce produit" className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-emerald-300 focus:ring-4 focus:ring-emerald-50" />
-              </div>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-500">Objectif</label>
-                  <select value={form.goal} onChange={(e) => update('goal', e.target.value)} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-900 outline-none transition focus:border-emerald-300 focus:ring-4 focus:ring-emerald-50">
-                    {GOALS.map((g) => <option key={g.value} value={g.value}>{g.label}</option>)}
-                  </select>
+                <SectionTitle>Contenu</SectionTitle>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <div>
+                    <Label>Thème de l'ebook</Label>
+                    <SoftInput value={form.theme} onChange={e => update('theme', e.target.value)} placeholder="Ex: Guide complet d'utilisation" />
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    <div>
+                      <Label>Objectif</Label>
+                      <SoftSelect value={form.goal} onChange={e => update('goal', e.target.value)}>
+                        {GOALS.map(g => <option key={g.value} value={g.value}>{g.label}</option>)}
+                      </SoftSelect>
+                    </div>
+                    <div>
+                      <Label>Chapitres</Label>
+                      <SoftSelect value={form.chapterCount} onChange={e => update('chapterCount', e.target.value)}>
+                        {[5,6,7,8,9,10,11,12].map(n => <option key={n} value={String(n)}>{n} chapitres</option>)}
+                      </SoftSelect>
+                    </div>
+                  </div>
+                  <div>
+                    <Label>Audience cible</Label>
+                    <SoftInput value={form.audience} onChange={e => update('audience', e.target.value)} placeholder="Ex: femmes actives, sportifs…" />
+                  </div>
+                  <div>
+                    <Label>Problème à résoudre</Label>
+                    <SoftInput value={form.problem} onChange={e => update('problem', e.target.value)} placeholder="Ex: ne sait pas comment utiliser le produit" />
+                  </div>
                 </div>
-                <div>
-                  <label className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-500">Nombre de chapitres</label>
-                  <select value={form.chapterCount} onChange={(e) => update('chapterCount', e.target.value)} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-900 outline-none transition focus:border-emerald-300 focus:ring-4 focus:ring-emerald-50">
-                    {[5,6,7,8,9,10,11,12].map((n) => <option key={n} value={String(n)}>{n} chapitres</option>)}
-                  </select>
+              </div>
+
+              {/* Design */}
+              <div>
+                <SectionTitle>Design</SectionTitle>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  {/* Color */}
+                  <div>
+                    <Label>Couleur principale</Label>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+                      {COLOR_PRESETS.map(c => (
+                        <button
+                          key={c.value}
+                          type="button"
+                          title={c.name}
+                          onClick={() => update('accentColor', c.value)}
+                          style={{
+                            width: 30, height: 30, borderRadius: '50%', background: c.value, border: 'none', cursor: 'pointer', flexShrink: 0,
+                            outline: form.accentColor === c.value ? `3px solid ${c.value}` : 'none',
+                            outlineOffset: 2,
+                            transform: form.accentColor === c.value ? 'scale(1.15)' : 'scale(1)',
+                            transition: 'transform .15s, outline .15s',
+                            boxShadow: form.accentColor === c.value ? `0 0 0 2px #fff, 0 0 0 4px ${c.value}` : '0 1px 3px rgba(0,0,0,.1)',
+                          }}
+                        />
+                      ))}
+                      {/* custom */}
+                      <label title="Couleur personnalisée" style={{ width: 30, height: 30, borderRadius: '50%', border: '1.5px dashed #cbd5e1', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', overflow: 'hidden', flexShrink: 0 }}>
+                        <span style={{ fontSize: 15, color: '#94a3b8', fontWeight: 300, lineHeight: 1 }}>+</span>
+                        <input type="color" value={form.accentColor} onChange={e => update('accentColor', e.target.value)} style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer', width: '100%', height: '100%' }} />
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Style */}
+                  <div>
+                    <Label>Style de couverture</Label>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      {COVER_STYLES.map(s => (
+                        <button
+                          key={s.value}
+                          type="button"
+                          onClick={() => update('coverStyle', s.value)}
+                          style={{
+                            flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 7,
+                            borderRadius: 12, border: `1.5px solid ${form.coverStyle === s.value ? form.accentColor : '#f1f5f9'}`,
+                            padding: '10px 8px 8px',
+                            background: form.coverStyle === s.value ? 'rgba(13,148,136,.04)' : '#f8fafc',
+                            cursor: 'pointer', transition: 'border-color .15s, background .15s',
+                          }}
+                        >
+                          <div style={{ width: '100%', aspectRatio: '2/3', borderRadius: 6, overflow: 'hidden', border: '1px solid rgba(0,0,0,.06)' }}>
+                            <MiniCover color={form.accentColor} style={s.value} />
+                          </div>
+                          <span style={{ fontSize: 11.5, fontWeight: form.coverStyle === s.value ? 700 : 500, color: form.coverStyle === s.value ? '#0f172a' : '#64748b' }}>
+                            {s.label}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               </div>
+
+              {/* Offre */}
               <div>
-                <label className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-500">Audience cible</label>
-                <input type="text" value={form.audience} onChange={(e) => update('audience', e.target.value)} placeholder="Ex: femmes actives, sportifs, débutants..." className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-emerald-300 focus:ring-4 focus:ring-emerald-50" />
+                <SectionTitle>Offre commerciale</SectionTitle>
+                <button
+                  type="button"
+                  onClick={() => update('addAsOffer', !form.addAsOffer)}
+                  style={{
+                    width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14,
+                    borderRadius: 14, border: `1.5px solid ${form.addAsOffer ? '#d1fae5' : '#f1f5f9'}`,
+                    padding: '14px 16px',
+                    background: form.addAsOffer ? '#f0fdf4' : '#f8fafc',
+                    cursor: 'pointer', textAlign: 'left', transition: 'all .15s',
+                  }}
+                >
+                  <div>
+                    <div style={{ fontSize: 13.5, fontWeight: 700, color: form.addAsOffer ? '#0f172a' : '#475569' }}>
+                      Offre bonus sur la fiche produit
+                    </div>
+                    <div style={{ fontSize: 12, color: form.addAsOffer ? '#0D9488' : '#94a3b8', marginTop: 2, fontWeight: 500 }}>
+                      {form.addAsOffer
+                        ? 'Affiché comme "1 unité achetée + PDF offert"'
+                        : 'Ebook généré sans être proposé en offre'}
+                    </div>
+                  </div>
+                  {/* pill toggle */}
+                  <div style={{
+                    width: 44, height: 24, borderRadius: 99, flexShrink: 0,
+                    background: form.addAsOffer ? '#0D9488' : '#e2e8f0',
+                    position: 'relative', transition: 'background .2s',
+                  }}>
+                    <div style={{
+                      width: 18, height: 18, borderRadius: '50%', background: '#fff',
+                      position: 'absolute', top: 3,
+                      left: form.addAsOffer ? 23 : 3,
+                      transition: 'left .2s',
+                      boxShadow: '0 1px 3px rgba(0,0,0,.2)',
+                    }} />
+                  </div>
+                </button>
               </div>
-              <div>
-                <label className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-500">Problème principal à résoudre</label>
-                <input type="text" value={form.problem} onChange={(e) => update('problem', e.target.value)} placeholder="Ex: ne pas savoir comment utiliser ou entretenir le produit" className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-emerald-300 focus:ring-4 focus:ring-emerald-50" />
+
+              {error && (
+                <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, padding: '10px 14px', fontSize: 13, color: '#dc2626', fontWeight: 500 }}>
+                  {error}
+                </div>
+              )}
+            </div>
+
+            {/* ── Right: live cover preview ── */}
+            <div style={{ position: 'sticky', top: 0 }}>
+              <Label>Aperçu couverture</Label>
+              <div style={{ aspectRatio: '2/3', borderRadius: 14, overflow: 'hidden', boxShadow: '0 8px 24px -4px rgba(15,23,42,.14), 0 0 0 1px rgba(15,23,42,.06)', background: '#f8fafc' }}>
+                <MiniCover color={form.accentColor} style={form.coverStyle} />
+              </div>
+              {/* color hex */}
+              <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'center' }}>
+                <div style={{ width: 12, height: 12, borderRadius: '50%', background: form.accentColor, border: '1px solid rgba(0,0,0,.08)', flexShrink: 0 }} />
+                <span style={{ fontSize: 11, fontFamily: 'monospace', color: '#94a3b8' }}>{form.accentColor}</span>
               </div>
             </div>
+
           </div>
+        </div>
 
-          {/* ── Section 2 : Design ── */}
-          <div>
-            <p className="mb-3 text-xs font-black uppercase tracking-widest text-slate-400">Design</p>
-            <div className="space-y-4 rounded-xl border border-slate-100 bg-slate-50 p-4">
-              {/* Color */}
-              <div>
-                <label className="mb-2 block text-xs font-bold uppercase tracking-wide text-slate-500">Couleur principale</label>
-                <div className="flex flex-wrap gap-2">
-                  {COLOR_PRESETS.map((c) => (
-                    <button
-                      key={c.value}
-                      type="button"
-                      title={c.name}
-                      onClick={() => update('accentColor', c.value)}
-                      style={{ background: c.value }}
-                      className={`h-8 w-8 rounded-full transition-all ${form.accentColor === c.value ? 'ring-2 ring-offset-2 ring-slate-700 scale-110' : 'hover:scale-105 opacity-80 hover:opacity-100'}`}
-                    />
-                  ))}
-                  {/* Custom color */}
-                  <label title="Couleur personnalisée" className="relative h-8 w-8 cursor-pointer rounded-full border-2 border-dashed border-slate-300 flex items-center justify-center hover:border-slate-500 transition overflow-hidden">
-                    <span className="text-slate-400 text-xs font-bold">+</span>
-                    <input type="color" value={form.accentColor} onChange={(e) => update('accentColor', e.target.value)} className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" />
-                  </label>
-                </div>
-                <div className="mt-2 flex items-center gap-2">
-                  <div className="h-5 w-5 rounded-full border border-slate-200" style={{ background: form.accentColor }} />
-                  <span className="text-xs font-mono text-slate-500">{form.accentColor}</span>
-                </div>
-              </div>
-
-              {/* Cover style */}
-              <div>
-                <label className="mb-2 block text-xs font-bold uppercase tracking-wide text-slate-500">Style de couverture</label>
-                <div className="grid grid-cols-3 gap-2">
-                  {COVER_STYLES.map((s) => (
-                    <button
-                      key={s.value}
-                      type="button"
-                      onClick={() => update('coverStyle', s.value)}
-                      className={`flex flex-col items-center gap-1.5 rounded-xl border p-3 text-center transition ${form.coverStyle === s.value ? 'border-emerald-400 bg-emerald-50 ring-2 ring-emerald-200' : 'border-slate-200 bg-white hover:border-slate-300'}`}
-                    >
-                      {/* Mini preview */}
-                      <div className="h-10 w-full rounded-lg overflow-hidden border border-slate-200"
-                        style={
-                          s.value === 'dark' ? { background: '#0d1117' } :
-                          s.value === 'vibrant' ? { background: form.accentColor } :
-                          { background: `linear-gradient(180deg, ${form.accentColor} 35%, #fff 35%)` }
-                        }
-                      />
-                      <span className={`text-xs font-bold ${form.coverStyle === s.value ? 'text-emerald-800' : 'text-slate-600'}`}>{s.label}</span>
-                      <span className="text-xs text-slate-400 leading-tight">{s.desc}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* ── Section 3 : Offre ── */}
-          <div>
-            <p className="mb-3 text-xs font-black uppercase tracking-widest text-slate-400">Offre commerciale</p>
-            <button
-              type="button"
-              onClick={() => update('addAsOffer', !form.addAsOffer)}
-              className={`w-full flex items-center justify-between gap-4 rounded-xl border px-4 py-3.5 transition ${form.addAsOffer ? 'border-emerald-200 bg-emerald-50' : 'border-slate-200 bg-white hover:bg-slate-50'}`}
-            >
-              <div className="text-left">
-                <p className={`text-sm font-black ${form.addAsOffer ? 'text-emerald-900' : 'text-slate-700'}`}>Activer l'offre bonus</p>
-                <p className={`mt-0.5 text-xs font-semibold ${form.addAsOffer ? 'text-emerald-700' : 'text-slate-500'}`}>
-                  {form.addAsOffer ? 'L\'ebook sera affiché comme offre "1 unité + PDF offert" sur la fiche produit' : 'L\'ebook sera généré mais pas proposé comme offre'}
-                </p>
-              </div>
-              {form.addAsOffer
-                ? <ToggleRight className="h-7 w-7 shrink-0 text-emerald-600" />
-                : <ToggleLeft className="h-7 w-7 shrink-0 text-slate-400" />
-              }
-            </button>
-          </div>
-
-          {error && (
-            <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</div>
-          )}
-        </form>
-
-        <div className="flex flex-col-reverse gap-3 border-t border-slate-100 px-5 py-4 sm:flex-row sm:justify-end">
-          <button type="button" onClick={onClose} className="inline-flex items-center justify-center rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-700 transition hover:bg-slate-50">
+        {/* ── Footer ── */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 24px', borderTop: '1px solid #f8fafc', background: '#fff' }}>
+          <button onClick={onClose} style={{ background: 'transparent', border: '1px solid #e2e8f0', borderRadius: 10, padding: '10px 18px', fontSize: 13, fontWeight: 600, color: '#64748b', cursor: 'pointer' }}>
             Annuler
           </button>
-          <button type="button" onClick={handleSubmit} className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-700 px-5 py-2.5 text-sm font-black text-white transition hover:bg-emerald-800">
-            <Sparkles className="h-4 w-4" />
+          <button onClick={handleSubmit} style={{ display: 'flex', alignItems: 'center', gap: 8, background: `linear-gradient(135deg, ${form.accentColor}, ${form.accentColor}cc)`, border: 'none', borderRadius: 12, padding: '11px 22px', fontSize: 14, fontWeight: 700, color: '#fff', cursor: 'pointer', boxShadow: `0 4px 14px -2px ${form.accentColor}66`, transition: 'opacity .15s' }}>
+            <Sparkles size={16} />
             Générer le PDF ebook
+            <ChevronRight size={15} />
           </button>
         </div>
+
       </div>
     </div>
   );
