@@ -1229,7 +1229,7 @@ router.post('/reset-password', async (req, res) => {
     }
 
     if (newPassword.length < 6) {
-      return res.status(400).json({ success: false, message: 'Le mot de passe doit contenir au moins 12 caract\u00e8res' });
+      return res.status(400).json({ success: false, message: 'Le mot de passe doit contenir au moins 6 caract\u00e8res' });
     }
 
     // V\u00e9rifier le token
@@ -1302,7 +1302,7 @@ router.put('/change-password', async (req, res) => {
     if (!newPassword || newPassword.length < 6) {
       return res.status(400).json({
         success: false,
-        message: 'Le nouveau mot de passe doit contenir au moins 12 caractères'
+        message: 'Le nouveau mot de passe doit contenir au moins 6 caractères'
       });
     }
 

@@ -4,6 +4,7 @@ import { useEcomAuth } from '../hooks/useEcomAuth';
 import { authApi, warmUpBackend } from '../services/ecommApi';
 import { getContextualError } from '../utils/errorMessages';
 import { getPendingPlanSelection } from '../utils/pendingPlanFlow.js';
+import { loadGsi, renderGsiButton } from '../utils/googleGsi.js';
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '559924689181-rpkv8ji3029kvrtsvt3qceusmsh1i4p2.apps.googleusercontent.com';
 
@@ -54,13 +55,10 @@ const Register = () => {
   }, []);
 
   const pwChecks = [
-    { label: 'Au moins 12 caractères', short: '12 caractères', ok: formData.password.length >= 12 },
-    { label: 'Une majuscule (A-Z)', short: 'une majuscule', ok: /[A-Z]/.test(formData.password) },
-    { label: 'Une minuscule (a-z)', short: 'une minuscule', ok: /[a-z]/.test(formData.password) },
-    { label: 'Un chiffre (0-9)', short: 'un chiffre', ok: /[0-9]/.test(formData.password) },
+    { label: 'Au moins 6 caractères', short: '6 caractères', ok: formData.password.length >= 6 },
   ];
   const pwMissing = pwChecks.filter(c => !c.ok);
-  const pwStrength = pwChecks.filter(c => c.ok).length;
+  const pwStrength = pwMissing.length === 0 ? 4 : 0;
 
   useEffect(() => {
     if (resendCooldown <= 0) return;
@@ -113,41 +111,13 @@ const Register = () => {
   const googleCallbackRef = useRef(handleGoogleCallback);
   useEffect(() => { googleCallbackRef.current = handleGoogleCallback; }, [handleGoogleCallback]);
 
-  // Chargement Google Identity Services — s'exécute UNE SEULE FOIS.
-  // Avant : l'effet dépendait de handleGoogleCallback (qui change à chaque
-  // changement de affiliateCode/googleLogin), donc il rajoutait/supprimait le
-  // script GSI en boucle, et le retirait au démontage → cassait le bouton Google
-  // (et celui de la page Login qui partage le même script).
+  // Load Google Identity Services — singleton, safe against double-init
   useEffect(() => {
-    // Wrapper stable qui appelle toujours la dernière version du callback.
+    if (!GOOGLE_CLIENT_ID) return;
     const stableCallback = (response) => googleCallbackRef.current(response);
-
-    const initGsi = () => {
-      if (!window.google?.accounts?.id) return;
-      window.google.accounts.id.initialize({ client_id: GOOGLE_CLIENT_ID, callback: stableCallback });
-      const container = document.getElementById('google-reg-btn');
-      if (container) {
-        window.google.accounts.id.renderButton(
-          container,
-          { theme: 'filled_black', size: 'large', width: 360, text: 'signup_with', shape: 'pill', locale: 'fr' }
-        );
-      }
-    };
-
-    // GSI déjà chargé (ex : on arrive depuis la page Login) → init direct.
-    if (window.google?.accounts?.id) { initGsi(); return; }
-
-    // Script déjà présent mais pas encore chargé → attendre son chargement.
-    const existing = document.querySelector('script[src="https://accounts.google.com/gsi/client"]');
-    if (existing) { existing.addEventListener('load', initGsi); return; }
-
-    const script = document.createElement('script');
-    script.src = 'https://accounts.google.com/gsi/client';
-    script.async = true; script.defer = true;
-    script.onload = initGsi;
-    script.onerror = () => console.error('❌ [Google Auth] Impossible de charger le script GSI');
-    document.head.appendChild(script);
-    // Ne pas retirer le script au démontage — il est partagé avec la page Login.
+    loadGsi(GOOGLE_CLIENT_ID, stableCallback);
+    const timer = setTimeout(() => renderGsiButton('google-reg-btn', { text: 'signup_with' }), 500);
+    return () => clearTimeout(timer);
   }, []);
 
   const handleSendOtp = async (e) => {
@@ -389,7 +359,7 @@ const Register = () => {
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1.5 uppercase tracking-wide">Confirmer</label>
-                  <input type="password" required placeholder="Retapez le mot de passe"
+                  <input type={showPassword ? 'text' : 'password'} required placeholder="Retapez le mot de passe"
                     value={formData.confirmPassword} onChange={e => setFormData(p => ({ ...p, confirmPassword: e.target.value }))}
                     className={`block w-full px-4 py-3 bg-white border rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm transition ${formData.confirmPassword && formData.password !== formData.confirmPassword ? 'border-red-500' : 'border-gray-300'}`} />
                   {formData.confirmPassword && formData.password === formData.confirmPassword && (

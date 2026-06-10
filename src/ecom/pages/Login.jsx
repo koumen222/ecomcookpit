@@ -4,11 +4,8 @@ import { useEcomAuth } from '../hooks/useEcomAuth';
 import { getContextualError } from '../utils/errorMessages';
 import { getPendingPlanSelection } from '../utils/pendingPlanFlow.js';
 import { warmUpBackend } from '../services/ecommApi.js';
+import { loadGsi, renderGsiButton } from '../utils/googleGsi.js';
 
-// Fallback codé en dur identique à Register.jsx : si VITE_GOOGLE_CLIENT_ID
-// n'est pas injecté au build, le bouton Google s'affichait sur Register mais
-// PAS sur Login (aucun fallback) → la connexion Google échouait sur cette page.
-// ⚠️ Doit rester identique à la valeur dans Register.jsx.
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '559924689181-rpkv8ji3029kvrtsvt3qceusmsh1i4p2.apps.googleusercontent.com';
 
 const IconFillLoader = ({ backgroundClassName = 'bg-[#0F1115]' }) => {
@@ -125,64 +122,14 @@ const Login = () => {
   // le serveur » au 1er login quand le backend est en cold start).
   useEffect(() => { warmUpBackend(); }, []);
 
-  // Load Google Identity Services — runs ONCE
+  // Load Google Identity Services — singleton, safe against double-init
   useEffect(() => {
-    if (!GOOGLE_CLIENT_ID) {
-      console.warn('⚠️ [Google Auth] GOOGLE_CLIENT_ID non défini. Le bouton Google Sign-In ne sera pas affiché.');
-      return;
-    }
-    console.log('🔄 [Google Auth] Chargement GSI... client_id =', GOOGLE_CLIENT_ID);
-    console.log('🌐 [Google Auth] Origin actuel =', window.location.origin);
-
-    // Wrapper stable qui appelle toujours la dernière version du callback
+    if (!GOOGLE_CLIENT_ID) return;
     const stableCallback = (response) => googleCallbackRef.current(response);
-
-    const initGsi = () => {
-      if (!window.google?.accounts?.id) return;
-      console.log('✅ [Google Auth] GSI chargé, initialisation...');
-      window.google.accounts.id.initialize({
-        client_id: GOOGLE_CLIENT_ID,
-        callback: stableCallback,
-      });
-      
-      // Rendre le bouton Google après l'initialisation
-      setTimeout(() => {
-        const buttonContainer = document.getElementById('google-login-btn');
-        if (buttonContainer) {
-          const btnWidth = Math.min(buttonContainer.offsetWidth || 400, 400);
-          window.google.accounts.id.renderButton(
-            buttonContainer,
-            { theme: 'filled_black', size: 'large', width: btnWidth, text: 'signin_with', shape: 'pill', locale: 'fr' }
-          );
-          console.log('✅ [Google Auth] Bouton Google rendu');
-        }
-      }, 500);
-    };
-
-    // If GSI already loaded (e.g. from Register page or Strict Mode re-run), just init
-    if (window.google?.accounts?.id) {
-      initGsi();
-      return;
-    }
-
-    // Check if script tag already exists (avoid duplicates)
-    const existing = document.querySelector('script[src="https://accounts.google.com/gsi/client"]');
-    if (existing) {
-      // Script exists but hasn't finished loading — wait for it
-      existing.addEventListener('load', initGsi);
-      return;
-    }
-
-    const script = document.createElement('script');
-    script.src = 'https://accounts.google.com/gsi/client';
-    script.async = true;
-    script.defer = true;
-    script.onload = initGsi;
-    script.onerror = () => {
-      console.error('❌ [Google Auth] Impossible de charger le script GSI');
-    };
-    document.head.appendChild(script);
-    // Don't remove the script on cleanup — it's shared across pages
+    loadGsi(GOOGLE_CLIENT_ID, stableCallback);
+    // Render button after GSI is ready (slight delay lets the DOM settle)
+    const timer = setTimeout(() => renderGsiButton('google-login-btn', { text: 'signin_with' }), 500);
+    return () => clearTimeout(timer);
   }, []);
 
   // Rediriger automatiquement si déjà connecté

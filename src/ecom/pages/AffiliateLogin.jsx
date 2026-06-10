@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { affiliatePortalApi, setAffiliateToken, getAffiliateToken } from '../services/affiliatePortalApi.js';
+import { loadGsi, renderGsiButton } from '../utils/googleGsi.js';
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '559924689181-rpkv8ji3029kvrtsvt3qceusmsh1i4p2.apps.googleusercontent.com';
 
@@ -43,33 +44,9 @@ export default function AffiliateLogin() {
   useEffect(() => {
     if (!GOOGLE_CLIENT_ID) return;
     const stableCallback = (response) => googleCallbackRef.current(response);
-
-    const initGsi = () => {
-      if (!window.google?.accounts?.id) return;
-      window.google.accounts.id.initialize({
-        client_id: GOOGLE_CLIENT_ID,
-        callback: stableCallback,
-      });
-      setTimeout(() => {
-        const container = document.getElementById('affiliate-google-btn');
-        if (container) {
-          const btnWidth = Math.min(container.offsetWidth || 400, 400);
-          window.google.accounts.id.renderButton(container, {
-            theme: 'outline', size: 'large', width: btnWidth, text: 'signin_with', shape: 'pill', locale: 'fr'
-          });
-        }
-      }, 300);
-    };
-
-    if (window.google?.accounts?.id) { initGsi(); return; }
-    const existing = document.querySelector('script[src="https://accounts.google.com/gsi/client"]');
-    if (existing) { existing.addEventListener('load', initGsi); return; }
-    const script = document.createElement('script');
-    script.src = 'https://accounts.google.com/gsi/client';
-    script.async = true;
-    script.defer = true;
-    script.onload = initGsi;
-    document.head.appendChild(script);
+    loadGsi(GOOGLE_CLIENT_ID, stableCallback);
+    const timer = setTimeout(() => renderGsiButton('affiliate-google-btn', { theme: 'outline', text: 'signin_with' }), 400);
+    return () => clearTimeout(timer);
   }, []);
 
   const submit = async (e) => {
