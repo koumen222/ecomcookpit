@@ -2757,8 +2757,7 @@ router.post('/premium', requireEcomAuth, validateEcomAccess('products', 'write')
 
     res.status(500).json({
       success: false,
-      message: 'Erreur lors de la génération premium',
-      error: error.message,
+      message: 'Erreur lors de la génération premium. Veuillez réessayer.',
     });
   }
 });
@@ -3304,7 +3303,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
 
     return res.status(500).json({
       success: false,
-      error: error.message || 'Erreur lors de la génération'
+      message: 'Erreur lors de la génération. Veuillez réessayer.',
     });
   }
 });
@@ -3410,7 +3409,7 @@ router.post('/infographics', requireEcomAuth, validateEcomAccess('products', 'wr
     });
   } catch (err) {
     console.error('❌ [Infographics] generation error:', err);
-    return res.status(500).json({ success: false, message: err.message || 'Erreur génération infographies' });
+    return res.status(500).json({ success: false, message: 'Erreur génération infographies. Veuillez réessayer.' });
   }
 });
 

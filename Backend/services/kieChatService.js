@@ -125,6 +125,11 @@ export async function callKieChatCompletion({
     }
   );
 
+  // KIE peut retourner HTTP 200 avec un message d'erreur dans le body
+  const kieBodyError = response.data?.message || response.data?.error || '';
+  if (kieBodyError && !response.data?.output && !response.data?.choices) {
+    throw new Error(`KIE GPT5: ${kieBodyError}`);
+  }
   const text = extractKieContent(response.data);
   if (!text) {
     console.error('[KIE] Response data structure:', JSON.stringify(response.data, null, 2).slice(0, 2000));

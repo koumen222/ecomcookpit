@@ -30,6 +30,11 @@ async function callClaudeForEbook(systemPrompt, userPrompt) {
     headers: { 'Authorization': `Bearer ${KIE_API_KEY}`, 'Content-Type': 'application/json' },
     timeout: 180000,
   });
+  // KIE peut retourner HTTP 200 avec un message d'erreur dans le body
+  const kieError = res.data?.message || res.data?.error || '';
+  if (kieError && !res.data?.content) {
+    throw new Error(`KIE Claude: ${kieError}`);
+  }
   const content = res.data?.content;
   if (Array.isArray(content)) return content.filter(b => b.type === 'text').map(b => b.text || '').join('');
   return typeof content === 'string' ? content : '';
