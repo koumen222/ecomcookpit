@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bonus Offert — Gel Exfoliant Éclaircissant Orange</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: #fff8f2;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 40px 16px;
+    }
+
+    /* ── Section wrapper ── */
+    .bonus-section {
+      background: #ffffff;
+      border-radius: 24px;
+      box-shadow: 0 8px 48px rgba(230, 100, 20, 0.12), 0 2px 12px rgba(0,0,0,.06);
+      overflow: hidden;
+      max-width: 960px;
+      width: 100%;
+    }
+
+    /* ── Top badge bar ── */
+    .bonus-top-bar {
+      background: linear-gradient(90deg, #f97316 0%, #fb923c 50%, #fbbf24 100%);
+      padding: 10px 32px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .bonus-top-bar .gift-icon {
+      font-size: 22px;
+      filter: drop-shadow(0 1px 2px rgba(0,0,0,.25));
+    }
+    .bonus-top-bar span {
+      color: #fff;
+      font-weight: 700;
+      font-size: 15px;
+      letter-spacing: .6px;
+      text-transform: uppercase;
+    }
+    .bonus-badge {
+      margin-left: auto;
+      background: rgba(255,255,255,.25);
+      border: 1px solid rgba(255,255,255,.5);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 3px 10px;
+      border-radius: 20px;
+      letter-spacing: .5px;
+      text-transform: uppercase;
+    }
+
+    /* ── Main body grid ── */
+    .bonus-body {
+      display: grid;
+      grid-template-columns: 1fr 320px;
+      gap: 0;
+    }
+
+    /* ── Left content ── */
+    .bonus-content {
+      padding: 40px 40px 40px 40px;
+    }
+
+    .bonus-title {
+      font-size: 28px;
+      font-weight: 800;
+      color: #1c1c1e;
+      line-height: 1.25;
+      margin-bottom: 14px;
+    }
+    .bonus-title span {
+      background: linear-gradient(135deg, #ea580c, #f97316, #fbbf24);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .bonus-desc {
+      font-size: 15.5px;
+      color: #4b4b4b;
+      line-height: 1.65;
+      margin-bottom: 10px;
+    }
+    .bonus-subdesc {
+      font-size: 14px;
+      color: #888;
+      line-height: 1.6;
+      margin-bottom: 28px;
+      padding-left: 14px;
+      border-left: 3px solid #fed7aa;
+    }
+
+    /* ── Chapter list ── */
+    .chapters-label {
+      font-size: 11px;
+      font-weight: 700;
+      color: #f97316;
+      letter-spacing: 1.2px;
+      text-transform: uppercase;
+      margin-bottom: 14px;
+    }
+    .chapters {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 34px;
+    }
+    .chapter-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: #fff7ed;
+      border: 1px solid #fed7aa;
+      border-radius: 10px;
+      padding: 11px 16px;
+      font-size: 14.5px;
+      color: #1c1c1e;
+      font-weight: 500;
+      transition: border-color .2s, background .2s;
+    }
+    .chapter-item:hover {
+      background: #ffedd5;
+      border-color: #f97316;
+    }
+    .chapter-num {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #f97316, #fbbf24);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .check-icon {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #22c55e, #16a34a);
+      color: #fff;
+      font-size: 11px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      margin-left: auto;
+    }
+
+    /* ── CTA buttons ── */
+    .bonus-cta {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .btn-primary {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      background: linear-gradient(135deg, #ea580c 0%, #f97316 50%, #fb923c 100%);
+      color: #fff;
+      font-size: 16px;
+      font-weight: 700;
+      padding: 16px 28px;
+      border-radius: 14px;
+      border: none;
+      cursor: pointer;
+      text-decoration: none;
+      box-shadow: 0 4px 20px rgba(234, 88, 12, .35);
+      transition: transform .15s, box-shadow .15s;
+      letter-spacing: .2px;
+    }
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 28px rgba(234, 88, 12, .45);
+    }
+    .btn-primary:active { transform: translateY(0); }
+
+    .btn-secondary {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      background: transparent;
+      color: #f97316;
+      font-size: 14px;
+      font-weight: 600;
+      padding: 12px 24px;
+      border-radius: 12px;
+      border: 2px solid #fed7aa;
+      cursor: pointer;
+      text-decoration: none;
+      transition: border-color .2s, background .2s;
+    }
+    .btn-secondary:hover {
+      background: #fff7ed;
+      border-color: #f97316;
+    }
+
+    /* ── Right book mockup ── */
+    .bonus-visual {
+      background: linear-gradient(160deg, #fff7ed 0%, #ffedd5 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 40px 32px;
+      position: relative;
+      overflow: hidden;
+    }
+    .bonus-visual::before {
+      content: '';
+      position: absolute;
+      width: 280px;
+      height: 280px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(249,115,22,.12), transparent 70%);
+      top: -60px;
+      right: -60px;
+    }
+    .bonus-visual::after {
+      content: '';
+      position: absolute;
+      width: 180px;
+      height: 180px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(251,191,36,.1), transparent 70%);
+      bottom: -30px;
+      left: -30px;
+    }
+
+    /* ── 3-D book ── */
+    .book-3d {
+      position: relative;
+      width: 200px;
+      transform: perspective(700px) rotateY(-18deg) rotateX(4deg);
+      filter: drop-shadow(-12px 20px 30px rgba(120,50,0,.35));
+      z-index: 1;
+    }
+
+    /* Cover */
+    .book-cover {
+      width: 200px;
+      height: 270px;
+      border-radius: 4px 10px 10px 4px;
+      background: linear-gradient(145deg, #ea580c 0%, #f97316 40%, #fb923c 70%, #fbbf24 100%);
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      padding: 20px 16px 16px;
+      box-shadow: inset -4px 0 8px rgba(0,0,0,.15);
+    }
+
+    /* Decorative citrus slice SVG-based circle */
+    .citrus-deco {
+      position: absolute;
+      top: -30px;
+      right: -30px;
+      width: 150px;
+      height: 150px;
+      opacity: .18;
+    }
+    .citrus-deco circle { fill: none; stroke: #fff; }
+    .citrus-deco line { stroke: #fff; stroke-width: 1.5; }
+
+    .citrus-main {
+      position: absolute;
+      bottom: 50px;
+      right: -18px;
+      width: 110px;
+      height: 110px;
+      opacity: .22;
+    }
+
+    .book-cover-top {
+      width: 100%;
+      text-align: center;
+      position: relative;
+      z-index: 2;
+    }
+    .book-label {
+      display: inline-block;
+      background: rgba(255,255,255,.25);
+      border: 1px solid rgba(255,255,255,.45);
+      color: #fff;
+      font-size: 9px;
+      font-weight: 700;
+      padding: 3px 9px;
+      border-radius: 20px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+    .book-title {
+      color: #fff;
+      font-size: 15px;
+      font-weight: 800;
+      line-height: 1.3;
+      text-shadow: 0 1px 6px rgba(0,0,0,.2);
+    }
+    .book-title em {
+      font-style: normal;
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      opacity: .9;
+      margin-top: 4px;
+    }
+
+    .book-cover-bottom {
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      position: relative;
+      z-index: 2;
+    }
+    .book-chapters-count {
+      background: rgba(0,0,0,.2);
+      border-radius: 8px;
+      padding: 5px 9px;
+      color: #fff;
+      font-size: 10px;
+      font-weight: 600;
+    }
+    .book-pdf-tag {
+      background: rgba(255,255,255,.25);
+      border-radius: 8px;
+      padding: 5px 9px;
+      color: #fff;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .5px;
+    }
+
+    /* Horizontal lines on cover (texture) */
+    .cover-lines {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      z-index: 1;
+    }
+    .cover-lines::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 18px,
+        rgba(255,255,255,.05) 18px,
+        rgba(255,255,255,.05) 19px
+      );
+    }
+
+    /* Spine */
+    .book-spine {
+      position: absolute;
+      left: -20px;
+      top: 0;
+      width: 20px;
+      height: 270px;
+      background: linear-gradient(180deg, #c2410c 0%, #ea580c 40%, #c2410c 100%);
+      border-radius: 4px 0 0 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .book-spine span {
+      writing-mode: vertical-rl;
+      text-orientation: mixed;
+      color: rgba(255,255,255,.7);
+      font-size: 8px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      transform: rotate(180deg);
+    }
+
+    /* Pages (right edge) */
+    .book-pages {
+      position: absolute;
+      right: -5px;
+      top: 4px;
+      width: 6px;
+      height: 262px;
+      background: repeating-linear-gradient(
+        90deg,
+        #f5e6d3 0px,
+        #f0dcc5 2px,
+        #f5e6d3 4px
+      );
+      border-radius: 0 2px 2px 0;
+    }
+
+    /* Free ribbon */
+    .ribbon {
+      position: absolute;
+      top: 12px;
+      right: -18px;
+      background: linear-gradient(135deg, #16a34a, #22c55e);
+      color: #fff;
+      font-size: 10px;
+      font-weight: 800;
+      padding: 4px 22px;
+      letter-spacing: .5px;
+      text-transform: uppercase;
+      transform: rotate(30deg);
+      box-shadow: 0 2px 8px rgba(22,163,74,.4);
+      z-index: 10;
+    }
+
+    /* Trust strip */
+    .trust-strip {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: #f0fdf4;
+      border: 1px solid #bbf7d0;
+      border-radius: 8px;
+      padding: 8px 14px;
+      margin-top: 14px;
+      font-size: 12.5px;
+      color: #15803d;
+      font-weight: 600;
+    }
+    .trust-strip .shield { font-size: 15px; }
+
+    /* ── Responsive ── */
+    @media (max-width: 680px) {
+      .bonus-body { grid-template-columns: 1fr; }
+      .bonus-visual { padding: 32px 16px; order: -1; }
+      .bonus-content { padding: 28px 20px; }
+      .bonus-title { font-size: 22px; }
+      .book-3d { transform: perspective(700px) rotateY(-12deg) rotateX(2deg); }
+    }
+  </style>
+</head>
+<body>
+
+<section class="bonus-section">
+
+  <!-- Top bar -->
+  <div class="bonus-top-bar">
+    <span class="gift-icon">🎁</span>
+    <span>Bonus exclusif inclus</span>
+    <span class="bonus-badge">Gratuit</span>
+  </div>
+
+  <!-- Grid body -->
+  <div class="bonus-body">
+
+    <!-- LEFT: Content -->
+    <div class="bonus-content">
+
+      <h2 class="bonus-title">
+        <span>Bonus offert</span> avec votre commande
+      </h2>
+
+      <p class="bonus-desc">
+        Recevez gratuitement un guide pratique pour mieux utiliser
+        <strong>Gel Exfoliant Éclaircissant Orange</strong> et profiter
+        d'une meilleure expérience au quotidien.
+      </p>
+
+      <p class="bonus-subdesc">
+        Un contenu bonus utile qui rend votre achat plus complet,
+        plus rassurant et plus simple à utiliser.
+      </p>
+
+      <p class="chapters-label">5 chapitres inclus</p>
+
+      <ul class="chapters">
+        <li class="chapter-item">
+          <span class="chapter-num">1</span>
+          Bien démarrer
+          <span class="check-icon">✓</span>
+        </li>
+        <li class="chapter-item">
+          <span class="chapter-num">2</span>
+          Les bons gestes
+          <span class="check-icon">✓</span>
+        </li>
+        <li class="chapter-item">
+          <span class="chapter-num">3</span>
+          Erreurs à éviter
+          <span class="check-icon">✓</span>
+        </li>
+        <li class="chapter-item">
+          <span class="chapter-num">4</span>
+          Routine simple
+          <span class="check-icon">✓</span>
+        </li>
+        <li class="chapter-item">
+          <span class="chapter-num">5</span>
+          Profiter pleinement de son achat
+          <span class="check-icon">✓</span>
+        </li>
+      </ul>
+
+      <div class="bonus-cta">
+        <a href="#" class="btn-primary">
+          🛒 Commander et recevoir mon bonus
+        </a>
+        <a href="#" class="btn-secondary">
+          <!-- PDF icon inline SVG -->
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="12" y1="18" x2="12" y2="12"/>
+            <line x1="9" y1="15" x2="15" y2="15"/>
+          </svg>
+          Télécharger le PDF
+        </a>
+      </div>
+
+      <div class="trust-strip">
+        <span class="shield">🔒</span>
+        Livré instantanément par email après votre commande
+      </div>
+
+    </div>
+
+    <!-- RIGHT: Book mockup -->
+    <div class="bonus-visual">
+
+      <div class="book-3d" role="img" aria-label="Guide PDF Gel Exfoliant Éclaircissant Orange">
+
+        <!-- Spine -->
+        <div class="book-spine">
+          <span>Guide Exfoliant Orange</span>
+        </div>
+
+        <!-- Pages edge -->
+        <div class="book-pages"></div>
+
+        <!-- Cover -->
+        <div class="book-cover">
+
+          <!-- Texture lines -->
+          <div class="cover-lines"></div>
+
+          <!-- Background citrus large -->
+          <svg class="citrus-deco" viewBox="0 0 150 150" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="75" cy="75" r="70" stroke-width="1.5"/>
+            <circle cx="75" cy="75" r="55" stroke-width="1"/>
+            <circle cx="75" cy="75" r="38" stroke-width="1"/>
+            <line x1="75" y1="5" x2="75" y2="145"/>
+            <line x1="5" y1="75" x2="145" y2="75"/>
+            <line x1="20" y1="20" x2="130" y2="130"/>
+            <line x1="130" y1="20" x2="20" y2="130"/>
+          </svg>
+
+          <!-- Bottom-right citrus -->
+          <svg class="citrus-main" viewBox="0 0 110 110" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="55" cy="55" r="50" stroke-width="2" fill="rgba(255,255,255,.08)"/>
+            <circle cx="55" cy="55" r="36" stroke-width="1.5" fill="rgba(255,255,255,.06)"/>
+            <circle cx="55" cy="55" r="22" stroke-width="1" fill="rgba(255,255,255,.06)"/>
+            <line x1="55" y1="5" x2="55" y2="105" stroke-width="1.5"/>
+            <line x1="5" y1="55" x2="105" y2="55" stroke-width="1.5"/>
+            <line x1="18" y1="18" x2="92" y2="92" stroke-width="1.5"/>
+            <line x1="92" y1="18" x2="18" y2="92" stroke-width="1.5"/>
+          </svg>
+
+          <!-- Free ribbon -->
+          <div class="ribbon">Offert</div>
+
+          <!-- Top section -->
+          <div class="book-cover-top">
+            <div class="book-label">Guide Pratique</div>
+            <div class="book-title">
+              Guide
+              <em>Gel Exfoliant<br/>Éclaircissant Orange</em>
+            </div>
+          </div>
+
+          <!-- Orange emoji centered -->
+          <div style="font-size:44px; position:relative; z-index:2; text-shadow: 0 4px 12px rgba(0,0,0,.2); margin: 0 auto;">
+            🍊
+          </div>
+
+          <!-- Bottom section -->
+          <div class="book-cover-bottom">
+            <div class="book-chapters-count">5 chapitres</div>
+            <div class="book-pdf-tag">PDF</div>
+          </div>
+
+        </div><!-- /book-cover -->
+      </div><!-- /book-3d -->
+
+    </div><!-- /bonus-visual -->
+
+  </div><!-- /bonus-body -->
+
+</section>
+
+</body>
+</html>
