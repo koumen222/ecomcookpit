@@ -929,23 +929,39 @@ JSON attendu (structure EXACTE) :
 
   // Each provider has its own try/catch so a 500 on Claude doesn't skip GPT5 and Groq
 
+  // Helper: sleep ms
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+  // ── 1. Claude Sonnet 4.6 via Kie (2 attempts, 8s apart) ─────────────────
   if (KIE_API_KEY) {
-    try {
-      console.log('[EbookGen] Calling Claude Sonnet 4.6 via Kie...');
-      const rawContent = await callClaudeForEbook(systemPrompt, userPrompt);
-      const parsed = parseGroqJSON(rawContent || '{}');
-      if (parsed && (parsed.ebook || parsed.title)) {
-        console.log('[EbookGen] Claude OK');
-        return normalizeBonusEbook(parsed, fallback);
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        console.log(`[EbookGen] Claude Sonnet 4.6 via Kie (attempt ${attempt}/2)...`);
+        const rawContent = await callClaudeForEbook(systemPrompt, userPrompt);
+        const parsed = parseGroqJSON(rawContent || '{}');
+        if (parsed && (parsed.ebook || parsed.title)) {
+          console.log('[EbookGen] Claude OK');
+          return normalizeBonusEbook(parsed, fallback);
+        }
+        console.warn('[EbookGen] Claude response non parseable');
+        break; // contenu invalide → pas la peine de retenter
+      } catch (claudeErr) {
+        const isTransient = claudeErr.message.includes('500') || claudeErr.message.includes('502') || claudeErr.message.includes('503') || claudeErr.message.includes('timeout');
+        if (attempt < 2 && isTransient) {
+          console.warn(`[EbookGen] Claude erreur transitoire (${claudeErr.message}) — retry dans 8s...`);
+          await sleep(8000);
+        } else {
+          console.warn(`[EbookGen] Claude échoué (${claudeErr.message}) — passage GPT5 Kie...`);
+          break;
+        }
       }
-      console.warn('[EbookGen] Claude returned unparseable content, trying next provider');
-    } catch (claudeErr) {
-      console.warn('[EbookGen] Claude failed:', claudeErr.message, '— trying GPT5 via Kie...');
     }
   }
 
+  // ── 2. GPT5 via Kie ──────────────────────────────────────────────────────
   if (isKieConfigured()) {
     try {
+      console.log('[EbookGen] GPT5 via Kie...');
       const messages = [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt },
@@ -959,24 +975,27 @@ JSON attendu (structure EXACTE) :
       });
       const parsed = parseGroqJSON(kie.content || '{}');
       if (parsed && (parsed.ebook || parsed.title)) {
-        console.log('[EbookGen] GPT5 via Kie OK');
+        console.log('[EbookGen] GPT5 OK');
         return normalizeBonusEbook(parsed, fallback);
       }
-      console.warn('[EbookGen] GPT5 via Kie returned unparseable content, trying Groq...');
+      console.warn('[EbookGen] GPT5 response non parseable — passage Groq...');
     } catch (kieErr) {
-      console.warn('[EbookGen] GPT5 via Kie failed:', kieErr.message, '— trying Groq...');
+      console.warn(`[EbookGen] GPT5 échoué (${kieErr.message}) — passage Groq...`);
     }
   }
 
+  // ── 3. Groq fallback ─────────────────────────────────────────────────────
   const groq = getGroq();
   if (groq) {
     try {
+      console.log('[EbookGen] Groq fallback...');
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), 120000);
       try {
+        const groqModel = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
         const response = await groq.chat.completions.create(
           {
-            model: process.env.GROQ_MODEL || 'openai/gpt-oss-20b',
+            model: groqModel,
             messages: [
               { role: 'system', content: systemPrompt },
               { role: 'user', content: userPrompt },
@@ -992,15 +1011,16 @@ JSON attendu (structure EXACTE) :
           console.log('[EbookGen] Groq OK');
           return normalizeBonusEbook(parsed, fallback);
         }
+        console.warn('[EbookGen] Groq response non parseable');
       } finally {
         clearTimeout(timer);
       }
     } catch (groqErr) {
-      console.warn('[EbookGen] Groq also failed:', groqErr.message);
+      console.warn(`[EbookGen] Groq échoué (${groqErr.message})`);
     }
   }
 
-  console.warn('[EbookGen] All providers failed — using local fallback ebook');
+  console.warn('[EbookGen] Tous les providers ont échoué — fallback local (5 chapitres)');
   return normalizeBonusEbook(fallback, fallback);
 }
 
