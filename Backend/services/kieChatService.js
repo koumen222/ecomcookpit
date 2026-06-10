@@ -2,7 +2,7 @@ import axios from 'axios';
 
 const KIE_API_KEY = process.env.KIE_API_KEY || '';
 const KIE_BASE_URL = (process.env.KIE_BASE_URL || 'https://api.kie.ai').replace(/\/+$/, '');
-const KIE_TIMEOUT_MS = Number(process.env.KIE_TIMEOUT_MS) || 120000;
+const KIE_TIMEOUT_MS = Number(process.env.KIE_TIMEOUT_MS) || 0; // 0 = pas de timeout
 
 export function isKieConfigured() {
   return !!KIE_API_KEY;
@@ -34,31 +34,52 @@ export function normalizeKieMessages(messages = []) {
 }
 
 export function extractKieContent(data = {}) {
+  // Format 1: output[].type === 'message' with content array
   if (Array.isArray(data?.output)) {
     const messagePart = data.output.find((o) => o.type === 'message');
     if (messagePart?.content) {
       if (typeof messagePart.content === 'string') return messagePart.content.trim();
       if (Array.isArray(messagePart.content)) {
         return messagePart.content
-          .map((c) => (typeof c === 'string' ? c : c?.text || ''))
+          .map((c) => (typeof c === 'string' ? c : c?.text || c?.content || ''))
           .join('')
           .trim();
       }
     }
+    // Format: output[].type === 'text' directly
+    const textParts = data.output.filter((o) => o.type === 'output_text' || o.type === 'text');
+    if (textParts.length > 0) {
+      return textParts.map((t) => t.text || t.content || '').join('').trim();
+    }
   }
 
+  // Format 2: OpenAI-style choices[].message.content
   const content = data?.choices?.[0]?.message?.content;
   if (typeof content === 'string') return content.trim();
-
   if (Array.isArray(content)) {
     return content
       .map((chunk) => {
         if (typeof chunk === 'string') return chunk;
         if (chunk?.type === 'text') return chunk?.text || '';
+        if (chunk?.type === 'output_text') return chunk?.text || '';
         return '';
       })
       .join('')
       .trim();
+  }
+
+  // Format 3: direct data.text or data.content
+  if (typeof data?.text === 'string') return data.text.trim();
+  if (typeof data?.content === 'string') return data.content.trim();
+
+  // Format 4: output_text in output[].content[]
+  if (Array.isArray(data?.output)) {
+    for (const item of data.output) {
+      if (Array.isArray(item?.content)) {
+        const texts = item.content.filter((c) => c.type === 'output_text' || c.type === 'text');
+        if (texts.length > 0) return texts.map((t) => t.text || '').join('').trim();
+      }
+    }
   }
 
   return '';
@@ -106,6 +127,7 @@ export async function callKieChatCompletion({
 
   const text = extractKieContent(response.data);
   if (!text) {
+    console.error('[KIE] Response data structure:', JSON.stringify(response.data, null, 2).slice(0, 2000));
     throw new Error('GPT 5.4 response vide');
   }
 

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useEcomAuth } from '../hooks/useEcomAuth';
 import { useTheme } from '../contexts/ThemeContext';
 import api from '../../lib/api';
+import BuilderAIChatWidget from '../components/BuilderAIChatWidget.jsx';
 
 // ── Template previews ────────────────────────────────────────────────────────
 const TEMPLATE_ICONS = {
@@ -289,6 +290,18 @@ const BoutiqueTheme = () => {
         </div>
       </section>
 
+      <BuilderAIChatWidget
+        productPageConfig={null}
+        theme={localTheme}
+        productName=""
+        onApplyChanges={() => {}}
+        onApplyTheme={(patch) => {
+          const newTheme = { ...localTheme, ...patch };
+          setLocalTheme(newTheme);
+          updateGlobalTheme(newTheme, false);
+          debouncedSave(newTheme);
+        }}
+      />
     </div>
   );
 };

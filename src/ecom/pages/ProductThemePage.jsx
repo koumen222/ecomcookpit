@@ -9,6 +9,7 @@ import {
 import { storeManageApi } from '../services/storeApi';
 import { useStore } from '../contexts/StoreContext.jsx';
 import { applyFont } from '../hooks/useStoreData';
+import BuilderAIChatWidget from '../components/BuilderAIChatWidget.jsx';
 
 // ── 5 Layout Themes ───────────────────────────────────────────────────────────
 const THEMES = [
@@ -1064,6 +1065,31 @@ const ProductThemePage = () => {
           </div>
         )}
       </div>
+
+      <BuilderAIChatWidget
+        productPageConfig={null}
+        theme={{ template: currentTheme, ...design, sectionColors }}
+        productName=""
+        onApplyChanges={() => {}}
+        onApplyTheme={(patch) => {
+          if (patch.template && patch.template !== currentTheme) {
+            setCurrentTheme(patch.template);
+          }
+          const designKeys = Object.keys(DEFAULT_DESIGN);
+          const designPatch = {};
+          const colorPatch = {};
+          Object.entries(patch).forEach(([k, v]) => {
+            if (k === 'template') return;
+            if (k === 'sectionColors' && typeof v === 'object') {
+              Object.assign(colorPatch, v);
+            } else if (designKeys.includes(k)) {
+              designPatch[k] = v;
+            }
+          });
+          if (Object.keys(designPatch).length) setDesign(prev => ({ ...prev, ...designPatch }));
+          if (Object.keys(colorPatch).length) setSectionColors(prev => ({ ...prev, ...colorPatch }));
+        }}
+      />
     </div>
   );
 };

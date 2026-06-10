@@ -14,19 +14,19 @@ export const connectDB = async () => {
     console.log('🔄 Tentative de connexion à MongoDB...');
     console.log('📡 URI:', MONGO_URI.replace(/\/\/.*@/, '//***:***@')); // Masquer les credentials dans les logs
     
-    // Options de connexion optimisées pour MongoDB Atlas
+    const isAtlas = MONGO_URI.includes('mongodb.net');
     const connectionOptions = {
-      serverSelectionTimeoutMS: 30000, // 30s pour la sélection du serveur
-      socketTimeoutMS: 60000, // 60s timeout socket
-      connectTimeoutMS: 30000, // 30s timeout connexion
-      heartbeatFrequencyMS: 10000, // Vérifier la connexion toutes les 10s
-      maxPoolSize: 10,
-      minPoolSize: 2,
+      serverSelectionTimeoutMS: 60000,
+      socketTimeoutMS: 120000,
+      connectTimeoutMS: 60000,
+      heartbeatFrequencyMS: 30000,
+      maxPoolSize: 20,
+      minPoolSize: 5,
       retryWrites: true,
       retryReads: true,
       w: 'majority',
-      // Pour MongoDB Atlas spécifiquement
-      ...(MONGO_URI.includes('mongodb.net') && {
+      family: 4,
+      ...(isAtlas && {
         tls: true,
         tlsAllowInvalidCertificates: false,
       })

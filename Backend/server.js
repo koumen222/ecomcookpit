@@ -437,6 +437,8 @@ const startServer = async () => {
       // ─── Generic Order Webhook (external systems → /webhook/orders/:token) ─
       ['./routes/orderWebhook.js',             '/webhook/orders'],      // ─── Billing / Plan upgrade (MoneyFusion) ─────────────────────────────
       ['./routes/billing.js',                   '/api/ecom/billing'],
+      // ─── Builder AI Chat ──────────────────────────────────────────────────
+      ['./routes/builderAi.js',                '/api/ecom/builder-ai'],
       // ─── Promo Codes (super admin) ─────────────────────────────────────
       ['./routes/promoCodes.js',               '/api/ecom/promo-codes'],      // ─── Test Routes ───────────────────────────────────────────────────
       ['./routes/test.js',                      '/api/ecom/test'],

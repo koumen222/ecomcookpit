@@ -1,6 +1,9 @@
 import { Upload } from '@aws-sdk/lib-storage';
 import { randomUUID } from 'crypto';
+import axios from 'axios';
+import sharp from 'sharp';
 import { s3Client, R2_CONFIG, getR2PublicUrl } from '../config/r2.js';
+import { generateNanoBananaImage } from './nanoBananaService.js';
 
 const PAGE_WIDTH = 595.28;
 const PAGE_HEIGHT = 841.89;
@@ -134,6 +137,9 @@ function createPdfDocument() {
     pageBreak,
     getY: () => y,
     setY: (nextY) => { y = nextY; },
+    addCoverImageCmd: () => {
+      current += `q ${PAGE_WIDTH.toFixed(2)} 0 0 ${PAGE_HEIGHT.toFixed(2)} 0 0 cm /CoverImg Do Q\n`;
+    },
     finish: () => {
       if (current) pages.push(current);
       return pages;
@@ -141,7 +147,7 @@ function createPdfDocument() {
   };
 }
 
-function buildPdfBuffer(pageContents = []) {
+function buildPdfBuffer(pageContents = [], coverImageJpegBuffer = null) {
   const objects = [];
   const addObject = (body) => {
     objects.push(body);
@@ -153,35 +159,64 @@ function buildPdfBuffer(pageContents = []) {
   addObject('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>');
   addObject('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>');
 
+  // Embed cover image as XObject (object 5) if provided
+  let hasCoverImage = false;
+  if (coverImageJpegBuffer && Buffer.isBuffer(coverImageJpegBuffer) && coverImageJpegBuffer.length > 0) {
+    hasCoverImage = true;
+    // Raw binary JPEG stream — width/height from buffer parsed elsewhere
+    objects.push(`<< /Type /XObject /Subtype /Image /Width 595 /Height 842 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${coverImageJpegBuffer.length} >>\nstream\nCOVER_IMAGE_PLACEHOLDerendstream`);
+  }
+
   const kids = [];
-  pageContents.forEach((content) => {
+  pageContents.forEach((content, pageIndex) => {
     const pageObjectNumber = objects.length + 1;
     const contentObjectNumber = objects.length + 2;
     kids.push(`${pageObjectNumber} 0 R`);
-    addObject(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PAGE_WIDTH} ${PAGE_HEIGHT}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ${contentObjectNumber} 0 R >>`);
+
+    // First page: add cover image XObject to resources if present
+    if (pageIndex === 0 && hasCoverImage) {
+      addObject(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PAGE_WIDTH} ${PAGE_HEIGHT}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> /XObject << /CoverImg 5 0 R >> >> /Contents ${contentObjectNumber} 0 R >>`);
+    } else {
+      addObject(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PAGE_WIDTH} ${PAGE_HEIGHT}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ${contentObjectNumber} 0 R >>`);
+    }
     addObject(`<< /Length ${Buffer.byteLength(content, 'utf8')} >>\nstream\n${content}endstream`);
   });
 
   objects[1] = `<< /Type /Pages /Kids [${kids.join(' ')}] /Count ${kids.length} >>`;
 
-  let pdf = '%PDF-1.4\n%\xE2\xE3\xCF\xD3\n';
+  // Build binary PDF — cover image must be embedded as raw binary
+  const headerStr = '%PDF-1.4\n%\xE2\xE3\xCF\xD3\n';
+  const parts = [Buffer.from(headerStr, 'binary')];
   const offsets = [0];
+
   objects.forEach((body, index) => {
-    offsets.push(Buffer.byteLength(pdf, 'binary'));
-    pdf += `${index + 1} 0 obj\n${body}\nendobj\n`;
+    offsets.push(parts.reduce((sum, p) => sum + p.length, 0));
+    const objNum = index + 1;
+    if (hasCoverImage && index === 4) {
+      // Object 5: embed raw JPEG binary
+      const prefix = `${objNum} 0 obj\n<< /Type /XObject /Subtype /Image /Width 595 /Height 842 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${coverImageJpegBuffer.length} >>\nstream\n`;
+      const suffix = `\nendstream\nendobj\n`;
+      parts.push(Buffer.from(prefix, 'binary'));
+      parts.push(coverImageJpegBuffer);
+      parts.push(Buffer.from(suffix, 'binary'));
+    } else {
+      parts.push(Buffer.from(`${objNum} 0 obj\n${body}\nendobj\n`, 'binary'));
+    }
   });
 
-  const xrefOffset = Buffer.byteLength(pdf, 'binary');
-  pdf += `xref\n0 ${objects.length + 1}\n`;
-  pdf += '0000000000 65535 f \n';
+  const xrefOffset = parts.reduce((sum, p) => sum + p.length, 0);
+  let xrefStr = `xref\n0 ${objects.length + 1}\n`;
+  xrefStr += '0000000000 65535 f \n';
   offsets.slice(1).forEach((offset) => {
-    pdf += `${String(offset).padStart(10, '0')} 00000 n \n`;
+    xrefStr += `${String(offset).padStart(10, '0')} 00000 n \n`;
   });
-  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`;
-  return Buffer.from(pdf, 'binary');
+  xrefStr += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`;
+  parts.push(Buffer.from(xrefStr, 'binary'));
+
+  return Buffer.concat(parts);
 }
 
-export function generateEbookPdfBuffer(ebook = {}, productData = {}, storeContext = {}) {
+export function generateEbookPdfBuffer(ebook = {}, productData = {}, storeContext = {}, coverImageJpegBuffer = null) {
   const doc = createPdfDocument();
   const cover = ebook.cover || {};
   const palette = Array.isArray(cover.color_palette) && cover.color_palette[0] ? cover.color_palette[0] : '#0F766E';
@@ -193,7 +228,18 @@ export function generateEbookPdfBuffer(ebook = {}, productData = {}, storeContex
   const brand = cleanText(cover.author_or_brand || storeContext.shopName || 'Scalor', 90);
   const productName = cleanText(productData.title || productData.name || '', 140);
 
-  doc.rect(0, PAGE_HEIGHT - 190, PAGE_WIDTH, 190, accent);
+  if (coverImageJpegBuffer) {
+    // Full-page cover image with dark overlay for text legibility
+    doc.addCoverImageCmd();
+    // Dark overlay on bottom 55% of page for text legibility
+    doc.rect(0, 0, PAGE_WIDTH, PAGE_HEIGHT * 0.55, [0.05, 0.07, 0.12]);
+    // Dark gradient strip at top for badge
+    doc.rect(0, PAGE_HEIGHT - 70, PAGE_WIDTH, 70, [0.04, 0.06, 0.12]);
+  } else {
+    // Fallback: solid colored header band
+    doc.rect(0, PAGE_HEIGHT - 190, PAGE_WIDTH, 190, accent);
+  }
+
   doc.line('EBOOK BONUS', MARGIN_X, 735, 13, 'F2', [1, 1, 1]);
   wrapText(title, 28, PAGE_WIDTH - (MARGIN_X * 2)).slice(0, 3).forEach((entry, index) => {
     doc.line(entry, MARGIN_X, 690 - (index * 35), 28, 'F2', [1, 1, 1]);
@@ -201,53 +247,155 @@ export function generateEbookPdfBuffer(ebook = {}, productData = {}, storeContex
   doc.setY(575);
   if (subtitle) doc.textBlock(subtitle, { size: 14, font: 'F1', color: [1, 1, 1], x: MARGIN_X, width: PAGE_WIDTH - (MARGIN_X * 2), gap: 12, leading: 19 });
   doc.setY(520);
-  if (productName) doc.textBlock(`Produit associe : ${productName}`, { size: 13, font: 'F2', color: dark, gap: 8 });
-  if (ebook.short_description) doc.textBlock(ebook.short_description, { size: 12.5, color: soft, gap: 16 });
-  if (ebook.main_promise) doc.textBlock(`Promesse : ${ebook.main_promise}`, { size: 13, font: 'F2', color: accent, gap: 18 });
-  doc.line(brand, MARGIN_X, 95, 12, 'F2', dark);
-  doc.line(`Genere le ${new Date(ebook.generatedAt || Date.now()).toLocaleDateString('fr-FR')}`, MARGIN_X, 76, 10, 'F1', soft);
+  if (productName) doc.textBlock(`Produit associe : ${productName}`, { size: 13, font: 'F2', color: coverImageJpegBuffer ? [1, 1, 1] : dark, gap: 8 });
+  if (ebook.short_description) doc.textBlock(ebook.short_description, { size: 12.5, color: coverImageJpegBuffer ? [0.85, 0.87, 0.90] : soft, gap: 16 });
+  if (ebook.main_promise) doc.textBlock(`Promesse : ${ebook.main_promise}`, { size: 13, font: 'F2', color: coverImageJpegBuffer ? [0.98, 0.82, 0.20] : accent, gap: 18 });
+  doc.line(brand, MARGIN_X, 95, 12, 'F2', coverImageJpegBuffer ? [1, 1, 1] : dark);
+  doc.line(`Genere le ${new Date(ebook.generatedAt || Date.now()).toLocaleDateString('fr-FR')}`, MARGIN_X, 76, 10, 'F1', coverImageJpegBuffer ? [0.75, 0.78, 0.82] : soft);
 
+  // ── Page 2 : À propos de cet ebook ──────────────────────────────
+  doc.pageBreak();
+  doc.rect(0, PAGE_HEIGHT - 8, PAGE_WIDTH, 8, accent);
+  doc.heading('A propos de cet ebook', { size: 22, color: dark, gap: 14 });
+  if (ebook.short_description) doc.textBlock(ebook.short_description, { size: 13, color: soft, gap: 14, leading: 20 });
+  if (ebook.target_reader) {
+    doc.textBlock('Pour qui ?', { size: 12, font: 'F2', color: accent, gap: 6 });
+    doc.textBlock(ebook.target_reader, { size: 12, color: dark, gap: 14, leading: 19 });
+  }
+  if (ebook.main_promise) {
+    doc.textBlock('Ce que vous allez apprendre', { size: 12, font: 'F2', color: accent, gap: 6 });
+    doc.textBlock(ebook.main_promise, { size: 12, color: dark, gap: 14, leading: 19 });
+  }
+  if (ebook.estimated_value) {
+    doc.textBlock(`[ ${ebook.estimated_value} ]`, { size: 13, font: 'F2', color: accent, gap: 6 });
+  }
+
+  // ── Page 3 : Sommaire ────────────────────────────────────────────
   const toc = Array.isArray(ebook.table_of_contents) ? ebook.table_of_contents : [];
   if (toc.length) {
     doc.pageBreak();
-    doc.heading('Sommaire', { size: 24, color: accent });
+    doc.rect(0, PAGE_HEIGHT - 8, PAGE_WIDTH, 8, accent);
+    doc.heading('Sommaire', { size: 22, color: dark, gap: 20 });
     toc.forEach((item, index) => {
-      const chapterTitle = cleanText(item.chapter_title || `Chapitre ${index + 1}`, 180);
-      const summary = cleanText(item.chapter_summary || '', 320);
-      doc.textBlock(`${item.chapter_number || index + 1}. ${chapterTitle}${summary ? ` — ${summary}` : ''}`, {
-        size: 12.5,
-        color: dark,
-        gap: 8,
-        leading: 18,
-      });
+      const num = item.chapter_number || index + 1;
+      const chapterTitle = cleanText(item.chapter_title || `Chapitre ${num}`, 180);
+      const summary = cleanText(item.chapter_summary || '', 260);
+      const rowY = doc.getY();
+      // Numéro en accent + titre en gras sur la même ligne
+      doc.line(`${String(num).padStart(2, '0')}.`, MARGIN_X, rowY, 13, 'F2', accent);
+      doc.line(chapterTitle, MARGIN_X + 28, rowY, 13, 'F2', dark);
+      doc.setY(rowY - 20);
+      if (summary) doc.textBlock(summary, { size: 11, color: soft, gap: 2, leading: 15, x: MARGIN_X + 28 });
+      // Séparateur léger
+      doc.rect(MARGIN_X, doc.getY() - 2, PAGE_WIDTH - (MARGIN_X * 2), 0.5, [0.88, 0.90, 0.92]);
+      doc.setY(doc.getY() - 12);
     });
   }
 
+  // ── Chapitres ────────────────────────────────────────────────────
   const chapters = Array.isArray(ebook.chapters) ? ebook.chapters : [];
   chapters.forEach((chapter, index) => {
     doc.pageBreak();
-    doc.heading(`Chapitre ${chapter.chapter_number || index + 1}`, { size: 13, color: accent, gap: 8 });
-    doc.heading(cleanText(chapter.chapter_title || `Chapitre ${index + 1}`, 180), { size: 22, color: dark, gap: 16 });
-    doc.textBlock(chapter.chapter_content || chapter.content || chapter.chapter_summary || '', {
-      size: 12,
-      color: [0.18, 0.20, 0.26],
-      gap: 10,
-      leading: 18,
+    const num = chapter.chapter_number || index + 1;
+    const chapterTitle = cleanText(chapter.chapter_title || `Chapitre ${num}`, 180);
+
+    // Bande colorée header de chapitre
+    doc.rect(0, PAGE_HEIGHT - 110, PAGE_WIDTH, 110, accent);
+    doc.line(`CHAPITRE ${num}`, MARGIN_X, PAGE_HEIGHT - 30, 11, 'F2', [0.8, 0.88, 0.92]);
+    wrapText(chapterTitle, 22, PAGE_WIDTH - (MARGIN_X * 2)).slice(0, 2).forEach((entry, i) => {
+      doc.line(entry, MARGIN_X, PAGE_HEIGHT - 52 - (i * 28), 22, 'F2', [1, 1, 1]);
     });
+    doc.setY(PAGE_HEIGHT - 130);
+
+    // Intro du chapitre
+    const intro = cleanText(chapter.chapter_intro || '', 400);
+    if (intro) {
+      doc.textBlock(intro, { size: 13, font: 'F2', color: [0.14, 0.18, 0.28], gap: 16, leading: 21 });
+      doc.rect(MARGIN_X, doc.getY() + 4, PAGE_WIDTH - (MARGIN_X * 2), 1.5, accent);
+      doc.setY(doc.getY() - 16);
+    }
+
+    // Contenu principal
+    const content = cleanText(chapter.chapter_content || chapter.content || chapter.chapter_summary || '', 8000);
+    if (content) {
+      doc.textBlock(content, { size: 12, color: [0.15, 0.18, 0.25], gap: 10, leading: 20 });
+    }
+
+    // Points clés (key_points)
+    const keyPoints = Array.isArray(chapter.key_points) ? chapter.key_points : [];
+    if (keyPoints.length) {
+      doc.setY(doc.getY() - 8);
+      doc.textBlock('Points cles a retenir :', { size: 12, font: 'F2', color: accent, gap: 8 });
+      keyPoints.forEach((point) => {
+        const pt = cleanText(typeof point === 'string' ? point : String(point || ''), 280);
+        if (pt) {
+          const ptY = doc.getY();
+          doc.line('>', MARGIN_X, ptY, 12, 'F2', accent);
+          doc.textBlock(pt, { size: 12, color: dark, gap: 5, leading: 18, x: MARGIN_X + 14, width: PAGE_WIDTH - (MARGIN_X * 2) - 14 });
+        }
+      });
+    }
+
+    // Action step
+    const actionStep = cleanText(chapter.action_step || '', 400);
+    if (actionStep) {
+      doc.setY(doc.getY() - 6);
+      doc.textBlock('>> Action a faire maintenant', { size: 12, font: 'F2', color: accent, gap: 6 });
+      doc.textBlock(actionStep, { size: 12, color: dark, gap: 10, leading: 19 });
+    }
   });
 
+  // ── Page finale ──────────────────────────────────────────────────
   if (ebook.final_page?.title || ebook.final_page?.message || ebook.final_page?.cta) {
     doc.pageBreak();
-    doc.heading(cleanText(ebook.final_page.title || 'Merci pour votre confiance', 160), { size: 24, color: accent });
-    doc.textBlock(ebook.final_page.message || '', { size: 13, color: dark, gap: 18, leading: 20 });
-    doc.textBlock(ebook.final_page.cta || '', { size: 14, font: 'F2', color: accent, gap: 10, leading: 20 });
+    doc.rect(0, 0, PAGE_WIDTH, PAGE_HEIGHT, accent);
+    const finalTitle = cleanText(ebook.final_page.title || 'Merci pour votre confiance', 160);
+    const finalMsg = cleanText(ebook.final_page.message || '', 600);
+    const finalCta = cleanText(ebook.final_page.cta || '', 200);
+    doc.setY(580);
+    wrapText(finalTitle, 28, PAGE_WIDTH - (MARGIN_X * 2)).slice(0, 3).forEach((entry, i) => {
+      doc.line(entry, MARGIN_X, doc.getY() - (i * 34), 28, 'F2', [1, 1, 1]);
+    });
+    doc.setY(doc.getY() - 50);
+    if (finalMsg) doc.textBlock(finalMsg, { size: 13, color: [1, 1, 1], gap: 20, leading: 21 });
+    if (finalCta) {
+      doc.rect(MARGIN_X, doc.getY() - 6, PAGE_WIDTH - (MARGIN_X * 2), 44, [1, 1, 1]);
+      doc.textBlock(finalCta, { size: 14, font: 'F2', color: accent, gap: 10 });
+    }
+    doc.line(brand, MARGIN_X, 80, 12, 'F2', [1, 1, 1]);
   }
 
-  return buildPdfBuffer(doc.finish());
+  return buildPdfBuffer(doc.finish(), coverImageJpegBuffer);
+}
+
+async function generateCoverImageJpeg(imagePrompt) {
+  if (!imagePrompt) return null;
+  try {
+    console.log('[EbookPDF] Generating cover image...');
+    const imageUrl = await generateNanoBananaImage(imagePrompt, '3:4');
+    if (!imageUrl) return null;
+
+    const response = await axios.get(imageUrl, { responseType: 'arraybuffer', timeout: 30000 });
+    const rawBuffer = Buffer.from(response.data);
+
+    // Resize/convert to exact PDF page dimensions as JPEG
+    const jpegBuffer = await sharp(rawBuffer)
+      .resize(595, 842, { fit: 'cover', position: 'centre' })
+      .jpeg({ quality: 88 })
+      .toBuffer();
+
+    console.log(`[EbookPDF] Cover image ready: ${Math.round(jpegBuffer.length / 1024)}KB`);
+    return jpegBuffer;
+  } catch (err) {
+    console.warn('[EbookPDF] Cover image generation failed, using text-only cover:', err.message);
+    return null;
+  }
 }
 
 export async function createAndStoreEbookPdf({ ebook = {}, productData = {}, storeContext = {}, workspaceId = '', userId = '' } = {}) {
-  const pdfBuffer = generateEbookPdfBuffer(ebook, productData, storeContext);
+  const imagePrompt = ebook.cover?.image_generation_prompt || null;
+  const coverImageJpegBuffer = await generateCoverImageJpeg(imagePrompt);
+  const pdfBuffer = generateEbookPdfBuffer(ebook, productData, storeContext, coverImageJpegBuffer);
   const fileName = `${slugify(ebook.title || productData.title || productData.name || 'ebook')}.pdf`;
   const generatedAt = new Date().toISOString();
 

@@ -15,6 +15,26 @@ import { generateAnimatedGifFromImages, generateKieImageToVideo, generateGptImag
 import { randomUUID } from 'crypto';
 import { callKieChatCompletion, isKieConfigured } from './kieChatService.js';
 
+const KIE_API_KEY = process.env.KIE_API_KEY || '';
+const KIE_CLAUDE_URL = 'https://api.kie.ai/claude/v1/messages';
+
+async function callClaudeForEbook(systemPrompt, userPrompt) {
+  const body = {
+    model: 'claude-sonnet-4-6',
+    max_tokens: 16000,
+    stream: false,
+    system: systemPrompt,
+    messages: [{ role: 'user', content: userPrompt }],
+  };
+  const res = await axios.post(KIE_CLAUDE_URL, body, {
+    headers: { 'Authorization': `Bearer ${KIE_API_KEY}`, 'Content-Type': 'application/json' },
+    timeout: 180000,
+  });
+  const content = res.data?.content;
+  if (Array.isArray(content)) return content.filter(b => b.type === 'text').map(b => b.text || '').join('');
+  return typeof content === 'string' ? content : '';
+}
+
 let _groq = null;
 function getGroq() {
   if (!_groq && process.env.GROQ_API_KEY) {
@@ -735,14 +755,14 @@ function normalizeBonusEbook(payload = {}, fallback = {}) {
   normalized.main_promise = compactEbookText(normalized.main_promise || fallback.main_promise, 420);
   normalized.estimated_value = compactEbookText(normalized.estimated_value || fallback.estimated_value, 120);
   normalized.cover.color_palette = asCleanArray(normalized.cover.color_palette || fallback.cover?.color_palette, 6);
-  normalized.table_of_contents = asCleanArray(normalized.table_of_contents || fallback.table_of_contents, 7);
-  normalized.chapters = asCleanArray(normalized.chapters || fallback.chapters, 7);
+  normalized.table_of_contents = asCleanArray(normalized.table_of_contents || fallback.table_of_contents, 20);
+  normalized.chapters = asCleanArray(normalized.chapters || fallback.chapters, 20);
   normalized.generatedAt = new Date().toISOString();
   return normalized;
 }
 
 export async function generateProductBonusEbook(scrapedData = {}, productData = {}, storeContext = {}, context = {}) {
-  const requestedChapterCount = [5, 6, 7].includes(Number(context.chapterCount)) ? Number(context.chapterCount) : 5;
+  const requestedChapterCount = Math.min(Math.max(Number(context.chapterCount) || 12, 10), 15);
   const requestedTheme = compactEbookText(context.ebookTheme || context.theme || '', 220);
   const requestedGoal = compactEbookText(context.ebookGoal || context.goal || '', 180);
   const requestedOfferAngle = compactEbookText(context.ebookOfferAngle || context.offerAngle || '', 420);
@@ -778,93 +798,99 @@ export async function generateProductBonusEbook(scrapedData = {}, productData = 
     benefits,
   });
 
-  const prompt = `Tu es un expert en e-commerce, copywriting, creation de produits digitaux, design d'ebooks et offres irresistibles.
+  const systemPrompt = `Tu es un auteur expert en e-commerce, copywriting et creation de guides pratiques.
+Tu generes UNIQUEMENT du JSON valide. Aucun texte avant ou apres le JSON.
+Tu dois produire un ebook de qualite professionnelle, dense et utile, en francais naturel.`;
 
-Ta mission est de creer automatiquement un ebook bonus associe a un produit physique vendu en ligne.
-Objectif : augmenter la valeur percue de l'offre, rassurer le client, rendre le produit plus desirable et donner l'impression que le client achete une offre complete, pas seulement un simple produit.
+  const userPrompt = `Cree un ebook bonus complet associe a ce produit e-commerce.
 
-Informations produit :
-- Nom du produit : ${productName || 'Non disponible'}
-- Description du produit : ${productDescription || 'Non disponible'}
-- Categorie du produit : ${compactEbookText(context.productCategory || productData.category || scrapedData.category || 'A deduire du produit', 160)}
-- Prix du produit : ${compactEbookText(context.productPrice || productData.price || 'Non fourni', 80)}
-- Public cible : ${compactEbookText(context.targetAudience || context.targetAvatar || context.avatar || 'A deduire du produit', 320)}
-- Probleme principal du client : ${customerProblem || 'A deduire du produit'}
-- Benefices du produit : ${benefits.length ? benefits.join(' | ') : 'A deduire du produit'}
-- Marque ou boutique : ${compactEbookText(storeContext.shopName || storeContext.storeName || 'La boutique', 100)}
+PRODUIT :
+- Nom : ${productName || 'Non disponible'}
+- Description : ${productDescription || 'Non disponible'}
+- Categorie : ${compactEbookText(context.productCategory || productData.category || scrapedData.category || 'A deduire', 160)}
+- Public cible : ${compactEbookText(context.targetAudience || context.targetAvatar || context.avatar || 'A deduire', 320)}
+- Probleme principal : ${customerProblem || 'A deduire du produit'}
+- Benefices : ${benefits.length ? benefits.join(' | ') : 'A deduire'}
+- Boutique : ${compactEbookText(storeContext.shopName || storeContext.storeName || 'La boutique', 100)}
 
-Brief utilisateur pour ce produit digital :
-- Theme ou titre souhaite : ${requestedTheme || 'A deduire intelligemment du produit'}
-- Objectif principal de l'ebook : ${requestedGoal || 'Guide utile qui aide a utiliser et comprendre le produit'}
-- Angle de vente a mettre en avant : ${requestedOfferAngle || 'Bonus offert qui augmente la valeur percue de la commande'}
-- Nombre de chapitres attendu : ${requestedChapterCount}
+BRIEF :
+- Theme : ${requestedTheme || 'Guide pratique lie au produit'}
+- Objectif : ${requestedGoal || 'Aider le client a utiliser le produit et augmenter la valeur percue'}
+- Angle : ${requestedOfferAngle || 'Bonus offert premium qui donne envie de commander'}
+- Nombre de chapitres : ${requestedChapterCount}
 
-Regles importantes :
-- Si le brief utilisateur contient une information concrete, respecte-la en priorite.
-- Ne fais jamais de promesses exagerees.
-- Ne dis jamais qu'un produit guerit, soigne ou remplace un traitement medical.
-- Pour les produits sante ou complements, utilise des formulations prudentes : "peut aider a", "contribue a", "accompagne", "favorise", "peut soutenir".
-- Le contenu doit etre simple, utile, credible, professionnel, chaleureux, clair et rassurant.
-- L'ebook doit donner envie d'acheter le produit sans fausse garantie de resultat.
-- Ne mentionne jamais l'IA, les bases de donnees, le code ou la technique.
-- Pour la couverture, cree une vraie direction de couverture premium et un image_generation_prompt complet.
-- Genere exactement ${requestedChapterCount} chapitres utiles. Chaque chapitre doit contenir un contenu complet avec conseils pratiques, erreurs a eviter ou routine si pertinent.
-- La section sales_section sera affichee sur la page produit pour presenter le bonus et donner envie de commander.
+REGLES ABSOLUES :
+- Genere exactement ${requestedChapterCount} chapitres
+- Chaque chapitre doit avoir un chapter_content d'AU MINIMUM 400 mots (conseils detailles, exemples concrets, etapes pratiques, erreurs a eviter, astuces avancees)
+- Le contenu doit etre utile, credible, professionnel, dense
+- Formulations prudentes pour la sante : "peut aider", "contribue a", "favorise", "accompagne"
+- Jamais de promesses medicales, jamais de mention de l'IA
+- Chaque chapitre = une vraie valeur ajoutee autonome
 
-Reponds uniquement en JSON valide avec cette structure exacte :
+JSON attendu (structure EXACTE) :
 {
   "ebook": {
-    "title": "",
-    "subtitle": "",
-    "short_description": "",
-    "target_reader": "",
-    "main_promise": "",
-    "estimated_value": "",
+    "title": "Titre accrocheur et specifique au produit",
+    "subtitle": "Sous-titre promesse claire",
+    "short_description": "Description 2-3 phrases pour la page produit",
+    "target_reader": "Qui est le lecteur ideal",
+    "main_promise": "Ce que le lecteur va obtenir ou apprendre",
+    "estimated_value": "Valeur estimee ex: Valeur 29€ - Offert avec votre commande",
     "cover": {
-      "cover_title": "",
-      "cover_subtitle": "",
-      "badge_text": "",
-      "author_or_brand": "",
-      "visual_style": "",
-      "color_palette": [],
-      "cover_description": "",
-      "image_generation_prompt": ""
+      "cover_title": "Titre court pour la couverture",
+      "cover_subtitle": "Sous-titre court couverture",
+      "badge_text": "BONUS OFFERT",
+      "author_or_brand": "Nom boutique",
+      "visual_style": "Description style visuel premium",
+      "color_palette": ["#hex1", "#hex2", "#hex3"],
+      "cover_description": "Description couverture detaillee",
+      "image_generation_prompt": "Prompt detaille en anglais pour generer l'image de couverture"
     },
     "sales_section": {
-      "headline": "",
-      "bonus_text": "",
-      "value_text": "",
-      "cta_text": ""
+      "headline": "Titre accrocheur pour la section bonus",
+      "bonus_text": "Description du bonus en 2-3 phrases persuasives",
+      "value_text": "Valeur percue et benefices concrets",
+      "cta_text": "Texte du bouton call-to-action"
     },
     "table_of_contents": [
-      {"chapter_number": 1, "chapter_title": "", "chapter_summary": ""}
+      {"chapter_number": 1, "chapter_title": "Titre chapitre", "chapter_summary": "Resume 1 phrase"}
     ],
     "chapters": [
-      {"chapter_number": 1, "chapter_title": "", "chapter_content": ""}
+      {
+        "chapter_number": 1,
+        "chapter_title": "Titre complet du chapitre",
+        "chapter_intro": "Phrase d'accroche du chapitre",
+        "chapter_content": "Contenu principal detaille minimum 400 mots avec conseils pratiques, exemples, etapes, erreurs a eviter, astuces",
+        "key_points": ["Point cle 1", "Point cle 2", "Point cle 3"],
+        "action_step": "Action concrete a faire apres lecture"
+      }
     ],
     "final_page": {
-      "title": "",
-      "message": "",
-      "cta": ""
+      "title": "Titre page de conclusion",
+      "message": "Message de cloture chaleureux et motivant",
+      "cta": "Appel a l'action final"
     }
   }
 }`;
 
-  const messages = [
-    {
-      role: 'system',
-      content: 'Tu generes uniquement un JSON valide. Tu crees un ebook bonus e-commerce utile, prudent, credible et vendeur, en francais naturel.',
-    },
-    { role: 'user', content: prompt },
-  ];
-
   try {
+    if (KIE_API_KEY) {
+      console.log('[EbookGen] Calling Claude Sonnet 4.6 via Kie...');
+      const rawContent = await callClaudeForEbook(systemPrompt, userPrompt);
+      const parsed = parseGroqJSON(rawContent || '{}');
+      if (parsed && (parsed.ebook || parsed.title)) return normalizeBonusEbook(parsed, fallback);
+    }
+
     if (isKieConfigured()) {
+      const messages = [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ];
       const kie = await callKieChatCompletion({
         messages,
         temperature: 0.62,
-        maxTokens: 8000,
-        reasoningEffort: process.env.KIE_REASONING_EFFORT || 'high',
+        maxTokens: 12000,
+        reasoningEffort: 'low',
         includeThoughts: false,
       });
       const parsed = parseGroqJSON(kie.content || '{}');
@@ -874,13 +900,16 @@ Reponds uniquement en JSON valide avec cette structure exacte :
     const groq = getGroq();
     if (groq) {
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 90000);
+      const timer = setTimeout(() => controller.abort(), 120000);
       try {
         const response = await groq.chat.completions.create(
           {
             model: process.env.GROQ_MODEL || 'openai/gpt-oss-20b',
-            messages,
-            max_tokens: 8000,
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: userPrompt },
+            ],
+            max_tokens: 12000,
             temperature: 0.62,
             response_format: { type: 'json_object' },
           },

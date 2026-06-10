@@ -32,8 +32,10 @@ import { validatePromoCode, markPromoCodeUsed } from '../services/promoCodeServi
 const router = express.Router();
 
 // ─── Config ──────────────────────────────────────────────────────────────────
+import https from 'https';
 const MF_API_URL = 'https://pay.moneyfusion.net/scalor/597e2cf962834532/pay/';
 const MF_STATUS_URL = (token) => `https://pay.moneyfusion.net/paiementNotif/${token}`;
+const mfHttpsAgent = new https.Agent({ rejectUnauthorized: false });
 
 const TRIAL_DAYS = 7;
 
@@ -557,7 +559,8 @@ router.post('/checkout', requireEcomAuth, async (req, res) => {
     // Appel HTTP principal vers MoneyFusion: création de la session de paiement.
     const mfResponse = await axios.post(MF_API_URL, paymentData, {
       headers: { 'Content-Type': 'application/json' },
-      timeout: 60000
+      timeout: 60000,
+      httpsAgent: mfHttpsAgent
     });
 
     const { statut, token: mfToken, url: paymentUrl, message } = mfResponse.data;
@@ -704,7 +707,7 @@ async function syncCreditPaymentStatus(payment) {
     return { status: 'paid', payment };
   }
 
-  const mfResp = await axios.get(MF_STATUS_URL(payment.mfToken), { timeout: 10000 });
+  const mfResp = await axios.get(MF_STATUS_URL(payment.mfToken), { timeout: 10000, httpsAgent: mfHttpsAgent });
   const { statut, data: mfData } = mfResp.data;
 
   if (!statut || !mfData) {
@@ -795,7 +798,8 @@ router.post('/buy-generation', requireEcomAuth, async (req, res) => {
 
     const mfResponse = await axios.post(MF_API_URL, paymentData, {
       headers: { 'Content-Type': 'application/json' },
-      timeout: 60000
+      timeout: 60000,
+      httpsAgent: mfHttpsAgent
     });
 
     const { statut, token: mfToken, url: paymentUrl, message } = mfResponse.data;
@@ -879,7 +883,7 @@ router.post('/buy-creative', requireEcomAuth, async (req, res) => {
       webhook_url: `${backendUrl}/api/ecom/billing/webhook`,
     };
 
-    const mfResponse = await axios.post(MF_API_URL, paymentData, { headers: { 'Content-Type': 'application/json' }, timeout: 60000 });
+    const mfResponse = await axios.post(MF_API_URL, paymentData, { headers: { 'Content-Type': 'application/json' }, timeout: 60000, httpsAgent: mfHttpsAgent });
     const { statut, token: mfToken, url: paymentUrl, message } = mfResponse.data;
 
     if (!statut || !mfToken) {
@@ -949,7 +953,7 @@ router.get('/status/:token', requireEcomAuth, async (req, res) => {
     }
 
     // Fetch fresh status from MoneyFusion
-    const mfResp = await axios.get(MF_STATUS_URL(token), { timeout: 10000 });
+    const mfResp = await axios.get(MF_STATUS_URL(token), { timeout: 10000, httpsAgent: mfHttpsAgent });
     const { statut, data: mfData } = mfResp.data;
 
     if (!statut || !mfData) {
@@ -1049,7 +1053,7 @@ router.post('/recover-credits', requireEcomAuth, async (req, res) => {
     let synced = 0;
     for (const p of pending) {
       try {
-        const mfResp = await axios.get(MF_STATUS_URL(p.mfToken), { timeout: 10000 });
+        const mfResp = await axios.get(MF_STATUS_URL(p.mfToken), { timeout: 10000, httpsAgent: mfHttpsAgent });
         const mfStatus = mfResp.data?.data?.statut;
         if (mfStatus === 'paid') {
           await applyCreditPayment(p);
@@ -1121,7 +1125,7 @@ router.post('/sync-pending-generations', requireEcomAuth, async (req, res) => {
 
     for (const p of pending) {
       try {
-        const mfResp = await axios.get(MF_STATUS_URL(p.mfToken), { timeout: 10000 });
+        const mfResp = await axios.get(MF_STATUS_URL(p.mfToken), { timeout: 10000, httpsAgent: mfHttpsAgent });
         const mfStatus = mfResp.data?.data?.statut;
         if (mfStatus === 'paid') {
           // Re-fetch so applyCreditPayment has a live mongoose doc

@@ -15,6 +15,8 @@ import { useStore } from '../contexts/StoreContext.jsx';
 import defaultConfig from '../components/productSettings/defaultConfig.js';
 import { formatMoney } from '../utils/currency.js';
 import { buildMergedProductPageConfig, buildProductOnlyPageConfig } from '../utils/productPageConfig.js';
+import BuilderAIChatWidget from '../components/BuilderAIChatWidget.jsx';
+import StoreProductPagePremium from '../components/StoreProductPagePremium.jsx';
 
 // ─── Section metadata for the 20 productPageConfig sections ──────────────────
 const SECTION_META = {
@@ -1467,9 +1469,6 @@ const ProductPageBuilder = () => {
   const [deliverySaving, setDeliverySaving] = useState(false);
   const [deliverySaveStatus, setDeliverySaveStatus] = useState(null); // 'saved' | 'error' | null
   const [error, setError] = useState('');
-  const [iframeKey, setIframeKey] = useState(0);
-  const [storeSubdomain, setStoreSubdomain] = useState(''); // fallback subdomain from config API
-  const iframeRef = useRef(null);
 
   // Compute merged config for LivePreview
   const mergedConfig = (() => {
@@ -1477,17 +1476,7 @@ const ProductPageBuilder = () => {
     return { ...base, general: { ...base.general, sections: configSections } };
   })();
 
-  const subdomain = activeStore?.subdomain || storeSubdomain;
-
-  // postMessage live preview — Shopify-style: parent → iframe, no server round-trip
-  const broadcastLive = useCallback((mergedPreviewConfig) => {
-    const iframe = iframeRef.current;
-    if (!iframe?.contentWindow) return;
-    iframe.contentWindow.postMessage(
-      { type: 'PAGE_PREVIEW_UPDATE', payload: mergedPreviewConfig },
-      '*'
-    );
-  }, []);
+  const subdomain = activeStore?.subdomain || activeStore?.storeSettings?.subdomain || '';
 
   // Load product + store config
   useEffect(() => {
@@ -1513,8 +1502,6 @@ const ProductPageBuilder = () => {
           setStoreConfig(ppc);
           const merged = mergeWithDefaults(buildMergedProductPageConfig(ppc, p?.productPageConfig || null));
           setConfigSections(merged.general.sections);
-          // Extract subdomain as fallback for iframe preview
-          if (raw.subdomain) setStoreSubdomain(raw.subdomain);
         } else {
           setConfigSections(mergeWithDefaults(null).general.sections);
         }
@@ -1565,9 +1552,6 @@ const ProductPageBuilder = () => {
 
   const autoSaveConfig = useCallback((newConfigSections) => {
     const updatedProductConfig = buildProductOnlyPageConfig(productConfigRef.current, newConfigSections);
-    const mergedPreviewConfig = mergeWithDefaults(buildMergedProductPageConfig(storeConfigRef.current, updatedProductConfig));
-    // Broadcast live to iframe immediately (no debounce)
-    broadcastLive(mergedPreviewConfig);
     // Save to backend with short debounce (400ms) to avoid data loss on quick reload
     clearTimeout(configSaveTimer.current);
     configSaveTimer.current = setTimeout(async () => {
@@ -1580,7 +1564,7 @@ const ProductPageBuilder = () => {
         setSaveStatus('error');
       }
     }, 400);
-  }, [broadcastLive, id]);
+  }, [id]);
 
   // Config section handlers
   const handleConfigMove = useCallback((index, direction) => {
@@ -2119,11 +2103,9 @@ const ProductPageBuilder = () => {
 
         </div>
 
-        {/* ── RIGHT: iframe live preview ────────────────��─────────────────── */}
+        {/* ── RIGHT: real product page preview (local render) ─────────── */}
         <div className="flex-1 overflow-hidden flex flex-col">
           {(() => {
-            const slug = product?.slug;
-            const iframeSrc = subdomain && slug ? `/store/${subdomain}/product/${slug}` : null;
             const deviceConfig = {
               desktop: { width: '100%', label: null },
               tablet:  { width: '768px', label: 'Tablette — 768px' },
@@ -2131,13 +2113,13 @@ const ProductPageBuilder = () => {
             };
             const { width, label } = deviceConfig[previewDevice] || deviceConfig.desktop;
 
-            if (!iframeSrc) {
+            if (!product) {
               return (
                 <div className="flex-1 bg-gray-50 flex items-center justify-center">
                   <div className="text-center text-gray-400">
                     <div className="text-4xl mb-3">🏪</div>
                     <p className="text-sm font-medium">Aperçu indisponible</p>
-                    <p className="text-xs mt-1">{!subdomain ? 'Aucun sous-domaine configuré' : 'Aucun produit chargé'}</p>
+                    <p className="text-xs mt-1">Chargement du produit...</p>
                   </div>
                 </div>
               );
@@ -2153,35 +2135,55 @@ const ProductPageBuilder = () => {
                     className="shadow-xl rounded-t-lg overflow-hidden bg-white"
                     style={{ width, maxWidth: '100%', height: previewDevice === 'desktop' ? 'calc(100vh - 120px)' : 'calc(100vh - 140px)' }}
                   >
-                    {/* Browser chrome */}
-                    <div className="h-8 bg-gray-100 border-b border-gray-200 flex items-center px-3 gap-2 select-none shrink-0">
-                      <div className="flex gap-1.5">
-                        <div className="w-2.5 h-2.5 rounded-full bg-red-400" />
-                        <div className="w-2.5 h-2.5 rounded-full bg-yellow-400" />
-                        <div className="w-2.5 h-2.5 rounded-full bg-green-400" />
-                      </div>
-                      <div className="flex-1 bg-white rounded px-2 py-0.5 text-[10px] text-gray-400 font-mono border border-gray-200 truncate">
-                        {subdomain}.scalor.net/product/{slug}
-                      </div>
-                      <button onClick={() => setIframeKey(k => k + 1)}
-                        className="p-1 hover:bg-gray-200 rounded transition" title="Rafraîchir">
-                        <svg className="w-3 h-3 text-gray-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                          <polyline points="23 4 23 10 17 10" /><polyline points="1 20 1 14 7 14" />
-                          <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
-                        </svg>
-                      </button>
-                    </div>
+                    <div className="h-full overflow-y-auto relative">
+                      {/* Custom HTML injected by AI (top banners, etc.) */}
+                      {storeConfig?.customHtml && (
+                        <div dangerouslySetInnerHTML={{ __html: storeConfig.customHtml }} />
+                      )}
 
-                    <iframe
-                      key={iframeKey}
-                      ref={iframeRef}
-                      src={iframeSrc}
-                      title="Aperçu page produit"
-                      className="block w-full border-0"
-                      style={{ height: 'calc(100% - 32px)' }}
-                      sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-                      onLoad={() => broadcastLive(storeConfig, configSections)}
-                    />
+                      <StoreProductPagePremium
+                        product={product}
+                        store={activeStore || {}}
+                        productPageConfig={(() => {
+                          const base = mergedConfig || {};
+                          const sp = storeConfig?.premiumPage;
+                          const basePremium = base.premiumPage || {};
+                          const mergedPremium = sp ? {
+                            ...basePremium,
+                            ...sp,
+                            ...(sp.hero ? { hero: { ...(basePremium.hero || {}), ...sp.hero } } : {}),
+                            ...(sp.faq ? { faq: { ...(basePremium.faq || {}), ...sp.faq } } : {}),
+                            ...(sp.problemSection ? { problemSection: { ...(basePremium.problemSection || {}), ...sp.problemSection } } : {}),
+                            ...(sp.mechanismSection ? { mechanismSection: { ...(basePremium.mechanismSection || {}), ...sp.mechanismSection } } : {}),
+                            ...(sp.closingSection ? { closingSection: { ...(basePremium.closingSection || {}), ...sp.closingSection } } : {}),
+                          } : basePremium;
+                          return {
+                            ...base,
+                            premiumPage: mergedPremium,
+                            ...(storeConfig?.customSections ? { customSections: storeConfig.customSections } : {}),
+                            ...(storeConfig?.whatsapp ? { whatsapp: storeConfig.whatsapp } : {}),
+                          };
+                        })()}
+                        subdomain={subdomain}
+                        pixels={[]}
+                      />
+
+                      {/* WhatsApp floating button */}
+                      {storeConfig?.whatsapp?.enabled && (
+                        <div
+                          className="sticky z-[99] flex items-center justify-center w-14 h-14 rounded-full shadow-lg cursor-pointer hover:scale-110 transition-transform"
+                          style={{
+                            backgroundColor: '#25D366',
+                            bottom: '24px',
+                            ...(storeConfig.whatsapp.position === 'bottom-left' ? { left: '24px', marginLeft: '24px' } : { left: 'calc(100% - 80px)' }),
+                          }}
+                        >
+                          <svg viewBox="0 0 24 24" width="28" height="28" fill="white">
+                            <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+                          </svg>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -2189,6 +2191,53 @@ const ProductPageBuilder = () => {
           })()}
         </div>
       </div>
+
+      <BuilderAIChatWidget
+        productPageConfig={mergedConfig}
+        theme={storeConfig?.design || {}}
+        productName={product?.name || ''}
+        onApplyChanges={(patch) => {
+          setStoreConfig(prev => {
+            const updated = { ...(prev || {}) };
+            if (patch.design) updated.design = { ...(updated.design || {}), ...patch.design };
+            if (patch.button) updated.button = { ...(updated.button || {}), ...patch.button };
+            if (patch.conversion) updated.conversion = { ...(updated.conversion || {}), ...patch.conversion };
+            if (patch.form) updated.form = { ...(updated.form || {}), ...patch.form };
+            if (patch.premiumPage) {
+              const prev = updated.premiumPage || {};
+              const next = patch.premiumPage;
+              updated.premiumPage = {
+                ...prev,
+                ...next,
+                ...(next.hero ? { hero: { ...(prev.hero || {}), ...next.hero } } : {}),
+                ...(next.faq ? { faq: { ...(prev.faq || {}), ...next.faq } } : {}),
+                ...(next.problemSection ? { problemSection: { ...(prev.problemSection || {}), ...next.problemSection } } : {}),
+                ...(next.mechanismSection ? { mechanismSection: { ...(prev.mechanismSection || {}), ...next.mechanismSection } } : {}),
+                ...(next.closingSection ? { closingSection: { ...(prev.closingSection || {}), ...next.closingSection } } : {}),
+              };
+            }
+            if (patch.whatsapp) updated.whatsapp = { ...(updated.whatsapp || {}), ...patch.whatsapp };
+            if (patch.floatingElements) updated.floatingElements = { ...(updated.floatingElements || {}), ...patch.floatingElements };
+            if (patch.customHtml) updated.customHtml = patch.customHtml;
+            if (patch.customSections) updated.customSections = [...(updated.customSections || []), ...patch.customSections];
+            return updated;
+          });
+          if (patch?.general?.sections) {
+            setConfigSections(patch.general.sections);
+          } else if (Array.isArray(patch?.sections)) {
+            setConfigSections(prev => prev.map(s => {
+              const update = patch.sections.find(p => p.id === s.id);
+              return update ? { ...s, ...update } : s;
+            }));
+          }
+        }}
+        onApplyTheme={(themePatch) => {
+          setStoreConfig(prev => ({
+            ...prev,
+            design: { ...(prev?.design || {}), ...themePatch },
+          }));
+        }}
+      />
     </div>
   );
 };

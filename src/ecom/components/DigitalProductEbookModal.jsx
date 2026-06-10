@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, Download, Eye, FileText, Loader2, RefreshCw, Sparkles, X } from 'lucide-react';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
+import { CheckCircle2, Download, Eye, FileText, Loader2, RefreshCw, Sparkles, X, BookOpen, Pen, Palette, Cpu, Package } from 'lucide-react';
 
 const GOALS = [
   { value: 'guide_utilisation', label: "Guide d'utilisation" },
@@ -17,6 +17,108 @@ const initialForm = {
   offerAngle: '',
   chapterCount: '5',
   addAsOffer: true,
+};
+
+const GENERATION_STEPS = [
+  { icon: Cpu,      label: 'Analyse du produit par l\'IA',        duration: 8000 },
+  { icon: Pen,      label: 'Rédaction des chapitres',              duration: 20000 },
+  { icon: BookOpen, label: 'Structuration du contenu',             duration: 15000 },
+  { icon: Palette,  label: 'Mise en page et design PDF',           duration: 12000 },
+  { icon: Package,  label: 'Finalisation et export',               duration: 8000 },
+];
+
+const GeneratingScreen = ({ productName }) => {
+  const [stepIndex, setStepIndex] = useState(0);
+  const [progress, setProgress] = useState(0);
+  const timerRef = useRef(null);
+  const progressRef = useRef(null);
+
+  useEffect(() => {
+    let current = 0;
+    let elapsed = 0;
+    const totalDuration = GENERATION_STEPS.reduce((s, st) => s + st.duration, 0);
+
+    const tick = () => {
+      elapsed += 200;
+      const pct = Math.min(95, (elapsed / totalDuration) * 100);
+      setProgress(pct);
+      let acc = 0;
+      for (let i = 0; i < GENERATION_STEPS.length; i++) {
+        acc += GENERATION_STEPS[i].duration;
+        if (elapsed < acc) { setStepIndex(i); break; }
+      }
+      if (elapsed < totalDuration) progressRef.current = setTimeout(tick, 200);
+    };
+    progressRef.current = setTimeout(tick, 200);
+    return () => { clearTimeout(progressRef.current); clearTimeout(timerRef.current); };
+  }, []);
+
+  return (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm">
+      <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden">
+        {/* Header gradient */}
+        <div className="bg-gradient-to-br from-emerald-600 to-teal-700 px-6 py-8 text-center">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-white/20 backdrop-blur-sm">
+            <Sparkles className="h-8 w-8 text-white animate-pulse" />
+          </div>
+          <h2 className="text-xl font-black text-white">Génération de l'ebook en cours</h2>
+          <p className="mt-1 text-sm text-emerald-100 font-medium">{productName}</p>
+        </div>
+
+        <div className="px-6 py-6">
+          {/* Progress bar */}
+          <div className="mb-6">
+            <div className="flex justify-between text-xs font-bold text-slate-500 mb-2">
+              <span>Progression</span>
+              <span>{Math.round(progress)}%</span>
+            </div>
+            <div className="h-2.5 w-full rounded-full bg-slate-100 overflow-hidden">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 transition-all duration-200"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+          </div>
+
+          {/* Steps */}
+          <div className="space-y-3">
+            {GENERATION_STEPS.map((step, i) => {
+              const StepIcon = step.icon;
+              const isDone = i < stepIndex;
+              const isActive = i === stepIndex;
+              return (
+                <div
+                  key={i}
+                  className={`flex items-center gap-3 rounded-xl px-4 py-3 transition-all duration-300 ${
+                    isActive ? 'bg-emerald-50 border border-emerald-200' :
+                    isDone ? 'bg-slate-50 opacity-60' : 'opacity-30'
+                  }`}
+                >
+                  <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
+                    isDone ? 'bg-emerald-100 text-emerald-600' :
+                    isActive ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-400'
+                  }`}>
+                    {isDone ? <CheckCircle2 className="h-4 w-4" /> :
+                     isActive ? <Loader2 className="h-4 w-4 animate-spin" /> :
+                     <StepIcon className="h-4 w-4" />}
+                  </div>
+                  <span className={`text-sm font-semibold ${isActive ? 'text-emerald-900' : isDone ? 'text-slate-500' : 'text-slate-400'}`}>
+                    {step.label}
+                  </span>
+                  {isActive && <span className="ml-auto text-xs font-bold text-emerald-500 animate-pulse">En cours…</span>}
+                  {isDone && <span className="ml-auto text-xs font-bold text-emerald-400">✓</span>}
+                </div>
+              );
+            })}
+          </div>
+
+          <p className="mt-5 text-center text-xs text-slate-400 font-medium">
+            La génération peut prendre 1 à 3 minutes selon la complexité. Ne fermez pas cette fenêtre.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
 };
 
 const DigitalProductEbookModal = ({
@@ -57,6 +159,7 @@ const DigitalProductEbookModal = ({
   ), [existingEbook]);
 
   if (!open) return null;
+  if (loading) return <GeneratingScreen productName={productName} />;
 
   const update = (field, value) => setForm((current) => ({ ...current, [field]: value }));
 
@@ -366,10 +469,9 @@ const DigitalProductEbookModal = ({
           <button
             type="button"
             onClick={handleSubmit}
-            disabled={loading}
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-700 px-5 py-2.5 text-sm font-black text-white transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:bg-emerald-300"
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-700 px-5 py-2.5 text-sm font-black text-white transition hover:bg-emerald-800"
           >
-            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+            <Sparkles className="h-4 w-4" />
             Générer le PDF ebook
           </button>
         </div>
