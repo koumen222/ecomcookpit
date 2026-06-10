@@ -164,42 +164,34 @@ const PremiumBonusEbook = ({ ebook, accent, onOrder, ctaLabel = 'Commander', pro
 
   return (
     <section className="premium-section premium-bonus">
-      <div className="premium-bonus-card">
+      <div className="premium-bonus-card" style={{ flexDirection: 'column', maxWidth: 520, margin: '0 auto' }}>
 
-        {/* ── Left: content ── */}
-        <div className="premium-bonus-copy">
-          <div className="premium-bonus-kicker">
-            <Gift size={15} />
-            {textValue(cover.badge_text, 'Bonus offert')}
-          </div>
-          <h2 className="premium-heading">{title}</h2>
-          {subtitle && <p className="premium-lead">{subtitle}</p>}
-
-          <div className="premium-bonus-actions">
-            <button type="button" className="premium-cta premium-bonus-cta" onClick={onOrder}>
-              <ShoppingCart size={18} />
-              {buttonText}
-            </button>
-          </div>
+        {/* badge */}
+        <div className="premium-bonus-kicker" style={{ marginBottom: 8 }}>
+          <Gift size={15} />
+          {textValue(cover.badge_text, 'Bonus offert')}
         </div>
 
-        {/* ── Right: cover image ── */}
-        <div className="premium-bonus-visual">
-          <div className="premium-bonus-book">
-            <div className="premium-bonus-book-spine" />
-            <div className="premium-bonus-book-pages" />
-            <div className="premium-bonus-book-cover">
-              {coverImg ? (
-                <img src={coverImg} alt={title} />
-              ) : (
-                <div className="premium-bonus-book-placeholder" style={{ background: `linear-gradient(145deg, ${accent}, color-mix(in srgb, ${accent} 60%, #000))` }}>
-                  <BookOpen size={36} />
-                </div>
-              )}
-              <div className="premium-bonus-book-ribbon">Offert</div>
+        {/* title + subtitle */}
+        <h2 className="premium-heading" style={{ marginBottom: subtitle ? 6 : 14 }}>{title}</h2>
+        {subtitle && <p className="premium-lead" style={{ marginBottom: 14 }}>{subtitle}</p>}
+
+        {/* cover image — full width */}
+        <div style={{ width: '100%', borderRadius: 14, overflow: 'hidden', marginBottom: 16, boxShadow: '0 12px 32px rgba(15,23,42,0.16)' }}>
+          {coverImg ? (
+            <img src={coverImg} alt={title} style={{ width: '100%', display: 'block', objectFit: 'cover', maxHeight: 300 }} />
+          ) : (
+            <div style={{ width: '100%', height: 200, background: `linear-gradient(145deg, ${accent}, color-mix(in srgb, ${accent} 60%, #000))`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <BookOpen size={48} color="rgba(255,255,255,.5)" />
             </div>
-          </div>
+          )}
         </div>
+
+        {/* CTA */}
+        <button type="button" className="premium-cta premium-bonus-cta" onClick={onOrder} style={{ width: '100%' }}>
+          <ShoppingCart size={18} />
+          {buttonText}
+        </button>
 
       </div>
     </section>

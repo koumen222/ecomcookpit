@@ -1295,28 +1295,24 @@ const ProductBonusEbook = ({ ebook, onOrder, accentColor = 'var(--s-primary)', c
         <Gift size={13} /> {normalizeMetaText(cover.badge_text || 'Bonus offert')}
       </div>
 
-      {/* content row */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 76px', gap: 12, alignItems: 'center', marginBottom: 12 }}>
-        <div style={{ minWidth: 0 }}>
-          <h2 style={{ margin: 0, color: 'var(--s-text)', fontSize: 'clamp(15px, 3.4vw, 19px)', lineHeight: 1.2, fontWeight: 800 }}>
-            {title}
-          </h2>
-          {subtitle && (
-            <p style={{ margin: '5px 0 0', color: 'var(--s-text2)', fontSize: 13, lineHeight: 1.45, fontWeight: 500 }}>
-              {subtitle}
-            </p>
-          )}
-        </div>
+      {/* title + subtitle */}
+      <h2 style={{ margin: '0 0 4px', color: 'var(--s-text)', fontSize: 'clamp(15px, 3.4vw, 19px)', lineHeight: 1.2, fontWeight: 800 }}>
+        {title}
+      </h2>
+      {subtitle && (
+        <p style={{ margin: '0 0 12px', color: 'var(--s-text2)', fontSize: 13, lineHeight: 1.45, fontWeight: 500 }}>
+          {subtitle}
+        </p>
+      )}
 
-        {/* cover image — always shown, gradient fallback if not yet generated */}
-        <div style={{ width: 76, height: 108, borderRadius: 8, overflow: 'hidden', flexShrink: 0, boxShadow: '0 8px 20px rgba(15,23,42,0.16)' }}>
-          {coverImg
-            ? <img src={coverImg} alt={title} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-            : <div style={{ width: '100%', height: '100%', background: `linear-gradient(160deg, ${accentColor}, #0f172a)`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <BookOpen size={26} color="rgba(255,255,255,.7)" />
-              </div>
-          }
-        </div>
+      {/* cover image — full width */}
+      <div style={{ width: '100%', borderRadius: 10, overflow: 'hidden', marginBottom: 12, boxShadow: '0 8px 24px rgba(15,23,42,0.14)' }}>
+        {coverImg
+          ? <img src={coverImg} alt={title} style={{ width: '100%', display: 'block', objectFit: 'cover', maxHeight: 260 }} />
+          : <div style={{ width: '100%', height: 180, background: `linear-gradient(160deg, ${accentColor}, #0f172a)`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <BookOpen size={40} color="rgba(255,255,255,.55)" />
+            </div>
+        }
       </div>
 
       {/* CTA */}
