@@ -176,15 +176,17 @@ const PremiumBonusEbook = ({ ebook, accent, onOrder, ctaLabel = 'Commander', pro
         <h2 className="premium-heading" style={{ marginBottom: subtitle ? 6 : 14 }}>{title}</h2>
         {subtitle && <p className="premium-lead" style={{ marginBottom: 14 }}>{subtitle}</p>}
 
-        {/* cover image — full width */}
-        <div style={{ width: '100%', borderRadius: 14, overflow: 'hidden', marginBottom: 16, boxShadow: '0 12px 32px rgba(15,23,42,0.16)' }}>
-          {coverImg ? (
-            <img src={coverImg} alt={title} style={{ width: '100%', display: 'block', objectFit: 'cover', maxHeight: 300 }} />
-          ) : (
-            <div style={{ width: '100%', height: 200, background: `linear-gradient(145deg, ${accent}, color-mix(in srgb, ${accent} 60%, #000))`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <BookOpen size={48} color="rgba(255,255,255,.5)" />
-            </div>
-          )}
+        {/* cover image — centered book portrait */}
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 18 }}>
+          <div style={{ width: 160, borderRadius: 12, overflow: 'hidden', boxShadow: '0 14px 36px rgba(15,23,42,0.22)', flexShrink: 0 }}>
+            {coverImg ? (
+              <img src={coverImg} alt={title} style={{ width: '100%', display: 'block', objectFit: 'cover', aspectRatio: '2/3' }} />
+            ) : (
+              <div style={{ width: '100%', aspectRatio: '2/3', background: `linear-gradient(145deg, ${accent}, color-mix(in srgb, ${accent} 60%, #000))`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <BookOpen size={40} color="rgba(255,255,255,.5)" />
+              </div>
+            )}
+          </div>
         </div>
 
         {/* CTA */}

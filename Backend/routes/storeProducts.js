@@ -1472,6 +1472,7 @@ router.post('/:id/digital-product', requireEcomAuth, requireWorkspace, requireSt
       userId: req.ecomUser?._id,
     });
     ebook.pdf = pdf;
+    if (pdf.coverImageUrl) ebook.cover = { ...(ebook.cover || {}), generatedImageUrl: pdf.coverImageUrl };
     const addAsOffer = shouldAddStoreDigitalProductAsOffer(brief);
     const digitalProduct = buildStoreProductDigitalMeta(ebook, pdf, { offerEnabled: addAsOffer });
     const nextProductPageConfig = addAsOffer

@@ -1305,14 +1305,16 @@ const ProductBonusEbook = ({ ebook, onOrder, accentColor = 'var(--s-primary)', c
         </p>
       )}
 
-      {/* cover image — full width */}
-      <div style={{ width: '100%', borderRadius: 10, overflow: 'hidden', marginBottom: 12, boxShadow: '0 8px 24px rgba(15,23,42,0.14)' }}>
-        {coverImg
-          ? <img src={coverImg} alt={title} style={{ width: '100%', display: 'block', objectFit: 'cover', maxHeight: 260 }} />
-          : <div style={{ width: '100%', height: 180, background: `linear-gradient(160deg, ${accentColor}, #0f172a)`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <BookOpen size={40} color="rgba(255,255,255,.55)" />
-            </div>
-        }
+      {/* cover image — centered book portrait */}
+      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 14 }}>
+        <div style={{ width: 140, borderRadius: 10, overflow: 'hidden', boxShadow: '0 10px 28px rgba(15,23,42,0.20)', flexShrink: 0 }}>
+          {coverImg
+            ? <img src={coverImg} alt={title} style={{ width: '100%', display: 'block', objectFit: 'cover', aspectRatio: '2/3' }} />
+            : <div style={{ width: '100%', aspectRatio: '2/3', background: `linear-gradient(160deg, ${accentColor}, #0f172a)`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <BookOpen size={36} color="rgba(255,255,255,.55)" />
+              </div>
+          }
+        </div>
       </div>
 
       {/* CTA */}
