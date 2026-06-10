@@ -838,94 +838,30 @@ export async function generateProductBonusEbook(scrapedData = {}, productData = 
     benefits,
   });
 
-  const systemPrompt = `Tu es un auteur expert en e-commerce, copywriting et creation de guides pratiques.
-Tu generes UNIQUEMENT du JSON valide et complet. Aucun texte avant ou apres le JSON.
-Tu dois produire un ebook de qualite professionnelle, tres dense et utile, en francais naturel.
-IMPORTANT : dans les valeurs JSON de type chaine, utilise \\n pour les sauts de paragraphe (exemple : "Premier paragraphe.\\n\\nDeuxieme paragraphe."). Ne jamais abreger ou tronquer le contenu. Ecrire tout le contenu demande.`;
+  const systemPrompt = `Expert ebook writer. Output ONLY valid JSON, no text before or after. Use \\n\\n between paragraphs inside JSON strings.`;
 
-  const userPrompt = `Cree un ebook bonus complet associe a ce produit e-commerce.
+  const userPrompt = `Write a premium bonus ebook for this product. Return JSON only.
 
-PRODUIT :
-- Nom : ${productName || 'Non disponible'}
-- Description : ${productDescription || 'Non disponible'}
-- Categorie : ${compactEbookText(context.productCategory || productData.category || scrapedData.category || 'A deduire', 160)}
-- Public cible : ${compactEbookText(context.targetAudience || context.targetAvatar || context.avatar || 'A deduire', 320)}
-- Probleme principal : ${customerProblem || 'A deduire du produit'}
-- Benefices : ${benefits.length ? benefits.join(' | ') : 'A deduire'}
-- Boutique : ${compactEbookText(storeContext.shopName || storeContext.storeName || 'La boutique', 100)}
+Product: ${productName}
+Description: ${productDescription || 'N/A'}
+Target: ${compactEbookText(context.targetAudience || context.targetAvatar || '', 200) || 'general audience'}
+Problem: ${customerProblem || 'N/A'}
+Benefits: ${benefits.slice(0, 3).join(', ') || 'N/A'}
+Brand: ${compactEbookText(storeContext.shopName || 'La boutique', 80)}
+Chapters: ${requestedChapterCount}
+Language: French
 
-BRIEF :
-- Theme : ${requestedTheme || 'Guide pratique lie au produit'}
-- Objectif : ${requestedGoal || 'Aider le client a utiliser le produit et augmenter la valeur percue'}
-- Angle : ${requestedOfferAngle || 'Bonus offert premium qui donne envie de commander'}
-- Nombre de chapitres : ${requestedChapterCount}
+Rules:
+- Exactly ${requestedChapterCount} chapters
+- chapter_content: min 500 words, multiple paragraphs (use \\n\\n), real advice, examples, steps
+- chapter_table: 3 columns, 3-5 rows relevant to chapter topic
+- key_quote: short impactful quote or stat
+- 4 chapters must have illustration_prompt (English, descriptive)
+- key_points: 3-4 bullet points
+- No medical promises, no AI mention
 
-REGLES ABSOLUES :
-- Genere exactement ${requestedChapterCount} chapitres
-- Chaque chapitre doit avoir un chapter_content d'AU MINIMUM 600 mots (plusieurs paragraphes, conseils detailles, exemples concrets, etapes numerotees, erreurs a eviter, astuces avancees, anecdotes)
-- Chaque chapitre doit avoir un chapter_table avec 2 a 4 colonnes et 3 a 6 lignes (comparaison, checklist, etapes, statistiques liees au sujet)
-- Chaque chapitre doit avoir un key_quote : une citation inspirante ou stat choc liee au sujet du chapitre (courte, percutante)
-- Au moins 4 chapitres sur ${requestedChapterCount} doivent avoir un illustration_prompt en anglais pour generer une image d'illustration
-- Le contenu doit etre utile, credible, professionnel, tres dense, avec des transitions fluides entre paragraphes
-- Formulations prudentes pour la sante : "peut aider", "contribue a", "favorise", "accompagne"
-- Jamais de promesses medicales, jamais de mention de l'IA
-- Chaque chapitre = une vraie valeur ajoutee autonome, lisible seul
-
-JSON attendu (structure EXACTE) :
-{
-  "ebook": {
-    "title": "Titre accrocheur et specifique au produit",
-    "subtitle": "Sous-titre promesse claire",
-    "short_description": "Description 2-3 phrases pour la page produit",
-    "target_reader": "Qui est le lecteur ideal",
-    "main_promise": "Ce que le lecteur va obtenir ou apprendre",
-    "estimated_value": "Valeur estimee ex: Valeur 29€ - Offert avec votre commande",
-    "cover": {
-      "cover_title": "Titre court pour la couverture",
-      "cover_subtitle": "Sous-titre court couverture",
-      "badge_text": "BONUS OFFERT",
-      "author_or_brand": "Nom boutique",
-      "visual_style": "Description style visuel premium",
-      "color_palette": ["#hex1", "#hex2", "#hex3"],
-      "cover_description": "Description couverture detaillee",
-      "image_generation_prompt": "Prompt detaille en anglais pour generer l'image de couverture"
-    },
-    "sales_section": {
-      "headline": "Titre accrocheur pour la section bonus",
-      "bonus_text": "Description du bonus en 2-3 phrases persuasives",
-      "value_text": "Valeur percue et benefices concrets",
-      "cta_text": "Texte du bouton call-to-action"
-    },
-    "table_of_contents": [
-      {"chapter_number": 1, "chapter_title": "Titre chapitre", "chapter_summary": "Resume 1 phrase"}
-    ],
-    "chapters": [
-      {
-        "chapter_number": 1,
-        "chapter_title": "Titre complet du chapitre",
-        "chapter_intro": "Phrase d'accroche du chapitre (2-3 phrases percutantes)",
-        "chapter_content": "Contenu tres detaille MINIMUM 600 mots — plusieurs paragraphes separes par \\n\\n, etapes numerotees, exemples concrets, anecdotes, astuces avancees, erreurs a eviter",
-        "key_quote": "Citation ou statistique choc courte et percutante liee au sujet",
-        "chapter_table": {
-          "headers": ["Colonne 1", "Colonne 2", "Colonne 3"],
-          "rows": [
-            ["Valeur A1", "Valeur A2", "Valeur A3"],
-            ["Valeur B1", "Valeur B2", "Valeur B3"]
-          ]
-        },
-        "illustration_prompt": "Detailed English prompt for generating a relevant illustration image (only on 4 chapters, omit on others)",
-        "illustration_caption": "Legende courte pour l'image",
-        "key_points": ["Point cle 1 detaille", "Point cle 2 detaille", "Point cle 3 detaille", "Point cle 4 detaille"],
-        "action_step": "Action concrete et precise a faire apres lecture (2-3 etapes claires)"
-      }
-    ],
-    "final_page": {
-      "title": "Titre page de conclusion",
-      "message": "Message de cloture chaleureux et motivant",
-      "cta": "Appel a l'action final"
-    }
-  }
-}`;
+JSON structure:
+{"ebook":{"title":"...","subtitle":"...","short_description":"...","target_reader":"...","main_promise":"...","estimated_value":"Valeur X€ - Offert","cover":{"cover_title":"...","cover_subtitle":"...","badge_text":"BONUS OFFERT","author_or_brand":"...","color_palette":["#hex"],"image_generation_prompt":"detailed English prompt"},"sales_section":{"headline":"...","bonus_text":"...","value_text":"...","cta_text":"..."},"table_of_contents":[{"chapter_number":1,"chapter_title":"...","chapter_summary":"..."}],"chapters":[{"chapter_number":1,"chapter_title":"...","chapter_intro":"...","chapter_content":"para1\\n\\npara2\\n\\npara3","key_quote":"...","chapter_table":{"headers":["A","B","C"],"rows":[["a1","b1","c1"]]},"illustration_prompt":"...or null","illustration_caption":"...","key_points":["...","...","..."],"action_step":"..."}],"final_page":{"title":"...","message":"...","cta":"..."}}}`;
 
   // Each provider has its own try/catch so a 500 on Claude doesn't skip GPT5 and Groq
 
