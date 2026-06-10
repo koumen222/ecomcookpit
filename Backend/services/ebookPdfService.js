@@ -3,7 +3,7 @@ import { randomUUID } from 'crypto';
 import axios from 'axios';
 import sharp from 'sharp';
 import { s3Client, R2_CONFIG, getR2PublicUrl } from '../config/r2.js';
-import { generateNanoBananaImage } from './nanoBananaService.js';
+import { generateKieGptImage2, isKieImageConfigured } from './kieImageService.js';
 import { generateGeminiTextToImage, isGeminiConfigured } from './geminiImageService.js';
 
 const PAGE_WIDTH = 595.28;
@@ -574,12 +574,16 @@ export function generateEbookPdfBuffer(ebook = {}, productData = {}, storeContex
 
 // Try KIE NanoBanana first, fall back to Gemini if KIE fails (401, 500, timeout)
 async function generateImageUrl(prompt, aspectRatio) {
-  try {
-    const url = await generateNanoBananaImage(prompt, aspectRatio);
-    if (url) return url;
-  } catch (kieErr) {
-    console.warn(`[EbookPDF] KIE image failed (${kieErr.message}) — trying Gemini...`);
+  // Primary: KIE GPT Image 2 (uses KIE_API_KEY, same key as chat)
+  if (isKieImageConfigured()) {
+    try {
+      const url = await generateKieGptImage2(prompt, aspectRatio);
+      if (url) return url;
+    } catch (kieErr) {
+      console.warn(`[EbookPDF] KIE GPT Image 2 failed (${kieErr.message}) — trying Gemini...`);
+    }
   }
+  // Fallback: Gemini text-to-image
   if (isGeminiConfigured()) {
     try {
       const url = await generateGeminiTextToImage(prompt, aspectRatio);
