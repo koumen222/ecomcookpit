@@ -1483,11 +1483,18 @@ const ProductPageBuilder = () => {
     if (!id) return;
     const load = async () => {
       try {
-        const [productRes, configRes, deliveryRes] = await Promise.all([
+        const [productRes, configRes, deliveryRes, themeRes] = await Promise.all([
           storeProductsApi.getProduct(id),
           storeManageApi.getStoreConfig().catch(() => null),
           storeDeliveryZonesApi.getZones().catch(() => null),
+          storeManageApi.getTheme().catch(() => null),
         ]);
+        // Redirect to premium builder if store theme is magazine
+        const storeTemplate = themeRes?.data?.data?.template || 'classic';
+        if (storeTemplate === 'magazine') {
+          navigate(`${basePath}/products/${id}/premium-builder`, { replace: true });
+          return;
+        }
         const p = productRes.data?.data || productRes.data;
         setProduct(p);
         const pb = p?.pageBuilder;

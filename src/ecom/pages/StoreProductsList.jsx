@@ -77,14 +77,15 @@ const StoreProductsList = () => {
 
   // Récupérer le subdomain et le template du store
   useEffect(() => {
-    storeManageApi.getStoreConfig()
-      .then((res) => {
-        const data = res.data?.data || {};
-        setStoreSubdomain(data.subdomain);
-        setCategoryRegistry(data.storeSettings?.categoryRegistry || []);
-        setStoreTemplate(data.template || 'classic');
-      })
-      .catch(() => {});
+    Promise.all([
+      storeManageApi.getStoreConfig(),
+      storeManageApi.getTheme(),
+    ]).then(([configRes, themeRes]) => {
+      const data = configRes.data?.data || {};
+      setStoreSubdomain(data.subdomain);
+      setCategoryRegistry(data.storeSettings?.categoryRegistry || []);
+      setStoreTemplate(themeRes.data?.data?.template || 'classic');
+    }).catch(() => {});
   }, []);
 
   // Récupérer les infos de générations
@@ -1559,7 +1560,8 @@ const StoreProductsList = () => {
                         </button>
                         <button
                           onClick={() => {
-                            const isPremium = product.productPageConfig?.pageStyle === 'premium'
+                            const isPremium = isPremiumStore
+                              || product.productPageConfig?.pageStyle === 'premium'
                               || product.productPageConfig?.theme === 'premium_product'
                               || Boolean(product.productPageConfig?.premiumPage)
                               || product._pageData?.pageStyle === 'premium'
@@ -1659,7 +1661,8 @@ const StoreProductsList = () => {
                     Voir
                   </button>
                   <button onClick={() => {
-                    const isPremium = product.productPageConfig?.pageStyle === 'premium'
+                    const isPremium = isPremiumStore
+                      || product.productPageConfig?.pageStyle === 'premium'
                       || product.productPageConfig?.theme === 'premium_product'
                       || Boolean(product.productPageConfig?.premiumPage)
                       || product._pageData?.pageStyle === 'premium'

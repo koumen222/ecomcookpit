@@ -95,7 +95,7 @@ export default function GenerationsPage() {
   }, [pageMeta.defaultFilter]);
 
   useEffect(() => {
-    storeManageApi.getStoreConfig()
+    storeManageApi.getTheme()
       .then((res) => setStoreTemplate(res.data?.data?.template || 'classic'))
       .catch(() => {});
   }, []);

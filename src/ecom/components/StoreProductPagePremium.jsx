@@ -21,6 +21,7 @@ import {
 
 } from 'lucide-react';
 import QuickOrderModal from './QuickOrderModal.jsx';
+import EmbeddedOrderForm from './EmbeddedOrderForm.jsx';
 import { StorefrontHeader } from './StorefrontShared.jsx';
 import { useStoreCart } from '../hooks/useStoreCart.js';
 import { formatMoney } from '../utils/currency.js';
@@ -216,6 +217,9 @@ const PremiumBonusEbook = ({ ebook, accent, onOrder, ctaLabel = 'Commander', pro
 };
 
 const StoreProductPagePremium = ({ product, store, productPageConfig, subdomain, pixels, prefix = '' }) => {
+  const formType = productPageConfig?.general?.formType || 'popup';
+  const isEmbeddedForm = formType === 'embedded';
+  const ctaRef = useRef(null);
   const [showOrderModal, setShowOrderModal] = useState(false);
   const [openFaq, setOpenFaq] = useState(null);
   const [openHeroAccordion, setOpenHeroAccordion] = useState(null);
@@ -398,7 +402,13 @@ const StoreProductPagePremium = ({ product, store, productPageConfig, subdomain,
       { title: "Et si cela ne fonctionne pas ?", content: "Nous offrons une garantie de satisfaction totale. Contactez-nous pour un remboursement integral, sans aucune question." },
     ];
 
-  const openOrder = () => setShowOrderModal(true);
+  const openOrder = () => {
+    if (isEmbeddedForm) {
+      ctaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    } else {
+      setShowOrderModal(true);
+    }
+  };
   const pageVars = {
     '--premium-accent': accent,
     '--premium-text': textColor,
@@ -671,10 +681,22 @@ const StoreProductPagePremium = ({ product, store, productPageConfig, subdomain,
               </>
             )}
 
-            <button type="button" className="premium-cta" onClick={openOrder}>
-              <ShoppingCart size={19} />
-              {textValue(premium.hero?.ctaLabel, productPageConfig?.button?.text || 'Commander')}
-            </button>
+            {isEmbeddedForm ? (
+              <div ref={ctaRef} style={{ marginTop: 14 }}>
+                <EmbeddedOrderForm
+                  product={product}
+                  subdomain={subdomain}
+                  store={store}
+                  pixels={pixels}
+                  productPageConfig={productPageConfig}
+                />
+              </div>
+            ) : (
+              <button type="button" className="premium-cta" onClick={openOrder}>
+                <ShoppingCart size={19} />
+                {textValue(premium.hero?.ctaLabel, productPageConfig?.button?.text || 'Commander')}
+              </button>
+            )}
 
             <div className="premium-reassurance">
               {reassurance.slice(0, 3).map((item, index) => (
@@ -703,221 +725,242 @@ const StoreProductPagePremium = ({ product, store, productPageConfig, subdomain,
           </div>
         </section>
 
-        <section className="premium-authority" aria-label="Preuves et avis">
-          <div className="premium-authority-track">
-            {[...authorityStrip, ...authorityStrip].map((item, index) => (
-              <div key={index} className="premium-authority-item">
-                <div className="premium-authority-label">{textValue(item.label, 'Clients vérifiés')}</div>
-                <p className="premium-authority-quote">{textValue(item.quote)}</p>
-              </div>
-            ))}
-          </div>
-        </section>
+        {(() => {
+          const DEFAULT_ORDER = ['testimonials', 'problem', 'mechanism', 'science', 'ritual', 'comparison', 'faq', 'closing'];
+          const order = (productPageConfig?.sectionOrder?.length ? productPageConfig.sectionOrder : DEFAULT_ORDER);
 
-        {bonusEbook && (
-          <PremiumBonusEbook
-            ebook={bonusEbook}
-            accent={accent}
-            onOrder={openOrder}
-            ctaLabel={textValue(premium.hero?.ctaLabel, productPageConfig?.button?.text || 'Commander')}
-            productImage={heroImage}
-          />
-        )}
-
-        <section className="premium-section premium-testimonials">
-          <div className="premium-centered">
-            <div className="premium-eyebrow"><span className="premium-stars">{[1, 2, 3, 4, 5].map((i) => <Star key={i} size={16} fill="currentColor" />)}</span>{textValue(premium.rating?.score, '4,9/5')} par {textValue(premium.rating?.count, '+1 000')} clients satisfaits</div>
-            <h2 className="premium-heading">{textValue(premium.testimonialGallery?.headline, 'Une vie intime libérée et sereine')}</h2>
-            <p className="premium-lead">{textValue(premium.testimonialGallery?.subheadline, "Des clients d'Afrique francophone et d'ailleurs partagent leur expérience.")}</p>
-          </div>
-          <div className="premium-reviews-wrap">
-            <button type="button" className="premium-carousel-arrow prev" onClick={() => scrollReviews(-1)} aria-label="Avis précédents"><ChevronLeft size={20} /></button>
-            <div className="premium-reviews-carousel" ref={reviewsRef}>
-              {reviews.map((item, index) => (
-                <article key={index} className="premium-testimonial-card">
-                  <div className="premium-testimonial-image">
-                    {testimonialImage(index) && <img src={testimonialImage(index)} alt="" style={{ objectFit: 'cover' }} />}
-                    <div className="premium-tags">{cleanPremiumTags(item.tags).map((tag, tagIndex) => <span key={tagIndex}>{tag}</span>)}</div>
-                  </div>
-                  <div className="premium-review-stars">{[1, 2, 3, 4, 5].map((i) => <Star key={i} size={17} fill="currentColor" />)}</div>
-                  <p className="premium-testimonial-text">{textValue(item.text)}</p>
-                  <div className="premium-verified"><strong>{textValue(item.name, 'Client vérifié')}</strong><CheckCircle size={16} color={accent} fill={accent} stroke="white" /> Acheteur Vérifié</div>
-                </article>
-              ))}
-            </div>
-            <button type="button" className="premium-carousel-arrow next" onClick={() => scrollReviews(1)} aria-label="Avis suivants"><ChevronRight size={20} /></button>
-          </div>
-        </section>
-
-        <section className="premium-section premium-split">
-          <div className="premium-copy">
-            <h2 className="premium-heading">{textValue(premium.problemSection?.headline, product?._pageData?.problem_section?.title || 'Ce problème ruine votre quotidien')}</h2>
-            <ul className="premium-check-list" style={{ marginTop: 28 }}>
-              {problemBullets.slice(0, 4).map((item, index) => (
-                <li key={index}><span className="premium-check-dot"><Check size={14} /></span><span>{textValue(item)}</span></li>
-              ))}
-            </ul>
-            <button type="button" className="premium-cta" onClick={openOrder} style={{ marginTop: 22 }}>
-              <ShoppingCart size={18} />
-              {textValue(premium.hero?.ctaLabel, productPageConfig?.button?.text || 'Commander')}
-            </button>
-          </div>
-          <div className="premium-image-panel">{sectionImage('problem', 5) && <EditableImage src={sectionImage('problem', 5)} alt={`Situation client ${productName}`} style={{ objectFit: 'contain', width: '100%', height: '100%' }} imageKey="problem" productId={product?._id} onImageUpdated={handleImageUpdated} isAdmin={isAdmin} />}</div>
-        </section>
-
-        <section className="premium-section premium-split reverse">
-          <div className="premium-image-panel">{sectionImage('mechanism', 6) && <EditableImage src={sectionImage('mechanism', 6)} alt={`Explication ${productName}`} style={{ objectFit: 'contain', width: '100%', height: '100%' }} imageKey="mechanism" productId={product?._id} onImageUpdated={handleImageUpdated} isAdmin={isAdmin} />}</div>
-          <div className="premium-copy">
-            <h2 className="premium-heading">{textValue(premium.mechanismSection?.headline, product?._pageData?.solution_section?.title || "Ce n'est pas une question de hasard")}</h2>
-            <p className="premium-lead">{textValue(premium.mechanismSection?.body, product?._pageData?.solution_section?.description)}</p>
-            <button type="button" className="premium-cta" onClick={openOrder} style={{ marginTop: 22 }}>
-              <ShoppingCart size={18} />
-              {textValue(premium.hero?.ctaLabel, productPageConfig?.button?.text || 'Commander')}
-            </button>
-          </div>
-        </section>
-
-        <section className="premium-section premium-split premium-soft-band">
-          <div className="premium-copy">
-            <h2 className="premium-heading">{textValue(premium.scienceSection?.headline, 'Ce qui rend ce produit efficace')}</h2>
-            <p className="premium-lead">{textValue(premium.scienceSection?.subheadline, 'Des éléments clés pensés pour une utilisation claire et rassurante.')}</p>
-            <div className="premium-ingredients">
-              {scienceItems.slice(0, 4).map((item, index) => (
-                <div key={index} className="premium-ingredient">
-                  <div className="premium-ingredient-thumb"><Award size={24} /></div>
-                  <div>
-                    <h3>{textValue(item.name, `Point clé ${index + 1}`)}</h3>
-                    <p>{textValue(item.description, item.name)}</p>
-                  </div>
+          const sectionMap = {
+            testimonials: (
+              <section key="testimonials" className="premium-section premium-testimonials">
+                <div className="premium-centered">
+                  <div className="premium-eyebrow"><span className="premium-stars">{[1, 2, 3, 4, 5].map((i) => <Star key={i} size={16} fill="currentColor" />)}</span>{textValue(premium.rating?.score, '4,9/5')} par {textValue(premium.rating?.count, '+1 000')} clients satisfaits</div>
+                  <h2 className="premium-heading">{textValue(premium.testimonialGallery?.headline, 'Une vie intime libérée et sereine')}</h2>
+                  <p className="premium-lead">{textValue(premium.testimonialGallery?.subheadline, "Des clients d'Afrique francophone et d'ailleurs partagent leur expérience.")}</p>
                 </div>
-              ))}
-            </div>
-          </div>
-          <div className="premium-image-panel">{sectionImage('science', 7) && <EditableImage src={sectionImage('science', 7)} alt="Formule et fonctionnement" style={{ width: '100%', height: '100%' }} imageKey="science" productId={product?._id} onImageUpdated={handleImageUpdated} isAdmin={isAdmin} />}</div>
-        </section>
-
-        <section className="premium-section premium-split">
-          <div className="premium-results-card">
-            <div>
-              <h2 className="premium-heading" style={{ fontSize: 'clamp(20px, 2.4vw, 30px)' }}>{timeline[0]?.headline || 'Résultats progressifs'}</h2>
-              {(timeline.length ? timeline : [
-                { label: 'Jour 1', description: 'Vous commencez la routine avec une utilisation simple.' },
-                { label: 'Jour 7', description: 'Les premiers changements deviennent plus visibles.' },
-                { label: 'Jour 15', description: 'La routine se stabilise pour un résultat plus durable.' },
-                { label: 'Jour 30', description: 'Les résultats sont bien installés dans votre quotidien.' },
-              ]).slice(0, 4).map((item, index) => (
-                <p key={index} style={{ margin: '22px 0 0', fontSize: 15, lineHeight: 1.45 }}><strong>{textValue(item.label)}</strong><br />{textValue(item.description)}</p>
-              ))}
-            </div>
-            {sectionImage('ritual', 8) && <EditableImage src={sectionImage('ritual', 8)} alt="Résultats produit" style={{ width: '100%', height: '100%' }} imageKey="ritual" productId={product?._id} onImageUpdated={handleImageUpdated} isAdmin={isAdmin} />}
-          </div>
-          <div className="premium-copy">
-            <h2 className="premium-heading">{textValue(premium.ritualSection?.headline, 'Votre rituel simple')}</h2>
-            <p className="premium-lead">{textValue(premium.ritualSection?.subheadline, 'Une routine claire, facile à suivre et pensée pour rester régulière.')}</p>
-            <div className="premium-timeline">
-              {(ritualSteps.length ? ritualSteps : [
-                { label: 'Étape 1', title: 'Prenez un comprimé par jour', description: 'Il est recommandé de prendre le produit régulièrement pour obtenir les meilleurs résultats.' },
-                { label: 'Étape 2', title: 'Répétez chaque jour', description: 'La régularité est la clé. Intégrez-le dans votre routine quotidienne.' },
-                { label: 'Étape 3', title: 'Observez les résultats', description: 'Les effets se font sentir progressivement au fil des jours.' },
-                { label: 'Étape 4', title: 'Maintenez la routine', description: 'Continuez pour des résultats durables et un bien-être optimal.' },
-              ]).map((step, index) => (
-                <div key={index} className="premium-step">
-                  <span className="premium-step-label">{textValue(step.label, `Étape ${index + 1}`)}</span>
-                  <div>
-                    <h3>{textValue(step.title, step.action)}</h3>
-                    <p>{textValue(step.description, step.detail)}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <button type="button" className="premium-cta" onClick={openOrder} style={{ marginTop: 26 }}>
-              <ShoppingCart size={18} />
-              {textValue(premium.hero?.ctaLabel, productPageConfig?.button?.text || 'Commander')}
-            </button>
-          </div>
-        </section>
-
-        <section className="premium-section premium-comparison">
-          <div className="premium-centered">
-            <h2 className="premium-heading">{textValue(comparison.headline, 'Comparaison')}</h2>
-          </div>
-          <div className="premium-table-wrap">
-            <table className="premium-table">
-              <thead>
-                <tr>
-                  <th></th>
-                  {comparisonColumns.slice(0, 3).map((column, index) => <th key={index}>{textValue(column)}</th>)}
-                </tr>
-              </thead>
-              <tbody>
-                {comparisonRows.slice(0, 6).map((row, index) => (
-                  <tr key={index}>
-                    <td>{textValue(row.label)}</td>
-                    {(asArray(row.values).length ? row.values : [true, false, false]).slice(0, 3).map((value, valueIndex) => (
-                      <td key={valueIndex}>{boolIcon(Boolean(value), accent)}</td>
+                <div className="premium-reviews-wrap">
+                  <button type="button" className="premium-carousel-arrow prev" onClick={() => scrollReviews(-1)} aria-label="Avis précédents"><ChevronLeft size={20} /></button>
+                  <div className="premium-reviews-carousel" ref={reviewsRef}>
+                    {reviews.map((item, index) => (
+                      <article key={index} className="premium-testimonial-card">
+                        <div className="premium-testimonial-image">
+                          {testimonialImage(index) && <img src={testimonialImage(index)} alt="" style={{ objectFit: 'cover' }} />}
+                          <div className="premium-tags">{cleanPremiumTags(item.tags).map((tag, tagIndex) => <span key={tagIndex}>{tag}</span>)}</div>
+                        </div>
+                        <div className="premium-review-stars">{[1, 2, 3, 4, 5].map((i) => <Star key={i} size={17} fill="currentColor" />)}</div>
+                        <p className="premium-testimonial-text">{textValue(item.text)}</p>
+                        <div className="premium-verified"><strong>{textValue(item.name, 'Client vérifié')}</strong><CheckCircle size={16} color={accent} fill={accent} stroke="white" /> Acheteur Vérifié</div>
+                      </article>
                     ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {/* Mobile: stacked cards */}
-          <div className="premium-mobile-cards">
-            {comparisonRows.slice(0, 6).map((row, index) => (
-              <div key={index} className="premium-mobile-card">
-                <div className="premium-mobile-card-label">{textValue(row.label)}</div>
-                {comparisonColumns.slice(0, 3).map((col, colIndex) => (
-                  <div key={colIndex} className="premium-mobile-card-row">
-                    <span className="premium-mobile-card-col">{textValue(col)}</span>
-                    {boolIcon(Boolean((asArray(row.values).length ? row.values : [true, false, false])[colIndex]), accent)}
                   </div>
-                ))}
-              </div>
-            ))}
-          </div>
-        </section>
+                  <button type="button" className="premium-carousel-arrow next" onClick={() => scrollReviews(1)} aria-label="Avis suivants"><ChevronRight size={20} /></button>
+                </div>
+              </section>
+            ),
+            problem: (
+              <section key="problem" className="premium-section premium-split">
+                <div className="premium-copy">
+                  <h2 className="premium-heading">{textValue(premium.problemSection?.headline, product?._pageData?.problem_section?.title || 'Ce problème ruine votre quotidien')}</h2>
+                  <ul className="premium-check-list" style={{ marginTop: 28 }}>
+                    {problemBullets.slice(0, 4).map((item, index) => (
+                      <li key={index}><span className="premium-check-dot"><Check size={14} /></span><span>{textValue(item)}</span></li>
+                    ))}
+                  </ul>
+                  <button type="button" className="premium-cta" onClick={openOrder} style={{ marginTop: 22 }}>
+                    <ShoppingCart size={18} />
+                    {textValue(premium.hero?.ctaLabel, productPageConfig?.button?.text || 'Commander')}
+                  </button>
+                </div>
+                <div className="premium-image-panel">{sectionImage('problem', 5) && <EditableImage src={sectionImage('problem', 5)} alt={`Situation client ${productName}`} style={{ objectFit: 'contain', width: '100%', height: '100%' }} imageKey="problem" productId={product?._id} onImageUpdated={handleImageUpdated} isAdmin={isAdmin} />}</div>
+              </section>
+            ),
+            mechanism: (
+              <section key="mechanism" className="premium-section premium-split reverse">
+                <div className="premium-image-panel">{sectionImage('mechanism', 6) && <EditableImage src={sectionImage('mechanism', 6)} alt={`Explication ${productName}`} style={{ objectFit: 'contain', width: '100%', height: '100%' }} imageKey="mechanism" productId={product?._id} onImageUpdated={handleImageUpdated} isAdmin={isAdmin} />}</div>
+                <div className="premium-copy">
+                  <h2 className="premium-heading">{textValue(premium.mechanismSection?.headline, product?._pageData?.solution_section?.title || "Ce n'est pas une question de hasard")}</h2>
+                  <p className="premium-lead">{textValue(premium.mechanismSection?.body, product?._pageData?.solution_section?.description)}</p>
+                  <button type="button" className="premium-cta" onClick={openOrder} style={{ marginTop: 22 }}>
+                    <ShoppingCart size={18} />
+                    {textValue(premium.hero?.ctaLabel, productPageConfig?.button?.text || 'Commander')}
+                  </button>
+                </div>
+              </section>
+            ),
+            science: (
+              <section key="science" className="premium-section premium-split premium-soft-band">
+                <div className="premium-copy">
+                  <h2 className="premium-heading">{textValue(premium.scienceSection?.headline, 'Ce qui rend ce produit efficace')}</h2>
+                  <p className="premium-lead">{textValue(premium.scienceSection?.subheadline, 'Des éléments clés pensés pour une utilisation claire et rassurante.')}</p>
+                  <div className="premium-ingredients">
+                    {scienceItems.slice(0, 4).map((item, index) => (
+                      <div key={index} className="premium-ingredient">
+                        <div className="premium-ingredient-thumb"><Award size={24} /></div>
+                        <div>
+                          <h3>{textValue(item.name, `Point clé ${index + 1}`)}</h3>
+                          <p>{textValue(item.description, item.name)}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="premium-image-panel">{sectionImage('science', 7) && <EditableImage src={sectionImage('science', 7)} alt="Formule et fonctionnement" style={{ width: '100%', height: '100%' }} imageKey="science" productId={product?._id} onImageUpdated={handleImageUpdated} isAdmin={isAdmin} />}</div>
+              </section>
+            ),
+            ritual: (
+              <section key="ritual" className="premium-section premium-split">
+                <div className="premium-results-card">
+                  <div>
+                    <h2 className="premium-heading" style={{ fontSize: 'clamp(20px, 2.4vw, 30px)' }}>{timeline[0]?.headline || 'Résultats progressifs'}</h2>
+                    {(timeline.length ? timeline : [
+                      { label: 'Jour 1', description: 'Vous commencez la routine avec une utilisation simple.' },
+                      { label: 'Jour 7', description: 'Les premiers changements deviennent plus visibles.' },
+                      { label: 'Jour 15', description: 'La routine se stabilise pour un résultat plus durable.' },
+                      { label: 'Jour 30', description: 'Les résultats sont bien installés dans votre quotidien.' },
+                    ]).slice(0, 4).map((item, index) => (
+                      <p key={index} style={{ margin: '22px 0 0', fontSize: 15, lineHeight: 1.45 }}><strong>{textValue(item.label)}</strong><br />{textValue(item.description)}</p>
+                    ))}
+                  </div>
+                  {sectionImage('ritual', 8) && <EditableImage src={sectionImage('ritual', 8)} alt="Résultats produit" style={{ width: '100%', height: '100%' }} imageKey="ritual" productId={product?._id} onImageUpdated={handleImageUpdated} isAdmin={isAdmin} />}
+                </div>
+                <div className="premium-copy">
+                  <h2 className="premium-heading">{textValue(premium.ritualSection?.headline, 'Votre rituel simple')}</h2>
+                  <p className="premium-lead">{textValue(premium.ritualSection?.subheadline, 'Une routine claire, facile à suivre et pensée pour rester régulière.')}</p>
+                  <div className="premium-timeline">
+                    {(ritualSteps.length ? ritualSteps : [
+                      { label: 'Étape 1', title: 'Prenez un comprimé par jour', description: 'Il est recommandé de prendre le produit régulièrement pour obtenir les meilleurs résultats.' },
+                      { label: 'Étape 2', title: 'Répétez chaque jour', description: 'La régularité est la clé. Intégrez-le dans votre routine quotidienne.' },
+                      { label: 'Étape 3', title: 'Observez les résultats', description: 'Les effets se font sentir progressivement au fil des jours.' },
+                      { label: 'Étape 4', title: 'Maintenez la routine', description: 'Continuez pour des résultats durables et un bien-être optimal.' },
+                    ]).map((step, index) => (
+                      <div key={index} className="premium-step">
+                        <span className="premium-step-label">{textValue(step.label, `Étape ${index + 1}`)}</span>
+                        <div>
+                          <h3>{textValue(step.title, step.action)}</h3>
+                          <p>{textValue(step.description, step.detail)}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <button type="button" className="premium-cta" onClick={openOrder} style={{ marginTop: 26 }}>
+                    <ShoppingCart size={18} />
+                    {textValue(premium.hero?.ctaLabel, productPageConfig?.button?.text || 'Commander')}
+                  </button>
+                </div>
+              </section>
+            ),
+            comparison: (
+              <section key="comparison" className="premium-section premium-comparison">
+                <div className="premium-centered">
+                  <h2 className="premium-heading">{textValue(comparison.headline, 'Comparaison')}</h2>
+                </div>
+                <div className="premium-table-wrap">
+                  <table className="premium-table">
+                    <thead>
+                      <tr>
+                        <th></th>
+                        {comparisonColumns.slice(0, 3).map((column, index) => <th key={index}>{textValue(column)}</th>)}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {comparisonRows.slice(0, 6).map((row, index) => (
+                        <tr key={index}>
+                          <td>{textValue(row.label)}</td>
+                          {(asArray(row.values).length ? row.values : [true, false, false]).slice(0, 3).map((value, valueIndex) => (
+                            <td key={valueIndex}>{boolIcon(Boolean(value), accent)}</td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="premium-mobile-cards">
+                  {comparisonRows.slice(0, 6).map((row, index) => (
+                    <div key={index} className="premium-mobile-card">
+                      <div className="premium-mobile-card-label">{textValue(row.label)}</div>
+                      {comparisonColumns.slice(0, 3).map((col, colIndex) => (
+                        <div key={colIndex} className="premium-mobile-card-row">
+                          <span className="premium-mobile-card-col">{textValue(col)}</span>
+                          {boolIcon(Boolean((asArray(row.values).length ? row.values : [true, false, false])[colIndex]), accent)}
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              </section>
+            ),
+            faq: (
+              <section key="faq" className="premium-section premium-faq">
+                <div className="premium-centered">
+                  <h2 className="premium-heading">{textValue(premium.faq?.headline, 'Questions frequentes')}</h2>
+                  <p className="premium-lead">{textValue(premium.faq?.subheadline, 'Tout ce que vous devez savoir avant de commander.')}</p>
+                </div>
+                <div className="premium-faq-list">
+                  {faqItems.map((item, index) => (
+                    <div key={index} className="premium-faq-item">
+                      <button
+                        type="button"
+                        className="premium-faq-q"
+                        aria-expanded={openFaq === index}
+                        onClick={() => setOpenFaq(openFaq === index ? null : index)}
+                      >
+                        <span>{textValue(item.question)}</span>
+                        <ChevronDown size={19} />
+                      </button>
+                      {openFaq === index && (
+                        <div className="premium-faq-a">{textValue(item.answer)}</div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </section>
+            ),
+            closing: (
+              <section key="closing" className="premium-section premium-split premium-soft-band">
+                <div className="premium-copy">
+                  <h2 className="premium-heading">{textValue(premium.closingSection?.headline, `Pourquoi choisir ${productName}`)}</h2>
+                  <p className="premium-lead">{textValue(premium.closingSection?.subheadline, 'Une solution pensée pour acheter simplement et utiliser avec confiance.')}</p>
+                  <ul className="premium-check-list" style={{ marginTop: 26 }}>
+                    {closingBullets.slice(0, 4).map((item, index) => (
+                      <li key={index}><span className="premium-check-dot"><Check size={14} /></span><span>{textValue(item)}</span></li>
+                    ))}
+                  </ul>
+                  <button type="button" className="premium-cta" onClick={openOrder}>
+                    <ShoppingCart size={19} />
+                    {textValue(premium.hero?.ctaLabel, 'Commander')}
+                  </button>
+                </div>
+                <div className="premium-image-panel">{sectionImage('closing', 9) && <EditableImage src={sectionImage('closing', 9)} alt={productName} style={{ width: '100%', height: '100%' }} imageKey="closing" productId={product?._id} onImageUpdated={handleImageUpdated} isAdmin={isAdmin} />}</div>
+              </section>
+            ),
+          };
 
-        <section className="premium-section premium-faq">
-          <div className="premium-centered">
-            <h2 className="premium-heading">{textValue(premium.faq?.headline, 'Questions frequentes')}</h2>
-            <p className="premium-lead">{textValue(premium.faq?.subheadline, 'Tout ce que vous devez savoir avant de commander.')}</p>
-          </div>
-          <div className="premium-faq-list">
-            {faqItems.map((item, index) => (
-              <div key={index} className="premium-faq-item">
-                <button
-                  type="button"
-                  className="premium-faq-q"
-                  aria-expanded={openFaq === index}
-                  onClick={() => setOpenFaq(openFaq === index ? null : index)}
-                >
-                  <span>{textValue(item.question)}</span>
-                  <ChevronDown size={19} />
-                </button>
-                {openFaq === index && (
-                  <div className="premium-faq-a">{textValue(item.answer)}</div>
-                )}
-              </div>
-            ))}
-          </div>
-        </section>
+          return (
+            <>
+              <section className="premium-authority" aria-label="Preuves et avis">
+                <div className="premium-authority-track">
+                  {[...authorityStrip, ...authorityStrip].map((item, index) => (
+                    <div key={index} className="premium-authority-item">
+                      <div className="premium-authority-label">{textValue(item.label, 'Clients vérifiés')}</div>
+                      <p className="premium-authority-quote">{textValue(item.quote)}</p>
+                    </div>
+                  ))}
+                </div>
+              </section>
 
-        <section className="premium-section premium-split premium-soft-band">
-          <div className="premium-copy">
-            <h2 className="premium-heading">{textValue(premium.closingSection?.headline, `Pourquoi choisir ${productName}`)}</h2>
-            <p className="premium-lead">{textValue(premium.closingSection?.subheadline, 'Une solution pensée pour acheter simplement et utiliser avec confiance.')}</p>
-            <ul className="premium-check-list" style={{ marginTop: 26 }}>
-              {closingBullets.slice(0, 4).map((item, index) => (
-                <li key={index}><span className="premium-check-dot"><Check size={14} /></span><span>{textValue(item)}</span></li>
-              ))}
-            </ul>
-            <button type="button" className="premium-cta" onClick={openOrder}>
-              <ShoppingCart size={19} />
-              {textValue(premium.hero?.ctaLabel, 'Commander')}
-            </button>
-          </div>
-          <div className="premium-image-panel">{sectionImage('closing', 9) && <EditableImage src={sectionImage('closing', 9)} alt={productName} style={{ width: '100%', height: '100%' }} imageKey="closing" productId={product?._id} onImageUpdated={handleImageUpdated} isAdmin={isAdmin} />}</div>
-        </section>
+              {bonusEbook && (
+                <PremiumBonusEbook
+                  ebook={bonusEbook}
+                  accent={accent}
+                  onOrder={openOrder}
+                  ctaLabel={textValue(premium.hero?.ctaLabel, productPageConfig?.button?.text || 'Commander')}
+                  productImage={heroImage}
+                />
+              )}
+
+              {order.map(id => sectionMap[id] || null)}
+            </>
+          );
+        })()}
       </main>
 
       {/* Custom HTML sections added by AI */}
@@ -929,15 +972,17 @@ const StoreProductPagePremium = ({ product, store, productPageConfig, subdomain,
         <ChevronUp size={22} />
       </button>
 
-      <QuickOrderModal
-        isOpen={showOrderModal}
-        onClose={() => setShowOrderModal(false)}
-        product={product}
-        store={store}
-        subdomain={subdomain}
-        pixels={pixels}
-        productPageConfig={productPageConfig}
-      />
+      {!isEmbeddedForm && (
+        <QuickOrderModal
+          isOpen={showOrderModal}
+          onClose={() => setShowOrderModal(false)}
+          product={product}
+          store={store}
+          subdomain={subdomain}
+          pixels={pixels}
+          productPageConfig={productPageConfig}
+        />
+      )}
 
       {productPageConfig?.whatsapp?.enabled && (
         <a

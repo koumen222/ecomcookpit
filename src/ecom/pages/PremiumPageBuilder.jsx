@@ -10,6 +10,142 @@ import { storeProductsApi } from '../services/storeApi.js';
 import { useStore } from '../contexts/StoreContext.jsx';
 import StoreProductPagePremium from '../components/StoreProductPagePremium.jsx';
 
+// Build a premiumPage config pre-filled from _pageData when productPageConfig.premiumPage is absent/empty
+function hydrateFromPageData(product) {
+  const pd = product?._pageData || {};
+  const pp = product?.productPageConfig?.premiumPage;
+  // If premiumPage already has data, return productPageConfig as-is
+  if (pp && (pp.hero?.headline || pp.testimonialGallery?.items?.length || pp.faq?.items?.length)) {
+    return product.productPageConfig || {};
+  }
+  const asArr = (v) => (Array.isArray(v) ? v : []);
+  const name = product?.name || product?.title || '';
+
+  const testimonials = asArr(pd.testimonials).slice(0, 6).map((t) => ({
+    name: t.name || 'Client vérifié',
+    text: t.text || '',
+    rating: t.rating || 5,
+    tags: t.tags || [],
+    image: t.image || '',
+  }));
+
+  const faqItems = (() => {
+    const src = pd.faq;
+    if (Array.isArray(src)) return src.slice(0, 6).map(f => ({ question: f.question || '', answer: f.answer || '' }));
+    if (src?.items) return asArr(src.items).slice(0, 6).map(f => ({ question: f.question || '', answer: f.answer || '' }));
+    return [];
+  })();
+
+  const raisons = asArr(pd.raisons_acheter || pd.hero_benefits);
+  const painPoints = asArr(pd.problem_section?.pain_points);
+
+  const ritualSteps = asArr(pd.guide_utilisation?.etapes).slice(0, 4).map((s, i) => ({
+    label: `Étape ${s.numero || i + 1}`,
+    title: s.action || '',
+    description: s.detail || '',
+  }));
+
+  const scienceItems = asArr(pd.ingredients || pd.science_items).slice(0, 4).map((s) => ({
+    name: typeof s === 'string' ? s : (s.name || s.label || ''),
+    description: typeof s === 'string' ? '' : (s.description || s.role || ''),
+  }));
+
+  const reassurance = asArr(pd.reassurance?.points).slice(0, 3);
+
+  const existing = product?.productPageConfig || {};
+
+  // Merge product.premiumImages into config.premiumImages (product-level images win if config empty)
+  const srcImgs = product?.premiumImages || {};
+  const cfgImgs = existing.premiumImages || {};
+  const mergedImages = {};
+  for (const key of ['hero', 'problem', 'mechanism', 'science', 'ritual', 'closing']) {
+    const cfgVal = cfgImgs[key];
+    const srcVal = srcImgs[key];
+    const cfgUrl = typeof cfgVal === 'string' ? cfgVal : cfgVal?.url || '';
+    const srcUrl = typeof srcVal === 'string' ? srcVal : srcVal?.url || '';
+    mergedImages[key] = cfgUrl || srcUrl || '';
+  }
+  // heroGallery: array of urls
+  const cfgGallery = Array.isArray(cfgImgs.heroGallery) ? cfgImgs.heroGallery.map(e => typeof e === 'string' ? e : e?.url || '') : [];
+  const srcGallery = Array.isArray(srcImgs.heroGallery) ? srcImgs.heroGallery.map(e => typeof e === 'string' ? e : e?.url || '') : [];
+  mergedImages.heroGallery = cfgGallery.length ? cfgGallery : srcGallery;
+  // testimonials images
+  const cfgTesti = Array.isArray(cfgImgs.testimonials) ? cfgImgs.testimonials.map(e => typeof e === 'string' ? e : e?.url || '') : [];
+  const srcTesti = Array.isArray(srcImgs.testimonials) ? srcImgs.testimonials.map(e => typeof e === 'string' ? e : e?.url || '') : [];
+  mergedImages.testimonials = cfgTesti.length ? cfgTesti : srcTesti;
+
+  // Also pull product gallery images as fallback for heroGallery
+  if (!mergedImages.heroGallery.length) {
+    const productImgs = Array.isArray(product?.images) ? product.images.map(e => typeof e === 'string' ? e : e?.url || '').filter(Boolean) : [];
+    mergedImages.heroGallery = productImgs;
+  }
+
+  return {
+    ...existing,
+    premiumImages: { ...cfgImgs, ...mergedImages },
+    premiumPage: {
+      ...(existing.premiumPage || {}),
+      hero: {
+        eyebrow: pd.hero_baseline || pd.urgency_badge || '',
+        headline: pd.hero_headline || name,
+        subheadline: pd.hero_slogan || '',
+        ctaLabel: pd.hero_cta || 'Commander',
+        benefits: raisons.slice(0, 5),
+        reassurance: reassurance.length ? reassurance : ['Paiement à la livraison', 'Livraison rapide', 'Support WhatsApp'],
+        accordions: asArr(pd.hero_accordions),
+        ...(existing.premiumPage?.hero || {}),
+      },
+      testimonialGallery: {
+        headline: pd.hero_slogan || `Ils ont choisi ${name} avec confiance`,
+        subheadline: '',
+        items: testimonials,
+        ...(existing.premiumPage?.testimonialGallery || {}),
+      },
+      problemSection: {
+        headline: pd.problem_section?.title || '',
+        bullets: painPoints.slice(0, 5),
+        ...(existing.premiumPage?.problemSection || {}),
+      },
+      mechanismSection: {
+        headline: pd.solution_section?.title || '',
+        body: pd.solution_section?.description || '',
+        ...(existing.premiumPage?.mechanismSection || {}),
+      },
+      scienceSection: {
+        headline: 'Ce qui rend la formule efficace',
+        subheadline: '',
+        items: scienceItems,
+        ...(existing.premiumPage?.scienceSection || {}),
+      },
+      ritualSection: {
+        headline: pd.guide_utilisation?.titre || 'Votre rituel simple au quotidien',
+        subheadline: '',
+        steps: ritualSteps,
+        resultsTimeline: [],
+        ...(existing.premiumPage?.ritualSection || {}),
+      },
+      faq: {
+        headline: 'Questions fréquentes',
+        subheadline: 'Tout ce que vous devez savoir avant de commander.',
+        items: faqItems,
+        ...(existing.premiumPage?.faq || {}),
+      },
+      closingSection: {
+        headline: pd.hero_headline || `Pourquoi choisir ${name}`,
+        subheadline: pd.hero_slogan || '',
+        bullets: raisons.slice(0, 4),
+        ...(existing.premiumPage?.closingSection || {}),
+      },
+      comparisonSection: {
+        columns: [name, 'Solution classique', 'Alternative basique'],
+        rows: raisons.slice(0, 5).map((r) => ({ label: r, values: [true, false, false] })),
+        ...(existing.premiumPage?.comparisonSection || {}),
+      },
+      rating: existing.premiumPage?.rating || { score: '4,9/5', count: '+1 000', label: 'clients satisfaits' },
+    },
+  };
+}
+
 const inputCls = 'w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition placeholder-gray-400';
 const textareaCls = `${inputCls} resize-none`;
 
@@ -101,6 +237,39 @@ function ImageField({ label, value, onChange, onUpload }) {
   );
 }
 
+function StringListField({ label, items, onChange, placeholder, addLabel }) {
+  const list = Array.isArray(items) ? items : [];
+  const update = (i, val) => { const c = [...list]; c[i] = val; onChange(c); };
+  const remove = (i) => onChange(list.filter((_, idx) => idx !== i));
+  const add = () => onChange([...list, '']);
+  const moveUp = (i) => { if (i === 0) return; const c = [...list]; [c[i-1],c[i]]=[c[i],c[i-1]]; onChange(c); };
+  const moveDown = (i) => { if (i >= list.length-1) return; const c = [...list]; [c[i],c[i+1]]=[c[i+1],c[i]]; onChange(c); };
+  return (
+    <div className="space-y-2">
+      {label && <label className="block text-xs font-semibold text-gray-600">{label}</label>}
+      {list.map((item, i) => (
+        <div key={i} className="flex items-center gap-1.5">
+          <div className="flex flex-col gap-0.5 flex-shrink-0">
+            <button type="button" onClick={() => moveUp(i)} disabled={i === 0} className="p-0.5 text-gray-300 hover:text-gray-500 disabled:opacity-20"><ChevronUp className="w-3 h-3" /></button>
+            <button type="button" onClick={() => moveDown(i)} disabled={i >= list.length-1} className="p-0.5 text-gray-300 hover:text-gray-500 disabled:opacity-20"><ChevronDown className="w-3 h-3" /></button>
+          </div>
+          <input
+            type="text"
+            value={item}
+            onChange={(e) => update(i, e.target.value)}
+            placeholder={placeholder || 'Entrez un élément'}
+            className={inputCls + ' flex-1'}
+          />
+          <button type="button" onClick={() => remove(i)} className="p-1.5 text-red-400 hover:text-red-600 rounded hover:bg-red-50 flex-shrink-0"><Trash2 className="w-3.5 h-3.5" /></button>
+        </div>
+      ))}
+      <button type="button" onClick={add} className="w-full py-2 border-2 border-dashed border-gray-200 rounded-lg text-xs font-semibold text-gray-400 hover:border-indigo-400 hover:text-indigo-600 transition flex items-center justify-center gap-1.5">
+        <Plus className="w-3.5 h-3.5" />{addLabel || 'Ajouter'}
+      </button>
+    </div>
+  );
+}
+
 function ImageListField({ label, urls, onChangeAt, onUpload }) {
   return (
     <div className="space-y-2">
@@ -126,6 +295,10 @@ const SECTIONS = [
   { id: 'closing', label: 'Closing', icon: <ShoppingBag className="w-3.5 h-3.5" />, color: '#1f2937' },
   { id: 'upsells', label: 'Upsells & Order Bump', icon: <Zap className="w-3.5 h-3.5" />, color: '#7c3aed' },
 ];
+
+const ORDERABLE_SECTION_IDS = ['testimonials', 'problem', 'mechanism', 'science', 'ritual', 'comparison', 'faq', 'closing'];
+const FIXED_TOP_IDS = ['design', 'hero', 'accordions'];
+const FIXED_BOTTOM_IDS = ['upsells'];
 
 const MAX_HISTORY = 50;
 
@@ -154,7 +327,7 @@ const PremiumPageBuilder = () => {
         const p = res.data?.data;
         if (p) {
           setProduct(p);
-          const initialConfig = p.productPageConfig || {};
+          const initialConfig = hydrateFromPageData(p);
           setConfig(initialConfig);
           setHistory([initialConfig]);
           setHistoryIndex(0);
@@ -225,6 +398,7 @@ const PremiumPageBuilder = () => {
   const premium = safeConfig.premiumPage || product?._pageData?.premium_page || product?._pageData?.premiumPage || {};
   const design = safeConfig.design || {};
   const accent = design.ctaButtonColor || design.buttonColor || '#0F766E';
+  const sectionOrder = safeConfig.sectionOrder || ORDERABLE_SECTION_IDS;
 
   const genImages = product?.premiumImages || product?._pageData?.premiumImages || {};
   const cfgImages = safeConfig.premiumImages || {};
@@ -287,6 +461,47 @@ const PremiumPageBuilder = () => {
       return { ...p, premiumImages: { ...(p.premiumImages || {}), [key]: arr } };
     });
   }, [updateConfig]);
+
+  const dragIdRef = useRef(null);
+
+  const moveSectionUp = useCallback((id) => {
+    updateConfig((prev) => {
+      const order = prev?.sectionOrder || ORDERABLE_SECTION_IDS;
+      const idx = order.indexOf(id);
+      if (idx <= 0) return prev;
+      const next = [...order];
+      [next[idx - 1], next[idx]] = [next[idx], next[idx - 1]];
+      return { ...(prev || {}), sectionOrder: next };
+    });
+  }, [updateConfig]);
+
+  const moveSectionDown = useCallback((id) => {
+    updateConfig((prev) => {
+      const order = prev?.sectionOrder || ORDERABLE_SECTION_IDS;
+      const idx = order.indexOf(id);
+      if (idx < 0 || idx >= order.length - 1) return prev;
+      const next = [...order];
+      [next[idx], next[idx + 1]] = [next[idx + 1], next[idx]];
+      return { ...(prev || {}), sectionOrder: next };
+    });
+  }, [updateConfig]);
+
+  const handleDragStart = useCallback((id) => { dragIdRef.current = id; }, []);
+  const handleDragOver = useCallback((e, id) => {
+    e.preventDefault();
+    if (!dragIdRef.current || dragIdRef.current === id) return;
+    updateConfig((prev) => {
+      const order = prev?.sectionOrder || ORDERABLE_SECTION_IDS;
+      const from = order.indexOf(dragIdRef.current);
+      const to = order.indexOf(id);
+      if (from < 0 || to < 0) return prev;
+      const next = [...order];
+      next.splice(from, 1);
+      next.splice(to, 0, dragIdRef.current);
+      return { ...(prev || {}), sectionOrder: next };
+    });
+  }, [updateConfig]);
+  const handleDragEnd = useCallback(() => { dragIdRef.current = null; }, []);
 
   const uploadOne = useCallback(async (file) => {
     const res = await storeProductsApi.uploadImages([file]);
@@ -375,8 +590,20 @@ const PremiumPageBuilder = () => {
             <Field label="Sous-titre"><textarea value={premium.hero?.subheadline || ''} onChange={(e) => setPremiumNested('hero', 'subheadline', e.target.value)} rows={2} className={textareaCls} /></Field>
             <Field label="Prix affiche"><input type="text" value={premium.hero?.priceLabel || ''} onChange={(e) => setPremiumNested('hero', 'priceLabel', e.target.value)} className={inputCls} placeholder="15 000 FCFA" /></Field>
             <Field label="Texte bouton CTA"><input type="text" value={premium.hero?.ctaLabel || ''} onChange={(e) => setPremiumNested('hero', 'ctaLabel', e.target.value)} className={inputCls} placeholder="Commander" /></Field>
-            <Field label="Benefices (un par ligne)"><textarea value={(premium.hero?.benefits || []).join('\n')} onChange={(e) => setPremiumNested('hero', 'benefits', e.target.value.split('\n').filter(l => l.trim()))} rows={4} className={textareaCls} /></Field>
-            <Field label="Reassurance (un par ligne)"><textarea value={(premium.hero?.reassurance || []).join('\n')} onChange={(e) => setPremiumNested('hero', 'reassurance', e.target.value.split('\n').filter(l => l.trim()))} rows={3} className={textareaCls} /></Field>
+            <StringListField
+              label="Bénéfices"
+              items={premium.hero?.benefits || []}
+              onChange={(v) => setPremiumNested('hero', 'benefits', v)}
+              placeholder="Ex: Résultats visibles dès 2 semaines"
+              addLabel="Ajouter un bénéfice"
+            />
+            <StringListField
+              label="Réassurance"
+              items={premium.hero?.reassurance || []}
+              onChange={(v) => setPremiumNested('hero', 'reassurance', v)}
+              placeholder="Ex: Paiement à la livraison"
+              addLabel="Ajouter un élément"
+            />
             <ImageListField
               label="Images du hero (carrousel)"
               urls={imgArrayOf('heroGallery', 5)}
@@ -451,7 +678,13 @@ const PremiumPageBuilder = () => {
           <div className="space-y-4">
             <Field label="Titre"><input type="text" value={premium.problemSection?.headline || ''} onChange={(e) => setPremiumNested('problemSection', 'headline', e.target.value)} className={inputCls} /></Field>
             <Field label="Texte introductif"><textarea value={premium.problemSection?.body || ''} onChange={(e) => setPremiumNested('problemSection', 'body', e.target.value)} rows={3} className={textareaCls} /></Field>
-            <Field label="Points de douleur (un par ligne)"><textarea value={(premium.problemSection?.bullets || []).join('\n')} onChange={(e) => setPremiumNested('problemSection', 'bullets', e.target.value.split('\n').filter(l => l.trim()))} rows={5} className={textareaCls} /></Field>
+            <StringListField
+              label="Points de douleur"
+              items={premium.problemSection?.bullets || []}
+              onChange={(v) => setPremiumNested('problemSection', 'bullets', v)}
+              placeholder="Ex: Fatigue chronique dès le matin"
+              addLabel="Ajouter un point"
+            />
             <ImageField label="Image de la section probleme" value={imgSingleOf('problem')} onUpload={uploadOne} onChange={(v) => setPremiumImage('problem', v)} />
           </div>
         );
@@ -549,7 +782,13 @@ const PremiumPageBuilder = () => {
           <div className="space-y-4">
             <Field label="Titre"><input type="text" value={premium.closingSection?.headline || ''} onChange={(e) => setPremiumNested('closingSection', 'headline', e.target.value)} className={inputCls} /></Field>
             <Field label="Sous-titre"><input type="text" value={premium.closingSection?.subheadline || ''} onChange={(e) => setPremiumNested('closingSection', 'subheadline', e.target.value)} className={inputCls} /></Field>
-            <Field label="Points cles (un par ligne)"><textarea value={(premium.closingSection?.bullets || []).join('\n')} onChange={(e) => setPremiumNested('closingSection', 'bullets', e.target.value.split('\n').filter(l => l.trim()))} rows={4} className={textareaCls} /></Field>
+            <StringListField
+              label="Points clés"
+              items={premium.closingSection?.bullets || []}
+              onChange={(v) => setPremiumNested('closingSection', 'bullets', v)}
+              placeholder="Ex: Formule naturelle et efficace"
+              addLabel="Ajouter un point"
+            />
             <ImageField label="Image de la section closing" value={imgSingleOf('closing')} onUpload={uploadOne} onChange={(v) => setPremiumImage('closing', v)} />
           </div>
         );
@@ -677,25 +916,72 @@ const PremiumPageBuilder = () => {
             <span className="text-[11px] text-gray-400">{SECTIONS.length} sections</span>
           </div>
           <div className="flex-1 overflow-y-auto p-3 space-y-1.5">
-            {SECTIONS.map((s) => (
-              <div key={s.id}>
-                <button
-                  onClick={() => setActiveSection(activeSection === s.id ? null : s.id)}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition ${activeSection === s.id ? 'bg-indigo-50 border border-indigo-200' : 'hover:bg-gray-50 border border-transparent'}`}
-                >
-                  <div className="w-7 h-7 rounded-lg flex items-center justify-center text-white flex-shrink-0" style={{ background: s.color }}>
-                    {s.icon}
+            {(() => {
+              // Build display order: fixed-top + orderable in user order + fixed-bottom
+              const orderableMap = Object.fromEntries(SECTIONS.filter(s => ORDERABLE_SECTION_IDS.includes(s.id)).map(s => [s.id, s]));
+              const orderedSections = [
+                ...SECTIONS.filter(s => FIXED_TOP_IDS.includes(s.id)),
+                ...sectionOrder.map(id => orderableMap[id]).filter(Boolean),
+                ...SECTIONS.filter(s => FIXED_BOTTOM_IDS.includes(s.id)),
+              ];
+              return orderedSections.map((s) => {
+                const isOrderable = ORDERABLE_SECTION_IDS.includes(s.id);
+                const orderIdx = sectionOrder.indexOf(s.id);
+                return (
+                  <div
+                    key={s.id}
+                    draggable={isOrderable}
+                    onDragStart={isOrderable ? () => handleDragStart(s.id) : undefined}
+                    onDragOver={isOrderable ? (e) => handleDragOver(e, s.id) : undefined}
+                    onDragEnd={isOrderable ? handleDragEnd : undefined}
+                    className={isOrderable ? 'cursor-default' : ''}
+                  >
+                    <div className="flex items-center gap-1">
+                      {isOrderable && (
+                        <div className="flex flex-col items-center gap-0.5 flex-shrink-0 px-0.5 cursor-grab active:cursor-grabbing select-none" title="Glisser pour réordonner">
+                          <div className="w-3.5 h-0.5 rounded-full bg-gray-300" />
+                          <div className="w-3.5 h-0.5 rounded-full bg-gray-300" />
+                          <div className="w-3.5 h-0.5 rounded-full bg-gray-300" />
+                        </div>
+                      )}
+                      <button
+                        onClick={() => setActiveSection(activeSection === s.id ? null : s.id)}
+                        className={`flex-1 flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition ${activeSection === s.id ? 'bg-indigo-50 border border-indigo-200' : 'hover:bg-gray-50 border border-transparent'}`}
+                      >
+                        <div className="w-7 h-7 rounded-lg flex items-center justify-center text-white flex-shrink-0" style={{ background: s.color }}>
+                          {s.icon}
+                        </div>
+                        <span className="text-sm font-semibold text-gray-900 flex-1">{s.label}</span>
+                        {activeSection === s.id ? <ChevronUp className="w-4 h-4 text-indigo-500" /> : <ChevronDown className="w-4 h-4 text-gray-300" />}
+                      </button>
+                      {isOrderable && (
+                        <div className="flex flex-col gap-0.5 flex-shrink-0">
+                          <button
+                            type="button"
+                            title="Monter"
+                            onClick={() => moveSectionUp(s.id)}
+                            disabled={orderIdx <= 0}
+                            className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-700 disabled:opacity-20 transition"
+                          ><ChevronUp className="w-3.5 h-3.5" /></button>
+                          <button
+                            type="button"
+                            title="Descendre"
+                            onClick={() => moveSectionDown(s.id)}
+                            disabled={orderIdx >= sectionOrder.length - 1}
+                            className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-700 disabled:opacity-20 transition"
+                          ><ChevronDown className="w-3.5 h-3.5" /></button>
+                        </div>
+                      )}
+                    </div>
+                    {activeSection === s.id && (
+                      <div className="mt-2 mb-3 ml-3 pl-4 border-l-2 border-indigo-200 space-y-3">
+                        {renderEditor()}
+                      </div>
+                    )}
                   </div>
-                  <span className="text-sm font-semibold text-gray-900 flex-1">{s.label}</span>
-                  {activeSection === s.id ? <ChevronUp className="w-4 h-4 text-indigo-500" /> : <ChevronDown className="w-4 h-4 text-gray-300" />}
-                </button>
-                {activeSection === s.id && (
-                  <div className="mt-2 mb-3 ml-3 pl-4 border-l-2 border-indigo-200 space-y-3">
-                    {renderEditor()}
-                  </div>
-                )}
-              </div>
-            ))}
+                );
+              });
+            })()}
           </div>
         </div>
 

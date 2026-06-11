@@ -7,7 +7,7 @@ import {
   BarChart3, Star, Shield, Zap, BookOpen, Type, Trash2, Download,
   Upload, ExternalLink, HelpCircle
 } from 'lucide-react';
-import { storeProductsApi } from '../services/storeApi.js';
+import { storeProductsApi, storeManageApi } from '../services/storeApi.js';
 import AlibabaImportModal from '../components/AlibabaImportModal.jsx';
 import RichTextEditor from '../components/RichTextEditor.jsx';
 import QuantityOffersManager from '../components/QuantityOffersManager.jsx';
@@ -145,6 +145,7 @@ const StoreProductForm = () => {
   // ── Core state ──────────────────────────────────────────────────────────────
   const [loading, setLoading] = useState(isEdit);
   const [saving, setSaving] = useState(false);
+  const [storeTemplate, setStoreTemplate] = useState('classic');
   const [uploading, setUploading] = useState(false);
   const [csvBusy, setCsvBusy] = useState(false);
   const [digitalProductLoading, setDigitalProductLoading] = useState(false);
@@ -210,6 +211,12 @@ const StoreProductForm = () => {
   }, []);
 
   // ── Load product (edit mode) ──────────────────────────────────────────────
+  useEffect(() => {
+    storeManageApi.getTheme()
+      .then(res => setStoreTemplate(res.data?.data?.template || 'classic'))
+      .catch(() => {});
+  }, []);
+
   useEffect(() => {
     if (!isEdit) return;
     (async () => {
@@ -622,7 +629,7 @@ const StoreProductForm = () => {
               <button
                 type="button"
                 onClick={() => {
-                  const isPremium = isPremiumPageData(form._pageData, form.productPageConfig);
+                  const isPremium = storeTemplate === 'magazine' || isPremiumPageData(form._pageData, form.productPageConfig);
                   navigate(`${basePath}/products/${id}/${isPremium ? 'premium-builder' : 'builder'}`);
                 }}
                 className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-700 transition shadow-sm"
@@ -1155,7 +1162,7 @@ const StoreProductForm = () => {
                 </button>
                 {isEdit && (
                   <button type="button" onClick={() => {
-                    const isPremium = isPremiumPageData(form._pageData, form.productPageConfig);
+                    const isPremium = storeTemplate === 'magazine' || isPremiumPageData(form._pageData, form.productPageConfig);
                     navigate(`${basePath}/products/${id}/${isPremium ? 'premium-builder' : 'builder'}`);
                   }}
                     className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl bg-indigo-50 border border-indigo-100 text-sm font-semibold text-indigo-700 hover:bg-indigo-100 transition">
