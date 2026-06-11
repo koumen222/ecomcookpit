@@ -590,6 +590,40 @@ export const TEMPLATES = {
     `, `Limite de commandes atteinte — boutique bloquée`)
   }),
 
+  formation_invite: ({ name }) => ({
+    subject: `🎓 Votre formation Scalor vous attend — 16 leçons offertes`,
+    preview: `Maîtrisez Scalor en 16 leçons — formation incluse gratuitement dans votre compte`,
+    html: baseLayout(`
+      <h2>Votre formation est prête ! 🎓</h2>
+      <p>Bonjour ${name || ''},</p>
+      <p>Votre compte <strong>Scalor</strong> inclut une formation complète offerte — de la prise en main jusqu'à la configuration de votre agent IA commercial.</p>
+
+      <div class="alert-box alert-green">
+        ✅ <strong>Formation offerte — valeur ~49 000 FCFA</strong><br/>
+        Incluse gratuitement dans votre compte. Accès à vie.
+      </div>
+
+      <p><strong>Au programme — Module 7 · 16 chapitres · 6h+ de contenu :</strong></p>
+      <ul style="color:#4a4a68;font-size:15px;line-height:2;margin:16px 0;padding-left:20px">
+        <li>🚀 Introduction à Scalor</li>
+        <li>🔗 Connecter et paramétrer votre boutique</li>
+        <li>📄 Créer des pages produits qui convertissent</li>
+        <li>📋 Formulaire, upsell &amp; automatisations</li>
+        <li>💬 Automatiser votre WhatsApp avec Rita IA</li>
+        <li>📦 Gérer les commandes, le stock et les finances</li>
+        <li>👥 Gestion d'équipe et objectifs</li>
+        <li>🤖 Configurer votre agent IA commercial ✦</li>
+      </ul>
+
+      <div style="text-align:center;margin:28px 0">
+        <a href="${FRONTEND_URL}/ecom/formation" class="btn btn-success">Démarrer ma formation maintenant →</a>
+      </div>
+
+      <hr class="divider"/>
+      <p style="font-size:13px;color:#888">La formation est disponible à tout moment depuis votre espace Scalor. Prenez le temps qu'il vous faut.</p>
+    `, `Votre formation Scalor — 16 leçons offertes`)
+  }),
+
   plan_expired: ({ name, workspaceName, planName }) => ({
     subject: `🚫 Plan ${planName} expiré — Agents IA désactivés`,
     preview: `Votre plan ${planName} a expiré, renouvelez pour garder vos agents actifs`,

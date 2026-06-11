@@ -11,13 +11,10 @@ import { useStore } from '../contexts/StoreContext.jsx';
 import { applyFont } from '../hooks/useStoreData';
 import BuilderAIChatWidget from '../components/BuilderAIChatWidget.jsx';
 
-// ── 5 Layout Themes ───────────────────────────────────────────────────────────
+// ── 2 Layout Themes ───────────────────────────────────────────────────────────
 const THEMES = [
   { id: 'classic', name: 'Classique', desc: 'Galerie à gauche, infos à droite — le standard e-commerce.', badge: 'Par défaut', icon: ShoppingBag },
-  { id: 'landing', name: 'Landing Page', desc: 'Images pleine largeur, contenu de vente en dessous — conversions max.', badge: 'Conversions +', icon: Rocket },
-  { id: 'magazine', name: 'Magazine', desc: 'Image héro plein écran avec overlay — look éditorial premium.', badge: 'Premium', icon: Sparkles },
-  { id: 'minimal', name: 'Minimal', desc: 'Design épuré, beaucoup de blanc, focus sur le produit.', badge: 'Élégant', icon: Heart },
-  { id: 'bold', name: 'Bold', desc: "Couleurs vives, typographie impactante, appels à l'action forts.", badge: 'Impact', icon: Zap },
+  { id: 'magazine', name: 'Premium', desc: 'Image héro plein écran avec overlay — look éditorial premium.', badge: 'Premium', icon: Sparkles },
 ];
 
 // ── Theme Previews ────────────────────────────────────────────────────────────
@@ -122,7 +119,130 @@ const BoldPreview = () => (
   </div>
 );
 
-const PREVIEW_MAP = { classic: ClassicPreview, landing: LandingPreview, magazine: MagazinePreview, minimal: MinimalPreview, bold: BoldPreview };
+const PREVIEW_MAP = { classic: ClassicPreview, magazine: MagazinePreview };
+// ── Store (homepage) previews ─────────────────────────────────────────────────
+const ClassicStorePreview = () => (
+  <div className="p-1.5 bg-white rounded-xl">
+    <div className="h-5 rounded bg-gray-50 flex items-center px-1.5 mb-1.5 gap-1">
+      <div className="w-3.5 h-1 rounded bg-violet-500" />
+      <div className="flex-1" />
+      <div className="flex gap-0.5">{[1,2,3].map(i => <div key={i} className="w-3 h-0.5 rounded bg-gray-200" />)}</div>
+    </div>
+    <div className="pb-[30%] rounded bg-gradient-to-br from-violet-100 to-violet-50 relative mb-1.5">
+      <div className="absolute inset-0 flex flex-col items-center justify-center gap-0.5">
+        <div className="w-[50%] h-1.5 rounded bg-gray-700/50" />
+        <div className="w-[35%] h-1 rounded bg-gray-400/40" />
+        <div className="w-8 h-2.5 rounded-full bg-violet-600 mt-1" />
+      </div>
+    </div>
+    <div className="grid grid-cols-3 gap-1">
+      {[1,2,3].map(i => (
+        <div key={i} className="rounded bg-gray-50">
+          <div className="pb-[75%] rounded-t bg-gray-100 relative"><div className="absolute inset-0 flex items-center justify-center"><Image size={8} className="text-gray-300" /></div></div>
+          <div className="px-1 pb-1 pt-0.5"><div className="w-[70%] h-0.5 rounded bg-gray-300 mb-0.5" /><div className="w-[50%] h-0.5 rounded bg-violet-400" /></div>
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
+const LandingStorePreview = () => (
+  <div className="p-1.5 bg-white rounded-xl">
+    <div className="h-5 rounded bg-gray-50 flex items-center px-1.5 mb-1.5 gap-1">
+      <div className="w-3.5 h-1 rounded bg-violet-500" />
+      <div className="flex-1" />
+      <div className="flex gap-0.5">{[1,2,3].map(i => <div key={i} className="w-3 h-0.5 rounded bg-gray-200" />)}</div>
+    </div>
+    <div className="pb-[40%] rounded-lg bg-gradient-to-br from-violet-600 to-violet-800 relative mb-1.5 overflow-hidden">
+      <div className="absolute inset-0 flex flex-col items-center justify-center gap-1">
+        <div className="w-[60%] h-1.5 rounded bg-white/80" />
+        <div className="w-[40%] h-1 rounded bg-white/40" />
+        <div className="w-8 h-2.5 rounded-full bg-white mt-1" />
+      </div>
+    </div>
+    <div className="flex gap-1">
+      {[1,2,3].map(i => (
+        <div key={i} className="flex-1 rounded bg-gray-50 overflow-hidden">
+          <div className="pb-[100%] bg-gray-100 relative"><div className="absolute inset-0 flex items-center justify-center"><Image size={7} className="text-gray-300" /></div></div>
+          <div className="px-0.5 pb-0.5 pt-0.5"><div className="w-full h-0.5 rounded bg-gray-300 mb-0.5" /><div className="w-2/3 h-0.5 rounded bg-violet-400" /></div>
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
+const MagazineStorePreview = () => (
+  <div className="p-1.5 bg-white rounded-xl">
+    <div className="pb-[50%] rounded-lg bg-gradient-to-b from-gray-800 to-gray-900 relative mb-1.5 overflow-hidden">
+      <div className="absolute top-1 left-1.5 right-1.5 flex justify-between z-10">
+        <div className="w-4 h-0.5 rounded bg-white/60" />
+        <div className="flex gap-0.5">{[1,2].map(i => <div key={i} className="w-1 h-1 rounded-full bg-white/40" />)}</div>
+      </div>
+      <div className="absolute inset-0 flex items-center justify-center"><Image size={16} className="text-white/15" /></div>
+      <div className="absolute bottom-0 inset-x-0 h-1/2 bg-gradient-to-t from-black/60 to-transparent" />
+      <div className="absolute bottom-1.5 left-1.5 right-1.5">
+        <div className="w-[70%] h-1 rounded bg-white/80 mb-0.5" />
+        <div className="w-[45%] h-0.5 rounded bg-white/40" />
+      </div>
+    </div>
+    <div className="grid grid-cols-2 gap-1">
+      {[1,2].map(i => (
+        <div key={i} className="rounded bg-gray-50 overflow-hidden">
+          <div className="pb-[65%] bg-gray-200 relative"><div className="absolute inset-0 flex items-center justify-center"><Image size={8} className="text-gray-400" /></div></div>
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
+const MinimalStorePreview = () => (
+  <div className="p-1.5 bg-white rounded-xl">
+    <div className="h-5 flex items-center justify-between border-b border-gray-50 mb-2">
+      <div className="w-4 h-1 rounded bg-gray-800" />
+      <div className="flex gap-0.5">{[1,2].map(i => <div key={i} className="w-3 h-0.5 rounded bg-gray-200" />)}</div>
+    </div>
+    <div className="grid grid-cols-3 gap-1 mb-1.5">
+      {[1,2,3].map(i => (
+        <div key={i} className="rounded-sm bg-gray-50">
+          <div className="pb-[100%] bg-gray-100 relative"><div className="absolute inset-0 flex items-center justify-center"><Image size={7} className="text-gray-200" /></div></div>
+          <div className="px-0.5 pb-1 pt-0.5"><div className="w-full h-0.5 rounded bg-gray-200" /></div>
+        </div>
+      ))}
+    </div>
+    <div className="flex items-center justify-between px-0.5">
+      <div className="w-10 h-0.5 rounded bg-gray-700" />
+      <div className="w-6 h-2 rounded-none bg-gray-900 border border-gray-900" />
+    </div>
+  </div>
+);
+
+const BoldStorePreview = () => (
+  <div className="p-1.5 bg-violet-600 rounded-xl">
+    <div className="h-5 flex items-center justify-between border-b border-white/20 mb-1.5">
+      <div className="w-4 h-1 rounded bg-yellow-400" />
+      <div className="flex gap-0.5">{[1,2,3].map(i => <div key={i} className="w-1 h-1 rounded-full bg-white/40" />)}</div>
+    </div>
+    <div className="pb-[30%] rounded-lg bg-white/10 relative mb-1.5 overflow-hidden">
+      <div className="absolute inset-0 flex flex-col items-center justify-center gap-0.5">
+        <div className="w-[55%] h-1.5 rounded bg-white/90" />
+        <div className="w-[35%] h-1 rounded bg-white/40" />
+        <div className="w-8 h-2.5 rounded-xl bg-yellow-400 mt-0.5" />
+      </div>
+    </div>
+    <div className="grid grid-cols-3 gap-1">
+      {[1,2,3].map(i => (
+        <div key={i} className="rounded-lg bg-white/10 overflow-hidden">
+          <div className="pb-[75%] relative"><div className="absolute inset-0 flex items-center justify-center"><Flame size={7} className="text-yellow-400/50" /></div></div>
+          <div className="px-0.5 pb-1"><div className="w-full h-0.5 rounded bg-white/60" /></div>
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
+const STORE_PREVIEW_MAP = { classic: ClassicStorePreview, landing: LandingStorePreview, magazine: MagazineStorePreview, minimal: MinimalStorePreview, bold: BoldStorePreview };
+
+
 
 // ── Color presets ─────────────────────────────────────────────────────────────
 const COLOR_PRESETS = [
@@ -569,9 +689,9 @@ const ProductThemePage = () => {
           <div className="space-y-6">
             <div>
               <h2 className="mb-1 text-base font-bold text-gray-900">Mise en page</h2>
-              <p className="text-sm text-gray-500">Choisissez le layout de votre page produit</p>
+              <p className="text-sm text-gray-500">Choisissez le thème de votre boutique</p>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+            <div className="grid grid-cols-2 gap-6 max-w-xl">
               {THEMES.map((theme) => {
                 const isSelected = currentTheme === theme.id;
                 const Preview = PREVIEW_MAP[theme.id];

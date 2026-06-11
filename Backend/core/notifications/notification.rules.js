@@ -29,6 +29,16 @@ export const NOTIFICATION_RULES = {
     throttleMs: 24 * 60 * 60 * 1000 // 1 jour
   },
 
+  formation_invite: {
+    templateKey: 'formation_invite',
+    prefCategory: 'authEmails',
+    buildData: ({ user }) => ({
+      name: user.name || user.email
+    }),
+    throttleKey: ({ user }) => `formation_invite:${user._id}`,
+    throttleMs: 24 * 60 * 60 * 1000
+  },
+
   forgot_password: {
     templateKey: 'forgot_password',
     prefCategory: 'authEmails',

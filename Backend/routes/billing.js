@@ -160,11 +160,20 @@ async function applyPlanPayment(payment) {
   workspace.planExpiresAt = newExpiry;
   workspace.planPaymentToken = payment.mfToken;
 
-  // Ultra plan: credit 10 product page generations per month purchased
+  // Pro plan: 10 page-gen credits per month purchased
+  if (planName === 'pro') {
+    const genCredits = 10 * payment.durationMonths;
+    workspace.paidGenerationsRemaining = (workspace.paidGenerationsRemaining || 0) + genCredits;
+    console.log(`[billing] Credited ${genCredits} page-gen credit(s) for pro plan (${payment.durationMonths} month(s))`);
+  }
+
+  // Ultra plan: 20 page-gen credits + 50 creative image credits per month purchased
   if (planName === 'ultra') {
-    const creditsToAdd = 10 * payment.durationMonths;
-    workspace.paidGenerationsRemaining = (workspace.paidGenerationsRemaining || 0) + creditsToAdd;
-    console.log(`[billing] Credited ${creditsToAdd} generation(s) for ultra plan (${payment.durationMonths} month(s))`);
+    const genCredits = 20 * payment.durationMonths;
+    const creativeCredits = 50 * payment.durationMonths;
+    workspace.paidGenerationsRemaining = (workspace.paidGenerationsRemaining || 0) + genCredits;
+    workspace.creativeCreditsRemaining = (workspace.creativeCreditsRemaining || 0) + creativeCredits;
+    console.log(`[billing] Credited ${genCredits} page-gen + ${creativeCredits} creative credit(s) for ultra plan (${payment.durationMonths} month(s))`);
   }
 
   // Auto-disable subscription warning banner on successful payment

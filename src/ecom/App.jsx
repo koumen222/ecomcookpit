@@ -766,7 +766,7 @@ const EcomApp = () => {
               <Route path="/ecom/stats-rapports" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse', 'ecom_compta']}><StatsRapports /></LayoutRoute>} />
 
               {/* Formation */}
-              <Route path="/ecom/formation" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse', 'ecom_compta']}><Formation /></LayoutRoute>} />
+              <Route path="/ecom/formation" element={<Formation />} />
 
               {/* Routes chat */}
               <Route path="/ecom/chat" element={<LayoutRoute><TeamChat /></LayoutRoute>} />

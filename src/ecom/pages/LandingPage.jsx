@@ -1018,7 +1018,7 @@ const LandingPage = () => {
                   className="w-full rounded-2xl"
                   style={{ boxShadow: '0 8px 32px rgba(0,0,0,0.10)' }}
                 />
-                <button onClick={() => navigate('/ecom/register')}
+                <button onClick={() => navigate('/ecom/formation')}
                   className="w-full flex items-center justify-center gap-2.5 px-6 py-3.5 font-bold text-white rounded-xl transition-all active:scale-[0.97] text-sm"
                   style={{ background: 'linear-gradient(135deg, #05976D, #04795a)', boxShadow: '0 8px 24px rgba(0,61,50,0.35)' }}>
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4"/></svg>

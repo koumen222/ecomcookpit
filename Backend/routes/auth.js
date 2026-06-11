@@ -17,6 +17,7 @@ import AffiliateConversion from '../models/AffiliateConversion.js';
 import { getPhonePrefixFromWorkspace, normalizePhone } from '../utils/phoneUtils.js';
 import {
   notifyUserRegistered,
+  notifyFormationInvite,
   notifyForgotPassword,
   notifyPasswordChanged,
   notifySuspiciousLogin
@@ -662,6 +663,10 @@ router.post('/register', validateEmail, validatePassword, async (req, res) => {
 
     // Email de bienvenue (non bloquant)
     notifyUserRegistered(user, workspace).catch(err => console.warn('[notif] register:', err.message));
+    // Email formation offerte (non bloquant, léger délai pour ne pas arriver en même temps)
+    setTimeout(() => {
+      notifyFormationInvite(user).catch(err => console.warn('[notif] formation_invite:', err.message));
+    }, 5000);
 
     console.log(`✅ Nouveau compte créé: ${user.email} (${user.role})`);
     console.log(`[AUTH_FLOW] register_success user=${user.email} role=${user.role} workspace=${workspace?._id || 'none'} store=${store?._id || 'none'}`);
@@ -795,6 +800,10 @@ router.post('/google', async (req, res) => {
     if (isNewUser) {
       // Email de bienvenue
       notifyUserRegistered(user, workspace).catch(err => console.warn('[notif] google-register:', err.message));
+      // Email formation offerte
+      setTimeout(() => {
+        notifyFormationInvite(user).catch(err => console.warn('[notif] formation_invite_google:', err.message));
+      }, 5000);
     }
 
     const token = generateEcomToken(user);

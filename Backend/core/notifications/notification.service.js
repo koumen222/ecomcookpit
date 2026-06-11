@@ -165,6 +165,11 @@ export const notifyUserRegistered = (user, workspace) =>
     to: user.email, userId: user._id, workspaceId: workspace?._id
   });
 
+export const notifyFormationInvite = (user) =>
+  trigger('formation_invite', { user }, {
+    to: user.email, userId: user._id
+  });
+
 export const notifyForgotPassword = (user, resetUrl) =>
   trigger('forgot_password', { user, resetUrl }, {
     to: user.email, userId: user._id, force: true
