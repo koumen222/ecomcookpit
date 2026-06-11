@@ -19,6 +19,7 @@ import {
   FileText,
 } from 'lucide-react';
 import DigitalProductEbookModal from '../components/DigitalProductEbookModal.jsx';
+import { storeManageApi } from '../services/storeApi.js';
 
 const API_ORIGIN = import.meta.env.DEV ? '' : (import.meta.env.VITE_API_URL || '');
 
@@ -85,12 +86,19 @@ export default function GenerationsPage() {
   const [digitalProductTarget, setDigitalProductTarget] = useState(null);
   const [digitalProductError, setDigitalProductError] = useState('');
   const [digitalProductResult, setDigitalProductResult] = useState(null);
+  const [storeTemplate, setStoreTemplate] = useState('classic');
   const pageMeta = useMemo(() => getPageMeta(location.pathname), [location.pathname]);
   const [activeFilter, setActiveFilter] = useState(pageMeta.defaultFilter);
 
   useEffect(() => {
     setActiveFilter(pageMeta.defaultFilter);
   }, [pageMeta.defaultFilter]);
+
+  useEffect(() => {
+    storeManageApi.getStoreConfig()
+      .then((res) => setStoreTemplate(res.data?.data?.template || 'classic'))
+      .catch(() => {});
+  }, []);
 
   const getHeaders = useCallback(() => {
     const token = localStorage.getItem('ecomToken');
@@ -325,20 +333,32 @@ export default function GenerationsPage() {
             <Wand2 className="w-4 h-4" />
             Vue studio
           </button>
-          <button
-            onClick={() => navigate('/ecom/boutique/products/generator', { state: { from: location.pathname } })}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white text-sm font-semibold rounded-xl transition"
-          >
-            <Plus className="w-4 h-4" />
-            Nouvelle generation
-          </button>
-          <button
-            onClick={() => navigate('/ecom/boutique/products/premium-generator', { state: { from: location.pathname } })}
-            className="inline-flex items-center gap-2 px-4 py-2 border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-800 text-sm font-black rounded-xl transition"
-          >
-            <Crown className="w-4 h-4" />
-            Nouvelle premium
-          </button>
+          {storeTemplate === 'magazine' ? (
+            <button
+              onClick={() => navigate('/ecom/boutique/products/premium-generator', { state: { from: location.pathname } })}
+              className="inline-flex items-center gap-2 px-4 py-2 border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-800 text-sm font-black rounded-xl transition"
+            >
+              <Crown className="w-4 h-4" />
+              Nouvelle page Premium
+            </button>
+          ) : (
+            <>
+              <button
+                onClick={() => navigate('/ecom/boutique/products/generator', { state: { from: location.pathname } })}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white text-sm font-semibold rounded-xl transition"
+              >
+                <Plus className="w-4 h-4" />
+                Nouvelle generation
+              </button>
+              <button
+                onClick={() => navigate('/ecom/boutique/products/premium-generator', { state: { from: location.pathname } })}
+                className="inline-flex items-center gap-2 px-4 py-2 border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-800 text-sm font-black rounded-xl transition"
+              >
+                <Crown className="w-4 h-4" />
+                Nouvelle premium
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -401,11 +421,20 @@ export default function GenerationsPage() {
             <h3 className="text-lg font-semibold text-gray-900 mb-1">{pageMeta.emptyTitle}</h3>
             <p className="text-sm text-gray-500 mb-6">{pageMeta.emptyDescription}</p>
             <button
-              onClick={() => navigate('/ecom/boutique/products/generator', { state: { from: location.pathname } })}
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary-600 hover:bg-primary-700 text-white text-sm font-semibold rounded-xl transition"
+              onClick={() => navigate(
+                storeTemplate === 'magazine'
+                  ? '/ecom/boutique/products/premium-generator'
+                  : '/ecom/boutique/products/generator',
+                { state: { from: location.pathname } }
+              )}
+              className={`inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold rounded-xl transition ${
+                storeTemplate === 'magazine'
+                  ? 'border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-800'
+                  : 'bg-primary-600 hover:bg-primary-700 text-white'
+              }`}
             >
-              <Sparkles className="w-4 h-4" />
-              Lancer une generation
+              {storeTemplate === 'magazine' ? <Crown className="w-4 h-4" /> : <Sparkles className="w-4 h-4" />}
+              {storeTemplate === 'magazine' ? 'Lancer une generation Premium' : 'Lancer une generation'}
             </button>
           </div>
         ) : (

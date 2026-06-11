@@ -59,6 +59,7 @@ const StoreProductsList = () => {
   const [search, setSearch] = useState('');
   const [error, setError] = useState('');
   const [storeSubdomain, setStoreSubdomain] = useState(null);
+  const [storeTemplate, setStoreTemplate] = useState('classic');
   const [generationsInfo, setGenerationsInfo] = useState(null);
   const [categoryRegistry, setCategoryRegistry] = useState([]);
   const [categoryDialog, setCategoryDialog] = useState(emptyCategoryDialog);
@@ -74,12 +75,14 @@ const StoreProductsList = () => {
   const [digitalProductResult, setDigitalProductResult] = useState(null);
   const fileInputRef = useRef(null);
 
-  // Récupérer le subdomain du store pour l'aperçu
+  // Récupérer le subdomain et le template du store
   useEffect(() => {
     storeManageApi.getStoreConfig()
       .then((res) => {
-        setStoreSubdomain(res.data?.data?.subdomain);
-        setCategoryRegistry(res.data?.data?.storeSettings?.categoryRegistry || []);
+        const data = res.data?.data || {};
+        setStoreSubdomain(data.subdomain);
+        setCategoryRegistry(data.storeSettings?.categoryRegistry || []);
+        setStoreTemplate(data.template || 'classic');
       })
       .catch(() => {});
   }, []);
@@ -106,20 +109,23 @@ const StoreProductsList = () => {
     window.open(url, '_blank');
   };
 
+  const isPremiumStore = storeTemplate === 'magazine';
+
   const handleOpenPageGenerator = (pageStyle = 'classic') => {
+    if (isPremiumStore) {
+      navigate(`${basePath}/products/premium-generator`, {
+        state: { from: `${basePath}/products` },
+      });
+      return;
+    }
     navigate(`${basePath}/products/generator`, {
-      state: {
-        from: `${basePath}/products`,
-        pageStyle,
-      },
+      state: { from: `${basePath}/products`, pageStyle },
     });
   };
 
   const handleOpenPremiumPageGenerator = () => {
     navigate(`${basePath}/products/premium-generator`, {
-      state: {
-        from: `${basePath}/products`,
-      },
+      state: { from: `${basePath}/products` },
     });
   };
 
@@ -822,40 +828,54 @@ const StoreProductsList = () => {
             )}
             {viewMode !== 'categories' && (
               <div className="flex flex-wrap items-center gap-2">
-                <div className="inline-flex overflow-hidden rounded-xl border border-violet-300 shadow-sm">
-                  {/* Gratuit — hero_page mode */}
+                {isPremiumStore ? (
+                  /* Thème Premium — un seul bouton qui lance le générateur premium */
                   <button
-                    onClick={() => handleOpenPageGenerator('hero_page')}
-                    className="inline-flex items-center justify-center gap-1.5 bg-primary-500 hover:bg-primary-600 px-3 py-2.5 text-sm font-semibold text-white transition border-r border-primary-400"
-                    title="Page complète + hero IA — gratuit, sans images d'angles"
+                    type="button"
+                    onClick={handleOpenPremiumPageGenerator}
+                    className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-amber-300 bg-amber-50 px-4 py-2.5 text-sm font-black text-amber-800 shadow-sm transition hover:bg-amber-100"
+                    title="Générer une page produit Premium"
                   >
-                    <Sparkles className="h-4 w-4" />
-                    <span>Gratuit</span>
+                    <Crown className="h-4 w-4" />
+                    <span>Générer page Premium</span>
                   </button>
-                  {/* Pro — classic mode with credits */}
-                  <button
-                    onClick={() => handleOpenPageGenerator('classic')}
-                    className="inline-flex items-center justify-center gap-1.5 bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700 px-3 py-2.5 text-sm font-semibold text-white transition"
-                    title="Génération IA classique avec images générées par IA"
-                  >
-                    <Zap className="h-4 w-4" />
-                    <span>Pro</span>
-                    {generationsInfo && (generationsInfo.freeRemaining + generationsInfo.paidRemaining) > 0 && (
-                      <span className="ml-0.5 inline-flex items-center gap-1 rounded-full bg-white/20 px-1.5 py-0.5 text-xs font-bold">
-                        {generationsInfo.freeRemaining + generationsInfo.paidRemaining}
-                      </span>
-                    )}
-                  </button>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleOpenPremiumPageGenerator}
-                  className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2.5 text-sm font-black text-amber-800 shadow-sm transition hover:bg-amber-100"
-                  title="Système séparé pour page produit premium avancée"
-                >
-                  <Crown className="h-4 w-4" />
-                  <span>Premium</span>
-                </button>
+                ) : (
+                  /* Thème Classique — Gratuit / Pro / Premium */
+                  <>
+                    <div className="inline-flex overflow-hidden rounded-xl border border-violet-300 shadow-sm">
+                      <button
+                        onClick={() => handleOpenPageGenerator('hero_page')}
+                        className="inline-flex items-center justify-center gap-1.5 bg-primary-500 hover:bg-primary-600 px-3 py-2.5 text-sm font-semibold text-white transition border-r border-primary-400"
+                        title="Page complète + hero IA — gratuit, sans images d'angles"
+                      >
+                        <Sparkles className="h-4 w-4" />
+                        <span>Gratuit</span>
+                      </button>
+                      <button
+                        onClick={() => handleOpenPageGenerator('classic')}
+                        className="inline-flex items-center justify-center gap-1.5 bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700 px-3 py-2.5 text-sm font-semibold text-white transition"
+                        title="Génération IA classique avec images générées par IA"
+                      >
+                        <Zap className="h-4 w-4" />
+                        <span>Pro</span>
+                        {generationsInfo && (generationsInfo.freeRemaining + generationsInfo.paidRemaining) > 0 && (
+                          <span className="ml-0.5 inline-flex items-center gap-1 rounded-full bg-white/20 px-1.5 py-0.5 text-xs font-bold">
+                            {generationsInfo.freeRemaining + generationsInfo.paidRemaining}
+                          </span>
+                        )}
+                      </button>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleOpenPremiumPageGenerator}
+                      className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2.5 text-sm font-black text-amber-800 shadow-sm transition hover:bg-amber-100"
+                      title="Système séparé pour page produit premium avancée"
+                    >
+                      <Crown className="h-4 w-4" />
+                      <span>Premium</span>
+                    </button>
+                  </>
+                )}
               </div>
             )}
             {viewMode === 'categories' && (

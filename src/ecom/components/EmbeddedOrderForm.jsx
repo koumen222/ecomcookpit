@@ -101,14 +101,16 @@ const EmbeddedOrderForm = ({ product, subdomain, store, pixels, productPageConfi
   };
   const callScheduleConfig = productPageConfig?.callSchedule || defaultConfig.callSchedule || {};
 
+  const isPremiumTheme = store?.template === 'magazine';
+
   const textColor = design.formTextColor || '#111827';
   const inputTextColor = design.fieldTextColor || '#111827';
-  const borderRadius = design.formInputRadius || '12px';
+  const borderRadius = design.formInputRadius || (isPremiumTheme ? '14px' : '12px');
   const formBgResolved = design.formBgColor || '#ffffff';
   const formShadowVal = parseInt(design.formShadow) || 0;
   const formBoxShadow = formShadowVal > 0
     ? `0 ${formShadowVal}px ${formShadowVal * 2}px rgba(0,0,0,${Math.min(0.06 + formShadowVal * 0.015, 0.45).toFixed(2)})`
-    : 'none';
+    : isPremiumTheme ? '0 2px 24px rgba(15,23,42,0.08)' : 'none';
   const inputBorderColor = design.fieldBorderColor || design.formBorderColor || '#E5E7EB';
   const inputBgColor = design.fieldBgColor || '#ffffff';
   const labelColorResolved = design.fieldIconColor || '#9CA3AF';
@@ -440,10 +442,52 @@ const EmbeddedOrderForm = ({ product, subdomain, store, pixels, productPageConfi
 
   // ── Inline form ──
   return (
-    <div style={{ borderRadius: design.formBorderRadius || 0, border: 'none', borderTop: `3px solid ${effectiveBtnColor}`, padding: '24px 16px', margin: '0 8px', backgroundColor: formBgResolved, boxShadow: formBoxShadow }}>
-      <h3 style={{ fontSize: 16, fontWeight: 800, color: textColor, margin: '0 0 14px', display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'var(--s-font)' }}>
-        <ShoppingCart size={18} color={effectiveBtnColor} /> {btnCfg.text || 'Commander maintenant'}
+    <div style={isPremiumTheme ? {
+      borderRadius: 20,
+      border: `1.5px solid ${effectiveBtnColor}22`,
+      backgroundColor: formBgResolved,
+      boxShadow: formBoxShadow,
+      overflow: 'hidden',
+    } : {
+      borderRadius: design.formBorderRadius || 0,
+      border: 'none',
+      borderTop: `3px solid ${effectiveBtnColor}`,
+      padding: '24px 16px',
+      margin: '0 8px',
+      backgroundColor: formBgResolved,
+      boxShadow: formBoxShadow,
+    }}>
+      {isPremiumTheme && (
+        <div style={{ height: 4, background: `linear-gradient(90deg, ${effectiveBtnColor}, color-mix(in srgb, ${effectiveBtnColor} 60%, #fff))` }} />
+      )}
+      <div style={isPremiumTheme ? { padding: '22px 20px' } : {}}>
+      <h3 style={isPremiumTheme ? {
+        fontSize: 17,
+        fontWeight: 900,
+        color: textColor,
+        margin: '0 0 6px',
+        textTransform: 'uppercase',
+        letterSpacing: '0.02em',
+        fontFamily: 'var(--s-font)',
+      } : {
+        fontSize: 16,
+        fontWeight: 800,
+        color: textColor,
+        margin: '0 0 14px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
+        fontFamily: 'var(--s-font)',
+      }}>
+        {isPremiumTheme ? (btnCfg.text || 'Commander maintenant') : (
+          <><ShoppingCart size={18} color={effectiveBtnColor} /> {btnCfg.text || 'Commander maintenant'}</>
+        )}
       </h3>
+      {isPremiumTheme && (
+        <p style={{ fontSize: 13, color: '#6B7280', margin: '0 0 16px', fontFamily: 'var(--s-font)' }}>
+          Remplissez le formulaire ci-dessous — paiement à la livraison.
+        </p>
+      )}
 
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         {error && (
@@ -471,7 +515,7 @@ const EmbeddedOrderForm = ({ product, subdomain, store, pixels, productPageConfi
           const fieldBorderColor = field.borderColor || inputBorderColor;
           const fieldBgColor = field.bgColor || inputBgColor;
           const fieldTxtColor = field.textColor || inputTextColor;
-          const inputStyle = { width: '100%', padding: `11px 14px 11px ${inputPadLeft}`, borderRadius, border: `1.5px solid ${fieldBorderColor}`, fontSize: 14, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', color: fieldTxtColor, backgroundColor: fieldBgColor, transition: 'border-color 0.15s' };
+          const inputStyle = { width: '100%', padding: `${isPremiumTheme ? '12px' : '11px'} 14px 11px ${inputPadLeft}`, borderRadius, border: `1.5px solid ${fieldBorderColor}`, fontSize: 14, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', color: fieldTxtColor, backgroundColor: isPremiumTheme ? '#F9FAFB' : fieldBgColor, transition: 'border-color 0.15s' };
 
           switch (field.type) {
             case 'product_info':
@@ -1002,8 +1046,8 @@ const EmbeddedOrderForm = ({ product, subdomain, store, pixels, productPageConfi
               // formButtonColor owns the form CTA; field.bgColor only used when neither is set
               const ctaBgColor = design.formButtonColor || field.bgColor || effectiveBtnColor;
               const ctaTextColor = design.buttonTextColor || field.textColor || '#fff';
-              const ctaFontSize = field.fontSize || parseInt(design.buttonFontSize) || 15;
-              const ctaFontWeight = field.bold !== false && design.buttonBold !== false ? 700 : 400;
+              const ctaFontSize = field.fontSize || parseInt(design.buttonFontSize) || (isPremiumTheme ? 17 : 15);
+              const ctaFontWeight = isPremiumTheme ? 900 : (field.bold !== false && design.buttonBold !== false ? 700 : 400);
               const ctaFontStyle = (field.italic || design.buttonItalic) ? 'italic' : 'normal';
               const ctaBorderW = field.borderWidth ?? parseInt(design.buttonBorderWidth) ?? 0;
               const ctaBorderColor = field.borderColor || design.buttonBorderColor || 'transparent';
@@ -1065,6 +1109,7 @@ const EmbeddedOrderForm = ({ product, subdomain, store, pixels, productPageConfi
           }
         })}
       </form>
+      </div>
     </div>
   );
 };
