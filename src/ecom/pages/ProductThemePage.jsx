@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   Save, Loader2, Check, Paintbrush, Eye, Palette, Type, Square, ChevronDown, ChevronUp,
-  Droplets, Layout, Zap, MousePointer2, Rows3, Image, ShoppingBag, Star, Truck, Shield,
+  Droplets, Layout, Zap, MousePointer2, Rows3, Image, ShoppingBag, ShoppingCart, Star, Truck, Shield,
   MessageCircle, Heart, Share2, Minus, Plus, ChevronRight, Clock, Award, Flame, Rocket, Sparkles,
   Layers
 } from 'lucide-react';
@@ -1073,114 +1073,225 @@ const ProductThemePage = () => {
                 </div>
               </div>
 
-              <div className="p-6 sm:p-8" style={{ backgroundColor: design.backgroundColor, fontFamily }}>
-                {/* Breadcrumb */}
-                <div className="flex items-center gap-1.5 mb-6 text-xs" style={{ color: design.textColor + '80' }}>
-                  <span>Accueil</span><ChevronRight size={12} /><span>Produits</span><ChevronRight size={12} /><span style={{ color: design.buttonColor }}>Sneakers Premium</span>
-                </div>
-
-                <div className={`${currentTheme === 'classic' || currentTheme === 'minimal' ? 'grid grid-cols-1 sm:grid-cols-2 gap-8' : ''}`}>
-                  {/* Image */}
-                  <div>
-                    <div className={`${currentTheme === 'magazine' ? 'pb-[60%]' : 'pb-[100%]'} rounded-xl bg-gradient-to-br from-gray-100 to-gray-50 relative overflow-hidden`}
-                      style={{ borderRadius: design.borderRadius }}>
-                      <div className="absolute inset-0 flex items-center justify-center"><Image size={48} className="text-gray-200" /></div>
-                      <div className="absolute top-3 left-0">
-                        <span className="text-xs font-bold text-white px-3 py-1" style={{ background: design.badgeColor, borderRadius: design.badgeStyle === 'ribbon' ? '0 8px 8px 0' : design.borderRadius }}>-30%</span>
+              {currentTheme === 'magazine' ? (
+                /* ── PREMIUM layout — fidèle à StoreProductPagePremium ────── */
+                <div style={{ backgroundColor: '#fff', fontFamily }}>
+                  {/* Header premium */}
+                  <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
+                    <div className="w-16 h-2 rounded bg-gray-900/70" />
+                    <div className="flex items-center gap-3 text-xs font-bold text-gray-500">
+                      <span>Contact</span>
+                      <div className="relative">
+                        <ShoppingCart size={18} className="text-gray-700" />
+                        <span className="absolute -top-1.5 -right-2 w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-black text-white" style={{ background: design.buttonColor }}>2</span>
                       </div>
-                      {design.showStockIndicator && (
-                        <div className="absolute bottom-3 left-3 flex items-center gap-1.5 bg-white/90 backdrop-blur px-2.5 py-1 rounded-full">
-                          <Flame size={12} className="text-orange-500" />
-                          <span className="text-[10px] font-bold text-orange-600">Plus que 3 en stock</span>
-                        </div>
-                      )}
                     </div>
-                    {(currentTheme === 'classic' || currentTheme === 'minimal') && (
+                  </div>
+
+                  {/* Hero 2 colonnes */}
+                  <div className="grid grid-cols-2 gap-6 p-5 sm:p-7" style={{ alignItems: 'start' }}>
+                    {/* Gauche : carrousel image */}
+                    <div>
+                      <div className="relative rounded-xl overflow-hidden bg-gray-50" style={{ paddingBottom: '100%' }}>
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <Image size={40} className="text-gray-200" />
+                        </div>
+                        <div className="absolute top-3 left-0">
+                          <span className="text-[10px] font-extrabold text-white px-2.5 py-1" style={{ background: '#B42318', borderRadius: '0 6px 6px 0' }}>-30%</span>
+                        </div>
+                        <div className="absolute bottom-2.5 left-0 right-0 flex justify-center gap-1.5">
+                          {[1,2,3].map(i => (
+                            <div key={i} className="h-1.5 rounded-full" style={{ width: i===1 ? 16 : 6, background: i===1 ? design.buttonColor : 'rgba(15,23,42,0.2)' }} />
+                          ))}
+                        </div>
+                      </div>
+                      <div className="flex gap-1.5 mt-2">
+                        {[1,2,3,4].map(i => (
+                          <div key={i} className="flex-1 rounded-lg bg-gray-100" style={{ paddingBottom: '100%', border: i===1 ? `2px solid ${design.buttonColor}` : '2px solid transparent' }} />
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Droite : infos premium */}
+                    <div>
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <div className="flex gap-0.5">
+                          {[1,2,3,4,5].map(i => <Star key={i} size={13} className="fill-yellow-400 text-yellow-400" />)}
+                        </div>
+                        <span className="text-xs font-bold text-gray-600">4,9/5 · +1 000 clients</span>
+                      </div>
+
+                      <h1 className="font-black mb-2 leading-tight uppercase" style={{ color: '#05070a', fontSize: design.fontBase + 6 }}>
+                        Sneakers Premium<br />Edition Limitee
+                      </h1>
+
+                      <p className="text-sm mb-3" style={{ color: '#42464d', fontSize: design.fontBase }}>
+                        Confort ultime, design moderne et materiaux premium.
+                      </p>
+
+                      <div className="flex items-baseline gap-2 mb-3">
+                        <span className="text-xl font-black" style={{ color: '#1f2933' }}>29 900 FCFA</span>
+                        <span className="text-sm line-through text-gray-400">42 000 FCFA</span>
+                      </div>
+
+                      <ul className="space-y-1.5 mb-4">
+                        {[
+                          'Resultats visibles en 7 jours',
+                          'Formule 100% naturelle',
+                          'Paiement a la livraison',
+                          'Support WhatsApp reactif',
+                        ].map((b, i) => (
+                          <li key={i} className="flex items-start gap-2 text-xs font-semibold" style={{ color: '#3d424b' }}>
+                            <span className="flex-shrink-0 w-4 h-4 rounded-full flex items-center justify-center mt-0.5" style={{ background: design.buttonColor }}>
+                              <Check size={9} color="#fff" strokeWidth={3} />
+                            </span>
+                            {b}
+                          </li>
+                        ))}
+                      </ul>
+
+                      <button className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-black text-sm text-white mb-3" style={{ background: design.buttonColor }}>
+                        <ShoppingCart size={15} />
+                        Commander maintenant
+                      </button>
+
+                      <div className="flex flex-wrap gap-x-3 gap-y-1">
+                        {['Paiement livraison', 'Livraison rapide', 'WhatsApp'].map((r, i) => (
+                          <span key={i} className="flex items-center gap-1 text-[10px] font-bold text-gray-500">
+                            {i===0 ? <Truck size={10} /> : i===1 ? <Shield size={10} /> : <Award size={10} />}
+                            {r}
+                          </span>
+                        ))}
+                      </div>
+
+                      <div className="mt-3 space-y-1.5">
+                        {['Comment ca marche ?', 'Ingredients cles', 'Garantie satisfait'].map((acc, i) => (
+                          <div key={i} className="border border-gray-100 rounded-xl overflow-hidden">
+                            <div className="flex items-center justify-between px-3 py-2.5 text-xs font-extrabold text-gray-800">
+                              <span>{acc}</span>
+                              <ChevronDown size={13} className="text-gray-400" />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="px-5 py-3 border-t border-gray-100 flex gap-6 overflow-hidden" style={{ background: '#EFF8F7' }}>
+                    {['Clients verifies', 'Qualite controlee', 'Livraison assuree'].map((s, i) => (
+                      <span key={i} className="text-xs font-black whitespace-nowrap" style={{ color: design.buttonColor }}>{s}</span>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                /* ── CLASSIQUE layout ─────────────────────────────────────── */
+                <div className="p-6 sm:p-8" style={{ backgroundColor: design.backgroundColor, fontFamily }}>
+                  {/* Breadcrumb */}
+                  <div className="flex items-center gap-1.5 mb-6 text-xs" style={{ color: design.textColor + '80' }}>
+                    <span>Accueil</span><ChevronRight size={12} /><span>Produits</span><ChevronRight size={12} /><span style={{ color: design.buttonColor }}>Sneakers Premium</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
+                    {/* Image + thumbnails */}
+                    <div>
+                      <div className="pb-[100%] rounded-xl bg-gradient-to-br from-gray-100 to-gray-50 relative overflow-hidden"
+                        style={{ borderRadius: design.borderRadius }}>
+                        <div className="absolute inset-0 flex items-center justify-center"><Image size={48} className="text-gray-200" /></div>
+                        <div className="absolute top-3 left-0">
+                          <span className="text-xs font-bold text-white px-3 py-1" style={{ background: design.badgeColor, borderRadius: design.badgeStyle === 'ribbon' ? '0 8px 8px 0' : design.borderRadius }}>-30%</span>
+                        </div>
+                        {design.showStockIndicator && (
+                          <div className="absolute bottom-3 left-3 flex items-center gap-1.5 bg-white/90 backdrop-blur px-2.5 py-1 rounded-full">
+                            <Flame size={12} className="text-orange-500" />
+                            <span className="text-[10px] font-bold text-orange-600">Plus que 3 en stock</span>
+                          </div>
+                        )}
+                      </div>
                       <div className="flex gap-2 mt-3">
                         {[1,2,3,4].map(i => (
                           <div key={i} className="flex-1 pb-[100%] bg-gray-100"
                             style={{ borderRadius: design.borderRadius, ...(i===1 ? { border: `2px solid ${design.buttonColor}` } : {}) }} />
                         ))}
                       </div>
-                    )}
-                  </div>
-
-                  {/* Info */}
-                  <div className={currentTheme === 'landing' || currentTheme === 'bold' ? 'text-center mt-6' : ''}>
-                    {design.showReviews && (
-                      <div className="flex items-center gap-1 mb-2" style={currentTheme === 'landing' || currentTheme === 'bold' ? { justifyContent: 'center' } : {}}>
-                        {[1,2,3,4,5].map(i => <Star key={i} size={14} className="fill-yellow-400 text-yellow-400" />)}
-                        <span className="text-xs ml-1" style={{ color: design.textColor + '80' }}>(127 avis)</span>
-                      </div>
-                    )}
-                    <h1 className="text-xl sm:text-2xl font-extrabold mb-2" style={{ color: design.textColor, fontSize: design.fontBase + 8 }}>
-                      Sneakers Premium Édition Limitée
-                    </h1>
-                    <p className="text-sm mb-4" style={{ color: design.textColor + '99', fontSize: design.fontBase }}>
-                      Confort ultime, design moderne et matériaux premium pour un style incomparable.
-                    </p>
-                    <div className="flex items-center gap-3 mb-5" style={currentTheme === 'landing' || currentTheme === 'bold' ? { justifyContent: 'center' } : {}}>
-                      <span className="text-2xl font-extrabold" style={{ color: design.buttonColor }}>29 900 FCFA</span>
-                      <span className="text-sm line-through" style={{ color: design.textColor + '50' }}>42 000 FCFA</span>
                     </div>
 
-                    {design.showCountdown && (
-                      <div className="flex items-center gap-2 mb-4 px-3 py-2 rounded-lg" style={{ background: design.badgeColor + '10', ...(currentTheme === 'landing' || currentTheme === 'bold' ? { display: 'inline-flex' } : {}) }}>
-                        <Clock size={14} style={{ color: design.badgeColor }} />
-                        <span className="text-xs font-bold" style={{ color: design.badgeColor }}>Offre expire dans 02:45:30</span>
-                      </div>
-                    )}
-
-                    {design.showQuantitySelector && (
-                      <div className="flex items-center gap-3 mb-5" style={currentTheme === 'landing' || currentTheme === 'bold' ? { justifyContent: 'center' } : {}}>
-                        <span className="text-xs font-semibold" style={{ color: design.textColor }}>Quantité</span>
-                        <div className="flex items-center border rounded-lg" style={{ borderRadius: design.borderRadius, borderColor: design.textColor + '20' }}>
-                          <button className="px-2.5 py-1.5"><Minus size={14} style={{ color: design.textColor }} /></button>
-                          <span className="px-3 text-sm font-bold" style={{ color: design.textColor }}>1</span>
-                          <button className="px-2.5 py-1.5"><Plus size={14} style={{ color: design.textColor }} /></button>
+                    {/* Info */}
+                    <div>
+                      {design.showReviews && (
+                        <div className="flex items-center gap-1 mb-2">
+                          {[1,2,3,4,5].map(i => <Star key={i} size={14} className="fill-yellow-400 text-yellow-400" />)}
+                          <span className="text-xs ml-1" style={{ color: design.textColor + '80' }}>(127 avis)</span>
                         </div>
+                      )}
+                      <h1 className="text-xl sm:text-2xl font-extrabold mb-2" style={{ color: design.textColor, fontSize: design.fontBase + 8 }}>
+                        Sneakers Premium Édition Limitée
+                      </h1>
+                      <p className="text-sm mb-4" style={{ color: design.textColor + '99', fontSize: design.fontBase }}>
+                        Confort ultime, design moderne et matériaux premium pour un style incomparable.
+                      </p>
+                      <div className="flex items-center gap-3 mb-5">
+                        <span className="text-2xl font-extrabold" style={{ color: design.buttonColor }}>29 900 FCFA</span>
+                        <span className="text-sm line-through" style={{ color: design.textColor + '50' }}>42 000 FCFA</span>
                       </div>
-                    )}
 
-                    <div className="space-y-2 mb-5">
-                      {renderButtonPreview(design.buttonStyle, design.ctaButtonColor || design.buttonColor, design.borderRadius)}
-                    </div>
+                      {design.showCountdown && (
+                        <div className="flex items-center gap-2 mb-4 px-3 py-2 rounded-lg" style={{ background: design.badgeColor + '10' }}>
+                          <Clock size={14} style={{ color: design.badgeColor }} />
+                          <span className="text-xs font-bold" style={{ color: design.badgeColor }}>Offre expire dans 02:45:30</span>
+                        </div>
+                      )}
 
-                    {design.showShareButtons && (
-                      <div className="flex items-center gap-3 mb-5" style={currentTheme === 'landing' || currentTheme === 'bold' ? { justifyContent: 'center' } : {}}>
-                        <button className="p-2 rounded-lg border" style={{ borderColor: design.textColor + '15' }}><Heart size={16} style={{ color: design.textColor + '60' }} /></button>
-                        <button className="p-2 rounded-lg border" style={{ borderColor: design.textColor + '15' }}><Share2 size={16} style={{ color: design.textColor + '60' }} /></button>
-                        <button className="p-2 rounded-lg border" style={{ borderColor: design.textColor + '15' }}><MessageCircle size={16} style={{ color: design.textColor + '60' }} /></button>
-                      </div>
-                    )}
-
-                    {design.showTrustBadges && (
-                      <div className="grid grid-cols-3 gap-2 mb-4">
-                        {[
-                          { icon: <Truck size={16} />, label: 'Livraison rapide' },
-                          { icon: <Shield size={16} />, label: 'Paiement sécurisé' },
-                          { icon: <Award size={16} />, label: 'Garantie qualité' },
-                        ].map((t, i) => (
-                          <div key={i} className="flex flex-col items-center gap-1 p-2 rounded-lg" style={{ background: design.buttonColor + '08' }}>
-                            <span style={{ color: design.buttonColor }}>{t.icon}</span>
-                            <span className="text-[10px] font-semibold text-center" style={{ color: design.textColor + '80' }}>{t.label}</span>
+                      {design.showQuantitySelector && (
+                        <div className="flex items-center gap-3 mb-5">
+                          <span className="text-xs font-semibold" style={{ color: design.textColor }}>Quantité</span>
+                          <div className="flex items-center border rounded-lg" style={{ borderRadius: design.borderRadius, borderColor: design.textColor + '20' }}>
+                            <button className="px-2.5 py-1.5"><Minus size={14} style={{ color: design.textColor }} /></button>
+                            <span className="px-3 text-sm font-bold" style={{ color: design.textColor }}>1</span>
+                            <button className="px-2.5 py-1.5"><Plus size={14} style={{ color: design.textColor }} /></button>
                           </div>
-                        ))}
-                      </div>
-                    )}
-
-                    {design.showDeliveryInfo && (
-                      <div className="flex items-center gap-2 p-3 rounded-lg border" style={{ borderColor: design.textColor + '10', borderRadius: design.borderRadius }}>
-                        <Truck size={16} style={{ color: design.buttonColor }} />
-                        <div>
-                          <span className="text-xs font-bold" style={{ color: design.textColor }}>Livraison estimée : 2-4 jours</span>
-                          <span className="block text-[10px]" style={{ color: design.textColor + '60' }}>Livraison gratuite à partir de 25 000 FCFA</span>
                         </div>
+                      )}
+
+                      <div className="space-y-2 mb-5">
+                        {renderButtonPreview(design.buttonStyle, design.ctaButtonColor || design.buttonColor, design.borderRadius)}
                       </div>
-                    )}
+
+                      {design.showShareButtons && (
+                        <div className="flex items-center gap-3 mb-5">
+                          <button className="p-2 rounded-lg border" style={{ borderColor: design.textColor + '15' }}><Heart size={16} style={{ color: design.textColor + '60' }} /></button>
+                          <button className="p-2 rounded-lg border" style={{ borderColor: design.textColor + '15' }}><Share2 size={16} style={{ color: design.textColor + '60' }} /></button>
+                          <button className="p-2 rounded-lg border" style={{ borderColor: design.textColor + '15' }}><MessageCircle size={16} style={{ color: design.textColor + '60' }} /></button>
+                        </div>
+                      )}
+
+                      {design.showTrustBadges && (
+                        <div className="grid grid-cols-3 gap-2 mb-4">
+                          {[
+                            { icon: <Truck size={16} />, label: 'Livraison rapide' },
+                            { icon: <Shield size={16} />, label: 'Paiement sécurisé' },
+                            { icon: <Award size={16} />, label: 'Garantie qualité' },
+                          ].map((t, i) => (
+                            <div key={i} className="flex flex-col items-center gap-1 p-2 rounded-lg" style={{ background: design.buttonColor + '08' }}>
+                              <span style={{ color: design.buttonColor }}>{t.icon}</span>
+                              <span className="text-[10px] font-semibold text-center" style={{ color: design.textColor + '80' }}>{t.label}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {design.showDeliveryInfo && (
+                        <div className="flex items-center gap-2 p-3 rounded-lg border" style={{ borderColor: design.textColor + '10', borderRadius: design.borderRadius }}>
+                          <Truck size={16} style={{ color: design.buttonColor }} />
+                          <div>
+                            <span className="text-xs font-bold" style={{ color: design.textColor }}>Livraison estimée : 2-4 jours</span>
+                            <span className="block text-[10px]" style={{ color: design.textColor + '60' }}>Livraison gratuite à partir de 25 000 FCFA</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
             </div>
           </div>
         )}
