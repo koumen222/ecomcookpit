@@ -19,8 +19,8 @@ const HTTP_STATUS_MESSAGES = {
 };
 
 const NETWORK_ERROR_MESSAGES = {
-  'Network Error': 'Impossible de contacter le serveur. Vérifiez votre connexion internet.',
-  'timeout': 'La connexion a expiré. Vérifiez votre connexion internet et réessayez.',
+  'Network Error': 'Impossible de joindre le serveur Scalor. Réessayez dans quelques instants ou contactez le support si le problème persiste.',
+  'timeout': 'Le serveur Scalor met trop de temps à répondre. Réessayez dans quelques instants.',
   'ECONNABORTED': 'La connexion a été interrompue. Réessayez.',
 };
 
@@ -166,7 +166,7 @@ export function getContextualError(err, action) {
     load_clients: 'Impossible de charger les clients. Vérifiez votre connexion.',
     load_users: 'Impossible de charger les utilisateurs. Vérifiez votre connexion.',
     load_stats: 'Impossible de charger les statistiques. Vérifiez votre connexion.',
-    load_dashboard: 'Impossible de charger le tableau de bord. Vérifiez votre connexion.',
+    load_dashboard: 'Impossible de charger le tableau de bord. Réessayez dans quelques instants.',
     save_order: 'Impossible de sauvegarder la commande. Vérifiez les informations et réessayez.',
     save_product: 'Impossible de sauvegarder le produit. Vérifiez les informations et réessayez.',
     save_transaction: 'Impossible de sauvegarder la transaction. Vérifiez les informations et réessayez.',

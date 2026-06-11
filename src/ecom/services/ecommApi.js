@@ -511,7 +511,7 @@ export const authApi = {
   register: (userData) => ecomApi.post('/auth/register', userData),
 
   // Obtenir le profil utilisateur
-  getProfile: () => ecomApi.get('/auth/me'),
+  getProfile: () => ecomApi.get('/auth/me', { _bypassCache: true }),
 
   // Enregistrer onboarding
   saveOnboarding: (data) => ecomApi.post('/auth/onboarding', data),
@@ -1214,4 +1214,3 @@ export const quickApi = {
     }
   }
 };
-

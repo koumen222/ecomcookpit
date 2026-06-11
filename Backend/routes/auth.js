@@ -6,6 +6,7 @@ import EcomUser from '../models/EcomUser.js';
 import Workspace from '../models/Workspace.js';
 import PasswordResetToken from '../models/PasswordResetToken.js';
 import { generateEcomToken, generatePermanentToken, requireEcomAuth } from '../middleware/ecomAuth.js';
+import { ensureAuthWorkspace } from '../services/authProvisioningService.js';
 import { checkPlanLimit } from '../middleware/planLimits.js';
 import { validateEmail, validatePassword } from '../middleware/validation.js';
 import { logAudit } from '../middleware/security.js';
@@ -39,12 +40,43 @@ const serializeWorkspace = (workspace, userRole) => {
     id: workspace._id,
     name: workspace.name,
     slug: workspace.slug,
+    primaryStoreId: workspace.primaryStoreId || null,
     plan: workspace.plan,
     trialEndsAt: workspace.trialEndsAt,
     subscriptionWarning: workspace.subscriptionWarning,
     inviteCode: userRole === 'ecom_admin' ? workspace.inviteCode : undefined,
   };
 };
+
+const serializeStore = (store) => {
+  if (!store) return null;
+
+  return {
+    _id: store._id,
+    id: store._id,
+    name: store.name,
+    subdomain: store.subdomain || null,
+    isActive: store.isActive !== false,
+  };
+};
+
+const serializeAuthUser = (user, store = null) => ({
+  id: user._id,
+  _id: user._id,
+  email: user.email,
+  name: user.name,
+  phone: user.phone,
+  avatar: user.avatar,
+  role: user.role,
+  canAccessRitaAgent: user.canAccessRitaAgent,
+  isActive: user.isActive,
+  currency: user.currency,
+  lastLogin: user.lastLogin,
+  createdAt: user.createdAt,
+  workspaceId: user.workspaceId,
+  storeId: store?._id || null,
+  onboardingData: user.onboardingData
+});
 
 async function getDefaultPhonePrefixForWorkspace(workspaceId) {
   if (!workspaceId) return null;
@@ -132,9 +164,14 @@ router.post('/login', validateEmail, async (req, res) => {
       });
     }
 
+    console.log(`[AUTH_FLOW] login_start email=${email}`);
+
     // Mettre à jour lastLogin
     user.lastLogin = new Date();
     await user.save();
+
+    const provisioning = await ensureAuthWorkspace(user, { source: 'login' });
+    const { workspace, store } = provisioning;
 
     let token;
     let isPermanent = false;
@@ -154,12 +191,7 @@ router.post('/login', validateEmail, async (req, res) => {
     req.ecomUser = user;
     await logAudit(req, 'LOGIN', `Connexion réussie: ${user.email} (${user.role}) - Permanent: ${isPermanent}`, 'auth', user._id);
     trackEvent(req, 'login', user._id, { workspaceId: user.workspaceId, userRole: user.role });
-
-    // Charger le workspace
-    let workspace = null;
-    if (user.workspaceId) {
-      workspace = await Workspace.findById(user.workspaceId);
-    }
+    console.log(`[AUTH_FLOW] login_success user=${user.email} role=${user.role} workspace=${user.workspaceId || 'none'} store=${store?._id || 'none'}`);
 
     res.json({
       success: true,
@@ -168,16 +200,11 @@ router.post('/login', validateEmail, async (req, res) => {
         token,
         isPermanent,
         user: {
-          id: user._id,
-          email: user.email,
-          role: user.role,
-          canAccessRitaAgent: user.canAccessRitaAgent,
-          currency: user.currency,
-          lastLogin: user.lastLogin,
-          workspaceId: user.workspaceId,
+          ...serializeAuthUser(user, store),
           deviceInfo: user.deviceInfo
         },
-        workspace: serializeWorkspace(workspace, user.role)
+        workspace: serializeWorkspace(workspace, user.role),
+        store: serializeStore(store)
       }
     });
   } catch (error) {
@@ -221,31 +248,22 @@ router.post('/refresh', async (req, res) => {
       });
     }
 
-    // Générer un nouveau token
+    const { workspace, store } = await ensureAuthWorkspace(user, { source: 'refresh' });
+
+    // Générer un nouveau token après auto-provisionnement éventuel
     const newToken = generateEcomToken(user);
 
-    // Charger le workspace
-    let workspace = null;
-    if (user.workspaceId) {
-      workspace = await Workspace.findById(user.workspaceId);
-    }
-
     console.log(`🔄 Token rafraîchi pour ${user.email}`);
+    console.log(`[AUTH_FLOW] refresh_success user=${user.email} role=${user.role} workspace=${user.workspaceId || 'none'} store=${store?._id || 'none'}`);
 
     res.json({
       success: true,
       message: 'Token rafraîchi',
       data: {
         token: newToken,
-        user: {
-          id: user._id,
-          email: user.email,
-          role: user.role,
-          canAccessRitaAgent: user.canAccessRitaAgent,
-          currency: user.currency,
-          workspaceId: user.workspaceId
-        },
-        workspace: serializeWorkspace(workspace, user.role)
+        user: serializeAuthUser(user, store),
+        workspace: serializeWorkspace(workspace, user.role),
+        store: serializeStore(store)
       }
     });
   } catch (error) {
@@ -536,7 +554,7 @@ router.post('/verify-otp', async (req, res) => {
   }
 });
 
-// POST /api/ecom/auth/register - Création d'un compte (sans workspace ni rôle)
+// POST /api/ecom/auth/register - Création d'un compte avec workspace par défaut
 router.post('/register', validateEmail, validatePassword, async (req, res) => {
   try {
     const { password, name, phone, superAdmin, acceptPrivacy, affiliateCode, setupToken } = req.body;
@@ -614,7 +632,9 @@ router.post('/register', validateEmail, validatePassword, async (req, res) => {
       }
     }
 
-    // Créer l'utilisateur SANS workspace ni rôle
+    console.log(`[AUTH_FLOW] register_start email=${email}`);
+
+    // Créer l'utilisateur puis provisionner immédiatement son workspace.
     const user = new EcomUser({
       email,
       password,
@@ -626,6 +646,12 @@ router.post('/register', validateEmail, validatePassword, async (req, res) => {
     });
     await user.save();
 
+    const { workspace, store } = await ensureAuthWorkspace(user, {
+      source: 'register',
+      workspaceName: name?.trim() || undefined,
+      role: 'ecom_admin'
+    });
+
     // Credit 500 FCFA signup commission to referring affiliate (non-blocking)
     if (user.referredByAffiliateCode) {
       creditSignupCommission(user.referredByAffiliateCode, user._id);
@@ -634,18 +660,20 @@ router.post('/register', validateEmail, validatePassword, async (req, res) => {
     const token = generateEcomToken(user);
 
     // Email de bienvenue (non bloquant)
-    notifyUserRegistered(user, null).catch(err => console.warn('[notif] register:', err.message));
+    notifyUserRegistered(user, workspace).catch(err => console.warn('[notif] register:', err.message));
 
-    console.log(`✅ Nouveau compte créé: ${user.email} (sans workspace)`);
-    trackEvent(req, 'signup_completed', user._id);
+    console.log(`✅ Nouveau compte créé: ${user.email} (${user.role})`);
+    console.log(`[AUTH_FLOW] register_success user=${user.email} role=${user.role} workspace=${workspace?._id || 'none'} store=${store?._id || 'none'}`);
+    trackEvent(req, 'signup_completed', user._id, { workspaceId: workspace?._id, userRole: user.role });
 
     res.status(201).json({
       success: true,
       message: 'Compte créé avec succès',
       data: {
         token,
-        user: { id: user._id, email: user.email, name: user.name, role: null, isActive: user.isActive, currency: user.currency, workspaceId: null },
-        workspace: null
+        user: serializeAuthUser(user, store),
+        workspace: serializeWorkspace(workspace, user.role),
+        store: serializeStore(store)
       }
     });
   } catch (error) {
@@ -731,6 +759,8 @@ router.post('/google', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Email non disponible depuis Google' });
     }
 
+    console.log(`[AUTH_FLOW] google_auth_start email=${email}`);
+
     // Chercher un utilisateur existant par email ou googleId
     let user = await EcomUser.findOne({ $or: [{ email }, { googleId }] });
     let isNewUser = false;
@@ -743,7 +773,7 @@ router.post('/google', async (req, res) => {
       user.lastLogin = new Date();
       await user.save();
     } else {
-      // Nouvel utilisateur — créer sans workspace ni rôle
+      // Nouvel utilisateur — créé minimalement, puis provisionné juste après.
       user = new EcomUser({
         email,
         googleId,
@@ -761,18 +791,22 @@ router.post('/google', async (req, res) => {
         creditSignupCommission(user.referredByAffiliateCode, user._id);
       }
 
-      // Email de bienvenue
-      notifyUserRegistered(user, null).catch(err => console.warn('[notif] google-register:', err.message));
       console.log(`✅ Nouveau compte Google créé: ${user.email}`);
     }
 
-    const token = generateEcomToken(user);
+    const { workspace, store } = await ensureAuthWorkspace(user, {
+      source: isNewUser ? 'google_register' : 'google_login',
+      workspaceName: name || undefined,
+      role: 'ecom_admin'
+    });
 
-    // Charger le workspace si existant
-    let workspace = null;
-    if (user.workspaceId) {
-      workspace = await Workspace.findById(user.workspaceId);
+    if (isNewUser) {
+      // Email de bienvenue
+      notifyUserRegistered(user, workspace).catch(err => console.warn('[notif] google-register:', err.message));
     }
+
+    const token = generateEcomToken(user);
+    console.log(`[AUTH_FLOW] google_auth_success user=${user.email} role=${user.role} workspace=${workspace?._id || 'none'} store=${store?._id || 'none'} isNew=${isNewUser}`);
 
     res.json({
       success: true,
@@ -780,16 +814,9 @@ router.post('/google', async (req, res) => {
       data: {
         token,
         isNewUser,
-        user: {
-          id: user._id,
-          email: user.email,
-          name: user.name,
-          role: user.role,
-          isActive: user.isActive,
-          currency: user.currency,
-          workspaceId: user.workspaceId
-        },
-        workspace: serializeWorkspace(workspace, user.role)
+        user: serializeAuthUser(user, store),
+        workspace: serializeWorkspace(workspace, user.role),
+        store: serializeStore(store)
       }
     });
   } catch (error) {
@@ -820,6 +847,8 @@ router.post('/create-workspace', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Le nom de l\'espace est requis (min. 2 caractères)' });
     }
 
+    console.log(`[AUTH_FLOW] create_workspace_start user=${user.email} workspaceName=${workspaceName.trim()}`);
+
     const { role: rawRole = 'ecom_admin' } = req.body;
     // Normaliser 'livreur' → 'ecom_livreur' (rétro-compatibilité)
     const roleNorm = { livreur: 'ecom_livreur' };
@@ -843,10 +872,17 @@ router.post('/create-workspace', async (req, res) => {
     if (user.phone) user.phone = await normalizeWorkspacePhone(user.phone, workspace._id);
     await user.save();
 
+    const provisioned = await ensureAuthWorkspace(user, {
+      source: 'create_workspace',
+      workspaceName: workspaceName.trim(),
+      role
+    });
+
     // Regénérer le token avec le nouveau rôle et workspace
     const newToken = generateEcomToken(user);
 
     console.log(`✅ Workspace créé: ${workspace.name} par ${user.email}`);
+    console.log(`[AUTH_FLOW] create_workspace_success user=${user.email} role=${user.role} workspace=${provisioned.workspace?._id || workspace._id} store=${provisioned.store?._id || 'none'}`);
     trackEvent(req, 'workspace_created', user._id, { workspaceId: workspace._id, userRole: role });
 
     res.status(201).json({
@@ -854,16 +890,9 @@ router.post('/create-workspace', async (req, res) => {
       message: 'Espace créé avec succès',
       data: {
         token: newToken,
-        user: {
-          id: user._id,
-          email: user.email,
-          name: user.name,
-          role: user.role,
-          isActive: user.isActive,
-          currency: user.currency,
-          workspaceId: workspace._id
-        },
-        workspace: serializeWorkspace(workspace, 'ecom_admin')
+        user: serializeAuthUser(user, provisioned.store),
+        workspace: serializeWorkspace(provisioned.workspace || workspace, 'ecom_admin'),
+        store: serializeStore(provisioned.store)
       }
     });
   } catch (error) {
@@ -981,10 +1010,16 @@ router.post('/join-workspace', async (req, res) => {
     if (user.phone) user.phone = await normalizeWorkspacePhone(user.phone, workspace._id);
     await user.save();
 
+    const provisioned = await ensureAuthWorkspace(user, {
+      source: 'join_workspace',
+      role
+    });
+
     // Regénérer le token
     const newToken = generateEcomToken(user);
 
     console.log(`✅ ${user.email} a rejoint ${workspace.name} en tant que ${role}`);
+    console.log(`[AUTH_FLOW] join_workspace_success user=${user.email} role=${user.role} workspace=${workspace._id} store=${provisioned.store?._id || 'none'}`);
     trackEvent(req, 'workspace_joined', user._id, { workspaceId: workspace._id, userRole: role });
 
     res.json({
@@ -992,16 +1027,9 @@ router.post('/join-workspace', async (req, res) => {
       message: 'Vous avez rejoint l\'espace avec succès',
       data: {
         token: newToken,
-        user: {
-          id: user._id,
-          email: user.email,
-          name: user.name,
-          role: user.role,
-          isActive: user.isActive,
-          currency: user.currency,
-          workspaceId: workspace._id
-        },
-        workspace: serializeWorkspace(workspace, role)
+        user: serializeAuthUser(user, provisioned.store),
+        workspace: serializeWorkspace(provisioned.workspace || workspace, role),
+        store: serializeStore(provisioned.store)
       }
     });
   } catch (error) {
@@ -1075,37 +1103,23 @@ router.get('/me', async (req, res) => {
       });
     }
 
-    // Charger le workspace
-    let workspace = null;
-    if (user.workspaceId) {
-      workspace = await Workspace.findById(user.workspaceId);
-    }
+    const { workspace, store, createdWorkspace } = await ensureAuthWorkspace(user, { source: 'me' });
+    console.log(`[AUTH_FLOW] me_success user=${user.email} role=${user.role} workspace=${user.workspaceId || 'none'} store=${store?._id || 'none'} repaired=${createdWorkspace}`);
 
     res.json({
       success: true,
       data: {
-        user: {
-          id: user._id,
-          email: user.email,
-          name: user.name,
-          phone: user.phone,
-          avatar: user.avatar,
-          role: user.role,
-          canAccessRitaAgent: user.canAccessRitaAgent,
-          isActive: user.isActive,
-          lastLogin: user.lastLogin,
-          createdAt: user.createdAt,
-          workspaceId: user.workspaceId,
-          currency: user.currency
-        },
-        workspace: serializeWorkspace(workspace, user.role)
+        user: serializeAuthUser(user, store),
+        workspace: serializeWorkspace(workspace, user.role),
+        store: serializeStore(store)
       }
     });
   } catch (error) {
     console.error('Erreur get profile e-commerce:', error);
-    res.status(401).json({
+    const isJwtError = ['JsonWebTokenError', 'TokenExpiredError', 'NotBeforeError'].includes(error?.name);
+    res.status(isJwtError ? 401 : 500).json({
       success: false,
-      message: 'Token invalide'
+      message: isJwtError ? 'Token invalide' : 'Erreur serveur lors de la validation de session'
     });
   }
 });

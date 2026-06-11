@@ -158,7 +158,16 @@ const PremiumBonusEbook = ({ ebook, accent, onOrder, ctaLabel = 'Commander', pro
   const title = textValue(ebook.title || cover.cover_title, 'Guide bonus offert');
   const subtitle = (textValue(ebook.subtitle || ebook.short_description, sales.bonus_text) || '').slice(0, 72);
   const buttonText = textValue(sales.cta_text, ctaLabel);
-  const coverImg = ebook.cover?.generatedImageUrl || ebook.pdf?.coverImageUrl || productImage || '';
+
+  // Priority: ebook cover → product image. Both tried before showing placeholder.
+  const candidates = [
+    ebook.cover?.generatedImageUrl,
+    ebook.pdf?.coverImageUrl,
+    productImage,
+  ].filter(Boolean);
+
+  const [imgIndex, setImgIndex] = useState(0);
+  const imgSrc = candidates[imgIndex] || '';
 
   if (!title) return null;
 
@@ -178,12 +187,18 @@ const PremiumBonusEbook = ({ ebook, accent, onOrder, ctaLabel = 'Commander', pro
 
         {/* cover image — centered book portrait */}
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 18 }}>
-          <div style={{ width: 160, borderRadius: 12, overflow: 'hidden', boxShadow: '0 14px 36px rgba(15,23,42,0.22)', flexShrink: 0 }}>
-            {coverImg ? (
-              <img src={coverImg} alt={title} style={{ width: '100%', display: 'block', objectFit: 'cover', aspectRatio: '2/3' }} />
+          <div style={{ width: 160, borderRadius: 12, overflow: 'hidden', boxShadow: '0 14px 36px rgba(15,23,42,0.18)', flexShrink: 0, background: '#f1f5f9' }}>
+            {imgSrc ? (
+              <img
+                src={imgSrc}
+                alt={title}
+                style={{ width: '100%', display: 'block', objectFit: 'cover', aspectRatio: '2/3' }}
+                onError={() => setImgIndex(i => i + 1)}
+              />
             ) : (
-              <div style={{ width: '100%', aspectRatio: '2/3', background: `linear-gradient(145deg, ${accent}, color-mix(in srgb, ${accent} 60%, #000))`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <BookOpen size={40} color="rgba(255,255,255,.5)" />
+              <div style={{ width: '100%', aspectRatio: '2/3', background: `linear-gradient(145deg, ${accent}, color-mix(in srgb, ${accent} 55%, #1e293b))`, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, padding: 16 }}>
+                <BookOpen size={40} color="rgba(255,255,255,.7)" />
+                <span style={{ color: '#fff', fontSize: 12, fontWeight: 800, textAlign: 'center', textTransform: 'uppercase', lineHeight: 1.3 }}>{title}</span>
               </div>
             )}
           </div>

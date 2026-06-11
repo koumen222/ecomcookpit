@@ -71,7 +71,9 @@ const authReducer = (state, action) => {
       return {
         ...state,
         user: action.payload.user,
-        workspace: normalizeWorkspace(action.payload.workspace) || state.workspace,
+        workspace: Object.prototype.hasOwnProperty.call(action.payload, 'workspace')
+          ? normalizeWorkspace(action.payload.workspace)
+          : state.workspace,
         token: action.payload.token,
         isAuthenticated: true,
         loading: false,
@@ -103,7 +105,9 @@ const authReducer = (state, action) => {
       return {
         ...state,
         user: action.payload.user || action.payload,
-        workspace: normalizeWorkspace(action.payload.workspace) || state.workspace,
+        workspace: Object.prototype.hasOwnProperty.call(action.payload, 'workspace')
+          ? normalizeWorkspace(action.payload.workspace)
+          : state.workspace,
         isAuthenticated: true,
         loading: false,
         error: null
@@ -173,6 +177,73 @@ export const EcomAuthProvider = ({ children }) => {
     // Always update workspace — never silently skip, so workspace switch is always persisted
     localStorage.setItem('ecomWorkspace', JSON.stringify(wsToSave));
     logWorkspace('saved', wsToSave);
+  };
+
+  const buildConfirmedAuthResponse = (baseData, confirmedSession) => ({
+    ...baseData,
+    data: {
+      ...(baseData?.data || {}),
+      token: confirmedSession.token,
+      user: confirmedSession.user,
+      workspace: confirmedSession.workspace,
+      store: confirmedSession.store ?? null,
+    }
+  });
+
+  const confirmAuthenticatedSession = async ({ token, user, workspace, store }, source) => {
+    try {
+      logAuthEvent('session_confirm_start', {
+        source,
+        userEmail: user?.email,
+        workspaceId: workspace?._id || workspace?.id || user?.workspaceId || null,
+      });
+
+      const profileResponse = await authApi.getProfile();
+      const profileData = profileResponse.data?.data || {};
+      const hasProfileWorkspace = Object.prototype.hasOwnProperty.call(profileData, 'workspace');
+      const hasProfileStore = Object.prototype.hasOwnProperty.call(profileData, 'store');
+      const confirmedUser = profileData.user || user;
+      const confirmedWorkspace = normalizeWorkspace(hasProfileWorkspace ? profileData.workspace : workspace);
+      const confirmedStore = hasProfileStore ? profileData.store : (store || null);
+      const activeToken = localStorage.getItem('ecomToken') || token;
+
+      if (!profileResponse.data?.success || !confirmedUser || !activeToken) {
+        throw new Error('Session non confirmée par le serveur');
+      }
+
+      saveToken(activeToken, confirmedUser, confirmedWorkspace);
+      logAuthEvent('session_confirm_success', {
+        source,
+        userEmail: confirmedUser?.email,
+        userRole: confirmedUser?.role,
+        workspaceId: confirmedWorkspace?._id || confirmedWorkspace?.id || null,
+        storeId: confirmedStore?._id || confirmedStore?.id || null,
+      });
+
+      return {
+        token: activeToken,
+        user: confirmedUser,
+        workspace: confirmedWorkspace,
+        store: confirmedStore,
+      };
+    } catch (error) {
+      logAuthEvent('session_confirm_failure', {
+        source,
+        status: error.response?.status,
+        message: error.response?.data?.message || error.message,
+        isNetwork: !error.response,
+      });
+
+      clearToken();
+
+      if (error.response?.status) {
+        error.userMessage = `Connexion refusée par le serveur (HTTP ${error.response.status}) : ${error.response.data?.message || 'session invalide'}`;
+      } else {
+        error.userMessage = 'Compte créé, mais la session n’a pas pu être confirmée par le serveur. Réessayez de vous connecter dans quelques instants.';
+      }
+
+      throw error;
+    }
   };
 
   // Charger l'utilisateur depuis le token
@@ -293,29 +364,30 @@ export const EcomAuthProvider = ({ children }) => {
 
     try {
       const response = await authApi.login({ email, password });
-      const { token, user, workspace } = response.data.data;
+      const { token, user, workspace, store } = response.data.data;
 
       saveToken(token, user, workspace);
+      const confirmedSession = await confirmAuthenticatedSession({ token, user, workspace, store }, 'login');
       logAuthEvent('login_success', {
-        userEmail: user?.email,
-        userRole: user?.role,
-        userId: user?._id,
-        workspaceId: workspace?._id,
-        workspaceName: workspace?.name,
+        userEmail: confirmedSession.user?.email,
+        userRole: confirmedSession.user?.role,
+        userId: confirmedSession.user?._id || confirmedSession.user?.id,
+        workspaceId: confirmedSession.workspace?._id,
+        workspaceName: confirmedSession.workspace?.name,
       });
 
       dispatch({
         type: 'LOGIN_SUCCESS',
-        payload: { token, user, workspace }
+        payload: confirmedSession
       });
 
       // PostHog: identify user + track login
-      phIdentify(user, workspace);
-      phTrack('login_success', { workspaceId: workspace?._id || workspace?.id });
+      phIdentify(confirmedSession.user, confirmedSession.workspace);
+      phTrack('login_success', { workspaceId: confirmedSession.workspace?._id || confirmedSession.workspace?.id });
 
-      return response.data;
+      return buildConfirmedAuthResponse(response.data, confirmedSession);
     } catch (error) {
-      const errorMessage = error.response?.data?.message || 'Erreur de connexion';
+      const errorMessage = error.userMessage || error.response?.data?.message || 'Erreur de connexion';
       logAuthEvent('login_failure', {
         email,
         status: error.response?.status,
@@ -340,23 +412,25 @@ export const EcomAuthProvider = ({ children }) => {
   // Inscription (création espace ou rejoindre)
   const register = async (userData) => {
     try {
+      dispatch({ type: 'LOGIN_START' });
       logUserAction('register_attempt', { email: userData.email });
       const response = await authApi.register(userData);
-      const { token, user, workspace } = response.data.data;
+      const { token, user, workspace, store } = response.data.data;
 
       // Auto-login après inscription
       saveToken(token, user, workspace);
-      logAuthEvent('login_success', { userEmail: user?.email, userRole: user?.role, source: 'register' });
+      const confirmedSession = await confirmAuthenticatedSession({ token, user, workspace, store }, 'register');
+      logAuthEvent('login_success', { userEmail: confirmedSession.user?.email, userRole: confirmedSession.user?.role, source: 'register' });
       dispatch({
         type: 'LOGIN_SUCCESS',
-        payload: { token, user, workspace }
+        payload: confirmedSession
       });
 
       // PostHog: identify user + track register
-      phIdentify(user, workspace);
-      phTrack('register_success', { workspaceId: workspace?._id || workspace?.id });
+      phIdentify(confirmedSession.user, confirmedSession.workspace);
+      phTrack('register_success', { workspaceId: confirmedSession.workspace?._id || confirmedSession.workspace?.id });
 
-      return response.data;
+      return buildConfirmedAuthResponse(response.data, confirmedSession);
     } catch (error) {
       // Si le register échoue avec "email déjà utilisé", c'est probablement un
       // retry réseau : la première requête a créé le compte mais la réponse s'est
@@ -367,19 +441,24 @@ export const EcomAuthProvider = ({ children }) => {
         logUserAction('register_duplicate_fallback_login', { email: userData.email });
         try {
           const loginResp = await authApi.login({ email: userData.email, password: userData.password });
-          const { token, user, workspace } = loginResp.data.data;
+          const { token, user, workspace, store } = loginResp.data.data;
           saveToken(token, user, workspace);
-          logAuthEvent('login_success', { userEmail: user?.email, source: 'register_fallback' });
-          dispatch({ type: 'LOGIN_SUCCESS', payload: { token, user, workspace } });
-          phIdentify(user, workspace);
-          return loginResp.data;
+          const confirmedSession = await confirmAuthenticatedSession({ token, user, workspace, store }, 'register_fallback');
+          logAuthEvent('login_success', { userEmail: confirmedSession.user?.email, source: 'register_fallback' });
+          dispatch({ type: 'LOGIN_SUCCESS', payload: confirmedSession });
+          phIdentify(confirmedSession.user, confirmedSession.workspace);
+          return buildConfirmedAuthResponse(loginResp.data, confirmedSession);
         } catch (loginErr) {
           logUserAction('register_fallback_login_failed', { email: userData.email });
           // Si le login échoue aussi, on renvoie l'erreur d'origine du register
         }
       }
-      const errorMessage = error.response?.data?.message || 'Erreur d\'inscription';
+      const errorMessage = error.userMessage || error.response?.data?.message || 'Erreur d\'inscription';
       logUserAction('register_failure', { email: userData.email, message: errorMessage });
+      dispatch({
+        type: 'LOGIN_FAILURE',
+        payload: errorMessage
+      });
       throw error;
     }
   };
@@ -391,23 +470,24 @@ export const EcomAuthProvider = ({ children }) => {
 
     try {
       const response = await authApi.googleAuth({ credential, affiliateCode: affiliateCode || undefined });
-      const { token, user, workspace } = response.data.data;
+      const { token, user, workspace, store } = response.data.data;
 
       saveToken(token, user, workspace);
-      logAuthEvent('google_login_success', { userEmail: user?.email, userRole: user?.role });
+      const confirmedSession = await confirmAuthenticatedSession({ token, user, workspace, store }, 'google');
+      logAuthEvent('google_login_success', { userEmail: confirmedSession.user?.email, userRole: confirmedSession.user?.role });
 
       dispatch({
         type: 'LOGIN_SUCCESS',
-        payload: { token, user, workspace }
+        payload: confirmedSession
       });
 
       // PostHog: identify user + track google login
-      phIdentify(user, workspace);
-      phTrack('login_success', { workspaceId: workspace?._id || workspace?.id, method: 'google' });
+      phIdentify(confirmedSession.user, confirmedSession.workspace);
+      phTrack('login_success', { workspaceId: confirmedSession.workspace?._id || confirmedSession.workspace?.id, method: 'google' });
 
-      return response.data;
+      return buildConfirmedAuthResponse(response.data, confirmedSession);
     } catch (error) {
-      const errorMessage = error.response?.data?.message || 'Erreur de connexion Google';
+      const errorMessage = error.userMessage || error.response?.data?.message || 'Erreur de connexion Google';
       logAuthEvent('google_login_failure', { message: errorMessage });
       dispatch({ type: 'LOGIN_FAILURE', payload: errorMessage });
       throw error;
@@ -419,19 +499,20 @@ export const EcomAuthProvider = ({ children }) => {
     try {
       logUserAction('create_workspace_attempt', { workspaceName, role });
       const response = await authApi.createWorkspace({ workspaceName, role });
-      const { token, user, workspace } = response.data.data;
+      const { token, user, workspace, store } = response.data.data;
 
       saveToken(token, user, workspace);
-      logAuthEvent('login_success', { userEmail: user?.email, userRole: user?.role, source: 'create_workspace' });
-      dispatch({ type: 'LOGIN_SUCCESS', payload: { token, user, workspace } });
+      const confirmedSession = await confirmAuthenticatedSession({ token, user, workspace, store }, 'create_workspace');
+      logAuthEvent('login_success', { userEmail: confirmedSession.user?.email, userRole: confirmedSession.user?.role, source: 'create_workspace' });
+      dispatch({ type: 'LOGIN_SUCCESS', payload: confirmedSession });
 
       // PostHog: re-identify with new workspace group
-      phIdentify(user, workspace);
-      phTrack('workspace_created', { workspaceId: workspace?._id || workspace?.id });
+      phIdentify(confirmedSession.user, confirmedSession.workspace);
+      phTrack('workspace_created', { workspaceId: confirmedSession.workspace?._id || confirmedSession.workspace?.id });
 
-      return response.data;
+      return buildConfirmedAuthResponse(response.data, confirmedSession);
     } catch (error) {
-      const errorMessage = error.response?.data?.message || 'Erreur création espace';
+      const errorMessage = error.userMessage || error.response?.data?.message || 'Erreur création espace';
       throw new Error(errorMessage);
     }
   };
@@ -441,19 +522,20 @@ export const EcomAuthProvider = ({ children }) => {
     try {
       logUserAction('join_workspace_attempt', { inviteCode, selectedRole });
       const response = await authApi.joinWorkspace({ inviteCode, selectedRole });
-      const { token, user, workspace } = response.data.data;
+      const { token, user, workspace, store } = response.data.data;
 
       saveToken(token, user, workspace);
-      logAuthEvent('login_success', { userEmail: user?.email, userRole: user?.role, source: 'join_workspace' });
-      dispatch({ type: 'LOGIN_SUCCESS', payload: { token, user, workspace } });
+      const confirmedSession = await confirmAuthenticatedSession({ token, user, workspace, store }, 'join_workspace');
+      logAuthEvent('login_success', { userEmail: confirmedSession.user?.email, userRole: confirmedSession.user?.role, source: 'join_workspace' });
+      dispatch({ type: 'LOGIN_SUCCESS', payload: confirmedSession });
 
       // PostHog: re-identify with joined workspace group
-      phIdentify(user, workspace);
-      phTrack('workspace_joined', { workspaceId: workspace?._id || workspace?.id });
+      phIdentify(confirmedSession.user, confirmedSession.workspace);
+      phTrack('workspace_joined', { workspaceId: confirmedSession.workspace?._id || confirmedSession.workspace?.id });
 
-      return response.data;
+      return buildConfirmedAuthResponse(response.data, confirmedSession);
     } catch (error) {
-      const errorMessage = error.response?.data?.message || 'Erreur pour rejoindre l\'espace';
+      const errorMessage = error.userMessage || error.response?.data?.message || 'Erreur pour rejoindre l\'espace';
       throw new Error(errorMessage);
     }
   };
