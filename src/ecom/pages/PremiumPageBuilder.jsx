@@ -9,6 +9,7 @@ import {
 import { storeProductsApi } from '../services/storeApi.js';
 import { useStore } from '../contexts/StoreContext.jsx';
 import StoreProductPagePremium from '../components/StoreProductPagePremium.jsx';
+import BuilderAIChatWidget from '../components/BuilderAIChatWidget.jsx';
 
 // Build a premiumPage config pre-filled from _pageData when productPageConfig.premiumPage is absent/empty
 function hydrateFromPageData(product) {
@@ -1015,6 +1016,47 @@ const PremiumPageBuilder = () => {
           </div>
         </div>
       </div>
+      <BuilderAIChatWidget
+        productPageConfig={config}
+        theme={config?.design || {}}
+        productName={product?.name || ''}
+        onApplyChanges={(patch) => {
+          updateConfig((prev) => {
+            const updated = { ...(prev || {}) };
+            if (patch.design) updated.design = { ...(updated.design || {}), ...patch.design };
+            if (patch.premiumPage) {
+              const existing = updated.premiumPage || {};
+              const next = patch.premiumPage;
+              updated.premiumPage = {
+                ...existing,
+                ...next,
+                ...(next.hero ? { hero: { ...(existing.hero || {}), ...next.hero } } : {}),
+                ...(next.faq ? { faq: { ...(existing.faq || {}), ...next.faq } } : {}),
+                ...(next.problemSection ? { problemSection: { ...(existing.problemSection || {}), ...next.problemSection } } : {}),
+                ...(next.mechanismSection ? { mechanismSection: { ...(existing.mechanismSection || {}), ...next.mechanismSection } } : {}),
+                ...(next.closingSection ? { closingSection: { ...(existing.closingSection || {}), ...next.closingSection } } : {}),
+              };
+            }
+            if (patch.premiumImages) updated.premiumImages = { ...(updated.premiumImages || {}), ...patch.premiumImages };
+            if (patch.button) updated.button = { ...(updated.button || {}), ...patch.button };
+            if (patch.whatsapp) updated.whatsapp = { ...(updated.whatsapp || {}), ...patch.whatsapp };
+            if (patch.floatingElements) updated.floatingElements = { ...(updated.floatingElements || {}), ...patch.floatingElements };
+            if (patch.customHtml !== undefined) updated.customHtml = patch.customHtml;
+            if (patch.customCss !== undefined) updated.customCss = (updated.customCss ? updated.customCss + '\n' : '') + patch.customCss;
+            if (patch.customJs !== undefined) updated.customJs = (updated.customJs ? updated.customJs + '\n' : '') + patch.customJs;
+            if (patch.customSections !== undefined) updated.customSections = Array.isArray(patch.customSections) && patch.customSections.length === 0 ? [] : [...(updated.customSections || []), ...patch.customSections];
+            if (Array.isArray(patch.sectionOrder)) updated.sectionOrder = patch.sectionOrder;
+            if (Array.isArray(patch.hiddenSections)) updated.hiddenSections = patch.hiddenSections;
+            return updated;
+          });
+        }}
+        onApplyTheme={(themePatch) => {
+          updateConfig((prev) => ({
+            ...(prev || {}),
+            design: { ...((prev || {}).design || {}), ...themePatch },
+          }));
+        }}
+      />
     </div>
   );
 };

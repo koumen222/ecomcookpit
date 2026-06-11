@@ -1170,19 +1170,50 @@ const StoreProductForm = () => {
                   </button>
                 )}
                 {isEdit && (
-                  <button
-                    type="button"
-                    onClick={openDigitalProductModal}
-                    disabled={digitalProductLoading}
-                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border text-sm font-semibold transition disabled:opacity-60 ${
-                      digitalProductReady
-                        ? 'bg-emerald-50 border-emerald-100 text-emerald-700 hover:bg-emerald-100'
-                        : 'bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100'
-                    }`}
-                  >
-                    {digitalProductLoading ? <Loader2 className="w-4 h-4 flex-shrink-0 animate-spin" /> : <FileText className="w-4 h-4 flex-shrink-0" />}
-                    Produit digital de ce produit
-                  </button>
+                  digitalProductReady ? (
+                    <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 space-y-2">
+                      <div className="flex items-start gap-2">
+                        <FileText className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-bold text-emerald-800 leading-snug truncate">
+                            {(form._pageData?.ebook?.title || form.productPageConfig?.ebook?.title) || 'Ebook généré'}
+                          </p>
+                          {(form._pageData?.ebook?.pdf?.url || form.productPageConfig?.ebook?.pdf?.url) && (
+                            <a
+                              href={form._pageData?.ebook?.pdf?.url || form.productPageConfig?.ebook?.pdf?.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-[11px] text-emerald-600 font-semibold hover:underline"
+                            >
+                              Voir le PDF
+                            </a>
+                          )}
+                        </div>
+                        <span className="text-[10px] font-black text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded-full flex-shrink-0">Actif</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={openDigitalProductModal}
+                        disabled={digitalProductLoading}
+                        className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-emerald-200 bg-white text-xs font-semibold text-emerald-700 hover:bg-emerald-100 transition disabled:opacity-60"
+                      >
+                        {digitalProductLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                        Régénérer
+                        <span className="ml-1 px-1.5 py-0.5 bg-amber-100 text-amber-700 text-[10px] font-black rounded-full leading-none">3 crédits</span>
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={openDigitalProductModal}
+                      disabled={digitalProductLoading}
+                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm font-semibold text-gray-700 hover:bg-gray-100 transition disabled:opacity-60"
+                    >
+                      {digitalProductLoading ? <Loader2 className="w-4 h-4 flex-shrink-0 animate-spin" /> : <FileText className="w-4 h-4 flex-shrink-0" />}
+                      Produit digital
+                      <span className="ml-auto px-1.5 py-0.5 bg-amber-100 text-amber-700 text-[10px] font-black rounded-full leading-none">3 crédits</span>
+                    </button>
+                  )
                 )}
               </div>
 
@@ -1246,6 +1277,50 @@ const StoreProductForm = () => {
         }}
         onGenerate={handleGenerateDigitalProduct}
         onRegenerate={() => setDigitalProductResult(null)}
+        onSave={async ({ addAsOffer }) => {
+          setForm(prev => {
+            const ebook = prev._pageData?.ebook || prev.productPageConfig?.ebook;
+            if (!ebook) return prev;
+            const updatedEbook = { ...ebook, addAsOffer };
+            const updatedConfig = prev.productPageConfig
+              ? { ...prev.productPageConfig, ebook: updatedEbook, digitalProductOfferEnabled: addAsOffer }
+              : prev.productPageConfig;
+            return {
+              ...prev,
+              _pageData: { ...(prev._pageData || {}), ebook: updatedEbook },
+              productPageConfig: updatedConfig,
+            };
+          });
+          setShowDigitalProductModal(false);
+          // Persist immediately so the public page reflects the change
+          try {
+            const currentEbook = form._pageData?.ebook || form.productPageConfig?.ebook;
+            if (currentEbook && id) {
+              const updatedEbook = { ...currentEbook, addAsOffer };
+              const updatedConfig = form.productPageConfig
+                ? { ...form.productPageConfig, ebook: updatedEbook, digitalProductOfferEnabled: addAsOffer }
+                : undefined;
+              await storeProductsApi.updateProduct(id, {
+                _pageData: { ...(form._pageData || {}), ebook: updatedEbook },
+                ...(updatedConfig && { productPageConfig: updatedConfig }),
+              });
+              clearPublicStoreSessionCaches();
+            }
+          } catch {
+            showToast('error', 'Impossible de sauvegarder la préférence');
+          }
+        }}
+        onDelete={() => {
+          if (!window.confirm("Supprimer l'ebook ? Cette action est irréversible.")) return;
+          setForm(prev => {
+            const newPageData = { ...(prev._pageData || {}) };
+            delete newPageData.ebook;
+            const newConfig = prev.productPageConfig ? { ...prev.productPageConfig } : prev.productPageConfig;
+            if (newConfig) delete newConfig.ebook;
+            return { ...prev, _pageData: newPageData, productPageConfig: newConfig };
+          });
+          setShowDigitalProductModal(false);
+        }}
       />
 
       {showAlibabaModal && (

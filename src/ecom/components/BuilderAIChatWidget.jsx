@@ -5,7 +5,7 @@ import ecomApi from '../services/ecommApi.js';
 function BuilderAIChatWidget({ productPageConfig, theme, onApplyChanges, onApplyTheme, productName = '' }) {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState([
-    { role: 'assistant', content: `Salut ! Je suis ton assistant IA pour personnaliser ta page produit et ton thème. Dis-moi ce que tu veux modifier.\n\nExemples :\n- "Change la couleur principale en bleu"\n- "Ajoute un témoignage client"\n- "Rends le titre plus accrocheur"\n- "Mets la police en Poppins"\n- "Cache la section FAQ"` }
+    { role: 'assistant', content: `Salut ! Je suis ton assistant IA pour personnaliser ta page produit. Je peux tout modifier.\n\nExemples :\n- "Change la couleur principale en bleu"\n- "Ajoute un témoignage client"\n- "Mets la police en Poppins"\n- "Cache la section FAQ"\n- "Agrandis les titres avec du CSS"\n- "Affiche une popup après 5 secondes"\n- "Change l'image hero avec cette URL https://..."\n- "Ajoute une bannière promo en haut"` }
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);

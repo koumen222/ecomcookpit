@@ -471,6 +471,7 @@ export default function GenerationsPage() {
         }}
         onGenerate={handleGenerateDigitalProduct}
         onRegenerate={() => setDigitalProductResult(null)}
+        onSave={() => { setDigitalProductTarget(null); setDigitalProductResult(null); }}
       />
     </div>
   );

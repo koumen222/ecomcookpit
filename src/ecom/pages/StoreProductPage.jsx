@@ -2042,7 +2042,8 @@ const StoreProductPage = () => {
   const ctaAnimClass = getButtonAnimationClass(ctaAnimation);
   const shareUrl = typeof window !== 'undefined' ? window.location.href : '';
   const shareText = product?.name ? `${product.name} - ${shareUrl}` : shareUrl;
-  const bonusEbook = product?._pageData?.ebook || product?.ebook || productPageConfig?.ebook || null;
+  const rawEbook = product?._pageData?.ebook || product?.ebook || productPageConfig?.ebook || null;
+  const bonusEbook = rawEbook && rawEbook.addAsOffer !== false ? rawEbook : null;
 
   const handleShare = async () => {
     if (!shareUrl || typeof navigator === 'undefined') return;

@@ -72,11 +72,20 @@ const trackLimiter = rateLimit({
   message: { success: false, message: 'Trop d\'événements de tracking, réessayez dans une minute.' },
 });
 
-// Store cache désactivé — chaque requête lit MongoDB directement
-const storeCache = new Map();
+// In-process store cache: TTL 20s — fast enough for instant repeat loads,
+// short enough that merchant changes (theme, pixels) are visible within 20s.
+const STORE_CACHE_TTL = 20_000;
+const storeCache = new Map(); // subdomain → { data, expiresAt }
 
-function getCachedStore(_subdomain) { return null; }
-function setCachedStore(_subdomain, _data) {}
+function getCachedStore(subdomain) {
+  const entry = storeCache.get(subdomain);
+  if (!entry) return null;
+  if (Date.now() > entry.expiresAt) { storeCache.delete(subdomain); return null; }
+  return entry.data;
+}
+function setCachedStore(subdomain, data) {
+  storeCache.set(subdomain, { data, expiresAt: Date.now() + STORE_CACHE_TTL });
+}
 
 export function invalidateStoreCache(subdomain) {
   if (subdomain) storeCache.delete(subdomain.toLowerCase().trim());
@@ -121,10 +130,15 @@ function buildDefaultLegalPages(settings, workspace) {
 // directement (rapide grâce aux index). Cohérence > 50ms d'économie.
 //
 // L'argument `_ttl` est conservé pour ne pas casser les appels existants.
-function setCacheHeaders(res, _ttl = 0) {
-  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
-  res.set('Pragma', 'no-cache');
-  res.set('Expires', '0');
+function setCacheHeaders(res, ttl = 0) {
+  if (ttl > 0) {
+    // Public cache: CDN/browser can store for `ttl` seconds, serve stale up to 10× while revalidating
+    res.set('Cache-Control', `public, max-age=${ttl}, stale-while-revalidate=${ttl * 10}`);
+  } else {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
+  }
 }
 
 // ─── Helper: resolve workspace/store from subdomain param ────────────────────
@@ -605,6 +619,7 @@ router.get('/:subdomain/product-page/:slug', readLimiter, async (req, res) => {
       isPublished: true,
     };
 
+    // Run product fetch first (need _id for QuantityOffer), but build qty query after
     const product = await StoreProduct.findOne(productFilter)
       .select('name slug description price compareAtPrice currency country targetMarket city locale stock images category tags seoTitle seoDescription features faq testimonials _pageData productPageConfig')
       .lean();
@@ -613,11 +628,13 @@ router.get('/:subdomain/product-page/:slug', readLimiter, async (req, res) => {
       return res.status(404).json({ success: false, message: 'Product not found' });
     }
 
-    const quantityOffer = await QuantityOffer.findOne({
-      workspaceId: workspace._workspaceId || workspace._id,
-      productId: product._id,
-      isActive: true,
-    }).select('offers design productId').sort({ createdAt: -1 }).lean();
+    const [quantityOffer] = await Promise.all([
+      QuantityOffer.findOne({
+        workspaceId: workspace._workspaceId || workspace._id,
+        productId: product._id,
+        isActive: true,
+      }).select('offers design productId').sort({ createdAt: -1 }).lean(),
+    ]);
 
     const settings = workspace.storeSettings || {};
     const theme = workspace.storeTheme || {};
@@ -674,8 +691,9 @@ router.get('/:subdomain/product-page/:slug', readLimiter, async (req, res) => {
       if (quantityOffer.design) productData.quantityOfferDesign = quantityOffer.design;
     }
 
-    // 30s CDN cache — short enough to reflect design/product changes after admin saves
-    setCacheHeaders(res, 30);
+    // 60s CDN cache + stale-while-revalidate=600s: repeat visits are instant,
+    // changes appear within 60s (or immediately on next background revalidation).
+    setCacheHeaders(res, 60);
 
     res.json({
       success: true,

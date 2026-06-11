@@ -1032,7 +1032,7 @@ const StoreCreationWizard = ({ onComplete }) => {
       </aside>
 
       {/* ── Main content ── */}
-      <div ref={containerRef} className="flex-1 flex flex-col min-h-screen overflow-auto">
+      <div ref={containerRef} className="flex-1 flex flex-col min-h-screen overflow-auto bg-slate-50/50">
         {/* Mobile top bar */}
         <div className="lg:hidden sticky top-0 z-40 bg-white border-b border-gray-100">
           <div className="flex items-center justify-between px-4 py-3">
@@ -1053,7 +1053,7 @@ const StoreCreationWizard = ({ onComplete }) => {
         </div>
 
         {/* Step header */}
-        <div className="px-6 lg:px-10 pt-8 pb-2">
+        <div className="px-6 lg:px-10 pt-8 pb-2 w-full max-w-5xl mx-auto">
           <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-gray-400">
             {isEditMode ? 'Modification' : `Étape ${step} sur ${STEPS.length}`}
           </p>
@@ -1062,7 +1062,7 @@ const StoreCreationWizard = ({ onComplete }) => {
         </div>
 
       {/* Step content */}
-      <div className="flex-1 px-6 lg:px-10 py-6 pb-28 w-full max-w-5xl">
+      <div className="flex-1 px-6 lg:px-10 py-6 pb-28 w-full max-w-5xl mx-auto">
 
         {/* ═══════════════════════════════════════════════════════════════════ */}
         {/* ÉTAPE 1 : Votre boutique */}
@@ -1123,7 +1123,7 @@ const StoreCreationWizard = ({ onComplete }) => {
               </div>
               <div className="px-5 py-5">
                 {errors.productType && <p className="mb-3 text-xs text-red-600">{errors.productType}</p>}
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid gap-2 sm:grid-cols-2">
                   {PRODUCT_TYPES.map(type => (
                     <button
                       key={type.value}
@@ -1249,7 +1249,7 @@ const StoreCreationWizard = ({ onComplete }) => {
                 <p className="mt-0.5 text-sm font-semibold text-gray-900">Avez-vous un logo ?</p>
               </div>
               <div className="px-5 py-5">
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid gap-2 sm:grid-cols-3">
                   {[
                     { value: 'upload', label: "J'en ai un", sub: 'Import fichier' },
                     { value: 'generate', label: "Non, générer", sub: 'Logo IA' },
@@ -1293,7 +1293,7 @@ const StoreCreationWizard = ({ onComplete }) => {
                   <p className="mt-0.5 text-sm font-semibold text-gray-900">Style du logo</p>
                 </div>
                 <div className="p-5">
-                  <div className="grid grid-cols-2 gap-5">
+                  <div className="grid gap-5 md:grid-cols-2">
                     {/* Colonne gauche: Type */}
                     <div className="space-y-2">
                       <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Type</p>
@@ -1364,7 +1364,7 @@ const StoreCreationWizard = ({ onComplete }) => {
             {/* Génération + Upload en 2 colonnes */}
             {form.logoFlowChoice === 'generate' && (
               <div className="rounded-lg border border-gray-200 bg-white overflow-hidden">
-                <div className="grid grid-cols-2 divide-x divide-gray-100">
+                <div className="grid divide-y divide-gray-100 lg:grid-cols-2 lg:divide-x lg:divide-y-0">
                   {/* Colonne gauche: Générer */}
                   <div className="p-5 space-y-3">
                     <div>
@@ -1539,7 +1539,7 @@ const StoreCreationWizard = ({ onComplete }) => {
                   error={errors.storeWhatsApp}
                   icon={MessageSquare}
                 />
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-4 sm:grid-cols-2">
                   <Input
                     label="Ville"
                     placeholder="Douala"
@@ -1563,7 +1563,7 @@ const StoreCreationWizard = ({ onComplete }) => {
                 <p className="mt-0.5 text-sm font-semibold text-gray-900">Devise de vente</p>
               </div>
               <div className="px-5 py-5">
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                   {CURRENCIES.map(c => (
                     <button
                       key={c.code}
@@ -1677,7 +1677,7 @@ const StoreCreationWizard = ({ onComplete }) => {
 
       {/* Footer nav bar */}
       <div className="sticky bottom-0 bg-white border-t border-gray-100 z-40">
-        <div className="px-6 lg:px-10 py-3 flex items-center justify-between gap-4 w-full max-w-5xl">
+        <div className="px-6 lg:px-10 py-3 flex items-center justify-between gap-4 w-full max-w-5xl mx-auto">
           {step > 1 ? (
             <button
               type="button"

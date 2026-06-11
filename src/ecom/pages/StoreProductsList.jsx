@@ -1728,6 +1728,7 @@ const StoreProductsList = () => {
         }}
         onGenerate={handleGenerateDigitalProduct}
         onRegenerate={() => setDigitalProductResult(null)}
+        onSave={() => { setDigitalProductTarget(null); setDigitalProductResult(null); }}
       />
     </div>
   );

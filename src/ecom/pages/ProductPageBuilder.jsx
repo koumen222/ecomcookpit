@@ -2225,8 +2225,12 @@ const ProductPageBuilder = () => {
             }
             if (patch.whatsapp) updated.whatsapp = { ...(updated.whatsapp || {}), ...patch.whatsapp };
             if (patch.floatingElements) updated.floatingElements = { ...(updated.floatingElements || {}), ...patch.floatingElements };
-            if (patch.customHtml) updated.customHtml = patch.customHtml;
-            if (patch.customSections) updated.customSections = [...(updated.customSections || []), ...patch.customSections];
+            if (patch.customHtml !== undefined) updated.customHtml = patch.customHtml;
+            if (patch.customCss !== undefined) updated.customCss = (updated.customCss ? updated.customCss + '\n' : '') + patch.customCss;
+            if (patch.customJs !== undefined) updated.customJs = (updated.customJs ? updated.customJs + '\n' : '') + patch.customJs;
+            if (patch.customSections !== undefined) updated.customSections = Array.isArray(patch.customSections) && patch.customSections.length === 0 ? [] : [...(updated.customSections || []), ...patch.customSections];
+            if (Array.isArray(patch.sectionOrder)) updated.sectionOrder = patch.sectionOrder;
+            if (Array.isArray(patch.hiddenSections)) updated.hiddenSections = patch.hiddenSections;
             return updated;
           });
           if (patch?.general?.sections) {

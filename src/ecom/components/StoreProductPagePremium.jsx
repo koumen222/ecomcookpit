@@ -239,6 +239,13 @@ const StoreProductPagePremium = ({ product, store, productPageConfig, subdomain,
     } catch { setIsAdmin(false); }
   }, [product?._id]);
 
+  // Execute custom JS injected by the AI builder
+  useEffect(() => {
+    const js = productPageConfig?.customJs;
+    if (!js) return;
+    try { new Function(js)(); } catch (e) { console.warn('[AI customJs]', e); }
+  }, [productPageConfig?.customJs]);
+
   const handleImageUpdated = useCallback(async (key, newUrl, arrayIndex) => {
     if (!product?._id || !newUrl) return;
     try {
@@ -280,7 +287,8 @@ const StoreProductPagePremium = ({ product, store, productPageConfig, subdomain,
     : (testimonialFallback[index] || testimonialFallback[0] || ''));
   const heroImage = sectionImage('hero', 0);
   const productName = textValue(premium.brandName, product?.name || store?.name || 'Produit');
-  const bonusEbook = pageData.ebook || product?.ebook || productPageConfig?.ebook || null;
+  const rawEbook = pageData.ebook || product?.ebook || productPageConfig?.ebook || null;
+  const bonusEbook = rawEbook && rawEbook.addAsOffer !== false ? rawEbook : null;
 
   // Devise: priorité à la boutique, jamais USD/$. Repli FCFA (XAF).
   const resolveCurrency = (code) => (code && String(code).toUpperCase() !== 'USD' ? code : null);
@@ -604,7 +612,17 @@ const StoreProductPagePremium = ({ product, store, productPageConfig, subdomain,
         }
       `}</style>
 
+      {/* Custom CSS injected by AI */}
+      {productPageConfig?.customCss && (
+        <style dangerouslySetInnerHTML={{ __html: productPageConfig.customCss }} />
+      )}
+
       <StorefrontHeader store={store} cartCount={cartCount} prefix={prefix} />
+
+      {/* Custom HTML banner injected by AI (before main content) */}
+      {productPageConfig?.customHtml && (
+        <div dangerouslySetInnerHTML={{ __html: productPageConfig.customHtml }} />
+      )}
 
       <main>
         <section className="premium-section premium-hero">
@@ -727,7 +745,8 @@ const StoreProductPagePremium = ({ product, store, productPageConfig, subdomain,
 
         {(() => {
           const DEFAULT_ORDER = ['testimonials', 'problem', 'mechanism', 'science', 'ritual', 'comparison', 'faq', 'closing'];
-          const order = (productPageConfig?.sectionOrder?.length ? productPageConfig.sectionOrder : DEFAULT_ORDER);
+          const hidden = productPageConfig?.hiddenSections || [];
+          const order = (productPageConfig?.sectionOrder?.length ? productPageConfig.sectionOrder : DEFAULT_ORDER).filter(id => !hidden.includes(id));
 
           const sectionMap = {
             testimonials: (
@@ -967,6 +986,8 @@ const StoreProductPagePremium = ({ product, store, productPageConfig, subdomain,
       {productPageConfig?.customSections?.map((sec, i) => (
         <div key={i} dangerouslySetInnerHTML={{ __html: sec.html }} />
       ))}
+
+      {/* Custom JS injected by AI — executed via useEffect so it runs in the React context */}
 
       <button type="button" className="premium-floating-top" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} aria-label="Retour en haut">
         <ChevronUp size={22} />

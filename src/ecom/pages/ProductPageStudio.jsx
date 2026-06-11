@@ -440,6 +440,7 @@ export default function ProductPageStudio() {
         }}
         onGenerate={handleGenerateDigitalProduct}
         onRegenerate={() => setDigitalProductResult(null)}
+        onSave={() => { setDigitalProductTarget(null); setDigitalProductResult(null); }}
       />
     </div>
   );

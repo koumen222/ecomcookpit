@@ -2320,14 +2320,31 @@ router.post('/tasks/:id/digital-product', requireEcomAuth, validateEcomAccess('p
       });
     }
 
-    if (simpleRemaining > 0) {
-      workspace.simpleGenerationsRemaining = simpleRemaining - 1;
-    } else if (freeRemaining > 0) {
-      workspace.freeGenerationsRemaining = freeRemaining - 1;
-    } else {
-      workspace.paidGenerationsRemaining = paidRemaining - 1;
+    const EBOOK_COST = 3;
+    if (totalRemaining < EBOOK_COST) {
+      return res.status(403).json({
+        success: false,
+        limitReached: true,
+        message: `🎯 Il te faut ${EBOOK_COST} crédits pour générer un ebook (tu en as ${totalRemaining}).`,
+        remaining: totalRemaining,
+        pricing,
+      });
     }
-    workspace.totalGenerations = (workspace.totalGenerations || 0) + 1;
+    let toDeduct = EBOOK_COST;
+    if (simpleRemaining > 0) {
+      const use = Math.min(simpleRemaining, toDeduct);
+      workspace.simpleGenerationsRemaining = simpleRemaining - use;
+      toDeduct -= use;
+    }
+    if (toDeduct > 0 && (workspace.freeGenerationsRemaining || 0) > 0) {
+      const use = Math.min(workspace.freeGenerationsRemaining, toDeduct);
+      workspace.freeGenerationsRemaining = (workspace.freeGenerationsRemaining || 0) - use;
+      toDeduct -= use;
+    }
+    if (toDeduct > 0) {
+      workspace.paidGenerationsRemaining = (workspace.paidGenerationsRemaining || 0) - toDeduct;
+    }
+    workspace.totalGenerations = (workspace.totalGenerations || 0) + EBOOK_COST;
     workspace.lastGenerationAt = new Date();
     await workspace.save();
 

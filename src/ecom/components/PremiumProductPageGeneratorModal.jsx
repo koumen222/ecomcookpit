@@ -739,13 +739,23 @@ const PremiumProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, 
           {phase === 'preview' && product && (
             <div className="space-y-5">
               <PremiumPreview product={product} accent={themeColor} />
-              <div className="flex flex-col gap-3 rounded-3xl border border-emerald-100 bg-emerald-50 p-5 sm:flex-row sm:items-center sm:justify-between">
-                <div className="min-w-0">
-                  <p className="text-sm font-black text-emerald-950">Produit digital lié</p>
-                  <p className="mt-1 text-xs font-medium text-emerald-700">
-                    {product?.ebook ? 'Un ebook est déjà attaché à cette page premium.' : 'Génère l’ebook uniquement après la page premium.'}
-                  </p>
+              <div className="flex flex-col gap-3 rounded-3xl border border-emerald-100 bg-emerald-50 p-5">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-black text-emerald-950">Produit digital lié</p>
+                    {product?.ebook ? (
+                      <p className="mt-0.5 text-xs font-bold text-emerald-700 truncate">{product.ebook.title || "Ebook généré"}</p>
+                    ) : (
+                      <p className="mt-1 text-xs font-medium text-emerald-700">{"Génère l’ebook uniquement après la page premium."}</p>
+                    )}
+                  </div>
+                  {product?.ebook && (
+                    <span className="flex-shrink-0 px-2 py-0.5 bg-emerald-200 text-emerald-800 text-[10px] font-black rounded-full">Actif</span>
+                  )}
                 </div>
+                {product?.ebook?.pdf?.url && (
+                  <a href={product.ebook.pdf.url} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold text-emerald-600 hover:underline">Voir le PDF</a>
+                )}
                 <button
                   type="button"
                   onClick={openDigitalProductModal}
@@ -753,7 +763,8 @@ const PremiumProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, 
                   className="inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-700 px-5 py-3 text-xs font-black text-white shadow-sm transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:bg-emerald-300"
                 >
                   {digitalProductLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
-                  Produit digital de ce produit
+                  {product?.ebook ? "Régénérer l’ebook" : "Produit digital de ce produit"}
+                  <span className="ml-1 px-1.5 py-0.5 bg-white/20 text-white text-[10px] font-black rounded-full leading-none border border-white/30">3 crédits</span>
                 </button>
               </div>
               <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
@@ -789,6 +800,7 @@ const PremiumProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, 
         }}
         onGenerate={handleGenerateDigitalProduct}
         onRegenerate={() => setDigitalProductResult(null)}
+        onSave={() => { setShowDigitalProductModal(false); setDigitalProductResult(null); }}
       />
     </>
   );

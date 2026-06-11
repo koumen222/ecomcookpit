@@ -672,7 +672,27 @@ router.post('/', requireEcomAuth, upload.fields([
 ]), async (req, res) => {
   let heartbeat;
   let clientDisconnected = false;
-  req.on('close', () => { clientDisconnected = true; });
+  let reservedCreativeCredits = 0;
+  let refundedCreativeCredits = 0;
+  const creatives = [];
+
+  const refundUnusedCreativeCredits = async (reason = 'generation_failed') => {
+    if (!req.workspaceId || reservedCreativeCredits <= refundedCreativeCredits) return;
+
+    const successCount = creatives.filter(c => c.imageUrl).length;
+    const refundCount = Math.max(0, reservedCreativeCredits - successCount - refundedCreativeCredits);
+    if (refundCount <= 0) return;
+
+    await EcomWorkspace.findByIdAndUpdate(req.workspaceId, {
+      $inc: { creativeCreditsRemaining: refundCount },
+    });
+    refundedCreativeCredits += refundCount;
+    console.log(`💳 Refunded ${refundCount} creative credit(s) (${reason}); charged=${successCount}`);
+  };
+
+  res.on('close', () => {
+    if (!res.writableEnded) clientDisconnected = true;
+  });
   try {
     const { url, description, formats: formatsRaw, visualTemplate } = req.body;
     const formats = typeof formatsRaw === 'string' ? JSON.parse(formatsRaw) : formatsRaw;
@@ -726,14 +746,21 @@ router.post('/', requireEcomAuth, upload.fields([
       return res.status(400).json({ success: false, error: 'Aucune image produit fournie — impossible de générer en mode image-to-image. Uploadez une photo du produit.' });
     }
 
-    // Credit check: user must have enough creativeCreditsRemaining
+    // Reserve credits atomically before costly image calls.
+    // Failed images are refunded after the batch, so one successful creative = one consumed credit.
     const neededCredits = selectedFormats.length;
-    let workspace = null;
-    if (req.workspaceId) {
-      workspace = await EcomWorkspace.findById(req.workspaceId).select('creativeCreditsRemaining');
+    if (!req.workspaceId) {
+      return res.status(400).json({ success: false, error: 'Workspace requis pour générer des créatives.' });
     }
-    const available = workspace?.creativeCreditsRemaining ?? 0;
-    if (available < neededCredits) {
+    const reservedWorkspace = await EcomWorkspace.findOneAndUpdate(
+      { _id: req.workspaceId, creativeCreditsRemaining: { $gte: neededCredits } },
+      { $inc: { creativeCreditsRemaining: -neededCredits } },
+      { new: true, select: 'creativeCreditsRemaining' }
+    );
+
+    if (!reservedWorkspace) {
+      const workspace = await EcomWorkspace.findById(req.workspaceId).select('creativeCreditsRemaining').lean();
+      const available = workspace?.creativeCreditsRemaining ?? 0;
       return res.status(402).json({
         success: false,
         error: `Crédits insuffisants. Vous avez ${available} crédit${available !== 1 ? 's' : ''} et avez besoin de ${neededCredits}.`,
@@ -741,9 +768,10 @@ router.post('/', requireEcomAuth, upload.fields([
         creditsAvailable: available,
       });
     }
+    reservedCreativeCredits = neededCredits;
+    console.log(`💳 Reserved ${reservedCreativeCredits} creative credit(s); remaining=${reservedWorkspace.creativeCreditsRemaining}`);
 
     console.log(`🖼️ Step 2: Génération de ${selectedFormats.length} créa(s) avec image produit (image-to-image)...`);
-    const creatives = [];
     const statsBefore = getImageGenerationStats();
 
     // Send whitespace heartbeats every 15s to prevent proxy/load-balancer from
@@ -751,7 +779,12 @@ router.post('/', requireEcomAuth, upload.fields([
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('X-Content-Type-Options', 'nosniff');
     heartbeat = setInterval(() => {
-      if (!clientDisconnected && !res.writableEnded) res.write(' ');
+      if (clientDisconnected || res.writableEnded || res.destroyed) return;
+      try {
+        res.write(' ');
+      } catch {
+        clientDisconnected = true;
+      }
     }, 15000);
 
     for (const format of selectedFormats) {
@@ -825,15 +858,10 @@ router.post('/', requireEcomAuth, upload.fields([
       }
     }
 
-    // Deduct credits only for successfully generated images AND if client is still connected
+    // Charge only successfully generated images. Reserved but failed images are refunded.
     const successCount = creatives.filter(c => c.imageUrl).length;
-    if (req.workspaceId && successCount > 0 && !clientDisconnected) {
-      await EcomWorkspace.findByIdAndUpdate(req.workspaceId, {
-        $inc: { creativeCreditsRemaining: -successCount },
-      });
-    } else if (successCount > 0 && clientDisconnected) {
-      console.warn(`⚠️ Client disconnected — skipping credit deduction for ${successCount} image(s)`);
-    }
+    await refundUnusedCreativeCredits('partial_or_failed_generation');
+    console.log(`💳 Charged ${successCount} creative credit(s)${clientDisconnected ? ' after client disconnect' : ''}`);
 
     // Calculate cost for this generation batch
     const statsAfter = getImageGenerationStats();
@@ -853,6 +881,9 @@ router.post('/', requireEcomAuth, upload.fields([
         feature: 'creative_generator',
         meta: {
           slideCount: creatives.length,
+          creditsReserved: reservedCreativeCredits,
+          creditsUsed: successCount,
+          creditsRefunded: refundedCreativeCredits,
           success: true
         }
       }).catch(() => {});
@@ -870,11 +901,18 @@ router.post('/', requireEcomAuth, upload.fields([
       formats: CREATIVE_FORMATS,
       productImageFound: hasImage,
       cost: batchCost,
+      creditsUsed: successCount,
+      creditsRefunded: refundedCreativeCredits,
       creditsRemaining: updatedWorkspace?.creativeCreditsRemaining ?? 0,
     });
     if (!res.writableEnded) res.end(responseBody);
   } catch (err) {
     console.error('❌ Creative Generator error:', err);
+    try {
+      await refundUnusedCreativeCredits('request_error');
+    } catch (refundErr) {
+      console.error('❌ Creative credit refund failed:', refundErr.message);
+    }
     if (heartbeat) clearInterval(heartbeat);
     if (!res.headersSent) {
       res.status(500).json({ error: err.message || 'Erreur lors de la génération', message: err.message || 'Erreur lors de la génération' });
