@@ -12,6 +12,7 @@ import {
   getAffiliateConfig,
   resolveCommissionRule
 } from '../services/affiliateService.js';
+import { verifyGoogleIdToken } from '../services/googleAuthService.js';
 
 const ECOM_JWT_SECRET = process.env.ECOM_JWT_SECRET || 'ecom-secret-key-change-in-production';
 
@@ -302,21 +303,17 @@ router.post('/auth/google', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Token Google manquant' });
     }
 
-    const { OAuth2Client } = await import('google-auth-library');
-    const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
-    if (!GOOGLE_CLIENT_ID) {
-      return res.status(503).json({ success: false, message: 'GOOGLE_CLIENT_ID non configuré' });
-    }
-
-    const client = new OAuth2Client(GOOGLE_CLIENT_ID);
-    let ticket;
+    let payload;
     try {
-      ticket = await client.verifyIdToken({ idToken: credential, audience: GOOGLE_CLIENT_ID });
+      const verification = await verifyGoogleIdToken(credential);
+      payload = verification.payload;
     } catch (verifyError) {
+      if (verifyError.code === 'GOOGLE_CLIENT_ID_MISSING') {
+        return res.status(503).json({ success: false, message: 'GOOGLE_CLIENT_ID non configuré' });
+      }
       return res.status(401).json({ success: false, message: 'Token Google invalide' });
     }
 
-    const payload = ticket.getPayload();
     const { sub: googleId, email, name } = payload;
     if (!email) {
       return res.status(400).json({ success: false, message: 'Email non disponible depuis Google' });

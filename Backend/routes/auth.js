@@ -7,6 +7,7 @@ import Workspace from '../models/Workspace.js';
 import PasswordResetToken from '../models/PasswordResetToken.js';
 import { generateEcomToken, generatePermanentToken, requireEcomAuth } from '../middleware/ecomAuth.js';
 import { ensureAuthWorkspace } from '../services/authProvisioningService.js';
+import { formatGoogleClientIdsForLog, getGoogleClientIds, verifyGoogleIdToken } from '../services/googleAuthService.js';
 import { checkPlanLimit } from '../middleware/planLimits.js';
 import { validateEmail, validatePassword } from '../middleware/validation.js';
 import { logAudit } from '../middleware/security.js';
@@ -694,7 +695,8 @@ router.get('/health', (req, res) => {
     message: 'Auth service is running',
     timestamp: new Date().toISOString(),
     env: {
-      hasGoogleClientId: !!process.env.GOOGLE_CLIENT_ID,
+      hasGoogleClientId: getGoogleClientIds().length > 0,
+      googleClientIds: formatGoogleClientIdsForLog(),
       hasJwtSecret: !!process.env.ECOM_JWT_SECRET,
       nodeEnv: process.env.NODE_ENV || 'development',
     }
@@ -709,30 +711,21 @@ router.post('/google', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Token Google manquant' });
     }
 
-    // ─── Vérification sécurisée du id_token via google-auth-library ───
-    const { OAuth2Client } = await import('google-auth-library');
-    const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
-    
-    if (!GOOGLE_CLIENT_ID) {
-      console.error('❌ [Google Auth] GOOGLE_CLIENT_ID manquant dans les variables d\'environnement');
-      return res.status(503).json({ 
-        success: false, 
-        message: 'GOOGLE_CLIENT_ID manquant côté serveur. Veuillez configurer les variables d\'environnement.' 
-      });
-    }
-    
-    const client = new OAuth2Client(GOOGLE_CLIENT_ID);
-
-    let ticket;
+    let payload;
     try {
-      ticket = await client.verifyIdToken({
-        idToken: credential,
-        audience: GOOGLE_CLIENT_ID,
-      });
+      const verification = await verifyGoogleIdToken(credential);
+      payload = verification.payload;
     } catch (verifyError) {
       console.error('❌ [Google Auth] Vérification id_token échouée:', verifyError.message);
+      if (verifyError.code === 'GOOGLE_CLIENT_ID_MISSING') {
+        return res.status(503).json({
+          success: false,
+          message: 'GOOGLE_CLIENT_ID manquant côté serveur. Veuillez configurer les variables d\'environnement.'
+        });
+      }
       // Diagnostic précis selon le type d'erreur
       if (verifyError.message.includes('audience')) {
+        console.error('❌ [Google Auth] Audiences autorisées:', formatGoogleClientIdsForLog());
         return res.status(401).json({
           success: false,
           message: 'Audience mismatch — le token a été émis pour un autre Client ID. Vérifiez GOOGLE_CLIENT_ID côté backend.'
@@ -750,7 +743,6 @@ router.post('/google', async (req, res) => {
       });
     }
 
-    const payload = ticket.getPayload();
     const { sub: googleId, email, name, picture } = payload;
 
     console.log('✅ [Google Auth] Token vérifié pour:', email, '| aud:', payload.aud);
