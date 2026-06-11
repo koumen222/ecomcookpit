@@ -2292,12 +2292,46 @@ router.post('/tasks/:id/digital-product', requireEcomAuth, validateEcomAccess('p
       return res.status(400).json({ success: false, message: 'Aucune page produit disponible pour générer le produit digital' });
     }
 
-    const workspace = req.workspaceId
-      ? await EcomWorkspace.findById(req.workspaceId)
-        .select('storeSettings.country storeSettings.city storeSettings.storeName storeSettings.storeCurrency storeSettings.currency name')
-        .lean()
-      : null;
-    const storeContext = buildWorkspaceStoreContext(workspace);
+    if (!req.workspaceId) {
+      return res.status(400).json({ success: false, message: 'Workspace requis' });
+    }
+    const workspace = await EcomWorkspace.findById(req.workspaceId)
+      .select('storeSettings.country storeSettings.city storeSettings.storeName storeSettings.storeCurrency storeSettings.currency name plan freeGenerationsRemaining paidGenerationsRemaining simpleGenerationsRemaining totalGenerations');
+
+    if (!workspace) {
+      return res.status(404).json({ success: false, message: 'Workspace introuvable' });
+    }
+
+    // Consume one generation credit
+    const pricingConfig = await GenerationPricingConfig.getSingleton();
+    const pricing = pricingConfig.getSnapshot();
+    const simpleRemaining = workspace.simpleGenerationsRemaining || 0;
+    const freeRemaining = workspace.freeGenerationsRemaining || 0;
+    const paidRemaining = workspace.paidGenerationsRemaining || 0;
+    const totalRemaining = simpleRemaining + freeRemaining + paidRemaining;
+
+    if (totalRemaining <= 0) {
+      return res.status(403).json({
+        success: false,
+        limitReached: true,
+        message: '🎯 Tu n\'as plus de crédits !\n\nAchète des crédits pour générer un ebook.',
+        remaining: 0,
+        pricing,
+      });
+    }
+
+    if (simpleRemaining > 0) {
+      workspace.simpleGenerationsRemaining = simpleRemaining - 1;
+    } else if (freeRemaining > 0) {
+      workspace.freeGenerationsRemaining = freeRemaining - 1;
+    } else {
+      workspace.paidGenerationsRemaining = paidRemaining - 1;
+    }
+    workspace.totalGenerations = (workspace.totalGenerations || 0) + 1;
+    workspace.lastGenerationAt = new Date();
+    await workspace.save();
+
+    const storeContext = buildWorkspaceStoreContext(workspace.toObject());
     const brief = req.body?.brief && typeof req.body.brief === 'object' ? req.body.brief : (req.body || {});
     const ebookSource = buildEbookSourceFromProduct(product, task.input || {}, brief);
 
