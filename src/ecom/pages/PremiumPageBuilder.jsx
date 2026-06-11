@@ -319,6 +319,7 @@ const PremiumPageBuilder = () => {
   // Undo/Redo history
   const [history, setHistory] = useState([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
+  const historyIndexRef = useRef(-1);
   const skipHistoryRef = useRef(false);
 
   useEffect(() => {
@@ -332,6 +333,7 @@ const PremiumPageBuilder = () => {
           setConfig(initialConfig);
           setHistory([initialConfig]);
           setHistoryIndex(0);
+          historyIndexRef.current = 0;
         }
       } catch {
         // ignore
@@ -341,42 +343,41 @@ const PremiumPageBuilder = () => {
     })();
   }, [id]);
 
-  const pushHistory = useCallback((newConfig) => {
-    setHistory((prev) => {
-      const base = prev.slice(0, historyIndex + 1);
-      const next = [...base, newConfig].slice(-MAX_HISTORY);
-      setHistoryIndex(next.length - 1);
-      return next;
-    });
-  }, [historyIndex]);
-
   const updateConfig = useCallback((updater) => {
     setConfig((prev) => {
       const next = typeof updater === 'function' ? updater(prev) : updater;
       if (!skipHistoryRef.current) {
-        pushHistory(next);
+        setHistory((h) => {
+          const base = h.slice(0, historyIndexRef.current + 1);
+          const newH = [...base, next].slice(-MAX_HISTORY);
+          setHistoryIndex(newH.length - 1);
+          historyIndexRef.current = newH.length - 1;
+          return newH;
+        });
       }
       return next;
     });
-  }, [pushHistory]);
+  }, []);
 
   const undo = useCallback(() => {
-    if (historyIndex <= 0) return;
-    const newIndex = historyIndex - 1;
+    if (historyIndexRef.current <= 0) return;
+    const newIndex = historyIndexRef.current - 1;
+    historyIndexRef.current = newIndex;
     setHistoryIndex(newIndex);
     skipHistoryRef.current = true;
-    setConfig(history[newIndex]);
+    setConfig(h => history[newIndex] ?? h);
     skipHistoryRef.current = false;
-  }, [history, historyIndex]);
+  }, [history]);
 
   const redo = useCallback(() => {
-    if (historyIndex >= history.length - 1) return;
-    const newIndex = historyIndex + 1;
+    if (historyIndexRef.current >= history.length - 1) return;
+    const newIndex = historyIndexRef.current + 1;
+    historyIndexRef.current = newIndex;
     setHistoryIndex(newIndex);
     skipHistoryRef.current = true;
-    setConfig(history[newIndex]);
+    setConfig(h => history[newIndex] ?? h);
     skipHistoryRef.current = false;
-  }, [history, historyIndex]);
+  }, [history]);
 
   // Keyboard shortcuts
   useEffect(() => {
