@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense } from 'react';
 import { safeHtml } from '../utils/sanitize';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import {
@@ -17,7 +17,7 @@ import ConversionBlocks, { UrgencyBadge } from '../components/ConversionBlocks';
 import ProductTestimonials from '../components/ProductTestimonials';
 import { StorefrontHeader, StorefrontFooter } from '../components/StorefrontShared';
 import StoreProductPageInfographics from '../components/StoreProductPageInfographics';
-import StoreProductPagePremium from '../components/StoreProductPagePremium';
+const StoreProductPagePremium = lazy(() => import('../components/StoreProductPagePremium'));
 // socket.io-client chargé dynamiquement pour ne pas bloquer le rendu initial
 import { setDocumentMeta } from '../utils/pageMeta';
 import { trackStorefrontEvent } from '../utils/pixelTracking';
@@ -2165,14 +2165,16 @@ const StoreProductPage = () => {
 
   if (isPremiumProductPage) {
     return (
-      <StoreProductPagePremium
-        product={product}
-        store={store}
-        productPageConfig={premiumProductPageConfig}
-        subdomain={subdomain}
-        pixels={pixels}
-        prefix={prefix}
-      />
+      <Suspense fallback={<div style={{ minHeight: '100vh', background: store?.backgroundColor || '#fff' }} />}>
+        <StoreProductPagePremium
+          product={product}
+          store={store}
+          productPageConfig={premiumProductPageConfig}
+          subdomain={subdomain}
+          pixels={pixels}
+          prefix={prefix}
+        />
+      </Suspense>
     );
   }
 

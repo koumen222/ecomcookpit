@@ -1,6 +1,7 @@
 let publicStorefrontPromise;
 let storeProductPagePromise;
 let storeCheckoutPromise;
+let premiumPagePromise;
 
 export function preloadPublicStorefrontRoute() {
   if (!publicStorefrontPromise) {
@@ -36,6 +37,10 @@ export function preloadStoreRoutesOnIdle() {
   const run = () => {
     preloadStoreProductRoute().catch(() => {});
     preloadStoreCheckoutRoute().catch(() => {});
+    // Also preload the premium page chunk so it's ready on first navigation
+    if (!premiumPagePromise) {
+      premiumPagePromise = import('../components/StoreProductPagePremium.jsx').catch(() => {});
+    }
   };
 
   if ('requestIdleCallback' in window) {

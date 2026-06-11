@@ -14,6 +14,7 @@ import QuantityOffersManager from '../components/QuantityOffersManager.jsx';
 import ReviewGenerator from '../components/ReviewGenerator.jsx';
 import DigitalProductEbookModal from '../components/DigitalProductEbookModal.jsx';
 import { getErrorMessage } from '../utils/errorMessages.js';
+import { invalidateProductPageCache } from '../hooks/useStoreData.js';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -78,6 +79,8 @@ function clearPublicStoreSessionCaches() {
     if (k && (k.startsWith('sf_') || k.startsWith('sfp_'))) keys.push(k);
   }
   keys.forEach(k => window.sessionStorage.removeItem(k));
+  // Also clear the in-memory product page cache so admin changes are instant
+  invalidateProductPageCache();
 }
 
 const MARKET_COUNTRY_SUGGESTIONS = [

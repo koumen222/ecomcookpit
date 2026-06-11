@@ -520,8 +520,7 @@ router.get('/:subdomain/products/:slug', readLimiter, async (req, res) => {
 
     const quantityOffer = await quantityOfferPromise;
 
-    // 30s CDN cache — short enough to reflect product/design changes quickly
-    setCacheHeaders(res, 30);
+    setCacheHeaders(res, 60);
 
     // Per-product-page currency/country ALWAYS override the store's global config.
     // Why: a single store can publish multiple product pages, each targeting a different market.

@@ -160,15 +160,29 @@ function consumeInitialData() {
   return data;
 }
 
-// ─── sessionStorage cache : SUPPRIMÉ ─────────────────────────────────────────
-// Avant on cachait store/sections/products/pixels en sessionStorage pendant 2 min.
-// Conséquence : un marchand modifiait son pixel ou son thème → le visiteur déjà
-// présent gardait l'ancienne version, et même un nouveau visiteur dans la même
-// session restait sur du stale. On préfère taper l'API à chaque mount (rapide
-// avec Mongo + index) et garantir que ce qui s'affiche = ce qui est en DB.
-//
-// La seule "optim" de paint instantané qu'on garde, c'est `window.__SCALOR_INITIAL__`,
-// qui est *injecté à chaque requête HTML* par le serveur — donc toujours frais.
+// ─── Product page cache ───────────────────────────────────────────────────────
+// Short-lived in-memory cache (15s) per product page key.
+// - Eliminates duplicate API calls when the user navigates back within a session.
+// - 15s is short enough that price/theme changes are always visible quickly.
+// - The backend also sets Cache-Control: public, max-age=60, stale-while-revalidate=600
+//   so CDN/browser layer handles repeat visitors at the network level.
+// - On admin save, both server caches are explicitly invalidated.
+const _productPageCache = new Map(); // key → { data, expiresAt }
+const _PP_TTL = 15_000;
+
+function _ppGet(key) {
+  const e = _productPageCache.get(key);
+  if (!e) return null;
+  if (Date.now() > e.expiresAt) { _productPageCache.delete(key); return null; }
+  return e.data;
+}
+function _ppSet(key, data) {
+  _productPageCache.set(key, { data, expiresAt: Date.now() + _PP_TTL });
+}
+export function invalidateProductPageCache(subdomain, slug) {
+  if (subdomain && slug) _productPageCache.delete(`${subdomain}:${slug}`);
+  else _productPageCache.clear();
+}
 
 const productPrefetchRequests = new Map();
 
@@ -178,8 +192,12 @@ export async function prefetchStoreProduct(subdomain, slug) {
     return productPrefetchRequests.get(requestKey);
   }
 
-  const request = publicStoreApi.getProduct(subdomain, slug)
-    .then((res) => res.data?.data || null)
+  const request = publicStoreApi.getProductPage(subdomain, slug)
+    .then((res) => {
+      const data = res.data?.data || null;
+      if (data) _ppSet(`${subdomain}:${slug}`, data);
+      return data?.product || null;
+    })
     .catch(() => null)
     .finally(() => {
       productPrefetchRequests.delete(requestKey);
@@ -329,10 +347,33 @@ export function useStoreProduct(subdomain, slug) {
       try {
         let productData, storeData, pixelsData, footerData;
 
-        // Always fetch fresh — no cache reads
+        const cacheKey = `${subdomain}:${slug}`;
+        const cached = _ppGet(cacheKey);
+        if (cached) {
+          // Instant render from cache — also kick off a background revalidation
+          productData = cached.product;
+          storeData = cached.store;
+          pixelsData = cached.pixels;
+          footerData = cached.footer;
+          injectStoreCssVars(storeData);
+          setStore(storeData);
+          setPixels(pixelsData);
+          setStoreFooter(footerData);
+          setProduct(productData);
+          if (!cancelled) setLoading(false);
+          // Revalidate in background — update cache silently, don't re-render unless data changed
+          publicStoreApi.getProductPage(subdomain, slug).then(pageRes => {
+            if (cancelled) return;
+            const d = pageRes?.data?.data || {};
+            _ppSet(cacheKey, d);
+          }).catch(() => {});
+          return;
+        }
+
         const pageRes = await fetchWithRetry(() => publicStoreApi.getProductPage(subdomain, slug));
         if (cancelled) return;
         const pageData = pageRes?.data?.data || {};
+        _ppSet(cacheKey, pageData);
         productData = pageData.product || null;
         storeData = pageData.store || null;
         pixelsData = pageData.pixels || null;
