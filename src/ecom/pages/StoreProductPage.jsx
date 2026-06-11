@@ -1691,6 +1691,8 @@ const StoreProductPage = () => {
   const productPageData = product?._pageData || {};
   const isPremiumProductPage = (
     ppTheme === 'premium_product'
+    || ppTheme === 'magazine'
+    || store?.template === 'magazine'
     || productPC?.pageStyle === 'premium'
     || productPC?.theme === 'premium_product'
     || Boolean(productPC?.premiumPage)

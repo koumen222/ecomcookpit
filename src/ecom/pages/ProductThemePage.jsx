@@ -14,7 +14,7 @@ import BuilderAIChatWidget from '../components/BuilderAIChatWidget.jsx';
 // ── 2 Layout Themes ───────────────────────────────────────────────────────────
 const THEMES = [
   { id: 'classic', name: 'Classique', desc: 'Galerie à gauche, infos à droite — le standard e-commerce.', badge: 'Par défaut', icon: ShoppingBag },
-  { id: 'magazine', name: 'Premium', desc: 'Image héro plein écran avec overlay — look éditorial premium.', badge: 'Premium', icon: Sparkles },
+  { id: 'magazine', name: 'Premium', desc: 'Page longue avec carrousel, bénéfices, FAQ et preuves sociales.', badge: 'Premium', icon: Sparkles },
 ];
 
 // ── Theme Previews ────────────────────────────────────────────────────────────
@@ -64,19 +64,42 @@ const LandingPreview = () => (
 
 const MagazinePreview = () => (
   <div className="p-2 bg-white rounded-xl">
-    <div className="pb-[55%] rounded-xl bg-gradient-to-b from-gray-800 to-gray-900 relative mb-[-12px] overflow-hidden">
-      <div className="absolute top-1.5 left-2 right-2 flex justify-between z-10">
-        <div className="w-6 h-1 rounded bg-white/50" />
-        <div className="flex gap-1">{[1,2].map(i => <div key={i} className="w-1 h-1 rounded-full bg-white/40" />)}</div>
-      </div>
-      <div className="absolute inset-0 flex items-center justify-center"><Image size={18} className="text-white/20" /></div>
-      <div className="absolute bottom-0 inset-x-0 h-1/2 bg-gradient-to-t from-black/50 to-transparent" />
+    {/* Header */}
+    <div className="flex justify-between items-center mb-2 pb-1.5 border-b border-gray-100">
+      <div className="w-7 h-1.5 rounded bg-gray-800/70" />
+      <div className="flex gap-1">{[1,2,3].map(i => <div key={i} className="w-1 h-1 rounded-full bg-gray-300" />)}</div>
     </div>
-    <div className="relative z-10 mx-1.5 bg-white rounded-lg p-2 shadow border border-gray-100">
-      <div className="w-[80%] h-1.5 rounded bg-gray-800/70 mb-1" />
-      <div className="w-[55%] h-1 rounded bg-gray-400/40 mb-1.5" />
-      <div className="flex gap-1 items-center mb-2"><div className="w-8 h-2 rounded bg-violet-600" /><div className="w-5 h-1.5 rounded bg-gray-300" /></div>
-      <div className="w-full h-4 rounded-md bg-violet-600" />
+    {/* 2-col hero */}
+    <div className="grid grid-cols-2 gap-1.5">
+      {/* Image + thumbnails */}
+      <div>
+        <div className="pb-[90%] rounded-lg bg-gray-100 relative overflow-hidden">
+          <div className="absolute inset-0 flex items-center justify-center"><Image size={12} className="text-gray-300" /></div>
+          <div className="absolute top-1 left-0"><div className="w-4 h-1.5 rounded-r" style={{ background: '#B42318' }} /></div>
+          <div className="absolute bottom-1.5 left-0 right-0 flex justify-center gap-0.5">
+            {[1,2,3].map(i => <div key={i} className="h-0.5 rounded-full" style={{ width: i===1?8:4, background: i===1?'#6d28d9':'rgba(15,23,42,0.2)' }} />)}
+          </div>
+        </div>
+        <div className="flex gap-0.5 mt-1">{[1,2,3].map(i => <div key={i} className="flex-1 pb-[100%] rounded" style={{ background: i===1?'#ede9fe':'#f3f4f6', border: i===1?'1px solid #7c3aed':undefined }} />)}</div>
+      </div>
+      {/* Info */}
+      <div className="space-y-1 py-0.5">
+        <div className="flex gap-0.5">{[1,2,3,4,5].map(i => <div key={i} className="w-1.5 h-1.5 rounded-sm bg-yellow-400" />)}</div>
+        <div className="w-[95%] h-1.5 rounded bg-gray-900/80" />
+        <div className="w-[80%] h-1 rounded bg-gray-900/60" />
+        <div className="w-[50%] h-1.5 rounded bg-gray-800 mt-0.5" />
+        {[1,2,3].map(i => (
+          <div key={i} className="flex items-center gap-0.5">
+            <div className="w-2 h-2 rounded-full bg-violet-600 flex-shrink-0" />
+            <div className="h-0.5 rounded bg-gray-300 flex-1" />
+          </div>
+        ))}
+        <div className="w-full h-3.5 rounded-md bg-violet-600 mt-1" />
+      </div>
+    </div>
+    {/* Authority strip */}
+    <div className="mt-1.5 rounded-md px-1.5 py-1 flex gap-2" style={{ background: '#EFF8F7' }}>
+      {[1,2,3].map(i => <div key={i} className="h-0.5 rounded flex-1 bg-emerald-500/60" />)}
     </div>
   </div>
 );
