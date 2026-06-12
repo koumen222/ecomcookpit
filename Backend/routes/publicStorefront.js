@@ -156,6 +156,46 @@ function toAbsoluteUrl(value, req) {
   }
 }
 
+function optimizeImageUrl(url, { width = 900, quality = 82 } = {}) {
+  if (!url || typeof url !== 'string') return url;
+  try {
+    if (url.includes('res.cloudinary.com')) {
+      return url.replace(/\/upload\//, `/upload/w_${width},q_${quality},f_auto,c_limit/`);
+    }
+    if (url.includes('.imgix.net') || url.includes('imgix.')) {
+      const u = new URL(url);
+      if (!u.searchParams.has('w')) u.searchParams.set('w', width);
+      if (!u.searchParams.has('q')) u.searchParams.set('q', quality);
+      u.searchParams.set('auto', 'format,compress');
+      return u.toString();
+    }
+    if (url.includes('.b-cdn.net') || url.includes('bunnycdn')) {
+      const u = new URL(url);
+      if (!u.searchParams.has('width')) u.searchParams.set('width', width);
+      if (!u.searchParams.has('quality')) u.searchParams.set('quality', quality);
+      return u.toString();
+    }
+    if (url.includes('supabase.co/storage')) {
+      const u = new URL(url);
+      if (!u.searchParams.has('width')) u.searchParams.set('width', width);
+      if (!u.searchParams.has('quality')) u.searchParams.set('quality', quality);
+      return u.toString();
+    }
+    return url;
+  } catch {
+    return url;
+  }
+}
+
+function buildPreconnectTag(url) {
+  try {
+    const origin = new URL(url).origin;
+    return `<link rel="preconnect" href="${escapeHtml(origin)}" crossorigin />`;
+  } catch {
+    return '';
+  }
+}
+
 function decodeSegment(value = '') {
   try {
     return decodeURIComponent(value);
@@ -565,26 +605,16 @@ async function fetchInitialData(routeContext) {
     });
 
     if (routeContext.pageType === 'product' && routeContext.slug) {
-      const [product, products] = await Promise.all([
-        StoreProduct.findOne({ ...productFilter, slug: routeContext.slug, isPublished: true })
-          .select('name slug description price compareAtPrice currency country targetMarket city locale stock images category tags seoTitle seoDescription features faq testimonials _pageData productPageConfig')
-          .lean(),
-        // Pré-charge élargie : permet à useStoreProduct de rendre instantanément
-        // l'aperçu pour n'importe quel autre produit listé en page d'accueil
-        // lors d'une navigation SPA. Limite passée de 8 → 50.
-        StoreProduct.find({ ...productFilter, isPublished: true })
-          .select(PREVIEW_FIELDS)
-          .sort('-createdAt').limit(50).lean(),
-      ]);
+      const product = await StoreProduct.findOne({ ...productFilter, slug: routeContext.slug, isPublished: true })
+        .select('name slug description price compareAtPrice currency country targetMarket city locale stock images category tags seoTitle seoDescription features faq testimonials _pageData productPageConfig')
+        .lean();
+
       return {
         generatedAt: Date.now(),
         pageType: 'product',
         store: storePayload,
         product: product || null,
-        products: products.map(previewMap),
-        footer: workspace.storeFooter || null,
-        legalPages: workspace.storeLegalPages || null,
-        sections: workspace.storePages?.sections ?? null,
+        products: [],
       };
     }
 
@@ -619,9 +649,9 @@ function injectInitialData(html, initialData) {
   // les images, surtout sur mobile / connexions lentes (marché cible).
   // (fetchpriority="high" forçait l'image à concurrencer le bundle JS → écran vide plus long.)
   let preloadTag = '';
-  const heroImg = initialData.product?.images?.[0]?.url;
+  const heroImg = optimizeImageUrl(initialData.product?.images?.[0]?.url || initialData.product?.image, { width: 900, quality: 82 });
   if (heroImg && heroImg.startsWith('http')) {
-    preloadTag = `<link rel="preload" as="image" href="${escapeHtml(heroImg)}" fetchpriority="low" />`;
+    preloadTag = `${buildPreconnectTag(heroImg)}<link rel="preload" as="image" href="${escapeHtml(heroImg)}" fetchpriority="high" imagesizes="(max-width: 768px) 100vw, 50vw" />`;
   }
 
   const inject = preloadTag + scriptTag;

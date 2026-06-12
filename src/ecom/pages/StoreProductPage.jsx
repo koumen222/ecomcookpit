@@ -10,20 +10,20 @@ import {
 import { useSubdomain } from '../hooks/useSubdomain';
 import { useStoreProduct, injectStoreCssVars, prefetchStoreProduct } from '../hooks/useStoreData';
 import { useStoreCart } from '../hooks/useStoreCart';
-import QuickOrderModal from '../components/QuickOrderModal';
-import EmbeddedOrderForm from '../components/EmbeddedOrderForm';
 import ProductBenefits from '../components/ProductBenefits';
 import ConversionBlocks, { UrgencyBadge } from '../components/ConversionBlocks';
 import ProductTestimonials from '../components/ProductTestimonials';
 import { StorefrontHeader, StorefrontFooter } from '../components/StorefrontShared';
-import StoreProductPageInfographics from '../components/StoreProductPageInfographics';
+const QuickOrderModal = lazy(() => import('../components/QuickOrderModal'));
+const EmbeddedOrderForm = lazy(() => import('../components/EmbeddedOrderForm'));
+const StoreProductPageInfographics = lazy(() => import('../components/StoreProductPageInfographics'));
 const StoreProductPagePremium = lazy(() => import('../components/StoreProductPagePremium'));
 // socket.io-client chargé dynamiquement pour ne pas bloquer le rendu initial
 import { setDocumentMeta } from '../utils/pageMeta';
 import { trackStorefrontEvent } from '../utils/pixelTracking';
 import { useStoreAnalytics } from '../hooks/useStoreAnalytics';
 import { preloadStoreCheckoutRoute, preloadStoreProductRoute } from '../utils/routePrefetch';
-import { getIconComponent, getAnimationClass as getButtonAnimationClass, ANIMATION_CSS as BUTTON_ANIMATION_CSS } from '../components/productSettings/ButtonEditor';
+import { getIconComponent, getAnimationClass as getButtonAnimationClass, ANIMATION_CSS as BUTTON_ANIMATION_CSS } from '../components/productSettings/buttonRuntime.jsx';
 import defaultConfig from '../components/productSettings/defaultConfig';
 import { formatMoney } from '../utils/currency.js';
 import { buildMergedProductPageConfig } from '../utils/productPageConfig.js';
@@ -1556,12 +1556,13 @@ const StoreProductPage = () => {
   useEffect(() => {
     const heroUrl = product?.images?.[0]?.url || product?.images?.[0];
     if (!heroUrl || typeof heroUrl !== 'string') return;
+    const optimizedHeroUrl = optimizeImageUrl(heroUrl, { width: 900, quality: 82 });
     const existing = document.querySelector(`link[rel="preload"][data-hero-img]`);
-    if (existing) { existing.href = heroUrl; return; }
+    if (existing) { existing.href = optimizedHeroUrl; return; }
     const link = document.createElement('link');
     link.rel = 'preload';
     link.as = 'image';
-    link.href = heroUrl;
+    link.href = optimizedHeroUrl;
     link.setAttribute('data-hero-img', '1');
     link.fetchPriority = 'high';
     document.head.appendChild(link);
@@ -2180,12 +2181,14 @@ const StoreProductPage = () => {
 
   if (ppTheme === 'infographics') {
     return (
-      <StoreProductPageInfographics
-        product={product}
-        store={store}
-        productPageConfig={productPageConfig}
-        subdomain={subdomain}
-      />
+      <Suspense fallback={<ProductPageSkeleton />}>
+        <StoreProductPageInfographics
+          product={product}
+          store={store}
+          productPageConfig={productPageConfig}
+          subdomain={subdomain}
+        />
+      </Suspense>
     );
   }
 
@@ -2634,13 +2637,15 @@ const StoreProductPage = () => {
                           {/* ── CTA / Order form ── */}
                           <div className="order-btn-wrapper" ref={ctaButtonsRef}>
                           {ppFormType === 'embedded' && inStock ? (
-                            <EmbeddedOrderForm
-                              product={product}
-                              subdomain={subdomain}
-                              store={store}
-                              pixels={pixels}
-                              productPageConfig={productPageConfig}
-                            />
+                            <Suspense fallback={<div style={{ minHeight: 320 }} />}>
+                              <EmbeddedOrderForm
+                                product={product}
+                                subdomain={subdomain}
+                                store={store}
+                                pixels={pixels}
+                                productPageConfig={productPageConfig}
+                              />
+                            </Suspense>
                           ) : (
                             <button
                               onClick={openOrderModal}
@@ -3022,17 +3027,19 @@ const StoreProductPage = () => {
       <StorefrontFooter store={store} prefix={prefix} />
 
       {/* Quick Order Modal */}
-      {product && (
-        <QuickOrderModal
-          isOpen={showOrderModal}
-          product={product}
-          store={store}
-          subdomain={subdomain}
-          pixels={pixels}
-          onClose={() => setShowOrderModal(false)}
-          productPageConfig={productPageConfig}
-          selectedVariants={selectedVariants}
-        />
+      {product && showOrderModal && (
+        <Suspense fallback={null}>
+          <QuickOrderModal
+            isOpen={showOrderModal}
+            product={product}
+            store={store}
+            subdomain={subdomain}
+            pixels={pixels}
+            onClose={() => setShowOrderModal(false)}
+            productPageConfig={productPageConfig}
+            selectedVariants={selectedVariants}
+          />
+        </Suspense>
       )}
     </div>
   );
