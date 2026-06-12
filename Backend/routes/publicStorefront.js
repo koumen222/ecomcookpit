@@ -270,8 +270,7 @@ function resolveStoreRouteContext(req) {
   return null;
 }
 
-async function resolveRequestMeta(req) {
-  const routeContext = resolveStoreRouteContext(req);
+async function resolveRequestMeta(req, routeContext = resolveStoreRouteContext(req), initialData = null) {
   const baseUrl = `${getRequestOrigin(req)}${String(req.originalUrl || req.url || '/').split('?')[0] || '/'}`;
 
   if (!routeContext?.subdomain) {
@@ -286,6 +285,56 @@ async function resolveRequestMeta(req) {
       appTitle: 'Scalor',
       url: baseUrl,
     };
+  }
+
+  if (initialData?.store) {
+    const store = initialData.store;
+    const storeName = normalizeText(store.name) || 'Boutique';
+    const storeDescription = truncateText(
+      normalizeText(store.description || `Découvrez la boutique ${storeName} en ligne.`),
+      180,
+    );
+    const storeLogo = store.logo || '';
+    const storeBanner = store.banner || '';
+    const defaultStoreVisual = toAbsoluteUrl(storeLogo || storeBanner || '/icon.png', req) || DEFAULT_PLATFORM_IMAGE;
+    const absoluteLogo = toAbsoluteUrl(storeLogo || '', req);
+    const meta = {
+      title: storeName,
+      description: storeDescription,
+      image: defaultStoreVisual,
+      logo: absoluteLogo || '',
+      icon: absoluteLogo || toAbsoluteUrl('/icon.png', req) || defaultStoreVisual,
+      type: 'website',
+      siteName: storeName,
+      appTitle: storeName,
+      url: baseUrl,
+    };
+
+    if (routeContext.pageType === 'products') {
+      meta.title = `Produits — ${storeName}`;
+      meta.description = truncateText(normalizeText(`Découvrez tous les produits disponibles chez ${storeName}.`), 180);
+      return meta;
+    }
+
+    if (routeContext.pageType === 'checkout') {
+      meta.title = `Finaliser la commande — ${storeName}`;
+      meta.description = truncateText(normalizeText(`Finalisez votre commande sur la boutique ${storeName}.`), 180);
+      return meta;
+    }
+
+    const product = routeContext.pageType === 'product' ? initialData.product : null;
+    if (product) {
+      const productImage = product.images?.[0]?.url || product.image || '';
+      meta.title = normalizeText(product.seoTitle || `${product.name} — ${storeName}`) || `${product.name} — ${storeName}`;
+      meta.description = truncateText(
+        normalizeText(product.seoDescription || product.description || storeDescription || `Découvrez ${product.name} chez ${storeName}.`),
+        180,
+      );
+      meta.image = toAbsoluteUrl(productImage || storeLogo || storeBanner || '/icon.png', req) || defaultStoreVisual;
+      meta.type = 'product';
+    }
+
+    return meta;
   }
 
   const workspace = await _resolveStoreFast(routeContext.subdomain);
@@ -528,6 +577,7 @@ async function fetchInitialData(routeContext) {
           .sort('-createdAt').limit(50).lean(),
       ]);
       return {
+        generatedAt: Date.now(),
         pageType: 'product',
         store: storePayload,
         product: product || null,
@@ -544,6 +594,7 @@ async function fetchInitialData(routeContext) {
       .sort('-createdAt').limit(50).lean();
 
     return {
+      generatedAt: Date.now(),
       pageType: routeContext.pageType || 'home',
       store: storePayload,
       product: null,
@@ -690,10 +741,8 @@ router.get('*', async (req, res) => {
 
   try {
     const routeContext = resolveStoreRouteContext(req);
-    const [meta, initialData] = await Promise.all([
-      resolveRequestMeta(req),
-      fetchInitialData(routeContext),
-    ]);
+    const initialData = await fetchInitialData(routeContext);
+    const meta = await resolveRequestMeta(req, routeContext, initialData);
     const html = injectInitialData(injectHeadMeta(readIndexTemplate(), meta), initialData);
     res.status(200).send(html);
   } catch (err) {

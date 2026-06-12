@@ -160,6 +160,16 @@ function consumeInitialData() {
   return data;
 }
 
+function scheduleIdle(callback, timeout = 2500) {
+  if (typeof window === 'undefined') return () => {};
+  if ('requestIdleCallback' in window) {
+    const id = window.requestIdleCallback(callback, { timeout });
+    return () => window.cancelIdleCallback?.(id);
+  }
+  const id = window.setTimeout(callback, Math.min(timeout, 1200));
+  return () => window.clearTimeout(id);
+}
+
 // ─── Product page cache ───────────────────────────────────────────────────────
 // Short-lived in-memory cache (15s) per product page key.
 // - Eliminates duplicate API calls when the user navigates back within a session.
@@ -239,13 +249,15 @@ export function useStoreData(subdomain) {
     if (bootstrap?.store) injectStoreCssVars(bootstrap.store);
 
     let cancelled = false;
+    let cancelIdleRefetch = null;
 
-    async function load() {
+    async function load({ force = false } = {}) {
       try {
+        if (!bootstrap) setLoading(true);
         // Toujours refetch depuis l'API pour avoir la donnée fraîche.
         // Si bootstrap est dispo, on est déjà en train d'afficher quelque chose
         // donc la latence ne se voit pas.
-        const res = await publicStoreApi.getStore(subdomain);
+        const res = await publicStoreApi.getStore(subdomain, force ? { force: true } : {});
         if (cancelled) return;
 
         const data = res.data?.data || {};
@@ -272,14 +284,23 @@ export function useStoreData(subdomain) {
       }
     }
 
-    load();
-    return () => { cancelled = true; };
+    if (bootstrap?.store) {
+      setLoading(false);
+      cancelIdleRefetch = scheduleIdle(() => load({ force: true }), 3500);
+    } else {
+      load();
+    }
+
+    return () => {
+      cancelled = true;
+      if (cancelIdleRefetch) cancelIdleRefetch();
+    };
   }, [subdomain]);
 
   // Refetch silently when admin saves any change (socket store:updated)
   const refetchStore = useCallback(() => {
     if (!subdomain) return;
-    publicStoreApi.getStore(subdomain)
+    publicStoreApi.getStore(subdomain, { force: true })
       .then(res => {
         const data = res.data?.data || {};
         const storeData = data.store || data;
@@ -307,13 +328,18 @@ export function useStoreProduct(subdomain, slug) {
   const initial = consumeInitialData();
   const bootstrapProduct = initial?.product?.slug === slug ? initial.product : null;
   const bootstrapStore = initial?.store || null;
+  const bootstrapRelated = bootstrapProduct && Array.isArray(initial?.products)
+    ? initial.products
+      .filter((item) => item?.slug !== slug && (!bootstrapProduct.category || item?.category === bootstrapProduct.category))
+      .slice(0, 4)
+    : [];
 
   const [store, setStore] = useState(bootstrapStore);
   const [pixels, setPixels] = useState(initial?.store?.pixels ?? null);
   const [storeFooter, setStoreFooter] = useState(initial?.footer || null);
   const [product, setProduct] = useState(bootstrapProduct);
-  const [related, setRelated] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [related, setRelated] = useState(bootstrapRelated);
+  const [loading, setLoading] = useState(!bootstrapProduct);
   const [error, setError] = useState(null);
 
   useEffect(() => {
@@ -323,11 +349,13 @@ export function useStoreProduct(subdomain, slug) {
     if (bootstrapStore) injectStoreCssVars(bootstrapStore);
 
     let cancelled = false;
+    let cancelIdleRefetch = null;
+    const hasBootstrap = Boolean(bootstrapProduct && bootstrapStore);
 
     setProduct(bootstrapProduct);
-    setRelated([]);
+    setRelated(bootstrapRelated);
     setError(null);
-    setLoading(true);
+    setLoading(!hasBootstrap);
 
     async function fetchWithRetry(fn, retries = 2, delayMs = 800) {
       for (let attempt = 0; attempt <= retries; attempt++) {
@@ -343,12 +371,12 @@ export function useStoreProduct(subdomain, slug) {
       }
     }
 
-    async function load() {
+    async function load({ force = false, useCache = true } = {}) {
       try {
         let productData, storeData, pixelsData, footerData;
 
         const cacheKey = `${subdomain}:${slug}`;
-        const cached = _ppGet(cacheKey);
+        const cached = useCache ? _ppGet(cacheKey) : null;
         if (cached) {
           // Instant render from cache — also kick off a background revalidation
           productData = cached.product;
@@ -361,16 +389,20 @@ export function useStoreProduct(subdomain, slug) {
           setStoreFooter(footerData);
           setProduct(productData);
           if (!cancelled) setLoading(false);
-          // Revalidate in background — update cache silently, don't re-render unless data changed
-          publicStoreApi.getProductPage(subdomain, slug).then(pageRes => {
+          // Revalidate in background and hydrate any late fields (quantity offers, footer, pixels).
+          publicStoreApi.getProductPage(subdomain, slug, { force: true }).then(pageRes => {
             if (cancelled) return;
             const d = pageRes?.data?.data || {};
             _ppSet(cacheKey, d);
+            if (d.store) { injectStoreCssVars(d.store); setStore(d.store); }
+            if (d.product) setProduct(d.product);
+            if (d.pixels !== undefined) setPixels(d.pixels);
+            if (d.footer !== undefined) setStoreFooter(d.footer);
           }).catch(() => {});
           return;
         }
 
-        const pageRes = await fetchWithRetry(() => publicStoreApi.getProductPage(subdomain, slug));
+        const pageRes = await fetchWithRetry(() => publicStoreApi.getProductPage(subdomain, slug, force ? { force: true } : {}));
         if (cancelled) return;
         const pageData = pageRes?.data?.data || {};
         _ppSet(cacheKey, pageData);
@@ -386,8 +418,8 @@ export function useStoreProduct(subdomain, slug) {
         setProduct(productData);
 
         // Related products — non-blocking, doesn't delay paint
-        if (productData?.category) {
-          publicStoreApi.getProducts(subdomain, { category: productData.category, limit: 4 })
+        if (productData?.category && bootstrapRelated.length === 0) {
+          publicStoreApi.getProducts(subdomain, { category: productData.category, limit: 4 }, force ? { force: true } : {})
             .then(r => {
               if (!cancelled) {
                 const all = r.data?.data?.products || [];
@@ -410,16 +442,25 @@ export function useStoreProduct(subdomain, slug) {
       }
     }
 
-    load();
-    return () => { cancelled = true; };
+    if (hasBootstrap) {
+      cancelIdleRefetch = scheduleIdle(() => load({ force: true, useCache: false }), 2200);
+    } else {
+      load();
+    }
+
+    return () => {
+      cancelled = true;
+      if (cancelIdleRefetch) cancelIdleRefetch();
+    };
   }, [subdomain, slug]);
 
   // Refetch silently when admin saves any change
   const refetch = useCallback(() => {
     if (!subdomain || !slug) return;
-    publicStoreApi.getProductPage(subdomain, slug)
+    publicStoreApi.getProductPage(subdomain, slug, { force: true })
       .then(res => {
         const d = res?.data?.data || {};
+        _ppSet(`${subdomain}:${slug}`, d);
         if (d.product) setProduct(d.product);
         if (d.store) { injectStoreCssVars(d.store); setStore(d.store); }
         if (d.pixels !== undefined) setPixels(d.pixels);

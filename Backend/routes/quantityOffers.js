@@ -1,7 +1,11 @@
 import express from 'express';
 import QuantityOffer from '../models/QuantityOffer.js';
 import StoreProduct from '../models/StoreProduct.js';
+import Store from '../models/Store.js';
+import Workspace from '../models/Workspace.js';
 import { requireEcomAuth } from '../middleware/ecomAuth.js';
+import { emitStoreUpdate } from '../services/socketService.js';
+import { invalidateStoreCache } from './storeApi.js';
 
 const router = express.Router();
 
@@ -28,6 +32,30 @@ async function hydrateOfferProducts(offers, workspaceId) {
     ...offer,
     productId: productById.get(String(offer.productId)) || offer.productId
   }));
+}
+
+async function resolveOfferSubdomain(workspaceId, productId) {
+  if (!productId || !/^[0-9a-fA-F]{24}$/.test(String(productId))) return null;
+
+  const product = await StoreProduct.findOne({ _id: productId, workspaceId })
+    .select('storeId workspaceId')
+    .lean()
+    .catch(() => null);
+
+  if (product?.storeId) {
+    const store = await Store.findById(product.storeId).select('subdomain').lean().catch(() => null);
+    if (store?.subdomain) return store.subdomain;
+  }
+
+  const workspace = await Workspace.findById(workspaceId).select('subdomain').lean().catch(() => null);
+  return workspace?.subdomain || null;
+}
+
+async function invalidateOfferStorefront(workspaceId, productId) {
+  const subdomain = await resolveOfferSubdomain(workspaceId, productId);
+  if (!subdomain) return;
+  invalidateStoreCache(subdomain);
+  emitStoreUpdate(subdomain);
 }
 
 // GET / — Liste des offres (toutes ou filtrées par produit)
@@ -95,6 +123,8 @@ router.post('/', requireEcomAuth, async (req, res) => {
       design: design || {}
     });
 
+    await invalidateOfferStorefront(req.workspaceId, newOffer.productId);
+
     res.status(201).json({ success: true, data: newOffer });
   } catch (error) {
     console.error('❌ Erreur création offre quantité:', error);
@@ -114,6 +144,10 @@ router.put('/:id', requireEcomAuth, async (req, res) => {
     if (offers !== undefined) update.offers = offers;
     if (design !== undefined) update.design = design;
 
+    const previous = productId !== undefined
+      ? await QuantityOffer.findOne({ _id: req.params.id, workspaceId: req.workspaceId }).select('productId').lean()
+      : null;
+
     const offer = await QuantityOffer.findOneAndUpdate(
       { _id: req.params.id, workspaceId: req.workspaceId },
       { $set: update },
@@ -122,6 +156,11 @@ router.put('/:id', requireEcomAuth, async (req, res) => {
 
     if (!offer) {
       return res.status(404).json({ success: false, message: 'Offre non trouvée' });
+    }
+
+    await invalidateOfferStorefront(req.workspaceId, offer.productId?._id || offer.productId);
+    if (previous?.productId && String(previous.productId) !== String(offer.productId?._id || offer.productId)) {
+      await invalidateOfferStorefront(req.workspaceId, previous.productId);
     }
 
     res.json({ success: true, data: offer });
@@ -142,6 +181,8 @@ router.delete('/:id', requireEcomAuth, async (req, res) => {
     if (!offer) {
       return res.status(404).json({ success: false, message: 'Offre non trouvée' });
     }
+
+    await invalidateOfferStorefront(req.workspaceId, offer.productId);
 
     res.json({ success: true, message: 'Offre supprimée' });
   } catch (error) {
@@ -173,6 +214,8 @@ router.post('/:id/duplicate', requireEcomAuth, async (req, res) => {
       offers: source.offers,
       design: source.design
     });
+
+    await invalidateOfferStorefront(req.workspaceId, duplicate.productId);
 
     res.status(201).json({ success: true, data: duplicate });
   } catch (error) {

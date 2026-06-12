@@ -225,9 +225,15 @@ storeProductSchema.index({ workspaceId: 1, slug: 1 }, { unique: true });
 // 2. Public storefront queries (most common)
 // Filters published products by workspace, sorted by date
 storeProductSchema.index({ workspaceId: 1, isPublished: 1, createdAt: -1 });
+// Multi-store storefront queries: same access pattern, scoped to one Store.
+storeProductSchema.index({ workspaceId: 1, storeId: 1, isPublished: 1, createdAt: -1 });
 
 // 3. Category filtering on public store
 storeProductSchema.index({ workspaceId: 1, category: 1, isPublished: 1 });
+storeProductSchema.index({ workspaceId: 1, storeId: 1, category: 1, isPublished: 1 });
+
+// 3b. Product detail by slug on a multi-store public domain
+storeProductSchema.index({ workspaceId: 1, storeId: 1, slug: 1 });
 
 // 4. Dashboard product management
 // Admin queries all products (published + unpublished) by workspace

@@ -72,10 +72,20 @@ const trackLimiter = rateLimit({
   message: { success: false, message: 'Trop d\'événements de tracking, réessayez dans une minute.' },
 });
 
-// In-process store cache: TTL 20s — fast enough for instant repeat loads,
-// short enough that merchant changes (theme, pixels) are visible within 20s.
+// In-process store resolver cache: avoids hitting Mongo for the same subdomain
+// during bursts of page/API requests.
 const STORE_CACHE_TTL = 20_000;
 const storeCache = new Map(); // subdomain → { data, expiresAt }
+const responseCache = new Map(); // key → { data, expiresAt }
+
+const PUBLIC_HOME_CACHE_TTL = 45_000;
+const PUBLIC_PRODUCTS_CACHE_TTL = 45_000;
+const PUBLIC_PRODUCT_PAGE_CACHE_TTL = 60_000;
+const PUBLIC_CATEGORIES_CACHE_TTL = 10 * 60_000;
+
+function normalizeSubdomainKey(subdomain) {
+  return String(subdomain || '').toLowerCase().trim();
+}
 
 function getCachedStore(subdomain) {
   const entry = storeCache.get(subdomain);
@@ -87,8 +97,45 @@ function setCachedStore(subdomain, data) {
   storeCache.set(subdomain, { data, expiresAt: Date.now() + STORE_CACHE_TTL });
 }
 
+function getCachedResponse(key) {
+  const entry = responseCache.get(key);
+  if (!entry) return null;
+  if (Date.now() > entry.expiresAt) { responseCache.delete(key); return null; }
+  return entry.data;
+}
+
+function setCachedResponse(key, data, ttlMs) {
+  responseCache.set(key, { data, expiresAt: Date.now() + ttlMs });
+}
+
+function deleteResponseCacheByPrefix(prefix) {
+  for (const key of responseCache.keys()) {
+    if (key.startsWith(prefix)) responseCache.delete(key);
+  }
+}
+
+function stableQueryKey(query = {}) {
+  return Object.entries(query)
+    .filter(([key]) => key !== '_fresh' && key !== '_ts')
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([key, value]) => `${key}=${Array.isArray(value) ? value.join(',') : String(value ?? '')}`)
+    .join('&');
+}
+
+function shouldBypassResponseCache(req) {
+  return req.query?._fresh != null || req.query?._ts != null || req.get('cache-control')?.includes('no-cache');
+}
+
 export function invalidateStoreCache(subdomain) {
-  if (subdomain) storeCache.delete(subdomain.toLowerCase().trim());
+  if (!subdomain) {
+    storeCache.clear();
+    responseCache.clear();
+    return;
+  }
+
+  const clean = normalizeSubdomainKey(subdomain);
+  storeCache.delete(clean);
+  deleteResponseCacheByPrefix(`${clean}:`);
 }
 
 // ─── Default legal pages fallback (when AI generation hasn't run yet) ─────────
@@ -132,8 +179,8 @@ function buildDefaultLegalPages(settings, workspace) {
 // L'argument `_ttl` est conservé pour ne pas casser les appels existants.
 function setCacheHeaders(res, ttl = 0) {
   if (ttl > 0) {
-    // Public cache: CDN/browser can store for `ttl` seconds, serve stale up to 10× while revalidating
-    res.set('Cache-Control', `public, max-age=${ttl}, stale-while-revalidate=${ttl * 10}`);
+    // CDN cache only: browsers/SW revalidate unless our own short app cache serves it.
+    res.set('Cache-Control', `public, max-age=0, s-maxage=${ttl}, stale-while-revalidate=${ttl * 10}`);
   } else {
     res.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
     res.set('Pragma', 'no-cache');
@@ -201,6 +248,50 @@ function getProductFilter(resolvedStore) {
   return { workspaceId: resolvedStore._workspaceId };
 }
 
+const PUBLIC_PRODUCT_LIST_PROJECT = {
+  name: 1,
+  slug: 1,
+  price: 1,
+  compareAtPrice: 1,
+  currency: 1,
+  country: 1,
+  targetMarket: 1,
+  city: 1,
+  locale: 1,
+  stock: 1,
+  images: 1,
+  category: 1,
+  tags: 1,
+  createdAt: 1,
+};
+
+function parsePublicProductSort(sort = '-createdAt') {
+  const raw = String(sort || '-createdAt').trim();
+  const direction = raw.startsWith('-') ? -1 : 1;
+  const field = raw.replace(/^-/, '');
+  const allowed = new Set(['createdAt', 'price', 'name', 'category']);
+  return { [allowed.has(field) ? field : 'createdAt']: direction };
+}
+
+function toLightProduct(p, storeCurrency = 'XAF') {
+  return {
+    _id: p._id,
+    name: p.name,
+    slug: p.slug,
+    price: p.price,
+    compareAtPrice: p.compareAtPrice,
+    currency: p.currency || storeCurrency,
+    country: p.country || '',
+    targetMarket: p.targetMarket || '',
+    city: p.city || '',
+    locale: p.locale || '',
+    stock: p.stock,
+    image: p.images?.[0]?.url || '',
+    category: p.category,
+    createdAt: p.createdAt,
+  };
+}
+
 /**
  * GET /api/store/resolve-domain/:hostname
  *
@@ -264,6 +355,15 @@ router.get('/resolve-domain/:hostname', readLimiter, async (req, res) => {
  */
 router.get('/:subdomain', readLimiter, async (req, res) => {
   try {
+    const subdomainKey = normalizeSubdomainKey(req.params.subdomain);
+    const cacheKey = `${subdomainKey}:home`;
+    const cached = shouldBypassResponseCache(req) ? null : getCachedResponse(cacheKey);
+    if (cached) {
+      setCacheHeaders(res, 30);
+      res.set('X-Scalor-Cache', 'HIT');
+      return res.json(cached);
+    }
+
     const workspace = await resolveStore(req.params.subdomain);
 
     if (!workspace) {
@@ -277,37 +377,33 @@ router.get('/:subdomain', readLimiter, async (req, res) => {
     const settings = workspace.storeSettings || {};
     const prodFilter = getProductFilter(workspace);
 
-    // Fetch initial products + categories in parallel
-    const [products, categories, totalProducts] = await Promise.all([
-      StoreProduct.find({ ...prodFilter, isPublished: true })
-      .select('name slug price compareAtPrice currency country targetMarket city locale stock images category tags')
-      .sort('-createdAt')
-      .limit(20)
-      .lean(),
-
-      StoreProduct.distinct('category', { ...prodFilter, isPublished: true, category: { $ne: '' } }),
-
-      StoreProduct.countDocuments({ ...prodFilter, isPublished: true })
+    const [homeFacet] = await StoreProduct.aggregate([
+      { $match: { ...prodFilter, isPublished: true } },
+      {
+        $facet: {
+          products: [
+            { $sort: { createdAt: -1 } },
+            { $limit: 20 },
+            { $project: PUBLIC_PRODUCT_LIST_PROJECT },
+          ],
+          categories: [
+            { $match: { category: { $ne: '' } } },
+            { $group: { _id: '$category' } },
+            { $sort: { _id: 1 } },
+          ],
+          total: [{ $count: 'count' }],
+        },
+      },
     ]);
+
+    const products = homeFacet?.products || [];
+    const categories = (homeFacet?.categories || []).map((item) => item._id).filter(Boolean);
+    const totalProducts = homeFacet?.total?.[0]?.count || 0;
 
     const storeCurrency = settings.storeCurrency || settings.currency || 'XAF';
 
     // Per-product currency/country overrides the store default (multi-market support).
-    const lightProducts = products.map(p => ({
-      _id: p._id,
-      name: p.name,
-      slug: p.slug,
-      price: p.price,
-      compareAtPrice: p.compareAtPrice,
-      currency: p.currency || storeCurrency,
-      country: p.country || '',
-      targetMarket: p.targetMarket || '',
-      city: p.city || '',
-      locale: p.locale || '',
-      stock: p.stock,
-      image: p.images?.[0]?.url || '',
-      category: p.category
-    }));
+    const lightProducts = products.map((p) => toLightProduct(p, storeCurrency));
 
     const theme = workspace.storeTheme || {};
     const sectionColors = {
@@ -334,7 +430,7 @@ router.get('/:subdomain', readLimiter, async (req, res) => {
     // 30s CDN cache — short enough that config changes show within one reload
     setCacheHeaders(res, 30);
 
-    res.json({
+    const payload = {
       success: true,
       data: {
         store: {
@@ -392,7 +488,7 @@ router.get('/:subdomain', readLimiter, async (req, res) => {
           snapchatPixelId: pixels.snapchatPixelId || pixels.snapPixelId || '',
         },
         products: lightProducts,
-        categories: categories.sort(),
+        categories,
         pagination: {
           page: 1,
           limit: 20,
@@ -400,7 +496,11 @@ router.get('/:subdomain', readLimiter, async (req, res) => {
           pages: Math.ceil(totalProducts / 20)
         }
       }
-    });
+    };
+
+    setCachedResponse(cacheKey, payload, PUBLIC_HOME_CACHE_TTL);
+    res.set('X-Scalor-Cache', 'MISS');
+    res.json(payload);
 
   } catch (error) {
     console.error('❌ GET /api/store/:subdomain error:', error.message);
@@ -416,6 +516,16 @@ router.get('/:subdomain', readLimiter, async (req, res) => {
  */
 router.get('/:subdomain/products', readLimiter, async (req, res) => {
   try {
+    const subdomainKey = normalizeSubdomainKey(req.params.subdomain);
+    const queryKey = stableQueryKey(req.query);
+    const cacheKey = `${subdomainKey}:products:${queryKey}`;
+    const cached = shouldBypassResponseCache(req) ? null : getCachedResponse(cacheKey);
+    if (cached) {
+      setCacheHeaders(res, req.query.search ? 30 : 60);
+      res.set('X-Scalor-Cache', 'HIT');
+      return res.json(cached);
+    }
+
     const workspace = await resolveStore(req.params.subdomain);
     if (!workspace) {
       return res.status(404).json({ success: false, message: 'Store not found' });
@@ -438,37 +548,31 @@ router.get('/:subdomain/products', readLimiter, async (req, res) => {
 
     const skip = (pageNum - 1) * limitNum;
 
-    const [products, total] = await Promise.all([
-      StoreProduct.find(filter)
-        .select('name slug price compareAtPrice currency country targetMarket city locale stock images category tags')
-        .sort(sort)
-        .limit(limitNum)
-        .skip(skip)
-        .lean(),
-      StoreProduct.countDocuments(filter)
+    const [listingFacet] = await StoreProduct.aggregate([
+      { $match: filter },
+      {
+        $facet: {
+          products: [
+            { $sort: parsePublicProductSort(sort) },
+            { $skip: skip },
+            { $limit: limitNum },
+            { $project: PUBLIC_PRODUCT_LIST_PROJECT },
+          ],
+          total: [{ $count: 'count' }],
+        },
+      },
     ]);
 
+    const products = listingFacet?.products || [];
+    const total = listingFacet?.total?.[0]?.count || 0;
+
     const storeCurrencyPag = workspace.storeSettings?.storeCurrency || workspace.storeSettings?.currency || 'XAF';
-    const lightProducts = products.map(p => ({
-      _id: p._id,
-      name: p.name,
-      slug: p.slug,
-      price: p.price,
-      compareAtPrice: p.compareAtPrice,
-      currency: p.currency || storeCurrencyPag,
-      country: p.country || '',
-      targetMarket: p.targetMarket || '',
-      city: p.city || '',
-      locale: p.locale || '',
-      stock: p.stock,
-      image: p.images?.[0]?.url || '',
-      category: p.category
-    }));
+    const lightProducts = products.map((p) => toLightProduct(p, storeCurrencyPag));
 
     // Cache at Cloudflare edge — 30s so product/stock changes reflect quickly
     setCacheHeaders(res, search ? 30 : 60);
 
-    res.json({
+    const payload = {
       success: true,
       data: {
         products: lightProducts,
@@ -479,7 +583,11 @@ router.get('/:subdomain/products', readLimiter, async (req, res) => {
           pages: Math.ceil(total / limitNum)
         }
       }
-    });
+    };
+
+    setCachedResponse(cacheKey, payload, PUBLIC_PRODUCTS_CACHE_TTL);
+    res.set('X-Scalor-Cache', 'MISS');
+    res.json(payload);
 
   } catch (error) {
     console.error('❌ GET /api/store/:subdomain/products error:', error.message);
@@ -494,6 +602,16 @@ router.get('/:subdomain/products', readLimiter, async (req, res) => {
  */
 router.get('/:subdomain/products/:slug', readLimiter, async (req, res) => {
   try {
+    const subdomainKey = normalizeSubdomainKey(req.params.subdomain);
+    const slugKey = String(req.params.slug || '').toLowerCase().trim();
+    const cacheKey = `${subdomainKey}:product:${slugKey}`;
+    const cached = shouldBypassResponseCache(req) ? null : getCachedResponse(cacheKey);
+    if (cached) {
+      setCacheHeaders(res, 60);
+      res.set('X-Scalor-Cache', 'HIT');
+      return res.json(cached);
+    }
+
     const workspace = await resolveStore(req.params.subdomain);
     if (!workspace) {
       return res.status(404).json({ success: false, message: 'Store not found' });
@@ -528,7 +646,7 @@ router.get('/:subdomain/products/:slug', readLimiter, async (req, res) => {
     const productCountry = product.country || workspace.storeSettings?.country || '';
     const productLocale = product.locale || workspace.storeSettings?.locale || '';
 
-    res.json({
+    const payload = {
       success: true,
       data: {
         _id: product._id,
@@ -564,7 +682,11 @@ router.get('/:subdomain/products/:slug', readLimiter, async (req, res) => {
           ...(quantityOffer.design ? { quantityOfferDesign: quantityOffer.design } : {})
         } : {})
       }
-    });
+    };
+
+    setCachedResponse(cacheKey, payload, PUBLIC_PRODUCT_PAGE_CACHE_TTL);
+    res.set('X-Scalor-Cache', 'MISS');
+    res.json(payload);
 
   } catch (error) {
     console.error('❌ GET /api/store/:subdomain/products/:slug error:', error.message);
@@ -577,6 +699,15 @@ router.get('/:subdomain/products/:slug', readLimiter, async (req, res) => {
  */
 router.get('/:subdomain/categories', readLimiter, async (req, res) => {
   try {
+    const subdomainKey = normalizeSubdomainKey(req.params.subdomain);
+    const cacheKey = `${subdomainKey}:categories`;
+    const cached = shouldBypassResponseCache(req) ? null : getCachedResponse(cacheKey);
+    if (cached) {
+      setCacheHeaders(res, 600);
+      res.set('X-Scalor-Cache', 'HIT');
+      return res.json(cached);
+    }
+
     const workspace = await resolveStore(req.params.subdomain);
     if (!workspace) {
       return res.status(404).json({ success: false, message: 'Store not found' });
@@ -590,7 +721,10 @@ router.get('/:subdomain/categories', readLimiter, async (req, res) => {
 
     // Categories rarely change — cache 10 minutes
     setCacheHeaders(res, 600);
-    res.json({ success: true, data: categories.sort() });
+    const payload = { success: true, data: categories.sort() };
+    setCachedResponse(cacheKey, payload, PUBLIC_CATEGORIES_CACHE_TTL);
+    res.set('X-Scalor-Cache', 'MISS');
+    res.json(payload);
 
   } catch (error) {
     console.error('❌ GET /api/store/:subdomain/categories error:', error.message);
@@ -607,6 +741,16 @@ router.get('/:subdomain/categories', readLimiter, async (req, res) => {
  */
 router.get('/:subdomain/product-page/:slug', readLimiter, async (req, res) => {
   try {
+    const subdomainKey = normalizeSubdomainKey(req.params.subdomain);
+    const slugKey = String(req.params.slug || '').toLowerCase().trim();
+    const cacheKey = `${subdomainKey}:product-page:${slugKey}`;
+    const cached = shouldBypassResponseCache(req) ? null : getCachedResponse(cacheKey);
+    if (cached) {
+      setCacheHeaders(res, 60);
+      res.set('X-Scalor-Cache', 'HIT');
+      return res.json(cached);
+    }
+
     const workspace = await resolveStore(req.params.subdomain);
     if (!workspace) {
       return res.status(404).json({ success: false, message: 'Store not found' });
@@ -694,7 +838,7 @@ router.get('/:subdomain/product-page/:slug', readLimiter, async (req, res) => {
     // changes appear within 60s (or immediately on next background revalidation).
     setCacheHeaders(res, 60);
 
-    res.json({
+    const payload = {
       success: true,
       data: {
         store: {
@@ -744,7 +888,11 @@ router.get('/:subdomain/product-page/:slug', readLimiter, async (req, res) => {
         },
         footer: workspace.storeFooter || null,
       },
-    });
+    };
+
+    setCachedResponse(cacheKey, payload, PUBLIC_PRODUCT_PAGE_CACHE_TTL);
+    res.set('X-Scalor-Cache', 'MISS');
+    res.json(payload);
   } catch (error) {
     console.error('❌ GET /api/store/:subdomain/product-page/:slug error:', error.message);
     res.status(500).json({ success: false, message: 'Error loading product page' });

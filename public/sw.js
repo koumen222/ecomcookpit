@@ -12,11 +12,12 @@
  */
 
 // Version du Service Worker (incrémenter pour forcer la mise à jour)
-// 2.2.0 : skip pixels/analytics, fallback Response sur fetch fonts échoués, CSP-friendly
-const CACHE_VERSION = '2.2.0';
+// 2.3.0 : cache public storefront API with fresh bypass, keep pixels/analytics network-only
+const CACHE_VERSION = '2.3.0';
 const CACHE_NAME = `scalor-v${CACHE_VERSION}`;
 const STATIC_CACHE = `scalor-static-v${CACHE_VERSION}`;
 const FONT_CACHE = `scalor-fonts-v${CACHE_VERSION}`;
+const STORE_API_CACHE = `scalor-store-api-v${CACHE_VERSION}`;
 
 // ============================================
 // 1. INSTALLATION DU SERVICE WORKER
@@ -56,7 +57,7 @@ self.addEventListener('activate', (event) => {
   console.log('[Service Worker] Activation...');
   
   // Prendre le contrôle immédiatement de tous les clients (onglets)
-  const validCaches = [CACHE_NAME, STATIC_CACHE, FONT_CACHE];
+  const validCaches = [CACHE_NAME, STATIC_CACHE, FONT_CACHE, STORE_API_CACHE];
   event.waitUntil(
     Promise.all([
       // Clean old caches
@@ -247,7 +248,8 @@ self.addEventListener('notificationclose', (event) => {
  * - Hashed JS/CSS assets → Network-first with cache fallback
  * - Other hashed assets (images/fonts) → Cache-first
  * - Fonts (googleapis, fontshare) → Stale-while-revalidate
- * - API requests → Network-only
+ * - Public store API GETs → Stale-while-revalidate with explicit fresh bypass
+ * - Other API requests → Network-only
  * - HTML navigation → Network-first with offline fallback
  */
 self.addEventListener('fetch', (event) => {
@@ -257,7 +259,17 @@ self.addEventListener('fetch', (event) => {
   // Skip non-GET requests
   if (req.method !== 'GET') return;
 
-  // Skip API calls — always go to network
+  // Public storefront reads are safe to cache briefly; admin/API writes are not.
+  if (isPublicStoreApiRead(url)) {
+    event.respondWith(
+      shouldBypassStoreApiCache(req, url)
+        ? storeApiNetworkFirst(req)
+        : storeApiStaleWhileRevalidate(req)
+    );
+    return;
+  }
+
+  // Skip all other API calls — always go to network
   if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/socket.io')) return;
 
   const isHashedScriptOrStyle =
@@ -364,6 +376,50 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 });
+
+function isPublicStoreApiRead(url) {
+  if (!url.pathname.startsWith('/api/store/')) return false;
+  return !(
+    url.pathname.includes('/track') ||
+    url.pathname.includes('/orders') ||
+    url.pathname.includes('/newsletter')
+  );
+}
+
+function shouldBypassStoreApiCache(req, url) {
+  const cacheControl = req.headers.get('cache-control') || '';
+  return url.searchParams.has('_fresh') ||
+    url.searchParams.has('_ts') ||
+    req.cache === 'reload' ||
+    cacheControl.includes('no-cache');
+}
+
+async function storeApiNetworkFirst(req) {
+  const cache = await caches.open(STORE_API_CACHE);
+  try {
+    const res = await fetch(req);
+    if (res.ok) cache.put(req, res.clone());
+    return res;
+  } catch {
+    const cached = await cache.match(req);
+    return cached || new Response('Store API unavailable', { status: 503, statusText: 'Service Unavailable' });
+  }
+}
+
+async function storeApiStaleWhileRevalidate(req) {
+  const cache = await caches.open(STORE_API_CACHE);
+  const cached = await cache.match(req);
+  const freshFetch = fetch(req)
+    .then((res) => {
+      if (res.ok) cache.put(req, res.clone());
+      return res;
+    })
+    .catch(() => null);
+
+  return cached || freshFetch.then((fresh) =>
+    fresh || new Response('Store API unavailable', { status: 503, statusText: 'Service Unavailable' })
+  );
+}
 
 // ============================================
 // 6. GESTION DES ERREURS

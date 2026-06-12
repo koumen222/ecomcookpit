@@ -325,30 +325,143 @@ const API_BASE = import.meta.env.VITE_STORE_API_URL
   || import.meta.env.VITE_BACKEND_URL
   || 'https://api.scalor.net';
 
+const PUBLIC_API_BASE = String(API_BASE).replace(/\/+$/, '');
+
 const publicApi = axios.create({
-  baseURL: `${API_BASE}/api/store`,
+  baseURL: `${PUBLIC_API_BASE}/api/store`,
   timeout: 15000,
   headers: { 'Content-Type': 'application/json' }
 });
 
+const publicResponseCache = new Map();
+const publicInflightRequests = new Map();
+
+const PUBLIC_TTL = {
+  store: 45_000,
+  productPage: 60_000,
+  products: 45_000,
+  product: 60_000,
+  categories: 10 * 60_000,
+  deliveryZones: 10 * 60_000,
+};
+
+function stableParamsKey(params = {}) {
+  return Object.entries(params || {})
+    .filter(([key]) => key !== '_fresh' && key !== '_ts')
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([key, value]) => `${key}=${Array.isArray(value) ? value.join(',') : String(value ?? '')}`)
+    .join('&');
+}
+
+function getCachedPublicResponse(key) {
+  const entry = publicResponseCache.get(key);
+  if (!entry) return null;
+  if (Date.now() > entry.expiresAt) {
+    publicResponseCache.delete(key);
+    return null;
+  }
+  return entry.response;
+}
+
+function setCachedPublicResponse(key, response, ttlMs) {
+  publicResponseCache.set(key, { response, expiresAt: Date.now() + ttlMs });
+}
+
+function withFreshBypass(config = {}, force = false) {
+  if (!force) return config;
+  return {
+    ...config,
+    params: { ...(config.params || {}), _fresh: Date.now() },
+    headers: {
+      ...(config.headers || {}),
+      'Cache-Control': 'no-cache',
+      Pragma: 'no-cache',
+    },
+  };
+}
+
+function cachedPublicGet(key, ttlMs, requestFactory, options = {}) {
+  const force = options?.force === true;
+  if (!force) {
+    const cached = getCachedPublicResponse(key);
+    if (cached) return Promise.resolve(cached);
+  }
+
+  const inflightKey = force ? `fresh:${key}` : key;
+  if (publicInflightRequests.has(inflightKey)) {
+    return publicInflightRequests.get(inflightKey);
+  }
+
+  const request = requestFactory(force)
+    .then((response) => {
+      if (response?.status === 200 && response?.data?.success !== false) {
+        setCachedPublicResponse(key, response, ttlMs);
+      }
+      return response;
+    })
+    .finally(() => {
+      publicInflightRequests.delete(inflightKey);
+    });
+
+  publicInflightRequests.set(inflightKey, request);
+  return request;
+}
+
+export function invalidatePublicStoreApiCache(subdomain) {
+  const prefix = subdomain ? `${String(subdomain).toLowerCase().trim()}:` : '';
+  for (const key of publicResponseCache.keys()) {
+    if (!prefix || key.startsWith(prefix)) publicResponseCache.delete(key);
+  }
+}
+
 export const publicStoreApi = {
   // Get store config + initial products (single call — optimized for African markets)
-  getStore: (subdomain) => publicApi.get(`/${subdomain}`),
+  getStore: (subdomain, options = {}) => cachedPublicGet(
+    `${String(subdomain).toLowerCase()}:store`,
+    PUBLIC_TTL.store,
+    (force) => publicApi.get(`/${subdomain}`, withFreshBypass({}, force)),
+    options
+  ),
 
   // Get store config + full product in one round-trip (use on product pages)
-  getProductPage: (subdomain, slug) => publicApi.get(`/${subdomain}/product-page/${slug}`),
+  getProductPage: (subdomain, slug, options = {}) => cachedPublicGet(
+    `${String(subdomain).toLowerCase()}:product-page:${slug}`,
+    PUBLIC_TTL.productPage,
+    (force) => publicApi.get(`/${subdomain}/product-page/${slug}`, withFreshBypass({}, force)),
+    options
+  ),
 
   // Get published products (paginated, filtered)
-  getProducts: (subdomain, params = {}) => publicApi.get(`/${subdomain}/products`, { params }),
+  getProducts: (subdomain, params = {}, options = {}) => cachedPublicGet(
+    `${String(subdomain).toLowerCase()}:products:${stableParamsKey(params)}`,
+    PUBLIC_TTL.products,
+    (force) => publicApi.get(`/${subdomain}/products`, withFreshBypass({ params }, force)),
+    options
+  ),
 
   // Get single product by slug
-  getProduct: (subdomain, slug) => publicApi.get(`/${subdomain}/products/${slug}`),
+  getProduct: (subdomain, slug, options = {}) => cachedPublicGet(
+    `${String(subdomain).toLowerCase()}:product:${slug}`,
+    PUBLIC_TTL.product,
+    (force) => publicApi.get(`/${subdomain}/products/${slug}`, withFreshBypass({}, force)),
+    options
+  ),
 
   // Get store categories
-  getCategories: (subdomain) => publicApi.get(`/${subdomain}/categories`),
+  getCategories: (subdomain, options = {}) => cachedPublicGet(
+    `${String(subdomain).toLowerCase()}:categories`,
+    PUBLIC_TTL.categories,
+    (force) => publicApi.get(`/${subdomain}/categories`, withFreshBypass({}, force)),
+    options
+  ),
 
   // Get delivery zones for checkout
-  getDeliveryZones: (subdomain) => publicApi.get(`/${subdomain}/delivery-zones`),
+  getDeliveryZones: (subdomain, options = {}) => cachedPublicGet(
+    `${String(subdomain).toLowerCase()}:delivery-zones`,
+    PUBLIC_TTL.deliveryZones,
+    (force) => publicApi.get(`/${subdomain}/delivery-zones`, withFreshBypass({}, force)),
+    options
+  ),
 
   // Server-side tracking bridge (Meta CAPI dedup)
   trackEvent: (subdomain, payload) => publicApi.post(`/${subdomain}/track`, payload),

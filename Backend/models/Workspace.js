@@ -369,5 +369,6 @@ workspaceSchema.index({ createdAt: -1 }); // tri super-admin
 workspaceSchema.index({ subdomain: 1 }, { unique: true, sparse: true });
 // Compound index for resolveWorkspace middleware query
 workspaceSchema.index({ subdomain: 1, isActive: 1, 'storeSettings.isStoreEnabled': 1 });
+workspaceSchema.index({ 'storeDomains.customDomain': 1, isActive: 1, 'storeSettings.isStoreEnabled': 1 });
 
 export default mongoose.model('EcomWorkspace', workspaceSchema);

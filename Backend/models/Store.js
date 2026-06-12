@@ -79,5 +79,6 @@ const storeSchema = new mongoose.Schema({
 
 storeSchema.index({ workspaceId: 1, isActive: 1 });
 storeSchema.index({ subdomain: 1, isActive: 1, 'storeSettings.isStoreEnabled': 1 });
+storeSchema.index({ 'storeDomains.customDomain': 1, isActive: 1, 'storeSettings.isStoreEnabled': 1 });
 
 export default mongoose.model('Store', storeSchema);

@@ -2,12 +2,14 @@ import express from 'express';
 import mongoose from 'mongoose';
 import multer from 'multer';
 import StoreProduct from '../models/StoreProduct.js';
+import Store from '../models/Store.js';
 import Product from '../models/Product.js';
 import EcomWorkspace from '../models/Workspace.js';
 import { requireEcomAuth, requireWorkspace } from '../middleware/ecomAuth.js';
 import { requireStoreOwner } from '../middleware/storeAuth.js';
 import { checkPlanLimit } from '../middleware/planLimits.js';
 import { emitStoreUpdate } from '../services/socketService.js';
+import { invalidateStoreCache } from './storeApi.js';
 import { uploadImage, isConfigured } from '../services/cloudflareImagesService.js';
 import { generateProductBonusEbook } from '../services/productPageGeneratorService.js';
 import { createAndStoreEbookPdf } from '../services/ebookPdfService.js';
@@ -35,6 +37,26 @@ function buildStoreFilter(req) {
     return { ...base, storeId: req.activeStoreId };
   }
   return base;
+}
+
+async function resolveStoreSubdomainForMutation(req, product = null) {
+  const storeId = req.activeStoreId || product?.storeId || null;
+  if (storeId) {
+    const store = await Store.findById(storeId).select('subdomain').lean().catch(() => null);
+    if (store?.subdomain) return store.subdomain;
+  }
+
+  if (req.store?.subdomain) return req.store.subdomain;
+
+  const workspace = await EcomWorkspace.findById(req.workspaceId).select('subdomain').lean().catch(() => null);
+  return workspace?.subdomain || null;
+}
+
+async function invalidatePublicStorefrontForMutation(req, product = null) {
+  const subdomain = await resolveStoreSubdomainForMutation(req, product);
+  if (!subdomain) return;
+  invalidateStoreCache(subdomain);
+  emitStoreUpdate(subdomain);
 }
 
 const SHOPIFY_TEMPLATE_COLUMNS = [
@@ -1855,6 +1877,8 @@ router.post('/', requireEcomAuth, requireWorkspace, requireStoreOwner, checkPlan
       throw error;
     }
 
+    await invalidatePublicStorefrontForMutation(req, product);
+
     res.status(201).json({
       success: true,
       message: 'Produit créé avec succès',
@@ -1960,10 +1984,7 @@ router.put('/:id', requireEcomAuth, requireWorkspace, requireStoreOwner, async (
     }
 
     // Notify storefront visitors in real-time
-    try {
-      const subdomain = req.store?.subdomain || null;
-      if (subdomain) emitStoreUpdate(subdomain);
-    } catch {}
+    await invalidatePublicStorefrontForMutation(req, product);
 
     res.json({
       success: true,
@@ -2006,6 +2027,8 @@ router.delete('/:id', requireEcomAuth, requireWorkspace, requireStoreOwner, asyn
     if (!result) {
       return res.status(404).json({ success: false, message: 'Produit introuvable' });
     }
+
+    await invalidatePublicStorefrontForMutation(req, result);
 
     res.json({ success: true, message: 'Produit supprimé' });
   } catch (error) {
@@ -2088,6 +2111,7 @@ router.post('/:id/duplicate', requireEcomAuth, requireWorkspace, requireStoreOwn
     });
 
     await cloned.save();
+    await invalidatePublicStorefrontForMutation(req, cloned);
 
     res.status(201).json({
       success: true,
