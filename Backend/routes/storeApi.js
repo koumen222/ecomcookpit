@@ -78,10 +78,10 @@ const STORE_CACHE_TTL = 120_000;
 const storeCache = new Map(); // subdomain → { data, expiresAt }
 const responseCache = new Map(); // key → { data, expiresAt }
 
-const PUBLIC_HOME_CACHE_TTL = 90_000;
-const PUBLIC_PRODUCTS_CACHE_TTL = 90_000;
-const PUBLIC_PRODUCT_PAGE_CACHE_TTL = 120_000;
-const PUBLIC_CATEGORIES_CACHE_TTL = 10 * 60_000;
+const PUBLIC_HOME_CACHE_TTL = 3 * 60_000;       // 3 min
+const PUBLIC_PRODUCTS_CACHE_TTL = 3 * 60_000;   // 3 min
+const PUBLIC_PRODUCT_PAGE_CACHE_TTL = 5 * 60_000; // 5 min (invalidé immédiatement sur save admin)
+const PUBLIC_CATEGORIES_CACHE_TTL = 15 * 60_000;  // 15 min
 
 function normalizeSubdomainKey(subdomain) {
   return String(subdomain || '').toLowerCase().trim();
@@ -762,22 +762,27 @@ router.get('/:subdomain/product-page/:slug', readLimiter, async (req, res) => {
       isPublished: true,
     };
 
-    // Run product fetch first (need _id for QuantityOffer), but build qty query after
-    const product = await StoreProduct.findOne(productFilter)
-      .select('name slug description price compareAtPrice currency country targetMarket city locale stock images category tags seoTitle seoDescription features faq testimonials _pageData productPageConfig')
-      .lean();
+    // Résoudre l'_id du produit d'abord (requête ultra-légère sur index slug),
+    // puis lancer le chargement complet + QuantityOffer en parallèle.
+    const productIdDoc = await StoreProduct.findOne(productFilter).select('_id').lean();
+    if (!productIdDoc) {
+      return res.status(404).json({ success: false, message: 'Product not found' });
+    }
+
+    const [product, quantityOffer] = await Promise.all([
+      StoreProduct.findById(productIdDoc._id)
+        .select('name slug description price compareAtPrice currency country targetMarket city locale stock images category tags seoTitle seoDescription features faq testimonials _pageData productPageConfig')
+        .lean(),
+      QuantityOffer.findOne({
+        workspaceId: workspace._workspaceId || workspace._id,
+        productId: productIdDoc._id,
+        isActive: true,
+      }).select('offers design productId').sort({ createdAt: -1 }).lean(),
+    ]);
 
     if (!product) {
       return res.status(404).json({ success: false, message: 'Product not found' });
     }
-
-    const [quantityOffer] = await Promise.all([
-      QuantityOffer.findOne({
-        workspaceId: workspace._workspaceId || workspace._id,
-        productId: product._id,
-        isActive: true,
-      }).select('offers design productId').sort({ createdAt: -1 }).lean(),
-    ]);
 
     const settings = workspace.storeSettings || {};
     const theme = workspace.storeTheme || {};
@@ -834,9 +839,9 @@ router.get('/:subdomain/product-page/:slug', readLimiter, async (req, res) => {
       if (quantityOffer.design) productData.quantityOfferDesign = quantityOffer.design;
     }
 
-    // 60s CDN cache + stale-while-revalidate=600s: repeat visits are instant,
-    // changes appear within 60s (or immediately on next background revalidation).
-    setCacheHeaders(res, 60);
+    // 5min CDN cache + stale-while-revalidate=3600s.
+    // invalidateStoreCache() est appelé immédiatement sur save admin → pas de données périmées.
+    setCacheHeaders(res, 300);
 
     const payload = {
       success: true,

@@ -178,7 +178,7 @@ function scheduleIdle(callback, timeout = 2500) {
 //   so CDN/browser layer handles repeat visitors at the network level.
 // - On admin save, both server caches are explicitly invalidated.
 const _productPageCache = new Map(); // key → { data, expiresAt }
-const _PP_TTL = 120_000;
+const _PP_TTL = 5 * 60_000; // 5 min — aligné sur s-maxage serveur
 
 function _ppGet(key) {
   const e = _productPageCache.get(key);
@@ -389,16 +389,20 @@ export function useStoreProduct(subdomain, slug) {
           setStoreFooter(footerData);
           setProduct(productData);
           if (!cancelled) setLoading(false);
-          // Revalidate in background and hydrate any late fields (quantity offers, footer, pixels).
-          publicStoreApi.getProductPage(subdomain, slug, { force: true }).then(pageRes => {
+          // Revalidation silencieuse SANS force — utilise le cache serveur (s-maxage=300s).
+          // force: true bypassait Cloudflare et frappait MongoDB à chaque visite.
+          scheduleIdle(() => {
             if (cancelled) return;
-            const d = pageRes?.data?.data || {};
-            _ppSet(cacheKey, d);
-            if (d.store) { injectStoreCssVars(d.store); setStore(d.store); }
-            if (d.product) setProduct(d.product);
-            if (d.pixels !== undefined) setPixels(d.pixels);
-            if (d.footer !== undefined) setStoreFooter(d.footer);
-          }).catch(() => {});
+            publicStoreApi.getProductPage(subdomain, slug).then(pageRes => {
+              if (cancelled) return;
+              const d = pageRes?.data?.data || {};
+              _ppSet(cacheKey, d);
+              if (d.store) { injectStoreCssVars(d.store); setStore(d.store); }
+              if (d.product) setProduct(d.product);
+              if (d.pixels !== undefined) setPixels(d.pixels);
+              if (d.footer !== undefined) setStoreFooter(d.footer);
+            }).catch(() => {});
+          }, 4000);
           return;
         }
 

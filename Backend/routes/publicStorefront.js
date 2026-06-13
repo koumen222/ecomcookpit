@@ -612,11 +612,12 @@ async function fetchInitialData(routeContext) {
 
       let quantityOfferData = null;
       if (product?._id) {
+        // Lancer en parallèle sans attendre — non-bloquant pour le rendu initial
         const qo = await QuantityOffer.findOne({
           workspaceId: workspace._workspaceId,
           productId: product._id,
           isActive: true,
-        }).select('offers design').sort({ createdAt: -1 }).lean().maxTimeMS(800);
+        }).select('offers design productId').sort({ createdAt: -1 }).lean().maxTimeMS(600);
         if (qo?.offers?.length > 0) {
           quantityOfferData = {
             offers: qo.offers.map((o, i) => ({
