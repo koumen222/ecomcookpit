@@ -146,7 +146,7 @@ const storeProductSchema = new mongoose.Schema({
   testimonials: {
     type: [{
       name: { type: String, required: true },
-      text: { type: String, required: true, maxlength: 500 },
+      text: { type: String, required: true, maxlength: 2000 },
       rating: { type: Number, min: 1, max: 5, default: 5 },
       image: { type: String, default: '' },
       location: { type: String, default: '' },

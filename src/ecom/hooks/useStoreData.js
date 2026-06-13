@@ -178,7 +178,7 @@ function scheduleIdle(callback, timeout = 2500) {
 //   so CDN/browser layer handles repeat visitors at the network level.
 // - On admin save, both server caches are explicitly invalidated.
 const _productPageCache = new Map(); // key → { data, expiresAt }
-const _PP_TTL = 15_000;
+const _PP_TTL = 120_000;
 
 function _ppGet(key) {
   const e = _productPageCache.get(key);
@@ -286,7 +286,7 @@ export function useStoreData(subdomain) {
 
     if (bootstrap?.store) {
       setLoading(false);
-      cancelIdleRefetch = scheduleIdle(() => load({ force: true }), 3500);
+      cancelIdleRefetch = scheduleIdle(() => load({ force: true }), 6000);
     } else {
       load();
     }
@@ -443,7 +443,7 @@ export function useStoreProduct(subdomain, slug) {
     }
 
     if (hasBootstrap) {
-      cancelIdleRefetch = scheduleIdle(() => load({ force: true, useCache: false }), 2200);
+      cancelIdleRefetch = scheduleIdle(() => load({ force: true, useCache: false }), 5000);
     } else {
       load();
     }

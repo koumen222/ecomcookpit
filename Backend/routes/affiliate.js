@@ -493,6 +493,123 @@ router.get('/conversions', requireAffiliateAuth, async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 // Super admin management
 // ─────────────────────────────────────────────────────────────────────────────
+
+// Overview: KPIs globaux + clics par jour + top affiliés
+router.get('/admin/overview', requireEcomAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const start30d = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+    const [
+      totalAffiliates,
+      activeAffiliates,
+      newToday,
+      conversionsToday,
+      conversionsPending,
+      clicksByDay,
+      // Clics totaux + clics du jour depuis AffiliateLink.clickCount (source de vérité)
+      clickAggregates,
+      // Top 10 affiliés par sum(clickCount) sur leurs liens
+      topAffiliates
+    ] = await Promise.all([
+      AffiliateUser.countDocuments(),
+      AffiliateUser.countDocuments({ isActive: true }),
+      AffiliateUser.countDocuments({ createdAt: { $gte: startOfToday } }),
+      AffiliateConversion.countDocuments({ createdAt: { $gte: startOfToday } }),
+      AffiliateConversion.countDocuments({ status: 'pending' }),
+      // Graphique clics par jour : AffiliateClick (seule collection avec timestamp par clic)
+      AffiliateClick.aggregate([
+        { $match: { createdAt: { $gte: start30d } } },
+        {
+          $group: {
+            _id: {
+              y: { $year: '$createdAt' },
+              m: { $month: '$createdAt' },
+              d: { $dayOfMonth: '$createdAt' }
+            },
+            clicks: { $sum: 1 }
+          }
+        },
+        { $sort: { '_id.y': 1, '_id.m': 1, '_id.d': 1 } }
+      ]),
+      // Clics totaux et du jour depuis la même source que le portail affilié
+      AffiliateLink.aggregate([
+        {
+          $group: {
+            _id: null,
+            clicksTotal: { $sum: '$clickCount' }
+          }
+        }
+      ]),
+      // Top 10 affiliés par sum(clickCount) sur leurs liens
+      AffiliateLink.aggregate([
+        { $group: { _id: '$affiliateId', totalClicks: { $sum: '$clickCount' } } },
+        { $sort: { totalClicks: -1 } },
+        { $limit: 10 },
+        {
+          $lookup: {
+            from: 'affiliate_users',
+            localField: '_id',
+            foreignField: '_id',
+            as: 'affiliate'
+          }
+        },
+        { $unwind: { path: '$affiliate', preserveNullAndEmptyArrays: true } },
+        {
+          $lookup: {
+            from: 'affiliate_conversions',
+            localField: '_id',
+            foreignField: 'affiliateId',
+            as: 'conversions'
+          }
+        },
+        {
+          $project: {
+            affiliateId: '$_id',
+            name: '$affiliate.name',
+            email: '$affiliate.email',
+            referralCode: '$affiliate.referralCode',
+            isActive: '$affiliate.isActive',
+            totalClicks: 1,
+            totalConversions: { $size: '$conversions' },
+            totalCommissions: { $sum: '$conversions.commissionAmount' }
+          }
+        }
+      ])
+    ]);
+
+    const clicksTotal = clickAggregates[0]?.clicksTotal || 0;
+    // Clics du jour : depuis AffiliateClick (timestampé) — cohérent avec le graphique
+    const clicksToday = await AffiliateClick.countDocuments({ createdAt: { $gte: startOfToday } });
+
+    const clicksByDayFormatted = clicksByDay.map((d) => ({
+      date: `${d._id.y}-${String(d._id.m).padStart(2, '0')}-${String(d._id.d).padStart(2, '0')}`,
+      clicks: d.clicks
+    }));
+
+    return res.json({
+      success: true,
+      data: {
+        kpis: {
+          totalAffiliates,
+          activeAffiliates,
+          newToday,
+          clicksToday,
+          clicksTotal,
+          conversionsToday,
+          conversionsPending
+        },
+        clicksByDay: clicksByDayFormatted,
+        topAffiliates
+      }
+    });
+  } catch (error) {
+    console.error('affiliate admin overview error:', error);
+    return res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
 router.get('/admin/config', requireEcomAuth, requireSuperAdmin, async (req, res) => {
   const config = await getAffiliateConfig();
   return res.json({ success: true, data: config });
@@ -534,13 +651,20 @@ router.put('/admin/config', requireEcomAuth, requireSuperAdmin, async (req, res)
 router.get('/admin/affiliates', requireEcomAuth, requireSuperAdmin, async (req, res) => {
   const affiliates = await AffiliateUser.find().sort({ createdAt: -1 }).lean();
 
-  // Aggregate stats per affiliate in parallel
   const affiliateIds = affiliates.map((a) => a._id);
 
-  const [clickStats, conversionStats, linkStats] = await Promise.all([
-    AffiliateClick.aggregate([
+  const [linkStats, conversionStats] = await Promise.all([
+    // Source de vérité pour les clics : sum(clickCount) sur AffiliateLink
+    // C'est la même valeur que voit l'affilié dans son portail
+    AffiliateLink.aggregate([
       { $match: { affiliateId: { $in: affiliateIds } } },
-      { $group: { _id: '$affiliateId', totalClicks: { $sum: 1 } } }
+      {
+        $group: {
+          _id: '$affiliateId',
+          totalClicks: { $sum: '$clickCount' },
+          totalLinks: { $sum: 1 }
+        }
+      }
     ]),
     AffiliateConversion.aggregate([
       { $match: { affiliateId: { $in: affiliateIds } } },
@@ -561,27 +685,24 @@ router.get('/admin/affiliates', requireEcomAuth, requireSuperAdmin, async (req, 
           }
         }
       }
-    ]),
-    AffiliateLink.aggregate([
-      { $match: { affiliateId: { $in: affiliateIds } } },
-      { $group: { _id: '$affiliateId', totalLinks: { $sum: 1 } } }
     ])
   ]);
 
-  const clickMap = Object.fromEntries(clickStats.map((s) => [String(s._id), s]));
-  const convMap = Object.fromEntries(conversionStats.map((s) => [String(s._id), s]));
   const linkMap = Object.fromEntries(linkStats.map((s) => [String(s._id), s]));
+  const convMap = Object.fromEntries(conversionStats.map((s) => [String(s._id), s]));
 
   const data = affiliates.map((a) => {
     const id = String(a._id);
-    const clicks = clickMap[id] || {};
-    const conv = convMap[id] || {};
     const links = linkMap[id] || {};
+    const conv = convMap[id] || {};
+    const totalClicks = links.totalClicks || 0;
+    const totalConversions = conv.totalConversions || 0;
     return {
       ...sanitizeAffiliate(a),
       stats: {
-        totalClicks: clicks.totalClicks || 0,
-        totalConversions: conv.totalConversions || 0,
+        totalClicks,
+        totalConversions,
+        conversionRate: totalClicks > 0 ? Number(((totalConversions / totalClicks) * 100).toFixed(2)) : 0,
         totalSales: conv.totalSales || 0,
         totalCommissions: conv.totalCommissions || 0,
         pendingCommissions: conv.pendingCommissions || 0,

@@ -1,6 +1,7 @@
 import ecomApi from './ecommApi.js';
 
 export const affiliateAdminApi = {
+  getOverview: () => ecomApi.get('/affiliates/admin/overview'),
   getConfig: () => ecomApi.get('/affiliates/admin/config'),
   updateConfig: (payload) => ecomApi.put('/affiliates/admin/config', payload),
   getAffiliates: () => ecomApi.get('/affiliates/admin/affiliates'),

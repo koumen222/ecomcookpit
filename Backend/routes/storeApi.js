@@ -73,14 +73,14 @@ const trackLimiter = rateLimit({
 });
 
 // In-process store resolver cache: avoids hitting Mongo for the same subdomain
-// during bursts of page/API requests.
-const STORE_CACHE_TTL = 20_000;
+// during bursts of page/API requests. Admin saves call invalidateStoreCache() instantly.
+const STORE_CACHE_TTL = 120_000;
 const storeCache = new Map(); // subdomain → { data, expiresAt }
 const responseCache = new Map(); // key → { data, expiresAt }
 
-const PUBLIC_HOME_CACHE_TTL = 45_000;
-const PUBLIC_PRODUCTS_CACHE_TTL = 45_000;
-const PUBLIC_PRODUCT_PAGE_CACHE_TTL = 60_000;
+const PUBLIC_HOME_CACHE_TTL = 90_000;
+const PUBLIC_PRODUCTS_CACHE_TTL = 90_000;
+const PUBLIC_PRODUCT_PAGE_CACHE_TTL = 120_000;
 const PUBLIC_CATEGORIES_CACHE_TTL = 10 * 60_000;
 
 function normalizeSubdomainKey(subdomain) {

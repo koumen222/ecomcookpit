@@ -34,6 +34,7 @@ import fs from 'fs';
 import EcomWorkspace from '../models/Workspace.js';
 import Store from '../models/Store.js';
 import StoreProduct from '../models/StoreProduct.js';
+import QuantityOffer from '../models/QuantityOffer.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -452,10 +453,10 @@ async function resolveRequestMeta(req, routeContext = resolveStoreRouteContext(r
   return meta;
 }
 
-// In-process store resolver cache: 20s TTL — same as storeApi.
-// Admin saves call invalidateStoreCache() which clears both caches instantly.
+// In-process store resolver cache: 2min TTL.
+// Admin saves call invalidateStorefrontCache() which clears it instantly.
 const _sfCache = new Map();
-const _SF_TTL = 20_000;
+const _SF_TTL = 120_000;
 function _sfGet(subdomain) {
   const e = _sfCache.get(subdomain);
   if (!e) return null;
@@ -479,11 +480,11 @@ async function _resolveStoreFast(subdomain) {
   // temporairement" et ne renvoie PAS 404 — voir fetchInitialData).
   const queryWithRetry = async (model, filter, projection) => {
     try {
-      return await model.findOne(filter).select(projection).lean().maxTimeMS(3000);
+      return await model.findOne(filter).select(projection).lean().maxTimeMS(1500);
     } catch (err) {
       console.warn(`[resolver] ${model.modelName} query failed (${err.message}), retrying once...`);
       await new Promise(r => setTimeout(r, 300));
-      return await model.findOne(filter).select(projection).lean().maxTimeMS(5000);
+      return await model.findOne(filter).select(projection).lean().maxTimeMS(3000);
     }
   };
 
@@ -609,11 +610,42 @@ async function fetchInitialData(routeContext) {
         .select('name slug description price compareAtPrice currency country targetMarket city locale stock images category tags seoTitle seoDescription features faq testimonials _pageData productPageConfig')
         .lean();
 
+      let quantityOfferData = null;
+      if (product?._id) {
+        const qo = await QuantityOffer.findOne({
+          workspaceId: workspace._workspaceId,
+          productId: product._id,
+          isActive: true,
+        }).select('offers design').sort({ createdAt: -1 }).lean().maxTimeMS(800);
+        if (qo?.offers?.length > 0) {
+          quantityOfferData = {
+            offers: qo.offers.map((o, i) => ({
+              qty: o.quantity,
+              price: o.price,
+              comparePrice: o.compare_price || 0,
+              badge: o.label || '',
+              selected: i === (qo.design?.highlight_offer ?? 0),
+            })),
+            design: qo.design || null,
+          };
+        }
+      }
+
+      const productWithOffers = product
+        ? {
+            ...product,
+            ...(quantityOfferData ? {
+              quantityOffers: quantityOfferData.offers,
+              ...(quantityOfferData.design ? { quantityOfferDesign: quantityOfferData.design } : {}),
+            } : {}),
+          }
+        : null;
+
       return {
         generatedAt: Date.now(),
         pageType: 'product',
         store: storePayload,
-        product: product || null,
+        product: productWithOffers,
         products: [],
       };
     }

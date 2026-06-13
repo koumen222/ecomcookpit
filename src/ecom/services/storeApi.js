@@ -337,10 +337,10 @@ const publicResponseCache = new Map();
 const publicInflightRequests = new Map();
 
 const PUBLIC_TTL = {
-  store: 45_000,
-  productPage: 60_000,
-  products: 45_000,
-  product: 60_000,
+  store: 90_000,
+  productPage: 120_000,
+  products: 90_000,
+  product: 120_000,
   categories: 10 * 60_000,
   deliveryZones: 10 * 60_000,
 };
