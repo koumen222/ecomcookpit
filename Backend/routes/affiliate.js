@@ -542,20 +542,10 @@ router.get('/admin/overview', requireEcomAuth, requireSuperAdmin, async (req, re
           }
         }
       ]),
-      // Top 10 affiliés par sum(clickCount) sur leurs liens
-      AffiliateLink.aggregate([
-        { $group: { _id: '$affiliateId', totalClicks: { $sum: '$clickCount' } } },
-        { $sort: { totalClicks: -1 } },
-        { $limit: 10 },
-        {
-          $lookup: {
-            from: 'affiliate_users',
-            localField: '_id',
-            foreignField: '_id',
-            as: 'affiliate'
-          }
-        },
-        { $unwind: { path: '$affiliate', preserveNullAndEmptyArrays: true } },
+      // Top 10 affiliés : triés par conversions desc, puis commissions desc
+      // Part des users pour inclure ceux qui ont des conversions sans clics trackés
+      AffiliateUser.aggregate([
+        { $match: { isActive: true } },
         {
           $lookup: {
             from: 'affiliate_conversions',
@@ -565,17 +555,29 @@ router.get('/admin/overview', requireEcomAuth, requireSuperAdmin, async (req, re
           }
         },
         {
+          $lookup: {
+            from: 'affiliate_links',
+            localField: '_id',
+            foreignField: 'affiliateId',
+            as: 'links'
+          }
+        },
+        {
           $project: {
             affiliateId: '$_id',
-            name: '$affiliate.name',
-            email: '$affiliate.email',
-            referralCode: '$affiliate.referralCode',
-            isActive: '$affiliate.isActive',
-            totalClicks: 1,
+            name: 1,
+            email: 1,
+            referralCode: 1,
+            isActive: 1,
+            totalClicks: { $sum: '$links.clickCount' },
             totalConversions: { $size: '$conversions' },
             totalCommissions: { $sum: '$conversions.commissionAmount' }
           }
-        }
+        },
+        // Garder seulement ceux qui ont au moins une activité
+        { $match: { $or: [{ totalConversions: { $gt: 0 } }, { totalClicks: { $gt: 0 } }] } },
+        { $sort: { totalConversions: -1, totalCommissions: -1, totalClicks: -1 } },
+        { $limit: 10 }
       ])
     ]);
 

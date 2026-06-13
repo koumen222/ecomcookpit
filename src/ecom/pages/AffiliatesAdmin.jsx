@@ -56,7 +56,7 @@ export default function AffiliatesAdmin() {
   const [affiliates, setAffiliates] = useState([]);
   const [conversions, setConversions] = useState([]);
   const [form, setForm] = useState({ name: '', email: '', password: '', commissionType: 'fixed', commissionValue: 500 });
-  const [sortBy, setSortBy] = useState('clicks');
+  const [sortBy, setSortBy] = useState('conversions');
 
   const load = async () => {
     setLoading(true);
@@ -126,9 +126,21 @@ export default function AffiliatesAdmin() {
   const sortedAffiliates = [...affiliates].sort((a, b) => {
     const sa = a.stats || {};
     const sb = b.stats || {};
-    if (sortBy === 'clicks') return (sb.totalClicks || 0) - (sa.totalClicks || 0);
-    if (sortBy === 'conversions') return (sb.totalConversions || 0) - (sa.totalConversions || 0);
-    if (sortBy === 'commissions') return (sb.totalCommissions || 0) - (sa.totalCommissions || 0);
+    if (sortBy === 'clicks') {
+      const diff = (sb.totalClicks || 0) - (sa.totalClicks || 0);
+      if (diff !== 0) return diff;
+      return (sb.totalConversions || 0) - (sa.totalConversions || 0);
+    }
+    if (sortBy === 'conversions') {
+      const diff = (sb.totalConversions || 0) - (sa.totalConversions || 0);
+      if (diff !== 0) return diff;
+      return (sb.totalCommissions || 0) - (sa.totalCommissions || 0);
+    }
+    if (sortBy === 'commissions') {
+      const diff = (sb.totalCommissions || 0) - (sa.totalCommissions || 0);
+      if (diff !== 0) return diff;
+      return (sb.totalConversions || 0) - (sa.totalConversions || 0);
+    }
     return 0;
   });
 
@@ -136,10 +148,15 @@ export default function AffiliatesAdmin() {
   const clicksByDay = overview?.clicksByDay || [];
   const topAffiliates = overview?.topAffiliates || [];
 
-  // Clics par affilié (bar chart depuis top affiliés)
+  // Bar chart top affiliés : clics si disponibles, sinon conversions
+  const allClicksZero = topAffiliates.every((a) => (a.totalClicks || 0) === 0);
+  const barMetric = allClicksZero ? 'conversions' : 'clicks';
   const clicksByAffiliate = topAffiliates
     .slice(0, 8)
-    .map((a) => ({ name: a.name?.split(' ')[0] || a.referralCode, clicks: a.totalClicks }));
+    .map((a) => ({
+      name: a.name?.split(' ')[0] || a.referralCode,
+      [barMetric]: allClicksZero ? (a.totalConversions || 0) : (a.totalClicks || 0)
+    }));
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 md:p-6">
@@ -228,9 +245,11 @@ export default function AffiliatesAdmin() {
                     )}
                   </div>
 
-                  {/* Clics par affilié */}
+                  {/* Top affiliés bar chart */}
                   <div className="bg-white border border-gray-200 rounded-xl p-4">
-                    <h2 className="text-sm font-semibold text-gray-700 mb-4">Top affiliés par clics</h2>
+                    <h2 className="text-sm font-semibold text-gray-700 mb-4">
+                      Top affiliés par {barMetric === 'clicks' ? 'clics' : 'conversions'}
+                    </h2>
                     {clicksByAffiliate.length === 0 ? (
                       <div className="h-48 flex items-center justify-center text-xs text-gray-400">Aucune donnée</div>
                     ) : (
@@ -240,7 +259,7 @@ export default function AffiliatesAdmin() {
                           <XAxis dataKey="name" tick={{ fontSize: 9, fill: '#9ca3af' }} />
                           <YAxis tick={{ fontSize: 9, fill: '#9ca3af' }} allowDecimals={false} />
                           <Tooltip content={<CustomTooltip />} />
-                          <Bar dataKey="clicks" name="Clics" radius={[4, 4, 0, 0]}>
+                          <Bar dataKey={barMetric} name={barMetric === 'clicks' ? 'Clics' : 'Conversions'} radius={[4, 4, 0, 0]}>
                             {clicksByAffiliate.map((_, i) => (
                               <Cell key={i} fill={i === 0 ? '#6366f1' : i === 1 ? '#8b5cf6' : '#a78bfa'} />
                             ))}
