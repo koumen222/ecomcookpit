@@ -245,7 +245,7 @@ const workspaceSchema = new mongoose.Schema({
   // Legacy fields (backward compat — still used for old single-tier flow)
   freeGenerationsRemaining: {
     type: Number,
-    default: 0,
+    default: 1,
     min: 0
   },
   totalGenerations: {

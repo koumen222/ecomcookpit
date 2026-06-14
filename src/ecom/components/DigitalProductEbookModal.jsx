@@ -256,19 +256,23 @@ const DigitalProductEbookModal = ({
   const [showPreview, setShowPreview] = useState(false);
   const [showGenerateForm, setShowGenerateForm] = useState(false);
   const [addAsOffer, setAddAsOffer] = useState(true);
+  const existingEbookRef = React.useRef(existingEbook);
+  existingEbookRef.current = existingEbook;
 
   useEffect(() => {
     if (!open) { setShowPreview(false); setShowGenerateForm(false); return; }
-    setAddAsOffer(existingEbook?.addAsOffer !== false);
+    const eb = existingEbookRef.current;
+    setAddAsOffer(eb?.addAsOffer !== false);
     setForm({
       ...initialForm,
-      theme: existingEbook?.title || '',
-      audience: existingEbook?.target_reader || '',
-      offerAngle: existingEbook?.main_promise || '',
-      accentColor: existingEbook?.cover?.color_palette?.[0] || '#0D9488',
-      coverStyle: existingEbook?.cover?.cover_style || 'light',
+      theme: eb?.title || '',
+      audience: eb?.target_reader || '',
+      offerAngle: eb?.main_promise || '',
+      accentColor: eb?.cover?.color_palette?.[0] || '#0D9488',
+      coverStyle: eb?.cover?.cover_style || 'light',
     });
-  }, [existingEbook, open]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   useEffect(() => { if (generatedResult) setShowPreview(true); }, [generatedResult]);
 

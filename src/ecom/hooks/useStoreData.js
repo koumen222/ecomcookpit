@@ -9,7 +9,7 @@
  * - AUCUN cache sessionStorage : on a eu trop de bugs "j'ai modifié, ça ne s'affiche pas".
  *   Mongo + index sur subdomain répond en quelques ms — la cohérence vaut le coût.
  */
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { publicStoreApi } from '../services/storeApi';
 import { normalizeHomepageSections } from '../utils/homepageSections';
 import { useStoreUpdates } from './useThemeSocket';
@@ -447,7 +447,8 @@ export function useStoreProduct(subdomain, slug) {
     }
 
     if (hasBootstrap) {
-      cancelIdleRefetch = scheduleIdle(() => load({ force: true, useCache: false }), 5000);
+      // Silent background revalidation — use server cache (s-maxage=300s), don't bypass
+      cancelIdleRefetch = scheduleIdle(() => load({ force: false, useCache: true }), 6000);
     } else {
       load();
     }
@@ -458,19 +459,25 @@ export function useStoreProduct(subdomain, slug) {
     };
   }, [subdomain, slug]);
 
-  // Refetch silently when admin saves any change
+  // Debounced refetch — prevents rapid re-renders during multi-step AI generation
+  // (each save emits store:updated; without debounce the page flickers on every step)
+  const refetchTimerRef = useRef(null);
   const refetch = useCallback(() => {
     if (!subdomain || !slug) return;
-    publicStoreApi.getProductPage(subdomain, slug, { force: true })
-      .then(res => {
-        const d = res?.data?.data || {};
-        _ppSet(`${subdomain}:${slug}`, d);
-        if (d.product) setProduct(d.product);
-        if (d.store) { injectStoreCssVars(d.store); setStore(d.store); }
-        if (d.pixels !== undefined) setPixels(d.pixels);
-        if (d.footer !== undefined) setStoreFooter(d.footer);
-      })
-      .catch(() => {});
+    if (refetchTimerRef.current) clearTimeout(refetchTimerRef.current);
+    refetchTimerRef.current = setTimeout(() => {
+      refetchTimerRef.current = null;
+      publicStoreApi.getProductPage(subdomain, slug, { force: true })
+        .then(res => {
+          const d = res?.data?.data || {};
+          _ppSet(`${subdomain}:${slug}`, d);
+          if (d.product) setProduct(d.product);
+          if (d.store) { injectStoreCssVars(d.store); setStore(d.store); }
+          if (d.pixels !== undefined) setPixels(d.pixels);
+          if (d.footer !== undefined) setStoreFooter(d.footer);
+        })
+        .catch(() => {});
+    }, 2000);
   }, [subdomain, slug]);
 
   useStoreUpdates(subdomain, refetch);

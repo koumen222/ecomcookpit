@@ -109,9 +109,19 @@ const ReportRow = ({ report, isAdmin, isCloseuse, fmt, onDelete }) => {
 
       {/* Product name + secondary info */}
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-gray-900 truncate">
-          {report.productId?.name || 'Produit inconnu'}
-        </p>
+        {report.productId?._id ? (
+          <Link
+            to={`/ecom/reports/product/${report.productId._id}`}
+            onClick={(e) => e.stopPropagation()}
+            className={`text-sm font-semibold text-gray-900 truncate block hover:text-primary-600 hover:underline underline-offset-2 ${T}`}
+          >
+            {report.productId?.name || 'Produit inconnu'}
+          </Link>
+        ) : (
+          <p className="text-sm font-semibold text-gray-900 truncate">
+            {report.productId?.name || 'Produit inconnu'}
+          </p>
+        )}
         <p className="text-xs text-gray-500 mt-0.5 tabular-nums">
           {report.ordersDelivered}/{report.ordersReceived} livrées · {rate}%
         </p>
@@ -453,7 +463,8 @@ const ReportsList = () => {
   const topProducts = useMemo(() => {
     const map = reports.reduce((acc, r) => {
       const name = r.productId?.name || 'Produit inconnu';
-      if (!acc[name]) acc[name] = { productName: name, ordersDelivered: 0, revenue: 0 };
+      const pid = r.productId?._id || null;
+      if (!acc[name]) acc[name] = { productName: name, productId: pid, ordersDelivered: 0, revenue: 0 };
       acc[name].ordersDelivered += r.ordersDelivered || 0;
       acc[name].revenue += r.revenue || 0;
       return acc;
@@ -674,8 +685,8 @@ const ReportsList = () => {
                 <div key={a.agencyName} className={`flex items-center gap-3 py-2 hover:bg-gray-50 -mx-2 px-2 rounded-lg ${T}`}>
                   <span className="w-4 shrink-0 flex justify-center"><Rank n={i + 1} /></span>
                   <span className="flex-1 min-w-0 text-sm text-gray-900 truncate">{a.agencyName}</span>
-                  <span className="text-xs text-gray-400 tabular-nums">{a.ordersDelivered}</span>
-                  <span className="text-sm font-medium text-gray-900 tabular-nums shrink-0">{fmt(a.avgCostPerDelivery)}</span>
+                  <span className="text-xs text-gray-400 tabular-nums">{a.ordersDelivered} liv.</span>
+                  <span className="text-sm font-medium text-gray-900 tabular-nums shrink-0">{fmt(a.deliveryCost)}</span>
                 </div>
               )}
             />
@@ -684,7 +695,11 @@ const ReportsList = () => {
               link="/ecom/stats-rapports"
               items={topProducts}
               render={(p, i) => (
-                <div key={`${p.productName}-${i}`} className={`flex items-center gap-3 py-2 hover:bg-gray-50 -mx-2 px-2 rounded-lg ${T}`}>
+                <div
+                  key={`${p.productName}-${i}`}
+                  className={`flex items-center gap-3 py-2 hover:bg-gray-50 -mx-2 px-2 rounded-lg cursor-pointer ${T}`}
+                  onClick={() => p.productId && navigate(`/ecom/reports/product/${p.productId}`)}
+                >
                   <span className="w-4 shrink-0 flex justify-center"><Rank n={i + 1} /></span>
                   <span className="flex-1 min-w-0 text-sm text-gray-900 truncate">{p.productName}</span>
                   <span className="text-xs text-gray-400 tabular-nums">{p.ordersDelivered}</span>

@@ -170,7 +170,7 @@ const ReportDetail = () => {
               <div>
                 <label className="block text-sm font-medium text-gray-500">Produit</label>
                 {report.productId?._id ? (
-                  <Link to={`/products/${report.productId._id}`} className="text-lg text-primary-600 hover:text-primary-800 hover:underline">{report.productId.name}</Link>
+                  <Link to={`/ecom/reports/product/${report.productId._id}`} className="text-lg text-primary-600 hover:text-primary-800 hover:underline">{report.productId.name}</Link>
                 ) : (
                   <p className="text-lg text-gray-900">N/A</p>
                 )}

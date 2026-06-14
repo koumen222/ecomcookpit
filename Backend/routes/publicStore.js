@@ -444,6 +444,21 @@ router.post('/:subdomain/orders', orderLimiter, resolveStoreBySubdomain, async (
     }));
     await StoreProduct.bulkWrite(bulkOps);
 
+    // Décrémenter les StockLocations (sales += qty) — non bloquant, best-effort
+    setImmediate(async () => {
+      try {
+        const { decrementStockForDelivery } = await import('../services/stockService.js');
+        for (const p of orderProducts) {
+          await decrementStockForDelivery({
+            workspaceId: req.storeWorkspaceId,
+            productId: p.productId,
+            quantity: p.quantity || 1,
+            orderId: order._id,
+          }).catch(() => {});
+        }
+      } catch {}
+    });
+
     res.status(201).json({
       success: true,
       message: 'Commande passée avec succès',

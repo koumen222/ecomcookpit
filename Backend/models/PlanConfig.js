@@ -4,6 +4,7 @@ const PLAN_KEYS = ['free', 'starter', 'pro', 'ultra'];
 let _productLimitsMigrated = false;
 let _multiStoreMigrated = false;
 let _pricingV2Migrated = false;
+let _freePlanQuotaMigrated = false;
 
 const planConfigSchema = new mongoose.Schema({
   key: {
@@ -121,6 +122,22 @@ planConfigSchema.statics.seedDefaults = async function () {
         ],
       }});
     }
+    if (!_freePlanQuotaMigrated) {
+      _freePlanQuotaMigrated = true;
+      await this.updateOne({ key: 'free' }, { $set: {
+        'limits.maxOrders': 100,
+        'limits.maxAiPageCredits': 1,
+        'features.hasAiPageGen': true,
+      }});
+      await this.updateOne(
+        { key: 'free', featuresList: '50 commandes / mois' },
+        { $set: { 'featuresList.$': '100 commandes gratuites / mois' } }
+      );
+      await this.updateOne(
+        { key: 'free' },
+        { $addToSet: { featuresList: '1 crédit page produit IA offert' } }
+      );
+    }
     return;
   }
   const defaults = [
@@ -133,7 +150,7 @@ planConfigSchema.statics.seedDefaults = async function () {
       promoActive: false,
       order: 0,
       limits: {
-        maxOrders: 50,
+        maxOrders: 100,
         maxCustomers: 50,
         maxProducts: 10,
         maxStores: 1,
@@ -141,11 +158,11 @@ planConfigSchema.statics.seedDefaults = async function () {
         maxWhatsappInstances: 0,
         maxWhatsappMessagesPerDay: 0,
         maxWhatsappMessagesPerMonth: 0,
-        maxAiPageCredits: 0
+        maxAiPageCredits: 1
       },
       features: {
         hasAiAgent: false,
-        hasAiPageGen: false,
+        hasAiPageGen: true,
         hasPrioritySupport: false,
         hasApiWebhooks: false,
         hasMultiStore: false,
@@ -153,9 +170,10 @@ planConfigSchema.statics.seedDefaults = async function () {
         hasCustomStore: true
       },
       featuresList: [
-        '50 commandes / mois',
+        '100 commandes gratuites / mois',
         '50 clients max',
         '10 produits max',
+        '1 crédit page produit IA offert',
         'Tableau de bord basique',
         '1 boutique en ligne',
         '1 utilisateur'

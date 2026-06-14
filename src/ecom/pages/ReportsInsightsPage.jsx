@@ -189,8 +189,8 @@ const ReportsInsightsPage = () => {
                     <p className="text-xs text-gray-500">{agency.ordersDelivered} livrées • {agency.reportsCount} rapport{agency.reportsCount > 1 ? 's' : ''}</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-sm font-semibold text-primary-700">{fmt(agency.avgCostPerDelivery)}</p>
-                    <p className="text-xs text-gray-500">Coût moyen / livraison</p>
+                    <p className="text-sm font-semibold text-primary-700">{fmt(agency.deliveryCost)}</p>
+                    <p className="text-xs text-gray-500">Total livraisons</p>
                   </div>
                 </div>
               ))

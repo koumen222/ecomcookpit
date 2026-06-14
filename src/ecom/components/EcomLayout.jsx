@@ -1033,6 +1033,7 @@ const getPageTitle = (pathname) => {
   if (pathname.includes('/products') && pathname.includes('/edit')) return 'Modifier le produit';
   if (pathname.match(/\/products\/[a-f0-9]+$/)) return 'Détail du produit';
   if (pathname.includes('/products')) return 'Produits';
+  if (pathname.includes('/reports/product/')) return 'Stats produit';
   if (pathname.includes('/reports/new')) return 'Nouveau rapport';
   if (pathname.includes('/reports') && pathname.includes('/edit')) return 'Modifier le rapport';
   if (pathname.includes('/reports/')) return 'Détail du rapport';

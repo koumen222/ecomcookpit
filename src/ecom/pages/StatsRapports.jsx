@@ -257,7 +257,7 @@ const StatsRapports = () => {
                   {sorted.map((p, i) => {
                     const isProfit = (p.profit || 0) >= 0;
                     return (
-                      <tr key={p._id || i} className="hover:bg-gray-50 transition-colors border-b border-gray-50">
+                      <tr key={p._id || i} className="hover:bg-gray-50 transition-colors border-b border-gray-50 cursor-pointer" onClick={() => p._id && navigate(`/ecom/reports/product/${p._id}`)}>
                         <td className="py-3 px-4">
                           <RankBadge rank={i + 1} />
                         </td>

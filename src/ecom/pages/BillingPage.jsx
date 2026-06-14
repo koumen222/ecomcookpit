@@ -20,14 +20,15 @@ const BASE_PLAN_TIERS = [
     btnClass: 'bg-gray-600 hover:bg-gray-700 shadow-gray-500/25',
     free: true,
     features: [
-      { text: '50 commandes / mois', included: true },
+      { text: '100 commandes gratuites / mois', included: true },
       { text: '50 clients max', included: true },
       { text: '10 produits max', included: true },
+      { text: '1 crédit page produit IA offert', included: true },
       { text: 'Tableau de bord basique', included: true },
       { text: '1 boutique en ligne', included: true },
       { text: '1 utilisateur', included: true },
       { text: 'Agent IA WhatsApp', included: false },
-      { text: 'Génération de pages IA', included: false },
+      { text: 'Crédits IA supplémentaires', included: false },
       { text: 'Support prioritaire', included: false },
     ],
     durations: [

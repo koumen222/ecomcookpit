@@ -439,18 +439,33 @@ router.post('/', requireEcomAuth, validateEcomAccess('orders', 'write'), checkPl
     await order.save();
     memCache.delByPrefix(`stats:${req.workspaceId}`);
     memCache.delByPrefix(`filterOpts:${req.workspaceId}`);
-    
+
+    // Décrémenter les StockLocations si un produit est lié — non bloquant
+    if (order.productId) {
+      setImmediate(async () => {
+        try {
+          const { decrementStockForDelivery } = await import('../services/stockService.js');
+          await decrementStockForDelivery({
+            workspaceId: req.workspaceId,
+            productId: order.productId,
+            quantity: order.quantity || 1,
+            orderId: order._id,
+          }).catch(() => {});
+        } catch {}
+      });
+    }
+
     // Envoyer la notification WhatsApp automatiquement (au livreur)
     await sendOrderNotification(order, req.workspaceId);
-    
+
     // WhatsApp au client géré par le hook Order.post('save') → sendOrderClientMessage
-    
+
     // Notification interne
     notifyNewOrder(req.workspaceId, order).catch(() => {});
-    
+
     // Notification d'équipe (exclure l'acteur)
     notifyTeamOrderCreated(req.workspaceId, req.ecomUser._id, order, req.ecomUser.email).catch(() => {});
-    
+
     res.status(201).json({ success: true, message: 'Commande créée', data: order });
   } catch (error) {
     console.error('Erreur création commande:', error);
