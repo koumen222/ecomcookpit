@@ -28,13 +28,24 @@ import { formatMoney } from '../utils/currency.js';
 import { storeProductsApi } from '../services/storeApi.js';
 
 // ── Inline Image Editor (admin-only) ─────────────────────────────────────────
+const getPremiumMediaType = (url) => {
+  if (!url) return 'image';
+  const clean = url.split('?')[0].toLowerCase();
+  if (clean.endsWith('.gif')) return 'gif';
+  if (clean.endsWith('.mp4') || clean.endsWith('.webm') || clean.endsWith('.mov')) return 'video';
+  return 'image';
+};
+
 const EditableImage = ({ src, alt, style, className, imageKey, arrayIndex, productId, onImageUpdated, isAdmin }) => {
   const [uploading, setUploading] = useState(false);
   const inputRef = useRef(null);
+  const mediaType = getPremiumMediaType(src);
 
-  if (!isAdmin) {
-    return <img src={src} alt={alt} style={style} className={className} />;
-  }
+  const MediaEl = () => mediaType === 'video'
+    ? <video src={src} autoPlay loop muted playsInline style={style} className={className} />
+    : <img src={src} alt={alt} style={style} className={className} />;
+
+  if (!isAdmin) return <MediaEl />;
 
   const handleUpload = async (e) => {
     const file = e.target.files?.[0];
@@ -43,9 +54,7 @@ const EditableImage = ({ src, alt, style, className, imageKey, arrayIndex, produ
     try {
       const res = await storeProductsApi.uploadImages([file]);
       const url = res?.data?.data?.[0]?.url || res?.data?.[0]?.url || '';
-      if (url && onImageUpdated) {
-        onImageUpdated(imageKey, url, arrayIndex);
-      }
+      if (url && onImageUpdated) onImageUpdated(imageKey, url, arrayIndex);
     } catch (err) {
       console.error('Upload failed:', err);
     } finally {
@@ -56,8 +65,8 @@ const EditableImage = ({ src, alt, style, className, imageKey, arrayIndex, produ
 
   return (
     <div style={{ position: 'relative', display: 'inline-block', width: style?.width || '100%', height: style?.height || 'auto' }}>
-      <img src={src} alt={alt} style={style} className={className} />
-      <input type="file" ref={inputRef} onChange={handleUpload} accept="image/*" style={{ display: 'none' }} />
+      <MediaEl />
+      <input type="file" ref={inputRef} onChange={handleUpload} accept="image/*,image/gif,video/mp4,video/webm,video/quicktime" style={{ display: 'none' }} />
       <button
         onClick={(ev) => { ev.stopPropagation(); inputRef.current?.click(); }}
         style={{
@@ -70,7 +79,7 @@ const EditableImage = ({ src, alt, style, className, imageKey, arrayIndex, produ
           backdropFilter: 'blur(4px)',
           transition: 'background-color 0.15s',
         }}
-        title="Changer cette image"
+        title={mediaType === 'video' ? 'Changer cette vidéo' : 'Changer cette image'}
       >
         {uploading
           ? <Loader2 size={16} color="#fff" style={{ animation: 'spin 1s linear infinite' }} />
@@ -447,7 +456,7 @@ const StoreProductPagePremium = ({ product, store, productPageConfig, subdomain,
         .premium-carousel-track { display: flex; transition: transform .35s ease; }
         .premium-carousel-slide { min-width: 100%; flex: 0 0 100%; display: flex; align-items: center; justify-content: center; background: #fff; }
         .premium-carousel-slide { aspect-ratio: 1 / 1; }
-        .premium-carousel-slide img { width: 100%; height: 100%; object-fit: contain; display: block; }
+        .premium-carousel-slide img, .premium-carousel-slide video { width: 100%; height: 100%; object-fit: contain; display: block; }
         .premium-carousel-arrow { position: absolute; top: 50%; transform: translateY(-50%); width: 38px; height: 38px; border-radius: 999px; border: 0; background: rgba(255,255,255,0.92); box-shadow: 0 4px 14px rgba(0,0,0,0.12); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; color: #1f2933; z-index: 3; }
         .premium-carousel-arrow:hover { background: #fff; }
         .premium-carousel-arrow.prev { left: 10px; }

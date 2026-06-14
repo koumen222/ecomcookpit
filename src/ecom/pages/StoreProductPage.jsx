@@ -227,6 +227,75 @@ const optimizeImageUrl = (url, { width = 800, quality = 80 } = {}) => {
     return url;
   } catch { return url; }
 };
+
+// Detect media type from URL
+const getMediaType = (src) => {
+  if (!src) return 'image';
+  const clean = (src?.url || src || '').split('?')[0].toLowerCase();
+  if (clean.endsWith('.gif')) return 'gif';
+  if (clean.endsWith('.mp4') || clean.endsWith('.webm') || clean.endsWith('.mov') || clean.endsWith('.ogg')) return 'video';
+  return 'image';
+};
+
+// Unified media item renderer (image, gif, video) for galleries
+const MediaItem = ({ src, alt = '', style = {}, className = '', onClick, loading = 'lazy' }) => {
+  const url = src?.url || src || '';
+  const type = getMediaType(url);
+  if (type === 'video') {
+    return (
+      <video
+        src={url}
+        autoPlay
+        loop
+        muted
+        playsInline
+        style={{ ...style, objectFit: 'contain' }}
+        className={className}
+        onClick={onClick}
+      />
+    );
+  }
+  // gif: don't optimize (breaks animation), image: optimize
+  const displaySrc = type === 'gif' ? url : optimizeImageUrl(url, { width: 900, quality: 82 });
+  return (
+    <img
+      src={displaySrc}
+      alt={alt}
+      loading={loading}
+      fetchpriority={loading === 'eager' ? 'high' : undefined}
+      decoding="async"
+      style={{ ...style, objectFit: 'contain' }}
+      className={className}
+      onClick={onClick}
+    />
+  );
+};
+
+// Thumbnail for media items in galleries
+const MediaThumb = ({ src, active, borderRadius, onClick }) => {
+  const url = src?.url || src || '';
+  const type = getMediaType(url);
+  const thumbStyle = { width: '100%', height: '100%', objectFit: 'cover' };
+  return (
+    <button onClick={onClick} style={{
+      flexShrink: 0, width: 60, height: 60, overflow: 'hidden', padding: 0,
+      border: '2.5px solid', borderColor: active ? 'var(--s-primary)' : 'transparent',
+      cursor: 'pointer', transition: 'border-color 0.15s', backgroundColor: '#f4f4f5', borderRadius,
+      position: 'relative',
+    }}>
+      {type === 'video' ? (
+        <>
+          <video src={url} muted style={thumbStyle} />
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.25)' }}>
+            <svg width="16" height="16" fill="white" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+          </div>
+        </>
+      ) : (
+        <img src={type === 'gif' ? url : optimizeImageUrl(url, { width: 120, quality: 75 })} alt="" loading="lazy" style={thumbStyle} />
+      )}
+    </button>
+  );
+};
 const ImageGallery = ({ images = [], design = {} }) => {
   const [active, setActive] = useState(0);
   const [zoomed, setZoomed] = useState(false);
@@ -261,47 +330,52 @@ const ImageGallery = ({ images = [], design = {} }) => {
   );
 
   const activeSrc = images[active]?.url || images[active];
+  const activeMediaType = getMediaType(activeSrc);
   const activeRatio = clampDisplayAspectRatio(ratios[activeSrc] || 1);
   const activeAspectRatio = GALLERY_RATIO_PRESETS[design.imageRatio] || activeRatio;
+  const canZoom = zoomEnabled && activeMediaType !== 'video';
 
   return (
     <div>
-      {/* Main image */}
+      {/* Main media */}
       <div
         style={{
           position: 'relative', aspectRatio: activeAspectRatio,
           backgroundColor: '#f4f4f5', overflow: 'hidden', borderRadius,
-          minHeight: 'min(280px, 70vw)',
-          maxHeight: '75vh',
-          cursor: zoomEnabled ? 'zoom-in' : 'default',
+          minHeight: 'min(280px, 70vw)', maxHeight: '75vh',
+          cursor: canZoom ? 'zoom-in' : 'default',
         }}
-        onClick={zoomEnabled ? () => setZoomed(true) : undefined}
+        onClick={canZoom ? () => setZoomed(true) : undefined}
         onTouchStart={onTouchStart}
         onTouchEnd={onTouchEnd}
       >
-        <img
-          src={optimizeImageUrl(activeSrc, { width: 900, quality: 82 })}
-          alt={images[active]?.alt || ''}
-          loading="eager"
-          fetchpriority="high"
-          decoding="async"
-          sizes="(max-width: 768px) 100vw, 50vw"
-          onLoad={(e) => {
-            const img = e.currentTarget;
-            const w = img.naturalWidth || 0;
-            const h = img.naturalHeight || 0;
-            if (!activeSrc || !w || !h) return;
-            const r = w / h;
-            if (!Number.isFinite(r) || r <= 0) return;
-            setRatios((prev) => (prev[activeSrc] ? prev : { ...prev, [activeSrc]: r }));
-          }}
-          style={{
-            position: 'absolute', inset: 0, width: '100%', height: '100%',
-            // "Hero" doit afficher l'image complète (pas recadrée)
-            objectFit: 'contain', objectPosition: 'center',
-            transition: 'opacity 0.2s',
-          }}
-        />
+        {activeMediaType === 'video' ? (
+          <video
+            key={activeSrc}
+            src={activeSrc}
+            autoPlay loop muted playsInline
+            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain' }}
+          />
+        ) : (
+          <img
+            key={activeSrc}
+            src={activeMediaType === 'gif' ? activeSrc : optimizeImageUrl(activeSrc, { width: 900, quality: 82 })}
+            alt={images[active]?.alt || ''}
+            loading="eager"
+            fetchpriority="high"
+            decoding="async"
+            onLoad={(e) => {
+              const img = e.currentTarget;
+              const w = img.naturalWidth || 0;
+              const h = img.naturalHeight || 0;
+              if (!activeSrc || !w || !h) return;
+              const r = w / h;
+              if (!Number.isFinite(r) || r <= 0) return;
+              setRatios((prev) => (prev[activeSrc] ? prev : { ...prev, [activeSrc]: r }));
+            }}
+            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', objectPosition: 'center', transition: 'opacity 0.2s' }}
+          />
+        )}
         {/* Arrows */}
         {images.length > 1 && (
           <>
@@ -327,10 +401,7 @@ const ImageGallery = ({ images = [], design = {} }) => {
         )}
         {/* Dots */}
         {images.length > 1 && (
-          <div style={{
-            position: 'absolute', bottom: 12, left: '50%', transform: 'translateX(-50%)',
-            display: 'flex', gap: 6,
-          }}>
+          <div style={{ position: 'absolute', bottom: 12, left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: 6 }}>
             {images.map((_, i) => (
               <button key={i} onClick={(e) => { e.stopPropagation(); setActive(i); }} style={{
                 width: i === active ? 20 : 7, height: 7, borderRadius: 4,
@@ -346,18 +417,7 @@ const ImageGallery = ({ images = [], design = {} }) => {
       {images.length > 1 && (
         <div className="thumb-track sf-no-scrollbar" style={{ display: 'flex', gap: 6, marginTop: 8, overflowX: 'auto', paddingBottom: 4, scrollbarWidth: 'none', msOverflowStyle: 'none', maxWidth: '100%' }}>
           {images.map((img, i) => (
-            <button key={i} onClick={() => setActive(i)} style={{
-              flexShrink: 0, width: 60, height: 60, overflow: 'hidden', padding: 0,
-              border: '2.5px solid',
-              borderColor: i === active ? 'var(--s-primary)' : 'transparent',
-              cursor: 'pointer', transition: 'border-color 0.15s',
-              backgroundColor: '#f4f4f5',
-              borderRadius,
-            }}>
-              <img
-                src={optimizeImageUrl(img?.url || img, { width: 120, quality: 75 })} alt="" loading="lazy" decoding="async" style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-              />
-            </button>
+            <MediaThumb key={i} src={img} active={i === active} borderRadius={borderRadius} onClick={() => setActive(i)} />
           ))}
         </div>
       )}
@@ -373,11 +433,10 @@ const ImageGallery = ({ images = [], design = {} }) => {
             cursor: 'zoom-out',
           }}
         >
-          <img
-            src={images[active]?.url || images[active]}
-            alt=""
-            style={{ maxWidth: '90vw', maxHeight: '90vh', objectFit: 'contain', borderRadius }}
-          />
+          {getMediaType(activeSrc) === 'gif'
+            ? <img src={activeSrc} alt="" style={{ maxWidth: '90vw', maxHeight: '90vh', objectFit: 'contain', borderRadius }} />
+            : <img src={activeSrc} alt="" style={{ maxWidth: '90vw', maxHeight: '90vh', objectFit: 'contain', borderRadius }} />
+          }
           <button onClick={() => setZoomed(false)} style={{
             position: 'absolute', top: 20, right: 20, background: 'rgba(255,255,255,0.15)',
             border: 'none', color: '#fff', fontSize: 24, cursor: 'pointer',
@@ -503,30 +562,31 @@ const InlinePhotoCarousel = ({ images = [], accentColor = 'var(--s-primary)', co
         }}
       >
         <div style={{ position: 'relative', aspectRatio: activeRatio, minHeight: 'min(260px, 68vw)', maxHeight: `${mainImageHeight}px`, background: '#f4f4f5' }}>
-          <img
-            key={`${activeSrc}-${activeIndex}`}
-            src={activeSrc}
-            alt={activeImage.alt || 'Client satisfait'}
-            loading={activeIndex === 0 ? 'eager' : 'lazy'}
-            onLoad={(event) => {
-              const img = event.currentTarget;
-              const width = img.naturalWidth || 0;
-              const height = img.naturalHeight || 0;
-              if (!activeSrc || !width || !height) return;
-              const ratio = width / height;
-              if (!Number.isFinite(ratio) || ratio <= 0) return;
-              setRatios((prev) => (prev[activeSrc] ? prev : { ...prev, [activeSrc]: ratio }));
-            }}
-            style={{
-              position: 'absolute',
-              inset: 0,
-              width: '100%',
-              height: '100%',
-              objectFit: 'cover',
-              objectPosition: 'center',
-              display: 'block',
-            }}
-          />
+          {getMediaType(activeSrc) === 'video' ? (
+            <video
+              key={`${activeSrc}-${activeIndex}`}
+              src={activeSrc}
+              autoPlay loop muted playsInline
+              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+            />
+          ) : (
+            <img
+              key={`${activeSrc}-${activeIndex}`}
+              src={activeSrc}
+              alt={activeImage.alt || 'Client satisfait'}
+              loading={activeIndex === 0 ? 'eager' : 'lazy'}
+              onLoad={(event) => {
+                const img = event.currentTarget;
+                const width = img.naturalWidth || 0;
+                const height = img.naturalHeight || 0;
+                if (!activeSrc || !width || !height) return;
+                const ratio = width / height;
+                if (!Number.isFinite(ratio) || ratio <= 0) return;
+                setRatios((prev) => (prev[activeSrc] ? prev : { ...prev, [activeSrc]: ratio }));
+              }}
+              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center', display: 'block' }}
+            />
+          )}
         </div>
 
         {canNavigate && (

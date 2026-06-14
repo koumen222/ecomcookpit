@@ -919,7 +919,7 @@ const TestimonialsEditor = ({ config, onChange }) => {
               <label className="flex items-center gap-1 px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded-lg cursor-pointer transition">
                 {uploadingIdx === idx ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
                 <span>{item.image ? 'Changer' : 'Photo'}</span>
-                <input type="file" accept="image/*" className="hidden"
+                <input type="file" accept="image/*,image/gif,video/mp4,video/webm,video/quicktime" className="hidden"
                   onChange={e => handleAvatarUpload(idx, e.target.files?.[0])} />
               </label>
             </div>

@@ -198,9 +198,20 @@ function RepeatableItems({ items, onChange, fields, addLabel }) {
   );
 }
 
+const MEDIA_ACCEPT = 'image/*,image/gif,video/mp4,video/webm,video/quicktime';
+
+function getMediaPreviewType(url) {
+  if (!url) return 'image';
+  const clean = url.split('?')[0].toLowerCase();
+  if (clean.endsWith('.gif')) return 'gif';
+  if (clean.endsWith('.mp4') || clean.endsWith('.webm') || clean.endsWith('.mov')) return 'video';
+  return 'image';
+}
+
 function ImageField({ label, value, onChange, onUpload }) {
   const [uploading, setUploading] = useState(false);
   const inputRef = useRef(null);
+  const mediaType = getMediaPreviewType(value);
   const handleFile = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -208,9 +219,9 @@ function ImageField({ label, value, onChange, onUpload }) {
     try {
       const url = await onUpload(file);
       if (url) onChange(url);
-      else alert("Echec de l'import de l'image");
+      else alert("Echec de l'import");
     } catch {
-      alert("Echec de l'import de l'image");
+      alert("Echec de l'import");
     } finally {
       setUploading(false);
       if (inputRef.current) inputRef.current.value = '';
@@ -221,17 +232,21 @@ function ImageField({ label, value, onChange, onUpload }) {
       {label && <label className="block text-xs font-semibold text-gray-600">{label}</label>}
       <div className="flex items-start gap-2">
         <div className="w-16 h-16 rounded-lg border border-gray-200 bg-gray-50 overflow-hidden flex items-center justify-center flex-shrink-0">
-          {value ? <img src={value} alt="" className="w-full h-full object-cover" /> : <ImageIcon className="w-5 h-5 text-gray-300" />}
+          {value
+            ? mediaType === 'video'
+              ? <video src={value} muted className="w-full h-full object-cover" />
+              : <img src={value} alt="" className="w-full h-full object-cover" />
+            : <ImageIcon className="w-5 h-5 text-gray-300" />}
         </div>
         <div className="flex-1 space-y-1.5 min-w-0">
-          <input type="text" value={value || ''} onChange={(e) => onChange(e.target.value)} placeholder="Coller une URL d'image" className={inputCls} />
+          <input type="text" value={value || ''} onChange={(e) => onChange(e.target.value)} placeholder="Coller une URL (image, GIF, vidéo)" className={inputCls} />
           <div className="flex items-center gap-2">
             <button type="button" onClick={() => inputRef.current?.click()} disabled={uploading} className="px-2.5 py-1.5 text-xs font-semibold text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition flex items-center gap-1.5 disabled:opacity-50">
               {uploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ImageIcon className="w-3.5 h-3.5" />}{uploading ? 'Envoi...' : 'Importer'}
             </button>
             {value && <button type="button" onClick={() => onChange('')} className="px-2 py-1.5 text-xs text-red-500 hover:text-red-700">Retirer</button>}
           </div>
-          <input ref={inputRef} type="file" accept="image/*" onChange={handleFile} className="hidden" />
+          <input ref={inputRef} type="file" accept={MEDIA_ACCEPT} onChange={handleFile} className="hidden" />
         </div>
       </div>
     </div>

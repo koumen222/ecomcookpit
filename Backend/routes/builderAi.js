@@ -1,42 +1,130 @@
 import express from 'express';
 import axios from 'axios';
+import multer from 'multer';
+import FormData from 'form-data';
 import { requireEcomAuth } from '../middleware/ecomAuth.js';
+
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
+
+// Prompt contextuel injecté dans Whisper pour maximiser la précision
+// sur le vocabulaire e-commerce / builder de page
+const WHISPER_PROMPT = `Builder de page e-commerce. Commandes vocales pour modifier une page produit : hero, section, couleur, bouton, titre, sous-titre, image, carousel, témoignage, FAQ, avantage, footer, police, fond, bannière, WhatsApp, timer, compte à rebours, animation, CSS, JavaScript, HTML. Noms de marques, noms de produits, termes marketing.`;
+
+// Transcription haute précision — Groq whisper-large-v3-turbo si dispo, sinon OpenAI gpt-4o-transcribe
+async function transcribeBuffer(buffer, mimetype) {
+  const ext = mimetype.includes('webm') ? 'webm'
+    : mimetype.includes('mp4') ? 'mp4'
+    : mimetype.includes('mpeg') || mimetype.includes('mp3') ? 'mp3'
+    : mimetype.includes('wav') ? 'wav' : 'webm';
+  const filename = `voice.${ext}`;
+
+  // Groq whisper-large-v3-turbo — précis + très rapide
+  if (process.env.GROQ_API_KEY) {
+    const form = new FormData();
+    form.append('file', buffer, { filename, contentType: mimetype });
+    form.append('model', 'whisper-large-v3-turbo');
+    form.append('language', 'fr');
+    form.append('response_format', 'verbose_json');
+    form.append('prompt', WHISPER_PROMPT);
+    const res = await axios.post('https://api.groq.com/openai/v1/audio/transcriptions', form, {
+      headers: { ...form.getHeaders(), 'Authorization': `Bearer ${process.env.GROQ_API_KEY}` },
+      timeout: 120000,
+    });
+    const raw = typeof res.data === 'string' ? res.data : (res.data?.text || '');
+    return raw.trim();
+  }
+
+  // OpenAI gpt-4o-transcribe — le plus précis disponible
+  if (process.env.OPENAI_API_KEY) {
+    const form = new FormData();
+    form.append('file', buffer, { filename, contentType: mimetype });
+    form.append('model', 'gpt-4o-transcribe');
+    form.append('language', 'fr');
+    form.append('response_format', 'text');
+    form.append('prompt', WHISPER_PROMPT);
+    try {
+      const res = await axios.post('https://api.openai.com/v1/audio/transcriptions', form, {
+        headers: { ...form.getHeaders(), 'Authorization': `Bearer ${process.env.OPENAI_API_KEY}` },
+        timeout: 120000,
+      });
+      return (typeof res.data === 'string' ? res.data : res.data?.text || '').trim();
+    } catch (e) {
+      // fallback whisper-1 si gpt-4o-transcribe non dispo
+      if (e?.response?.status === 404 || e?.response?.status === 400) {
+        const form2 = new FormData();
+        form2.append('file', buffer, { filename, contentType: mimetype });
+        form2.append('model', 'whisper-1');
+        form2.append('language', 'fr');
+        form2.append('response_format', 'verbose_json');
+        form2.append('prompt', WHISPER_PROMPT);
+        const res2 = await axios.post('https://api.openai.com/v1/audio/transcriptions', form2, {
+          headers: { ...form2.getHeaders(), 'Authorization': `Bearer ${process.env.OPENAI_API_KEY}` },
+          timeout: 120000,
+        });
+        return (typeof res2.data === 'string' ? res2.data : res2.data?.text || '').trim();
+      }
+      throw e;
+    }
+  }
+
+  throw new Error('Aucune clé de transcription configurée (GROQ_API_KEY ou OPENAI_API_KEY)');
+}
 
 const router = express.Router();
 
 const KIE_API_KEY = process.env.KIE_API_KEY || '';
 const KIE_CLAUDE_URL = 'https://api.kie.ai/claude/v1/messages';
+const KIE_GPT_URL = 'https://api.kie.ai/v1/chat/completions';
 
-async function callClaude(messages) {
+// model identifiers sent from frontend:
+// 'claude-sonnet' | 'claude-opus' | 'gpt-5.4'
+
+// Claude (Anthropic format via KIE) — system prompt séparé du tableau messages
+async function callClaude(messages, claudeModel) {
   const systemMsg = messages.find(m => m.role === 'system');
   const chatMessages = messages.filter(m => m.role !== 'system');
 
   const body = {
-    model: 'claude-sonnet-4-6',
-    max_tokens: 2000,
+    model: claudeModel,
+    max_tokens: 8000,
     stream: false,
     messages: chatMessages,
   };
-  if (systemMsg) {
-    body.system = systemMsg.content;
-  }
+  if (systemMsg) body.system = systemMsg.content;
 
   const res = await axios.post(KIE_CLAUDE_URL, body, {
-    headers: {
-      'Authorization': `Bearer ${KIE_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    timeout: 60000,
+    headers: { 'Authorization': `Bearer ${KIE_API_KEY}`, 'Content-Type': 'application/json' },
+    timeout: 180000,
   });
 
   const content = res.data?.content;
-  if (Array.isArray(content)) {
-    return content
-      .filter(b => b.type === 'text')
-      .map(b => b.text || '')
-      .join('');
-  }
+  if (Array.isArray(content)) return content.filter(b => b.type === 'text').map(b => b.text || '').join('');
   return typeof content === 'string' ? content : '';
+}
+
+// GPT (OpenAI format via KIE) — system inclus dans le tableau messages avec role 'system'
+async function callGpt(messages, gptModel) {
+  const res = await axios.post(KIE_GPT_URL, {
+    model: gptModel,
+    max_tokens: 8000,
+    messages,
+  }, {
+    headers: { 'Authorization': `Bearer ${KIE_API_KEY}`, 'Content-Type': 'application/json' },
+    timeout: 180000,
+  });
+
+  return res.data?.choices?.[0]?.message?.content || '';
+}
+
+const MODEL_MAP = {
+  'claude-sonnet': (msgs) => callClaude(msgs, 'claude-sonnet-4-6'),
+  'claude-opus':   (msgs) => callClaude(msgs, 'claude-opus-4-8'),
+  'gpt-5.4':       (msgs) => callGpt(msgs, 'gpt-5.4'),
+};
+
+async function callModel(messages, model = 'claude-sonnet') {
+  const fn = MODEL_MAP[model] || MODEL_MAP['claude-sonnet'];
+  return fn(messages);
 }
 
 const SYSTEM_PROMPT = `Tu es un assistant IA tout-puissant intégré dans un builder de page produit e-commerce.
@@ -72,7 +160,7 @@ IMAGES (premiumImages) — URLs directes d'images :
 - ritual: URL image section rituel/routine
 - closing: URL image section finale
 - testimonials: [URL1, URL2, ...] photos clients témoignages
-IMPORTANT : ne mets une URL d'image QUE si l'utilisateur en fournit explicitement une. Si l'utilisateur veut changer une image et donne une URL, utilise pageConfigPatch.premiumImages.
+IMPORTANT : quand l'utilisateur joint une image avec un emplacement (ex: "hero", "problem", "closing"), utilise pageConfigPatch.premiumImages avec l'URL fournie. Si l'emplacement est "hero" → premiumImages.hero. Si l'emplacement est "carousel" ou "heroGallery" → premiumImages.heroGallery = [URL]. Si l'emplacement correspond à une section → premiumImages[emplacement]. Ne mets une URL d'image QUE si l'utilisateur en fournit une explicitement.
 
 CLÉS DESIGN (themePatch) — tout ce qui touche l'apparence visuelle :
 - ctaButtonColor: couleur bouton + prix (hex)
@@ -206,7 +294,7 @@ EXEMPLES :
 
 router.post('/chat', requireEcomAuth, async (req, res) => {
   try {
-    const { message, productPageConfig, theme, productName, history = [] } = req.body;
+    const { message, productPageConfig, theme, productName, sections, model = 'claude', history = [] } = req.body;
 
     if (!message || typeof message !== 'string' || message.trim().length < 2) {
       return res.status(400).json({ success: false, message: 'Message requis' });
@@ -216,25 +304,69 @@ router.post('/chat', requireEcomAuth, async (req, res) => {
       return res.status(503).json({ success: false, message: 'Service IA non disponible' });
     }
 
-    const PREMIUM_SECTIONS = ['testimonials', 'problem', 'mechanism', 'science', 'ritual', 'comparison', 'faq', 'closing'];
-    const currentSectionOrder = productPageConfig?.sectionOrder || PREMIUM_SECTIONS;
-    const hiddenSections = productPageConfig?.hiddenSections || [];
+    // StorepageBuilder mode: sections array is provided instead of productPageConfig
+    const isStorepageMode = Array.isArray(sections);
 
-    const contextSummary = `
-CONTEXTE ACTUEL:
+    let systemPrompt = SYSTEM_PROMPT;
+    let contextSummary;
+
+    if (isStorepageMode) {
+      systemPrompt = `Tu es un assistant IA intégré dans un builder de page boutique e-commerce (homepage).
+Tu peux ajouter, modifier, supprimer ou réordonner des sections de la page d'accueil de la boutique.
+
+Chaque section a: id (unique), type, enabled (bool), et config (objet avec les champs propres au type).
+Types de sections disponibles: hero, products, text, image_text, testimonials, features, countdown, newsletter, image_banner, video, divider, spacer, rich_text, social_proof, faq.
+
+CHAMPS CONFIG PAR TYPE (les plus importants) :
+- hero: { title, subtitle, ctaText, ctaUrl, backgroundImage (URL), backgroundColor, alignment, overlay (bool) }
+- image_text: { image (URL), title, text, imagePosition }
+- image_banner: { image (URL), title, subtitle, overlay }
+- testimonials: { title, items: [{name, location, content, rating}], layout, showRating, backgroundColor }
+- products: { title, productIds, layout, columns }
+- text: { title, content, alignment }
+- countdown: { title, targetDate, backgroundColor }
+- newsletter: { title, subtitle, buttonText, backgroundColor }
+- video: { url, title, autoplay }
+- features: { title, items: [{icon, title, description}] }
+- faq: { title, items: [{question, answer}] }
+
+IMAGES : quand l'utilisateur joint une image avec un emplacement (ex: "hero", "banner"), modifie le champ backgroundImage ou image de la section correspondante dans sectionsPatch.
+
+FORMAT DE RÉPONSE — UN SEUL OBJET JSON :
+{
+  "reply": "Fait ! J'ai [description courte].",
+  "sectionsPatch": [...tableau complet des sections mis à jour...] ou null
+}
+
+RÈGLES:
+- Si tu modifies des sections, renvoie le tableau COMPLET (pas juste le delta).
+- Ne modifie que ce que l'utilisateur demande, conserve le reste à l'identique.
+- Pour ajouter une section: ajoute un objet avec un id unique (ex: "hero_1", "text_2"), le type, enabled: true, et config avec les valeurs par défaut du type.
+- Pour supprimer: retire la section du tableau.
+- Pour cacher: mets enabled: false.
+- Réponds TOUJOURS en français. Sois bref.
+- Retourne UNIQUEMENT du JSON valide, rien d'autre.`;
+
+      contextSummary = `SECTIONS ACTUELLES:
+${JSON.stringify(sections || [], null, 2).slice(0, 2000)}`;
+    } else {
+      const PREMIUM_SECTIONS = ['testimonials', 'problem', 'mechanism', 'science', 'ritual', 'comparison', 'faq', 'closing'];
+      const currentSectionOrder = productPageConfig?.sectionOrder || PREMIUM_SECTIONS;
+      const hiddenSections = productPageConfig?.hiddenSections || [];
+
+      contextSummary = `CONTEXTE ACTUEL:
 - Produit: ${productName || 'Non spécifié'}
 - Design: ${JSON.stringify(theme || {}).slice(0, 300)}
-- Sections premium (ordre actuel, toutes visibles sauf hiddenSections): ${currentSectionOrder.join(', ')}
+- Sections premium (ordre actuel): ${currentSectionOrder.join(', ')}
 - Sections cachées: ${hiddenSections.join(', ') || 'aucune'}
-- Sections classiques actives: ${productPageConfig?.general?.sections?.filter(s => s.enabled !== false).map(s => s.id).join(', ') || 'toutes'}
 - Bouton: ${JSON.stringify(productPageConfig?.button || {}).slice(0, 200)}
 - Images actuelles: ${JSON.stringify(productPageConfig?.premiumImages || {}).slice(0, 400)}
 - CSS personnalisé existant: ${(productPageConfig?.customCss || '').slice(0, 200) || 'aucun'}
-- JS personnalisé existant: ${(productPageConfig?.customJs || '').slice(0, 200) || 'aucun'}
-- customHtml existant: ${(productPageConfig?.customHtml || '').slice(0, 150) || 'aucun'}`;
+- JS personnalisé existant: ${(productPageConfig?.customJs || '').slice(0, 200) || 'aucun'}`;
+    }
 
     const messages = [
-      { role: 'system', content: SYSTEM_PROMPT },
+      { role: 'system', content: systemPrompt },
       { role: 'user', content: contextSummary },
     ];
 
@@ -246,7 +378,7 @@ CONTEXTE ACTUEL:
 
     messages.push({ role: 'user', content: message.trim() });
 
-    const rawContent = await callClaude(messages);
+    const rawContent = await callModel(messages, model);
 
     let parsed;
     try {
@@ -274,10 +406,27 @@ CONTEXTE ACTUEL:
       reply: parsed.reply || 'Modification appliquée.',
       pageConfigPatch: parsed.pageConfigPatch || null,
       themePatch: parsed.themePatch || null,
+      sectionsPatch: parsed.sectionsPatch || null,
     });
   } catch (error) {
     console.error('[BuilderAI] Chat error:', error.message);
     return res.status(500).json({ success: false, message: 'Erreur du service IA' });
+  }
+});
+
+// ─── Voice transcription (Groq Whisper → fallback OpenAI Whisper) ──────────
+router.post('/transcribe', requireEcomAuth, upload.single('audio'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ success: false, message: 'Fichier audio requis' });
+
+    const { buffer, mimetype } = req.file;
+    const text = await transcribeBuffer(buffer, mimetype || 'audio/webm');
+
+    if (!text) return res.status(500).json({ success: false, message: 'Transcription vide' });
+    return res.json({ success: true, text });
+  } catch (err) {
+    console.error('[BuilderAI] Transcription error:', err.message);
+    return res.status(500).json({ success: false, message: err.message || 'Erreur transcription' });
   }
 });
 

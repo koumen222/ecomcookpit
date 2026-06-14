@@ -18,6 +18,8 @@ import {
   AlignCenter, AlignRight, ChevronDown, ChevronUp, Pencil, Undo2, Redo2,
 } from 'lucide-react';
 import { storeManageApi, storeProductsApi } from '../services/storeApi';
+import ecomApi from '../services/ecommApi.js';
+import BuilderAiChat from '../components/BuilderAiChat.jsx';
 import { useStore } from '../contexts/StoreContext.jsx';
 import { useEcomAuth } from '../hooks/useEcomAuth.jsx';
 
@@ -281,6 +283,22 @@ function makeSection(type) {
 
 // ─── Image uploader sub-component ────────────────────────────────────────────
 
+const MEDIA_ACCEPT = 'image/*,image/gif,video/mp4,video/webm,video/quicktime';
+
+function getBuilderMediaType(url) {
+  if (!url) return 'image';
+  const clean = url.split('?')[0].toLowerCase();
+  if (clean.endsWith('.gif')) return 'gif';
+  if (clean.endsWith('.mp4') || clean.endsWith('.webm') || clean.endsWith('.mov')) return 'video';
+  return 'image';
+}
+
+function MediaPreview({ src, className = 'w-full h-28 object-cover' }) {
+  const type = getBuilderMediaType(src);
+  if (type === 'video') return <video src={src} muted autoPlay loop playsInline className={className} />;
+  return <img src={src} alt="" className={className} />;
+}
+
 function ImageUploader({ value, onChange, label = 'Image', aspectHint = '' }) {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
@@ -288,8 +306,9 @@ function ImageUploader({ value, onChange, label = 'Image', aspectHint = '' }) {
 
   const handleFile = async (file) => {
     if (!file) return;
-    if (!file.type.startsWith('image/')) { setError('Fichier image requis'); return; }
-    if (file.size > 5 * 1024 * 1024) { setError('Max 5 Mo'); return; }
+    const isMedia = file.type.startsWith('image/') || file.type.startsWith('video/');
+    if (!isMedia) { setError('Image, GIF ou vidéo requis'); return; }
+    if (file.size > 50 * 1024 * 1024) { setError('Max 50 Mo'); return; }
     setError('');
     setUploading(true);
     try {
@@ -309,7 +328,7 @@ function ImageUploader({ value, onChange, label = 'Image', aspectHint = '' }) {
       {label && <label className="block text-xs font-medium text-gray-700">{label}{aspectHint && <span className="ml-1 text-gray-400">({aspectHint})</span>}</label>}
       {value ? (
         <div className="relative group rounded-lg overflow-hidden border border-gray-200">
-          <img src={value} alt="" className="w-full h-28 object-cover" />
+          <MediaPreview src={value} />
           <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition flex items-center justify-center gap-2">
             <button onClick={() => inputRef.current?.click()} className="px-3 py-1.5 bg-white text-gray-900 text-xs font-medium rounded-lg hover:bg-gray-100">
               <Upload className="w-3 h-3 inline mr-1" />Changer
@@ -326,11 +345,11 @@ function ImageUploader({ value, onChange, label = 'Image', aspectHint = '' }) {
           className="w-full h-24 border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center gap-1 hover:border-indigo-400 hover:bg-indigo-50/30 transition text-gray-400 hover:text-indigo-600"
         >
           {uploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Upload className="w-5 h-5" />}
-          <span className="text-xs font-medium">{uploading ? 'Upload...' : 'Choisir une image'}</span>
+          <span className="text-xs font-medium">{uploading ? 'Upload...' : 'Image, GIF ou vidéo'}</span>
         </button>
       )}
       {error && <p className="text-xs text-red-500 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{error}</p>}
-      <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={(e) => handleFile(e.target.files[0])} />
+      <input ref={inputRef} type="file" accept={MEDIA_ACCEPT} className="hidden" onChange={(e) => handleFile(e.target.files[0])} />
     </div>
   );
 }
@@ -345,8 +364,9 @@ function HeroBgUploader({ value, onChange }) {
 
   const handleFile = async (file) => {
     if (!file) return;
-    if (!file.type.startsWith('image/')) { setError('Fichier image requis'); return; }
-    if (file.size > 10 * 1024 * 1024) { setError('Max 10 Mo'); return; }
+    const isMedia = file.type.startsWith('image/') || file.type.startsWith('video/');
+    if (!isMedia) { setError('Image, GIF ou vidéo requise'); return; }
+    if (file.size > 100 * 1024 * 1024) { setError('Max 100 Mo'); return; }
     setError('');
     setUploading(true);
     try {
@@ -371,17 +391,17 @@ function HeroBgUploader({ value, onChange }) {
   return (
     <div className="space-y-2">
       <label className="block text-xs font-medium text-gray-700">
-        Image de fond <span className="text-gray-400">(1920×500 recommandé)</span>
+        Fond <span className="text-gray-400">(image, GIF ou vidéo — 1920×500 recommandé)</span>
       </label>
       {value ? (
         <div className="relative group rounded-xl overflow-hidden border-2 border-gray-200">
-          <img src={value} alt="" className="w-full h-36 object-cover" />
+          <MediaPreview src={value} className="w-full h-36 object-cover" />
           <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition flex flex-col items-center justify-center gap-2">
             <button
               onClick={() => inputRef.current?.click()}
               className="flex items-center gap-1.5 px-4 py-2 bg-white text-gray-900 text-xs font-bold rounded-lg hover:bg-gray-100 shadow-md"
             >
-              <Upload className="w-3.5 h-3.5" />Changer l'image
+              <Upload className="w-3.5 h-3.5" />Changer
             </button>
             <button
               onClick={() => onChange('')}
@@ -391,7 +411,7 @@ function HeroBgUploader({ value, onChange }) {
             </button>
           </div>
           <div className="absolute top-2 left-2 bg-primary-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
-            Image chargée
+            {getBuilderMediaType(value) === 'video' ? 'Vidéo chargée' : 'Image chargée'}
           </div>
         </div>
       ) : (
@@ -419,14 +439,14 @@ function HeroBgUploader({ value, onChange }) {
               <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center">
                 <Image className="w-5 h-5 text-gray-400" />
               </div>
-              <p className="text-xs font-semibold text-gray-600">Cliquez ou glissez une image ici</p>
-              <p className="text-[11px] text-gray-400">JPG, PNG, WebP — max 10 Mo</p>
+              <p className="text-xs font-semibold text-gray-600">Cliquez ou glissez ici</p>
+              <p className="text-[11px] text-gray-400">Image, GIF ou vidéo — max 100 Mo</p>
             </>
           )}
         </div>
       )}
       {error && <p className="text-xs text-red-500 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{error}</p>}
-      <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={(e) => handleFile(e.target.files[0])} />
+      <input ref={inputRef} type="file" accept={MEDIA_ACCEPT} className="hidden" onChange={(e) => handleFile(e.target.files[0])} />
     </div>
   );
 }
@@ -652,7 +672,7 @@ function GalleryEditor({ images = [], onChange }) {
       <div className="grid grid-cols-3 gap-2">
         {images.map((img, idx) => (
           <div key={idx} className="relative group rounded-lg overflow-hidden border border-gray-200">
-            <img src={img.url || img} alt={img.alt || ''} className="w-full h-16 object-cover" />
+            <MediaPreview src={img.url || img} className="w-full h-16 object-cover" />
             <button onClick={() => onChange(images.filter((_, i) => i !== idx))} className="absolute top-0.5 right-0.5 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
               <X className="w-2.5 h-2.5" />
             </button>
@@ -663,7 +683,7 @@ function GalleryEditor({ images = [], onChange }) {
           <span className="text-[10px]">Ajouter</span>
         </button>
       </div>
-      <input ref={inputRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => handleFiles(e.target.files)} />
+      <input ref={inputRef} type="file" accept={MEDIA_ACCEPT} multiple className="hidden" onChange={(e) => handleFiles(e.target.files)} />
     </div>
   );
 }
@@ -1461,6 +1481,22 @@ const StorepageBuilder = () => {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [aiModel, setAiModel] = useState('claude-sonnet');
+  const [aiOpen, setAiOpen] = useState(false);
+  const [aiMessages, setAiMessages] = useState([
+    { role: 'assistant', content: 'Salut ! Je suis ton assistant IA pour la page boutique.\n\nExemples :\n- "Ajoute une section hero avec fond vert"\n- "Change le titre du hero en Nos Meilleures Ventes"\n- "Ajoute une section témoignages"\n- "Cache la section FAQ"' }
+  ]);
+  const [aiInput, setAiInput] = useState('');
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiMedias, setAiMedias] = useState([]); // [{ file, localUrl, uploadedUrl, type, name, placement }]
+  const [aiMediaPlacement, setAiMediaPlacement] = useState('');
+  const [aiRecording, setAiRecording] = useState(false);
+  const [aiTranscribing, setAiTranscribing] = useState(false);
+  const aiMediaRecorderRef = useRef(null);
+  const aiAudioChunksRef = useRef([]);
+  const aiInputRef = useRef(null);
+  const aiEndRef = useRef(null);
+  const aiFileRef = useRef(null);
 
   // ─ Undo / Redo history ─
   const historyRef = useRef([]);
@@ -1617,6 +1653,153 @@ const StorepageBuilder = () => {
     setDirty(true);
     forceRender((n) => n + 1);
   }, [pushHistory]);
+
+  useEffect(() => { aiEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [aiMessages]);
+  useEffect(() => { if (aiOpen && aiInputRef.current) aiInputRef.current.focus(); }, [aiOpen]);
+
+  const handleAiFileAdd = useCallback(async (files) => {
+    const toAdd = [];
+    for (const file of Array.from(files)) {
+      const isAudio = file.type.startsWith('audio/');
+      const isVideo = file.type.startsWith('video/');
+      const isImage = file.type.startsWith('image/');
+      if (!isAudio && !isVideo && !isImage) continue;
+      // Upload immediately via storeProductsApi
+      let uploadedUrl = null;
+      try {
+        const res = await storeProductsApi.uploadImages([file]);
+        uploadedUrl = res?.data?.urls?.[0] || res?.data?.data?.[0]?.url || null;
+      } catch {}
+      const localUrl = URL.createObjectURL(file);
+      toAdd.push({ file, localUrl, uploadedUrl, type: isAudio ? 'audio' : isVideo ? 'video' : 'image', name: file.name, placement: '' });
+    }
+    setAiMedias(prev => [...prev, ...toAdd]);
+  }, []);
+
+  const toggleAiRecording = useCallback(async () => {
+    if (aiRecording) {
+      aiMediaRecorderRef.current?.stop();
+      return;
+    }
+    try {
+      // Contraintes audio maximisant la qualité pour Whisper
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          sampleRate: 16000,   // Whisper est entraîné sur 16kHz
+          channelCount: 1,     // mono suffisant, réduit taille fichier
+        },
+      });
+
+      // Priorité : webm/opus (le mieux supporté + bon pour Whisper)
+      // Fallback : audio/mp4 (Safari), puis audio/webm sans codec
+      const mimeType =
+        MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' :
+        MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4' :
+        'audio/webm';
+
+      const recorder = new MediaRecorder(stream, { mimeType, audioBitsPerSecond: 128000 });
+      aiAudioChunksRef.current = [];
+
+      // Collecter les données toutes les 250ms pour éviter la perte en cas d'arrêt brutal
+      recorder.ondataavailable = e => { if (e.data.size > 0) aiAudioChunksRef.current.push(e.data); };
+
+      recorder.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop());
+        setAiRecording(false);
+        const blob = new Blob(aiAudioChunksRef.current, { type: mimeType });
+        if (blob.size < 1000) return; // trop court, ignorer
+        setAiTranscribing(true);
+        try {
+          const ext = mimeType.includes('mp4') ? 'mp4' : mimeType.includes('opus') ? 'webm' : 'webm';
+          const form = new FormData();
+          form.append('audio', blob, `voice.${ext}`);
+          const { data } = await ecomApi.post('/builder-ai/transcribe', form, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+            timeout: 120000,
+          });
+          if (data.success && data.text) {
+            setAiInput(prev => prev ? prev + ' ' + data.text : data.text);
+            setTimeout(() => { aiInputRef.current?.focus(); }, 50);
+          } else if (data.message) {
+            console.warn('[Transcription]', data.message);
+          }
+        } catch (err) {
+          console.error('[Transcription] Erreur:', err?.response?.data || err.message);
+        }
+        setAiTranscribing(false);
+      };
+
+      aiMediaRecorderRef.current = recorder;
+      recorder.start(250); // chunks toutes les 250ms
+      setAiRecording(true);
+    } catch (err) {
+      console.error('Microphone error:', err);
+    }
+  }, [aiRecording]);
+
+  const sendAiMessage = useCallback(async () => {
+    const text = aiInput.trim();
+    if ((!text && aiMedias.length === 0) || aiLoading) return;
+
+    // Build user message display
+    const mediaDesc = aiMedias.map(m => `[${m.type}: ${m.name}${m.placement ? ` → "${m.placement}"` : ''}]`).join(' ');
+    const displayContent = [text, mediaDesc].filter(Boolean).join('\n');
+    setAiMessages(prev => [...prev, { role: 'user', content: displayContent, medias: aiMedias }]);
+
+    // Build enriched message for AI — images with uploaded URLs so AI can inject them
+    const imageMedias = aiMedias.filter(m => m.type === 'image' && m.uploadedUrl);
+    const otherMedias = aiMedias.filter(m => m.type !== 'image' || !m.uploadedUrl);
+
+    let mediaContext = '';
+    if (imageMedias.length > 0) {
+      mediaContext += '\n\nImages jointes (URLs hébergées) :\n' + imageMedias.map(m =>
+        `- URL: ${m.uploadedUrl}${m.placement ? ` → emplacement: "${m.placement}"` : ' (emplacement non précisé — utilise comme image principale)'}`
+      ).join('\n');
+      mediaContext += '\nPour chaque image, applique-la dans pageConfigPatch.premiumImages en utilisant l\'emplacement indiqué comme clé (ex: "hero" → premiumImages.hero, "problem" → premiumImages.problem, "carousel" → premiumImages.heroGallery).';
+    }
+    if (otherMedias.length > 0) {
+      mediaContext += '\n\nAutres médias joints:\n' + otherMedias.map(m =>
+        `- ${m.type}: ${m.uploadedUrl || m.localUrl}${m.placement ? ` (emplacement: "${m.placement}")` : ''}`
+      ).join('\n');
+    }
+
+    const fullMessage = (text || (imageMedias.length > 0 ? 'Intègre cette image sur la page' : 'Analyse ce média')) + mediaContext;
+    setAiInput('');
+    setAiMedias([]);
+    setAiLoading(true);
+
+    try {
+      const { data } = await ecomApi.post('/builder-ai/chat', {
+        message: fullMessage,
+        sections,
+        model: aiModel,
+        history: aiMessages.slice(-6),
+      }, { timeout: 180000 });
+      if (data.success) {
+        if (data.sectionsPatch && Array.isArray(data.sectionsPatch)) {
+          setSections(data.sectionsPatch);
+          setDirty(true);
+        }
+        if (data.pageConfigPatch || data.themePatch) {
+          setDirty(true);
+        }
+        setAiMessages(prev => [...prev, {
+          role: 'assistant',
+          content: (data.reply || 'Fait !') + (data.sectionsPatch ? '\n\n✅ Sections mises à jour.' : ''),
+        }]);
+      } else {
+        setAiMessages(prev => [...prev, { role: 'assistant', content: data.message || 'Erreur.' }]);
+      }
+    } catch (err) {
+      const msg = err?.response?.data?.message || err?.message || 'Erreur de connexion.';
+      setAiMessages(prev => [...prev, { role: 'assistant', content: msg }]);
+    } finally {
+      setAiLoading(false);
+    }
+  }, [aiInput, aiLoading, aiMessages, aiModel, aiMedias, sections]);
 
   // ─ Save ─
   const handleSave = async () => {
@@ -1843,6 +2026,210 @@ const StorepageBuilder = () => {
           </div>
         </div>
       </div>
+
+      {/* ── IA Flottante ──────────────────────────────────────────────────── */}
+      <BuilderAiChat
+        mode="storepage"
+        context={{ sections }}
+        onPatch={({ sectionsPatch }) => {
+          if (sectionsPatch && Array.isArray(sectionsPatch)) {
+            setSections(sectionsPatch);
+            setDirty(true);
+          }
+        }}
+      />
+      {false /* dead code removed */ && (
+        <div className="fixed bottom-6 right-6 z-[9999] flex flex-col w-[400px] max-w-[calc(100vw-2rem)] h-[580px] max-h-[calc(100vh-4rem)] rounded-2xl border border-gray-200 bg-white shadow-2xl overflow-hidden">
+
+          {/* Header */}
+          <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white flex-shrink-0">
+            <div className="flex items-center gap-2">
+              <Sparkles className="h-4 w-4" />
+              <span className="text-sm font-bold">Assistant Builder IA</span>
+            </div>
+            <button onClick={() => setAiOpen(false)} className="rounded-full p-1 hover:bg-white/20 transition">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+
+          {/* Sélecteur de modèle */}
+          <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 border-b border-gray-100 flex-shrink-0">
+            {aiModel === 'gpt-5.4' ? (
+              <svg viewBox="0 0 24 24" className="w-4 h-4 flex-shrink-0 text-[#10a37f]" fill="currentColor">
+                <path d="M22.282 9.821a5.985 5.985 0 0 0-.516-4.91 6.046 6.046 0 0 0-6.51-2.9A6.065 6.065 0 0 0 4.981 4.18a5.985 5.985 0 0 0-3.998 2.9 6.046 6.046 0 0 0 .743 7.097 5.98 5.98 0 0 0 .51 4.911 6.051 6.051 0 0 0 6.515 2.9A5.985 5.985 0 0 0 13.26 24a6.056 6.056 0 0 0 5.772-4.206 5.99 5.99 0 0 0 3.997-2.9 6.056 6.056 0 0 0-.747-7.073zM13.26 22.43a4.476 4.476 0 0 1-2.876-1.04l.141-.081 4.779-2.758a.795.795 0 0 0 .392-.681v-6.737l2.02 1.168a.071.071 0 0 1 .038.052v5.583a4.504 4.504 0 0 1-4.494 4.494zM3.6 18.304a4.47 4.47 0 0 1-.535-3.014l.142.085 4.783 2.759a.771.771 0 0 0 .78 0l5.843-3.369v2.332a.08.08 0 0 1-.033.062L9.74 19.95a4.5 4.5 0 0 1-6.14-1.646zM2.34 7.896a4.485 4.485 0 0 1 2.366-1.973V11.6a.766.766 0 0 0 .388.676l5.815 3.355-2.02 1.168a.076.076 0 0 1-.071 0L4.4 14.069a4.504 4.504 0 0 1-2.059-6.173zm16.597 3.855-5.843-3.372 2.02-1.168a.076.076 0 0 1 .072 0l4.42 2.556a4.494 4.494 0 0 1-.676 8.105v-5.678a.795.795 0 0 0-.393-.443zm2.01-3.023-.141-.085-4.774-2.782a.776.776 0 0 0-.785 0L9.409 9.23V6.897a.066.066 0 0 1 .028-.061l4.419-2.549a4.494 4.494 0 0 1 6.68 4.66zm-12.64 4.135-2.02-1.164a.08.08 0 0 1-.038-.057v-5.57a4.494 4.494 0 0 1 7.375-3.453l-.142.08L8.704 9.93a.795.795 0 0 0-.393.681zm1.097-2.365 2.602-1.5 2.607 1.5v2.999l-2.597 1.5-2.607-1.5Z"/>
+              </svg>
+            ) : (
+              <svg viewBox="0 0 24 24" className="w-4 h-4 flex-shrink-0 text-[#C96442]" fill="currentColor">
+                <path d="M13.827 3.52h3.603L24 20.48h-3.603l-6.57-16.96zm-7.258 0H10.172L16.744 20.48H13.14L11.705 16.4H5.719l-1.435 4.08H.68L6.57 3.52zm4.132 9.959L8.719 7.582l-1.917 5.897h3.899z"/>
+              </svg>
+            )}
+            <select
+              value={aiModel}
+              onChange={e => setAiModel(e.target.value)}
+              className="flex-1 text-xs font-semibold text-gray-700 bg-transparent outline-none cursor-pointer"
+            >
+              <optgroup label="— Claude (Anthropic)">
+                <option value="claude-sonnet">Claude Sonnet — rapide</option>
+                <option value="claude-opus">Claude Opus — plus puissant</option>
+              </optgroup>
+              <optgroup label="— OpenAI">
+                <option value="gpt-5.4">GPT-5.4</option>
+              </optgroup>
+            </select>
+          </div>
+
+          {/* Messages */}
+          <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+            {aiMessages.map((msg, i) => (
+              <div key={i} className={`flex flex-col gap-1.5 ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
+                {/* Médias joints dans le message user */}
+                {msg.medias?.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 max-w-[85%]">
+                    {msg.medias.map((m, mi) => (
+                      <div key={mi} className="relative rounded-xl overflow-hidden border border-white/20 bg-indigo-500">
+                        {m.type === 'image' && (
+                          <img src={m.localUrl} alt={m.name} className="w-20 h-20 object-cover" />
+                        )}
+                        {m.type === 'audio' && (
+                          <div className="flex items-center gap-1.5 px-2.5 py-2 text-white text-[10px]">
+                            <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 0 18A9 9 0 0 0 12 3zm-1 13V8l6 4-6 4z"/></svg>
+                            <span className="truncate max-w-[80px]">{m.name}</span>
+                          </div>
+                        )}
+                        {m.type === 'video' && (
+                          <div className="flex items-center gap-1.5 px-2.5 py-2 text-white text-[10px]">
+                            <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M17 10.5V7a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3.5l4 4v-11l-4 4z"/></svg>
+                            <span className="truncate max-w-[80px]">{m.name}</span>
+                          </div>
+                        )}
+                        {m.placement && (
+                          <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[9px] px-1.5 py-0.5 truncate">→ {m.placement}</div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-[13px] leading-relaxed whitespace-pre-wrap ${
+                  msg.role === 'user' ? 'bg-indigo-600 text-white rounded-br-md' : 'bg-gray-100 text-gray-800 rounded-bl-md'
+                }`}>
+                  {msg.content}
+                </div>
+              </div>
+            ))}
+            {aiLoading && (
+              <div className="flex justify-start">
+                <div className="bg-gray-100 rounded-2xl rounded-bl-md px-4 py-3 flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin text-indigo-500" />
+                  <span className="text-xs text-gray-400">Génération en cours...</span>
+                </div>
+              </div>
+            )}
+            <div ref={aiEndRef} />
+          </div>
+
+          {/* Médias en attente */}
+          {aiMedias.length > 0 && (
+            <div className="px-3 py-2 border-t border-gray-100 bg-gray-50 flex-shrink-0">
+              <div className="flex flex-wrap gap-2">
+                {aiMedias.map((m, i) => (
+                  <div key={i} className="relative group rounded-xl overflow-hidden border border-gray-200 bg-white flex-shrink-0">
+                    {m.type === 'image' ? (
+                      <img src={m.localUrl} alt={m.name} className="w-14 h-14 object-cover" />
+                    ) : (
+                      <div className="w-14 h-14 flex flex-col items-center justify-center bg-indigo-50 text-indigo-600">
+                        {m.type === 'audio'
+                          ? <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 0 18A9 9 0 0 0 12 3zm-1 13V8l6 4-6 4z"/></svg>
+                          : <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M17 10.5V7a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3.5l4 4v-11l-4 4z"/></svg>
+                        }
+                        <span className="text-[9px] mt-0.5 px-1 truncate w-full text-center">{m.name.slice(0, 8)}</span>
+                      </div>
+                    )}
+                    {/* Champ placement */}
+                    <input
+                      type="text"
+                      value={m.placement}
+                      onChange={e => setAiMedias(prev => prev.map((x, xi) => xi === i ? { ...x, placement: e.target.value } : x))}
+                      placeholder="où ?"
+                      className="absolute bottom-0 left-0 right-0 text-[9px] bg-black/60 text-white placeholder:text-white/60 border-0 outline-none px-1 py-0.5 w-full"
+                    />
+                    {/* Supprimer */}
+                    <button
+                      onClick={() => setAiMedias(prev => prev.filter((_, xi) => xi !== i))}
+                      className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-black/60 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition text-[10px] leading-none"
+                    >×</button>
+                  </div>
+                ))}
+              </div>
+              <p className="text-[10px] text-gray-400 mt-1.5">Cliquez sur "où ?" pour indiquer l'emplacement de chaque média</p>
+            </div>
+          )}
+
+          {/* Input */}
+          <div className="border-t border-gray-100 px-3 py-3 flex-shrink-0">
+            {/* hidden file input */}
+            <input
+              ref={aiFileRef}
+              type="file"
+              accept="image/*,audio/*,video/*"
+              multiple
+              className="hidden"
+              onChange={e => { handleAiFileAdd(e.target.files); e.target.value = ''; }}
+            />
+            <div className={`flex items-end gap-2 rounded-xl border bg-gray-50 px-3 py-2 focus-within:ring-2 focus-within:ring-indigo-100 transition ${aiRecording ? 'border-red-400 ring-2 ring-red-100' : 'border-gray-200 focus-within:border-indigo-400'}`}>
+              {/* Bouton ajout média */}
+              <button
+                type="button"
+                onClick={() => aiFileRef.current?.click()}
+                className="flex-shrink-0 mb-0.5 text-gray-400 hover:text-indigo-500 transition"
+                title="Joindre image, audio ou vidéo"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                </svg>
+              </button>
+              <textarea
+                ref={aiInputRef}
+                value={aiTranscribing ? '⏳ Transcription en cours...' : aiInput}
+                readOnly={aiTranscribing}
+                onChange={e => setAiInput(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendAiMessage(); } }}
+                onPaste={e => {
+                  const files = Array.from(e.clipboardData?.files || []).filter(f => f.type.startsWith('image/') || f.type.startsWith('audio/') || f.type.startsWith('video/'));
+                  if (files.length > 0) { e.preventDefault(); handleAiFileAdd(files); }
+                }}
+                placeholder={aiRecording ? '🔴 Enregistrement vocal...' : 'Décris ce que tu veux créer ou modifier...'}
+                rows={1}
+                style={{ maxHeight: 80 }}
+                className="flex-1 resize-none bg-transparent text-sm text-gray-800 placeholder:text-gray-400 outline-none overflow-y-auto"
+              />
+              {/* Bouton micro */}
+              <button
+                type="button"
+                onClick={toggleAiRecording}
+                disabled={aiTranscribing}
+                className={`flex-shrink-0 mb-0.5 rounded-lg p-1.5 transition disabled:opacity-40 ${
+                  aiRecording
+                    ? 'bg-red-500 text-white animate-pulse'
+                    : 'text-gray-400 hover:text-red-500'
+                }`}
+                title={aiRecording ? 'Arrêter et transcrire' : 'Note vocale'}
+              >
+                <svg className="w-4 h-4" fill={aiRecording ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v4M8 23h8"/>
+                </svg>
+              </button>
+              <button
+                onClick={sendAiMessage}
+                disabled={(!aiInput.trim() && aiMedias.length === 0) || aiLoading || aiRecording || aiTranscribing}
+                className={`flex-shrink-0 mb-0.5 rounded-lg p-1.5 text-white transition disabled:opacity-40 disabled:cursor-not-allowed ${aiModel === 'gpt-5.4' ? 'bg-[#10a37f] hover:bg-[#0d8c6d]' : 'bg-[#C96442] hover:bg-[#b05538]'}`}
+              >
+                <Send className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
