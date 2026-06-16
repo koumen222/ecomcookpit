@@ -204,7 +204,8 @@ async function resolveStore(subdomain) {
     'storeSettings.isStoreEnabled': true
   })
   .select('_id workspaceId name subdomain storeSettings storeTheme storePages storeFooter storeLegalPages storePixels storePayments storeDomains storeDeliveryZones whatsappAutoConfirm whatsappOrderTemplate whatsappAutoInstanceId whatsappAutoImageUrl whatsappAutoAudioUrl whatsappAutoVideoUrl whatsappAutoDocumentUrl whatsappAutoSendOrder whatsappAutoProductMediaRules updatedAt')
-  .lean();
+  .lean()
+  .maxTimeMS(1000);
 
   if (store) {
     // _storeId = real Store document _id
@@ -223,7 +224,8 @@ async function resolveStore(subdomain) {
     'storeSettings.isStoreEnabled': true
   })
   .select('_id name subdomain storeSettings storeTheme storePages storeFooter storeLegalPages storePixels storePayments storeDomains storeDeliveryZones whatsappAutoConfirm whatsappOrderTemplate whatsappAutoInstanceId whatsappAutoImageUrl whatsappAutoAudioUrl whatsappAutoVideoUrl whatsappAutoDocumentUrl whatsappAutoSendOrder whatsappAutoProductMediaRules updatedAt')
-  .lean();
+  .lean()
+  .maxTimeMS(1000);
 
   if (workspace) {
     const result = { ...workspace, _workspaceId: workspace._id, _storeId: null };
@@ -264,6 +266,46 @@ const PUBLIC_PRODUCT_LIST_PROJECT = {
   tags: 1,
   createdAt: 1,
 };
+
+const PUBLIC_DB_TIMEOUT_MS = 2500;
+
+function withPublicTimeout(promise, label, timeoutMs = PUBLIC_DB_TIMEOUT_MS) {
+  let timer = null;
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      const error = new Error(`${label} timed out after ${timeoutMs}ms`);
+      error.statusCode = 503;
+      reject(error);
+    }, timeoutMs);
+
+    Promise.resolve(promise)
+      .then((value) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve(value);
+      })
+      .catch((error) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        reject(error);
+      });
+  });
+}
+
+function sendPublicError(res, error, fallbackMessage) {
+  const message = error?.message || '';
+  const isTimeout = error?.statusCode === 503 || /timed out|timeout|maxTimeMS/i.test(message);
+  return res.status(isTimeout ? 503 : 500).json({
+    success: false,
+    message: isTimeout ? 'Boutique temporairement indisponible. Réessayez dans quelques secondes.' : fallbackMessage,
+    code: isTimeout ? 'STORE_TEMPORARILY_UNAVAILABLE' : 'STORE_ERROR'
+  });
+}
 
 function parsePublicProductSort(sort = '-createdAt') {
   const raw = String(sort || '-createdAt').trim();
@@ -307,20 +349,20 @@ router.get('/resolve-domain/:hostname', readLimiter, async (req, res) => {
 
     // Look up store by custom domain — check Store first, then Workspace (legacy)
     let foundSubdomain = null, foundName = null;
-    const storeByDomain = await Store.findOne({
+    const storeByDomain = await withPublicTimeout(Store.findOne({
       'storeDomains.customDomain': hostname,
       isActive: true,
       'storeSettings.isStoreEnabled': true
-    }).select('subdomain name storeSettings.storeName').lean();
+    }).select('subdomain name storeSettings.storeName').lean().maxTimeMS(1000), 'resolve custom store domain');
     if (storeByDomain?.subdomain) {
       foundSubdomain = storeByDomain.subdomain;
       foundName = storeByDomain.storeSettings?.storeName || storeByDomain.name;
     } else {
-      const workspace = await Workspace.findOne({
+      const workspace = await withPublicTimeout(Workspace.findOne({
         'storeDomains.customDomain': hostname,
         isActive: true,
         'storeSettings.isStoreEnabled': true
-      }).select('subdomain name storeSettings.storeName').lean();
+      }).select('subdomain name storeSettings.storeName').lean().maxTimeMS(1000), 'resolve custom workspace domain');
       if (workspace?.subdomain) {
         foundSubdomain = workspace.subdomain;
         foundName = workspace.storeSettings?.storeName || workspace.name;
@@ -342,7 +384,7 @@ router.get('/resolve-domain/:hostname', readLimiter, async (req, res) => {
     });
   } catch (error) {
     console.error('Error GET /api/store/resolve-domain:', error);
-    res.status(500).json({ success: false, message: 'Error resolving domain' });
+    sendPublicError(res, error, 'Error resolving domain');
   }
 });
 
@@ -364,7 +406,7 @@ router.get('/:subdomain', readLimiter, async (req, res) => {
       return res.json(cached);
     }
 
-    const workspace = await resolveStore(req.params.subdomain);
+    const workspace = await withPublicTimeout(resolveStore(req.params.subdomain), 'resolve public store');
 
     if (!workspace) {
       return res.status(404).json({
@@ -377,7 +419,7 @@ router.get('/:subdomain', readLimiter, async (req, res) => {
     const settings = workspace.storeSettings || {};
     const prodFilter = getProductFilter(workspace);
 
-    const [homeFacet] = await StoreProduct.aggregate([
+    const [homeFacet] = await withPublicTimeout(StoreProduct.aggregate([
       { $match: { ...prodFilter, isPublished: true } },
       {
         $facet: {
@@ -394,7 +436,7 @@ router.get('/:subdomain', readLimiter, async (req, res) => {
           total: [{ $count: 'count' }],
         },
       },
-    ]);
+    ]).option({ maxTimeMS: 1500 }), 'load public store home');
 
     const products = homeFacet?.products || [];
     const categories = (homeFacet?.categories || []).map((item) => item._id).filter(Boolean);
@@ -504,7 +546,7 @@ router.get('/:subdomain', readLimiter, async (req, res) => {
 
   } catch (error) {
     console.error('❌ GET /api/store/:subdomain error:', error.message);
-    res.status(500).json({ success: false, message: 'Error loading store' });
+    sendPublicError(res, error, 'Error loading store');
   }
 });
 
@@ -526,7 +568,7 @@ router.get('/:subdomain/products', readLimiter, async (req, res) => {
       return res.json(cached);
     }
 
-    const workspace = await resolveStore(req.params.subdomain);
+    const workspace = await withPublicTimeout(resolveStore(req.params.subdomain), 'resolve public store');
     if (!workspace) {
       return res.status(404).json({ success: false, message: 'Store not found' });
     }
@@ -548,7 +590,7 @@ router.get('/:subdomain/products', readLimiter, async (req, res) => {
 
     const skip = (pageNum - 1) * limitNum;
 
-    const [listingFacet] = await StoreProduct.aggregate([
+    const [listingFacet] = await withPublicTimeout(StoreProduct.aggregate([
       { $match: filter },
       {
         $facet: {
@@ -561,7 +603,7 @@ router.get('/:subdomain/products', readLimiter, async (req, res) => {
           total: [{ $count: 'count' }],
         },
       },
-    ]);
+    ]).option({ maxTimeMS: 1500 }), 'load public products');
 
     const products = listingFacet?.products || [];
     const total = listingFacet?.total?.[0]?.count || 0;
@@ -591,7 +633,7 @@ router.get('/:subdomain/products', readLimiter, async (req, res) => {
 
   } catch (error) {
     console.error('❌ GET /api/store/:subdomain/products error:', error.message);
-    res.status(500).json({ success: false, message: 'Error loading products' });
+    sendPublicError(res, error, 'Error loading products');
   }
 });
 
@@ -612,7 +654,7 @@ router.get('/:subdomain/products/:slug', readLimiter, async (req, res) => {
       return res.json(cached);
     }
 
-    const workspace = await resolveStore(req.params.subdomain);
+    const workspace = await withPublicTimeout(resolveStore(req.params.subdomain), 'resolve public store');
     if (!workspace) {
       return res.status(404).json({ success: false, message: 'Store not found' });
     }
@@ -623,7 +665,8 @@ router.get('/:subdomain/products/:slug', readLimiter, async (req, res) => {
       isPublished: true
     })
     .select('name slug description price compareAtPrice currency country targetMarket city locale stock images category tags seoTitle seoDescription features faq testimonials _pageData productPageConfig')
-    .lean();
+    .lean()
+    .maxTimeMS(1200);
 
     if (!product) {
       return res.status(404).json({ success: false, message: 'Product not found' });
@@ -634,9 +677,9 @@ router.get('/:subdomain/products/:slug', readLimiter, async (req, res) => {
       workspaceId: workspace._workspaceId || workspace._id,
       productId: product._id,
       isActive: true
-    }).select('offers design').sort({ createdAt: -1 }).lean();
+    }).select('offers design').sort({ createdAt: -1 }).lean().maxTimeMS(800);
 
-    const quantityOffer = await quantityOfferPromise;
+    const quantityOffer = await withPublicTimeout(quantityOfferPromise, 'load quantity offer', 1200);
 
     setCacheHeaders(res, 60);
 
@@ -690,7 +733,7 @@ router.get('/:subdomain/products/:slug', readLimiter, async (req, res) => {
 
   } catch (error) {
     console.error('❌ GET /api/store/:subdomain/products/:slug error:', error.message);
-    res.status(500).json({ success: false, message: 'Error loading product' });
+    sendPublicError(res, error, 'Error loading product');
   }
 });
 
@@ -708,16 +751,16 @@ router.get('/:subdomain/categories', readLimiter, async (req, res) => {
       return res.json(cached);
     }
 
-    const workspace = await resolveStore(req.params.subdomain);
+    const workspace = await withPublicTimeout(resolveStore(req.params.subdomain), 'resolve public store');
     if (!workspace) {
       return res.status(404).json({ success: false, message: 'Store not found' });
     }
 
-    const categories = await StoreProduct.distinct('category', {
+    const categories = await withPublicTimeout(StoreProduct.distinct('category', {
       ...getProductFilter(workspace),
       isPublished: true,
       category: { $ne: '' }
-    });
+    }).maxTimeMS(1200), 'load public categories');
 
     // Categories rarely change — cache 10 minutes
     setCacheHeaders(res, 600);
@@ -728,7 +771,7 @@ router.get('/:subdomain/categories', readLimiter, async (req, res) => {
 
   } catch (error) {
     console.error('❌ GET /api/store/:subdomain/categories error:', error.message);
-    res.status(500).json({ success: false, message: 'Error loading categories' });
+    sendPublicError(res, error, 'Error loading categories');
   }
 });
 
@@ -751,7 +794,7 @@ router.get('/:subdomain/product-page/:slug', readLimiter, async (req, res) => {
       return res.json(cached);
     }
 
-    const workspace = await resolveStore(req.params.subdomain);
+    const workspace = await withPublicTimeout(resolveStore(req.params.subdomain), 'resolve public store');
     if (!workspace) {
       return res.status(404).json({ success: false, message: 'Store not found' });
     }
@@ -764,21 +807,25 @@ router.get('/:subdomain/product-page/:slug', readLimiter, async (req, res) => {
 
     // Résoudre l'_id du produit d'abord (requête ultra-légère sur index slug),
     // puis lancer le chargement complet + QuantityOffer en parallèle.
-    const productIdDoc = await StoreProduct.findOne(productFilter).select('_id').lean();
+    const productIdDoc = await withPublicTimeout(
+      StoreProduct.findOne(productFilter).select('_id').lean().maxTimeMS(1000),
+      'resolve public product id'
+    );
     if (!productIdDoc) {
       return res.status(404).json({ success: false, message: 'Product not found' });
     }
 
-    const [product, quantityOffer] = await Promise.all([
+    const [product, quantityOffer] = await withPublicTimeout(Promise.all([
       StoreProduct.findById(productIdDoc._id)
         .select('name slug description price compareAtPrice currency country targetMarket city locale stock images category tags seoTitle seoDescription features faq testimonials _pageData productPageConfig')
-        .lean(),
+        .lean()
+        .maxTimeMS(1200),
       QuantityOffer.findOne({
         workspaceId: workspace._workspaceId || workspace._id,
         productId: productIdDoc._id,
         isActive: true,
-      }).select('offers design productId').sort({ createdAt: -1 }).lean(),
-    ]);
+      }).select('offers design productId').sort({ createdAt: -1 }).lean().maxTimeMS(800),
+    ]), 'load public product page');
 
     if (!product) {
       return res.status(404).json({ success: false, message: 'Product not found' });
@@ -900,7 +947,7 @@ router.get('/:subdomain/product-page/:slug', readLimiter, async (req, res) => {
     res.json(payload);
   } catch (error) {
     console.error('❌ GET /api/store/:subdomain/product-page/:slug error:', error.message);
-    res.status(500).json({ success: false, message: 'Error loading product page' });
+    sendPublicError(res, error, 'Error loading product page');
   }
 });
 

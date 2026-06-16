@@ -269,6 +269,49 @@ function injectHeadMeta(html, meta) {
   return replaceIconTags(nextHtml, resolved.icon);
 }
 
+function buildFallbackMeta(req) {
+  const routeMeta = getPlatformRouteMeta(req.path);
+  const baseUrl = `${getRequestOrigin(req)}${String(req.originalUrl || req.url || '/').split('?')[0] || '/'}`;
+  return {
+    title: routeMeta?.title || DEFAULT_PLATFORM_TITLE,
+    description: routeMeta?.description || DEFAULT_PLATFORM_DESCRIPTION,
+    image: DEFAULT_PLATFORM_IMAGE,
+    icon: DEFAULT_PLATFORM_IMAGE,
+    type: 'website',
+    siteName: 'Scalor',
+    appTitle: 'Scalor',
+    url: baseUrl,
+  };
+}
+
+function withTimeout(promise, timeoutMs, fallback, label) {
+  let timer = null;
+  return new Promise((resolve) => {
+    let settled = false;
+    timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      console.warn(`[storefront] ${label} timed out after ${timeoutMs}ms, serving fallback HTML`);
+      resolve(fallback);
+    }, timeoutMs);
+
+    Promise.resolve(promise)
+      .then((value) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve(value);
+      })
+      .catch((error) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        console.warn(`[storefront] ${label} failed: ${error.message}`);
+        resolve(fallback);
+      });
+  });
+}
+
 function resolveStoreRouteContext(req) {
   const parts = String(req.path || '/').split('/').filter(Boolean);
 
@@ -315,17 +358,7 @@ async function resolveRequestMeta(req, routeContext = resolveStoreRouteContext(r
   const baseUrl = `${getRequestOrigin(req)}${String(req.originalUrl || req.url || '/').split('?')[0] || '/'}`;
 
   if (!routeContext?.subdomain) {
-    const routeMeta = getPlatformRouteMeta(req.path);
-    return {
-      title: routeMeta?.title || DEFAULT_PLATFORM_TITLE,
-      description: routeMeta?.description || DEFAULT_PLATFORM_DESCRIPTION,
-      image: DEFAULT_PLATFORM_IMAGE,
-      icon: DEFAULT_PLATFORM_IMAGE,
-      type: 'website',
-      siteName: 'Scalor',
-      appTitle: 'Scalor',
-      url: baseUrl,
-    };
+    return buildFallbackMeta(req);
   }
 
   if (initialData?.store) {
@@ -435,7 +468,7 @@ async function resolveRequestMeta(req, routeContext = resolveStoreRouteContext(r
       ...productFilter,
       slug: routeContext.slug,
       isPublished: true,
-    }).select('name seoTitle seoDescription description images').lean();
+    }).select('name seoTitle seoDescription description images').lean().maxTimeMS(800);
 
     if (product) {
       const productImage = product.images?.[0]?.url || '';
@@ -608,7 +641,8 @@ async function fetchInitialData(routeContext) {
     if (routeContext.pageType === 'product' && routeContext.slug) {
       const product = await StoreProduct.findOne({ ...productFilter, slug: routeContext.slug, isPublished: true })
         .select('name slug description price compareAtPrice currency country targetMarket city locale stock images category tags seoTitle seoDescription features faq testimonials _pageData productPageConfig')
-        .lean();
+        .lean()
+        .maxTimeMS(1200);
 
       let quantityOfferData = null;
       if (product?._id) {
@@ -654,7 +688,7 @@ async function fetchInitialData(routeContext) {
     // home / products listing — limite 20 → 50, avec champs élargis
     const products = await StoreProduct.find({ ...productFilter, isPublished: true })
       .select(PREVIEW_FIELDS)
-      .sort('-createdAt').limit(50).lean();
+      .sort('-createdAt').limit(50).lean().maxTimeMS(1500);
 
     return {
       generatedAt: Date.now(),
@@ -770,6 +804,13 @@ if (BUILD_DIR) {
   }));
 }
 
+router.use((req, res, next) => {
+  if (/\.(?:js|css|png|jpe?g|gif|svg|webp|ico|json|map|txt|woff2?|ttf|otf)$/i.test(req.path || '')) {
+    return res.status(404).end();
+  }
+  next();
+});
+
 // ─── 4. SPA Fallback — serve index.html for all non-static routes ─────────────
 // This handles routes like: koumen.scalor.net/product/123, koumen.scalor.net/cart
 // React Router takes over client-side routing from index.html
@@ -804,17 +845,17 @@ router.get('*', async (req, res) => {
 
   try {
     const routeContext = resolveStoreRouteContext(req);
-    const initialData = await fetchInitialData(routeContext);
-    const meta = await resolveRequestMeta(req, routeContext, initialData);
+    const fallbackMeta = buildFallbackMeta(req);
+    const initialData = await withTimeout(fetchInitialData(routeContext), 2500, null, 'initial storefront data');
+    const meta = routeContext?.subdomain && !initialData
+      ? fallbackMeta
+      : await withTimeout(resolveRequestMeta(req, routeContext, initialData), 1000, fallbackMeta, 'storefront meta');
     const html = injectInitialData(injectHeadMeta(readIndexTemplate(), meta), initialData);
     res.status(200).send(html);
   } catch (err) {
     console.error('❌ [storefront] Failed to render dynamic index.html:', err.message);
-    res.status(500).json({
-      success: false,
-      message: 'Error loading store',
-      code: 'INDEX_SEND_ERROR'
-    });
+    const html = injectHeadMeta(readIndexTemplate(), buildFallbackMeta(req));
+    res.status(200).send(html);
   }
 });
 

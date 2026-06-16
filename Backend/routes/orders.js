@@ -23,6 +23,7 @@ import WhatsAppInstance from '../models/WhatsAppInstance.js';
 import { EventEmitter } from 'events';
 
 const router = express.Router();
+const DELIVERY_COST_PER_KM_FCFA = 500;
 
 /**
  * Construit la condition MongoDB pour filtrer par sourceId.
@@ -3837,7 +3838,7 @@ router.patch('/:id/livreur-action', requireEcomAuth, async (req, res) => {
       if (endAddress) order.deliveryEndAddress = String(endAddress).slice(0, 500);
       if (typeof distanceKm === 'number' && distanceKm >= 0) {
         order.deliveryDistanceKm = Math.round(distanceKm * 100) / 100;
-        order.deliveryCostFcfa = Math.round(distanceKm * 200);
+        order.deliveryCostFcfa = Math.round(distanceKm * DELIVERY_COST_PER_KM_FCFA);
       }
       order.deliveryStartedAt = new Date();
     }
@@ -3846,7 +3847,7 @@ router.patch('/:id/livreur-action', requireEcomAuth, async (req, res) => {
     if (action === 'delivered') {
       if (typeof distanceKm === 'number' && distanceKm >= 0) {
         order.deliveryDistanceKm = Math.round(distanceKm * 100) / 100;
-        order.deliveryCostFcfa = Math.round(distanceKm * 200);
+        order.deliveryCostFcfa = Math.round(distanceKm * DELIVERY_COST_PER_KM_FCFA);
       }
       if (deliveryNote) order.deliveryNote = String(deliveryNote).slice(0, 1000);
     }

@@ -5,7 +5,7 @@ import ecomApi from '../services/ecommApi.js';
 import { useMoney } from '../hooks/useMoney.js';
 import { CenteredSpinner } from '../components/Skeleton.jsx';
 
-const COST_PER_KM = 200;
+const COST_PER_KM = 500;
 
 const STATUS_LABELS = {
   pending: 'En attente', confirmed: 'Confirmée', shipped: 'En transit',

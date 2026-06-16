@@ -4,7 +4,7 @@ import { useEcomAuth } from '../hooks/useEcomAuth';
 import ecomApi from '../services/ecommApi.js';
 import { useMoney } from '../hooks/useMoney.js';
 
-const COST_PER_KM = 200;
+const COST_PER_KM = 500;
 
 function haversineKm(lat1, lon1, lat2, lon2) {
   const R = 6371;
