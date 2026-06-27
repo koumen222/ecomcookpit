@@ -66,7 +66,11 @@ async function getScalorStoreOrdersSummary(workspaceId, activeStoreId) {
       $group: {
         _id: '$status',
         count: { $sum: 1 },
-        revenue: { $sum: '$total' }
+        revenue: {
+          $sum: {
+            $cond: [{ $eq: ['$status', 'abandoned'] }, 0, '$total']
+          }
+        }
       }
     },
     {
@@ -171,7 +175,11 @@ router.get('/analytics/summary', requireEcomAuth, requireWorkspace, async (req, 
         $group: {
           _id: null,
           todayOrders: { $sum: 1 },
-          todaySales: { $sum: '$total' }
+          todaySales: {
+            $sum: {
+              $cond: [{ $eq: ['$status', 'abandoned'] }, 0, '$total']
+            }
+          }
         }
       },
       { $project: { _id: 0 } }
@@ -195,6 +203,7 @@ router.get('/analytics/summary', requireEcomAuth, requireWorkspace, async (req, 
       }),
       countScalorStoreOrders({
         ...storeOrderMatchFilter,
+        status: { $ne: 'abandoned' },
         createdAt: { $gte: thirtyDaysAgo }
       })
     ]);

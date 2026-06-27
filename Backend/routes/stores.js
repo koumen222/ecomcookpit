@@ -158,7 +158,7 @@ router.get('/', requireEcomAuth, async (req, res) => {
 const MAX_STORES_PER_WORKSPACE = 10;
 router.post('/', requireEcomAuth, checkPlanLimit('stores'), async (req, res) => {
   try {
-    const { name, subdomain } = req.body;
+    const { name, subdomain, country, storeCurrency } = req.body;
     if (!name?.trim()) {
       return res.status(400).json({ success: false, message: 'Nom de boutique requis' });
     }
@@ -190,6 +190,9 @@ router.post('/', requireEcomAuth, checkPlanLimit('stores'), async (req, res) => 
       }
     }
 
+    const initialCountry = String(country || '').trim().slice(0, 120);
+    const initialCurrency = String(storeCurrency || '').trim().toUpperCase().slice(0, 12) || 'XAF';
+
     const store = await Store.create({
       workspaceId: req.workspaceId,
       name: name.trim(),
@@ -204,7 +207,14 @@ router.post('/', requireEcomAuth, checkPlanLimit('stores'), async (req, res) => 
         storePhone: '',
         storeWhatsApp: '',
         storeThemeColor: '#0F6B4F',
-        storeCurrency: 'XAF'
+        storeCurrency: initialCurrency,
+        currency: initialCurrency,
+        country: initialCountry,
+        productPageConfig: {
+          general: {
+            countries: initialCountry ? [initialCountry] : []
+          }
+        }
       },
       createdBy: req.ecomUser._id
     });

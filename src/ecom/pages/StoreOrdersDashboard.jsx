@@ -6,6 +6,7 @@ import { formatMoney } from '../utils/currency.js';
 
 const STATUS_OPTIONS = [
   { value: '', label: 'Toutes' },
+  { value: 'abandoned', label: 'Non conclues' },
   { value: 'pending', label: 'Non traitées' },
   { value: 'confirmed', label: 'Non payées' },
   { value: 'processing', label: 'Ouvertes' },
@@ -13,6 +14,7 @@ const STATUS_OPTIONS = [
 ];
 
 const ALL_STATUSES = [
+  { value: 'abandoned', label: 'Non conclue' },
   { value: 'pending', label: 'En attente' },
   { value: 'confirmed', label: 'Confirmée' },
   { value: 'processing', label: 'En traitement' },
@@ -22,6 +24,7 @@ const ALL_STATUSES = [
 ];
 
 const PAYMENT_STATUS = {
+  abandoned: { label: 'Non conclue', color: 'bg-amber-100 text-amber-800', dot: 'bg-amber-500' },
   pending: { label: 'Paiement en attente', color: 'bg-orange-100 text-orange-700', dot: 'bg-orange-400' },
   confirmed: { label: 'Paiement en attente', color: 'bg-orange-100 text-orange-700', dot: 'bg-orange-400' },
   processing: { label: 'En cours', color: 'bg-yellow-100 text-yellow-700', dot: 'bg-yellow-400' },
@@ -32,6 +35,7 @@ const PAYMENT_STATUS = {
 };
 
 const FULFILLMENT_STATUS = {
+  abandoned: { label: 'À relancer', color: 'bg-amber-100 text-amber-800', dot: 'bg-amber-500' },
   pending: { label: 'Non traité', color: 'bg-yellow-100 text-yellow-700', dot: 'bg-yellow-400' },
   confirmed: { label: 'Non traité', color: 'bg-yellow-100 text-yellow-700', dot: 'bg-yellow-400' },
   processing: { label: 'En cours', color: 'bg-blue-100 text-blue-700', dot: 'bg-blue-400' },
@@ -156,14 +160,28 @@ const StoreOrdersDashboard = () => {
 
   const todayOrders = orders.filter(o => new Date(o.createdAt).toDateString() === new Date().toDateString());
   const todayItems = todayOrders.reduce((s, o) => s + totalArticles(o), 0);
+  const abandonedOrders = orders.filter(o => o.status === 'abandoned');
   const returnOrders = orders.filter(o => o.status === 'cancelled');
   const fulfilledOrders = orders.filter(o => o.status === 'delivered' || o.status === 'shipped');
 
   const whatsappLink = (order) => {
     const phone = (order.phone || '').replace(/\D/g, '');
     if (!phone) return null;
+    if (order.status === 'abandoned') {
+      const firstName = String(order.customerName || '').split(' ')[0] || '';
+      const product = order.products?.[0]?.name || 'votre commande';
+      return `https://wa.me/${phone}?text=${encodeURIComponent(`Bonjour ${firstName}, vous aviez commencé une commande pour ${product}. Souhaitez-vous la finaliser ?`)}`;
+    }
     const statusLabel = ALL_STATUSES.find(s => s.value === order.status)?.label || order.status;
     return `https://wa.me/${phone}?text=${encodeURIComponent(`Bonjour ${order.customerName || ''}, votre commande #${order.orderNumber || ''} est ${statusLabel.toLowerCase()}. Merci !`)}`;
+  };
+
+  const openOrder = (order) => {
+    if (order.status === 'abandoned' || !order.linkedOrderId) {
+      setSelectedOrder(order);
+      return;
+    }
+    navigate(`/ecom/orders/${order.linkedOrderId}`);
   };
 
   return (
@@ -211,6 +229,7 @@ const StoreOrdersDashboard = () => {
       <div className="px-4 sm:px-6 py-3 border-b border-gray-200 bg-white">
         <div className="flex items-center gap-4 overflow-x-auto scrollbar-hide">
           <KpiMini label="Total" value={pagination.total} />
+          <KpiMini label="Non conclues" value={abandonedOrders.length} />
           <KpiMini label="Aujourd'hui" value={todayOrders.length} />
           <KpiMini label="Articles" value={todayItems} />
           <KpiMini label="Traitées" value={fulfilledOrders.length} />
@@ -303,7 +322,7 @@ const StoreOrdersDashboard = () => {
                   const items = totalArticles(order);
                   const isSelected = selectedOrders.includes(order._id);
                   return (
-                    <tr key={order._id} onClick={() => navigate(`/ecom/orders/${order.linkedOrderId || order._id}`)}
+                    <tr key={order._id} onClick={() => openOrder(order)}
                       className={"border-b border-gray-100 hover:bg-gray-50 transition cursor-pointer " + (isSelected ? 'bg-blue-50' : '')}>
                       <td className="pl-4 sm:pl-6 pr-2 py-2.5">
                         <input type="checkbox" checked={isSelected} onChange={(e) => { e.stopPropagation(); toggleSelect(order._id); }}
@@ -312,7 +331,13 @@ const StoreOrdersDashboard = () => {
                       <td className="px-2 py-2.5 font-medium text-gray-900 whitespace-nowrap">#{order.orderNumber || order._id?.slice(-4)}</td>
                       <td className="px-2 py-2.5 text-gray-500 whitespace-nowrap">{formatDate(order.createdAt)}</td>
                       <td className="px-2 py-2.5 text-gray-900 whitespace-nowrap">{order.customerName || '-'}</td>
-                      <td className="px-2 py-2.5 text-gray-500 whitespace-nowrap">{order.channel || order.source || ''}</td>
+                      <td className="px-2 py-2.5 text-gray-500 whitespace-nowrap">
+                        {order.status === 'abandoned' ? (
+                          <span className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800">Relance</span>
+                        ) : (
+                          order.channel || order.source || ''
+                        )}
+                      </td>
                       <td className="px-2 py-2.5 font-medium text-gray-900 whitespace-nowrap">{formatPrice(order.total, order.currency)}</td>
                       <td className="px-2 py-2.5 whitespace-nowrap">
                         <StatusBadge {...payment} />
@@ -322,7 +347,8 @@ const StoreOrdersDashboard = () => {
                       </td>
                       <td className="px-2 py-2.5 text-gray-500 whitespace-nowrap">{items} article{items > 1 ? 's' : ''}</td>
                       <td className="px-2 py-2.5 whitespace-nowrap">
-                        {order.status === 'delivered' ? <StatusBadge label="Livré" color="bg-primary-100 text-primary-700" dot="bg-primary-500" />
+                        {order.status === 'abandoned' ? <StatusBadge label="À relancer" color="bg-amber-100 text-amber-800" dot="bg-amber-500" />
+                          : order.status === 'delivered' ? <StatusBadge label="Livré" color="bg-primary-100 text-primary-700" dot="bg-primary-500" />
                           : order.status === 'shipped' ? <StatusBadge label="En transit" color="bg-purple-100 text-purple-700" dot="bg-purple-500" />
                           : <span className="text-gray-400 text-xs">—</span>}
                       </td>

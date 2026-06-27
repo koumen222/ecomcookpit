@@ -617,6 +617,8 @@ const StoreApp = () => {
             <Route path="/products/:slug" element={<Suspense fallback={null}><StoreProductPage /></Suspense>} />
             {/* /product/:slug — legacy URL, kept for backward compat */}
             <Route path="/product/:slug" element={<Suspense fallback={null}><StoreProductPage /></Suspense>} />
+            {/* /produit/:slug — French alias used by older theme previews/links */}
+            <Route path="/produit/:slug" element={<Suspense fallback={null}><StoreProductPage /></Suspense>} />
             <Route path="/legal/:pageType" element={<StoreLegalPage />} />
             <Route path="/checkout" element={<StoreCheckout />} />
             <Route path="*" element={<Navigate to="/" replace />} />
@@ -873,6 +875,7 @@ const EcomApp = () => {
               <Route path="/store/:subdomain/products" element={<Suspense fallback={<PageLoader storeMode />}><StoreAllProducts /></Suspense>} />
               <Route path="/store/:subdomain/products/:slug" element={<Suspense fallback={null}><StoreProductPage /></Suspense>} />
               <Route path="/store/:subdomain/product/:slug" element={<Suspense fallback={null}><StoreProductPage /></Suspense>} />
+              <Route path="/store/:subdomain/produit/:slug" element={<Suspense fallback={null}><StoreProductPage /></Suspense>} />
               <Route path="/store/:subdomain/legal/:pageType" element={<Suspense fallback={<PageLoader storeMode />}><StoreLegalPage /></Suspense>} />
               <Route path="/store/:subdomain/checkout" element={<Suspense fallback={<PageLoader storeMode />}><StoreCheckout /></Suspense>} />
 

@@ -3,7 +3,9 @@ const defaultConfig = {
   general: {
     formType: 'popup',
     title: 'Veuillez remplir le formulaire pour commander',
-    countries: ['Cameroon'],
+    // Empty means "use the country selected for the store". This avoids
+    // pinning every new COD form to Cameroon before the store is configured.
+    countries: [],
     popularCities: {
       Cameroon: ['Douala', 'Yaoundé', 'Bafoussam', 'Bamenda', 'Garoua', 'Maroua', 'Ngaoundéré', 'Bertoua', 'Kribi', 'Limbé'],
       'Côte d\'Ivoire': ['Abidjan', 'Bouaké', 'Yamoussoukro', 'San-Pédro', 'Daloa', 'Korhogo', 'Man', 'Divo', 'Gagnoa', 'Abengourou'],

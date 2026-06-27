@@ -31,6 +31,12 @@ const storeOrderSchema = new mongoose.Schema({
     required: true,
     default: () => `SC-${Math.random().toString(36).substring(2, 8).toUpperCase()}`
   },
+  checkoutSessionId: {
+    type: String,
+    trim: true,
+    default: '',
+    index: true
+  },
   // Customer info — no account needed (guest checkout)
   customerName: {
     type: String,
@@ -87,7 +93,7 @@ const storeOrderSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled'],
+    enum: ['abandoned', 'pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled'],
     default: 'pending'
   },
   // How the order was placed
@@ -146,6 +152,18 @@ const storeOrderSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Order',
     default: null
+  },
+  abandonedAt: {
+    type: Date,
+    default: null
+  },
+  completedAt: {
+    type: Date,
+    default: null
+  },
+  rawData: {
+    type: mongoose.Schema.Types.Mixed,
+    default: {}
   }
 }, {
   collection: 'store_orders',
@@ -183,6 +201,8 @@ storeOrderSchema.index({ workspaceId: 1, status: 1, createdAt: -1 });
 storeOrderSchema.index({ workspaceId: 1, orderNumber: 1 });
 // Phone lookup (repeat customers)
 storeOrderSchema.index({ workspaceId: 1, phone: 1 });
+// Checkout recovery lookup
+storeOrderSchema.index({ workspaceId: 1, storeId: 1, checkoutSessionId: 1 });
 
 /**
  * Paginated query with workspace isolation.

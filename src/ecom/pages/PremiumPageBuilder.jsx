@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft, Save, Loader2, Check, Plus, Trash2, ChevronDown, ChevronUp,
-  Star, Type, Zap, Shield, HelpCircle, Eye, Palette, Image as ImageIcon,
+  Star, Type, Zap, Shield, HelpCircle, BookOpen, Palette, Image as ImageIcon,
   MessageSquare, BarChart3, Layers, Award, Clock, ShoppingBag, Monitor,
   Smartphone, ExternalLink, Pencil, Undo2, Redo2,
 } from 'lucide-react';
@@ -301,6 +301,7 @@ const SECTIONS = [
   { id: 'design', label: 'Design & Couleurs', icon: <Palette className="w-3.5 h-3.5" />, color: '#6366f1' },
   { id: 'hero', label: 'Hero', icon: <Zap className="w-3.5 h-3.5" />, color: '#0F766E' },
   { id: 'accordions', label: 'Barres depliables', icon: <ChevronDown className="w-3.5 h-3.5" />, color: '#0891b2' },
+  { id: 'guide', label: 'Guide pratique', icon: <BookOpen className="w-3.5 h-3.5" />, color: '#14b8a6' },
   { id: 'testimonials', label: 'Temoignages', icon: <MessageSquare className="w-3.5 h-3.5" />, color: '#ec4899' },
   { id: 'problem', label: 'Probleme', icon: <Type className="w-3.5 h-3.5" />, color: '#ef4444' },
   { id: 'mechanism', label: 'Mecanisme', icon: <Layers className="w-3.5 h-3.5" />, color: '#8b5cf6' },
@@ -312,9 +313,17 @@ const SECTIONS = [
   { id: 'upsells', label: 'Upsells & Order Bump', icon: <Zap className="w-3.5 h-3.5" />, color: '#7c3aed' },
 ];
 
-const ORDERABLE_SECTION_IDS = ['testimonials', 'problem', 'mechanism', 'science', 'ritual', 'comparison', 'faq', 'closing'];
+const ORDERABLE_SECTION_IDS = ['guide', 'testimonials', 'problem', 'mechanism', 'science', 'ritual', 'comparison', 'faq', 'closing'];
 const FIXED_TOP_IDS = ['design', 'hero', 'accordions'];
 const FIXED_BOTTOM_IDS = ['upsells'];
+
+const normalizeSectionOrder = (order) => {
+  const configured = Array.isArray(order)
+    ? order.filter((id) => ORDERABLE_SECTION_IDS.includes(id))
+    : [];
+  const withGuide = configured.includes('guide') ? configured : ['guide', ...configured];
+  return [...withGuide, ...ORDERABLE_SECTION_IDS.filter((id) => !withGuide.includes(id))];
+};
 
 const MAX_HISTORY = 50;
 
@@ -415,7 +424,9 @@ const PremiumPageBuilder = () => {
   const premium = safeConfig.premiumPage || product?._pageData?.premium_page || product?._pageData?.premiumPage || {};
   const design = safeConfig.design || {};
   const accent = design.ctaButtonColor || design.buttonColor || '#0F766E';
-  const sectionOrder = safeConfig.sectionOrder || ORDERABLE_SECTION_IDS;
+  const sectionOrder = normalizeSectionOrder(safeConfig.sectionOrder);
+  const hiddenSections = Array.isArray(safeConfig.hiddenSections) ? safeConfig.hiddenSections : [];
+  const hasPracticalGuide = Boolean(product?._pageData?.ebook || product?.ebook || safeConfig.ebook);
 
   const genImages = product?.premiumImages || product?._pageData?.premiumImages || {};
   const cfgImages = safeConfig.premiumImages || {};
@@ -483,7 +494,7 @@ const PremiumPageBuilder = () => {
 
   const moveSectionUp = useCallback((id) => {
     updateConfig((prev) => {
-      const order = prev?.sectionOrder || ORDERABLE_SECTION_IDS;
+      const order = normalizeSectionOrder(prev?.sectionOrder);
       const idx = order.indexOf(id);
       if (idx <= 0) return prev;
       const next = [...order];
@@ -494,7 +505,7 @@ const PremiumPageBuilder = () => {
 
   const moveSectionDown = useCallback((id) => {
     updateConfig((prev) => {
-      const order = prev?.sectionOrder || ORDERABLE_SECTION_IDS;
+      const order = normalizeSectionOrder(prev?.sectionOrder);
       const idx = order.indexOf(id);
       if (idx < 0 || idx >= order.length - 1) return prev;
       const next = [...order];
@@ -508,7 +519,7 @@ const PremiumPageBuilder = () => {
     e.preventDefault();
     if (!dragIdRef.current || dragIdRef.current === id) return;
     updateConfig((prev) => {
-      const order = prev?.sectionOrder || ORDERABLE_SECTION_IDS;
+      const order = normalizeSectionOrder(prev?.sectionOrder);
       const from = order.indexOf(dragIdRef.current);
       const to = order.indexOf(id);
       if (from < 0 || to < 0) return prev;
@@ -519,6 +530,17 @@ const PremiumPageBuilder = () => {
     });
   }, [updateConfig]);
   const handleDragEnd = useCallback(() => { dragIdRef.current = null; }, []);
+
+  const toggleSectionVisibility = useCallback((id) => {
+    updateConfig((prev) => {
+      const hidden = Array.isArray(prev?.hiddenSections) ? prev.hiddenSections : [];
+      const isHidden = hidden.includes(id);
+      return {
+        ...(prev || {}),
+        hiddenSections: isHidden ? hidden.filter((sectionId) => sectionId !== id) : [...hidden, id],
+      };
+    });
+  }, [updateConfig]);
 
   const uploadOne = useCallback(async (file) => {
     const res = await storeProductsApi.uploadImages([file]);
@@ -654,6 +676,14 @@ const PremiumPageBuilder = () => {
               { key: 'content', label: 'Contenu', type: 'textarea', rows: 3, placeholder: 'Explication...' },
             ]}
           />
+        );
+      case 'guide':
+        return (
+          <div className="rounded-lg border border-teal-100 bg-teal-50 px-3 py-3 text-sm text-teal-950">
+            {hasPracticalGuide
+              ? 'Le guide pratique est pret. Utilisez l interrupteur pour l afficher ou le masquer sur la page.'
+              : 'Le guide pratique apparaitra ici lorsqu un ebook bonus aura ete genere pour ce produit.'}
+          </div>
         );
       case 'testimonials':
         return (
@@ -944,6 +974,7 @@ const PremiumPageBuilder = () => {
               return orderedSections.map((s) => {
                 const isOrderable = ORDERABLE_SECTION_IDS.includes(s.id);
                 const orderIdx = sectionOrder.indexOf(s.id);
+                const isVisible = !isOrderable || !hiddenSections.includes(s.id);
                 return (
                   <div
                     key={s.id}
@@ -953,7 +984,7 @@ const PremiumPageBuilder = () => {
                     onDragEnd={isOrderable ? handleDragEnd : undefined}
                     className={isOrderable ? 'cursor-default' : ''}
                   >
-                    <div className="flex items-center gap-1">
+                    <div className={`flex items-center gap-1 ${isVisible ? '' : 'opacity-50'}`}>
                       {isOrderable && (
                         <div className="flex flex-col items-center gap-0.5 flex-shrink-0 px-0.5 cursor-grab active:cursor-grabbing select-none" title="Glisser pour réordonner">
                           <div className="w-3.5 h-0.5 rounded-full bg-gray-300" />
@@ -971,6 +1002,19 @@ const PremiumPageBuilder = () => {
                         <span className="text-sm font-semibold text-gray-900 flex-1">{s.label}</span>
                         {activeSection === s.id ? <ChevronUp className="w-4 h-4 text-indigo-500" /> : <ChevronDown className="w-4 h-4 text-gray-300" />}
                       </button>
+                      {isOrderable && (
+                        <button
+                          type="button"
+                          role="switch"
+                          title={isVisible ? 'Masquer cette section' : 'Afficher cette section'}
+                          aria-label={isVisible ? `Masquer ${s.label}` : `Afficher ${s.label}`}
+                          aria-checked={isVisible}
+                          onClick={() => toggleSectionVisibility(s.id)}
+                          className={`relative h-5 w-9 rounded-full transition-colors ${isVisible ? 'bg-teal-500' : 'bg-gray-300'}`}
+                        >
+                          <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${isVisible ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                        </button>
+                      )}
                       {isOrderable && (
                         <div className="flex flex-col gap-0.5 flex-shrink-0">
                           <button

@@ -67,6 +67,40 @@ function dateFilter(range = '30d', startDate = null, endDate = null) {
   return { since: new Date(now.getTime() - delta), until: now };
 }
 
+function getActivityStatsOverride(source) {
+  const override = source?.storeSettings?.adminStatsOverride || source?.storeSettings?.activityStatsOverride;
+  if (!override || override.enabled === false) return null;
+
+  const totalOrders = Number(override.totalOrders);
+  const totalRevenue = Number(override.totalRevenue);
+
+  return {
+    totalOrders: Number.isFinite(totalOrders) && totalOrders >= 0 ? Math.round(totalOrders) : null,
+    totalRevenue: Number.isFinite(totalRevenue) && totalRevenue >= 0 ? Math.round(totalRevenue) : null,
+  };
+}
+
+function applyActivityStatsOverride(record, source) {
+  const override = getActivityStatsOverride(source);
+  if (!override) return record;
+
+  const totalOrders = override.totalOrders ?? record.totalOrders ?? 0;
+  const totalRevenue = override.totalRevenue ?? record.totalRevenue ?? 0;
+
+  return {
+    ...record,
+    totalOrders,
+    totalRevenue,
+    statsOverride: {
+      applied: true,
+      baseTotalOrders: record.totalOrders || 0,
+      baseTotalRevenue: record.totalRevenue || 0,
+      totalOrders,
+      totalRevenue,
+    },
+  };
+}
+
 // ──────────────────────────────────────────────────────────
 // Helper: resolve country from IP (Cloudflare headers first, then ipinfo.io)
 // ──────────────────────────────────────────────────────────
@@ -819,7 +853,7 @@ router.get('/users-activity',
         const storeSubdomain = store.subdomain || workspace.subdomain || '';
         const attributedUserId = store.createdBy ? String(store.createdBy) : String(workspace.owner || '');
 
-        boutiqueRecords.push({
+        boutiqueRecords.push(applyActivityStatsOverride({
           attributedUserId,
           workspaceId: String(workspace._id),
           _id: String(store._id),
@@ -845,7 +879,7 @@ router.get('/users-activity',
               ? `https://${storeSubdomain}.scalor.net/product/${(storeProducts?.productSlugs || [])[index]}`
               : '',
           })),
-        });
+        }, store));
       });
 
       workspaces.forEach((workspace) => {
@@ -857,7 +891,7 @@ router.get('/users-activity',
         const legacyProducts = productStatsMap.get(legacyKey);
         const attributedUserId = String(workspace.owner || '');
 
-        boutiqueRecords.push({
+        boutiqueRecords.push(applyActivityStatsOverride({
           attributedUserId,
           workspaceId: String(workspace._id),
           _id: `legacy-${workspace._id}`,
@@ -883,7 +917,7 @@ router.get('/users-activity',
               ? `https://${workspace.subdomain}.scalor.net/product/${(legacyProducts?.productSlugs || [])[index]}`
               : '',
           })),
-        });
+        }, workspace));
       });
 
       const soldProductIds = [...new Set(productSales.map((entry) => String(entry._id?.productId || '')).filter(Boolean))];

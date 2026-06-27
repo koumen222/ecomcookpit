@@ -451,12 +451,12 @@ const StoreProductPagePremium = ({ product, store, productPageConfig, subdomain,
         .premium-cart-count { position: absolute; right: -10px; bottom: -8px; min-width: 18px; height: 18px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; background: var(--premium-accent); color: white; font-size: 10px; font-weight: 900; }
         .premium-section { padding: clamp(30px, 5vw, 64px) clamp(16px, 4vw, 72px); }
         .premium-hero { background: #fff; display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr); gap: clamp(24px, 4vw, 56px); align-items: center; padding-top: clamp(26px, 4vw, 56px); }
-        .premium-media { position: relative; overflow: hidden; background: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-        .premium-carousel { position: relative; width: 100%; overflow: hidden; border-radius: 12px; background: #fff; }
-        .premium-carousel-track { display: flex; transition: transform .35s ease; }
-        .premium-carousel-slide { min-width: 100%; flex: 0 0 100%; display: flex; align-items: center; justify-content: center; background: #fff; }
-        .premium-carousel-slide { aspect-ratio: 1 / 1; }
-        .premium-carousel-slide img, .premium-carousel-slide video { width: 100%; height: 100%; object-fit: contain; display: block; }
+        .premium-media { position: relative; width: 100%; overflow: hidden; background: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .premium-carousel { position: relative; width: 100%; aspect-ratio: 1 / 1; overflow: hidden; border-radius: 12px; background: #fff; }
+        .premium-carousel-track { display: flex; height: 100%; transition: transform .35s ease; }
+        .premium-carousel-slide { min-width: 100%; height: 100%; flex: 0 0 100%; display: flex; align-items: center; justify-content: center; background: #fff; }
+        .premium-carousel-slide > div { width: 100%; height: 100%; }
+        .premium-carousel-slide img, .premium-carousel-slide video { width: 100%; height: 100%; object-fit: cover; display: block; }
         .premium-carousel-arrow { position: absolute; top: 50%; transform: translateY(-50%); width: 38px; height: 38px; border-radius: 999px; border: 0; background: rgba(255,255,255,0.92); box-shadow: 0 4px 14px rgba(0,0,0,0.12); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; color: #1f2933; z-index: 3; }
         .premium-carousel-arrow:hover { background: #fff; }
         .premium-carousel-arrow.prev { left: 10px; }
@@ -579,7 +579,6 @@ const StoreProductPagePremium = ({ product, store, productPageConfig, subdomain,
           .premium-contact { display: none; }
           .premium-brand { font-size: 20px; text-align: left; }
           .premium-hero, .premium-split { grid-template-columns: 1fr; }
-          .premium-carousel-slide img { max-height: 320px; }
           .premium-seal { width: 84px; height: 84px; font-size: 12px; top: 14px; left: 14px; }
           .premium-card-grid { grid-template-columns: 1fr 1fr; gap: 12px; }
           .premium-reviews-carousel .premium-testimonial-card { flex-basis: 80%; }
@@ -753,11 +752,28 @@ const StoreProductPagePremium = ({ product, store, productPageConfig, subdomain,
         </section>
 
         {(() => {
-          const DEFAULT_ORDER = ['testimonials', 'problem', 'mechanism', 'science', 'ritual', 'comparison', 'faq', 'closing'];
+          const DEFAULT_ORDER = ['guide', 'testimonials', 'problem', 'mechanism', 'science', 'ritual', 'comparison', 'faq', 'closing'];
           const hidden = productPageConfig?.hiddenSections || [];
-          const order = (productPageConfig?.sectionOrder?.length ? productPageConfig.sectionOrder : DEFAULT_ORDER).filter(id => !hidden.includes(id));
+          const configuredOrder = Array.isArray(productPageConfig?.sectionOrder)
+            ? productPageConfig.sectionOrder.filter((id) => DEFAULT_ORDER.includes(id))
+            : DEFAULT_ORDER;
+          const orderedSections = configuredOrder.includes('guide')
+            ? configuredOrder
+            : ['guide', ...configuredOrder];
+          const order = [...orderedSections, ...DEFAULT_ORDER.filter((id) => !orderedSections.includes(id))]
+            .filter((id) => !hidden.includes(id));
 
           const sectionMap = {
+            guide: bonusEbook ? (
+              <PremiumBonusEbook
+                key="guide"
+                ebook={bonusEbook}
+                accent={accent}
+                onOrder={openOrder}
+                ctaLabel={textValue(premium.hero?.ctaLabel, productPageConfig?.button?.text || 'Commander')}
+                productImage={heroImage}
+              />
+            ) : null,
             testimonials: (
               <section key="testimonials" className="premium-section premium-testimonials">
                 <div className="premium-centered">
@@ -974,16 +990,6 @@ const StoreProductPagePremium = ({ product, store, productPageConfig, subdomain,
                   ))}
                 </div>
               </section>
-
-              {bonusEbook && (
-                <PremiumBonusEbook
-                  ebook={bonusEbook}
-                  accent={accent}
-                  onOrder={openOrder}
-                  ctaLabel={textValue(premium.hero?.ctaLabel, productPageConfig?.button?.text || 'Commander')}
-                  productImage={heroImage}
-                />
-              )}
 
               {order.map(id => sectionMap[id] || null)}
             </>

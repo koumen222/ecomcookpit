@@ -469,6 +469,9 @@ export const publicStoreApi = {
   // Place a public order (guest checkout)
   placeOrder: (subdomain, orderData) => publicApi.post(`/${subdomain}/orders`, orderData),
 
+  // Save a recoverable checkout before final confirmation
+  saveAbandonedCheckout: (subdomain, checkoutData) => publicApi.post(`/${subdomain}/abandoned-checkout`, checkoutData),
+
   // Newsletter subscription
   subscribeNewsletter: (subdomain, email) => publicApi.post(`/${subdomain}/newsletter`, { email }),
 };

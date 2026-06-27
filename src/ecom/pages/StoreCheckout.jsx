@@ -26,6 +26,13 @@ const CO_SKEL_CSS = `
 .co-sk { background:linear-gradient(90deg,#efefef 25%,#e2e2e2 50%,#efefef 75%);background-size:200% 100%;animation:_coskel 1.4s ease infinite;border-radius:8px; }
 `;
 
+const createCheckoutSessionId = () => {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `checkout_${Date.now()}_${Math.random().toString(36).slice(2, 12)}`;
+};
+
 /**
  * Normalize a city name for fuzzy matching.
  * Removes accents, lowercases, trims, collapses spaces.
@@ -89,6 +96,22 @@ const StoreCheckout = () => {
 
   // Products passed from product page via location state
   const cartProducts = location.state?.products || [];
+  const cartSignature = useMemo(
+    () => cartProducts.map((p) => `${p.productId || p._id || ''}:${p.quantity || 1}`).join('|'),
+    [cartProducts]
+  );
+  const checkoutSessionStorageKey = useMemo(
+    () => (subdomain && cartSignature ? `scalor_checkout_session:${subdomain}:${cartSignature}` : ''),
+    [subdomain, cartSignature]
+  );
+  const checkoutSessionId = useMemo(() => {
+    if (!checkoutSessionStorageKey || typeof window === 'undefined') return '';
+    const existing = window.sessionStorage.getItem(checkoutSessionStorageKey);
+    if (existing) return existing;
+    const next = createCheckoutSessionId();
+    window.sessionStorage.setItem(checkoutSessionStorageKey, next);
+    return next;
+  }, [checkoutSessionStorageKey]);
 
   const [form, setForm] = useState({
     customerName: '',
@@ -100,6 +123,7 @@ const StoreCheckout = () => {
     notes: ''
   });
   const [phoneCode, setPhoneCode] = useState('+237');
+  const abandonedSaveRef = useRef({ timer: null, lastHash: '' });
 
   // Delivery zones data from store
   const deliveryCountries = store?.deliveryCountries || [];
@@ -386,6 +410,69 @@ const StoreCheckout = () => {
   const deliveryCost = zoneCost > 0 ? zoneCost : flatCostEffective;
   const total = subtotal + deliveryCost;
 
+  useEffect(() => {
+    if (
+      loading ||
+      submitting ||
+      orderResult ||
+      !subdomain ||
+      !checkoutSessionId ||
+      cartProducts.length === 0
+    ) {
+      return;
+    }
+
+    const phoneDigits = form.phone.replace(/[^0-9]/g, '');
+    if (phoneDigits.length < Math.min(6, getPhoneLength(phoneCode))) return;
+
+    const affiliateAttribution = getAffiliateAttribution();
+    const payload = {
+      checkoutSessionId,
+      customerName: form.customerName.trim(),
+      phone: buildFullPhone(phoneCode, form.phone),
+      phoneCode,
+      email: form.email.trim(),
+      address: form.address.trim(),
+      city: form.city.trim(),
+      country: resolvedOrderCountry,
+      notes: form.notes.trim(),
+      deliveryType: deliveryStatus.type === 'livraison' ? 'livraison' : deliveryStatus.type === 'expedition' ? 'expedition' : '',
+      deliveryCost,
+      products: cartProducts.map(p => ({
+        productId: p.productId,
+        quantity: p.quantity
+      })),
+      affiliateCode: affiliateAttribution?.affiliateCode || '',
+      affiliateLinkCode: affiliateAttribution?.affiliateLinkCode || '',
+      metaSourceUrl: typeof window !== 'undefined' ? window.location.href : '',
+    };
+    const payloadHash = JSON.stringify(payload);
+    if (payloadHash === abandonedSaveRef.current.lastHash) return;
+
+    clearTimeout(abandonedSaveRef.current.timer);
+    abandonedSaveRef.current.timer = setTimeout(() => {
+      publicStoreApi.saveAbandonedCheckout(subdomain, payload)
+        .then(() => {
+          abandonedSaveRef.current.lastHash = payloadHash;
+        })
+        .catch(() => {});
+    }, 900);
+
+    return () => clearTimeout(abandonedSaveRef.current.timer);
+  }, [
+    loading,
+    submitting,
+    orderResult,
+    subdomain,
+    checkoutSessionId,
+    form,
+    phoneCode,
+    resolvedOrderCountry,
+    deliveryStatus.type,
+    deliveryCost,
+    cartProducts,
+  ]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -441,10 +528,14 @@ const StoreCheckout = () => {
         metaSourceUrl: typeof window !== 'undefined' ? window.location.href : '',
         affiliateCode: affiliateAttribution?.affiliateCode || '',
         affiliateLinkCode: affiliateAttribution?.affiliateLinkCode || '',
+        checkoutSessionId,
       });
 
       const orderData = res.data?.data;
       setOrderResult(orderData);
+      if (checkoutSessionStorageKey && typeof window !== 'undefined') {
+        window.sessionStorage.removeItem(checkoutSessionStorageKey);
+      }
 
       // Fire Purchase pixel event — ensure scripts are loaded first
       const orderTotal = orderData?.total ?? cartProducts.reduce((sum, p) => sum + (p.price || 0) * (p.quantity || 1), 0);

@@ -8,6 +8,7 @@ import { convertCurrency } from '../utils/currencyConvert.js';
 
 // Map StoreOrder statuses to main Order statuses
 const STATUS_MAP = {
+  abandoned: 'cancelled',
   pending: 'pending',
   confirmed: 'confirmed',
   processing: 'processing',
@@ -119,7 +120,11 @@ router.get('/stats', requireEcomAuth, requireWorkspace, async (req, res) => {
         $group: {
           _id: { status: '$status', currency: '$currency' },
           count: { $sum: 1 },
-          revenue: { $sum: '$total' }
+          revenue: {
+            $sum: {
+              $cond: [{ $eq: ['$status', 'abandoned'] }, 0, '$total']
+            }
+          }
         }
       }
     ]);
@@ -284,7 +289,7 @@ router.put('/:id/status', requireEcomAuth, requireWorkspace, async (req, res) =>
     }
 
     const { status } = req.body;
-    const validStatuses = ['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled'];
+    const validStatuses = ['abandoned', 'pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled'];
 
     if (!status || !validStatuses.includes(status)) {
       return res.status(400).json({

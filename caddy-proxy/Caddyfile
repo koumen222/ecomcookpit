@@ -5,21 +5,59 @@
 	}
 }
 
-# Boutique spécifique hardcodée (ex: natureafrique.site → Cloudflare Pages)
-# Ajouter d'autres blocs ici pour les boutiques avec config spéciale
+(coop_headers) {
+	header {
+		defer
+		-Cross-Origin-Opener-Policy
+		-Cross-Origin-Embedder-Policy
+		Cross-Origin-Opener-Policy "same-origin-allow-popups"
+		Cross-Origin-Embedder-Policy "unsafe-none"
+	}
+}
+
+api.scalor.net {
+	import coop_headers
+
+	reverse_proxy {$RAILWAY_BACKEND} {
+		header_up Host {upstream_hostport}
+		header_up X-Forwarded-Host {host}
+		header_up X-Real-IP {remote_host}
+	}
+}
+
+rehoboth-market.scalor.net {
+	tls /etc/caddy/certs/scalor.net/fullchain.cer /etc/caddy/certs/scalor.net/scalor.net.key
+	redir https://radia.scalor.net{uri} 308
+}
+
+*.scalor.net {
+	tls /etc/caddy/certs/scalor.net/fullchain.cer /etc/caddy/certs/scalor.net/scalor.net.key
+
+	import coop_headers
+
+	reverse_proxy {$RAILWAY_BACKEND} {
+		header_up Host {upstream_hostport}
+		header_up X-Forwarded-Host {host}
+		header_up X-Real-IP {remote_host}
+	}
+}
+
 natureafrique.site, www.natureafrique.site {
+	import coop_headers
+
 	reverse_proxy https://ecomcookpit.pages.dev {
 		header_up Host ecomcookpit.pages.dev
 		header_up X-Real-IP {remote_host}
 	}
 }
 
-# Catch-all : tous les domaines custom clients → Railway backend
-# Caddy émet le SSL automatiquement via on_demand_tls ci-dessus
 https:// {
 	tls {
 		on_demand
 	}
+
+	import coop_headers
+
 	reverse_proxy {$RAILWAY_BACKEND} {
 		header_up Host {upstream_hostport}
 		header_up X-Forwarded-Host {host}

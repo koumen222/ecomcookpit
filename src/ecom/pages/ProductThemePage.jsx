@@ -1092,7 +1092,7 @@ const ProductThemePage = () => {
               <div className="px-3 py-2 bg-gray-100 border-b border-gray-200 flex items-center gap-2">
                 <div className="flex gap-1.5">{['bg-red-400','bg-yellow-400','bg-green-400'].map(c => <div key={c} className={`w-2.5 h-2.5 rounded-full ${c}`} />)}</div>
                 <div className="flex-1 mx-8 bg-white rounded-md px-3 py-1 text-[10px] text-gray-400 text-center border border-gray-200">
-                  {storeSubdomain ? `${storeSubdomain}.scalor.net/produit/exemple` : 'votre-boutique.scalor.net/produit/exemple'}
+                  {storeSubdomain ? `${storeSubdomain}.scalor.net/product/exemple` : 'votre-boutique.scalor.net/product/exemple'}
                 </div>
               </div>
 

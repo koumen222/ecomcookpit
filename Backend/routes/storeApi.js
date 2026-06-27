@@ -18,6 +18,7 @@
  *   GET /api/store/:subdomain/products → Paginated products with filters
  *   GET /api/store/:subdomain/products/:slug → Single product detail
  *   GET /api/store/:subdomain/categories → Available categories
+ *   POST /api/store/:subdomain/abandoned-checkout → Save recoverable checkout
  *   POST /api/store/:subdomain/orders  → Guest checkout (place order)
  */
 
@@ -62,6 +63,14 @@ const orderLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: { success: false, message: 'Trop de commandes, réessayez dans 10 minutes.' },
+});
+
+const checkoutDraftLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: 'Trop de sauvegardes checkout, réessayez dans quelques minutes.' },
 });
 
 const trackLimiter = rateLimit({
@@ -120,6 +129,21 @@ function stableQueryKey(query = {}) {
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([key, value]) => `${key}=${Array.isArray(value) ? value.join(',') : String(value ?? '')}`)
     .join('&');
+}
+
+function normalizeCheckoutSessionId(value) {
+  return String(value || '')
+    .trim()
+    .replace(/[^a-zA-Z0-9_-]/g, '')
+    .slice(0, 80);
+}
+
+function cleanText(value, maxLength = 500) {
+  return String(value || '').trim().slice(0, maxLength);
+}
+
+function normalizePhoneDigits(value) {
+  return String(value || '').replace(/\D/g, '');
 }
 
 function shouldBypassResponseCache(req) {
@@ -200,8 +224,8 @@ async function resolveStore(subdomain) {
   // 1. Try Store model first (multi-store)
   const store = await Store.findOne({
     subdomain: clean,
-    isActive: true,
-    'storeSettings.isStoreEnabled': true
+    isActive: { $ne: false },
+    'storeSettings.isStoreEnabled': { $ne: false }
   })
   .select('_id workspaceId name subdomain storeSettings storeTheme storePages storeFooter storeLegalPages storePixels storePayments storeDomains storeDeliveryZones whatsappAutoConfirm whatsappOrderTemplate whatsappAutoInstanceId whatsappAutoImageUrl whatsappAutoAudioUrl whatsappAutoVideoUrl whatsappAutoDocumentUrl whatsappAutoSendOrder whatsappAutoProductMediaRules updatedAt')
   .lean()
@@ -220,8 +244,8 @@ async function resolveStore(subdomain) {
   // 2. Fallback: legacy Workspace (pre-migration or single-store)
   const workspace = await Workspace.findOne({
     subdomain: clean,
-    isActive: true,
-    'storeSettings.isStoreEnabled': true
+    isActive: { $ne: false },
+    'storeSettings.isStoreEnabled': { $ne: false }
   })
   .select('_id name subdomain storeSettings storeTheme storePages storeFooter storeLegalPages storePixels storePayments storeDomains storeDeliveryZones whatsappAutoConfirm whatsappOrderTemplate whatsappAutoInstanceId whatsappAutoImageUrl whatsappAutoAudioUrl whatsappAutoVideoUrl whatsappAutoDocumentUrl whatsappAutoSendOrder whatsappAutoProductMediaRules updatedAt')
   .lean()
@@ -351,8 +375,8 @@ router.get('/resolve-domain/:hostname', readLimiter, async (req, res) => {
     let foundSubdomain = null, foundName = null;
     const storeByDomain = await withPublicTimeout(Store.findOne({
       'storeDomains.customDomain': hostname,
-      isActive: true,
-      'storeSettings.isStoreEnabled': true
+      isActive: { $ne: false },
+      'storeSettings.isStoreEnabled': { $ne: false }
     }).select('subdomain name storeSettings.storeName').lean().maxTimeMS(1000), 'resolve custom store domain');
     if (storeByDomain?.subdomain) {
       foundSubdomain = storeByDomain.subdomain;
@@ -360,8 +384,8 @@ router.get('/resolve-domain/:hostname', readLimiter, async (req, res) => {
     } else {
       const workspace = await withPublicTimeout(Workspace.findOne({
         'storeDomains.customDomain': hostname,
-        isActive: true,
-        'storeSettings.isStoreEnabled': true
+        isActive: { $ne: false },
+        'storeSettings.isStoreEnabled': { $ne: false }
       }).select('subdomain name storeSettings.storeName').lean().maxTimeMS(1000), 'resolve custom workspace domain');
       if (workspace?.subdomain) {
         foundSubdomain = workspace.subdomain;
@@ -1017,6 +1041,180 @@ router.post('/:subdomain/track', trackLimiter, async (req, res) => {
 });
 
 /**
+ * POST /api/store/:subdomain/abandoned-checkout
+ *
+ * Captures a recoverable checkout before the final "Commander" click.
+ * It does not decrement stock, does not create the internal fulfillment Order,
+ * and does not trigger customer confirmation messages.
+ */
+router.post('/:subdomain/abandoned-checkout', checkoutDraftLimiter, async (req, res) => {
+  try {
+    const workspace = await resolveStore(req.params.subdomain);
+    if (!workspace) {
+      return res.status(404).json({ success: false, message: 'Store not found' });
+    }
+
+    const {
+      checkoutSessionId,
+      customerName,
+      phone,
+      phoneCode,
+      email,
+      address,
+      city,
+      country,
+      products,
+      notes,
+      deliveryType,
+      deliveryCost,
+      affiliateCode,
+      affiliateLinkCode,
+      metaSourceUrl,
+    } = req.body || {};
+
+    const sessionId = normalizeCheckoutSessionId(checkoutSessionId);
+    if (!sessionId) {
+      return res.status(400).json({ success: false, message: 'Session checkout requise' });
+    }
+
+    const phoneDigits = normalizePhoneDigits(phone);
+    if (phoneDigits.length < 6) {
+      return res.status(202).json({ success: true, skipped: true, reason: 'phone_incomplete' });
+    }
+
+    const requestedProducts = Array.isArray(products)
+      ? products
+          .map((item) => ({
+            productId: String(item?.productId || item?._id || '').trim(),
+            quantity: Math.max(1, parseInt(item?.quantity, 10) || 1),
+          }))
+          .filter((item) => mongoose.Types.ObjectId.isValid(item.productId))
+      : [];
+
+    if (requestedProducts.length === 0) {
+      return res.status(202).json({ success: true, skipped: true, reason: 'missing_products' });
+    }
+
+    const workspaceId = workspace._workspaceId || workspace._id;
+    const storeId = workspace._storeId || null;
+
+    const completedCheckout = await StoreOrder.findOne({
+      workspaceId,
+      storeId,
+      checkoutSessionId: sessionId,
+      status: { $ne: 'abandoned' },
+    }).select('_id status').lean();
+
+    if (completedCheckout) {
+      return res.status(202).json({ success: true, skipped: true, reason: 'already_completed' });
+    }
+
+    const productIds = [...new Set(requestedProducts.map((item) => item.productId))];
+    const productFetchFilter = {
+      _id: { $in: productIds },
+      workspaceId,
+      isPublished: true,
+    };
+    if (storeId) productFetchFilter.storeId = storeId;
+
+    const dbProducts = await StoreProduct.find(productFetchFilter).lean();
+    const productMap = new Map(dbProducts.map((product) => [product._id.toString(), product]));
+
+    const orderCurrencies = new Set();
+    const orderProducts = [];
+    let subtotal = 0;
+
+    for (const item of requestedProducts) {
+      const dbProduct = productMap.get(item.productId);
+      if (!dbProduct) continue;
+      const quantity = Math.max(1, item.quantity || 1);
+      const price = Number(dbProduct.price) || 0;
+      orderProducts.push({
+        productId: dbProduct._id,
+        name: dbProduct.name,
+        price,
+        quantity,
+        image: dbProduct.images?.[0]?.url || '',
+      });
+      subtotal += price * quantity;
+      if (dbProduct.currency) {
+        orderCurrencies.add(String(dbProduct.currency).trim().toUpperCase());
+      }
+    }
+
+    if (orderProducts.length === 0) {
+      return res.status(202).json({ success: true, skipped: true, reason: 'products_unavailable' });
+    }
+
+    const sanitizedDeliveryCost = Math.max(0, Number(deliveryCost) || 0);
+    const resolvedCurrency = orderCurrencies.size === 1
+      ? Array.from(orderCurrencies)[0]
+      : (workspace.storeSettings?.storeCurrency || 'XAF');
+    const resolvedCountry = cleanText(country, 120)
+      || workspace.storeSettings?.country
+      || workspace.storeSettings?.storeCountry
+      || '';
+    const sanitizedDeliveryType = ['livraison', 'expedition'].includes(deliveryType) ? deliveryType : '';
+    const customerLabel = cleanText(customerName, 200) || 'Client potentiel';
+
+    const abandonedOrder = await StoreOrder.findOneAndUpdate(
+      {
+        workspaceId,
+        storeId,
+        checkoutSessionId: sessionId,
+        status: 'abandoned',
+      },
+      {
+        $set: {
+          customerName: customerLabel,
+          phone: cleanText(phone, 40),
+          phoneCode: cleanText(phoneCode, 12),
+          email: cleanText(email, 180).toLowerCase(),
+          address: cleanText(address, 500),
+          city: cleanText(city, 120),
+          country: resolvedCountry,
+          deliveryZone: cleanText(city, 120),
+          deliveryType: sanitizedDeliveryType,
+          deliveryCost: sanitizedDeliveryCost,
+          products: orderProducts,
+          total: subtotal + sanitizedDeliveryCost,
+          currency: resolvedCurrency,
+          channel: 'store',
+          status: 'abandoned',
+          notes: cleanText(notes, 1000),
+          affiliateCode: normalizeCode(affiliateCode),
+          affiliateLinkCode: normalizeCode(affiliateLinkCode),
+          abandonedAt: new Date(),
+          completedAt: null,
+          rawData: {
+            checkoutSessionId: sessionId,
+            metaSourceUrl: cleanText(metaSourceUrl, 1000),
+            capturedFrom: 'store_checkout_autosave',
+          },
+        },
+        $setOnInsert: {
+          workspaceId,
+          storeId,
+          checkoutSessionId: sessionId,
+        },
+      },
+      { new: true, upsert: true, setDefaultsOnInsert: true }
+    ).lean();
+
+    return res.status(202).json({
+      success: true,
+      data: {
+        id: abandonedOrder?._id,
+        status: 'abandoned',
+      },
+    });
+  } catch (error) {
+    console.warn('⚠️ POST /api/store/:subdomain/abandoned-checkout error:', error.message);
+    return res.status(202).json({ success: true, skipped: true, reason: 'capture_error' });
+  }
+});
+
+/**
  * POST /api/store/:subdomain/orders
  *
  * Guest checkout — place a public order without authentication.
@@ -1051,13 +1249,36 @@ router.post('/:subdomain/orders', orderLimiter, async (req, res) => {
       }
     }
 
-    const { customerName, phone, phoneCode, email, address, city, country, products, notes, channel, deliveryType, deliveryCost, orderBump, metaEventId, metaSourceUrl, affiliateCode, affiliateLinkCode } = req.body;
+    const { customerName, phone, phoneCode, email, address, city, country, products, notes, channel, deliveryType, deliveryCost, orderBump, metaEventId, metaSourceUrl, affiliateCode, affiliateLinkCode, checkoutSessionId } = req.body;
 
     if (!customerName || !phone || !products?.length) {
       return res.status(400).json({
         success: false,
         message: 'Nom, téléphone et au moins un produit requis'
       });
+    }
+
+    const sessionId = normalizeCheckoutSessionId(checkoutSessionId);
+    if (sessionId) {
+      const existingCompletedCheckout = await StoreOrder.findOne({
+        workspaceId: workspace._workspaceId || workspace._id,
+        storeId: workspace._storeId || null,
+        checkoutSessionId: sessionId,
+        status: { $ne: 'abandoned' },
+      }).select('orderNumber total currency status').lean();
+
+      if (existingCompletedCheckout) {
+        return res.status(200).json({
+          success: true,
+          message: 'Commande déjà enregistrée',
+          data: {
+            orderNumber: existingCompletedCheckout.orderNumber,
+            total: existingCompletedCheckout.total,
+            currency: existingCompletedCheckout.currency,
+            status: existingCompletedCheckout.status,
+          },
+        });
+      }
     }
 
     // Validate products exist and belong to this exact store
@@ -1167,9 +1388,21 @@ router.post('/:subdomain/orders', orderLimiter, async (req, res) => {
     const sanitizedDeliveryType = ['livraison', 'expedition'].includes(deliveryType) ? deliveryType : '';
     const sanitizedDeliveryCost = Math.max(0, Number(deliveryCost) || 0);
 
-    const order = new StoreOrder({
+    let order = null;
+
+    if (sessionId) {
+      order = await StoreOrder.findOne({
+        workspaceId: workspace._workspaceId || workspace._id,
+        storeId: workspace._storeId || null,
+        checkoutSessionId: sessionId,
+        status: 'abandoned',
+      });
+    }
+
+    const orderPayload = {
       workspaceId: workspace._workspaceId || workspace._id,
       storeId: workspace._storeId || null,
+      checkoutSessionId: sessionId,
       customerName: customerName.trim(),
       phone: phone.trim(),
       phoneCode: phoneCode?.trim() || '',
@@ -1185,10 +1418,22 @@ router.post('/:subdomain/orders', orderLimiter, async (req, res) => {
       orderBump: orderBumpData,
       currency: resolvedOrderCurrency,
       channel: channel || 'store',
+      status: 'pending',
       notes: notes?.trim() || '',
       affiliateCode: normalizeCode(affiliateCode),
-      affiliateLinkCode: normalizeCode(affiliateLinkCode)
-    });
+      affiliateLinkCode: normalizeCode(affiliateLinkCode),
+      completedAt: new Date(),
+      rawData: {
+        checkoutSessionId: sessionId,
+        metaSourceUrl: cleanText(metaSourceUrl, 1000),
+      },
+    };
+
+    if (order) {
+      Object.assign(order, orderPayload);
+    } else {
+      order = new StoreOrder(orderPayload);
+    }
 
     await order.save();
 

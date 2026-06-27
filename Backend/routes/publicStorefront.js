@@ -326,6 +326,10 @@ function resolveStoreRouteContext(req) {
     if (parts[0] === 'product' && parts[1]) {
       return { subdomain: req.subdomain, pageType: 'product', slug: decodeSegment(parts[1]) };
     }
+    // /produit/:slug — French alias used by theme previews/older public links
+    if (parts[0] === 'produit' && parts[1]) {
+      return { subdomain: req.subdomain, pageType: 'product', slug: decodeSegment(parts[1]) };
+    }
     if (parts[0] === 'products') {
       return { subdomain: req.subdomain, pageType: 'products', slug: null };
     }
@@ -340,6 +344,9 @@ function resolveStoreRouteContext(req) {
       return { subdomain: parts[1].toLowerCase(), pageType: 'product', slug: decodeSegment(parts[3]) };
     }
     if (parts[2] === 'product' && parts[3]) {
+      return { subdomain: parts[1].toLowerCase(), pageType: 'product', slug: decodeSegment(parts[3]) };
+    }
+    if (parts[2] === 'produit' && parts[3]) {
       return { subdomain: parts[1].toLowerCase(), pageType: 'product', slug: decodeSegment(parts[3]) };
     }
     if (parts[2] === 'products') {
@@ -523,7 +530,7 @@ async function _resolveStoreFast(subdomain) {
 
   const store = await queryWithRetry(
     Store,
-    { subdomain: clean, isActive: true, 'storeSettings.isStoreEnabled': true },
+    { subdomain: clean, isActive: { $ne: false }, 'storeSettings.isStoreEnabled': { $ne: false } },
     '_id workspaceId name subdomain storeSettings storeTheme storePixels storeFooter storeLegalPages storeDeliveryZones storePages'
   );
 
@@ -535,7 +542,7 @@ async function _resolveStoreFast(subdomain) {
 
   const ws = await queryWithRetry(
     EcomWorkspace,
-    { subdomain: clean, isActive: true, 'storeSettings.isStoreEnabled': true },
+    { subdomain: clean, isActive: { $ne: false }, 'storeSettings.isStoreEnabled': { $ne: false } },
     '_id name subdomain storeSettings storeTheme storePixels storeFooter storeLegalPages storeDeliveryZones storePages'
   );
 
