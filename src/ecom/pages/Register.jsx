@@ -200,7 +200,8 @@ const Register = () => {
     try {
       const result = await register({ email, password: formData.password, name: formData.name.trim(), phone: formData.phone.trim(), acceptPrivacy: true, affiliateCode: affiliateCode || undefined });
       const registeredUser = result?.data?.user || { workspaceId: result?.data?.workspace?._id || result?.data?.workspace?.id || null };
-      if (result?.data?.isNewUser === true && offerFormationAfterAuth(registeredUser)) return;
+      const isFreshSignup = result?.data?.isNewUser === true || /compte créé/i.test(result?.message || '');
+      if (isFreshSignup && offerFormationAfterAuth(registeredUser)) return;
       navigateAfterAuth(registeredUser);
     } catch (err) {
       setError(getContextualError(err, 'register'));
