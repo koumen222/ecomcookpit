@@ -1,7 +1,9 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { Sparkles, Send, Loader2, X } from 'lucide-react';
+import { Sparkles, Send, Loader2, X, Lock } from 'lucide-react';
 import { storeProductsApi } from '../services/storeApi';
 import ecomApi from '../services/ecommApi.js';
+import { useEcomAuth } from '../hooks/useEcomAuth.jsx';
+import { useNavigate } from 'react-router-dom';
 
 /**
  * Props:
@@ -14,6 +16,10 @@ export default function BuilderAiChat({ mode = 'product', context = {}, onPatch,
   const defaultWelcome = mode === 'storepage'
     ? 'Salut ! Je suis ton assistant IA pour la page boutique.\n\nExemples :\n- "Ajoute une section hero avec fond vert"\n- "Change le titre du hero en Nos Meilleures Ventes"\n- "Ajoute une section témoignages"\n- "Cache la section FAQ"'
     : 'Salut ! Je suis ton assistant IA pour la page produit.\n\nExemples :\n- "Mets le bouton en orange"\n- "Ajoute 10 avantages dans le hero"\n- "Change l\'image hero"\n- "Cache la section FAQ"\n- "Ajoute un timer de 15 minutes"';
+
+  const { workspace } = useEcomAuth();
+  const navigate = useNavigate();
+  const isProPlan = ['pro', 'ultra'].includes(workspace?.plan);
 
   const [open, setOpen] = useState(false);
   const [model, setModel] = useState('claude-sonnet');
@@ -148,7 +154,13 @@ export default function BuilderAiChat({ mode = 'product', context = {}, onPatch,
       }
     } catch (err) {
       const msg = err?.response?.data?.message || err?.message || 'Erreur de connexion.';
-      setMessages(prev => [...prev, { role: 'assistant', content: msg }]);
+      const isProError = err?.response?.data?.requiresPro;
+      
+      setMessages(prev => [...prev, { 
+        role: 'assistant', 
+        content: msg,
+        isProError
+      }]);
     } finally {
       setLoading(false);
     }
@@ -200,11 +212,11 @@ export default function BuilderAiChat({ mode = 'product', context = {}, onPatch,
           className="flex-1 text-xs font-semibold text-gray-700 bg-transparent outline-none cursor-pointer"
         >
           <optgroup label="— Claude (Anthropic)">
-            <option value="claude-sonnet">Claude Sonnet — rapide</option>
-            <option value="claude-opus">Claude Opus — plus puissant</option>
+            <option value="claude-sonnet">Claude Sonnet — rapide {isProPlan ? '' : '(PRO)'}</option>
+            <option value="claude-opus">Claude Opus — plus puissant {isProPlan ? '' : '(PRO)'}</option>
           </optgroup>
           <optgroup label="— OpenAI">
-            <option value="gpt-5.4">GPT-5.4</option>
+            <option value="gpt-5.4">GPT-5.4 {isProPlan ? '' : '(PRO)'}</option>
           </optgroup>
         </select>
       </div>
@@ -241,6 +253,17 @@ export default function BuilderAiChat({ mode = 'product', context = {}, onPatch,
               msg.role === 'user' ? 'bg-indigo-600 text-white rounded-br-md' : 'bg-gray-100 text-gray-800 rounded-bl-md'
             }`}>
               {msg.content}
+              {msg.isProError && (
+                <div className="mt-3">
+                  <button 
+                    onClick={() => navigate('/ecom/billing')}
+                    className="flex items-center gap-1.5 text-[11px] font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition"
+                  >
+                    <Lock className="w-3 h-3" />
+                    Découvrir les plans
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         ))}

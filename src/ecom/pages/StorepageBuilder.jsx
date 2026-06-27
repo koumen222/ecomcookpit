@@ -15,7 +15,7 @@ import {
   RefreshCw, ExternalLink, Plus, GripVertical, EyeOff, Trash2, Copy,
   ChevronLeft, ChevronRight, Image, X, Upload, AlertCircle, Layers,
   Type, Star, HelpCircle, Phone, Layout, Zap, ShoppingBag, AlignLeft,
-  AlignCenter, AlignRight, ChevronDown, ChevronUp, Pencil, Undo2, Redo2,
+  AlignCenter, AlignRight, ChevronDown, ChevronUp, Pencil, Undo2, Redo2, Lock,
 } from 'lucide-react';
 import { storeManageApi, storeProductsApi } from '../services/storeApi';
 import ecomApi from '../services/ecommApi.js';
@@ -1472,6 +1472,7 @@ const StorepageBuilder = () => {
   const navigate = useNavigate();
   const { activeStore } = useStore();
   const { workspace } = useEcomAuth();
+  const isProPlan = ['pro', 'ultra'].includes(workspace?.plan);
 
   const [sections, setSections] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
@@ -1795,7 +1796,12 @@ const StorepageBuilder = () => {
       }
     } catch (err) {
       const msg = err?.response?.data?.message || err?.message || 'Erreur de connexion.';
-      setAiMessages(prev => [...prev, { role: 'assistant', content: msg }]);
+      const isProError = err?.response?.data?.requiresPro;
+      setAiMessages(prev => [...prev, { 
+        role: 'assistant', 
+        content: msg,
+        isProError
+      }]);
     } finally {
       setAiLoading(false);
     }
@@ -2069,11 +2075,11 @@ const StorepageBuilder = () => {
               className="flex-1 text-xs font-semibold text-gray-700 bg-transparent outline-none cursor-pointer"
             >
               <optgroup label="— Claude (Anthropic)">
-                <option value="claude-sonnet">Claude Sonnet — rapide</option>
-                <option value="claude-opus">Claude Opus — plus puissant</option>
+                <option value="claude-sonnet">Claude Sonnet — rapide {isProPlan ? '' : '(PRO)'}</option>
+                <option value="claude-opus">Claude Opus — plus puissant {isProPlan ? '' : '(PRO)'}</option>
               </optgroup>
               <optgroup label="— OpenAI">
-                <option value="gpt-5.4">GPT-5.4</option>
+                <option value="gpt-5.4">GPT-5.4 {isProPlan ? '' : '(PRO)'}</option>
               </optgroup>
             </select>
           </div>
@@ -2113,6 +2119,17 @@ const StorepageBuilder = () => {
                   msg.role === 'user' ? 'bg-indigo-600 text-white rounded-br-md' : 'bg-gray-100 text-gray-800 rounded-bl-md'
                 }`}>
                   {msg.content}
+                  {msg.isProError && (
+                    <div className="mt-3">
+                      <button 
+                        onClick={() => navigate('/ecom/billing')}
+                        className="flex items-center gap-1.5 text-[11px] font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition"
+                      >
+                        <Lock className="w-3 h-3" />
+                        Découvrir les plans
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             ))}

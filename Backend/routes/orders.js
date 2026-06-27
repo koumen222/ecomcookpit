@@ -78,27 +78,28 @@ async function resolveProductNames(assignments) {
   const sheetNames = assignments.flatMap(a => (a.productAssignments || []).flatMap(pa => pa.sheetProductNames || []));
   const allProductIds = assignments.flatMap(a => (a.productAssignments || []).flatMap(pa => pa.productIds || []));
 
-  // IDs déjà populés (objets avec .name) — modèle Product interne
+  // IDs déjà populés (objets avec .name)
   const populatedNames = allProductIds
     .filter(pid => pid && typeof pid === 'object' && pid.name)
     .map(pid => pid.name);
 
-  // IDs non résolus (encore ObjectId) — tenter StoreProduct
+  // IDs non résolus (ObjectId sans .name ou string)
   const unresolvedIds = allProductIds
-    .filter(pid => pid && typeof pid !== 'object')
+    .filter(pid => pid && (!pid.name))
     .map(id => id.toString())
     .filter(id => /^[0-9a-fA-F]{24}$/.test(id));
 
-  let storeProductNames = [];
+  let dbProductNames = [];
   if (unresolvedIds.length > 0) {
-    const storeProds = await StoreProduct.find(
-      { _id: { $in: unresolvedIds.map(id => new mongoose.Types.ObjectId(id)) } },
-      'name'
-    ).lean();
-    storeProductNames = storeProds.map(p => p.name);
+    const objectIds = unresolvedIds.map(id => new mongoose.Types.ObjectId(id));
+    const [storeProds, internalProds] = await Promise.all([
+      StoreProduct.find({ _id: { $in: objectIds } }, 'name').lean(),
+      mongoose.model('EcomProduct').find({ _id: { $in: objectIds } }, 'name').lean().catch(() => [])
+    ]);
+    dbProductNames = [...storeProds, ...internalProds].map(p => p.name);
   }
 
-  return [...new Set([...sheetNames, ...populatedNames, ...storeProductNames])];
+  return [...new Set([...sheetNames, ...populatedNames, ...dbProductNames])].filter(Boolean);
 }
 
 // Helper: récupère le téléphone depuis rawData si clientPhone est vide
@@ -654,7 +655,7 @@ router.get('/quick', requireEcomAuth, async (req, res) => {
           const cond = buildSourceCondition(sid, sourceTypeMap);
           if (cond) allConditions.push(cond);
         });
-        allProductNames.forEach(name => allConditions.push({ product: { $regex: `^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').trim()}$`, $options: 'i' } }));
+        allProductNames.forEach(name => allConditions.push({ product: { $regex: name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').trim(), $options: 'i' } }));
         assignedCityNames.forEach(name => allConditions.push({ city: { $regex: `^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').trim()}$`, $options: 'i' } }));
 
         if (allConditions.length > 0) filter.$or = allConditions;
@@ -716,35 +717,22 @@ router.get('/new-since', requireEcomAuth, async (req, res) => {
       });
 
       if (assignment) {
-        const sheetProductNames = (assignment.productAssignments || []).flatMap(pa => pa.sheetProductNames || []);
-        const assignedProductIds = (assignment.productAssignments || []).flatMap(pa => pa.productIds || []);
+        const allProductNames = await resolveProductNames([assignment]);
         const assignedCityNames = (assignment.cityAssignments || []).flatMap(ca => ca.cityNames || []);
         
-        // Extraire les noms des produits de la base de données
-        const dbProductNames = assignedProductIds
-          .filter(pid => pid && typeof pid === 'object' && pid.name) // Filtrer les produits peuplés
-          .map(pid => pid.name);
-        
-        if (sheetProductNames.length > 0 || dbProductNames.length > 0 || assignedCityNames.length > 0) {
-          // Combiner tous les noms de produits (sheets + DB)
-          const allProductNames = [...sheetProductNames, ...dbProductNames];
+        if (allProductNames.length > 0 || assignedCityNames.length > 0) {
+          const allConditions = [];
           
-          // Correspondance exacte sur les noms de produits assignés (case-insensitive, trim)
-          const productConditions = allProductNames.map(name => ({
-            product: { $regex: `^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').trim()}$`, $options: 'i' }
+          allProductNames.forEach(name => allConditions.push({
+            product: { $regex: name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').trim(), $options: 'i' }
           }));
 
-          // Correspondance exacte sur les noms de villes assignées (case-insensitive, trim)
-          const cityConditions = assignedCityNames.map(name => ({
+          assignedCityNames.forEach(name => allConditions.push({
             city: { $regex: `^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').trim()}$`, $options: 'i' }
           }));
 
-          // Combiner toutes les conditions (produits OU villes)
-          const allConditions = [...productConditions, ...cityConditions];
-
           if (allConditions.length > 0) {
             if (filter.$or) {
-              // search + product/city filter: wrap both in $and
               const searchOr = filter.$or;
               delete filter.$or;
               filter.$and = [{ $or: searchOr }, { $or: allConditions }];
@@ -752,14 +740,12 @@ router.get('/new-since', requireEcomAuth, async (req, res) => {
               filter.$or = allConditions;
             }
           } else {
-            // Si aucune condition de produit/ville mais qu'il y a une assignment, ne retourner aucune commande
-            filter._id = null; // Force un résultat vide
+            filter._id = null;
           }
         } else {
           filter._id = null;
         }
       } else {
-        // Si la closeuse n'a aucune assignment, ne retourner aucune commande
         filter._id = null;
       }
     }
@@ -781,7 +767,6 @@ router.get('/new-since', requireEcomAuth, async (req, res) => {
       }
     });
   } catch (error) {
-    // Silent — never break the frontend polling
     console.error('❌ [Polling Endpoint] Erreur:', error.message);
     res.json({ success: true, data: { orders: [], count: 0, serverTime: new Date().toISOString() } });
   }
@@ -813,17 +798,11 @@ router.get('/my-commissions', requireEcomAuth, async (req, res) => {
     const commissionType = mainAssignment.commissionType || 'percentage';
 
     // Extraire toutes les assignations (sources, produits, villes)
-    const sheetProductNames = allAssignments.flatMap(a => (a.productAssignments || []).flatMap(pa => pa.sheetProductNames || []));
-    const assignedProductIds = allAssignments.flatMap(a => (a.productAssignments || []).flatMap(pa => pa.productIds || []));
     const assignedCityNames = allAssignments.flatMap(a => (a.cityAssignments || []).flatMap(ca => ca.cityNames || []));
     const assignedSourceIds = [...new Set(
       allAssignments.flatMap(a => (a.orderSources || []).map(os => String(os.sourceId)).filter(Boolean))
     )];
-
-    // Extraire les noms des produits de la base de données
-    const dbProductNames = assignedProductIds
-      .filter(pid => pid && typeof pid === 'object' && pid.name)
-      .map(pid => pid.name);
+    const allProductNames = await resolveProductNames(allAssignments);
 
     // Construire toutes les conditions (sources, produits, villes)
     const allConditions = [];
@@ -836,10 +815,9 @@ router.get('/my-commissions', requireEcomAuth, async (req, res) => {
     }
 
     // Condition 2: Commandes des produits assignés
-    const allProductNames = [...sheetProductNames, ...dbProductNames];
     for (const name of allProductNames) {
       allConditions.push({
-        product: { $regex: `^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').trim()}$`, $options: 'i' }
+        product: { $regex: name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').trim(), $options: 'i' }
       });
     }
 
@@ -1042,34 +1020,26 @@ router.get('/', requireEcomAuth, async (req, res) => {
 
       if (allAssignments.length > 0) {
         // Merge all assignments
-        const sheetProductNames = allAssignments.flatMap(a => (a.productAssignments || []).flatMap(pa => pa.sheetProductNames || []));
-        const assignedProductIds = allAssignments.flatMap(a => (a.productAssignments || []).flatMap(pa => pa.productIds || []));
         const assignedCityNames = allAssignments.flatMap(a => (a.cityAssignments || []).flatMap(ca => ca.cityNames || []));
-        // sourceId is now a String (WorkspaceSettings source ID or 'legacy')
         const assignedSourceIds = [...new Set(
           allAssignments.flatMap(a => (a.orderSources || []).map(os => String(os.sourceId)).filter(Boolean))
         )];
-        
-        // Extraire les noms des produits de la base de données
-        const dbProductNames = assignedProductIds
-          .filter(pid => pid && typeof pid === 'object' && pid.name)
-          .map(pid => pid.name);
-        
-        const sourceTypeMap = await loadSourceTypeMap(req.workspaceId);
 
+        const sourceTypeMap = await loadSourceTypeMap(req.workspaceId);
         const allConditions = [];
 
-        // Condition 1: Commandes des sources assignées (buildSourceCondition gère legacy, ObjectId, et sheets)
+        // Condition 1: Commandes des sources assignées
         for (const sid of assignedSourceIds) {
           const cond = buildSourceCondition(sid, sourceTypeMap);
           if (cond) allConditions.push(cond);
         }
 
+        const allProductNames = await resolveProductNames(allAssignments);
+
         // Condition 2: Commandes des produits assignés
-        if (sheetProductNames.length > 0 || dbProductNames.length > 0) {
-          const allProductNames = [...sheetProductNames, ...dbProductNames];
+        if (allProductNames.length > 0) {
           const productConditions = allProductNames.map(name => ({
-            product: { $regex: `^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').trim()}$`, $options: 'i' }
+            product: { $regex: name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').trim(), $options: 'i' }
           }));
           allConditions.push(...productConditions);
         }

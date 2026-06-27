@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate, useLocation } from 'react-router-dom';
 import {
   Save, Loader2, Check, Paintbrush, Eye, Palette, Type, Square, ChevronDown, ChevronUp,
   Droplets, Layout, Zap, MousePointer2, Rows3, Image, ShoppingBag, ShoppingCart, Star, Truck, Shield,
   MessageCircle, Heart, Share2, Minus, Plus, ChevronRight, Clock, Award, Flame, Rocket, Sparkles,
-  Layers
+  Layers, Crown, Wand2, ArrowRight
 } from 'lucide-react';
 import { storeManageApi } from '../services/storeApi';
 import { useStore } from '../contexts/StoreContext.jsx';
@@ -466,6 +466,8 @@ const DEFAULT_INFOGRAPHICS_FORM = {
 };
 
 const ProductThemePage = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
   const [currentTheme, setCurrentTheme] = useState('classic');
   const [design, setDesign] = useState({ ...DEFAULT_DESIGN });
   const [sectionColors, setSectionColors] = useState({ ...DEFAULT_SECTION_COLORS });
@@ -748,6 +750,49 @@ const ProductThemePage = () => {
                 );
               })}
             </div>
+
+            {/* ── Bannière Pro Generator (visible uniquement avec thème Premium) ── */}
+            {currentTheme === 'magazine' && (
+              <div className="relative overflow-hidden rounded-3xl border border-amber-200 bg-gradient-to-br from-amber-50 via-white to-orange-50 p-6 shadow-sm">
+                {/* Background decoration */}
+                <div className="pointer-events-none absolute -right-8 -top-8 h-32 w-32 rounded-full bg-amber-100/60 blur-2xl" />
+                <div className="pointer-events-none absolute -bottom-6 -left-6 h-24 w-24 rounded-full bg-orange-100/40 blur-xl" />
+
+                <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-start gap-4">
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-500 to-orange-500 shadow-md">
+                      <Crown size={22} className="text-white" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-base font-black text-gray-900">Générer une page Pro avec l'IA</h3>
+                        <span className="inline-flex items-center rounded-full bg-amber-500 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-white shadow-sm">NOUVEAU</span>
+                      </div>
+                      <p className="mt-1 max-w-md text-sm leading-5 text-gray-600">
+                        Tu as choisi le thème <strong>Premium</strong>. Génère automatiquement une page produit complète avec hero, preuves sociales, sections et témoignages grâce à l'IA.
+                      </p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {['Hero split premium', 'Preuves sociales', 'Témoignages', 'Section science', 'Comparaison'].map((f) => (
+                          <span key={f} className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-white px-2.5 py-1 text-[10px] font-semibold text-amber-700">
+                            <Check size={9} strokeWidth={3} />
+                            {f}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => navigate('/ecom/boutique/products/premium-generator', { state: { from: location.pathname + (location.search || '') } })}
+                    className="flex shrink-0 items-center gap-2 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-500 px-5 py-3 text-sm font-black text-white shadow-md transition hover:from-amber-600 hover:to-orange-600 hover:shadow-lg active:scale-95 sm:self-start"
+                  >
+                    <Wand2 size={16} />
+                    Générer une page Pro
+                    <ArrowRight size={15} />
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Image & Spacing */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

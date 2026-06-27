@@ -1591,6 +1591,48 @@ router.post('/:id/digital-product', requireEcomAuth, requireWorkspace, requireSt
 });
 
 /**
+ * DELETE /store-products/:id/digital-product
+ * Disable (remove) the digital product (ebook) attached to a store product page.
+ * Uses MongoDB $unset to truly remove the fields rather than setting them to null.
+ */
+router.delete('/:id/digital-product', requireEcomAuth, requireWorkspace, requireStoreOwner, async (req, res) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ success: false, message: 'ID invalide' });
+    }
+
+    const product = await StoreProduct.findOneAndUpdate(
+      { _id: req.params.id, workspaceId: req.workspaceId },
+      {
+        $unset: {
+          '_pageData.ebook': '',
+          '_pageData.digitalProduct': '',
+          'productPageConfig.ebook': '',
+          'productPageConfig.digitalProduct': '',
+          'productPageConfig.digitalProductOfferEnabled': '',
+        },
+      },
+      { new: true, lean: true }
+    );
+
+    if (!product) {
+      return res.status(404).json({ success: false, message: 'Produit introuvable' });
+    }
+
+    await invalidatePublicStorefrontForMutation(req, product);
+
+    res.json({
+      success: true,
+      message: 'Produit digital désactivé',
+      data: product,
+    });
+  } catch (error) {
+    console.error('Erreur DELETE /store-products/:id/digital-product:', error.message);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+/**
  * Normalise les témoignages : date string → Date réelle, supprime les champs invalides.
  */
 function normalizeTestimonials(raw) {

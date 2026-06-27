@@ -3,6 +3,7 @@ import axios from 'axios';
 import multer from 'multer';
 import FormData from 'form-data';
 import { requireEcomAuth } from '../middleware/ecomAuth.js';
+import EcomWorkspace from '../models/Workspace.js';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
 
@@ -302,6 +303,18 @@ router.post('/chat', requireEcomAuth, async (req, res) => {
 
     if (!KIE_API_KEY) {
       return res.status(503).json({ success: false, message: 'Service IA non disponible' });
+    }
+
+    // Vérification plan Pro pour l'Assistant IA
+    const workspace = await EcomWorkspace.findById(req.workspaceId).select('plan').lean();
+    const plan = workspace?.plan || 'free';
+    const proPlans = ['pro', 'ultra'];
+    if (!proPlans.includes(plan)) {
+      return res.status(403).json({
+        success: false,
+        requiresPro: true,
+        message: '🔒 L\'Assistant IA est réservé aux comptes Pro et Ultra.\nPassez à un plan supérieur pour utiliser l\'IA (Claude et GPT).',
+      });
     }
 
     // StorepageBuilder mode: sections array is provided instead of productPageConfig

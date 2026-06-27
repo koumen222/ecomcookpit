@@ -516,6 +516,38 @@ const StoreProductForm = () => {
     }
   };
 
+  const handleDisableDigitalProduct = async () => {
+    if (!isEdit || !id) return;
+    if (!window.confirm('Désactiver le produit digital de cette page ? Il ne sera plus affiché aux clients.')) return;
+    setSaving(true);
+    try {
+      const res = await storeProductsApi.disableDigitalProduct(id);
+      const updated = res.data?.data;
+      if (updated) {
+        setForm((prev) => ({
+          ...prev,
+          _pageData: updated._pageData ?? prev._pageData,
+          productPageConfig: updated.productPageConfig ?? prev.productPageConfig,
+        }));
+      } else {
+        // Fallback : vider localement si le serveur ne renvoie pas les données
+        setForm((prev) => ({
+          ...prev,
+          _pageData: prev._pageData ? { ...prev._pageData, ebook: undefined, digitalProduct: undefined } : prev._pageData,
+          productPageConfig: prev.productPageConfig
+            ? { ...prev.productPageConfig, ebook: undefined, digitalProduct: undefined, digitalProductOfferEnabled: false }
+            : prev.productPageConfig,
+        }));
+      }
+      clearPublicStoreSessionCaches();
+      showToast('success', 'Produit digital désactivé.');
+    } catch (err) {
+      showToast('error', getErrorMessage(err, 'Impossible de désactiver le produit digital.'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
   // ── Submit ────────────────────────────────────────────────────────────────
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -1203,6 +1235,15 @@ const StoreProductForm = () => {
                         {digitalProductLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
                         Régénérer
                         <span className="ml-1 px-1.5 py-0.5 bg-amber-100 text-amber-700 text-[10px] font-black rounded-full leading-none">3 crédits</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleDisableDigitalProduct}
+                        disabled={digitalProductLoading || saving}
+                        className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-red-200 bg-white text-xs font-semibold text-red-600 hover:bg-red-50 transition disabled:opacity-60"
+                      >
+                        {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <X className="w-3.5 h-3.5" />}
+                        Désactiver
                       </button>
                     </div>
                   ) : (

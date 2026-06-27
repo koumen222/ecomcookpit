@@ -113,12 +113,7 @@ const StoreProductsList = () => {
   const isPremiumStore = storeTemplate === 'magazine';
 
   const handleOpenPageGenerator = (pageStyle = 'classic') => {
-    if (isPremiumStore) {
-      navigate(`${basePath}/products/premium-generator`, {
-        state: { from: `${basePath}/products` },
-      });
-      return;
-    }
+    // Toujours aller vers le wizard Pro, peu importe le thème du store
     navigate(`${basePath}/products/generator`, {
       state: { from: `${basePath}/products`, pageStyle },
     });
@@ -316,6 +311,27 @@ const StoreProductsList = () => {
     setDigitalProductTarget(product);
     setDigitalProductError('');
     setDigitalProductResult(null);
+  };
+
+  const handleToggleDigitalProduct = async (product) => {
+    if (hasDigitalProduct(product)) {
+      // Désactiver directement
+      if (!window.confirm('Désactiver le produit digital de ce produit ?')) return;
+      setDigitalProductLoading(product._id);
+      setError('');
+      try {
+        const res = await storeProductsApi.disableDigitalProduct(product._id);
+        const updated = res.data?.data;
+        setProducts((prev) => prev.map((p) => p._id === product._id ? (updated || p) : p));
+      } catch (err) {
+        setError(err?.response?.data?.message || err.message || 'Impossible de désactiver le produit digital');
+      } finally {
+        setDigitalProductLoading(null);
+      }
+    } else {
+      // Ouvrir le modal de génération
+      openDigitalProductModal(product);
+    }
   };
 
   const handleGenerateDigitalProduct = async (brief = {}) => {
@@ -829,54 +845,46 @@ const StoreProductsList = () => {
             )}
             {viewMode !== 'categories' && (
               <div className="flex flex-wrap items-center gap-2">
-                {isPremiumStore ? (
-                  /* Thème Premium — un seul bouton qui lance le générateur premium */
+                {/* Toujours afficher Gratuit + Pro + Premium, peu importe le thème */}
+                <div className="inline-flex overflow-hidden rounded-xl border border-violet-300 shadow-sm">
                   <button
-                    type="button"
-                    onClick={handleOpenPremiumPageGenerator}
-                    className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-amber-300 bg-amber-50 px-4 py-2.5 text-sm font-black text-amber-800 shadow-sm transition hover:bg-amber-100"
-                    title="Générer une page produit Premium"
+                    onClick={() => handleOpenPageGenerator('hero_page')}
+                    className="inline-flex items-center justify-center gap-1.5 bg-primary-500 hover:bg-primary-600 px-3 py-2.5 text-sm font-semibold text-white transition border-r border-primary-400"
+                    title="Page complète + hero IA — gratuit, sans images d'angles"
                   >
-                    <Crown className="h-4 w-4" />
-                    <span>Générer page Premium</span>
+                    <Sparkles className="h-4 w-4" />
+                    <span>Gratuit</span>
                   </button>
-                ) : (
-                  /* Thème Classique — Gratuit / Pro / Premium */
-                  <>
-                    <div className="inline-flex overflow-hidden rounded-xl border border-violet-300 shadow-sm">
-                      <button
-                        onClick={() => handleOpenPageGenerator('hero_page')}
-                        className="inline-flex items-center justify-center gap-1.5 bg-primary-500 hover:bg-primary-600 px-3 py-2.5 text-sm font-semibold text-white transition border-r border-primary-400"
-                        title="Page complète + hero IA — gratuit, sans images d'angles"
-                      >
-                        <Sparkles className="h-4 w-4" />
-                        <span>Gratuit</span>
-                      </button>
-                      <button
-                        onClick={() => handleOpenPageGenerator('classic')}
-                        className="inline-flex items-center justify-center gap-1.5 bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700 px-3 py-2.5 text-sm font-semibold text-white transition"
-                        title="Génération IA classique avec images générées par IA"
-                      >
-                        <Zap className="h-4 w-4" />
-                        <span>Pro</span>
-                        {generationsInfo && (generationsInfo.freeRemaining + generationsInfo.paidRemaining) > 0 && (
-                          <span className="ml-0.5 inline-flex items-center gap-1 rounded-full bg-white/20 px-1.5 py-0.5 text-xs font-bold">
-                            {generationsInfo.freeRemaining + generationsInfo.paidRemaining}
-                          </span>
-                        )}
-                      </button>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={handleOpenPremiumPageGenerator}
-                      className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2.5 text-sm font-black text-amber-800 shadow-sm transition hover:bg-amber-100"
-                      title="Système séparé pour page produit premium avancée"
-                    >
-                      <Crown className="h-4 w-4" />
-                      <span>Premium</span>
-                    </button>
-                  </>
-                )}
+                  <button
+                    onClick={() => handleOpenPageGenerator('classic')}
+                    className="inline-flex items-center justify-center gap-1.5 bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700 px-3 py-2.5 text-sm font-semibold text-white transition"
+                    title="Génération IA classique avec images générées par IA"
+                  >
+                    <Zap className="h-4 w-4" />
+                    <span>Pro</span>
+                    {generationsInfo && (generationsInfo.freeRemaining + generationsInfo.paidRemaining) > 0 && (
+                      <span className="ml-0.5 inline-flex items-center gap-1 rounded-full bg-white/20 px-1.5 py-0.5 text-xs font-bold">
+                        {generationsInfo.freeRemaining + generationsInfo.paidRemaining}
+                      </span>
+                    )}
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleOpenPremiumPageGenerator}
+                  className={`inline-flex items-center justify-center gap-1.5 rounded-xl border px-3 py-2.5 text-sm font-black shadow-sm transition ${
+                    isPremiumStore
+                      ? 'border-amber-400 bg-gradient-to-br from-amber-400 to-orange-500 text-white hover:from-amber-500 hover:to-orange-600'
+                      : 'border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100'
+                  }`}
+                  title="Système séparé pour page produit premium avancée"
+                >
+                  <Crown className="h-4 w-4" />
+                  <span>Premium</span>
+                  {isPremiumStore && (
+                    <span className="ml-0.5 rounded-full bg-white/25 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide">Actif</span>
+                  )}
+                </button>
               </div>
             )}
             {viewMode === 'categories' && (
@@ -1547,14 +1555,14 @@ const StoreProductsList = () => {
                         </button>
                         <button
                           type="button"
-                          onClick={() => openDigitalProductModal(product)}
+                          onClick={() => handleToggleDigitalProduct(product)}
                           disabled={digitalProductLoading === product._id}
                           className={`rounded-xl border p-2 transition disabled:opacity-60 ${
                             digitalReady
-                              ? 'border-emerald-100 bg-emerald-50 text-emerald-600 hover:bg-emerald-100'
+                              ? 'border-emerald-100 bg-emerald-50 text-emerald-600 hover:border-red-200 hover:bg-red-50 hover:text-red-500'
                               : 'border-transparent text-gray-400 hover:border-emerald-100 hover:bg-emerald-50 hover:text-emerald-600'
                           }`}
-                          title="Produit digital de ce produit"
+                          title={digitalReady ? 'Désactiver le produit digital' : 'Générer un produit digital'}
                         >
                           {digitalProductLoading === product._id ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
                         </button>
@@ -1670,12 +1678,13 @@ const StoreProductsList = () => {
                     navigate(`${basePath}/products/${product._id}/${isPremium ? 'premium-builder' : 'builder'}`);
                   }} className={`rounded-xl px-3 py-2 text-xs font-medium ${product.pageBuilder?.enabled || product.productPageConfig?.premiumPage ? 'bg-indigo-50 text-indigo-700' : 'bg-gray-100 text-gray-600'}`}>Builder</button>
                   <button
-                    onClick={() => openDigitalProductModal(product)}
+                    onClick={() => handleToggleDigitalProduct(product)}
                     disabled={digitalProductLoading === product._id}
-                    className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-medium disabled:opacity-60 ${digitalReady ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-600'}`}
+                    className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-medium disabled:opacity-60 ${digitalReady ? 'bg-emerald-50 text-emerald-700 hover:bg-red-50 hover:text-red-600' : 'bg-gray-100 text-gray-600'}`}
+                    title={digitalReady ? 'Désactiver le produit digital' : 'Générer un produit digital'}
                   >
                     {digitalProductLoading === product._id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileText className="h-3.5 w-3.5" />}
-                    Produit digital de ce produit
+                    {digitalReady ? 'Désactiver digital' : 'Produit digital'}
                   </button>
                   <button onClick={() => handleDuplicate(product)} className="rounded-xl bg-amber-50 px-3 py-2 text-xs font-medium text-amber-700">Copier</button>
                   <button onClick={() => handleExportSingleProductCsv(product)} className="rounded-xl bg-gray-100 px-3 py-2 text-xs font-medium text-gray-700">Exporter CSV</button>
