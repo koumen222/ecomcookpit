@@ -619,6 +619,7 @@ router.post('/register', validateEmail, validatePassword, async (req, res) => {
           message: 'Compte Super Admin créé avec succès',
           data: {
             token,
+            isNewUser: true,
             user: { id: admin._id, email: admin.email, role: admin.role, isActive: admin.isActive, currency: admin.currency, workspaceId: null },
             workspace: null
           }
@@ -677,6 +678,7 @@ router.post('/register', validateEmail, validatePassword, async (req, res) => {
       message: 'Compte créé avec succès',
       data: {
         token,
+        isNewUser: true,
         user: serializeAuthUser(user, store),
         workspace: serializeWorkspace(workspace, user.role),
         store: serializeStore(store)

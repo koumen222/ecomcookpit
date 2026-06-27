@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 const S = (p) => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...p} />;
 
@@ -44,6 +45,9 @@ const chapters = [
 
 export default function Formation() {
   const [activeId, setActiveId] = useState(null);
+  const navigate = useNavigate();
+  const location = useLocation();
+  const onboardingNextPath = location.state?.fromRegister ? (location.state?.nextPath || '/ecom/dashboard') : null;
 
   const toggle = (id) => setActiveId(prev => prev === id ? null : id);
 
@@ -69,6 +73,25 @@ export default function Formation() {
           </p>
         </div>
       </div>
+
+      {onboardingNextPath && (
+        <div className="border-b border-primary-100 bg-primary-50">
+          <div className="max-w-2xl mx-auto px-4 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <p className="text-sm font-bold text-gray-900">Bienvenue sur Scalor</p>
+              <p className="text-xs text-gray-600 mt-0.5">Regardez la formation offerte, puis continuez la configuration de votre espace.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => navigate(onboardingNextPath)}
+              className="min-h-[44px] inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white bg-primary-600 hover:bg-primary-700 transition shadow-sm"
+            >
+              Continuer vers mon espace
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* PROGRAMME */}
       <div className="max-w-2xl mx-auto px-4 py-10">

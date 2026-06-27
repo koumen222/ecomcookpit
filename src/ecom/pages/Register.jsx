@@ -7,6 +7,7 @@ import { getPendingPlanSelection } from '../utils/pendingPlanFlow.js';
 import { loadGsi, renderGsiButton } from '../utils/googleGsi.js';
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '559924689181-rpkv8ji3029kvrtsvt3qceusmsh1i4p2.apps.googleusercontent.com';
+const FORMATION_PATH = '/ecom/formation';
 
 const Spinner = () => (
   <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
@@ -32,6 +33,7 @@ const Register = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [resendCooldown, setResendCooldown] = useState(0);
+  const [formationOffer, setFormationOffer] = useState(null);
   const otpRefs = useRef([]);
 
   // ── Nettoyage au mount ─────────────────────────────────────────────────
@@ -66,22 +68,34 @@ const Register = () => {
     return () => clearTimeout(t);
   }, [resendCooldown]);
 
-  const navigateAfterAuth = useCallback((nextUser) => {
+  const getPostAuthDestination = useCallback((nextUser) => {
     if (inviteToken) {
-      navigate(`/ecom/invite/${inviteToken}`, { replace: true });
-      return;
+      return { path: `/ecom/invite/${inviteToken}`, options: { replace: true } };
     }
     if (pendingPlanSelection) {
       if (nextUser?.workspaceId) {
-        navigate('/ecom/billing', { state: { selectedPlan: pendingPlanSelection }, replace: true });
-      } else {
-        navigate('/ecom/workspace-setup', { replace: true });
+        return { path: '/ecom/billing', options: { state: { selectedPlan: pendingPlanSelection }, replace: true } };
       }
-      return;
+      return { path: '/ecom/workspace-setup', options: { replace: true } };
     }
 
-    navigate(nextUser?.workspaceId ? '/ecom/dashboard' : '/ecom/workspace-setup');
-  }, [navigate, pendingPlanSelection, inviteToken]);
+    return { path: nextUser?.workspaceId ? '/ecom/dashboard' : '/ecom/workspace-setup', options: {} };
+  }, [pendingPlanSelection, inviteToken]);
+
+  const navigateAfterAuth = useCallback((nextUser) => {
+    const destination = getPostAuthDestination(nextUser);
+    navigate(destination.path, destination.options);
+  }, [navigate, getPostAuthDestination]);
+
+  const offerFormationAfterAuth = useCallback((nextUser) => {
+    if (inviteToken || pendingPlanSelection) return false;
+    const destination = getPostAuthDestination(nextUser);
+    setFormationOffer({
+      nextPath: destination.path,
+      firstName: String(nextUser?.name || '').trim().split(/\s+/)[0] || '',
+    });
+    return true;
+  }, [getPostAuthDestination, inviteToken, pendingPlanSelection]);
 
   const handleGoogleCallback = useCallback(async (response) => {
     console.log('\ud83d\udd11 [Google Auth] Callback reçu (Register):', {
@@ -100,12 +114,13 @@ const Register = () => {
       const result = await googleLogin(response.credential, affiliateCode || undefined);
       console.log('\u2705 [Google Auth] Login réussi (Register):', { user: result.data?.user?.email });
       const u = result.data?.user;
+      if (result.data?.isNewUser === true && offerFormationAfterAuth(u)) return;
       navigateAfterAuth(u);
     } catch (err) {
       console.error('\u274c [Google Auth] Erreur:', err);
       setError(getContextualError(err, 'login'));
     } finally { setLoading(false); }
-  }, [affiliateCode, googleLogin, navigateAfterAuth]);
+  }, [affiliateCode, googleLogin, navigateAfterAuth, offerFormationAfterAuth]);
 
   // Garde le callback à jour sans relancer l'effet de chargement GSI.
   const googleCallbackRef = useRef(handleGoogleCallback);
@@ -184,13 +199,68 @@ const Register = () => {
     setLoading(true); setError('');
     try {
       const result = await register({ email, password: formData.password, name: formData.name.trim(), phone: formData.phone.trim(), acceptPrivacy: true, affiliateCode: affiliateCode || undefined });
-      navigateAfterAuth(result?.data?.user || { workspaceId: result?.data?.workspace?._id || result?.data?.workspace?.id || null });
+      const registeredUser = result?.data?.user || { workspaceId: result?.data?.workspace?._id || result?.data?.workspace?.id || null };
+      if (result?.data?.isNewUser === true && offerFormationAfterAuth(registeredUser)) return;
+      navigateAfterAuth(registeredUser);
     } catch (err) {
       setError(getContextualError(err, 'register'));
     } finally { setLoading(false); }
   };
 
   const stepLabels = ['Votre email', 'Verification', 'Votre profil'];
+
+  if (formationOffer) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center px-4 py-12 relative overflow-hidden">
+        <div className="absolute top-0 left-1/4 w-96 h-96 bg-primary-500/5 rounded-full blur-[120px] pointer-events-none" />
+        <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-primary-600/5 rounded-full blur-[120px] pointer-events-none" />
+
+        <div className="w-full max-w-[440px] relative">
+          <div className="text-center mb-7">
+            <button onClick={() => navigate('/ecom')} className="inline-block">
+              <img src="/logo.png" alt="Scalor" className="h-8 object-contain" />
+            </button>
+          </div>
+
+          <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-xl">
+            <img
+              src="/img/formation-offerte.png"
+              alt="Formation offerte Scalor"
+              className="w-full rounded-xl border border-gray-100 mb-5"
+            />
+            <div className="text-center mb-5">
+              <p className="text-xs font-bold uppercase tracking-wide text-primary-600 mb-2">Compte créé avec succès</p>
+              <h1 className="text-2xl font-black text-gray-900">
+                {formationOffer.firstName ? `${formationOffer.firstName}, commencez ici` : 'Commencez ici'}
+              </h1>
+              <p className="text-sm text-gray-600 mt-2 leading-relaxed">
+                Avant de configurer votre espace, suivez la formation Scalor offerte pour lancer votre boutique plus vite.
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              <button
+                type="button"
+                onClick={() => navigate(FORMATION_PATH, { state: { fromRegister: true, nextPath: formationOffer.nextPath } })}
+                className="w-full min-h-[44px] py-3 rounded-xl text-sm font-semibold text-white bg-primary-600 hover:bg-primary-700 transition flex items-center justify-center gap-2 shadow-lg shadow-primary-600/20"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M14.752 11.168l-4.586-2.62A1 1 0 009 9.416v5.168a1 1 0 001.166.868l4.586-2.62a1 1 0 000-1.736z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                Voir la formation offerte
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate(formationOffer.nextPath)}
+                className="w-full min-h-[44px] py-3 rounded-xl text-sm font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 transition flex items-center justify-center gap-2"
+              >
+                Continuer vers mon espace
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-white flex items-center justify-center px-4 py-12 relative overflow-hidden">
