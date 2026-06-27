@@ -943,7 +943,7 @@ const LandingPage = () => {
           <Reveal>
             <div className="text-center mb-14">
               <h2 className="text-3xl sm:text-5xl font-black tracking-tight mb-3 text-gray-900">
-                Maîtrisez Scalor <span style={{ background: 'linear-gradient(135deg, #05976D, #05976D)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>en 16 leçons</span>
+                Maîtrisez Scalor <span style={{ background: 'linear-gradient(135deg, #05976D, #05976D)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>en 17 leçons</span>
               </h2>
               <p className="text-base sm:text-lg text-gray-500 max-w-xl mx-auto">
                 Un module complet offert — de la prise en main jusqu'à l'agent IA.
@@ -960,12 +960,12 @@ const LandingPage = () => {
                 <div className="px-5 py-4 flex items-center gap-3" style={{ background: 'linear-gradient(135deg, #05976D, #05976D)', borderBottom: '1px solid #e5e7eb' }}>
                   <div className="w-8 h-8 rounded-lg flex items-center justify-center font-black text-sm text-white flex-shrink-0" style={{ background: 'rgba(255,255,255,0.2)' }}>7</div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-[10px] font-bold uppercase tracking-widest mb-0.5" style={{ color: 'rgba(255,255,255,0.7)' }}>Module 7 · 16 leçons</p>
+                    <p className="text-[10px] font-bold uppercase tracking-widest mb-0.5" style={{ color: 'rgba(255,255,255,0.7)' }}>Module 7 · 17 leçons</p>
                     <p className="text-sm font-bold text-white">Prise en main de Scalor</p>
                   </div>
                   {/* Progress bar */}
                   <div className="hidden sm:flex flex-col items-end gap-1">
-                    <span className="text-[10px]" style={{ color: 'rgba(255,255,255,0.6)' }}>0 / 16</span>
+                    <span className="text-[10px]" style={{ color: 'rgba(255,255,255,0.6)' }}>0 / 17</span>
                     <div className="w-24 h-1.5 rounded-full" style={{ background: 'rgba(255,255,255,0.2)' }}>
                       <div className="h-full rounded-full w-0" style={{ background: '#fff' }} />
                     </div>
@@ -991,9 +991,10 @@ const LandingPage = () => {
                     { n: '7.14', t: 'Gestion de Stock' },
                     { n: '7.15', t: 'Relancer les clients auto.' },
                     { n: '7.16', t: 'Configurer son agent IA ✦' },
+                    { n: '7.17', t: 'Lancer sa campagne Facebook Ads' },
                   ].map((l, i) => (
                     <div key={i} className="flex items-center gap-3 px-4 py-3 transition-colors"
-                      style={{ borderBottom: i < 14 ? '1px solid #f3f4f6' : 'none' }}
+                      style={{ borderBottom: i < 16 ? '1px solid #f3f4f6' : 'none' }}
                       onMouseEnter={e => e.currentTarget.style.background='#f9fafb'}
                       onMouseLeave={e => e.currentTarget.style.background='transparent'}>
                       <div className="w-5 h-5 rounded-full flex-shrink-0 flex items-center justify-center" style={{ border: '1.5px solid #e5e7eb' }}>

@@ -15,6 +15,7 @@ const icons = {
   users:    <S><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></S>,
   chart:    <S><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></S>,
   target:   <S><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></S>,
+  megaphone:<S><path d="M3 11v2a2 2 0 002 2h2l4 5v-5l8-3V8l-8-3v10"/><path d="M19 8a4 4 0 010 4"/><path d="M7 15l1.5 5"/></S>,
   dollar:   <S><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></S>,
   box:      <S><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 002 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></S>,
   refresh:  <S><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></S>,
@@ -38,6 +39,7 @@ const chapters = [
   { id: '7.14', title: 'Gestion de Stock',               icon: 'box',       duration: '20 min', videoUrl: 'https://www.youtube.com/embed/JPUFiWPEz4I' },
   { id: '7.15', title: 'Relancer les clients auto.',     icon: 'refresh',   duration: '24 min', videoUrl: 'https://www.youtube.com/embed/bBoZcovhpFM' },
   { id: '7.16', title: 'Configurer son agent IA ✦',      icon: 'cpu',       duration: '35 min', videoUrl: 'https://www.youtube.com/embed/Ge2TEBZFJ-8' },
+  { id: '7.17', title: 'Lancer sa campagne Facebook Ads', icon: 'megaphone', duration: '13 min', videoUrl: 'https://www.youtube.com/embed/IJDGrQAzegw' },
 ];
 
 export default function Formation() {
@@ -71,7 +73,7 @@ export default function Formation() {
       {/* PROGRAMME */}
       <div className="max-w-2xl mx-auto px-4 py-10">
         <h2 className="text-xl font-black text-gray-900 mb-1">Programme — Module 7</h2>
-        <p className="text-sm text-gray-400 mb-8">16 chapitres · 6h+ de contenu · Accès à vie</p>
+        <p className="text-sm text-gray-400 mb-8">17 chapitres · 6h+ de contenu · Accès à vie</p>
 
         <div className="space-y-2">
           {chapters.map((ch) => {
