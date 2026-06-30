@@ -126,7 +126,7 @@ const corsOptions = {
     callback(null, false);
   },
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
-  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "X-Session-Id", "X-Workspace-Id", "X-Store-Id"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "X-Session-Id", "X-Workspace-Id", "X-Store-Id", "Cache-Control", "Pragma"],
   credentials: true,
   optionsSuccessStatus: 204
 };

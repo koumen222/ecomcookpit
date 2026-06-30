@@ -306,8 +306,14 @@ ecomApi.interceptors.request.use(
     const isLiveOrdersRead = config.method === 'get' && isLiveOrdersEndpoint(config.url);
     if (isLiveOrdersRead) {
       config._bypassCache = true;
-      config.headers['Cache-Control'] = 'no-cache';
-      config.headers.Pragma = 'no-cache';
+      // Avoid custom request headers here: they trigger a CORS preflight on
+      // cross-origin GETs. The URL timestamp + server no-store headers are
+      // enough to keep order reads fresh without turning refresh into a
+      // browser-level "Network Error".
+      config.params = {
+        ...(config.params || {}),
+        _fresh: Date.now()
+      };
     }
 
     // ── Client-side GET cache ─────────────────────────────────────────────
