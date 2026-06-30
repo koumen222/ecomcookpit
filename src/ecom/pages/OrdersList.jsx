@@ -935,6 +935,7 @@ const OrdersList = () => {
       }
       if (hasRestoredListState && !forceFetch) {
         setLoading(false);
+        fetchOrders(true);
         return;
       }
       await fetchOrders();
@@ -1083,7 +1084,11 @@ const OrdersList = () => {
   }, [navigate, saveOrdersListState]);
 
   // ••• Silent background polling (10s) — no loader, no messages ••••••••••••••
-  const lastPollRef = useRef(new Date().toISOString());
+  const lastPollRef = useRef(
+    savedListState?.savedAt
+      ? new Date(savedListState.savedAt).toISOString()
+      : new Date().toISOString()
+  );
   const pollingRef = useRef(false);
 
   const silentPoll = useCallback(async () => {
@@ -1094,9 +1099,13 @@ const OrdersList = () => {
     if (pollingRef.current || loading) return;
     pollingRef.current = true;
     try {
-      const params = {};
+      const params = { since: lastPollRef.current };
       if (selectedSourceId) params.sourceId = selectedSourceId;
-      const res = await ecomApi.get('/orders/new-since', { params });
+      const res = await ecomApi.get('/orders/new-since', {
+        params,
+        _bypassCache: true,
+        _silent: true
+      });
       const { orders: newOrders, count, serverTime } = res.data?.data || {};
       if (serverTime) lastPollRef.current = serverTime;
       if (count > 0 && Array.isArray(newOrders)) {
@@ -1123,7 +1132,13 @@ const OrdersList = () => {
             console.log(`📈 [Frontend Poll] ${newCount} nouvelles, ${updatedCount} mises à jour`);
           }
           if (!changed) return prev;
-          return Array.from(map.values()).sort((a, b) => (a.sheetRowIndex || 0) - (b.sheetRowIndex || 0));
+          const direction = sortOrder === 'oldest_first' ? 1 : -1;
+          return Array.from(map.values()).sort((a, b) => {
+            const aTime = new Date(a.createdAt || a.date || 0).getTime();
+            const bTime = new Date(b.createdAt || b.date || 0).getTime();
+            if (aTime !== bTime) return (aTime - bTime) * direction;
+            return String(a._id || '').localeCompare(String(b._id || '')) * direction;
+          });
         });
       }
     } catch (err) { 
@@ -1131,7 +1146,7 @@ const OrdersList = () => {
       /* silent — never show errors from polling */ 
     }
     pollingRef.current = false;
-  }, [loading, selectedSourceId, debouncedSearch, filterStatus, debouncedCity, debouncedProduct, debouncedTag, filterStartDate, filterEndDate]);
+  }, [loading, selectedSourceId, debouncedSearch, filterStatus, debouncedCity, debouncedProduct, debouncedTag, filterStartDate, filterEndDate, sortOrder]);
 
   useEffect(() => {
     if (loading) return;

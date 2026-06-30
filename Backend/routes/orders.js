@@ -25,6 +25,15 @@ import { EventEmitter } from 'events';
 const router = express.Router();
 const DELIVERY_COST_PER_KM_FCFA = 500;
 
+router.use((req, res, next) => {
+  if (req.method === 'GET') {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
+  }
+  next();
+});
+
 /**
  * Construit la condition MongoDB pour filtrer par sourceId.
  * - 'legacy'  → sheetRowId sans préfixe source_
@@ -684,14 +693,15 @@ router.get('/quick', requireEcomAuth, async (req, res) => {
 // Returns only orders created/updated after a given timestamp (lightweight)
 router.get('/new-since', requireEcomAuth, async (req, res) => {
   try {
+    const serverTime = new Date().toISOString();
     const { since, sourceId } = req.query;
     if (!since) {
-      return res.json({ success: true, data: { orders: [], count: 0, serverTime: new Date().toISOString() } });
+      return res.json({ success: true, data: { orders: [], count: 0, serverTime } });
     }
 
     const sinceDate = new Date(since);
     if (isNaN(sinceDate.getTime())) {
-      return res.json({ success: true, data: { orders: [], count: 0, serverTime: new Date().toISOString() } });
+      return res.json({ success: true, data: { orders: [], count: 0, serverTime } });
     }
 
     const filter = {
@@ -751,8 +761,8 @@ router.get('/new-since', requireEcomAuth, async (req, res) => {
     }
 
     const orders = await Order.find(filter)
-      .select('orderId clientName clientPhone city address product quantity price status date createdAt updatedAt notes tags source sheetRowId rawData deliveryTime')
-      .sort({ sheetRowIndex: 1, _id: 1 })
+      .select('orderId clientName clientPhone city address product quantity price status date createdAt updatedAt notes tags source sourceId sourceName sheetRowId rawData deliveryTime currency')
+      .sort({ updatedAt: 1, _id: 1 })
       .limit(100)
       .lean();
 
@@ -763,7 +773,7 @@ router.get('/new-since', requireEcomAuth, async (req, res) => {
       data: {
         orders,
         count: orders.length,
-        serverTime: new Date().toISOString()
+        serverTime
       }
     });
   } catch (error) {

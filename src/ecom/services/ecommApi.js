@@ -137,6 +137,22 @@ const CACHE_TTLS = {
   '/orders/config':                  30_000, // 30 s
 };
 
+function getRequestPath(url = '') {
+  try {
+    return new URL(url, 'http://scalor.local').pathname.replace(/^\/api\/ecom/, '');
+  } catch {
+    return String(url || '').split('?')[0].replace(/^\/api\/ecom/, '');
+  }
+}
+
+function isLiveOrdersEndpoint(url = '') {
+  const path = getRequestPath(url);
+  return path === '/orders'
+    || path.startsWith('/orders/')
+    || path === '/store-orders'
+    || path.startsWith('/store-orders/');
+}
+
 function getCacheTtl(url = '') {
   for (const [pattern, ttl] of Object.entries(CACHE_TTLS)) {
     if (url.includes(pattern)) return ttl;
@@ -285,6 +301,13 @@ ecomApi.interceptors.request.use(
     const storeId = window.__activeStoreId__;
     if (storeId && !isSuperAdminEndpoint) {
       config.headers['X-Store-Id'] = storeId;
+    }
+
+    const isLiveOrdersRead = config.method === 'get' && isLiveOrdersEndpoint(config.url);
+    if (isLiveOrdersRead) {
+      config._bypassCache = true;
+      config.headers['Cache-Control'] = 'no-cache';
+      config.headers.Pragma = 'no-cache';
     }
 
     // ── Client-side GET cache ─────────────────────────────────────────────
