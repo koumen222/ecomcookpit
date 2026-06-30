@@ -4,7 +4,8 @@ import {
   Activity, TrendingDown, Users, Eye,
   AlertCircle, BarChart3, Shield,
   Building2, Smartphone, ChevronRight,
-  Crown, Briefcase, Package, Calculator, Truck, LogIn
+  Crown, Briefcase, Package, Calculator, Truck, LogIn,
+  Clock, MousePointerClick, Route, UserCheck
 } from 'lucide-react';
 import ecomApi, { clearEcomGetCache } from '../services/ecommApi.js';
 import SuperAdminShell from '../components/SuperAdminShell.jsx';
@@ -18,6 +19,42 @@ const RANGE_TABS = [
   { value: '30d', label: '30j' },
   { value: '90d', label: '90j' },
 ];
+
+const EVENT_LABELS = {
+  login: 'Connexion',
+  logout: 'Deconnexion',
+  signup_started: 'Inscription lancee',
+  signup_completed: 'Inscription terminee',
+  email_verified: 'Email verifie',
+  workspace_created: 'Workspace cree',
+  workspace_joined: 'Workspace rejoint',
+  order_created: 'Commande creee',
+  order_updated: 'Commande modifiee',
+  delivery_completed: 'Livraison terminee',
+  transaction_created: 'Transaction',
+  invite_generated: 'Invitation generee',
+  invite_accepted: 'Invitation acceptee',
+  product_created: 'Produit cree',
+  report_viewed: 'Rapport consulte',
+  settings_changed: 'Parametres modifies',
+  password_reset: 'Mot de passe reinitialise',
+  custom: 'Action personnalisee'
+};
+
+const formatEventLabel = (type = '') => EVENT_LABELS[type] || String(type).replace(/_/g, ' ');
+
+const formatDuration = (seconds = 0) => {
+  const value = Math.max(0, Math.round(Number(seconds) || 0));
+  if (value < 60) return `${value}s`;
+  const minutes = Math.floor(value / 60);
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+  if (hours < 24) return remainingMinutes > 0 ? `${hours}h ${remainingMinutes}m` : `${hours}h`;
+  const days = Math.floor(hours / 24);
+  const remainingHours = hours % 24;
+  return remainingHours > 0 ? `${days}j ${remainingHours}h` : `${days}j`;
+};
 
 // ─── Primitives ───────────────────────────────────────────────────────────────
 
@@ -184,6 +221,8 @@ const SuperAdminDashboard = () => {
   const [traffic, setTraffic] = useState(null);
   const [pages, setPages] = useState([]);
   const [usersActivity, setUsersActivity] = useState(null);
+  const [engagement, setEngagement] = useState(null);
+  const [engagementError, setEngagementError] = useState('');
 
   // Per-endpoint error tracking
   const [errors, setErrors] = useState({});
@@ -246,12 +285,24 @@ const SuperAdminDashboard = () => {
       // silent=true means the user clicked "Actualiser" — bypass both caches
       if (silent) clearEcomGetCache();
       const params = silent ? { range, _bypassCache: 'true' } : { range };
-      const res = await ecomApi.get('/super-admin/dashboard-summary', { params, timeout: 60000, _bypassCache: silent });
+      const engagementParams = { ...params, limit: 10 };
+      const [res, engagementRes] = await Promise.all([
+        ecomApi.get('/super-admin/dashboard-summary', { params, timeout: 60000, _bypassCache: silent }),
+        ecomApi.get('/analytics/engagement', { params: engagementParams, timeout: 60000, _bypassCache: silent })
+          .catch(err => ({ __error: err }))
+      ]);
       const body = res.data;
       if (!body?.success) throw new Error(body?.message || 'Réponse invalide');
 
       const d = body.data;
       applyData(d);
+      if (engagementRes?.__error) {
+        const msg = engagementRes.__error.response?.data?.message || engagementRes.__error.message || 'Erreur engagement';
+        setEngagementError(msg);
+      } else if (engagementRes?.data?.success) {
+        setEngagement(engagementRes.data.data);
+        setEngagementError('');
+      }
       setErrors({});
       setGlobalError('');
 
@@ -313,6 +364,14 @@ const SuperAdminDashboard = () => {
   const deviceData   = traffic?.byDevice || [];
   const topPages     = (Array.isArray(pages) ? pages : []).slice(0, 8);
   const recentLogins = usersActivity?.recentLogins || [];
+  const engagementKpis = engagement?.kpis || {};
+  const engagementDaily = engagement?.daily || [];
+  const topTimeUsers = engagement?.topUsers || [];
+  const engagementPages = engagement?.topPages || [];
+  const topActions = engagement?.topActions || [];
+  const recentJourneys = engagement?.recentJourneys || [];
+  const loginSparkData = useMemo(() => engagementDaily.map(d => d.logins || 0), [engagementDaily]);
+  const activeUsersSparkData = useMemo(() => engagementDaily.map(d => d.activeUsers || 0), [engagementDaily]);
 
   const rangeLabel = { '24h': '24h', '7d': '7 jours', '30d': '30 jours', '90d': '90 jours' }[range] || range;
   const usersOk     = !errors.users;
@@ -402,6 +461,200 @@ const SuperAdminDashboard = () => {
             accentLight="#f1f5f9"
           />
         </div>
+
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <KpiCard
+            label="Connexions"
+            value={(engagementKpis.totalLogins || 0).toLocaleString()}
+            sub={`${(engagementKpis.loginUsers || 0).toLocaleString()} utilisateurs connectes`}
+            icon={LogIn}
+            accent="#0f766e"
+            accentLight="#ccfbf1"
+            spark={loginSparkData}
+            sparkColor="#0f766e"
+          />
+          <KpiCard
+            label="Actifs periode"
+            value={(engagementKpis.activeUsers || 0).toLocaleString()}
+            sub={`${(engagementKpis.totalSessions || 0).toLocaleString()} sessions`}
+            icon={UserCheck}
+            accent="#2563eb"
+            accentLight="#dbeafe"
+            spark={activeUsersSparkData}
+            sparkColor="#2563eb"
+          />
+          <KpiCard
+            label="Temps moyen"
+            value={formatDuration(engagementKpis.avgDuration || 0)}
+            sub={`${formatDuration(engagementKpis.totalDuration || 0)} cumules`}
+            icon={Clock}
+            accent="#7c3aed"
+            accentLight="#ede9fe"
+          />
+          <KpiCard
+            label="Pages / session"
+            value={(engagementKpis.avgPagesPerSession || 0).toLocaleString('fr-FR')}
+            sub={`${(engagementKpis.pageViews || 0).toLocaleString()} vues suivies`}
+            icon={MousePointerClick}
+            accent="#b45309"
+            accentLight="#fef3c7"
+          />
+        </div>
+
+        <Panel>
+          <SH icon={Route} title="Intelligence utilisateurs" subtitle={`Connexions, temps passe et parcours sur ${rangeLabel}`} color="#0f766e">
+            <button onClick={() => navigate('/ecom/super-admin/analytics')}
+              className="inline-flex min-h-[36px] items-center gap-1 rounded-md px-2 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-900">
+              Analyse complete <ChevronRight className="h-3.5 w-3.5" />
+            </button>
+          </SH>
+          {engagementError ? (
+            <SectionError message={engagementError} onRetry={() => fetchAll(true)} />
+          ) : (
+            <div className="space-y-5">
+              <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1.1fr_0.9fr]">
+                <div>
+                  <div className="mb-2 flex items-center justify-between gap-3">
+                    <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Sessions par jour</p>
+                    <p className="text-xs font-semibold text-slate-400">{(engagementKpis.totalSessions || 0).toLocaleString()} sessions</p>
+                  </div>
+                  <AreaChart data={engagementDaily} dataKey="sessions" color="#0f766e" h={205} />
+                  <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    <div className="rounded-lg bg-slate-50 p-3">
+                      <p className="text-sm font-bold text-slate-900">{(engagementKpis.identifiedSessions || 0).toLocaleString()}</p>
+                      <p className="mt-1 text-xs font-medium text-slate-500">Sessions identifiees</p>
+                    </div>
+                    <div className="rounded-lg bg-slate-50 p-3">
+                      <p className="text-sm font-bold text-slate-900">{(engagementKpis.anonymousSessions || 0).toLocaleString()}</p>
+                      <p className="mt-1 text-xs font-medium text-slate-500">Sessions anonymes</p>
+                    </div>
+                    <div className="rounded-lg bg-slate-50 p-3">
+                      <p className="text-sm font-bold text-slate-900">{(engagementKpis.avgSessionsPerUser || 0).toLocaleString('fr-FR')}</p>
+                      <p className="mt-1 text-xs font-medium text-slate-500">Sessions / utilisateur</p>
+                    </div>
+                    <div className="rounded-lg bg-slate-50 p-3">
+                      <p className="text-sm font-bold text-slate-900">{engagementKpis.bounceRate || 0}%</p>
+                      <p className="mt-1 text-xs font-medium text-slate-500">Taux de rebond</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Plus gros temps passe</p>
+                    <p className="text-xs font-semibold text-slate-400">{topTimeUsers.length} utilisateurs</p>
+                  </div>
+                  {topTimeUsers.length > 0 ? (
+                    <div className="divide-y divide-slate-100">
+                      {topTimeUsers.slice(0, 6).map((user) => (
+                        <div key={user.userId} className="py-3 first:pt-0">
+                          <div className="mb-2 flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-semibold text-slate-800">{user.name || user.email || 'Utilisateur sans nom'}</p>
+                              <p className="truncate text-xs text-slate-500">
+                                {user.workspaceName || user.email || 'Workspace inconnu'} · {user.sessions || 0} session{(user.sessions || 0) > 1 ? 's' : ''}
+                              </p>
+                            </div>
+                            <span className="shrink-0 rounded-md bg-emerald-50 px-2 py-1 text-xs font-bold text-emerald-700">
+                              {formatDuration(user.totalDuration)}
+                            </span>
+                          </div>
+                          <Bar value={user.totalDuration || 0} max={topTimeUsers[0]?.totalDuration || 1} color="#0f766e" />
+                          <div className="mt-2 flex flex-wrap gap-1.5">
+                            {(user.topPages || []).slice(0, 2).map((page) => (
+                              <span key={`${user.userId}-${page.page}`} className="max-w-[180px] truncate rounded-md bg-slate-100 px-2 py-1 text-[11px] font-semibold text-slate-600">
+                                {page.page}
+                              </span>
+                            ))}
+                            {(user.actions || []).slice(0, 2).map((action) => (
+                              <span key={`${user.userId}-${action.eventType}`} className="rounded-md bg-blue-50 px-2 py-1 text-[11px] font-semibold text-blue-700">
+                                {formatEventLabel(action.eventType)} · {action.count}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="py-8 text-center text-sm text-slate-400">Aucun utilisateur actif sur cette periode</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-5 border-t border-slate-100 pt-5 lg:grid-cols-3">
+                <div>
+                  <p className="mb-3 text-xs font-bold uppercase tracking-wide text-slate-500">Ce qu'ils font</p>
+                  {topActions.length > 0 ? (
+                    <div className="space-y-3">
+                      {topActions.slice(0, 6).map((action) => (
+                        <div key={action.eventType}>
+                          <div className="mb-1 flex items-center justify-between gap-3">
+                            <span className="text-sm font-medium text-slate-700">{formatEventLabel(action.eventType)}</span>
+                            <span className="text-xs font-semibold text-slate-500">{(action.count || 0).toLocaleString()}</span>
+                          </div>
+                          <Bar value={action.count || 0} max={topActions[0]?.count || 1} color="#2563eb" />
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="py-8 text-center text-sm text-slate-400">Aucune action trackee</p>
+                  )}
+                </div>
+
+                <div>
+                  <p className="mb-3 text-xs font-bold uppercase tracking-wide text-slate-500">Pages qui retiennent</p>
+                  {engagementPages.length > 0 ? (
+                    <div className="space-y-3">
+                      {engagementPages.slice(0, 6).map((page) => (
+                        <div key={page.page}>
+                          <div className="mb-1 flex items-center justify-between gap-3">
+                            <span className="min-w-0 truncate text-sm font-medium text-slate-700">{page.page}</span>
+                            <span className="shrink-0 text-xs font-semibold text-slate-500">{(page.views || 0).toLocaleString()} vues</span>
+                          </div>
+                          <Bar value={page.views || 0} max={engagementPages[0]?.views || 1} color="#7c3aed" />
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="py-8 text-center text-sm text-slate-400">Aucune page trackee</p>
+                  )}
+                </div>
+
+                <div>
+                  <p className="mb-3 text-xs font-bold uppercase tracking-wide text-slate-500">Derniers parcours</p>
+                  {recentJourneys.length > 0 ? (
+                    <div className="divide-y divide-slate-100">
+                      {recentJourneys.slice(0, 5).map((session, index) => (
+                        <div key={session.sessionId || index} className="py-2.5 first:pt-0">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-semibold text-slate-800">{session.name || session.email || 'Visiteur anonyme'}</p>
+                              <p className="text-xs text-slate-500">
+                                {formatDuration(session.duration || 0)} · {(session.pageViews || 0).toLocaleString()} pages
+                              </p>
+                            </div>
+                            <span className="shrink-0 text-xs font-semibold text-slate-400">
+                              {session.lastActivityAt ? new Date(session.lastActivityAt).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }) : '—'}
+                            </span>
+                          </div>
+                          <div className="mt-2 flex flex-wrap gap-1.5">
+                            {(session.pagesVisited || []).slice(0, 3).map((page) => (
+                              <span key={`${session.sessionId}-${page}`} className="max-w-[160px] truncate rounded-md bg-slate-100 px-2 py-1 text-[11px] font-semibold text-slate-600">
+                                {page}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="py-8 text-center text-sm text-slate-400">Aucun parcours recent</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </Panel>
 
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.35fr_0.65fr]">
           <Panel>

@@ -67,6 +67,80 @@ function dateFilter(range = '30d', startDate = null, endDate = null) {
   return { since: new Date(now.getTime() - delta), until: now };
 }
 
+function toDayKey(date) {
+  return new Date(date).toISOString().slice(0, 10);
+}
+
+function buildDailyEngagement(since, until, sessions = [], logins = []) {
+  const map = new Map();
+  const cursor = new Date(since);
+  cursor.setUTCHours(0, 0, 0, 0);
+  const end = new Date(until);
+  end.setUTCHours(0, 0, 0, 0);
+
+  while (cursor <= end) {
+    const date = toDayKey(cursor);
+    map.set(date, {
+      date,
+      sessions: 0,
+      activeUsers: 0,
+      logins: 0,
+      loginUsers: 0,
+      pageViews: 0,
+      totalDuration: 0,
+      avgDuration: 0
+    });
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+
+  sessions.forEach((item) => {
+    const date = item.date || item._id;
+    if (!date) return;
+    const current = map.get(date) || {
+      date,
+      sessions: 0,
+      activeUsers: 0,
+      logins: 0,
+      loginUsers: 0,
+      pageViews: 0,
+      totalDuration: 0,
+      avgDuration: 0
+    };
+    current.sessions = item.sessions || 0;
+    current.activeUsers = item.activeUsers || 0;
+    current.pageViews = item.pageViews || 0;
+    current.totalDuration = Math.round(item.totalDuration || 0);
+    current.avgDuration = Math.round(item.avgDuration || 0);
+    map.set(date, current);
+  });
+
+  logins.forEach((item) => {
+    const date = item.date || item._id;
+    if (!date) return;
+    const current = map.get(date) || {
+      date,
+      sessions: 0,
+      activeUsers: 0,
+      logins: 0,
+      loginUsers: 0,
+      pageViews: 0,
+      totalDuration: 0,
+      avgDuration: 0
+    };
+    current.logins = item.logins || 0;
+    current.loginUsers = item.loginUsers || 0;
+    map.set(date, current);
+  });
+
+  return Array.from(map.values()).sort((left, right) => left.date.localeCompare(right.date));
+}
+
+function parseLimit(value, fallback = 10, max = 50) {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+  return Math.min(parsed, max);
+}
+
 function getActivityStatsOverride(source) {
   const override = source?.storeSettings?.adminStatsOverride || source?.storeSettings?.activityStatsOverride;
   if (!override || override.enabled === false) return null;
@@ -164,17 +238,19 @@ router.post('/track', async (req, res) => {
     // Geo: Cloudflare headers first, then IP lookup fallback
     const { country, city } = await resolveCountry(req);
 
-    // Validate ObjectIds to avoid Mongoose CastError → 500
+    // Validate ObjectIds to avoid Mongoose CastError -> 500
     const isObjectId = (v) => v && /^[a-f\d]{24}$/i.test(String(v));
+    const safeUserId = isObjectId(userId) ? userId : null;
+    const safeWorkspaceId = isObjectId(workspaceId) ? workspaceId : null;
 
     // Create event
     await AnalyticsEvent.create({
-      userId: isObjectId(userId) ? userId : null,
+      userId: safeUserId,
       sessionId,
       eventType: safeEventType,
       page: page || null,
       referrer: referrer || null,
-      workspaceId: isObjectId(workspaceId) ? workspaceId : null,
+      workspaceId: safeWorkspaceId,
       userRole: userRole || null,
       country,
       city,
@@ -191,7 +267,7 @@ router.post('/track', async (req, res) => {
       try {
         session = await AnalyticsSession.create({
           sessionId,
-          userId: userId || null,
+          userId: safeUserId,
           startedAt: new Date(),
           lastActivityAt: new Date(),
           country,
@@ -220,7 +296,7 @@ router.post('/track', async (req, res) => {
         exitPage: page || session.exitPage,
         duration: Math.floor((Date.now() - new Date(session.startedAt).getTime()) / 1000)
       };
-      if (userId && !session.userId) updates.userId = userId;
+      if (safeUserId && !session.userId) updates.userId = safeUserId;
       if (eventType === 'page_view') {
         updates.$inc = { pageViews: 1 };
         if (page && !session.pagesVisited.includes(page)) {
@@ -405,6 +481,414 @@ router.get('/overview',
       });
     } catch (error) {
       console.error('Analytics overview error:', error);
+      res.status(500).json({ success: false, message: 'Erreur serveur' });
+    }
+  }
+);
+
+// ──────────────────────────────────────────────────────────
+// GET /api/ecom/analytics/engagement
+// Deep super-admin engagement: logins, daily users, time spent, journeys
+// ──────────────────────────────────────────────────────────
+router.get('/engagement',
+  requireEcomAuth,
+  requireSuperAdmin,
+  async (req, res) => {
+    try {
+      const { range = '30d', startDate, endDate } = req.query;
+      const limit = parseLimit(req.query.limit, 10, 30);
+      const { since, until } = dateFilter(range, startDate, endDate);
+      const sessionMatch = { startedAt: { $gte: since, $lte: until } };
+      const eventMatch = { createdAt: { $gte: since, $lte: until } };
+      const durationExpr = {
+        $cond: [
+          { $gt: [{ $ifNull: ['$duration', 0] }, 0] },
+          { $ifNull: ['$duration', 0] },
+          {
+            $let: {
+              vars: {
+                computedDuration: {
+                  $floor: {
+                    $divide: [
+                      { $subtract: [{ $ifNull: ['$lastActivityAt', '$startedAt'] }, '$startedAt'] },
+                      1000
+                    ]
+                  }
+                }
+              },
+              in: {
+                $cond: [{ $gt: ['$$computedDuration', 0] }, '$$computedDuration', 0]
+              }
+            }
+          }
+        ]
+      };
+
+      const [
+        sessionStatsRaw,
+        loginStatsRaw,
+        dailySessionsRaw,
+        dailyLoginsRaw,
+        topPages,
+        topActions,
+        roles,
+        topUsersRaw,
+        recentJourneys
+      ] = await Promise.all([
+        AnalyticsSession.aggregate([
+          { $match: sessionMatch },
+          {
+            $project: {
+              userId: 1,
+              pageViews: { $ifNull: ['$pageViews', 0] },
+              isBounce: 1,
+              durationSec: durationExpr
+            }
+          },
+          {
+            $group: {
+              _id: null,
+              totalSessions: { $sum: 1 },
+              identifiedSessions: { $sum: { $cond: [{ $ne: ['$userId', null] }, 1, 0] } },
+              anonymousSessions: { $sum: { $cond: [{ $eq: ['$userId', null] }, 1, 0] } },
+              activeUsers: { $addToSet: '$userId' },
+              pageViews: { $sum: '$pageViews' },
+              totalDuration: { $sum: '$durationSec' },
+              avgDuration: { $avg: '$durationSec' },
+              bounces: { $sum: { $cond: ['$isBounce', 1, 0] } }
+            }
+          }
+        ]),
+        AnalyticsEvent.aggregate([
+          { $match: { ...eventMatch, eventType: 'login' } },
+          {
+            $group: {
+              _id: null,
+              totalLogins: { $sum: 1 },
+              loginUsers: { $addToSet: '$userId' }
+            }
+          }
+        ]),
+        AnalyticsSession.aggregate([
+          { $match: sessionMatch },
+          {
+            $project: {
+              day: { $dateToString: { format: '%Y-%m-%d', date: '$startedAt' } },
+              userId: 1,
+              pageViews: { $ifNull: ['$pageViews', 0] },
+              durationSec: durationExpr
+            }
+          },
+          {
+            $group: {
+              _id: '$day',
+              sessions: { $sum: 1 },
+              activeUsers: { $addToSet: '$userId' },
+              pageViews: { $sum: '$pageViews' },
+              totalDuration: { $sum: '$durationSec' },
+              avgDuration: { $avg: '$durationSec' }
+            }
+          },
+          { $sort: { _id: 1 } },
+          {
+            $project: {
+              _id: 0,
+              date: '$_id',
+              sessions: 1,
+              pageViews: 1,
+              totalDuration: 1,
+              avgDuration: 1,
+              activeUsers: { $size: { $filter: { input: '$activeUsers', cond: { $ne: ['$$this', null] } } } }
+            }
+          }
+        ]),
+        AnalyticsEvent.aggregate([
+          { $match: { ...eventMatch, eventType: 'login' } },
+          {
+            $group: {
+              _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
+              logins: { $sum: 1 },
+              loginUsers: { $addToSet: '$userId' }
+            }
+          },
+          { $sort: { _id: 1 } },
+          {
+            $project: {
+              _id: 0,
+              date: '$_id',
+              logins: 1,
+              loginUsers: { $size: { $filter: { input: '$loginUsers', cond: { $ne: ['$$this', null] } } } }
+            }
+          }
+        ]),
+        AnalyticsEvent.aggregate([
+          { $match: { ...eventMatch, eventType: 'page_view', page: { $ne: null } } },
+          {
+            $group: {
+              _id: '$page',
+              views: { $sum: 1 },
+              sessions: { $addToSet: '$sessionId' },
+              users: { $addToSet: '$userId' }
+            }
+          },
+          { $sort: { views: -1 } },
+          { $limit: limit },
+          {
+            $project: {
+              _id: 0,
+              page: '$_id',
+              views: 1,
+              sessions: { $size: '$sessions' },
+              uniqueUsers: { $size: { $filter: { input: '$users', cond: { $ne: ['$$this', null] } } } }
+            }
+          }
+        ]),
+        AnalyticsEvent.aggregate([
+          { $match: { ...eventMatch, eventType: { $ne: 'page_view' } } },
+          {
+            $group: {
+              _id: '$eventType',
+              count: { $sum: 1 },
+              users: { $addToSet: '$userId' }
+            }
+          },
+          { $sort: { count: -1 } },
+          { $limit: limit },
+          {
+            $project: {
+              _id: 0,
+              eventType: '$_id',
+              count: 1,
+              uniqueUsers: { $size: { $filter: { input: '$users', cond: { $ne: ['$$this', null] } } } }
+            }
+          }
+        ]),
+        AnalyticsSession.aggregate([
+          { $match: { ...sessionMatch, userId: { $ne: null } } },
+          {
+            $lookup: {
+              from: 'ecom_users',
+              localField: 'userId',
+              foreignField: '_id',
+              as: 'user'
+            }
+          },
+          { $unwind: { path: '$user', preserveNullAndEmptyArrays: true } },
+          {
+            $project: {
+              role: { $ifNull: ['$user.role', 'unknown'] },
+              userId: 1,
+              durationSec: durationExpr
+            }
+          },
+          {
+            $group: {
+              _id: '$role',
+              users: { $addToSet: '$userId' },
+              sessions: { $sum: 1 },
+              totalDuration: { $sum: '$durationSec' }
+            }
+          },
+          { $sort: { sessions: -1 } },
+          {
+            $project: {
+              _id: 0,
+              role: '$_id',
+              sessions: 1,
+              totalDuration: 1,
+              users: { $size: '$users' }
+            }
+          }
+        ]),
+        AnalyticsSession.aggregate([
+          { $match: { ...sessionMatch, userId: { $ne: null } } },
+          {
+            $project: {
+              userId: 1,
+              pageViews: { $ifNull: ['$pageViews', 0] },
+              pagesVisited: { $ifNull: ['$pagesVisited', []] },
+              lastActivityAt: 1,
+              startedAt: 1,
+              durationSec: durationExpr
+            }
+          },
+          {
+            $group: {
+              _id: '$userId',
+              sessions: { $sum: 1 },
+              totalDuration: { $sum: '$durationSec' },
+              avgDuration: { $avg: '$durationSec' },
+              pageViews: { $sum: '$pageViews' },
+              lastActivityAt: { $max: '$lastActivityAt' },
+              firstSeenAt: { $min: '$startedAt' },
+              pagesArrays: { $push: '$pagesVisited' }
+            }
+          },
+          { $sort: { totalDuration: -1, pageViews: -1 } },
+          { $limit: limit },
+          {
+            $lookup: {
+              from: 'ecom_users',
+              localField: '_id',
+              foreignField: '_id',
+              as: 'user'
+            }
+          },
+          { $unwind: { path: '$user', preserveNullAndEmptyArrays: true } },
+          {
+            $lookup: {
+              from: 'ecom_workspaces',
+              localField: 'user.workspaceId',
+              foreignField: '_id',
+              as: 'workspace'
+            }
+          },
+          { $unwind: { path: '$workspace', preserveNullAndEmptyArrays: true } },
+          {
+            $project: {
+              email: '$user.email',
+              name: '$user.name',
+              role: '$user.role',
+              workspaceName: '$workspace.name',
+              sessions: 1,
+              totalDuration: 1,
+              avgDuration: 1,
+              pageViews: 1,
+              lastActivityAt: 1,
+              firstSeenAt: 1,
+              pagesVisited: {
+                $slice: [
+                  {
+                    $reduce: {
+                      input: '$pagesArrays',
+                      initialValue: [],
+                      in: { $setUnion: ['$$value', '$$this'] }
+                    }
+                  },
+                  8
+                ]
+              }
+            }
+          }
+        ]),
+        AnalyticsSession.aggregate([
+          { $match: sessionMatch },
+          { $sort: { lastActivityAt: -1 } },
+          { $limit: 12 },
+          {
+            $lookup: {
+              from: 'ecom_users',
+              localField: 'userId',
+              foreignField: '_id',
+              as: 'user'
+            }
+          },
+          { $unwind: { path: '$user', preserveNullAndEmptyArrays: true } },
+          {
+            $lookup: {
+              from: 'ecom_workspaces',
+              localField: 'user.workspaceId',
+              foreignField: '_id',
+              as: 'workspace'
+            }
+          },
+          { $unwind: { path: '$workspace', preserveNullAndEmptyArrays: true } },
+          {
+            $project: {
+              _id: 0,
+              sessionId: 1,
+              userId: 1,
+              email: '$user.email',
+              name: '$user.name',
+              role: '$user.role',
+              workspaceName: '$workspace.name',
+              startedAt: 1,
+              lastActivityAt: 1,
+              duration: durationExpr,
+              pageViews: { $ifNull: ['$pageViews', 0] },
+              pagesVisited: { $slice: [{ $ifNull: ['$pagesVisited', []] }, 8] },
+              device: 1,
+              browser: 1,
+              country: 1
+            }
+          }
+        ])
+      ]);
+
+      const topUserIds = topUsersRaw.map((user) => user._id).filter(Boolean);
+      const [perUserActions, perUserPages] = topUserIds.length > 0 ? await Promise.all([
+        AnalyticsEvent.aggregate([
+          { $match: { ...eventMatch, userId: { $in: topUserIds }, eventType: { $ne: 'page_view' } } },
+          { $group: { _id: { userId: '$userId', eventType: '$eventType' }, count: { $sum: 1 } } },
+          { $sort: { count: -1 } },
+          { $group: { _id: '$_id.userId', actions: { $push: { eventType: '$_id.eventType', count: '$count' } } } },
+          { $project: { _id: 1, actions: { $slice: ['$actions', 5] } } }
+        ]),
+        AnalyticsEvent.aggregate([
+          { $match: { ...eventMatch, userId: { $in: topUserIds }, eventType: 'page_view', page: { $ne: null } } },
+          { $group: { _id: { userId: '$userId', page: '$page' }, views: { $sum: 1 } } },
+          { $sort: { views: -1 } },
+          { $group: { _id: '$_id.userId', pages: { $push: { page: '$_id.page', views: '$views' } } } },
+          { $project: { _id: 1, pages: { $slice: ['$pages', 5] } } }
+        ])
+      ]) : [[], []];
+
+      const actionMap = new Map(perUserActions.map((item) => [String(item._id), item.actions || []]));
+      const pageMap = new Map(perUserPages.map((item) => [String(item._id), item.pages || []]));
+
+      const sessionStats = sessionStatsRaw?.[0] || {};
+      const loginStats = loginStatsRaw?.[0] || {};
+      const totalSessions = sessionStats.totalSessions || 0;
+      const totalLogins = loginStats.totalLogins || 0;
+      const activeUsers = (sessionStats.activeUsers || []).filter(Boolean).length;
+      const loginUsers = (loginStats.loginUsers || []).filter(Boolean).length;
+      const pageViews = sessionStats.pageViews || 0;
+      const totalDuration = Math.round(sessionStats.totalDuration || 0);
+      const avgDuration = Math.round(sessionStats.avgDuration || 0);
+
+      res.json({
+        success: true,
+        data: {
+          period: { since, until, range, startDate: startDate || null, endDate: endDate || null },
+          kpis: {
+            totalSessions,
+            identifiedSessions: sessionStats.identifiedSessions || 0,
+            anonymousSessions: sessionStats.anonymousSessions || 0,
+            activeUsers,
+            totalLogins,
+            loginUsers,
+            pageViews,
+            totalDuration,
+            avgDuration,
+            avgPagesPerSession: totalSessions > 0 ? Math.round((pageViews / totalSessions) * 10) / 10 : 0,
+            avgSessionsPerUser: activeUsers > 0 ? Math.round((totalSessions / activeUsers) * 10) / 10 : 0,
+            bounceRate: totalSessions > 0 ? Math.round(((sessionStats.bounces || 0) / totalSessions) * 100) : 0
+          },
+          daily: buildDailyEngagement(since, until, dailySessionsRaw, dailyLoginsRaw),
+          topUsers: topUsersRaw.map((user) => ({
+            userId: String(user._id || ''),
+            email: user.email || '',
+            name: user.name || '',
+            role: user.role || null,
+            workspaceName: user.workspaceName || '',
+            sessions: user.sessions || 0,
+            totalDuration: Math.round(user.totalDuration || 0),
+            avgDuration: Math.round(user.avgDuration || 0),
+            pageViews: user.pageViews || 0,
+            lastActivityAt: user.lastActivityAt || null,
+            firstSeenAt: user.firstSeenAt || null,
+            pagesVisited: user.pagesVisited || [],
+            topPages: pageMap.get(String(user._id)) || [],
+            actions: actionMap.get(String(user._id)) || []
+          })),
+          topPages,
+          topActions,
+          roles,
+          recentJourneys
+        }
+      });
+    } catch (error) {
+      console.error('Analytics engagement error:', error);
       res.status(500).json({ success: false, message: 'Erreur serveur' });
     }
   }

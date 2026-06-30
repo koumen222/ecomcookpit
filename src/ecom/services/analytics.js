@@ -72,6 +72,7 @@ export const analyticsApi = {
   getTraffic: (params = {}) => ecomApi.get('/analytics/traffic', { params }),
   getCountries: (params = {}) => ecomApi.get('/analytics/countries', { params }),
   getPages: (params = {}) => ecomApi.get('/analytics/pages', { params }),
+  getEngagement: (params = {}) => ecomApi.get('/analytics/engagement', { params }),
   getUsersActivity: (params = {}) => ecomApi.get('/analytics/users-activity', { params }),
   getProductLeaderboard: () => ecomApi.get('/analytics/product-leaderboard'),
   getUserFlow: (params = {}) => ecomApi.get('/analytics/user-flow', { params })

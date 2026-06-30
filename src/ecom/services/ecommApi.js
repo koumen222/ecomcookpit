@@ -128,6 +128,7 @@ const CACHE_TTLS = {
   '/super-admin/users':              30_000, // 30 s
   '/super-admin/workspaces':         30_000, // 30 s
   '/super-admin/settings':           60_000, // 1 min
+  '/analytics/engagement':           30_000, // 30 s
   // Store config — changes infrequently, served from sessionStorage on top
   '/store-manage/config':            30_000, // 30 s
   '/store-manage/subdomain':         30_000, // 30 s
