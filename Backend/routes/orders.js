@@ -25,6 +25,18 @@ import { EventEmitter } from 'events';
 const router = express.Router();
 const DELIVERY_COST_PER_KM_FCFA = 500;
 
+function getEffectiveRole(req) {
+  return req.ecomUserRole || req.ecomUser?.role;
+}
+
+function hasEffectiveRole(req, roles) {
+  return roles.includes(getEffectiveRole(req));
+}
+
+function shouldScopeMainOrdersToStore(req) {
+  return Boolean(req.activeStoreId && req.activeStoreIdSource === 'header');
+}
+
 router.use((req, res, next) => {
   if (req.method === 'GET') {
     res.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
@@ -427,7 +439,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('orders', 'write'), checkPl
     const normalizedPhone = normalizePhone(phoneValue, defaultPhonePrefix);
     const order = new Order({
       workspaceId: req.workspaceId,
-      storeId: req.activeStoreId || null,
+      storeId: shouldScopeMainOrdersToStore(req) ? req.activeStoreId : null,
       orderId: `#MAN_${Date.now().toString(36)}`,
       date: new Date(),
       clientName: clientName || '',
@@ -575,7 +587,7 @@ router.get('/filter-options', requireEcomAuth, async (req, res) => {
     }
 
     // Closeuse: restrict to assigned sources/products/cities
-    if (req.ecomUser.role === 'ecom_closeuse') {
+    if (getEffectiveRole(req) === 'ecom_closeuse') {
       const allAssignments = await CloseuseAssignment.find({
         closeuseId: req.ecomUser._id, workspaceId: req.workspaceId, isActive: true
       });
@@ -649,7 +661,7 @@ router.get('/quick', requireEcomAuth, async (req, res) => {
     const sortDirection = sortOrder === 'oldest_first' ? 1 : -1;
 
     // Filtre closeuse
-    if (req.ecomUser.role === 'ecom_closeuse') {
+    if (getEffectiveRole(req) === 'ecom_closeuse') {
       const allAssignments = await CloseuseAssignment.find({
         closeuseId: req.ecomUser._id, workspaceId: req.workspaceId, isActive: true
       });
@@ -718,39 +730,41 @@ router.get('/new-since', requireEcomAuth, async (req, res) => {
       }
     }
 
-    // Filtre closeuse: ne montrer que les commandes des produits assignés
-    if (req.ecomUser.role === 'ecom_closeuse') {
-      const assignment = await CloseuseAssignment.findOne({
+    // Filtre closeuse: même logique que la liste complète (sources OU produits OU villes assignés)
+    if (getEffectiveRole(req) === 'ecom_closeuse') {
+      const allAssignments = await CloseuseAssignment.find({
         closeuseId: req.ecomUser._id,
         workspaceId: req.workspaceId,
         isActive: true
       });
 
-      if (assignment) {
-        const allProductNames = await resolveProductNames([assignment]);
-        const assignedCityNames = (assignment.cityAssignments || []).flatMap(ca => ca.cityNames || []);
-        
-        if (allProductNames.length > 0 || assignedCityNames.length > 0) {
-          const allConditions = [];
-          
-          allProductNames.forEach(name => allConditions.push({
-            product: { $regex: name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').trim(), $options: 'i' }
-          }));
+      if (allAssignments.length > 0) {
+        const allConditions = [];
+        const assignedCityNames = allAssignments.flatMap(a => (a.cityAssignments || []).flatMap(ca => ca.cityNames || []));
+        const assignedSourceIds = [...new Set(
+          allAssignments.flatMap(a => (a.orderSources || []).map(os => String(os.sourceId)).filter(Boolean))
+        )];
+        const sourceTypeMap = await loadSourceTypeMap(req.workspaceId);
+        const allProductNames = await resolveProductNames(allAssignments);
 
-          assignedCityNames.forEach(name => allConditions.push({
-            city: { $regex: `^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').trim()}$`, $options: 'i' }
-          }));
+        assignedSourceIds.forEach(sid => {
+          const cond = buildSourceCondition(sid, sourceTypeMap);
+          if (cond) allConditions.push(cond);
+        });
+        allProductNames.forEach(name => allConditions.push({
+          product: { $regex: name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').trim(), $options: 'i' }
+        }));
+        assignedCityNames.forEach(name => allConditions.push({
+          city: { $regex: `^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').trim()}$`, $options: 'i' }
+        }));
 
-          if (allConditions.length > 0) {
-            if (filter.$or) {
-              const searchOr = filter.$or;
-              delete filter.$or;
-              filter.$and = [{ $or: searchOr }, { $or: allConditions }];
-            } else {
-              filter.$or = allConditions;
-            }
+        if (allConditions.length > 0) {
+          if (filter.$or) {
+            const searchOr = filter.$or;
+            delete filter.$or;
+            filter.$and = [{ $or: searchOr }, { $or: allConditions }];
           } else {
-            filter._id = null;
+            filter.$or = allConditions;
           }
         } else {
           filter._id = null;
@@ -785,7 +799,7 @@ router.get('/new-since', requireEcomAuth, async (req, res) => {
 // GET /api/ecom/orders/my-commissions - Commissions de la closeuse connectée
 router.get('/my-commissions', requireEcomAuth, async (req, res) => {
   try {
-    if (req.ecomUser.role !== 'ecom_closeuse') {
+    if (getEffectiveRole(req) !== 'ecom_closeuse') {
       return res.status(403).json({ success: false, message: 'Accès réservé aux closeuses' });
     }
 
@@ -941,13 +955,13 @@ router.get('/', requireEcomAuth, async (req, res) => {
     const sortDirection = sortOrder === 'oldest_first' ? 1 : -1;
     
     // Si super_admin et allWorkspaces=true, ne pas filtrer par workspaceId
-    const isSuperAdmin = req.ecomUser.role === 'super_admin';
+    const isSuperAdmin = getEffectiveRole(req) === 'super_admin';
     const viewAllWorkspaces = isSuperAdmin && allWorkspaces === 'true';
 
     const filter = viewAllWorkspaces ? {} : { workspaceId: req.workspaceId };
 
     // Multi-store: filter by active store if set
-    if (!viewAllWorkspaces && req.activeStoreId) {
+    if (!viewAllWorkspaces && shouldScopeMainOrdersToStore(req)) {
       filter.$or = [{ storeId: req.activeStoreId }, { storeId: null }];
     }
 
@@ -1019,8 +1033,10 @@ router.get('/', requireEcomAuth, async (req, res) => {
       ];
     }
 
+    let closeuseVisibilityOr = null;
+
     // Filtre closeuse: montrer les commandes des sources assignées OU des produits/villes assignés
-    if (req.ecomUser.role === 'ecom_closeuse') {
+    if (getEffectiveRole(req) === 'ecom_closeuse') {
       // Use find() to get ALL assignments (one per source possible)
       const allAssignments = await CloseuseAssignment.find({
         closeuseId: req.ecomUser._id,
@@ -1064,6 +1080,7 @@ router.get('/', requireEcomAuth, async (req, res) => {
 
 
         if (allConditions.length > 0) {
+          closeuseVisibilityOr = allConditions;
           if (filter.$or) {
             // search filter exists: wrap both in $and
             const searchOr = filter.$or;
@@ -1083,7 +1100,7 @@ router.get('/', requireEcomAuth, async (req, res) => {
     }
 
     // Filtre livreur : ne voir que SES commandes assignées
-    if (req.ecomUser.role === 'ecom_livreur') {
+    if (getEffectiveRole(req) === 'ecom_livreur') {
       filter.assignedLivreur = req.ecomUser._id;
     }
 
@@ -1099,17 +1116,17 @@ router.get('/', requireEcomAuth, async (req, res) => {
     // Stats + total en une seule agrégation (remplace 9 countDocuments séparés)
     const wsFilter = viewAllWorkspaces ? {} : { workspaceId: req.workspaceId };
     let statsFilter = { ...wsFilter };
-    if (req.ecomUser.role === 'ecom_closeuse' && (filter.$or || filter.$and)) {
-      if (filter.$or) statsFilter.$or = filter.$or;
-      else if (filter.$and) {
-        const productCityCondition = filter.$and.find(c => c.$or && (c.$or[0]?.product || c.$or[0]?.city));
-        if (productCityCondition) statsFilter.$or = productCityCondition.$or;
-      }
+    if (getEffectiveRole(req) === 'ecom_closeuse' && closeuseVisibilityOr) {
+      statsFilter.$or = closeuseVisibilityOr;
     }
 
     // Cache stats 30s si pas de filtre actif (changement de source/page seulement)
     const hasActiveFilter = status || search || city || product || tag || startDate || endDate || period;
-    const statsCacheKey = `stats:${req.workspaceId}:${sourceId || 'all'}`;
+    const statsScope = getEffectiveRole(req) === 'ecom_closeuse'
+      ? `closeuse:${req.ecomUser._id}`
+      : getEffectiveRole(req) || 'user';
+    const storeStatsScope = shouldScopeMainOrdersToStore(req) ? `store:${req.activeStoreId}` : 'allStores';
+    const statsCacheKey = `stats:${req.workspaceId}:${statsScope}:${storeStatsScope}:${sourceId || 'all'}`;
     let statsAgg = hasActiveFilter ? null : memCache.get(statsCacheKey);
 
     const [statsAggResult, total] = await Promise.all([
@@ -1182,7 +1199,7 @@ router.get('/stats/detailed', requireEcomAuth, async (req, res) => {
     const wsFilterAgg = { workspaceId: new mongoose.Types.ObjectId(req.workspaceId) };
 
     // Multi-store: filter by active store if set
-    if (req.activeStoreId) {
+    if (shouldScopeMainOrdersToStore(req)) {
       const storeCondition = { $or: [{ storeId: req.activeStoreId }, { storeId: null }] };
       const storeConditionAgg = { $or: [{ storeId: new mongoose.Types.ObjectId(req.activeStoreId) }, { storeId: null }] };
       Object.assign(wsFilter, storeCondition);
@@ -3022,7 +3039,7 @@ router.post('/backfill-clients', requireEcomAuth, validateEcomAccess('products',
 // GET /api/ecom/orders/livreur-tracking - Suivi des commandes livreurs (admin/closeuse)
 router.get('/livreur-tracking', requireEcomAuth, async (req, res) => {
   try {
-    if (!['ecom_admin', 'ecom_closeuse', 'super_admin'].includes(req.ecomUser.role)) {
+    if (!hasEffectiveRole(req, ['ecom_admin', 'ecom_closeuse', 'super_admin'])) {
       return res.status(403).json({ success: false, message: 'Accès réservé.' });
     }
 
@@ -3090,7 +3107,7 @@ router.get('/livreur-tracking', requireEcomAuth, async (req, res) => {
 // GET /api/ecom/orders/available - Commandes disponibles pour les livreurs
 router.get('/available', requireEcomAuth, async (req, res) => {
   try {
-    if (!['ecom_livreur', 'ecom_admin', 'super_admin'].includes(req.ecomUser.role)) {
+    if (!hasEffectiveRole(req, ['ecom_livreur', 'ecom_admin', 'super_admin'])) {
       return res.status(403).json({ success: false, message: 'Accès réservé aux livreurs.' });
     }
 
@@ -3209,7 +3226,7 @@ router.post('/:id/delivery-offer', requireEcomAuth, async (req, res) => {
       return res.status(400).json({ success: false, message: 'ID invalide' });
     }
 
-    if (!['ecom_admin', 'super_admin', 'ecom_closeuse'].includes(req.ecomUser.role)) {
+    if (!hasEffectiveRole(req, ['ecom_admin', 'super_admin', 'ecom_closeuse'])) {
       return res.status(403).json({ success: false, message: 'Réservé aux administrateurs.' });
     }
 
@@ -3300,7 +3317,7 @@ router.post('/:id/assign', requireEcomAuth, async (req, res) => {
     const livreurId = req.ecomUser._id; // L'utilisateur connecté devient le livreur
     
     // Vérifier que l'utilisateur est un livreur
-    if (!['ecom_livreur', 'ecom_admin', 'super_admin'].includes(req.ecomUser.role)) {
+    if (!hasEffectiveRole(req, ['ecom_livreur', 'ecom_admin', 'super_admin'])) {
       return res.status(403).json({ success: false, message: 'Accès réservé aux livreurs.' });
     }
     
@@ -3379,7 +3396,7 @@ router.post('/:id/refuse', requireEcomAuth, async (req, res) => {
       return res.status(400).json({ success: false, message: 'ID invalide' });
     }
 
-    if (!['ecom_livreur', 'ecom_admin', 'super_admin'].includes(req.ecomUser.role)) {
+    if (!hasEffectiveRole(req, ['ecom_livreur', 'ecom_admin', 'super_admin'])) {
       return res.status(403).json({ success: false, message: 'Accès réservé aux livreurs.' });
     }
 
@@ -3443,7 +3460,8 @@ router.put('/:id', requireEcomAuth, async (req, res) => {
       return res.status(400).json({ success: false, message: 'ID invalide' });
     }
 
-    console.log(`🔧 PUT /orders/${req.params.id} - User: ${req.ecomUser?.email}, Role: ${req.ecomUser?.role}, Workspace: ${req.workspaceId}`);
+    const effectiveRole = getEffectiveRole(req);
+    console.log(`🔧 PUT /orders/${req.params.id} - User: ${req.ecomUser?.email}, Role: ${effectiveRole}, Workspace: ${req.workspaceId}`);
     
     const order = await Order.findOne({ _id: req.params.id, workspaceId: req.workspaceId }, null, { skipLean: true });
     console.log(`📋 Order lookup result:`, order ? `Found - ${order.orderId}` : 'Not found');
@@ -3454,10 +3472,10 @@ router.put('/:id', requireEcomAuth, async (req, res) => {
     }
 
     // Vérifier les permissions : admin/super-admin/closeuse peuvent modifier, autres uniquement leurs commandes assignées
-    const canModify = ['ecom_admin', 'super_admin', 'ecom_closeuse'].includes(req.ecomUser.role) || 
+    const canModify = ['ecom_admin', 'super_admin', 'ecom_closeuse'].includes(effectiveRole) ||
                      order.assignedCloseuse?.toString() === req.ecomUser._id.toString();
     
-    console.log(`🔐 Permission check - User role: ${req.ecomUser.role}, Can modify: ${canModify}, Assigned closeuse: ${order.assignedCloseuse}`);
+    console.log(`🔐 Permission check - User role: ${effectiveRole}, Can modify: ${canModify}, Assigned closeuse: ${order.assignedCloseuse}`);
     
     if (!canModify) {
       console.log(`❌ Permission denied for user ${req.ecomUser.email} on order ${order.orderId}`);
@@ -3479,7 +3497,7 @@ router.put('/:id', requireEcomAuth, async (req, res) => {
     if (req.body.status !== undefined) {
       updateData.statusModifiedManually = true;
       updateData.lastManualStatusUpdate = new Date();
-      if (['ecom_closeuse'].includes(req.ecomUser.role)) {
+      if (effectiveRole === 'ecom_closeuse') {
         updateData.closerId = req.ecomUser._id;
         updateData.closerUpdatedAt = new Date();
       }
@@ -3636,7 +3654,8 @@ router.patch('/:id/status', requireEcomAuth, async (req, res) => {
     }
 
     // Vérifier les permissions : admin/super-admin/closeuse peuvent modifier, autres uniquement leurs commandes assignées
-    const canModify = ['ecom_admin', 'super_admin', 'ecom_closeuse'].includes(req.ecomUser.role) || 
+    const effectiveRole = getEffectiveRole(req);
+    const canModify = ['ecom_admin', 'super_admin', 'ecom_closeuse'].includes(effectiveRole) ||
                      order.assignedCloseuse?.toString() === req.ecomUser._id.toString();
     
     if (!canModify) {
@@ -3661,7 +3680,7 @@ router.patch('/:id/status', requireEcomAuth, async (req, res) => {
     order.statusModifiedManually = true;
     order.lastManualStatusUpdate = new Date();
     order.updatedAt = new Date();
-    if (['ecom_closeuse'].includes(req.ecomUser.role)) {
+    if (effectiveRole === 'ecom_closeuse') {
       order.closerId = req.ecomUser._id;
       order.closerUpdatedAt = new Date();
     }
@@ -3774,7 +3793,7 @@ router.patch('/:id/livreur-action', requireEcomAuth, async (req, res) => {
     const { action, startLat, startLng, endLat, endLng, endAddress, distanceKm, deliveryNote, nonDeliveryReason } = req.body;
     const livreurId = req.ecomUser._id;
 
-    if (!['ecom_livreur', 'ecom_admin', 'super_admin'].includes(req.ecomUser.role)) {
+    if (!hasEffectiveRole(req, ['ecom_livreur', 'ecom_admin', 'super_admin'])) {
       return res.status(403).json({ success: false, message: 'Accès réservé aux livreurs.' });
     }
 
@@ -3789,7 +3808,7 @@ router.patch('/:id/livreur-action', requireEcomAuth, async (req, res) => {
     }
 
     // Seul le livreur assigné peut agir (ou un admin)
-    const isAdmin = ['ecom_admin', 'super_admin'].includes(req.ecomUser.role);
+    const isAdmin = hasEffectiveRole(req, ['ecom_admin', 'super_admin']);
     if (!isAdmin && order.assignedLivreur?.toString() !== livreurId.toString()) {
       return res.status(403).json({ success: false, message: 'Vous n\'êtes pas assigné à cette commande.' });
     }
@@ -3955,7 +3974,7 @@ router.patch('/:id/ready-for-delivery', requireEcomAuth, async (req, res) => {
       return res.status(400).json({ success: false, message: 'ID invalide' });
     }
 
-    if (!['ecom_admin', 'super_admin', 'ecom_closeuse'].includes(req.ecomUser.role)) {
+    if (!hasEffectiveRole(req, ['ecom_admin', 'super_admin', 'ecom_closeuse'])) {
       return res.status(403).json({ success: false, message: 'Réservé aux administrateurs.' });
     }
 
@@ -4004,7 +4023,7 @@ router.patch('/:id/ready-for-delivery', requireEcomAuth, async (req, res) => {
 // GET /api/ecom/orders/livreur/history - Historique de livraisons du livreur connecté
 router.get('/livreur/history', requireEcomAuth, async (req, res) => {
   try {
-    if (!['ecom_livreur', 'ecom_admin', 'super_admin'].includes(req.ecomUser.role)) {
+    if (!hasEffectiveRole(req, ['ecom_livreur', 'ecom_admin', 'super_admin'])) {
       return res.status(403).json({ success: false, message: 'Accès réservé aux livreurs.' });
     }
 
@@ -4033,7 +4052,7 @@ router.get('/livreur/history', requireEcomAuth, async (req, res) => {
 // GET /api/ecom/orders/livreur/stats - Stats et gains du livreur connecté
 router.get('/livreur/stats', requireEcomAuth, async (req, res) => {
   try {
-    if (!['ecom_livreur', 'ecom_admin', 'super_admin'].includes(req.ecomUser.role)) {
+    if (!hasEffectiveRole(req, ['ecom_livreur', 'ecom_admin', 'super_admin'])) {
       return res.status(403).json({ success: false, message: 'Accès réservé aux livreurs.' });
     }
 
@@ -4116,7 +4135,7 @@ router.delete('/:id', requireEcomAuth, async (req, res) => {
     }
 
     // Vérifier les permissions : admin/super-admin/closeuse peuvent supprimer, autres uniquement leurs commandes assignées
-    const canDelete = ['ecom_admin', 'super_admin', 'ecom_closeuse'].includes(req.ecomUser.role) || 
+    const canDelete = hasEffectiveRole(req, ['ecom_admin', 'super_admin', 'ecom_closeuse']) ||
                      order.assignedCloseuse?.toString() === req.ecomUser._id.toString();
     
     if (!canDelete) {
@@ -4188,7 +4207,7 @@ router.get('/fix-statuses', requireEcomAuth, validateEcomAccess('products', 'wri
 // POST /api/ecom/orders/cancel-pending-expired - Annulation manuelle one-shot des pending > 73h
 router.post('/cancel-pending-expired', requireEcomAuth, validateEcomAccess('products', 'write'), async (req, res) => {
   try {
-    if (!['ecom_admin', 'super_admin'].includes(req.ecomUser.role)) {
+    if (!hasEffectiveRole(req, ['ecom_admin', 'super_admin'])) {
       return res.status(403).json({ success: false, message: 'Accès refusé' });
     }
 
@@ -4279,7 +4298,7 @@ router.get('/revenue-periods', requireEcomAuth, async (req, res) => {
     const { allWorkspaces } = req.query;
     
     // Si super_admin et allWorkspaces=true, ne pas filtrer par workspaceId
-    const isSuperAdmin = req.ecomUser.role === 'super_admin';
+    const isSuperAdmin = getEffectiveRole(req) === 'super_admin';
     const viewAllWorkspaces = isSuperAdmin && allWorkspaces === 'true';
     
     const baseFilter = viewAllWorkspaces ? {} : { workspaceId: req.workspaceId };
@@ -4385,7 +4404,7 @@ router.get('/:id', requireEcomAuth, async (req, res) => {
     }
 
     // Vérifier les permissions pour les livreurs : seulement leurs commandes assignées ou celles du pool
-    if (req.ecomUser.role === 'ecom_livreur') {
+    if (getEffectiveRole(req) === 'ecom_livreur') {
       const assignedId = order.assignedLivreur?._id?.toString() || order.assignedLivreur?.toString();
       const isAssigned = assignedId === req.ecomUser._id.toString();
       const isInPool = order.readyForDelivery === true;
@@ -4395,22 +4414,24 @@ router.get('/:id', requireEcomAuth, async (req, res) => {
     }
 
     // Vérifier les permissions pour les closeuses
-    if (req.ecomUser.role === 'ecom_closeuse') {
-      const assignment = await CloseuseAssignment.findOne({
+    if (getEffectiveRole(req) === 'ecom_closeuse') {
+      const allAssignments = await CloseuseAssignment.find({
         closeuseId: req.ecomUser._id,
         workspaceId: req.workspaceId,
         isActive: true
       });
 
-      if (!assignment) {
+      if (!allAssignments.length) {
         return res.status(403).json({ success: false, message: 'Accès refusé: aucune affectation trouvée.' });
       }
 
-      const assignedSourceIds = (assignment.orderSources || []).map(os => String(os.sourceId)).filter(Boolean);
-      const assignedCityNames = (assignment.cityAssignments || []).flatMap(ca => ca.cityNames || []);
+      const assignedSourceIds = [...new Set(
+        allAssignments.flatMap(a => (a.orderSources || []).map(os => String(os.sourceId)).filter(Boolean))
+      )];
+      const assignedCityNames = allAssignments.flatMap(a => (a.cityAssignments || []).flatMap(ca => ca.cityNames || []));
 
       // Résoudre tous les noms de produits (sheets + DB Products + StoreProducts)
-      const allProductNames = await resolveProductNames([assignment]);
+      const allProductNames = await resolveProductNames(allAssignments);
 
       // Source match: utilise buildSourceCondition pour gérer scalor_store, shopify, legacy, sheets
       let sourceMatch = false;
@@ -4429,16 +4450,16 @@ router.get('/:id', requireEcomAuth, async (req, res) => {
         });
       }
 
-      const productMatch = allProductNames.length === 0 || allProductNames.some(name =>
-        name && order.product && order.product.trim().toLowerCase() === name.trim().toLowerCase()
+      const productMatch = allProductNames.some(name =>
+        name && order.product && order.product.trim().toLowerCase().includes(name.trim().toLowerCase())
       );
 
-      const cityMatch = assignedCityNames.length === 0 || assignedCityNames.some(city =>
+      const cityMatch = assignedCityNames.some(city =>
         city && order.city && order.city.trim().toLowerCase() === city.trim().toLowerCase()
       );
 
-      // Accès si source assignée OU (produit et ville correspondent, ou pas de restriction)
-      const hasAccess = sourceMatch || (productMatch && cityMatch);
+      // Même logique que la liste: accès si source OU produit OU ville assigné.
+      const hasAccess = sourceMatch || productMatch || cityMatch;
 
       if (!hasAccess) {
         return res.status(403).json({ success: false, message: 'Accès refusé: cette commande ne vous est pas assignée.' });

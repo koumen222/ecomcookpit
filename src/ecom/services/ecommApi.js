@@ -154,6 +154,11 @@ function isLiveOrdersEndpoint(url = '') {
     || path.startsWith('/store-orders/');
 }
 
+function shouldAttachStoreHeader(url = '') {
+  const path = getRequestPath(url);
+  return !(path === '/orders' || path.startsWith('/orders/'));
+}
+
 function getCacheTtl(url = '') {
   for (const [pattern, ttl] of Object.entries(CACHE_TTLS)) {
     if (url.includes(pattern)) return ttl;
@@ -300,7 +305,7 @@ ecomApi.interceptors.request.use(
 
     // Inject X-Store-Id for multi-store routing (set by StoreContext)
     const storeId = window.__activeStoreId__;
-    if (storeId && !isSuperAdminEndpoint) {
+    if (storeId && !isSuperAdminEndpoint && shouldAttachStoreHeader(config.url)) {
       config.headers['X-Store-Id'] = storeId;
     }
 

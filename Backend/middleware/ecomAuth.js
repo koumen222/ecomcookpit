@@ -160,6 +160,7 @@ export const requireEcomAuth = async (req, res, next) => {
     
     // Résoudre activeStoreId depuis le header X-Store-Id (multi-store)
     const requestedStoreId = req.headers['x-store-id'];
+    req.activeStoreIdSource = null;
     if (requestedStoreId && /^[0-9a-fA-F]{24}$/.test(requestedStoreId)) {
       try {
         const store = await Store.findOne({
@@ -168,11 +169,14 @@ export const requireEcomAuth = async (req, res, next) => {
           isActive: true
         }).select('_id').lean();
         req.activeStoreId = store?._id || null;
+        req.activeStoreIdSource = store ? 'header' : null;
       } catch (e) {
         req.activeStoreId = null;
+        req.activeStoreIdSource = null;
       }
     } else {
       req.activeStoreId = null;
+      req.activeStoreIdSource = null;
     }
 
     // Safety net: if no X-Store-Id header was sent but Store documents exist,
@@ -184,6 +188,7 @@ export const requireEcomAuth = async (req, res, next) => {
         if (ws?.primaryStoreId) query._id = ws.primaryStoreId;
         const fallback = await Store.findOne(query).sort({ createdAt: 1 }).select('_id').lean();
         req.activeStoreId = fallback?._id || null;
+        req.activeStoreIdSource = fallback ? 'fallback' : null;
       } catch (_) {
         // Non-critical — leave activeStoreId null for legacy workspace-only accounts
       }
