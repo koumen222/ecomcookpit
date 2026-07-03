@@ -501,6 +501,15 @@ function buildFallbackSections(s) {
  * Build the Groq prompt for homepage section generation.
  * Used by both generate-homepage and regenerate-homepage.
  */
+// i18n génération homepage/legal : règle de langue injectée dans les prompts.
+// s.language provient de storeSettings.language ou du wizard ('fr' | 'en' | 'es').
+function homepageLanguageRule(language = 'fr') {
+  const lang = String(language || 'fr').toLowerCase().slice(0, 2);
+  if (lang === 'en') return "100% English — write EVERY text (titles, subtitles, items, questions, answers, buttons) in natural English; the French examples above only show the structure";
+  if (lang === 'es') return '100% español — escribe TODOS los textos (títulos, subtítulos, items, preguntas, respuestas, botones) en español natural; los ejemplos en francés solo muestran la estructura';
+  return '100% français, zéro anglais';
+}
+
 function buildHomepagePrompt(s) {
   const productTypeLabel = PRODUCT_TYPE_LABELS[s.productType] || s.productType || 'Produits divers';
   const toneLabel = TONE_LABELS[s.tone] || s.tone || 'Chaleureux & Proche';
@@ -567,7 +576,7 @@ config: { title: "Parlons-en sur WhatsApp", subtitle: "On vous répond en moins 
 config: { title: "Restez informé(e) !", subtitle: "Inscrivez-vous pour recevoir nos offres exclusives et nouveautés en avant-première.", placeholder: "Votre adresse email", buttonText: "S'inscrire" }
 
 RÈGLES:
-- 100% français, zéro anglais
+- ${homepageLanguageRule(s.language)}
 - Ton: ${toneLabel.split('—')[0].trim()}
 - IDs: "hero-1", "badges-1", "products-1", "features-1", "testimonials-1", "banner-1", "faq-1", "contact-1", "newsletter-1"
 - visible: true
@@ -725,7 +734,7 @@ Adapté au pays: ${country}.
 }
 
 RÈGLES:
-- 100% français simple et naturel
+- ${homepageLanguageRule(s.language)} — style simple et naturel
 - Adapté au contexte e-commerce africain (COD, Mobile Money, WhatsApp)
 - Le HTML doit être propre: h2 pour les titres de section, h3 pour sous-titres, p pour paragraphes, ul/li pour listes
 - Pas de CSS inline dans le HTML
