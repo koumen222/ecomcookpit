@@ -7,9 +7,17 @@ import StoreOrder from '../models/StoreOrder.js';
 import StoreProduct from '../models/StoreProduct.js';
 import Product from '../models/Product.js';
 import Workspace from '../models/Workspace.js';
+import PlanConfig from '../models/PlanConfig.js';
+import PlanPayment from '../models/PlanPayment.js';
 import { requireEcomAuth, requireSuperAdmin } from '../middleware/ecomAuth.js';
 
 const router = express.Router();
+const FALLBACK_MONTHLY_PRICES = {
+  free: 0,
+  starter: 6900,
+  pro: 14900,
+  ultra: 29899
+};
 
 // ──────────────────────────────────────────────────────────
 // Helper: parse user-agent into device/browser/os
@@ -139,6 +147,62 @@ function parseLimit(value, fallback = 10, max = 50) {
   const parsed = Number.parseInt(value, 10);
   if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
   return Math.min(parsed, max);
+}
+
+function percentRate(part, total) {
+  const safePart = Number(part || 0);
+  const safeTotal = Number(total || 0);
+  if (safeTotal <= 0) return 0;
+  return Math.round((safePart / safeTotal) * 1000) / 10;
+}
+
+function trendMetric(current = 0, previous = 0) {
+  const safeCurrent = Number(current || 0);
+  const safePrevious = Number(previous || 0);
+  const delta = safeCurrent - safePrevious;
+  const rate = safePrevious > 0
+    ? Math.round((delta / safePrevious) * 1000) / 10
+    : (safeCurrent > 0 ? 100 : 0);
+
+  return {
+    current: safeCurrent,
+    previous: safePrevious,
+    delta,
+    rate,
+    direction: delta > 0 ? 'up' : (delta < 0 ? 'down' : 'flat')
+  };
+}
+
+function previousPeriod(since, until) {
+  const durationMs = Math.max(1, until.getTime() - since.getTime());
+  const previousUntil = new Date(since.getTime() - 1);
+  const previousSince = new Date(previousUntil.getTime() - durationMs);
+  return { previousSince, previousUntil };
+}
+
+function planRevenuePipeline(since, until) {
+  return [
+    {
+      $addFields: {
+        paidAt: { $ifNull: ['$activatedAt', { $ifNull: ['$updatedAt', '$createdAt'] }] }
+      }
+    },
+    {
+      $match: {
+        status: 'paid',
+        paidAt: { $gte: since, $lte: until }
+      }
+    },
+    {
+      $group: {
+        _id: null,
+        revenue: { $sum: { $ifNull: ['$amount', 0] } },
+        payments: { $sum: 1 },
+        workspaces: { $addToSet: '$workspaceId' },
+        avgPayment: { $avg: { $ifNull: ['$amount', 0] } }
+      }
+    }
+  ];
 }
 
 function getActivityStatsOverride(source) {
@@ -498,8 +562,12 @@ router.get('/engagement',
       const { range = '30d', startDate, endDate } = req.query;
       const limit = parseLimit(req.query.limit, 10, 30);
       const { since, until } = dateFilter(range, startDate, endDate);
+      const { previousSince, previousUntil } = previousPeriod(since, until);
       const sessionMatch = { startedAt: { $gte: since, $lte: until } };
+      const previousSessionMatch = { startedAt: { $gte: previousSince, $lte: previousUntil } };
       const eventMatch = { createdAt: { $gte: since, $lte: until } };
+      const previousEventMatch = { createdAt: { $gte: previousSince, $lte: previousUntil } };
+      const now = new Date();
       const durationExpr = {
         $cond: [
           { $gt: [{ $ifNull: ['$duration', 0] }, 0] },
@@ -533,7 +601,17 @@ router.get('/engagement',
         topActions,
         roles,
         topUsersRaw,
-        recentJourneys
+        recentJourneys,
+        newUsers,
+        previousNewUsers,
+        newWorkspaces,
+        previousNewWorkspaces,
+        previousSessionStatsRaw,
+        previousLoginStatsRaw,
+        currentRevenueRaw,
+        previousRevenueRaw,
+        planMixRaw,
+        planConfigs
       ] = await Promise.all([
         AnalyticsSession.aggregate([
           { $match: sessionMatch },
@@ -812,7 +890,99 @@ router.get('/engagement',
               country: 1
             }
           }
-        ])
+        ]),
+        EcomUser.countDocuments({ createdAt: { $gte: since, $lte: until } }),
+        EcomUser.countDocuments({ createdAt: { $gte: previousSince, $lte: previousUntil } }),
+        Workspace.countDocuments({ createdAt: { $gte: since, $lte: until } }),
+        Workspace.countDocuments({ createdAt: { $gte: previousSince, $lte: previousUntil } }),
+        AnalyticsSession.aggregate([
+          { $match: previousSessionMatch },
+          {
+            $project: {
+              userId: 1,
+              pageViews: { $ifNull: ['$pageViews', 0] },
+              durationSec: durationExpr
+            }
+          },
+          {
+            $group: {
+              _id: null,
+              totalSessions: { $sum: 1 },
+              activeUsers: { $addToSet: '$userId' },
+              pageViews: { $sum: '$pageViews' },
+              totalDuration: { $sum: '$durationSec' },
+              avgDuration: { $avg: '$durationSec' }
+            }
+          }
+        ]),
+        AnalyticsEvent.aggregate([
+          { $match: { ...previousEventMatch, eventType: 'login' } },
+          {
+            $group: {
+              _id: null,
+              totalLogins: { $sum: 1 },
+              loginUsers: { $addToSet: '$userId' }
+            }
+          }
+        ]),
+        PlanPayment.aggregate(planRevenuePipeline(since, until)),
+        PlanPayment.aggregate(planRevenuePipeline(previousSince, previousUntil)),
+        Workspace.aggregate([
+          {
+            $group: {
+              _id: { $ifNull: ['$plan', 'free'] },
+              total: { $sum: 1 },
+              activePaid: {
+                $sum: {
+                  $cond: [
+                    {
+                      $and: [
+                        { $in: [{ $ifNull: ['$plan', 'free'] }, ['starter', 'pro', 'ultra']] },
+                        { $gt: ['$planExpiresAt', now] }
+                      ]
+                    },
+                    1,
+                    0
+                  ]
+                }
+              },
+              expiredPaid: {
+                $sum: {
+                  $cond: [
+                    {
+                      $and: [
+                        { $in: [{ $ifNull: ['$plan', 'free'] }, ['starter', 'pro', 'ultra']] },
+                        {
+                          $or: [
+                            { $eq: ['$planExpiresAt', null] },
+                            { $lte: ['$planExpiresAt', now] }
+                          ]
+                        }
+                      ]
+                    },
+                    1,
+                    0
+                  ]
+                }
+              },
+              trialActive: {
+                $sum: {
+                  $cond: [{ $gt: ['$trialEndsAt', now] }, 1, 0]
+                }
+              }
+            }
+          },
+          { $sort: { total: -1 } }
+        ]),
+        PlanConfig.find({}, {
+          key: 1,
+          displayName: 1,
+          priceRegular: 1,
+          pricePromo: 1,
+          promoActive: 1,
+          promoExpiresAt: 1,
+          currency: 1
+        }).lean()
       ]);
 
       const topUserIds = topUsersRaw.map((user) => user._id).filter(Boolean);
@@ -845,11 +1015,65 @@ router.get('/engagement',
       const pageViews = sessionStats.pageViews || 0;
       const totalDuration = Math.round(sessionStats.totalDuration || 0);
       const avgDuration = Math.round(sessionStats.avgDuration || 0);
+      const previousSessionStats = previousSessionStatsRaw?.[0] || {};
+      const previousLoginStats = previousLoginStatsRaw?.[0] || {};
+      const previousSessions = previousSessionStats.totalSessions || 0;
+      const previousActiveUsers = (previousSessionStats.activeUsers || []).filter(Boolean).length;
+      const previousLogins = previousLoginStats.totalLogins || 0;
+      const currentRevenue = currentRevenueRaw?.[0] || {};
+      const previousRevenue = previousRevenueRaw?.[0] || {};
+      const configByPlan = new Map((planConfigs || []).map((plan) => [plan.key, plan]));
+      const priceForPlan = (planKey) => {
+        const config = configByPlan.get(planKey);
+        const promoLive = config?.promoActive && (!config.promoExpiresAt || new Date(config.promoExpiresAt).getTime() > Date.now());
+        return Number((promoLive ? config?.pricePromo : config?.priceRegular) ?? FALLBACK_MONTHLY_PRICES[planKey] ?? 0);
+      };
+      const planMix = (planMixRaw || []).map((entry) => {
+        const planKey = entry._id || 'free';
+        const monthlyPrice = priceForPlan(planKey);
+        return {
+          plan: planKey,
+          label: configByPlan.get(planKey)?.displayName || planKey,
+          total: entry.total || 0,
+          activePaid: entry.activePaid || 0,
+          expiredPaid: entry.expiredPaid || 0,
+          trialActive: entry.trialActive || 0,
+          monthlyPrice,
+          mrr: (entry.activePaid || 0) * monthlyPrice
+        };
+      });
+      const totalWorkspaces = planMix.reduce((sum, plan) => sum + (plan.total || 0), 0);
+      const activePaidWorkspaces = planMix.reduce((sum, plan) => sum + (plan.activePaid || 0), 0);
+      const expiredPaidWorkspaces = planMix.reduce((sum, plan) => sum + (plan.expiredPaid || 0), 0);
+      const trialActiveWorkspaces = planMix.reduce((sum, plan) => sum + (plan.trialActive || 0), 0);
+      const mrrEstimate = planMix.reduce((sum, plan) => sum + (plan.mrr || 0), 0);
+      const paidRevenue = Math.round(currentRevenue.revenue || 0);
+      const previousPaidRevenue = Math.round(previousRevenue.revenue || 0);
+      const activationRate = percentRate(newWorkspaces, newUsers);
+      const paidConversionRate = percentRate(activePaidWorkspaces, totalWorkspaces);
+      const arpu = activePaidWorkspaces > 0 ? Math.round(mrrEstimate / activePaidWorkspaces) : 0;
+      const growthRates = [
+        trendMetric(newUsers, previousNewUsers).rate,
+        trendMetric(newWorkspaces, previousNewWorkspaces).rate,
+        trendMetric(activeUsers, previousActiveUsers).rate,
+        trendMetric(paidRevenue, previousPaidRevenue).rate
+      ].filter((value) => Number.isFinite(value));
+      const growthScore = growthRates.length > 0
+        ? Math.round((growthRates.reduce((sum, value) => sum + value, 0) / growthRates.length) * 10) / 10
+        : 0;
 
       res.json({
         success: true,
         data: {
-          period: { since, until, range, startDate: startDate || null, endDate: endDate || null },
+          period: {
+            since,
+            until,
+            range,
+            startDate: startDate || null,
+            endDate: endDate || null,
+            previousSince,
+            previousUntil
+          },
           kpis: {
             totalSessions,
             identifiedSessions: sessionStats.identifiedSessions || 0,
@@ -884,7 +1108,39 @@ router.get('/engagement',
           topPages,
           topActions,
           roles,
-          recentJourneys
+          recentJourneys,
+          saas: {
+            kpis: {
+              newUsers,
+              previousNewUsers,
+              newWorkspaces,
+              previousNewWorkspaces,
+              activationRate,
+              paidConversionRate,
+              activePaidWorkspaces,
+              expiredPaidWorkspaces,
+              trialActiveWorkspaces,
+              freeOrExpiredWorkspaces: Math.max(0, totalWorkspaces - activePaidWorkspaces),
+              totalWorkspaces,
+              mrrEstimate,
+              paidRevenue,
+              previousPaidRevenue,
+              payments: currentRevenue.payments || 0,
+              previousPayments: previousRevenue.payments || 0,
+              payingWorkspaces: (currentRevenue.workspaces || []).filter(Boolean).length,
+              arpu,
+              growthScore
+            },
+            growth: {
+              users: trendMetric(newUsers, previousNewUsers),
+              workspaces: trendMetric(newWorkspaces, previousNewWorkspaces),
+              sessions: trendMetric(totalSessions, previousSessions),
+              activeUsers: trendMetric(activeUsers, previousActiveUsers),
+              logins: trendMetric(totalLogins, previousLogins),
+              revenue: trendMetric(paidRevenue, previousPaidRevenue)
+            },
+            planMix
+          }
         }
       });
     } catch (error) {

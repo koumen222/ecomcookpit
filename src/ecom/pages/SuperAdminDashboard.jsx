@@ -5,7 +5,8 @@ import {
   AlertCircle, BarChart3, Shield,
   Building2, Smartphone, ChevronRight,
   Crown, Briefcase, Package, Calculator, Truck, LogIn,
-  Clock, MousePointerClick, Route, UserCheck
+  Clock, MousePointerClick, Route, UserCheck,
+  TrendingUp, CreditCard, Rocket, PieChart
 } from 'lucide-react';
 import ecomApi, { clearEcomGetCache } from '../services/ecommApi.js';
 import SuperAdminShell from '../components/SuperAdminShell.jsx';
@@ -54,6 +55,21 @@ const formatDuration = (seconds = 0) => {
   const days = Math.floor(hours / 24);
   const remainingHours = hours % 24;
   return remainingHours > 0 ? `${days}j ${remainingHours}h` : `${days}j`;
+};
+
+const formatMoney = (value = 0) => `${Math.round(Number(value) || 0).toLocaleString('fr-FR')} FCFA`;
+
+const formatPercent = (value = 0, signed = false) => {
+  const safeValue = Math.round((Number(value) || 0) * 10) / 10;
+  const prefix = signed && safeValue > 0 ? '+' : '';
+  return `${prefix}${safeValue.toLocaleString('fr-FR')}%`;
+};
+
+const PLAN_COLORS = {
+  free: '#94a3b8',
+  starter: '#0f766e',
+  pro: '#2563eb',
+  ultra: '#7c3aed'
 };
 
 // ─── Primitives ───────────────────────────────────────────────────────────────
@@ -195,6 +211,35 @@ const MiniStat = ({ label, value, color = '#059669' }) => (
   <div className="rounded-lg border border-slate-200 bg-white p-3">
     <p className="text-xl font-bold" style={{ color }}>{value}</p>
     <p className="text-xs font-medium text-slate-500 mt-1">{label}</p>
+  </div>
+);
+
+const GrowthPill = ({ metric }) => {
+  const direction = metric?.direction || 'flat';
+  const colorClass = direction === 'up'
+    ? 'bg-emerald-50 text-emerald-700'
+    : direction === 'down'
+      ? 'bg-red-50 text-red-700'
+      : 'bg-slate-100 text-slate-500';
+
+  return (
+    <span className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-bold ${colorClass}`}>
+      {formatPercent(metric?.rate || 0, true)}
+    </span>
+  );
+};
+
+const SaaSMetric = ({ label, value, sub, icon: Icon, metric, color = '#0f766e' }) => (
+  <div className="rounded-lg border border-slate-200 bg-white p-4">
+    <div className="mb-4 flex items-start justify-between gap-3">
+      <div className="flex h-9 w-9 items-center justify-center rounded-lg border" style={{ background: `${color}12`, borderColor: `${color}24` }}>
+        {Icon && <Icon className="h-4 w-4" style={{ color }} />}
+      </div>
+      {metric && <GrowthPill metric={metric} />}
+    </div>
+    <p className="text-xs font-semibold text-slate-500">{label}</p>
+    <p className="mt-1 text-2xl font-bold leading-none text-slate-950">{value}</p>
+    {sub && <p className="mt-2 text-xs font-medium text-slate-500">{sub}</p>}
   </div>
 );
 
@@ -370,6 +415,10 @@ const SuperAdminDashboard = () => {
   const engagementPages = engagement?.topPages || [];
   const topActions = engagement?.topActions || [];
   const recentJourneys = engagement?.recentJourneys || [];
+  const saas = engagement?.saas || {};
+  const saasKpis = saas.kpis || {};
+  const saasGrowth = saas.growth || {};
+  const planMix = saas.planMix || [];
   const loginSparkData = useMemo(() => engagementDaily.map(d => d.logins || 0), [engagementDaily]);
   const activeUsersSparkData = useMemo(() => engagementDaily.map(d => d.activeUsers || 0), [engagementDaily]);
 
@@ -500,6 +549,94 @@ const SuperAdminDashboard = () => {
             accentLight="#fef3c7"
           />
         </div>
+
+        <Panel>
+          <SH icon={TrendingUp} title="Croissance SaaS" subtitle={`Période actuelle vs période précédente · ${rangeLabel}`} color="#2563eb">
+            <span className="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-bold text-blue-700">
+              Score {formatPercent(saasKpis.growthScore || 0, true)}
+            </span>
+          </SH>
+          {engagementError ? (
+            <SectionError message={engagementError} onRetry={() => fetchAll(true)} />
+          ) : (
+            <div className="space-y-5">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <SaaSMetric
+                  label="Taux de croissance"
+                  value={formatPercent(saasGrowth.users?.rate || 0, true)}
+                  sub={`${(saasKpis.newUsers || 0).toLocaleString()} nouveaux utilisateurs`}
+                  icon={Rocket}
+                  metric={saasGrowth.users}
+                  color="#2563eb"
+                />
+                <SaaSMetric
+                  label="Croissance workspaces"
+                  value={formatPercent(saasGrowth.workspaces?.rate || 0, true)}
+                  sub={`${(saasKpis.newWorkspaces || 0).toLocaleString()} nouveaux workspaces`}
+                  icon={Building2}
+                  metric={saasGrowth.workspaces}
+                  color="#0f766e"
+                />
+                <SaaSMetric
+                  label="Revenu payé"
+                  value={formatMoney(saasKpis.paidRevenue || 0)}
+                  sub={`${(saasKpis.payments || 0).toLocaleString()} paiement${(saasKpis.payments || 0) > 1 ? 's' : ''} sur la période`}
+                  icon={CreditCard}
+                  metric={saasGrowth.revenue}
+                  color="#7c3aed"
+                />
+                <SaaSMetric
+                  label="MRR estimé"
+                  value={formatMoney(saasKpis.mrrEstimate || 0)}
+                  sub={`${(saasKpis.activePaidWorkspaces || 0).toLocaleString()} workspaces payants actifs`}
+                  icon={PieChart}
+                  color="#b45309"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 gap-5 border-t border-slate-100 pt-5 xl:grid-cols-[0.95fr_1.05fr]">
+                <div className="grid grid-cols-2 gap-3">
+                  <MiniStat label="Activation workspace" value={formatPercent(saasKpis.activationRate || 0)} color="#0f766e" />
+                  <MiniStat label="Conversion payante" value={formatPercent(saasKpis.paidConversionRate || 0)} color="#7c3aed" />
+                  <MiniStat label="ARPU payant" value={formatMoney(saasKpis.arpu || 0)} color="#b45309" />
+                  <MiniStat label="Essais actifs" value={(saasKpis.trialActiveWorkspaces || 0).toLocaleString()} color="#2563eb" />
+                </div>
+
+                <div>
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Mix des plans</p>
+                    <p className="text-xs font-semibold text-slate-400">{(saasKpis.totalWorkspaces || 0).toLocaleString()} workspaces</p>
+                  </div>
+                  {planMix.length > 0 ? (
+                    <div className="space-y-3">
+                      {planMix.map((plan) => {
+                        const color = PLAN_COLORS[plan.plan] || '#475569';
+                        const active = plan.activePaid || 0;
+                        const total = plan.total || 0;
+                        return (
+                          <div key={plan.plan}>
+                            <div className="mb-1 flex items-center justify-between gap-3">
+                              <div className="min-w-0">
+                                <span className="text-sm font-semibold text-slate-800">{plan.label || plan.plan}</span>
+                                <span className="ml-2 text-xs font-medium text-slate-400">
+                                  {active > 0 ? `${active} actifs payants` : `${total} total`}
+                                </span>
+                              </div>
+                              <span className="shrink-0 text-xs font-bold text-slate-500">{formatMoney(plan.mrr || 0)}</span>
+                            </div>
+                            <Bar value={total} max={saasKpis.totalWorkspaces || 1} color={color} />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="py-8 text-center text-sm text-slate-400">Aucun plan à afficher</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </Panel>
 
         <Panel>
           <SH icon={Route} title="Intelligence utilisateurs" subtitle={`Connexions, temps passe et parcours sur ${rangeLabel}`} color="#0f766e">
