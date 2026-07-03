@@ -1,6 +1,7 @@
 import express from 'express';
-import { Resend } from 'resend';
 import { randomBytes } from 'crypto';
+// Envoi via le serveur mail Scalor (Postfix — mail.scalor.net)
+import { sendMail, defaultFromAddress } from '../core/notifications/mailer.js';
 import EmailCampaign from '../models/EmailCampaign.js';
 import EmailCampaignRecipientLog from '../models/EmailCampaignRecipientLog.js';
 import Campaign from '../models/Campaign.js';
@@ -103,15 +104,14 @@ function buildClientFilter(workspaceId, targetFilters) {
 
 const router = express.Router();
 
-const getResend = () => {
-  const key = process.env.RESEND_API_KEY;
-  if (!key) throw new Error('le service non configuré');
-  return new Resend(key);
-};
-
-const FROM_DEFAULT = process.env.EMAIL_FROM || 'contact@infomania.store';
+const FROM_DEFAULT = defaultFromAddress();
 const FROM_NAME_DEFAULT = process.env.EMAIL_FROM_NAME || 'Scalor';
-const TRACKING_BASE_URL = process.env.TRACKING_BASE_URL || process.env.BACKEND_PUBLIC_URL || process.env.FRONTEND_URL || 'https://ecomcockpit.site';
+const REPLY_TO_DEFAULT = process.env.EMAIL_REPLY_TO || 'support@scalor.net';
+const ALLOWED_FROM_DOMAIN = 'scalor.net';
+// Tracking : DOIT pointer vers l'API publique (routes Express /track/*) — jamais vers le frontend.
+const TRACKING_BASE_URL = process.env.TRACKING_BASE_URL || process.env.BACKEND_PUBLIC_URL || 'https://api.scalor.net';
+// Redirection de secours si un lien tracké n'a pas d'URL cible
+const FALLBACK_REDIRECT_URL = process.env.FRONTEND_URL || 'https://scalor.site';
 
 // ─── Middleware: super_admin OR ecom_admin ───────────────────────────────────
 const requireMarketingAccess = [requireEcomAuth, (req, res, next) => {
@@ -121,6 +121,33 @@ const requireMarketingAccess = [requireEcomAuth, (req, res, next) => {
 }];
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function normalizeSenderEmail(value, fallback = FROM_DEFAULT) {
+  const email = String(value || '').trim().toLowerCase();
+  if (email && email.endsWith(`@${ALLOWED_FROM_DOMAIN}`)) return email;
+  return fallback;
+}
+
+function normalizeReplyTo(value) {
+  const email = String(value || '').trim().toLowerCase();
+  return email || REPLY_TO_DEFAULT;
+}
+
+function campaignFrom(campaign) {
+  const fromName = String(campaign.fromName || FROM_NAME_DEFAULT).trim() || FROM_NAME_DEFAULT;
+  const fromEmail = normalizeSenderEmail(campaign.fromEmail);
+  return `${fromName} <${fromEmail}>`;
+}
+
+function smtpMeta(resp = {}) {
+  return {
+    resendId: resp.id || null,
+    smtpQueueId: resp.queueId || '',
+    smtpResponse: resp.response || '',
+    smtpAccepted: Array.isArray(resp.accepted) ? resp.accepted : [],
+    smtpRejected: Array.isArray(resp.rejected) ? resp.rejected : []
+  };
+}
 
 function buildHtml(campaign, user = null, recipientToken = null) {
   const brandColor = '#4f46e5';
@@ -296,8 +323,8 @@ router.post('/campaigns', requireMarketingAccess, async (req, res) => {
       subject: subject.trim(),
       previewText: previewText?.trim() || '',
       fromName: fromName?.trim() || FROM_NAME_DEFAULT,
-      fromEmail: fromEmail?.trim() || FROM_DEFAULT,
-      replyTo: replyTo?.trim() || '',
+      fromEmail: normalizeSenderEmail(fromEmail),
+      replyTo: normalizeReplyTo(replyTo),
       bodyHtml: bodyHtml || '',
       bodyText: bodyText || '',
       audienceType: audienceType || 'custom_list',
@@ -332,6 +359,8 @@ router.put('/campaigns/:id', requireMarketingAccess, async (req, res) => {
     const fields = ['name', 'subject', 'previewText', 'fromName', 'fromEmail', 'replyTo',
       'bodyHtml', 'bodyText', 'audienceType', 'customEmails', 'segmentFilter', 'scheduledAt', 'tags'];
     fields.forEach(f => { if (req.body[f] !== undefined) campaign[f] = req.body[f]; });
+    if (req.body.fromEmail !== undefined) campaign.fromEmail = normalizeSenderEmail(req.body.fromEmail);
+    if (req.body.replyTo !== undefined) campaign.replyTo = normalizeReplyTo(req.body.replyTo);
     if (req.body.scheduledAt) campaign.status = 'scheduled';
 
     await campaign.save();
@@ -751,28 +780,78 @@ router.post('/campaigns/:id/send', requireMarketingAccess, async (req, res) => {
       return res.status(400).json({ success: false, message: 'Aucun destinataire trouvé' });
     }
 
-    // Mark as sending immediately
+    // Mark as sending immediately and clear previous run logs.
     campaign.status = 'sending';
     campaign.stats.targeted = recipients.length;
+    campaign.stats.sent = 0;
+    campaign.stats.failed = 0;
     campaign.results = [];
     await campaign.save();
+    await EmailCampaignRecipientLog.deleteMany({ campaignId: campaign._id });
 
     // Respond immediately, send in background
-    res.json({ success: true, message: `Envoi démarré vers ${recipients.length} destinataires`, data: { targeted: recipients.length } });
+    res.json({
+      success: true,
+      message: `Envoi démarré vers ${recipients.length} destinataires`,
+      data: {
+        targeted: recipients.length,
+        resultsUrl: `/ecom/marketing/campaigns/${campaign._id}/results`
+      }
+    });
 
-    // Background send
-    const resend = getResend();
-    const from = `${campaign.fromName || FROM_NAME_DEFAULT} <${campaign.fromEmail || FROM_DEFAULT}>`;
+    // Background send — via le serveur mail Scalor
+    const from = campaignFrom(campaign);
 
     let sent = 0;
     let failed = 0;
-    const results = [];
-    const recipientLogs = [];
+    const previewResults = [];
 
     // Send emails one by one with delay and personalization
     for (let i = 0; i < recipients.length; i++) {
       const recipient = recipients[i];
       const recipientToken = generateRecipientToken();
+      const attemptedAt = new Date();
+      const baseResult = {
+        email: recipient.email,
+        name: recipient.name || '',
+        status: 'pending',
+        error: '',
+        attemptedAt,
+        sentAt: null,
+        resendId: null,
+        smtpQueueId: '',
+        smtpResponse: '',
+        smtpAccepted: [],
+        smtpRejected: [],
+        recipientToken,
+        opened: false,
+        openCount: 0,
+        clicks: [],
+        uniqueClicks: 0
+      };
+
+      await EmailCampaignRecipientLog.create({
+        campaignId: campaign._id,
+        workspaceId: campaign.workspaceId || null,
+        ...baseResult
+      });
+      if (previewResults.length < 500) {
+        previewResults.push({ ...baseResult });
+      }
+      await EmailCampaign.updateOne(
+        { _id: campaign._id },
+        {
+          $set: {
+            'stats.targeted': recipients.length,
+            'stats.sent': sent,
+            'stats.failed': failed,
+            results: previewResults
+          }
+        }
+      ).catch(() => {});
+
+      console.log(`[email-campaign:${campaign._id}] pending ${i + 1}/${recipients.length} ${recipient.email}`);
+
       try {
         // Generate personalized HTML for each recipient with tracking
         const personalizedHtml = buildHtml(campaign, recipient, recipientToken);
@@ -785,91 +864,87 @@ router.post('/campaigns/:id/send', requireMarketingAccess, async (req, res) => {
           personalizedSubject = personalizedSubject.replace(/\{\{prenom\}\}/g, 'Bonjour').replace(/\{\{name\}\}/g, 'Bonjour');
         }
         
-        const resp = await resend.emails.send({
+        const resp = await sendMail({
           from,
           to: [recipient.email],
           subject: personalizedSubject,
           html: personalizedHtml,
           text: campaign.bodyText || undefined,
-          reply_to: campaign.replyTo || undefined,
-          headers: { 'X-Campaign-Id': campaign._id.toString() }
+          replyTo: normalizeReplyTo(campaign.replyTo),
+          headers: { 'X-Campaign-Id': campaign._id.toString() },
+          source: 'campaign',
+          meta: { campaignId: campaign._id.toString(), campaignName: campaign.name }
         });
+        if (!resp.success) {
+          const sendError = new Error(resp.error || 'Erreur SMTP');
+          sendError.smtp = resp;
+          throw sendError;
+        }
         sent++;
         const sentAt = new Date();
-        results.push({
-          email: recipient.email, 
-          name: recipient.name,
-          status: 'sent', 
-          sentAt,
-          resendId: resp?.data?.id || null,
-          recipientToken,
-          opened: false,
-          clicks: [],
-          uniqueClicks: 0
-        });
-        recipientLogs.push({
-          campaignId: campaign._id,
-          workspaceId: campaign.workspaceId || null,
-          recipientToken,
-          email: recipient.email,
-          name: recipient.name || '',
+        const update = {
           status: 'sent',
           error: '',
           sentAt,
-          resendId: resp?.data?.id || null,
-          opened: false,
-          openCount: 0,
-          clicks: [],
-          uniqueClicks: 0
+          ...smtpMeta(resp)
+        };
+        await EmailCampaignRecipientLog.updateOne(
+          { campaignId: campaign._id, recipientToken },
+          { $set: update }
+        ).catch((logErr) => {
+          console.error(`[email-campaign:${campaign._id}] log update failed for ${recipient.email}: ${logErr.message}`);
         });
+        Object.assign(baseResult, update);
+        const previewIndex = previewResults.findIndex(item => item.recipientToken === recipientToken);
+        if (previewIndex !== -1) previewResults[previewIndex] = { ...baseResult };
+        console.log(`[email-campaign:${campaign._id}] sent ${recipient.email} queue=${update.smtpQueueId || '-'} response="${update.smtpResponse || '-'}"`);
       } catch (err) {
         failed++;
         const sentAt = new Date();
         const errorMessage = err.message || 'Erreur inconnue';
-        results.push({
-          email: recipient.email, 
-          name: recipient.name,
-          status: 'failed', 
-          error: errorMessage,
-          sentAt,
-          recipientToken,
-          opened: false,
-          clicks: [],
-          uniqueClicks: 0
-        });
-        recipientLogs.push({
-          campaignId: campaign._id,
-          workspaceId: campaign.workspaceId || null,
-          recipientToken,
-          email: recipient.email,
-          name: recipient.name || '',
+        const update = {
           status: 'failed',
           error: errorMessage,
           sentAt,
-          resendId: null,
-          opened: false,
-          openCount: 0,
-          clicks: [],
-          uniqueClicks: 0
+          ...smtpMeta(err.smtp || {})
+        };
+        await EmailCampaignRecipientLog.updateOne(
+          { campaignId: campaign._id, recipientToken },
+          { $set: update }
+        ).catch((logErr) => {
+          console.error(`[email-campaign:${campaign._id}] log update failed for ${recipient.email}: ${logErr.message}`);
         });
+        Object.assign(baseResult, update);
+        const previewIndex = previewResults.findIndex(item => item.recipientToken === recipientToken);
+        if (previewIndex !== -1) previewResults[previewIndex] = { ...baseResult };
+        console.error(`[email-campaign:${campaign._id}] failed ${recipient.email}: ${errorMessage}`);
       }
+
+      await EmailCampaign.updateOne(
+        { _id: campaign._id },
+        {
+          $set: {
+            'stats.targeted': recipients.length,
+            'stats.sent': sent,
+            'stats.failed': failed,
+            results: previewResults
+          }
+        }
+      ).catch(() => {});
       
       // Delay between 3 and 5 seconds before next email
-      const delay = 3000 + Math.random() * 2000; // 3000ms to 5000ms
-      await new Promise(r => setTimeout(r, delay));
+      if (i < recipients.length - 1) {
+        const delay = 3000 + Math.random() * 2000; // 3000ms to 5000ms
+        await new Promise(r => setTimeout(r, delay));
+      }
     }
 
     campaign.status = failed === recipients.length ? 'failed' : 'sent';
     campaign.sentAt = new Date();
     campaign.stats.sent = sent;
     campaign.stats.failed = failed;
-    campaign.results = results.slice(0, 500); // aperçu rapide en campagne, historique complet dans EmailCampaignRecipientLog
+    campaign.results = previewResults; // aperçu rapide en campagne, historique complet dans EmailCampaignRecipientLog
     await campaign.save();
-
-    if (recipientLogs.length > 0) {
-      await EmailCampaignRecipientLog.deleteMany({ campaignId: campaign._id });
-      await EmailCampaignRecipientLog.insertMany(recipientLogs, { ordered: false });
-    }
 
     console.log(`✅ Campagne email "${campaign.name}" envoyée: ${sent} ok, ${failed} échecs`);
   } catch (err) {
@@ -892,17 +967,20 @@ router.post('/campaigns/:id/test', requireMarketingAccess, async (req, res) => {
     const campaign = await EmailCampaign.findById(req.params.id).lean();
     if (!campaign) return res.status(404).json({ success: false, message: 'Campagne introuvable' });
 
-    const resend = getResend();
     const html = buildHtml(campaign);
-    const from = `${campaign.fromName || FROM_NAME_DEFAULT} <${campaign.fromEmail || FROM_DEFAULT}>`;
+    const from = campaignFrom(campaign);
 
-    await resend.emails.send({
+    const resp = await sendMail({
       from,
       to: [testEmail],
       subject: `[TEST] ${campaign.subject}`,
       html,
-      text: campaign.bodyText || undefined
+      text: campaign.bodyText || undefined,
+      replyTo: normalizeReplyTo(campaign.replyTo),
+      source: 'campaign_test',
+      meta: { campaignId: campaign._id.toString() }
     });
+    if (!resp.success) throw new Error(resp.error);
 
     res.json({ success: true, message: `Email de test envoyé à ${testEmail}` });
   } catch (err) {
@@ -981,6 +1059,7 @@ router.get('/campaigns/:id/results', requireMarketingAccess, async (req, res) =>
           $group: {
             _id: null,
             total: { $sum: 1 },
+            pending: { $sum: { $cond: [{ $eq: ['$status', 'pending'] }, 1, 0] } },
             sent: { $sum: { $cond: [{ $eq: ['$status', 'sent'] }, 1, 0] } },
             failed: { $sum: { $cond: [{ $eq: ['$status', 'failed'] }, 1, 0] } },
             opened: { $sum: { $cond: ['$opened', 1, 0] } },
@@ -1012,7 +1091,8 @@ router.get('/campaigns/:id/results', requireMarketingAccess, async (req, res) =>
       ])
     ]);
 
-    const summaryRow = summaryAgg[0] || { total: 0, sent: 0, failed: 0, opened: 0, clicked: 0, totalClicks: 0 };
+    const summaryRow = summaryAgg[0] || { total: 0, pending: 0, sent: 0, failed: 0, opened: 0, clicked: 0, totalClicks: 0 };
+    const pendingCount = summaryRow.pending;
     const sentCount = summaryRow.sent;
     const failedCount = summaryRow.failed;
     const openedCount = summaryRow.opened;
@@ -1036,6 +1116,7 @@ router.get('/campaigns/:id/results', requireMarketingAccess, async (req, res) =>
         },
         summary: {
           total: summaryRow.total,
+          pending: pendingCount,
           sent: sentCount,
           failed: failedCount,
           opened: openedCount,
@@ -1054,11 +1135,18 @@ router.get('/campaigns/:id/results', requireMarketingAccess, async (req, res) =>
         topLinks: topLinksAgg,
         recipients: recipients.map((recipient, index) => ({
           index: (page - 1) * limit + index,
+          recipientToken: recipient.recipientToken,
           email: recipient.email,
           name: recipient.name,
           status: recipient.status,
           error: recipient.error,
+          attemptedAt: recipient.attemptedAt,
           sentAt: recipient.sentAt,
+          resendId: recipient.resendId,
+          smtpQueueId: recipient.smtpQueueId,
+          smtpResponse: recipient.smtpResponse,
+          smtpAccepted: recipient.smtpAccepted || [],
+          smtpRejected: recipient.smtpRejected || [],
           opened: recipient.opened,
           openedAt: recipient.openedAt,
           openCount: recipient.openCount || 0,
@@ -1507,7 +1595,7 @@ router.get('/track/click/:campaignId/:recipientToken', async (req, res) => {
 
     const campaign = await EmailCampaign.findById(campaignId);
     if (!campaign) {
-      return res.redirect('https://ecomcockpit.site');
+      return res.redirect(FALLBACK_REDIRECT_URL);
     }
     const originalUrl = req.query.url;
 
@@ -1551,11 +1639,11 @@ router.get('/track/click/:campaignId/:recipientToken', async (req, res) => {
       // Redirect to original URL
       res.redirect(originalUrl);
     } else {
-      res.redirect('https://ecomcockpit.site');
+      res.redirect(FALLBACK_REDIRECT_URL);
     }
   } catch (err) {
     console.error('Email click tracking error:', err);
-    res.redirect('https://ecomcockpit.site');
+    res.redirect(FALLBACK_REDIRECT_URL);
   }
 });
 

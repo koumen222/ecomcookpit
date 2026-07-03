@@ -1,7 +1,6 @@
 import express from 'express';
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
-import { Resend } from 'resend';
 import EcomUser from '../models/EcomUser.js';
 import Workspace from '../models/Workspace.js';
 import PasswordResetToken from '../models/PasswordResetToken.js';
@@ -493,18 +492,17 @@ router.post('/send-otp', validateEmail, async (req, res) => {
 
     otpStore.set(normalizedEmail, { code, expiresAt, attempts: 0 });
 
-    // Envoyer l'email via Resend
-    const resendKey = process.env.RESEND_API_KEY;
-    if (resendKey) {
-      const { Resend: ResendClient } = await import('resend');
-      const resend = new ResendClient(resendKey);
-      const FROM = `Scalor <${process.env.EMAIL_FROM || 'contact@infomania.store'}>`;
-      await resend.emails.send({
-        from: FROM,
+    // Envoyer l'email via le serveur mail Scalor (mail.scalor.net)
+    const { sendMail, defaultFrom } = await import('../core/notifications/mailer.js');
+    if (process.env.SMTP_PASS || process.env.NODE_ENV === 'production') {
+      const result = await sendMail({
+        from: defaultFrom(),
         to: normalizedEmail,
+        source: 'otp',
         subject: `${code} — Votre code de vérification Scalor`,
         html: `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><style>body{margin:0;padding:0;background:#f4f4f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}.wrapper{max-width:480px;margin:0 auto;padding:32px 16px}.card{background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08)}.header{background:#4f46e5;padding:28px 32px;text-align:center}.header h1{color:#fff;margin:0;font-size:22px;font-weight:700}.body{padding:32px;text-align:center}.code{font-size:48px;font-weight:800;letter-spacing:12px;color:#4f46e5;background:#f0f0ff;border-radius:12px;padding:20px 32px;display:inline-block;margin:16px 0;font-family:monospace}.footer{padding:20px 32px;text-align:center;background:#f8f9ff;border-top:1px solid #eee}.footer p{color:#aaa;font-size:12px;margin:4px 0}</style></head><body><div class="wrapper"><div class="card"><div class="header"><h1>Scalor</h1></div><div class="body"><p style="color:#4a4a68;font-size:16px;margin:0 0 8px">Votre code de vérification</p><div class="code">${code}</div><p style="color:#888;font-size:13px;margin:16px 0 0">Ce code expire dans <strong>10 minutes</strong>.<br/>Ne le partagez avec personne.</p></div><div class="footer"><p>© ${new Date().getFullYear()} Scalor · Si vous n'avez pas demandé ce code, ignorez cet email.</p></div></div></div></body></html>`
       });
+      if (!result.success) throw new Error(result.error);
     } else {
       console.log(`[OTP DEV] Code pour ${normalizedEmail}: ${code}`);
     }

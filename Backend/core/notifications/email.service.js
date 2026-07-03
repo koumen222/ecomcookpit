@@ -1,18 +1,8 @@
-import { Resend } from 'resend';
 import NotificationLog from '../../models/NotificationLog.js';
+// Envoi via le serveur mail Scalor (Postfix — mail.scalor.net)
+import { sendMail, defaultFrom } from './mailer.js';
 
-let resend = null;
-
-const getResend = () => {
-  if (!resend) {
-    const key = process.env.RESEND_API_KEY;
-    if (!key) throw new Error('le service non configuré');
-    resend = new Resend(key);
-  }
-  return resend;
-};
-
-const FROM = `Scalor <${process.env.EMAIL_FROM || 'contact@infomania.store'}>`;
+const FROM = defaultFrom();
 const FRONTEND_URL = process.env.FRONTEND_URL || 'https://scalor.site';
 const BRAND_COLOR = '#4f46e5';
 const BRAND_NAME = 'Scalor';
@@ -661,13 +651,15 @@ export const sendNotificationEmail = async ({
   const { subject, html, preview } = template(data);
 
   try {
-    const client = getResend();
-    const result = await client.emails.send({
+    const result = await sendMail({
       from: FROM,
-      to: Array.isArray(to) ? to : [to],
+      to,
       subject,
-      html
+      html,
+      source: 'notification',
+      meta: { templateKey, userId, workspaceId }
     });
+    if (!result.success) throw new Error(result.error);
 
     await NotificationLog.create({
       userId,
@@ -677,11 +669,11 @@ export const sendNotificationEmail = async ({
       status: 'SENT',
       recipient: Array.isArray(to) ? to.join(', ') : to,
       subject,
-      metadata: { templateKey, resendId: result?.data?.id }
+      metadata: { templateKey, messageId: result.id }
     });
 
     console.log(`✅ [email] ${templateKey} → ${to}`);
-    return { success: true, id: result?.data?.id };
+    return { success: true, id: result.id };
   } catch (err) {
     console.error(`❌ [email] ${templateKey} → ${to}:`, err.message);
 
@@ -722,13 +714,15 @@ export const sendCustomNotificationEmail = async ({
   `, safeMessage.slice(0, 140));
 
   try {
-    const client = getResend();
-    const result = await client.emails.send({
+    const result = await sendMail({
       from: FROM,
-      to: Array.isArray(to) ? to : [to],
+      to,
       subject: safeSubject,
-      html
+      html,
+      source: 'custom',
+      meta: { eventType, userId, workspaceId }
     });
+    if (!result.success) throw new Error(result.error);
 
     await NotificationLog.create({
       userId,
@@ -738,11 +732,11 @@ export const sendCustomNotificationEmail = async ({
       status: 'SENT',
       recipient: Array.isArray(to) ? to.join(', ') : to,
       subject: safeSubject,
-      metadata: { custom: true, resendId: result?.data?.id }
+      metadata: { custom: true, messageId: result.id }
     });
 
     console.log(`✅ [email] custom → ${to}`);
-    return { success: true, id: result?.data?.id };
+    return { success: true, id: result.id };
   } catch (err) {
     console.error(`❌ [email] custom → ${to}:`, err.message);
 

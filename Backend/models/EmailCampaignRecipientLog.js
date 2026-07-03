@@ -37,8 +37,28 @@ const emailCampaignRecipientLogSchema = new mongoose.Schema({
     type: String,
     default: ''
   },
+  attemptedAt: Date,
   sentAt: Date,
   resendId: String,
+  smtpQueueId: {
+    type: String,
+    default: '',
+    index: true
+  },
+  smtpResponse: {
+    type: String,
+    default: ''
+  },
+  smtpAccepted: [{
+    type: String,
+    trim: true,
+    lowercase: true
+  }],
+  smtpRejected: [{
+    type: String,
+    trim: true,
+    lowercase: true
+  }],
   opened: {
     type: Boolean,
     default: false,
