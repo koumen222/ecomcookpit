@@ -510,6 +510,7 @@ router.get('/:subdomain', readLimiter, async (req, res) => {
           whatsapp: settings.whatsapp || settings.storeWhatsApp || '',
           themeColor: settings.themeColor || settings.storeThemeColor || '#0F6B4F',
           currency: settings.storeCurrency || settings.currency || 'XAF',
+          language: settings.language || 'fr',
           country: settings.country || settings.storeCountry || '',
           subdomain: workspace.subdomain,
           // Theme config - PRIORITÉ AUX SETTINGS (configurés dans /boutique/settings)

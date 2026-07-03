@@ -944,6 +944,7 @@ router.put('/config', requireEcomAuth, requireWorkspace, requireStoreOwner, asyn
       primaryColor, accentColor, backgroundColor, textColor, font,
       announcement, announcementEnabled,
       isStoreEnabled,
+      language,
       // Nouveaux champs pour génération IA
       productType, audience, tone, city, country,
       logoVariant, logoSymbolStyle, logoConcept,
@@ -985,6 +986,10 @@ router.put('/config', requireEcomAuth, requireWorkspace, requireStoreOwner, asyn
       update['storeSettings.currency'] = storeCurrency;
     }
     if (isStoreEnabled !== undefined) update['storeSettings.isStoreEnabled'] = isStoreEnabled;
+    if (language !== undefined) {
+      const lang = String(language).toLowerCase().slice(0, 2);
+      update['storeSettings.language'] = ['fr', 'en', 'es'].includes(lang) ? lang : 'fr';
+    }
     // Nouveaux champs
     if (productType !== undefined) update['storeSettings.productType'] = productType;
     if (audience !== undefined) update['storeSettings.audience'] = audience;
