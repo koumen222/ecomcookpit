@@ -4,85 +4,58 @@ import { sendMail, defaultFrom } from './mailer.js';
 
 const FROM = defaultFrom();
 const FRONTEND_URL = process.env.FRONTEND_URL || 'https://scalor.site';
-const BRAND_COLOR = '#4f46e5';
 const BRAND_NAME = 'Scalor';
 
-function escapeHtml(value = '') {
+function decodeHtmlEntities(value = '') {
   return String(value)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&apos;/gi, "'")
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>');
 }
 
-function plainTextToHtml(text = '') {
-  return escapeHtml(text)
-    .split(/\n{2,}/)
-    .map((paragraph) => `<p>${paragraph.replace(/\n/g, '<br/>')}</p>`)
-    .join('');
+function htmlToPlainText(html = '') {
+  return decodeHtmlEntities(String(html))
+    .replace(/<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi, (_match, href, label) => {
+      const cleanLabel = htmlToPlainText(label).trim();
+      return cleanLabel ? `${cleanLabel}: ${href}` : href;
+    })
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(h1|h2|h3|p|div|tr|table|ul|ol)>/gi, '\n\n')
+    .replace(/<li[^>]*>/gi, '- ')
+    .replace(/<\/li>/gi, '\n')
+    .replace(/<hr[^>]*>/gi, '\n---\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(/[ \t]{2,}/g, ' ')
+    .trim();
 }
 
-// ─── Templates HTML ───────────────────────────────────────────────────────────
+function normalizeTextBlock(value = '') {
+  return String(value)
+    .split('\n')
+    .map((line) => line.trim())
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
 
-const baseLayout = (content, previewText = '') => `
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>${BRAND_NAME}</title>
-  <style>
-    body{margin:0;padding:0;background:#f4f4f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
-    .wrapper{max-width:600px;margin:0 auto;padding:32px 16px}
-    .card{background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08)}
-    .header{background:${BRAND_COLOR};padding:28px 32px;text-align:center}
-    .header h1{color:#fff;margin:0;font-size:22px;font-weight:700;letter-spacing:-0.3px}
-    .header p{color:rgba(255,255,255,.8);margin:6px 0 0;font-size:13px}
-    .body{padding:32px}
-    .body h2{color:#1a1a2e;font-size:20px;margin:0 0 12px;font-weight:700}
-    .body p{color:#4a4a68;font-size:15px;line-height:1.7;margin:0 0 16px}
-    .btn{display:inline-block;padding:13px 28px;background:${BRAND_COLOR};color:#fff!important;text-decoration:none;border-radius:8px;font-weight:600;font-size:15px;margin:8px 0}
-    .btn-danger{background:#ef4444}
-    .btn-success{background:#10b981}
-    .divider{border:none;border-top:1px solid #eee;margin:24px 0}
-    .badge{display:inline-block;padding:4px 10px;border-radius:20px;font-size:12px;font-weight:600}
-    .badge-red{background:#fee2e2;color:#dc2626}
-    .badge-orange{background:#ffedd5;color:#ea580c}
-    .badge-green{background:#d1fae5;color:#059669}
-    .badge-blue{background:#dbeafe;color:#2563eb}
-    .kpi-row{display:flex;gap:12px;margin:16px 0}
-    .kpi{flex:1;background:#f8f9ff;border-radius:8px;padding:14px;text-align:center}
-    .kpi-value{font-size:22px;font-weight:700;color:${BRAND_COLOR};margin:0}
-    .kpi-label{font-size:11px;color:#888;text-transform:uppercase;letter-spacing:.5px;margin:4px 0 0}
-    .alert-box{border-radius:8px;padding:14px 16px;margin:16px 0;font-size:14px}
-    .alert-red{background:#fef2f2;border-left:4px solid #ef4444;color:#991b1b}
-    .alert-orange{background:#fff7ed;border-left:4px solid #f97316;color:#9a3412}
-    .alert-green{background:#f0fdf4;border-left:4px solid #22c55e;color:#166534}
-    .alert-blue{background:#eff6ff;border-left:4px solid #3b82f6;color:#1e40af}
-    .footer{padding:20px 32px;text-align:center;background:#f8f9ff;border-top:1px solid #eee}
-    .footer p{color:#aaa;font-size:12px;margin:4px 0;line-height:1.6}
-    .footer a{color:#888;text-decoration:none}
-    @media(max-width:600px){.body{padding:20px}.kpi-row{flex-direction:column}}
-  </style>
-</head>
-<body>
-  ${previewText ? `<div style="display:none;max-height:0;overflow:hidden;font-size:1px;color:#fff">${previewText}</div>` : ''}
-  <div class="wrapper">
-    <div class="card">
-      <div class="header">
-        <h1>${BRAND_NAME}</h1>
-        <p>Votre assistant commercial intelligent</p>
-      </div>
-      <div class="body">${content}</div>
-      <div class="footer">
-        <p>© ${new Date().getFullYear()} ${BRAND_NAME} · Tous droits réservés</p>
-        <p><a href="https://scalor.site/" style="color:#888;text-decoration:none">Accéder à la plateforme</a></p>
-      </div>
-    </div>
-  </div>
-</body>
-</html>`;
+// ─── Templates texte brut ────────────────────────────────────────────────────
+
+const baseLayout = (content, previewText = '') => {
+  const body = htmlToPlainText(content);
+  return normalizeTextBlock([
+    BRAND_NAME,
+    previewText ? `${previewText}\n` : '',
+    body,
+    '',
+    `${BRAND_NAME} - ${FRONTEND_URL}/`
+  ].filter(Boolean).join('\n\n'));
+};
 
 // ─── Catalogue de templates ────────────────────────────────────────────────────
 
@@ -648,14 +621,18 @@ export const sendNotificationEmail = async ({
     return { success: false, error: 'Template inconnu' };
   }
 
-  const { subject, html, preview } = template(data);
+  const { subject, html, text, preview } = template(data);
+  const bodyText = normalizeTextBlock(text || html || preview || subject);
 
   try {
     const result = await sendMail({
       from: FROM,
       to,
       subject,
-      html,
+      text: bodyText,
+      headers: {
+        'X-Scalor-Email-Format': 'plain-text'
+      },
       source: 'notification',
       meta: { templateKey, userId, workspaceId }
     });
@@ -708,17 +685,23 @@ export const sendCustomNotificationEmail = async ({
     return { success: false, error: 'Sujet et message requis' };
   }
 
-  const html = baseLayout(`
-    <h2>${escapeHtml(safeSubject)}</h2>
-    ${plainTextToHtml(safeMessage)}
-  `, safeMessage.slice(0, 140));
+  const bodyText = normalizeTextBlock([
+    safeSubject,
+    '',
+    safeMessage,
+    '',
+    `${BRAND_NAME} - ${FRONTEND_URL}/`
+  ].join('\n'));
 
   try {
     const result = await sendMail({
       from: FROM,
       to,
       subject: safeSubject,
-      html,
+      text: bodyText,
+      headers: {
+        'X-Scalor-Email-Format': 'plain-text'
+      },
       source: 'custom',
       meta: { eventType, userId, workspaceId }
     });
