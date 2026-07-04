@@ -113,6 +113,19 @@ function getCachedResponse(key) {
   return entry.data;
 }
 
+// pub-*.r2.dev is Cloudflare's development URL and can be rate limited.
+// When R2_CDN_URL is configured, rewrite legacy payloads without a DB migration.
+const R2_DEV_URL_RX = /https:\/\/pub-[a-z0-9]+\.r2\.dev/g;
+function rewriteMediaUrls(payload) {
+  const cdn = String(process.env.R2_CDN_URL || '').trim().replace(/\/+$/, '');
+  if (!cdn) return payload;
+  try {
+    return JSON.parse(JSON.stringify(payload).replace(R2_DEV_URL_RX, cdn));
+  } catch {
+    return payload;
+  }
+}
+
 function setCachedResponse(key, data, ttlMs) {
   responseCache.set(key, { data, expiresAt: Date.now() + ttlMs });
 }
@@ -496,7 +509,7 @@ router.get('/:subdomain', readLimiter, async (req, res) => {
     // 30s CDN cache — short enough that config changes show within one reload
     setCacheHeaders(res, 30);
 
-    const payload = {
+    let payload = {
       success: true,
       data: {
         store: {
@@ -565,6 +578,7 @@ router.get('/:subdomain', readLimiter, async (req, res) => {
       }
     };
 
+    payload = rewriteMediaUrls(payload);
     setCachedResponse(cacheKey, payload, PUBLIC_HOME_CACHE_TTL);
     res.set('X-Scalor-Cache', 'MISS');
     res.json(payload);
@@ -639,7 +653,7 @@ router.get('/:subdomain/products', readLimiter, async (req, res) => {
     // Cache at Cloudflare edge — 30s so product/stock changes reflect quickly
     setCacheHeaders(res, search ? 30 : 60);
 
-    const payload = {
+    let payload = {
       success: true,
       data: {
         products: lightProducts,
@@ -652,6 +666,7 @@ router.get('/:subdomain/products', readLimiter, async (req, res) => {
       }
     };
 
+    payload = rewriteMediaUrls(payload);
     setCachedResponse(cacheKey, payload, PUBLIC_PRODUCTS_CACHE_TTL);
     res.set('X-Scalor-Cache', 'MISS');
     res.json(payload);
@@ -714,7 +729,7 @@ router.get('/:subdomain/products/:slug', readLimiter, async (req, res) => {
     const productCountry = product.country || workspace.storeSettings?.country || '';
     const productLocale = product.locale || workspace.storeSettings?.locale || '';
 
-    const payload = {
+    let payload = {
       success: true,
       data: {
         _id: product._id,
@@ -752,6 +767,7 @@ router.get('/:subdomain/products/:slug', readLimiter, async (req, res) => {
       }
     };
 
+    payload = rewriteMediaUrls(payload);
     setCachedResponse(cacheKey, payload, PUBLIC_PRODUCT_PAGE_CACHE_TTL);
     res.set('X-Scalor-Cache', 'MISS');
     res.json(payload);
@@ -789,7 +805,8 @@ router.get('/:subdomain/categories', readLimiter, async (req, res) => {
 
     // Categories rarely change — cache 10 minutes
     setCacheHeaders(res, 600);
-    const payload = { success: true, data: categories.sort() };
+    let payload = { success: true, data: categories.sort() };
+    payload = rewriteMediaUrls(payload);
     setCachedResponse(cacheKey, payload, PUBLIC_CATEGORIES_CACHE_TTL);
     res.set('X-Scalor-Cache', 'MISS');
     res.json(payload);
@@ -915,7 +932,7 @@ router.get('/:subdomain/product-page/:slug', readLimiter, async (req, res) => {
     // invalidateStoreCache() est appelé immédiatement sur save admin → pas de données périmées.
     setCacheHeaders(res, 300);
 
-    const payload = {
+    let payload = {
       success: true,
       data: {
         store: {
@@ -968,6 +985,7 @@ router.get('/:subdomain/product-page/:slug', readLimiter, async (req, res) => {
       },
     };
 
+    payload = rewriteMediaUrls(payload);
     setCachedResponse(cacheKey, payload, PUBLIC_PRODUCT_PAGE_CACHE_TTL);
     res.set('X-Scalor-Cache', 'MISS');
     res.json(payload);

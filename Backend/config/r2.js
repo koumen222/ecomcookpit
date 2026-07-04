@@ -42,6 +42,7 @@ export const getR2PublicUrl = (key) => {
   //   - https://pub-xxxx.r2.dev/<key> (bucket public)
   //   - https://files.example.com/<key> (custom domain)
   const publicBase =
+    process.env.R2_CDN_URL ||
     process.env.R2_PUBLIC_URL ||
     process.env.R2_PUBLIC_BASE_URL ||
     process.env.R2_PUBLIC_DOMAIN;
@@ -56,4 +57,3 @@ export const getR2PublicUrl = (key) => {
 
   return `https://${R2_CONFIG.bucket}.${R2_CONFIG.accountId}.r2.cloudflarestorage.com/${key}`;
 };
-
