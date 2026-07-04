@@ -4,7 +4,7 @@ import { ShoppingCart, User, Phone, MapPin, Loader2, CheckCircle, Truck, Plus, M
 import { publicStoreApi } from '../services/storeApi.js';
 import defaultConfig from './productSettings/defaultConfig.js';
 import { createMetaEventId, injectPixelScripts, safeFirePixelEvent } from '../utils/pixelTracking';
-import { PHONE_CODES, getDefaultPhoneCodeFromConfig, getPhoneCodeByCountryName, buildFullPhone, getCurrencyByPhoneCode, getPhoneLength } from '../utils/phoneCodes.js';
+import { PHONE_CODES, buildFullPhone, findCountryPhoneOptionByName, getCurrencyByPhoneCode, getDefaultPhoneCodeFromConfig, getPhoneCodeByCountryName, getPhoneLength } from '../utils/phoneCodes.js';
 import {
   buildStorefrontOrderWhatsappMessage,
   getPopularCitiesForCountries,
@@ -212,8 +212,9 @@ const EmbeddedOrderForm = ({ product, subdomain, store, pixels, productPageConfi
 
   const availablePhoneCodes = useMemo(() => {
     if (!formCountries.length) return PHONE_CODES;
+    const countryOptions = formCountries.map(c => findCountryPhoneOptionByName(c)).filter(Boolean);
+    if (countryOptions.length > 0) return countryOptions;
     const configCodes = formCountries.map(c => getPhoneCodeByCountryName(c)).filter(Boolean);
-    if (!configCodes.length) return PHONE_CODES;
     const filtered = PHONE_CODES.filter(c => configCodes.includes(c.code));
     return filtered.length > 0 ? filtered : PHONE_CODES;
   }, [formCountries]);
@@ -675,7 +676,7 @@ const EmbeddedOrderForm = ({ product, subdomain, store, pixels, productPageConfi
                   <div style={{ position: 'relative', flexShrink: 0 }}>
                     <select value={phoneCode} onChange={e => { phoneCodeUserSet.current = true; setPhoneCode(e.target.value); setDisplayCurrency(getCurrencyByPhoneCode(e.target.value) || baseCurrency); }}
                       style={{ appearance: 'none', WebkitAppearance: 'none', padding: '11px 28px 11px 10px', borderRadius: `${borderRadius} 0 0 ${borderRadius}`, border: `1.5px solid ${fieldBorderColor}`, borderRight: 'none', backgroundColor: inputBgColor, fontSize: 13, fontWeight: 700, color: inputTextColor, cursor: 'pointer', outline: 'none', minWidth: 90 }}>
-                      {availablePhoneCodes.map(c => <option key={c.code} value={c.code}>{c.label}</option>)}
+                      {availablePhoneCodes.map(c => <option key={`${c.country}-${c.code}`} value={c.code}>{c.label}</option>)}
                     </select>
                     <span style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: labelColorResolved, display: 'flex' }}><ChevronDown size={13} /></span>
                   </div>

@@ -949,7 +949,7 @@ const StoreCheckout = () => {
                     style={{ ...fieldStyle, minWidth: 90, borderTopRightRadius: 0, borderBottomRightRadius: 0, borderTopLeftRadius: '12px', borderBottomLeftRadius: '12px' }}
                   >
                     {PHONE_CODES.map(c => (
-                      <option key={c.code} value={c.code}>{c.label}</option>
+                      <option key={`${c.country}-${c.code}`} value={c.code}>{c.label}</option>
                     ))}
                   </select>
                   <ChevronDown className="w-3 h-3 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: fieldIconColor }} />

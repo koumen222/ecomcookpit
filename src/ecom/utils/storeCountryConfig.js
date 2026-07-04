@@ -1,4 +1,4 @@
-import { PHONE_CODES } from './phoneCodes.js';
+import { COUNTRY_PHONE_OPTIONS } from './phoneCodes.js';
 
 export const DEFAULT_STORE_COUNTRY = 'Cameroun';
 
@@ -132,16 +132,16 @@ export function normalizeCountryName(value) {
   const normalized = normalizeCountryToken(trimmed);
   if (!normalized) return '';
 
-  // Always prefer PHONE_CODES.name as canonical — it's what the UI displays
-  const phoneCodeMatch = PHONE_CODES.find((entry) => normalizeCountryToken(entry.name) === normalized);
+  // Always prefer COUNTRY_PHONE_OPTIONS.name as canonical — it's what the UI displays
+  const phoneCodeMatch = COUNTRY_PHONE_OPTIONS.find((entry) => normalizeCountryToken(entry.name) === normalized);
   if (phoneCodeMatch) {
     return phoneCodeMatch.name;
   }
 
   if (COUNTRY_ALIASES[normalized]) {
-    // Resolve alias then try to match PHONE_CODES again for canonical name
+    // Resolve alias then try to match COUNTRY_PHONE_OPTIONS again for canonical name
     const aliasValue = COUNTRY_ALIASES[normalized];
-    const aliasPhoneMatch = PHONE_CODES.find((entry) => normalizeCountryToken(entry.name) === normalizeCountryToken(aliasValue));
+    const aliasPhoneMatch = COUNTRY_PHONE_OPTIONS.find((entry) => normalizeCountryToken(entry.name) === normalizeCountryToken(aliasValue));
     return aliasPhoneMatch ? aliasPhoneMatch.name : aliasValue;
   }
 

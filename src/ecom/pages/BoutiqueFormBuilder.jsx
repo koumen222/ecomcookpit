@@ -12,7 +12,7 @@ import {
   getAnimationClass as getButtonAnimClass,
   ButtonAnimationStyles,
 } from '../components/productSettings/ButtonEditor.jsx';
-import { PHONE_CODES } from '../utils/phoneCodes.js';
+import { COUNTRY_PHONE_OPTIONS, PHONE_CODES } from '../utils/phoneCodes.js';
 import { formatMoney } from '../utils/currency.js';
 import {
   getCountryFormPlaceholders,
@@ -1006,7 +1006,7 @@ const FormPreview = ({ config, offersPreview = null, shopColor = '#0F6B4F' }) =>
       case 'phone': {
         const configCountries = config.general?.countries || [];
         const firstCode = configCountries.length > 0
-          ? PHONE_CODES.find(c => c.name === configCountries[0]) || PHONE_CODES[0]
+          ? COUNTRY_PHONE_OPTIONS.find(c => c.name === configCountries[0]) || PHONE_CODES[0]
           : PHONE_CODES[0];
         return (
           <div key={i}>
@@ -1809,7 +1809,7 @@ const BoutiqueFormBuilder = () => {
               {config.general?.countries?.length > 0 && (
                 <div className="flex flex-wrap gap-1.5 mb-2">
                   {config.general.countries.map((countryName, i) => {
-                    const pc = PHONE_CODES.find(c => c.name === countryName);
+                    const pc = COUNTRY_PHONE_OPTIONS.find(c => c.name === countryName);
                     return (
                       <span key={i} className={`inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg border ${i === 0 ? 'bg-green-50 border-green-300 text-green-800' : 'bg-gray-100 border-gray-200 text-gray-700'}`}>
                         {pc ? `${pc.label.split(' ')[0]} ` : ''}{countryName}{pc ? ` (${pc.code})` : ''}
@@ -1823,10 +1823,10 @@ const BoutiqueFormBuilder = () => {
                 </div>
               )}
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 max-h-48 overflow-y-auto border border-gray-200 rounded-xl p-2">
-                {PHONE_CODES.map(pc => {
+                {COUNTRY_PHONE_OPTIONS.map(pc => {
                   const selected = (config.general?.countries || []).includes(pc.name);
                   return (
-                    <button key={pc.code} type="button"
+                    <button key={`${pc.country}-${pc.code}`} type="button"
                       onClick={() => {
                         const current = config.general?.countries || [];
                         const next = selected ? current.filter(c => c !== pc.name) : [...current, pc.name];

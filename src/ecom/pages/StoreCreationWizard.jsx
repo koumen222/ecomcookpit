@@ -1,15 +1,25 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useStore, isStoreEnabled } from '../contexts/StoreContext.jsx';
 import {
   Check, ArrowRight, ArrowLeft, Loader2, Store, Palette, MapPin,
-  Sparkles, MessageSquare, ChevronRight, Zap,
-  Globe2, Phone, Upload, X, Wand2, RefreshCw
+  Sparkles, MessageSquare, ChevronRight, ChevronDown, Zap,
+  Globe2, Upload, X, Wand2, RefreshCw
 } from 'lucide-react';
 import { storeManageApi, storesApi } from '../services/storeApi.js';
 import { storeProductsApi } from '../services/storeApi.js';
 import { createEmptyStore } from '../utils/storeDefaults.js';
 import { getErrorMessage } from '../utils/errorMessages.js';
+import {
+  COUNTRY_PHONE_OPTIONS,
+  PHONE_CODES,
+  buildFullPhone,
+  findCountryPhoneOptionByName,
+  getCurrencyByPhoneCode,
+  getPhoneCodeByCountryName,
+  getPhoneLength
+} from '../utils/phoneCodes.js';
+import { getCountryFormPlaceholders, getPopularCitiesForCountry } from '../utils/storeCountryConfig.js';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // DONNÉES
@@ -461,6 +471,29 @@ const Textarea = ({ label, hint, error, ...props }) => (
   </div>
 );
 
+const splitInternationalPhone = (value = '', fallbackCode = '+237') => {
+  const compact = String(value || '').trim().replace(/\s+/g, '');
+  const safeFallback = fallbackCode || '+237';
+  if (!compact) return { code: safeFallback, local: '' };
+
+  const matches = PHONE_CODES
+    .filter((country) => compact.startsWith(country.code))
+    .sort((a, b) => b.code.length - a.code.length);
+
+  if (matches.length > 0) {
+    const code = matches[0].code;
+    return { code, local: compact.slice(code.length) };
+  }
+
+  const digits = compact.replace(/\D/g, '');
+  const fallbackDigits = safeFallback.replace(/\D/g, '');
+  if (fallbackDigits && digits.startsWith(fallbackDigits)) {
+    return { code: safeFallback, local: digits.slice(fallbackDigits.length) };
+  }
+
+  return { code: safeFallback, local: compact.replace(/^\+/, '') };
+};
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // WIZARD PRINCIPAL
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -499,6 +532,8 @@ const StoreCreationWizard = ({ onComplete }) => {
     logoConcept: '',
     logoFlowChoice: 'generate',
   });
+  const [phoneCode, setPhoneCode] = useState('+237');
+  const [whatsappLocal, setWhatsappLocal] = useState('');
 
   const [subdomainStatus, setSubdomainStatus] = useState(null);
   const [originalSubdomain, setOriginalSubdomain] = useState('');
@@ -563,7 +598,14 @@ const StoreCreationWizard = ({ onComplete }) => {
 
         if (s?.storeName && !isNewStoreMode) {
           const existingSub = data.subdomain || '';
+          const countryName = findCountryPhoneOptionByName(s.country)?.name || s.country || 'Cameroun';
+          const parsedPhone = splitInternationalPhone(
+            s.storeWhatsApp || '',
+            getPhoneCodeByCountryName(countryName) || '+237'
+          );
           setOriginalSubdomain(existingSub);
+          setPhoneCode(parsedPhone.code);
+          setWhatsappLocal(parsedPhone.local);
           setForm(prev => ({
             ...prev,
             storeName: s.storeName || '',
@@ -573,7 +615,7 @@ const StoreCreationWizard = ({ onComplete }) => {
             themeColor: s.storeThemeColor || '#0F6B4F',
             storeWhatsApp: s.storeWhatsApp || '',
             city: s.city || '',
-            country: s.country || 'Cameroun',
+            country: countryName,
             storeCurrency: s.storeCurrency || 'XAF',
             storeDescription: s.storeDescription || '',
             tone: s.tone || 'premium',
@@ -611,7 +653,8 @@ const StoreCreationWizard = ({ onComplete }) => {
         const detectedCurrency = Object.entries(COUNTRY_CURRENCY).find(
           ([k]) => normalized === k || normalized.includes(k) || k.includes(normalized)
         )?.[1];
-        if (detectedCurrency) next.storeCurrency = detectedCurrency;
+        const phoneCurrency = getCurrencyByPhoneCode(getPhoneCodeByCountryName(val));
+        if (detectedCurrency || phoneCurrency) next.storeCurrency = detectedCurrency || phoneCurrency;
       }
       return next;
     });
@@ -627,6 +670,25 @@ const StoreCreationWizard = ({ onComplete }) => {
   const showCreativeAccordion = form.logoFlowChoice === 'generate';
   const showUploadAccordion = form.logoFlowChoice === 'upload';
   const showLaterAccordion = form.logoFlowChoice === 'later';
+  const selectedCountryOption = useMemo(
+    () => findCountryPhoneOptionByName(form.country),
+    [form.country]
+  );
+  const cityOptions = useMemo(
+    () => getPopularCitiesForCountry(form.country),
+    [form.country]
+  );
+  const countryPlaceholders = useMemo(
+    () => getCountryFormPlaceholders(form.country || selectedCountryOption?.name || 'Cameroun'),
+    [form.country, selectedCountryOption?.name]
+  );
+  const countrySelectOptions = useMemo(() => {
+    if (!form.country || selectedCountryOption) return COUNTRY_PHONE_OPTIONS;
+    return [
+      { code: phoneCode, country: 'CUSTOM', flag: '', label: phoneCode, name: form.country, rawName: form.country },
+      ...COUNTRY_PHONE_OPTIONS
+    ];
+  }, [form.country, selectedCountryOption, phoneCode]);
   const isGeneratedLogoOutdated = Boolean(generatedLogo?.url) && (
     (generatedLogo.variant || 'wordmark') !== form.logoVariant ||
     (generatedLogo.tone || 'premium') !== form.tone ||
@@ -635,6 +697,34 @@ const StoreCreationWizard = ({ onComplete }) => {
     (generatedLogo.productType || '') !== (form.productType || '') ||
     (generatedLogo.themeColor || '') !== form.themeColor
   );
+
+  const syncWhatsapp = (nextCode, nextLocal) => {
+    setPhoneCode(nextCode);
+    setWhatsappLocal(nextLocal);
+    set('storeWhatsApp', buildFullPhone(nextCode, nextLocal));
+  };
+
+  const handleCountryChange = (value) => {
+    const option = findCountryPhoneOptionByName(value);
+    const nextCountry = option?.name || value;
+    const nextCode = option?.code || getPhoneCodeByCountryName(nextCountry) || phoneCode;
+    set('country', nextCountry);
+    syncWhatsapp(nextCode, whatsappLocal);
+  };
+
+  const handlePhoneCodeChange = (value) => {
+    const nextCode = value || '+237';
+    if (!form.country) {
+      const option = PHONE_CODES.find((country) => country.code === nextCode);
+      if (option?.name) set('country', option.name);
+    }
+    syncWhatsapp(nextCode, whatsappLocal);
+  };
+
+  const handleWhatsappLocalChange = (value) => {
+    const cleaned = value.replace(/[^\d\s().-]/g, '');
+    syncWhatsapp(phoneCode, cleaned);
+  };
 
   const slugify = (str) =>
     str.toLowerCase().trim()
@@ -1592,29 +1682,77 @@ const StoreCreationWizard = ({ onComplete }) => {
                 <p className="mt-0.5 text-sm font-semibold text-gray-900">Coordonnées</p>
               </div>
               <div className="px-5 py-5 space-y-4">
-                <Input
-                  label="Numéro WhatsApp"
-                  hint="Les clients vous contacteront sur ce numéro"
-                  placeholder="+237 6XX XXX XXX"
-                  value={form.storeWhatsApp}
-                  onChange={e => set('storeWhatsApp', e.target.value)}
-                  error={errors.storeWhatsApp}
-                  icon={MessageSquare}
-                />
+                <div className="space-y-2">
+                  <label className="block text-sm font-semibold text-gray-800">Numéro WhatsApp</label>
+                  <p className="text-xs text-gray-500">Les clients vous contacteront sur ce numéro</p>
+                  <div className={`flex overflow-hidden rounded-xl border-2 bg-gray-50 transition-all duration-200 focus-within:bg-white focus-within:border-primary-600 focus-within:ring-4 focus-within:ring-primary-600/10 ${
+                    errors.storeWhatsApp ? 'border-red-300 bg-red-50' : 'border-transparent'
+                  }`}>
+                    <div className="relative shrink-0 border-r border-gray-200 bg-white">
+                      <select
+                        value={phoneCode}
+                        onChange={(e) => handlePhoneCodeChange(e.target.value)}
+                        className="h-full min-h-[52px] w-[124px] appearance-none bg-transparent py-3.5 pl-3 pr-8 text-sm font-semibold text-gray-800 outline-none cursor-pointer"
+                      >
+                        {PHONE_CODES.map((country) => (
+                          <option key={`${country.country}-${country.code}`} value={country.code}>
+                            {country.label} {country.name}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
+                    </div>
+                    <div className="relative min-w-0 flex-1">
+                      <MessageSquare className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
+                      <input
+                        type="tel"
+                        inputMode="tel"
+                        value={whatsappLocal}
+                        maxLength={getPhoneLength(phoneCode)}
+                        onChange={(e) => handleWhatsappLocalChange(e.target.value)}
+                        placeholder={countryPlaceholders.phone}
+                        className="h-full min-h-[52px] w-full bg-transparent py-3.5 pl-12 pr-4 text-sm font-medium text-gray-900 placeholder:text-gray-400 outline-none"
+                      />
+                    </div>
+                  </div>
+                  {errors.storeWhatsApp && <p className="text-xs text-red-600 font-medium">{errors.storeWhatsApp}</p>}
+                </div>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <Input
                     label="Ville"
-                    placeholder="Douala"
+                    placeholder={countryPlaceholders.city.replace(/^Ex\s*:\s*/i, '')}
                     value={form.city}
+                    list="store-city-options"
                     onChange={e => set('city', e.target.value)}
                   />
-                  <Input
-                    label="Pays"
-                    placeholder="Cameroun"
-                    value={form.country}
-                    onChange={e => set('country', e.target.value)}
-                    error={errors.country}
-                  />
+                  {cityOptions.length > 0 && (
+                    <datalist id="store-city-options">
+                      {cityOptions.map((city) => (
+                        <option key={city} value={city} />
+                      ))}
+                    </datalist>
+                  )}
+                  <div className="space-y-2">
+                    <label className="block text-sm font-semibold text-gray-800">Pays</label>
+                    <div className="relative">
+                      <select
+                        value={form.country}
+                        onChange={(e) => handleCountryChange(e.target.value)}
+                        className={`w-full appearance-none px-4 py-3.5 pr-10 bg-gray-50 border-2 rounded-xl text-sm font-medium transition-all duration-200 outline-none focus:bg-white focus:border-primary-600 focus:ring-4 focus:ring-primary-600/10 ${
+                          errors.country ? 'border-red-300 bg-red-50' : 'border-transparent'
+                        }`}
+                      >
+                        <option value="">Sélectionner un pays</option>
+                        {countrySelectOptions.map((country) => (
+                          <option key={`${country.country}-${country.name}`} value={country.name}>
+                            {country.flag ? `${country.flag} ` : ''}{country.name} ({country.code})
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                    </div>
+                    {errors.country && <p className="text-xs text-red-600 font-medium">{errors.country}</p>}
+                  </div>
                 </div>
               </div>
             </div>
