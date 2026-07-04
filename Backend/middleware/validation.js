@@ -34,10 +34,10 @@ export const validatePassword = (req, res, next) => {
     });
   }
 
-  if (password.length < 12) {
+  if (password.length < 8) {
     return res.status(400).json({
       success: false,
-      message: 'Le mot de passe doit contenir au moins 12 caractères'
+      message: 'Le mot de passe doit contenir au moins 8 caractères'
     });
   }
 

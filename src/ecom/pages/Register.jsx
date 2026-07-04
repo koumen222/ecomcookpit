@@ -57,7 +57,10 @@ const Register = () => {
   }, []);
 
   const pwChecks = [
-    { label: 'Au moins 6 caractères', short: '6 caractères', ok: formData.password.length >= 6 },
+    { label: 'Au moins 8 caractères', short: '8 caractères', ok: formData.password.length >= 8 },
+    { label: 'Une majuscule', short: 'majuscule', ok: /[A-Z]/.test(formData.password) },
+    { label: 'Une minuscule', short: 'minuscule', ok: /[a-z]/.test(formData.password) },
+    { label: 'Un chiffre', short: 'chiffre', ok: /\d/.test(formData.password) },
   ];
   const pwMissing = pwChecks.filter(c => !c.ok);
   const pwStrength = pwMissing.length === 0 ? 4 : 0;
@@ -390,7 +393,7 @@ const Register = () => {
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1.5 uppercase tracking-wide">Mot de passe</label>
                   <div className="relative">
-                    <input type={showPassword ? 'text' : 'password'} required placeholder="Creez un mot de passe fort"
+                    <input type={showPassword ? 'text' : 'password'} required minLength={8} placeholder="Creez un mot de passe fort"
                       value={formData.password} onChange={e => setFormData(p => ({ ...p, password: e.target.value }))}
                       className="block w-full px-4 py-3 pr-11 bg-white border border-gray-300 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm transition" />
                     <button type="button" onClick={() => setShowPassword(v => !v)}
@@ -430,7 +433,7 @@ const Register = () => {
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1.5 uppercase tracking-wide">Confirmer</label>
-                  <input type={showPassword ? 'text' : 'password'} required placeholder="Retapez le mot de passe"
+                  <input type={showPassword ? 'text' : 'password'} required minLength={8} placeholder="Retapez le mot de passe"
                     value={formData.confirmPassword} onChange={e => setFormData(p => ({ ...p, confirmPassword: e.target.value }))}
                     className={`block w-full px-4 py-3 bg-white border rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm transition ${formData.confirmPassword && formData.password !== formData.confirmPassword ? 'border-red-500' : 'border-gray-300'}`} />
                   {formData.confirmPassword && formData.password === formData.confirmPassword && (
