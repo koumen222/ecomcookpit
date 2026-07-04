@@ -59,6 +59,42 @@ async function invalidatePublicStorefrontForMutation(req, product = null) {
   emitStoreUpdate(subdomain);
 }
 
+/**
+ * Fusionne des noms de catégories dans le registre (storeSettings.categoryRegistry).
+ * Cible le Store actif (ou le store primaire), sinon le Workspace (legacy) — même
+ * logique que PUT /store-manage/config.
+ */
+async function mergeCategoryRegistry(req, names) {
+  const clean = Array.from(new Set(
+    (Array.isArray(names) ? names : []).map((n) => String(n || '').trim()).filter(Boolean)
+  ));
+  if (!clean.length) return;
+
+  let Model = null;
+  let doc = null;
+  const storeId = req.activeStoreId;
+  if (storeId) {
+    doc = await Store.findOne({ _id: storeId, workspaceId: req.workspaceId }).select('storeSettings.categoryRegistry');
+    if (doc) Model = Store;
+  }
+  if (!doc) {
+    const ws = await EcomWorkspace.findById(req.workspaceId).select('primaryStoreId storeSettings.categoryRegistry');
+    if (ws?.primaryStoreId) {
+      const primary = await Store.findOne({ _id: ws.primaryStoreId, workspaceId: req.workspaceId }).select('storeSettings.categoryRegistry');
+      if (primary) { doc = primary; Model = Store; }
+    }
+    if (!doc && ws) { doc = ws; Model = EcomWorkspace; }
+  }
+  if (!doc || !Model) return;
+
+  const existing = doc.storeSettings?.categoryRegistry || [];
+  const merged = Array.from(new Set(
+    [...existing, ...clean].map((s) => String(s || '').trim()).filter(Boolean)
+  )).sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }));
+
+  await Model.updateOne({ _id: doc._id }, { $set: { 'storeSettings.categoryRegistry': merged } });
+}
+
 const SHOPIFY_TEMPLATE_COLUMNS = [
   'Title',
   'URL handle',
@@ -673,6 +709,132 @@ router.get('/categories/list', requireEcomAuth, requireWorkspace, async (req, re
   } catch (error) {
     console.error('Erreur GET /store-products/categories:', error.message);
     res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+/**
+ * POST /store-products/categories/auto-generate
+ * Déduit des catégories à partir des noms de produits (IA) et les assigne.
+ * Body: { scope: 'uncategorized' (défaut) | 'all' }.
+ * N'affecte pas les crédits de génération (utilitaire de catalogue).
+ * MUST be defined before /:id.
+ */
+router.post('/categories/auto-generate', requireEcomAuth, requireWorkspace, requireStoreOwner, async (req, res) => {
+  try {
+    const ai = getOpenAI();
+    if (!ai) {
+      return res.status(503).json({ success: false, message: 'Génération IA non configurée.' });
+    }
+
+    const scope = req.body?.scope === 'all' ? 'all' : 'uncategorized';
+    const allProducts = await StoreProduct.find(buildStoreFilter(req)).select('_id name category').lean();
+    if (!allProducts.length) {
+      return res.status(400).json({ success: false, message: 'Aucun produit dans le catalogue.' });
+    }
+
+    const targets = scope === 'all'
+      ? allProducts
+      : allProducts.filter((p) => !String(p.category || '').trim());
+
+    if (!targets.length) {
+      return res.json({
+        success: true,
+        message: 'Tous les produits sont déjà catégorisés.',
+        data: { updated: 0, skipped: 0, categories: [], assignments: [] },
+      });
+    }
+
+    // Garde-fou budget tokens : au plus 400 produits par appel.
+    const MAX_ITEMS = 400;
+    const batch = targets.slice(0, MAX_ITEMS);
+
+    const existingCategories = Array.from(
+      new Set(allProducts.map((p) => String(p.category || '').trim()).filter(Boolean))
+    );
+
+    const productList = batch
+      .map((p, i) => `${i + 1}. ${String(p.name || 'Sans nom').slice(0, 120)}`)
+      .join('\n');
+
+    const systemPrompt = `Tu es un expert e-commerce en organisation de catalogue.
+On te donne une liste numérotée de noms de produits. Regroupe-les en catégories commerciales cohérentes et concises (en français), déduites des noms.
+Règles:
+- Entre 3 et 15 catégories au total ; réutilise en priorité les catégories existantes fournies quand elles conviennent.
+- Chaque produit reçoit exactement une catégorie.
+- Noms de catégorie courts, clairs, en Title Case, sans emoji (ex: "Vêtements", "Électronique", "Beauté & Soins").
+Réponds UNIQUEMENT en JSON valide, sans markdown:
+{
+  "categories": ["Cat A", "Cat B"],
+  "assignments": [{ "i": 1, "category": "Cat A" }, { "i": 2, "category": "Cat B" }]
+}
+"i" est le numéro du produit dans la liste.`;
+
+    const userContent = `Catégories existantes: ${existingCategories.length ? existingCategories.join(', ') : '(aucune)'}\n\nProduits:\n${productList}`;
+
+    const completion = await ai.chat.completions.create({
+      model: process.env.OPENAI_MINI_MODEL || 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userContent },
+      ],
+      temperature: 0.2,
+      max_tokens: 2000,
+      response_format: { type: 'json_object' },
+    });
+
+    let parsed;
+    try {
+      parsed = JSON.parse(completion.choices[0].message.content);
+    } catch {
+      return res.status(500).json({ success: false, message: 'Réponse IA invalide, réessayez.' });
+    }
+
+    const assignments = Array.isArray(parsed?.assignments) ? parsed.assignments : [];
+    const normalizeName = (s) => String(s || '').trim().replace(/\s+/g, ' ').slice(0, 60);
+
+    const ops = [];
+    const appliedCategories = new Set();
+    const resultAssignments = [];
+    for (const a of assignments) {
+      const idx = Number(a?.i);
+      const category = normalizeName(a?.category);
+      if (!category || !Number.isInteger(idx) || idx < 1 || idx > batch.length) continue;
+      const product = batch[idx - 1];
+      if (!product) continue;
+      ops.push({
+        updateOne: {
+          filter: { _id: product._id, workspaceId: req.workspaceId },
+          update: { $set: { category } },
+        },
+      });
+      appliedCategories.add(category);
+      resultAssignments.push({ productId: String(product._id), name: product.name, category });
+    }
+
+    if (!ops.length) {
+      return res.status(422).json({ success: false, message: "L'IA n'a pas pu catégoriser ces produits. Réessayez." });
+    }
+
+    await StoreProduct.bulkWrite(ops);
+    await mergeCategoryRegistry(req, [...appliedCategories]);
+    await invalidatePublicStorefrontForMutation(req);
+
+    const categories = Array.from(appliedCategories)
+      .sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }));
+
+    return res.json({
+      success: true,
+      message: `${ops.length} produit(s) catégorisé(s) en ${categories.length} catégorie(s).`,
+      data: {
+        updated: ops.length,
+        skipped: targets.length - ops.length,
+        categories,
+        assignments: resultAssignments,
+      },
+    });
+  } catch (error) {
+    console.error('Erreur POST /store-products/categories/auto-generate:', error.message);
+    res.status(500).json({ success: false, message: 'Erreur serveur lors de la génération des catégories.' });
   }
 });
 

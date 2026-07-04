@@ -61,6 +61,13 @@ function cleanScrapedText(text) {
 
 // i18n génération : directive de langue injectée dans les prompts système.
 // Valeurs reçues du frontend : 'français' | 'english' | 'español' (langue de la boutique).
+export function imageLangPack(language = 'français') {
+  const lang = String(language || '').toLowerCase();
+  if (lang.startsWith('en')) return { code: 'en', name: 'English', avant: 'Before', apres: 'After' };
+  if (lang.startsWith('es')) return { code: 'es', name: 'Spanish', avant: 'Antes', apres: 'Después' };
+  return { code: 'fr', name: 'French', avant: 'Avant', apres: 'Après' };
+}
+
 function languageDirective(language = 'français') {
   const lang = String(language || '').toLowerCase();
   if (lang.startsWith('en')) return '100% PERFECT ENGLISH — all customer-facing copy in flawless English, zero spelling or grammar mistakes';
@@ -1555,6 +1562,7 @@ export async function analyzeWithVision(scrapedData, imageBuffers = [], marketin
     tone = 'urgence',
     language = 'français'
   } = copywritingContext;
+  const imgLang = imageLangPack(language);
   const {
     template = 'general',
     preferredColor = '',
@@ -1845,7 +1853,7 @@ Le champ "prompt_avant_apres" doit décrire un AVANT/APRÈS SPÉCIFIQUE à CE pr
     "⚡ Bénéfice clé 4 avec emoji pertinent"
   ],
   "prompt_hero_poster": "[Generate in English: BOLD ADVERTISING POSTER for THIS SPECIFIC product (describe its exact name, type, color, packaging). Vertical 4:5 (1080×1250) graphic-design meets product photography. The product shown LARGE, dominant, perfectly sharp (min 50% of frame), exact same packaging/color/shape. Premium dark gradient background (deep midnight blue to black, OR deep forest green to charcoal, or deep burgundy — choose what contrasts best with product colors). Dramatic cinematic lighting with product glow. EXACTLY 3 authentic photographed Black African adults in MODERN UPSCALE setting (luxury apartment, modern studio, sleek office, high-end urban location — NOT a market, NOT a village, NOT a traditional setting). All looking real, all naturally posed, and at least 2 of them clearly holding the exact product in hand with believable grip and scale. NO title text, NO headline on the image. Optional thin accent line or minimal graphic element. NO price, NO phone, NO fake button, NO URL. Mood: aspirational, premium brand launch poster, scroll-stopping. Think Apple product launch.]",
-  "prompt_avant_apres": "[Generate in English: Photorealistic split-screen before/after transformation image. MUST look like a real photograph, NOT AI-generated. LEFT (AVANT): the SPECIFIC problem this product solves — visible but NATURAL, not exaggerated or theatrical. RIGHT (APRÈS): CREDIBLE realistic improvement after using the product — visible but not magical. MANDATORY: Authentic Black African person (dark skin, natural African features, natural African hair). Modern stylish clothing, SUBTLE facial expressions — NOT theatrical. Setting: MODERN UPSCALE interior (modern bathroom, sleek bedroom, contemporary living room — NOT a traditional African home, NOT a market). The SAME person on both sides. Product visible at REAL SIZE on the AFTER side — natural placement. Small 'Avant'/'Après' labels in perfect French. NO title text on the image. Vertical 4:5 (1080×1250), tight crop. Soft natural lighting, clean style, NO aggressive filters, NO over-saturation. Match the EXACT body zone of the product. The transformation must be BELIEVABLE — not just sad face vs happy face but a real visual difference related to the product benefit.]",
+  "prompt_avant_apres": "[Generate in English: Photorealistic split-screen before/after transformation image. MUST look like a real photograph, NOT AI-generated. LEFT (AVANT): the SPECIFIC problem this product solves — visible but NATURAL, not exaggerated or theatrical. RIGHT (APRÈS): CREDIBLE realistic improvement after using the product — visible but not magical. MANDATORY: Authentic Black African person (dark skin, natural African features, natural African hair). Modern stylish clothing, SUBTLE facial expressions — NOT theatrical. Setting: MODERN UPSCALE interior (modern bathroom, sleek bedroom, contemporary living room — NOT a traditional African home, NOT a market). The SAME person on both sides. Product visible at REAL SIZE on the AFTER side — natural placement. Small '${imgLang.avant}'/'${imgLang.apres}' labels in perfect ${imgLang.name}. NO title text on the image. Vertical 4:5 (1080×1250), tight crop. Soft natural lighting, clean style, NO aggressive filters, NO over-saturation. Match the EXACT body zone of the product. The transformation must be BELIEVABLE — not just sad face vs happy face but a real visual difference related to the product benefit.]",
   "angles": [
     {
       "titre_angle": "Phrase complète de 10-15 mots suivant l'étape de la méthode ${marketingApproach} — explique concrètement le bénéfice",
@@ -2273,6 +2281,10 @@ export async function generatePosterImage(promptAffiche, originalImageBuffer = n
   try {
     const mode = options?.mode || 'scene';
     const aspectRatio = options?.aspectRatio || '4:5';
+    const imgLang = imageLangPack(options?.language);
+    // Langue des textes incrustés — prioritaire sur toute mention "French" des prompts amont
+    const languageOverride = imgLang.code === 'fr' ? '' : `
+TEXT LANGUAGE OVERRIDE (CRITICAL): Every piece of text rendered on the image (labels, short phrases, badges, annotations) MUST be written in perfect ${imgLang.name}. This OVERRIDES any earlier instruction mentioning French text. Before/after labels must be exactly '${imgLang.avant}' / '${imgLang.apres}'. Never mix languages on the image.`;
     const isSquare = aspectRatio === '1:1';
     const isThreeByFour = aspectRatio === '3:4';
     const formatLabel = isSquare
@@ -2338,8 +2350,8 @@ Left side BEFORE: The African person clearly showing the PROBLEM or CONTEXT this
 Right side AFTER: The SAME African person showing the RESULT — improvement, satisfaction, confidence, glowing outcome.
 
 Visual style: Clean, modern, premium. Professional lighting, soft shadows, studio quality. Clear visual storytelling: problem → product → result.
-Tight crop, clear realistic transformation (not exaggerated). Small 'Avant'/'Après' label text in bold modern font if helpful for reading.
-⚠️ CRITICAL SPELLING REQUIREMENT: The French labels 'Avant' and 'Après' MUST be spelled PERFECTLY with correct accents. NEVER write "Apres" without the accent grave (è). All French text must be 100% error-free.
+Tight crop, clear realistic transformation (not exaggerated). Small '${imgLang.avant}'/'${imgLang.apres}' label text in bold modern font if helpful for reading.
+⚠️ CRITICAL SPELLING REQUIREMENT: The ${imgLang.name} labels '${imgLang.avant}' and '${imgLang.apres}' MUST be spelled PERFECTLY${imgLang.code === 'fr' ? ' with correct accents. NEVER write "Apres" without the accent grave (è)' : ''}. All ${imgLang.name} text must be 100% error-free.
 NO arrows, NO heavy graphic overlays, NO empty margins, NO price, NO CTA.
 
 Mood: Trustworthy, convincing, high-conversion, impossible to ignore in a Facebook or TikTok feed.`;
@@ -2404,10 +2416,10 @@ The product MUST appear in the generated visual. If it cannot be faithfully repr
 
     // CRITICAL: product reference rule FIRST (survives any truncation),
     // then the unique design prompt, then the mode-specific quality rules.
-    const posterPrompt = `${formatOverride}
+    const posterPrompt = `${formatOverride}${languageOverride}
   ${productRefRule}
 ${promptAffiche}
-${modeRules}`;
+${modeRules}${languageOverride}`;
 
     console.log('📸 Image-to-image poster generation (with product reference)...');
     const result = await generateGptImage2ImageToImage(

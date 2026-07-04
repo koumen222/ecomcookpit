@@ -804,10 +804,19 @@ router.post('/campaigns/:id/send', requireMarketingAccess, async (req, res) => {
 
     let sent = 0;
     let failed = 0;
+    let stopped = false;
     const previewResults = [];
 
     // Send emails one by one with delay and personalization
     for (let i = 0; i < recipients.length; i++) {
+      // ── Arrêt demandé ? (statut passé à 'cancelled' via POST /campaigns/:id/stop) ──
+      const fresh = await EmailCampaign.findById(campaign._id).select('status').lean().catch(() => null);
+      if (!fresh || fresh.status === 'cancelled') {
+        stopped = true;
+        console.log(`🛑 [email-campaign:${campaign._id}] arrêt demandé — ${sent} envoyés, ${failed} échecs, ${recipients.length - i} non envoyés`);
+        break;
+      }
+
       const recipient = recipients[i];
       const recipientToken = generateRecipientToken();
       const attemptedAt = new Date();
@@ -939,20 +948,52 @@ router.post('/campaigns/:id/send', requireMarketingAccess, async (req, res) => {
       }
     }
 
-    campaign.status = failed === recipients.length ? 'failed' : 'sent';
+    campaign.status = stopped
+      ? 'cancelled'
+      : (failed === recipients.length ? 'failed' : 'sent');
     campaign.sentAt = new Date();
     campaign.stats.sent = sent;
     campaign.stats.failed = failed;
     campaign.results = previewResults; // aperçu rapide en campagne, historique complet dans EmailCampaignRecipientLog
     await campaign.save();
 
-    console.log(`✅ Campagne email "${campaign.name}" envoyée: ${sent} ok, ${failed} échecs`);
+    console.log(`${stopped ? '🛑' : '✅'} Campagne email "${campaign.name}" ${stopped ? 'arrêtée' : 'envoyée'}: ${sent} ok, ${failed} échecs`);
   } catch (err) {
     console.error('marketing/send:', err);
     // Try to mark as failed
     try {
       await EmailCampaign.findByIdAndUpdate(req.params.id, { status: 'failed' });
     } catch (_) {}
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/ecom/marketing/campaigns/:id/stop — arrêter une campagne EMAIL en cours
+// La boucle d'envoi vérifie le statut avant chaque email et s'arrête proprement.
+// ─────────────────────────────────────────────────────────────────────────────
+router.post('/campaigns/:id/stop', requireMarketingAccess, async (req, res) => {
+  try {
+    const campaign = await EmailCampaign.findById(req.params.id);
+    if (!campaign) return res.status(404).json({ success: false, message: 'Campagne introuvable' });
+
+    if (campaign.status !== 'sending') {
+      return res.status(400).json({
+        success: false,
+        message: `Impossible d'arrêter une campagne au statut "${campaign.status}". Seul un envoi en cours peut être arrêté.`
+      });
+    }
+
+    campaign.status = 'cancelled';
+    await campaign.save();
+
+    res.json({
+      success: true,
+      message: `Arrêt demandé. L'envoi s'arrête après l'email en cours — ${campaign.stats?.sent || 0} déjà envoyés sur ${campaign.stats?.targeted || 0}.`,
+      data: { sent: campaign.stats?.sent || 0, targeted: campaign.stats?.targeted || 0 }
+    });
+  } catch (err) {
+    console.error('marketing/stop:', err);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
   }
 });
 

@@ -16,7 +16,7 @@ import multer from 'multer';
 import sharp from 'sharp';
 import axios from 'axios';
 import { requireEcomAuth, validateEcomAccess } from '../middleware/ecomAuth.js';
-import { analyzeWithVision, analyzePremiumProductPage, generateProductBonusEbook, generateDescriptionGifFromImages, generatePosterImage, generateInfographicsProductPage, INFOGRAPHIC_SLIDE_TYPES, downloadAndUploadToR2 } from '../services/productPageGeneratorService.js';
+import { analyzeWithVision, analyzePremiumProductPage, generateProductBonusEbook, generateDescriptionGifFromImages, generatePosterImage, generateInfographicsProductPage, INFOGRAPHIC_SLIDE_TYPES, downloadAndUploadToR2, imageLangPack } from '../services/productPageGeneratorService.js';
 import { uploadImage } from '../services/cloudflareImagesService.js';
 import { extractProductInfo } from '../services/geminiProductExtractor.js';
 import EcomWorkspace from '../models/Workspace.js';
@@ -606,7 +606,7 @@ async function runBackgroundImageGeneration({
       if (!prompt) return null;
 
       const attempt = async () => {
-        const generatedDataUrl = await generatePosterImage(prompt, baseImageBuffer, { mode, aspectRatio });
+        const generatedDataUrl = await generatePosterImage(prompt, baseImageBuffer, { mode, aspectRatio, language: visualContext?.language });
         if (!generatedDataUrl) throw new Error('generatePosterImage returned null');
 
         let imageBuffer;
@@ -1007,6 +1007,7 @@ async function runBackgroundPremiumImageGeneration({
   workspaceId,
   userId,
   productData,
+  language = 'français',
   realPhotos = [],
   cleanUrl = '',
   sourceBuffer = null,
@@ -1049,7 +1050,7 @@ async function runBackgroundPremiumImageGeneration({
 
     const generateAndUpload = async (prompt, filename, mode = 'scene', aspectRatio = '4:5') => {
       const attempt = async () => {
-        const generatedDataUrl = await generatePosterImage(prompt, baseImageBuffer, { mode, aspectRatio });
+        const generatedDataUrl = await generatePosterImage(prompt, baseImageBuffer, { mode, aspectRatio, language });
         if (!generatedDataUrl) throw new Error('generatePosterImage returned null');
 
         let imageBuffer;
@@ -1905,6 +1906,7 @@ ${buildHumanPhotoRealismRules()}${buildGenderConstraintRules(visualPrefs?.target
  * Category-specific design (beauty, tech, fashion, health, home, general).
  */
 function buildAngleImagePrompt(angle, gptResult, hasProductRef, template = 'general', slideIndex = 0, visualPrefs = {}, method = 'PAS') {
+  const imgLang = imageLangPack(visualPrefs?.language);
   const productTitle = gptResult.title || 'the product';
   const targetPerson = gptResult.hero_target_person || 'authentic Black African person';
   const benefits = gptResult.benefits_bullets || gptResult.raisons_acheter || [];
@@ -1995,6 +1997,7 @@ ${buildUltraSmartInfographicStyleRules(brandColor, template)}${buildStructuredPr
  * Construit un 2e prompt avant/après basé sur un bénéfice différent du premier.
  */
 function buildSecondBeforeAfterPrompt(gptResult, visualPrefs = {}) {
+  const imgLang = imageLangPack(visualPrefs?.language);
   const benefits = gptResult.benefits_bullets || [];
   const secondBenefit = (benefits[1] || benefits[2] || benefits[0] || 'improved appearance').replace(/^[^\w]*/, '');
   const targetPerson = gptResult.hero_target_person || 'african person';
@@ -2034,7 +2037,7 @@ MANDATORY:
 - Modern stylish clothing, SUBTLE natural expressions — NOT theatrical
 - Setting: MODERN CONTEMPORARY interior (sleek living room, modern bedroom, contemporary bathroom — NOT traditional, NOT a market)
 - The SAME person on BOTH sides with clear visual transformation
-- Small 'Avant' / 'Après' labels in perfect French with correct accents
+- Small '${imgLang.avant}' / '${imgLang.apres}' labels in perfect ${imgLang.name}
 - Soft natural lighting, clean style, NO aggressive filters
 - PHOTOREALISTIC — must look like a REAL photograph, NOT AI-generated
 - NO title text, NO price, NO CTA, NO URL
@@ -2209,6 +2212,7 @@ router.post('/tasks/:id/retry', requireEcomAuth, validateEcomAccess('products', 
 
     const visualContext = {
       template: visualTemplate,
+      language: task.input?.language || task.product?.language || 'français',
       imageGenerationMode: task.input?.imageGenerationMode || task.product?.imageGenerationMode || 'ad_4_5',
       imageAspectRatio: task.input?.imageAspectRatio || task.product?.imageAspectRatio || '4:5',
       preferredColor: task.input?.preferredColor || task.product?.preferredColor || '',
@@ -2239,6 +2243,7 @@ router.post('/tasks/:id/retry', requireEcomAuth, validateEcomAccess('products', 
         workspaceId: req.workspaceId,
         userId: req.user?._id || req.user?.id,
         productData: task.product,
+        language: task.input?.language || 'français',
         realPhotos,
         cleanUrl: task.input?.url || task.product?.sourceUrl || '',
         sourceBuffer,
@@ -2470,6 +2475,11 @@ router.post('/premium', requireEcomAuth, validateEcomAccess('products', 'write')
   let workspace = null;
   let storeContext = {};
   let consumedCreditSource = 'unknown';
+  // Une génération de page premium coûte 2 crédits ; le débit peut s'étaler sur
+  // plusieurs tiers (simple → free → paid). On mémorise le montant retiré par tier
+  // pour rembourser exactement en cas d'échec.
+  const PREMIUM_COST = 2;
+  const creditDeductions = { simple: 0, free: 0, paid: 0 };
   let generationLogId = null;
   let taskId = null;
   let scraped = null;
@@ -2499,29 +2509,40 @@ router.post('/premium', requireEcomAuth, validateEcomAccess('products', 'write')
       const paidRemaining = workspace.paidGenerationsRemaining || 0;
       const totalRemaining = simpleRemaining + freeRemaining + paidRemaining;
 
-      if (totalRemaining <= 0) {
+      if (totalRemaining < PREMIUM_COST) {
         return res.status(403).json({
           success: false,
           limitReached: true,
-          message: '🎯 Tu n\'as plus de crédits !\n\nAchète des crédits pour générer des pages produit.',
-          remaining: 0,
+          message: `🎯 Il te faut ${PREMIUM_COST} crédits pour générer une page produit premium (tu en as ${totalRemaining}).`,
+          remaining: totalRemaining,
           totalGenerations: workspace.totalGenerations || 0,
           pricing,
         });
       }
 
-      if (simpleRemaining > 0) {
-        workspace.simpleGenerationsRemaining = simpleRemaining - 1;
-        consumedCreditSource = 'simple';
-      } else if (freeRemaining > 0) {
-        workspace.freeGenerationsRemaining = freeRemaining - 1;
-        consumedCreditSource = 'free';
-      } else {
-        workspace.paidGenerationsRemaining = paidRemaining - 1;
-        consumedCreditSource = 'paid';
+      // Débit du coût premium en priorité simple → free → paid, avec report du reste.
+      let toDeduct = PREMIUM_COST;
+      if (toDeduct > 0 && simpleRemaining > 0) {
+        const use = Math.min(simpleRemaining, toDeduct);
+        workspace.simpleGenerationsRemaining = simpleRemaining - use;
+        creditDeductions.simple = use;
+        toDeduct -= use;
       }
+      if (toDeduct > 0 && freeRemaining > 0) {
+        const use = Math.min(freeRemaining, toDeduct);
+        workspace.freeGenerationsRemaining = freeRemaining - use;
+        creditDeductions.free = use;
+        toDeduct -= use;
+      }
+      if (toDeduct > 0) {
+        workspace.paidGenerationsRemaining = paidRemaining - toDeduct;
+        creditDeductions.paid = toDeduct;
+        toDeduct = 0;
+      }
+      const usedSources = Object.entries(creditDeductions).filter(([, v]) => v > 0).map(([k]) => k);
+      consumedCreditSource = usedSources.length > 1 ? 'mixed' : (usedSources[0] || 'unknown');
 
-      workspace.totalGenerations = (workspace.totalGenerations || 0) + 1;
+      workspace.totalGenerations = (workspace.totalGenerations || 0) + PREMIUM_COST;
       workspace.lastGenerationAt = new Date();
       await workspace.save();
     }
@@ -2567,7 +2588,7 @@ router.post('/premium', requireEcomAuth, validateEcomAccess('products', 'write')
         inputType: isDescriptionMode ? 'description' : 'url',
         outputMode: shouldGenerateImages ? 'premium_page_with_images' : 'premium_page_only',
         creditSource: consumedCreditSource,
-        creditsUsed: 1,
+        creditsUsed: PREMIUM_COST,
         productName: isDescriptionMode ? (userDescription || '').slice(0, 120) : '',
         productUrl: cleanUrl || '',
         generatedContentTypes: ['premium_product_page'],
@@ -2764,6 +2785,7 @@ router.post('/premium', requireEcomAuth, validateEcomAccess('products', 'write')
         workspaceId: req.workspaceId,
         userId,
         productData: productPage,
+        language: language || 'français',
         realPhotos,
         cleanUrl,
         sourceBuffer: imageFiles[0]?.buffer || null,
@@ -2774,18 +2796,15 @@ router.post('/premium', requireEcomAuth, validateEcomAccess('products', 'write')
     console.error('❌ [PremiumPG] Erreur génération:', error.message);
     console.error('❌ [PremiumPG] Stack:', error.stack);
 
-    if (workspace && consumedCreditSource && consumedCreditSource !== 'unknown') {
+    const refundTotal = creditDeductions.simple + creditDeductions.free + creditDeductions.paid;
+    if (workspace && refundTotal > 0) {
       try {
         const workspaceToRefund = await EcomWorkspace.findById(workspace._id);
         if (workspaceToRefund) {
-          if (consumedCreditSource === 'simple') {
-            workspaceToRefund.simpleGenerationsRemaining = (workspaceToRefund.simpleGenerationsRemaining || 0) + 1;
-          } else if (consumedCreditSource === 'free') {
-            workspaceToRefund.freeGenerationsRemaining = (workspaceToRefund.freeGenerationsRemaining || 0) + 1;
-          } else if (consumedCreditSource === 'paid') {
-            workspaceToRefund.paidGenerationsRemaining = (workspaceToRefund.paidGenerationsRemaining || 0) + 1;
-          }
-          workspaceToRefund.totalGenerations = Math.max(0, (workspaceToRefund.totalGenerations || 0) - 1);
+          workspaceToRefund.simpleGenerationsRemaining = (workspaceToRefund.simpleGenerationsRemaining || 0) + creditDeductions.simple;
+          workspaceToRefund.freeGenerationsRemaining = (workspaceToRefund.freeGenerationsRemaining || 0) + creditDeductions.free;
+          workspaceToRefund.paidGenerationsRemaining = (workspaceToRefund.paidGenerationsRemaining || 0) + creditDeductions.paid;
+          workspaceToRefund.totalGenerations = Math.max(0, (workspaceToRefund.totalGenerations || 0) - refundTotal);
           await workspaceToRefund.save();
         }
       } catch (refundError) {
@@ -2901,6 +2920,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
 
   const visualContext = {
     template: visualTemplate,
+    language: language || 'français',
     imageGenerationMode,
     imageAspectRatio,
     preferredColor,
