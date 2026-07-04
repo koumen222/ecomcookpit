@@ -497,12 +497,28 @@ router.post('/send-otp', validateEmail, async (req, res) => {
     // en console pour ne pas bloquer l'inscription.
     const { sendMail, defaultFrom } = await import('../core/notifications/mailer.js');
     {
+      const otpText = [
+        `Votre code Scalor est : ${code}`,
+        '',
+        'Ce code expire dans 10 minutes.',
+        "Si vous n'avez pas demande ce code, vous pouvez ignorer cet email.",
+        '',
+        'Scalor'
+      ].join('\n');
+      const otpHtml = `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Code Scalor</title></head><body style="margin:0;padding:0;background:#f6f7fb;font-family:Arial,Helvetica,sans-serif;color:#1f2937"><div style="max-width:520px;margin:0 auto;padding:28px 16px"><div style="background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:28px"><p style="margin:0 0 16px;font-size:16px">Votre code Scalor est :</p><p style="margin:0 0 18px;font-size:36px;line-height:1.2;font-weight:700;letter-spacing:6px;color:#111827">${code}</p><p style="margin:0 0 10px;font-size:14px;line-height:1.5;color:#4b5563">Ce code expire dans <strong>10 minutes</strong>.</p><p style="margin:0;font-size:13px;line-height:1.5;color:#6b7280">Si vous n'avez pas demande ce code, vous pouvez ignorer cet email.</p></div><p style="margin:14px 0 0;text-align:center;font-size:12px;color:#9ca3af">Scalor - email automatique</p></div></body></html>`;
       const result = await sendMail({
         from: defaultFrom(),
         to: normalizedEmail,
+        replyTo: process.env.OTP_REPLY_TO || 'support@scalor.net',
         source: 'otp',
-        subject: `${code} — Votre code de vérification Scalor`,
-        html: `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><style>body{margin:0;padding:0;background:#f4f4f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}.wrapper{max-width:480px;margin:0 auto;padding:32px 16px}.card{background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08)}.header{background:#4f46e5;padding:28px 32px;text-align:center}.header h1{color:#fff;margin:0;font-size:22px;font-weight:700}.body{padding:32px;text-align:center}.code{font-size:48px;font-weight:800;letter-spacing:12px;color:#4f46e5;background:#f0f0ff;border-radius:12px;padding:20px 32px;display:inline-block;margin:16px 0;font-family:monospace}.footer{padding:20px 32px;text-align:center;background:#f8f9ff;border-top:1px solid #eee}.footer p{color:#aaa;font-size:12px;margin:4px 0}</style></head><body><div class="wrapper"><div class="card"><div class="header"><h1>Scalor</h1></div><div class="body"><p style="color:#4a4a68;font-size:16px;margin:0 0 8px">Votre code de vérification</p><div class="code">${code}</div><p style="color:#888;font-size:13px;margin:16px 0 0">Ce code expire dans <strong>10 minutes</strong>.<br/>Ne le partagez avec personne.</p></div><div class="footer"><p>© ${new Date().getFullYear()} Scalor · Si vous n'avez pas demandé ce code, ignorez cet email.</p></div></div></div></body></html>`
+        subject: `Code Scalor : ${code}`,
+        text: otpText,
+        html: otpHtml,
+        headers: {
+          'Auto-Submitted': 'auto-generated',
+          'X-Auto-Response-Suppress': 'All',
+          'X-Scalor-Email-Type': 'transactional-otp'
+        }
       });
       if (!result.success) {
         if (process.env.NODE_ENV === 'production') throw new Error(result.error);
