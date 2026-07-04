@@ -263,6 +263,8 @@ export function securityHeaders(req, res, next) {
       [
         "img-src 'self' data: blob:",
         "https://*.cloudinary.com https://*.r2.dev https://res.cloudinary.com",
+        // Images importées depuis Shopify / stores connectés
+        "https://cdn.shopify.com https://*.shopifycdn.net",
         // Domaines Scalor (logos, icons, banners de fallback)
         "https://scalor.net https://*.scalor.net",
         // Avatars Google Sign-In
