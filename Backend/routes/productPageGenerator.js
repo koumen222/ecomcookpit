@@ -25,6 +25,11 @@ import GenerationTask from '../models/GenerationTask.js';
 import GenerationPricingConfig from '../models/GenerationPricingConfig.js';
 import ProductPageGenerationLog from '../models/ProductPageGenerationLog.js';
 import { createAndStoreEbookPdf } from '../services/ebookPdfService.js';
+import {
+  assertGenerationCreditsAvailable,
+  chargeGenerationCredits,
+  isGenerationCreditError,
+} from '../services/generationCreditService.js';
 
 const router = express.Router();
 
@@ -2307,51 +2312,15 @@ router.post('/tasks/:id/digital-product', requireEcomAuth, validateEcomAccess('p
       return res.status(404).json({ success: false, message: 'Workspace introuvable' });
     }
 
-    // Consume one generation credit
+    // Check credits up front, but only charge after the ebook + PDF are generated.
     const pricingConfig = await GenerationPricingConfig.getSingleton();
     const pricing = pricingConfig.getSnapshot();
-    const simpleRemaining = workspace.simpleGenerationsRemaining || 0;
-    const freeRemaining = workspace.freeGenerationsRemaining || 0;
-    const paidRemaining = workspace.paidGenerationsRemaining || 0;
-    const totalRemaining = simpleRemaining + freeRemaining + paidRemaining;
-
-    if (totalRemaining <= 0) {
-      return res.status(403).json({
-        success: false,
-        limitReached: true,
-        message: '🎯 Tu n\'as plus de crédits !\n\nAchète des crédits pour générer un ebook.',
-        remaining: 0,
-        pricing,
-      });
-    }
-
     const EBOOK_COST = 3;
-    if (totalRemaining < EBOOK_COST) {
-      return res.status(403).json({
-        success: false,
-        limitReached: true,
-        message: `🎯 Il te faut ${EBOOK_COST} crédits pour générer un ebook (tu en as ${totalRemaining}).`,
-        remaining: totalRemaining,
-        pricing,
-      });
+    try {
+      assertGenerationCreditsAvailable(workspace, EBOOK_COST, { pricing, purpose: 'un ebook' });
+    } catch (creditError) {
+      return res.status(creditError.status || 403).json(creditError.payload);
     }
-    let toDeduct = EBOOK_COST;
-    if (simpleRemaining > 0) {
-      const use = Math.min(simpleRemaining, toDeduct);
-      workspace.simpleGenerationsRemaining = simpleRemaining - use;
-      toDeduct -= use;
-    }
-    if (toDeduct > 0 && (workspace.freeGenerationsRemaining || 0) > 0) {
-      const use = Math.min(workspace.freeGenerationsRemaining, toDeduct);
-      workspace.freeGenerationsRemaining = (workspace.freeGenerationsRemaining || 0) - use;
-      toDeduct -= use;
-    }
-    if (toDeduct > 0) {
-      workspace.paidGenerationsRemaining = (workspace.paidGenerationsRemaining || 0) - toDeduct;
-    }
-    workspace.totalGenerations = (workspace.totalGenerations || 0) + EBOOK_COST;
-    workspace.lastGenerationAt = new Date();
-    await workspace.save();
 
     const storeContext = buildWorkspaceStoreContext(workspace.toObject());
     const brief = req.body?.brief && typeof req.body.brief === 'object' ? req.body.brief : (req.body || {});
@@ -2378,6 +2347,11 @@ router.post('/tasks/:id/digital-product', requireEcomAuth, validateEcomAccess('p
       ? buildDigitalProductOfferConfig(product.productPageConfig || {}, product, ebook, digitalProduct)
       : product.productPageConfig;
 
+    const creditCharge = await chargeGenerationCredits(req.workspaceId, EBOOK_COST, {
+      pricing,
+      purpose: 'un ebook',
+    });
+
     await GenerationTask.findOneAndUpdate(
       { _id: task._id, workspaceId: req.workspaceId },
       {
@@ -2391,7 +2365,11 @@ router.post('/tasks/:id/digital-product', requireEcomAuth, validateEcomAccess('p
 
     await ProductPageGenerationLog.findOneAndUpdate(
       { taskId: task._id, workspaceId: req.workspaceId },
-      { $addToSet: { generatedContentTypes: 'bonus_ebook' } }
+      {
+        $set: { creditSource: creditCharge.creditSource },
+        $inc: { creditsUsed: EBOOK_COST },
+        $addToSet: { generatedContentTypes: 'bonus_ebook' },
+      }
     ).catch((logError) => {
       console.warn('[DigitalProduct] GenerationLog update failed:', logError.message);
     });
@@ -2400,6 +2378,10 @@ router.post('/tasks/:id/digital-product', requireEcomAuth, validateEcomAccess('p
       success: true,
       message: 'Produit digital généré',
       ebook,
+      generations: {
+        remaining: creditCharge.remaining,
+        totalUsed: creditCharge.totalUsed,
+      },
       product: {
         ...product,
         ebook,
@@ -2410,6 +2392,9 @@ router.post('/tasks/:id/digital-product', requireEcomAuth, validateEcomAccess('p
     });
   } catch (error) {
     console.error('[DigitalProduct] Task ebook generation error:', error.message);
+    if (isGenerationCreditError(error)) {
+      return res.status(error.status || 403).json(error.payload);
+    }
     return res.status(500).json({ success: false, message: 'Erreur lors de la génération du produit digital' });
   }
 });
@@ -2475,11 +2460,8 @@ router.post('/premium', requireEcomAuth, validateEcomAccess('products', 'write')
   let workspace = null;
   let storeContext = {};
   let consumedCreditSource = 'unknown';
-  // Une génération de page premium coûte 2 crédits ; le débit peut s'étaler sur
-  // plusieurs tiers (simple → free → paid). On mémorise le montant retiré par tier
-  // pour rembourser exactement en cas d'échec.
+  // Une génération de page premium coûte 2 crédits.
   const PREMIUM_COST = 2;
-  const creditDeductions = { simple: 0, free: 0, paid: 0 };
   let generationLogId = null;
   let taskId = null;
   let scraped = null;
@@ -2504,47 +2486,14 @@ router.post('/premium', requireEcomAuth, validateEcomAccess('products', 'write')
 
       const pricingConfig = await GenerationPricingConfig.getSingleton();
       const pricing = pricingConfig.getSnapshot();
-      const simpleRemaining = workspace.simpleGenerationsRemaining || 0;
-      const freeRemaining = workspace.freeGenerationsRemaining || 0;
-      const paidRemaining = workspace.paidGenerationsRemaining || 0;
-      const totalRemaining = simpleRemaining + freeRemaining + paidRemaining;
-
-      if (totalRemaining < PREMIUM_COST) {
-        return res.status(403).json({
-          success: false,
-          limitReached: true,
-          message: `🎯 Il te faut ${PREMIUM_COST} crédits pour générer une page produit premium (tu en as ${totalRemaining}).`,
-          remaining: totalRemaining,
-          totalGenerations: workspace.totalGenerations || 0,
+      try {
+        assertGenerationCreditsAvailable(workspace, PREMIUM_COST, {
           pricing,
+          purpose: 'une page produit premium',
         });
+      } catch (creditError) {
+        return res.status(creditError.status || 403).json(creditError.payload);
       }
-
-      // Débit du coût premium en priorité simple → free → paid, avec report du reste.
-      let toDeduct = PREMIUM_COST;
-      if (toDeduct > 0 && simpleRemaining > 0) {
-        const use = Math.min(simpleRemaining, toDeduct);
-        workspace.simpleGenerationsRemaining = simpleRemaining - use;
-        creditDeductions.simple = use;
-        toDeduct -= use;
-      }
-      if (toDeduct > 0 && freeRemaining > 0) {
-        const use = Math.min(freeRemaining, toDeduct);
-        workspace.freeGenerationsRemaining = freeRemaining - use;
-        creditDeductions.free = use;
-        toDeduct -= use;
-      }
-      if (toDeduct > 0) {
-        workspace.paidGenerationsRemaining = paidRemaining - toDeduct;
-        creditDeductions.paid = toDeduct;
-        toDeduct = 0;
-      }
-      const usedSources = Object.entries(creditDeductions).filter(([, v]) => v > 0).map(([k]) => k);
-      consumedCreditSource = usedSources.length > 1 ? 'mixed' : (usedSources[0] || 'unknown');
-
-      workspace.totalGenerations = (workspace.totalGenerations || 0) + PREMIUM_COST;
-      workspace.lastGenerationAt = new Date();
-      await workspace.save();
     }
 
     const avatarSummary = buildTargetAvatarSummary({
@@ -2588,7 +2537,7 @@ router.post('/premium', requireEcomAuth, validateEcomAccess('products', 'write')
         inputType: isDescriptionMode ? 'description' : 'url',
         outputMode: shouldGenerateImages ? 'premium_page_with_images' : 'premium_page_only',
         creditSource: consumedCreditSource,
-        creditsUsed: PREMIUM_COST,
+        creditsUsed: 0,
         productName: isDescriptionMode ? (userDescription || '').slice(0, 120) : '',
         productUrl: cleanUrl || '',
         generatedContentTypes: ['premium_product_page'],
@@ -2723,9 +2672,14 @@ router.post('/premium', requireEcomAuth, validateEcomAccess('products', 'write')
       _targetGender: ['female', 'male', 'mixed'].includes(targetGender) ? targetGender : 'auto',
     };
 
-    const updatedWorkspace = workspace ? await EcomWorkspace.findById(workspace._id)
+    const creditCharge = workspace ? await chargeGenerationCredits(req.workspaceId, PREMIUM_COST, {
+      purpose: 'une page produit premium',
+    }) : null;
+    if (creditCharge) consumedCreditSource = creditCharge.creditSource;
+
+    const updatedWorkspace = creditCharge?.workspace || (workspace ? await EcomWorkspace.findById(workspace._id)
       .select('freeGenerationsRemaining paidGenerationsRemaining totalGenerations simpleGenerationsRemaining')
-      .lean() : null;
+      .lean() : null);
 
     const generationsInfo = updatedWorkspace ? {
       remaining: (updatedWorkspace.simpleGenerationsRemaining || 0) + (updatedWorkspace.freeGenerationsRemaining || 0) + (updatedWorkspace.paidGenerationsRemaining || 0),
@@ -2750,6 +2704,8 @@ router.post('/premium', requireEcomAuth, validateEcomAccess('products', 'write')
       status: shouldGenerateImages ? 'processing_images' : 'completed',
       completedAt: shouldGenerateImages ? null : new Date(),
       errorMessage: '',
+      creditSource: consumedCreditSource,
+      creditsUsed: creditCharge ? PREMIUM_COST : 0,
       productName: productPage.title || 'Produit premium',
       productUrl: cleanUrl || '',
       stats: buildGenerationStats(productPage, {
@@ -2796,22 +2752,6 @@ router.post('/premium', requireEcomAuth, validateEcomAccess('products', 'write')
     console.error('❌ [PremiumPG] Erreur génération:', error.message);
     console.error('❌ [PremiumPG] Stack:', error.stack);
 
-    const refundTotal = creditDeductions.simple + creditDeductions.free + creditDeductions.paid;
-    if (workspace && refundTotal > 0) {
-      try {
-        const workspaceToRefund = await EcomWorkspace.findById(workspace._id);
-        if (workspaceToRefund) {
-          workspaceToRefund.simpleGenerationsRemaining = (workspaceToRefund.simpleGenerationsRemaining || 0) + creditDeductions.simple;
-          workspaceToRefund.freeGenerationsRemaining = (workspaceToRefund.freeGenerationsRemaining || 0) + creditDeductions.free;
-          workspaceToRefund.paidGenerationsRemaining = (workspaceToRefund.paidGenerationsRemaining || 0) + creditDeductions.paid;
-          workspaceToRefund.totalGenerations = Math.max(0, (workspaceToRefund.totalGenerations || 0) - refundTotal);
-          await workspaceToRefund.save();
-        }
-      } catch (refundError) {
-        console.error('❌ [PremiumPG] Erreur remboursement crédit:', refundError.message);
-      }
-    }
-
     if (taskId) {
       await updateTask(taskId, {
         status: 'error',
@@ -2826,6 +2766,10 @@ router.post('/premium', requireEcomAuth, validateEcomAccess('products', 'write')
       completedAt: new Date(),
       errorMessage: error.message || 'Erreur génération premium',
     });
+
+    if (isGenerationCreditError(error)) {
+      return res.status(error.status || 403).json(error.payload);
+    }
 
     res.status(500).json({
       success: false,
@@ -2991,40 +2935,15 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
     if (workspace && !isHeroMode) {
       const pricingConfig = await GenerationPricingConfig.getSingleton();
       const pricing = pricingConfig.getSnapshot();
-      const simpleRemaining = workspace.simpleGenerationsRemaining || 0;
-      const freeRemaining = workspace.freeGenerationsRemaining || 0;
-      const paidRemaining = workspace.paidGenerationsRemaining || 0;
-      const totalRemaining = simpleRemaining + freeRemaining + paidRemaining;
-
-      if (totalRemaining <= 0) {
-        return res.status(403).json({
-          success: false,
-          limitReached: true,
-          message: '🎯 Tu n\'as plus de crédits !\n\nAchète des crédits pour générer des pages produit.',
-          remaining: 0,
-          totalGenerations: workspace.totalGenerations || 0,
-          pricing
+      try {
+        const balances = assertGenerationCreditsAvailable(workspace, 1, {
+          pricing,
+          purpose: 'des pages produit',
         });
+        console.log(`✅ Génération autorisée. Crédits disponibles: ${balances.total}`);
+      } catch (creditError) {
+        return res.status(creditError.status || 403).json(creditError.payload);
       }
-
-      // Décrémenter: simpleRemaining d'abord, puis free, puis paid
-      if (simpleRemaining > 0) {
-        workspace.simpleGenerationsRemaining = simpleRemaining - 1;
-        consumedCreditSource = 'simple';
-      } else if (freeRemaining > 0) {
-        workspace.freeGenerationsRemaining = freeRemaining - 1;
-        consumedCreditSource = 'free';
-      } else {
-        workspace.paidGenerationsRemaining = paidRemaining - 1;
-        consumedCreditSource = 'paid';
-      }
-
-      workspace.totalGenerations = (workspace.totalGenerations || 0) + 1;
-      workspace.lastGenerationAt = new Date();
-      await workspace.save();
-
-      const newRemaining = (workspace.simpleGenerationsRemaining || 0) + (workspace.freeGenerationsRemaining || 0) + (workspace.paidGenerationsRemaining || 0);
-      console.log(`✅ Génération autorisée. Crédits restants: ${newRemaining}`);
     } else if (isHeroMode) {
       console.log(`✅ [HeroMode] Génération gratuite (photo hero, pas d'images IA)`);
     }
@@ -3076,7 +2995,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
         inputType: isDescriptionMode ? 'description' : 'url',
         outputMode: shouldGenerateImages ? 'page_with_images' : 'page_only',
         creditSource: consumedCreditSource,
-        creditsUsed: 1,
+        creditsUsed: 0,
         productName: isDescriptionMode ? (userDescription || '').slice(0, 120) : '',
         productUrl: cleanUrl || '',
         generatedContentTypes: [],
@@ -3245,10 +3164,15 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       _targetGender: ['female', 'male', 'mixed'].includes(targetGender) ? targetGender : 'auto',
     };
 
+    const creditCharge = workspace && !isHeroMode ? await chargeGenerationCredits(req.workspaceId, 1, {
+      purpose: 'des pages produit',
+    }) : null;
+    if (creditCharge) consumedCreditSource = creditCharge.creditSource;
+
     // Récupérer le nombre de générations restantes
-    const updatedWorkspace = workspace ? await EcomWorkspace.findById(workspace._id)
+    const updatedWorkspace = creditCharge?.workspace || (workspace ? await EcomWorkspace.findById(workspace._id)
       .select('freeGenerationsRemaining paidGenerationsRemaining totalGenerations simpleGenerationsRemaining')
-      .lean() : null;
+      .lean() : null);
 
     const generationsInfo = updatedWorkspace ? {
       remaining: (updatedWorkspace.simpleGenerationsRemaining || 0) + (updatedWorkspace.freeGenerationsRemaining || 0) + (updatedWorkspace.paidGenerationsRemaining || 0),
@@ -3274,6 +3198,8 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       status: shouldGenerateImages ? 'processing_images' : 'completed',
       completedAt: shouldGenerateImages ? null : new Date(),
       errorMessage: '',
+      creditSource: consumedCreditSource,
+      creditsUsed: creditCharge ? 1 : 0,
       productName: gptResult.title || scraped?.title || 'Produit sans nom',
       productUrl: cleanUrl || '',
       stats: buildGenerationStats(productPage, {
@@ -3332,34 +3258,6 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
     console.error('❌ Erreur génération:', error.message);
     console.error('❌ Stack:', error.stack);
 
-    // ══════════════════════════════════════════════════════════════════════════
-    // REMBOURSEMENT DU CRÉDIT EN CAS D'ERREUR
-    // ══════════════════════════════════════════════════════════════════════════
-    if (workspace && consumedCreditSource && consumedCreditSource !== 'unknown') {
-      try {
-        const workspaceToRefund = await EcomWorkspace.findById(workspace._id);
-        if (workspaceToRefund) {
-          // Recréditer le workspace selon la source de crédit consommée
-          if (consumedCreditSource === 'simple') {
-            workspaceToRefund.simpleGenerationsRemaining = (workspaceToRefund.simpleGenerationsRemaining || 0) + 1;
-          } else if (consumedCreditSource === 'free') {
-            workspaceToRefund.freeGenerationsRemaining = (workspaceToRefund.freeGenerationsRemaining || 0) + 1;
-          } else if (consumedCreditSource === 'paid') {
-            workspaceToRefund.paidGenerationsRemaining = (workspaceToRefund.paidGenerationsRemaining || 0) + 1;
-          }
-
-          // Décrémenter le compteur total également
-          workspaceToRefund.totalGenerations = Math.max(0, (workspaceToRefund.totalGenerations || 0) - 1);
-
-          await workspaceToRefund.save();
-          console.log(`✅ Crédit remboursé: source=${consumedCreditSource}, nouveau total=${(workspaceToRefund.simpleGenerationsRemaining || 0) + (workspaceToRefund.freeGenerationsRemaining || 0) + (workspaceToRefund.paidGenerationsRemaining || 0)}`);
-        }
-      } catch (refundError) {
-        console.error('❌ Erreur lors du remboursement du crédit:', refundError.message);
-        // Ne pas bloquer la réponse d'erreur principale si le remboursement échoue
-      }
-    }
-
     // Update the early-created task with error status
     if (taskId) {
       await updateTask(taskId, {
@@ -3373,6 +3271,10 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       completedAt: new Date(),
       errorMessage: error.message || 'Erreur lors de la génération',
     });
+
+    if (isGenerationCreditError(error)) {
+      return res.status(error.status || 403).json(error.payload);
+    }
 
     return res.status(500).json({
       success: false,

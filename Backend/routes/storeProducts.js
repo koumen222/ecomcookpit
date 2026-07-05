@@ -14,6 +14,11 @@ import { uploadImage, isConfigured } from '../services/cloudflareImagesService.j
 import { generateProductBonusEbook } from '../services/productPageGeneratorService.js';
 import { createAndStoreEbookPdf } from '../services/ebookPdfService.js';
 import GenerationPricingConfig from '../models/GenerationPricingConfig.js';
+import {
+  assertGenerationCreditsAvailable,
+  chargeGenerationCredits,
+  isGenerationCreditError,
+} from '../services/generationCreditService.js';
 import OpenAI from 'openai';
 
 let openai = null;
@@ -1645,51 +1650,15 @@ router.post('/:id/digital-product', requireEcomAuth, requireWorkspace, requireSt
       return res.status(404).json({ success: false, message: 'Workspace introuvable' });
     }
 
-    // Consume one generation credit
+    // Check credits up front, but only charge after the ebook + PDF are generated.
     const pricingConfig = await GenerationPricingConfig.getSingleton();
     const pricing = pricingConfig.getSnapshot();
-    const simpleRemaining = workspace.simpleGenerationsRemaining || 0;
-    const freeRemaining = workspace.freeGenerationsRemaining || 0;
-    const paidRemaining = workspace.paidGenerationsRemaining || 0;
-    const totalRemaining = simpleRemaining + freeRemaining + paidRemaining;
-
-    if (totalRemaining <= 0) {
-      return res.status(403).json({
-        success: false,
-        limitReached: true,
-        message: '🎯 Tu n\'as plus de crédits !\n\nAchète des crédits pour générer un ebook.',
-        remaining: 0,
-        pricing,
-      });
-    }
-
     const EBOOK_COST = 3;
-    if (totalRemaining < EBOOK_COST) {
-      return res.status(403).json({
-        success: false,
-        limitReached: true,
-        message: `🎯 Il te faut ${EBOOK_COST} crédits pour générer un ebook (tu en as ${totalRemaining}).`,
-        remaining: totalRemaining,
-        pricing,
-      });
+    try {
+      assertGenerationCreditsAvailable(workspace, EBOOK_COST, { pricing, purpose: 'un ebook' });
+    } catch (creditError) {
+      return res.status(creditError.status || 403).json(creditError.payload);
     }
-    let toDeduct = EBOOK_COST;
-    if (simpleRemaining > 0) {
-      const use = Math.min(simpleRemaining, toDeduct);
-      workspace.simpleGenerationsRemaining = simpleRemaining - use;
-      toDeduct -= use;
-    }
-    if (toDeduct > 0 && (workspace.freeGenerationsRemaining || 0) > 0) {
-      const use = Math.min(workspace.freeGenerationsRemaining, toDeduct);
-      workspace.freeGenerationsRemaining = (workspace.freeGenerationsRemaining || 0) - use;
-      toDeduct -= use;
-    }
-    if (toDeduct > 0) {
-      workspace.paidGenerationsRemaining = (workspace.paidGenerationsRemaining || 0) - toDeduct;
-    }
-    workspace.totalGenerations = (workspace.totalGenerations || 0) + EBOOK_COST;
-    workspace.lastGenerationAt = new Date();
-    await workspace.save();
 
     const brief = req.body?.brief && typeof req.body.brief === 'object' ? req.body.brief : (req.body || {});
     const source = buildStoreProductEbookSource(product.toObject(), workspace.toObject(), brief);
@@ -1713,6 +1682,11 @@ router.post('/:id/digital-product', requireEcomAuth, requireWorkspace, requireSt
     const nextProductPageConfig = addAsOffer
       ? buildStoreDigitalOfferConfig(product.productPageConfig || {}, product.toObject(), ebook, digitalProduct)
       : product.productPageConfig;
+
+    const creditCharge = await chargeGenerationCredits(req.workspaceId, EBOOK_COST, {
+      pricing,
+      purpose: 'un ebook',
+    });
 
     product._pageData = {
       ...(product._pageData || {}),
@@ -1744,10 +1718,17 @@ router.post('/:id/digital-product', requireEcomAuth, requireWorkspace, requireSt
       message: 'Produit digital généré',
       ebook,
       digitalProduct,
+      generations: {
+        remaining: creditCharge.remaining,
+        totalUsed: creditCharge.totalUsed,
+      },
       data: product.toObject(),
     });
   } catch (error) {
     console.error('Erreur POST /store-products/:id/digital-product:', error.message);
+    if (isGenerationCreditError(error)) {
+      return res.status(error.status || 403).json(error.payload);
+    }
     res.status(500).json({ success: false, message: 'Erreur lors de la génération du produit digital' });
   }
 });

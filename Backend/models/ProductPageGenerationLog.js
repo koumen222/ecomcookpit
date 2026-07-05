@@ -39,13 +39,13 @@ const productPageGenerationLogSchema = new mongoose.Schema({
   },
   outputMode: {
     type: String,
-    enum: ['page_only', 'page_with_images'],
+    enum: ['page_only', 'page_with_images', 'premium_page_only', 'premium_page_with_images'],
     required: true,
     index: true,
   },
   creditSource: {
     type: String,
-    enum: ['simple', 'free', 'paid', 'unknown'],
+    enum: ['simple', 'free', 'paid', 'mixed', 'unknown'],
     default: 'unknown',
     index: true,
   },
