@@ -33,6 +33,37 @@ const createCheckoutSessionId = () => {
   return `checkout_${Date.now()}_${Math.random().toString(36).slice(2, 12)}`;
 };
 
+const toPositiveNumber = (value) => {
+  const num = Number(value);
+  return Number.isFinite(num) && num > 0 ? num : 0;
+};
+
+const normalizeQuantity = (value) => Math.max(1, parseInt(value, 10) || 1);
+
+const getCartLineTotal = (product) => {
+  const hasOffer = product?.offerPrice != null || product?.offerQty != null;
+  const offerTotal = hasOffer ? toPositiveNumber(product?.offerPrice) : 0;
+  if (offerTotal > 0) return offerTotal;
+  return toPositiveNumber(product?.price) * normalizeQuantity(product?.quantity);
+};
+
+const buildOrderProductPayload = (product) => {
+  const payload = {
+    productId: product.productId || product._id,
+    quantity: normalizeQuantity(product.quantity),
+  };
+  const offerPrice = toPositiveNumber(product.offerPrice);
+  const offerQty = product.offerQty != null ? normalizeQuantity(product.offerQty) : null;
+
+  if (offerPrice > 0 && offerQty) {
+    payload.quantity = offerQty;
+    payload.offerPrice = offerPrice;
+    payload.offerQty = offerQty;
+  }
+
+  return payload;
+};
+
 /**
  * Normalize a city name for fuzzy matching.
  * Removes accents, lowercases, trims, collapses spaces.
@@ -97,7 +128,16 @@ const StoreCheckout = () => {
   // Products passed from product page via location state
   const cartProducts = location.state?.products || [];
   const cartSignature = useMemo(
-    () => cartProducts.map((p) => `${p.productId || p._id || ''}:${p.quantity || 1}`).join('|'),
+    () => cartProducts.map((p) => [
+      p.productId || p._id || '',
+      normalizeQuantity(p.quantity),
+      p.offerQty || '',
+      p.offerPrice || '',
+    ].join(':')).join('|'),
+    [cartProducts]
+  );
+  const cartSubtotal = useMemo(
+    () => cartProducts.reduce((sum, p) => sum + getCartLineTotal(p), 0),
     [cartProducts]
   );
   const checkoutSessionStorageKey = useMemo(
@@ -218,7 +258,7 @@ const StoreCheckout = () => {
     const fireCheckoutPixels = (pixelsData, storeData) => {
       if (_pixelsFiredRef.current) return;
       _pixelsFiredRef.current = true;
-      const total = cartProducts.reduce((sum, p) => sum + (p.price || 0) * (p.quantity || 1), 0);
+      const total = cartSubtotal;
       const cartCurrs = [...new Set(cartProducts.map((p) => String(p.currency || '').trim().toUpperCase()).filter(Boolean))];
       const checkoutCur = cartCurrs.length === 1 ? cartCurrs[0] : (storeData?.currency || 'XAF');
       trackStorefrontEvent({
@@ -400,7 +440,7 @@ const StoreCheckout = () => {
     style: inputStyle(field),
   });
 
-  const subtotal = cartProducts.reduce((sum, p) => sum + (p.price * p.quantity), 0);
+  const subtotal = cartSubtotal;
   // Zone cost takes priority; flat fee is the fallback when no per-zone cost applies
   const zoneCost = deliveryStatus.cost || 0;
   const flatCostApplies = flatShippingEnabled && flatShippingFee > 0 && zoneCost === 0;
@@ -438,10 +478,7 @@ const StoreCheckout = () => {
       notes: form.notes.trim(),
       deliveryType: deliveryStatus.type === 'livraison' ? 'livraison' : deliveryStatus.type === 'expedition' ? 'expedition' : '',
       deliveryCost,
-      products: cartProducts.map(p => ({
-        productId: p.productId,
-        quantity: p.quantity
-      })),
+      products: cartProducts.map(buildOrderProductPayload),
       affiliateCode: affiliateAttribution?.affiliateCode || '',
       affiliateLinkCode: affiliateAttribution?.affiliateLinkCode || '',
       metaSourceUrl: typeof window !== 'undefined' ? window.location.href : '',
@@ -471,6 +508,7 @@ const StoreCheckout = () => {
     deliveryStatus.type,
     deliveryCost,
     cartProducts,
+    cartSubtotal,
   ]);
 
   const handleSubmit = async (e) => {
@@ -519,10 +557,7 @@ const StoreCheckout = () => {
         notes: form.notes.trim(),
         deliveryType: deliveryStatus.type === 'livraison' ? 'livraison' : deliveryStatus.type === 'expedition' ? 'expedition' : '',
         deliveryCost: deliveryCost,
-        products: cartProducts.map(p => ({
-          productId: p.productId,
-          quantity: p.quantity
-        })),
+        products: cartProducts.map(buildOrderProductPayload),
         channel: 'store',
         metaEventId: purchaseEventId,
         metaSourceUrl: typeof window !== 'undefined' ? window.location.href : '',
@@ -538,7 +573,7 @@ const StoreCheckout = () => {
       }
 
       // Fire Purchase pixel event — ensure scripts are loaded first
-      const orderTotal = orderData?.total ?? cartProducts.reduce((sum, p) => sum + (p.price || 0) * (p.quantity || 1), 0);
+      const orderTotal = orderData?.total ?? total;
       safeFirePixelEvent(pixels, 'Purchase', {
         value: orderTotal,
         currency,
@@ -843,7 +878,7 @@ const StoreCheckout = () => {
                     <p className="text-xs text-gray-400">Qté : {p.quantity}</p>
                   </div>
                   <span className="text-sm font-bold flex-shrink-0" style={{ color: formTextColor }}>
-                    {formatPrice(p.price * p.quantity, currency)}
+                    {formatPrice(getCartLineTotal(p), currency)}
                   </span>
                 </div>
               ))}

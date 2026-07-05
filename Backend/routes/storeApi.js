@@ -159,6 +159,29 @@ function normalizePhoneDigits(value) {
   return String(value || '').replace(/\D/g, '');
 }
 
+function toPositiveNumber(value) {
+  const num = Number(value);
+  return Number.isFinite(num) && num > 0 ? num : 0;
+}
+
+function normalizeQuantity(value) {
+  return Math.max(1, parseInt(value, 10) || 1);
+}
+
+function normalizeOfferQuantity(value) {
+  const qty = parseInt(value, 10);
+  return Number.isFinite(qty) && qty > 0 ? qty : null;
+}
+
+function findMatchingQuantityOffer(validOffers, requestedQty, requestedPrice) {
+  if (!requestedQty || requestedPrice <= 0) return null;
+  return (validOffers || []).find((offer) => {
+    const offerQty = Number(offer.qty ?? offer.quantity);
+    const offerPrice = Number(offer.price);
+    return offerQty === requestedQty && offerPrice === requestedPrice;
+  }) || null;
+}
+
 function shouldBypassResponseCache(req) {
   return req.query?._fresh != null || req.query?._ts != null || req.get('cache-control')?.includes('no-cache');
 }
@@ -1106,7 +1129,9 @@ router.post('/:subdomain/abandoned-checkout', checkoutDraftLimiter, async (req, 
       ? products
           .map((item) => ({
             productId: String(item?.productId || item?._id || '').trim(),
-            quantity: Math.max(1, parseInt(item?.quantity, 10) || 1),
+            quantity: normalizeQuantity(item?.quantity),
+            offerPrice: toPositiveNumber(item?.offerPrice),
+            offerQty: normalizeOfferQuantity(item?.offerQty),
           }))
           .filter((item) => mongoose.Types.ObjectId.isValid(item.productId))
       : [];
@@ -1143,20 +1168,47 @@ router.post('/:subdomain/abandoned-checkout', checkoutDraftLimiter, async (req, 
     const orderCurrencies = new Set();
     const orderProducts = [];
     let subtotal = 0;
+    const storeSettings = workspace.storeSettings || {};
+    const ppConversion = storeSettings.productPageConfig?.conversion || {};
+    const storeOffers = ppConversion.offersEnabled ? (ppConversion.offers || []) : [];
 
     for (const item of requestedProducts) {
       const dbProduct = productMap.get(item.productId);
       if (!dbProduct) continue;
-      const quantity = Math.max(1, item.quantity || 1);
+      const quantity = item.offerPrice > 0 && item.offerQty
+        ? item.offerQty
+        : Math.max(1, item.quantity || 1);
       const price = Number(dbProduct.price) || 0;
+
+      const productConversion = dbProduct.productPageConfig?.conversion || {};
+      const productOffers = productConversion.offersEnabled ? (productConversion.offers || []) : [];
+      let validOffers = productOffers.length > 0 ? productOffers : storeOffers;
+
+      const qtyOffer = await QuantityOffer.findOne({
+        workspaceId,
+        productId: dbProduct._id,
+        isActive: true
+      }).sort({ createdAt: -1 }).lean();
+      if (qtyOffer?.offers?.length > 0) {
+        validOffers = qtyOffer.offers.map(o => ({ qty: o.quantity, price: o.price }));
+      }
+
+      let lineTotal = price * quantity;
+      let effectiveUnitPrice = price;
+      const matchingOffer = findMatchingQuantityOffer(validOffers, item.offerQty, item.offerPrice);
+      if (matchingOffer) {
+        lineTotal = Number(matchingOffer.price);
+        effectiveUnitPrice = Math.round(lineTotal / quantity);
+      }
+
       orderProducts.push({
         productId: dbProduct._id,
         name: dbProduct.name,
-        price,
+        price: effectiveUnitPrice,
         quantity,
         image: dbProduct.images?.[0]?.url || '',
       });
-      subtotal += price * quantity;
+      subtotal += lineTotal;
       if (dbProduct.currency) {
         orderCurrencies.add(String(dbProduct.currency).trim().toUpperCase());
       }
@@ -1339,7 +1391,11 @@ router.post('/:subdomain/orders', orderLimiter, async (req, res) => {
         });
       }
 
-      const qty = Math.max(1, parseInt(item.quantity) || 1);
+      const requestedOfferPrice = toPositiveNumber(item.offerPrice);
+      const requestedOfferQty = normalizeOfferQuantity(item.offerQty);
+      const qty = requestedOfferPrice > 0 && requestedOfferQty
+        ? requestedOfferQty
+        : normalizeQuantity(item.quantity);
       if (dbProduct.stock < qty) {
         return res.status(400).json({
           success: false,
@@ -1365,13 +1421,11 @@ router.post('/:subdomain/orders', orderLimiter, async (req, res) => {
 
       let itemTotal = dbProduct.price * qty;
       let effectiveUnitPrice = dbProduct.price;
-      if (item.offerPrice != null && item.offerQty != null) {
-        const matchingOffer = validOffers.find(o => o.qty === item.offerQty && o.price === item.offerPrice);
-        if (matchingOffer) {
-          itemTotal = matchingOffer.price;
-          // Store the effective per-unit price so order snapshot math is consistent
-          effectiveUnitPrice = Math.round(matchingOffer.price / qty);
-        }
+      const matchingOffer = findMatchingQuantityOffer(validOffers, requestedOfferQty, requestedOfferPrice);
+      if (matchingOffer) {
+        itemTotal = Number(matchingOffer.price);
+        // Store the effective per-unit price so order snapshot math is consistent
+        effectiveUnitPrice = Math.round(itemTotal / qty);
       }
 
       orderProducts.push({
@@ -1459,10 +1513,10 @@ router.post('/:subdomain/orders', orderLimiter, async (req, res) => {
 
     // Decrement stock atomically (synchronous — must complete before confirming).
     // Scope filter by workspaceId to ensure we never touch another tenant's stock.
-    const bulkOps = products.map(item => ({
+    const bulkOps = orderProducts.map(item => ({
       updateOne: {
-        filter: { _id: new mongoose.Types.ObjectId(item.productId), workspaceId: workspace._workspaceId },
-        update: { $inc: { stock: -(parseInt(item.quantity) || 1) } }
+        filter: { _id: item.productId, workspaceId: workspace._workspaceId },
+        update: { $inc: { stock: -(item.quantity || 1) } }
       }
     }));
     await StoreProduct.bulkWrite(bulkOps);
@@ -1580,7 +1634,9 @@ router.post('/:subdomain/orders', orderLimiter, async (req, res) => {
           city: normalizedCityVal || order.city,
           address: order.address,
           product: productSummary,
-          quantity: orderProducts.reduce((sum, p) => sum + p.quantity, 0),
+          // quantity = 1: price already contains the full order total.
+          // Otherwise dashboards that compute price * quantity double-count quantity offers.
+          quantity: 1,
           price: order.total,
           currency: order.currency,
           status: 'pending',
