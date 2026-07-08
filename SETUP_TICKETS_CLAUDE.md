@@ -3,15 +3,15 @@
 Quand un ticket **bug technique** est créé (ou via le bouton **« Envoyer à Claude Code »**
 dans l'interface super admin), le backend déclenche un workflow GitHub qui lance **ton
 Claude Code** (ton abonnement Claude Max, pas une clé API) sur le repo. Claude crée une branche `fix/ticket-{id}`,
-code le correctif, ouvre une **PR vers `dev`** (jamais `main`), puis rappelle le backend
-pour remplir le ticket (diagnostic, branche, PR). Tu valides ensuite dans l'interface.
+code le correctif, puis **commit + push sur cette branche** (aucune PR ni déploiement
+automatiques) et rappelle le backend. **Toi** tu ouvres/merges la PR quand tu veux.
 
 ```
 Ticket bug ──► POST /repos/OWNER/REPO/dispatches (event: ticket_fix)
             └► GitHub Action: Claude Code (abonnement Max via CLAUDE_CODE_OAUTH_TOKEN)
                ├─ branche fix/ticket-{id} depuis dev
                ├─ correctif + tests
-               ├─ PR ──► dev
+               ├─ commit + push (PAS de PR, PAS de deploy)
                └► callback POST /api/ecom/tickets/{id}/analysis  ──► statut en_review
 ```
 
@@ -72,9 +72,10 @@ TICKET_PR_BASE=dev
    *Bug technique*. Le dispatch part automatiquement (statut → *Analyse en cours*).
    Ou ouvre un ticket existant → **Envoyer à Claude Code**.
 2. Onglet **Actions** du repo GitHub → le run *Ticket fix (Claude Code)* démarre.
-3. À la fin : une **PR vers `dev`** est ouverte, et le ticket passe en **En review**
-   (branche + lien PR visibles dans le détail).
-4. Tu relis la PR sur GitHub, tu merges → tu passes le ticket en *Déployé* / *Fermé*.
+3. À la fin : la branche **fix/ticket-{id}** est poussée (aucune PR, aucun déploiement),
+   et le ticket passe en **En review** (branche visible dans le détail).
+4. Quand tu veux : tu ouvres la PR sur GitHub, tu relis, tu merges vers `dev`.
+   Le **déploiement ne part que sur `main`** — donc rien ne se déploie tant que tu ne le fais pas.
 
 ## 4) Réglages Claude Code (si besoin)
 
@@ -90,8 +91,9 @@ que certains dossiers, restreins les outils Bash ou ajoute des règles.
 
 ## 5) Garde-fous
 
-- La PR cible **`dev`**, jamais `main`.
-- Le merge reste **manuel** (tu approuves la PR).
+- Claude ne pousse que des branches **`fix/*`** : **aucune PR ni déploiement automatiques**.
+- Le déploiement (`deploy-vps.yml`) ne se déclenche **que sur push vers `main`**.
+- Ouverture de PR et merge restent **100% manuels**.
 - L'endpoint de callback est protégé par `TICKET_CALLBACK_SECRET` (header `x-ticket-secret`).
 - Le prompt interdit à Claude de toucher aux secrets/.env/CI.
 - Côté modèle, `approve-patch` reste bloqué si `riskLevel = high` ou liste noire.

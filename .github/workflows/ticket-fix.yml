@@ -3,8 +3,8 @@ name: Ticket fix (Claude Code)
 # Déclenché par le backend via repository_dispatch (event_type: ticket_fix).
 # Lance TON Claude Code (abonnement Claude Max via CLAUDE_CODE_OAUTH_TOKEN) pour résoudre le bug :
 #   → crée la branche fix/ticket-{id} depuis `dev`, code le correctif,
-#   → ouvre une PR vers `dev` (jamais main),
-#   → rappelle le backend (POST /:id/analysis) avec le résultat.
+#   → commit + push sur la branche (AUCUNE PR ni déploiement automatiques),
+#   → rappelle le backend (POST /:id/analysis). Tu ouvres/merges la PR toi-même.
 #
 # Secrets GitHub requis (Settings → Secrets and variables → Actions) :
 #   CLAUDE_CODE_OAUTH_TOKEN : jeton OAuth de TON abonnement Claude Max
@@ -114,24 +114,12 @@ jobs:
             echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Ouvrir la PR vers dev
-        id: pr
-        if: steps.commit.outputs.changed == 'true'
-        run: |
-          PR_URL=$(gh pr create \
-            --base "${BASE_BRANCH}" \
-            --head "${BRANCH}" \
-            --title "fix(ticket ${TICKET_ID}): ${TICKET_TITLE}" \
-            --body "Correctif automatique proposé par Claude Code pour le ticket ${TICKET_ID}.\n\nTests: ${{ steps.tests.outputs.passed }}\n\n$(cat /tmp/claude_out.txt | tail -c 3000)" \
-            2>/dev/null) || PR_URL=""
-          echo "url=$PR_URL" >> "$GITHUB_OUTPUT"
-
       - name: Callback backend
         if: always()
         run: |
           CHANGED="${{ steps.commit.outputs.changed }}"
           TESTS="${{ steps.tests.outputs.passed }}"
-          PR_URL="${{ steps.pr.outputs.url }}"
+          PR_URL=""   # pas de PR auto — commits seulement
           DIAG="$(tail -c 3000 /tmp/claude_out.txt 2>/dev/null || echo '')"
           FILES="$(git diff --name-only "origin/${BASE_BRANCH}...HEAD" 2>/dev/null | jq -R . | jq -s . || echo '[]')"
           OKVAL=$([ "$CHANGED" = "true" ] && echo true || echo false)
