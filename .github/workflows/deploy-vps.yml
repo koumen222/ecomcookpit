@@ -1,9 +1,7 @@
 name: Deploy to VPS
 
 on:
-  push:
-    branches:
-      - main
+  # Déploiement volontaire uniquement : les commits/PR auto ne déploient pas.
   workflow_dispatch:
 
 permissions:
