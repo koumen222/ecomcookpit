@@ -368,6 +368,7 @@ const startServer = async () => {
       ['./routes/mailServerAdmin.js',         '/api/ecom/super-admin/mail-server'],
       ['./routes/superAdminPush.js',          '/api/ecom/super-admin/push'],
       ['./routes/support.js',                 '/api/ecom/support'],
+      ['./routes/tickets.js',                 '/api/ecom/tickets'],
       ['./routes/analytics.js',               '/api/ecom/analytics'],
       ['./routes/marketing.js',               '/api/ecom/marketing'],
       ['./routes/affiliate.js',               '/api/ecom/affiliates'],

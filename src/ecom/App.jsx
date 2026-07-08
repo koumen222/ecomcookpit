@@ -5,6 +5,7 @@ import { CurrencyProvider } from './contexts/CurrencyContext.jsx';
 import { ThemeProvider } from './contexts/ThemeContext.jsx';
 import { StoreProvider, useStore, isStoreEnabled } from './contexts/StoreContext.jsx';
 import { PlanGateProvider } from './contexts/PlanGateContext.jsx';
+import { LanguageProvider } from './contexts/LanguageContext.jsx';
 import { useEcomAuth } from './hooks/useEcomAuth.jsx';
 // analytics imported lazily in PageViewTracker — keeps axios out of the critical bundle
 import { usePosthogPageViews } from './hooks/usePosthogPageViews.js';
@@ -646,6 +647,7 @@ const EcomApp = () => {
   }
 
   return (
+    <LanguageProvider>
     <CurrencyProvider>
       <ThemeProvider>
         <PlanGateProvider>
@@ -898,6 +900,7 @@ const EcomApp = () => {
         </PlanGateProvider>
       </ThemeProvider>
     </CurrencyProvider>
+    </LanguageProvider>
   );
 };
 

@@ -19,6 +19,16 @@ const WEBHOOK_EVENTS = ['MESSAGES_UPSERT', 'MESSAGES_UPDATE', 'SEND_MESSAGE', 'C
 let healthCheckCronJob = null;
 
 /**
+ * Evolution API réellement configuré ?
+ * Sans EVOLUTION_API_URL, les services retombent sur le placeholder
+ * https://api.evolution-api.com (domaine inexistant) → ENOTFOUND en boucle.
+ */
+function isEvolutionConfigured() {
+  const url = String(process.env.EVOLUTION_API_URL || '').trim();
+  return Boolean(url) && !url.includes('api.evolution-api.com');
+}
+
+/**
  * Configure le webhook sur une instance Evolution API
  * @returns {Promise<{success: boolean, error?: string}>}
  */
@@ -75,6 +85,14 @@ async function isWebhookCorrect(instance) {
  */
 export async function syncAllWebhooks({ force = false, silent = false } = {}) {
   const label = force ? 'STARTUP' : 'HEALTH-CHECK';
+
+  if (!isEvolutionConfigured()) {
+    if (!silent) {
+      console.log(`⏭️ [${label}] EVOLUTION_API_URL non configuré — sync webhooks Rita ignoré (normal en local)`);
+    }
+    return { total: 0, configured: 0, skipped: 0, errors: 0, disabled: true };
+  }
+
   if (!silent) {
     console.log(`\n🔄 ═══════════════════════════════════════════════════`);
     console.log(`🔄 [${label}] Synchronisation webhooks Rita...`);
@@ -184,6 +202,11 @@ export function stopWebhookHealthCheck() {
  * 2. Démarre le health check périodique
  */
 export async function initRitaWebhookSync() {
+  if (!isEvolutionConfigured()) {
+    console.log('⏭️ [WEBHOOK-SYNC] EVOLUTION_API_URL non configuré — auto-sync webhooks Rita désactivé (normal en local)');
+    return;
+  }
+
   console.log('🚀 [WEBHOOK-SYNC] Initialisation auto-sync webhooks Rita...');
 
   // Délai de 5 secondes pour laisser le serveur démarrer complètement

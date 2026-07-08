@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useMemo, useCallback } from 'react';
+import React, { createContext, useContext, useMemo, useCallback, useState, useEffect } from 'react';
 import { useEcomAuth } from '../hooks/useEcomAuth.jsx';
 import { getCurrencyInfo, formatMoney } from '../utils/currency.js';
 
@@ -48,11 +48,29 @@ export const conversionRates = {
 
 const CurrencyContext = createContext();
 
+// Lit la devise de la boutique active publiée par le StoreProvider
+const readActiveStoreCurrency = () => {
+  if (typeof window === 'undefined') return null;
+  return window.__activeStoreCurrency__ || null;
+};
+
 export const CurrencyProvider = ({ children }) => {
   const { user } = useEcomAuth();
 
-  // Gestion robuste de la devise avec fallback
-  const currencyCode = user?.currency || 'XAF';
+  // La devise affichée suit en priorité la devise DÉFINIE SUR LA BOUTIQUE active
+  // (affichage du store et des stats), et non la préférence de l'utilisateur.
+  const [storeCurrency, setStoreCurrency] = useState(readActiveStoreCurrency);
+
+  useEffect(() => {
+    const handler = (e) => setStoreCurrency(e?.detail?.currency || readActiveStoreCurrency());
+    window.addEventListener('scalor:currency-change', handler);
+    // Synchronise au montage au cas où l'événement aurait été émis avant l'abonnement
+    setStoreCurrency(readActiveStoreCurrency());
+    return () => window.removeEventListener('scalor:currency-change', handler);
+  }, []);
+
+  // Gestion robuste de la devise avec fallback : boutique active > utilisateur > XAF
+  const currencyCode = storeCurrency || user?.currency || 'XAF';
   const currencyInfo = getCurrencyInfo(currencyCode);
 
   // Convertir un montant de la devise source vers la devise de l'utilisateur

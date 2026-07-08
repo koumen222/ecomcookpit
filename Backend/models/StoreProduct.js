@@ -76,6 +76,12 @@ const storeProductSchema = new mongoose.Schema({
     trim: true,
     default: ''
   },
+  // Langue d'affichage de la page produit (prioritaire sur la langue boutique) — null = langue boutique
+  pageLanguage: {
+    type: String,
+    enum: ['fr', 'en', 'es', null],
+    default: null
+  },
   stock: {
     type: Number,
     required: true,
@@ -191,6 +197,12 @@ const storeProductSchema = new mongoose.Schema({
   },
   // Per-product page configuration (conversion, design overrides)
   productPageConfig: {
+    type: mongoose.Schema.Types.Mixed,
+    default: null
+  },
+  // Cache des traductions de contenu par langue (cf. services/contentTranslationService.js)
+  // { en: { hash, data, updatedAt }, es: { ... } }
+  contentTranslations: {
     type: mongoose.Schema.Types.Mixed,
     default: null
   }

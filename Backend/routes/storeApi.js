@@ -33,6 +33,7 @@ import Order from '../models/Order.js';
 import OrderSource from '../models/OrderSource.js';
 import EcomUser from '../models/EcomUser.js';
 import QuantityOffer from '../models/QuantityOffer.js';
+import { applyProductTranslation, normalizeContentLang } from '../services/contentTranslationService.js';
 import { notifyNewOrder } from '../services/notificationHelper.js';
 import { memCache } from '../services/memoryCache.js';
 import { sendClientOrderConfirmation } from '../services/shopifyWhatsappService.js';
@@ -113,9 +114,14 @@ function getCachedResponse(key) {
   return entry.data;
 }
 
-// pub-*.r2.dev is Cloudflare's development URL and can be rate limited.
-// When R2_CDN_URL is configured, rewrite legacy payloads without a DB migration.
+// ─── Réécriture des URLs média R2 (r2.dev → domaine CDN custom) ───────────────
+// pub-*.r2.dev est rate-limité par Cloudflare (usage dev uniquement) → images qui
+// disparaissent sous trafic. Quand R2_CDN_URL est défini (bucket connecté à un
+// domaine custom), toutes les URLs des payloads publics sont réécrites à la volée
+// — anciennes données incluses, sans migration.
 const R2_DEV_URL_RX = /https:\/\/pub-[a-z0-9]+\.r2\.dev/g;
+const MAX_PUBLIC_INLINE_MEDIA_LENGTH = 120_000; // ~90 KB binary once base64-decoded.
+
 function rewriteMediaUrls(payload) {
   const cdn = String(process.env.R2_CDN_URL || '').trim().replace(/\/+$/, '');
   if (!cdn) return payload;
@@ -124,6 +130,26 @@ function rewriteMediaUrls(payload) {
   } catch {
     return payload;
   }
+}
+
+function stripLargeInlineMedia(value) {
+  if (typeof value === 'string') {
+    if (/^data:(image|video|audio|application)\//i.test(value) && value.length > MAX_PUBLIC_INLINE_MEDIA_LENGTH) {
+      return '';
+    }
+    return value;
+  }
+  if (Array.isArray(value)) return value.map(stripLargeInlineMedia);
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, child]) => [key, stripLargeInlineMedia(child)])
+    );
+  }
+  return value;
+}
+
+function preparePublicPayload(payload) {
+  return stripLargeInlineMedia(rewriteMediaUrls(payload));
 }
 
 function setCachedResponse(key, data, ttlMs) {
@@ -549,6 +575,7 @@ router.get('/:subdomain', readLimiter, async (req, res) => {
           language: settings.language || 'fr',
           country: settings.country || settings.storeCountry || '',
           subdomain: workspace.subdomain,
+          customDomain: workspace.storeDomains?.customDomain || '',
           // Theme config - PRIORITÉ AUX SETTINGS (configurés dans /boutique/settings)
           template: theme.template || 'classic',
           primaryColor: settings.primaryColor || settings.storeThemeColor || theme.primaryColor || '#0F6B4F',
@@ -601,7 +628,7 @@ router.get('/:subdomain', readLimiter, async (req, res) => {
       }
     };
 
-    payload = rewriteMediaUrls(payload);
+    payload = preparePublicPayload(payload);
     setCachedResponse(cacheKey, payload, PUBLIC_HOME_CACHE_TTL);
     res.set('X-Scalor-Cache', 'MISS');
     res.json(payload);
@@ -689,7 +716,7 @@ router.get('/:subdomain/products', readLimiter, async (req, res) => {
       }
     };
 
-    payload = rewriteMediaUrls(payload);
+    payload = preparePublicPayload(payload);
     setCachedResponse(cacheKey, payload, PUBLIC_PRODUCTS_CACHE_TTL);
     res.set('X-Scalor-Cache', 'MISS');
     res.json(payload);
@@ -709,7 +736,14 @@ router.get('/:subdomain/products/:slug', readLimiter, async (req, res) => {
   try {
     const subdomainKey = normalizeSubdomainKey(req.params.subdomain);
     const slugKey = String(req.params.slug || '').toLowerCase().trim();
-    const cacheKey = `${subdomainKey}:product:${slugKey}`;
+
+    const workspace = await withPublicTimeout(resolveStore(req.params.subdomain), 'resolve public store');
+    if (!workspace) {
+      return res.status(404).json({ success: false, message: 'Store not found' });
+    }
+    // Langue de la boutique → contenu produit traduit + cache par langue
+    const storeLang = normalizeContentLang(workspace.storeSettings?.language);
+    const cacheKey = `${subdomainKey}:product:${slugKey}:${storeLang}`;
     const cached = shouldBypassResponseCache(req) ? null : getCachedResponse(cacheKey);
     if (cached) {
       setCacheHeaders(res, 60);
@@ -717,23 +751,24 @@ router.get('/:subdomain/products/:slug', readLimiter, async (req, res) => {
       return res.json(cached);
     }
 
-    const workspace = await withPublicTimeout(resolveStore(req.params.subdomain), 'resolve public store');
-    if (!workspace) {
-      return res.status(404).json({ success: false, message: 'Store not found' });
-    }
-
-    const product = await StoreProduct.findOne({
+    let product = await StoreProduct.findOne({
       ...getProductFilter(workspace),
       slug: req.params.slug,
       isPublished: true
     })
-    .select('name slug description price compareAtPrice currency country targetMarket city locale stock images category tags seoTitle seoDescription features faq testimonials _pageData productPageConfig')
+    .select('name slug description price compareAtPrice currency country targetMarket city locale pageLanguage stock images category tags seoTitle seoDescription features faq testimonials _pageData productPageConfig contentTranslations')
     .lean()
     .maxTimeMS(1200);
 
     if (!product) {
       return res.status(404).json({ success: false, message: 'Product not found' });
     }
+
+    // Langue effective de la page : réglage par produit > langue de la boutique
+    const effectiveLang = normalizeContentLang(product.pageLanguage || storeLang);
+    product = await applyProductTranslation(product, effectiveLang);
+    product.pageLanguage = effectiveLang;
+    delete product.contentTranslations;
 
     // Fetch quantity offers in parallel with response preparation
     const quantityOfferPromise = QuantityOffer.findOne({
@@ -765,7 +800,9 @@ router.get('/:subdomain/products/:slug', readLimiter, async (req, res) => {
         country: productCountry,
         targetMarket: product.targetMarket || '',
         city: product.city || '',
+      pageLanguage: product.pageLanguage,
         locale: productLocale,
+        pageLanguage: product.pageLanguage,
         stock: product.stock,
         images: product.images || [],
         category: product.category,
@@ -790,7 +827,7 @@ router.get('/:subdomain/products/:slug', readLimiter, async (req, res) => {
       }
     };
 
-    payload = rewriteMediaUrls(payload);
+    payload = preparePublicPayload(payload);
     setCachedResponse(cacheKey, payload, PUBLIC_PRODUCT_PAGE_CACHE_TTL);
     res.set('X-Scalor-Cache', 'MISS');
     res.json(payload);
@@ -829,7 +866,7 @@ router.get('/:subdomain/categories', readLimiter, async (req, res) => {
     // Categories rarely change — cache 10 minutes
     setCacheHeaders(res, 600);
     let payload = { success: true, data: categories.sort() };
-    payload = rewriteMediaUrls(payload);
+    payload = preparePublicPayload(payload);
     setCachedResponse(cacheKey, payload, PUBLIC_CATEGORIES_CACHE_TTL);
     res.set('X-Scalor-Cache', 'MISS');
     res.json(payload);
@@ -851,17 +888,19 @@ router.get('/:subdomain/product-page/:slug', readLimiter, async (req, res) => {
   try {
     const subdomainKey = normalizeSubdomainKey(req.params.subdomain);
     const slugKey = String(req.params.slug || '').toLowerCase().trim();
-    const cacheKey = `${subdomainKey}:product-page:${slugKey}`;
+
+    const workspace = await withPublicTimeout(resolveStore(req.params.subdomain), 'resolve public store');
+    if (!workspace) {
+      return res.status(404).json({ success: false, message: 'Store not found' });
+    }
+    // Langue de la boutique → contenu produit traduit + cache par langue
+    const storeLang = normalizeContentLang(workspace.storeSettings?.language);
+    const cacheKey = `${subdomainKey}:product-page:${slugKey}:${storeLang}`;
     const cached = shouldBypassResponseCache(req) ? null : getCachedResponse(cacheKey);
     if (cached) {
       setCacheHeaders(res, 60);
       res.set('X-Scalor-Cache', 'HIT');
       return res.json(cached);
-    }
-
-    const workspace = await withPublicTimeout(resolveStore(req.params.subdomain), 'resolve public store');
-    if (!workspace) {
-      return res.status(404).json({ success: false, message: 'Store not found' });
     }
 
     const productFilter = {
@@ -880,9 +919,9 @@ router.get('/:subdomain/product-page/:slug', readLimiter, async (req, res) => {
       return res.status(404).json({ success: false, message: 'Product not found' });
     }
 
-    const [product, quantityOffer] = await withPublicTimeout(Promise.all([
+    let [product, quantityOffer] = await withPublicTimeout(Promise.all([
       StoreProduct.findById(productIdDoc._id)
-        .select('name slug description price compareAtPrice currency country targetMarket city locale stock images category tags seoTitle seoDescription features faq testimonials _pageData productPageConfig')
+        .select('name slug description price compareAtPrice currency country targetMarket city locale pageLanguage stock images category tags seoTitle seoDescription features faq testimonials _pageData productPageConfig contentTranslations')
         .lean()
         .maxTimeMS(1200),
       QuantityOffer.findOne({
@@ -895,6 +934,12 @@ router.get('/:subdomain/product-page/:slug', readLimiter, async (req, res) => {
     if (!product) {
       return res.status(404).json({ success: false, message: 'Product not found' });
     }
+
+    // Langue effective de la page : réglage par produit > langue de la boutique
+    const effectiveLang = normalizeContentLang(product.pageLanguage || storeLang);
+    product = await applyProductTranslation(product, effectiveLang);
+    product.pageLanguage = effectiveLang;
+    delete product.contentTranslations;
 
     const settings = workspace.storeSettings || {};
     const theme = workspace.storeTheme || {};
@@ -926,6 +971,7 @@ router.get('/:subdomain/product-page/:slug', readLimiter, async (req, res) => {
       country: productCountry,
       targetMarket: product.targetMarket || '',
       city: product.city || '',
+      pageLanguage: product.pageLanguage,
       locale: product.locale || settings.locale || '',
       stock: product.stock,
       images: product.images || [],
@@ -971,6 +1017,7 @@ router.get('/:subdomain/product-page/:slug', readLimiter, async (req, res) => {
           language: settings.language || 'fr',
           country: settings.country || settings.storeCountry || '',
           subdomain: workspace.subdomain,
+          customDomain: workspace.storeDomains?.customDomain || '',
           template: theme.template || 'classic',
           primaryColor: settings.primaryColor || settings.storeThemeColor || theme.primaryColor || '#0F6B4F',
           accentColor: settings.accentColor || settings.ctaColor || theme.accentColor || theme.ctaColor || '#059669',
@@ -994,6 +1041,7 @@ router.get('/:subdomain/product-page/:slug', readLimiter, async (req, res) => {
           flatShippingEnabled: deliveryConfig.flatShippingEnabled === true,
           flatShippingFee: Math.max(0, Number(deliveryConfig.flatShippingFee) || 0),
           freeShippingThreshold: Math.max(0, Number(deliveryConfig.freeShippingThreshold) || 0),
+          cartEnabled: settings.cartEnabled === true,
           productPageConfig: settings.productPageConfig || theme.productPageConfig || null,
         },
         product: productData,
@@ -1008,7 +1056,7 @@ router.get('/:subdomain/product-page/:slug', readLimiter, async (req, res) => {
       },
     };
 
-    payload = rewriteMediaUrls(payload);
+    payload = preparePublicPayload(payload);
     setCachedResponse(cacheKey, payload, PUBLIC_PRODUCT_PAGE_CACHE_TTL);
     res.set('X-Scalor-Cache', 'MISS');
     res.json(payload);

@@ -1,0 +1,153 @@
+name: Ticket fix (Claude Code)
+
+# Déclenché par le backend via repository_dispatch (event_type: ticket_fix).
+# Lance TON Claude Code (abonnement Claude Max via CLAUDE_CODE_OAUTH_TOKEN) pour résoudre le bug :
+#   → crée la branche fix/ticket-{id} depuis `dev`, code le correctif,
+#   → ouvre une PR vers `dev` (jamais main),
+#   → rappelle le backend (POST /:id/analysis) avec le résultat.
+#
+# Secrets GitHub requis (Settings → Secrets and variables → Actions) :
+#   CLAUDE_CODE_OAUTH_TOKEN : jeton OAuth de TON abonnement Claude Max
+#                            (généré en local par `claude setup-token`) = « ton Claude »
+#   TICKET_CALLBACK_SECRET : même valeur que TICKET_CALLBACK_SECRET côté backend
+#
+# NB : selon la version de Claude Code, les options (--permission-mode / --allowedTools)
+# peuvent devoir être ajustées — voir SETUP_TICKETS_CLAUDE.md.
+
+on:
+  repository_dispatch:
+    types: [ticket_fix]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: ticket-fix-${{ github.event.client_payload.ticket_id }}
+  cancel-in-progress: false
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    env:
+      TICKET_ID: ${{ github.event.client_payload.ticket_id }}
+      TICKET_TITLE: ${{ github.event.client_payload.title }}
+      TICKET_DESC: ${{ github.event.client_payload.description }}
+      BASE_BRANCH: ${{ github.event.client_payload.base_branch }}
+      CALLBACK_URL: ${{ github.event.client_payload.callback_url }}
+      CALLBACK_SECRET: ${{ secrets.TICKET_CALLBACK_SECRET }}
+      # Auth via l'abonnement Claude Max (PAS une clé API facturée au token).
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Checkout (base branch)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.client_payload.base_branch }}
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Config git + branche de fix
+        run: |
+          git config user.name "claude-ticket-bot"
+          git config user.email "claude-ticket-bot@users.noreply.github.com"
+          BRANCH="fix/ticket-${TICKET_ID}"
+          echo "BRANCH=$BRANCH" >> "$GITHUB_ENV"
+          git checkout -B "$BRANCH"
+
+      - name: Install Claude Code
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Install deps (best-effort, pour lancer les tests)
+        run: npm ci || npm install || true
+        working-directory: Backend
+
+      - name: Run Claude Code
+        run: |
+          cat > /tmp/prompt.txt <<'EOF'
+          Tu travailles sur ce dépôt. Résous le ticket de bug ci-dessous en modifiant le
+          code nécessaire, de façon MINIMALE et ciblée.
+
+          Règles :
+          - Ne modifie JAMAIS les secrets, fichiers .env, workflows CI, ni la config de déploiement.
+          - Ajoute ou adapte des tests si c'est pertinent.
+          - Reste dans le périmètre du bug décrit ; pas de refactor massif.
+          - Termine par un court diagnostic (2-4 phrases) de la cause et du correctif.
+          EOF
+          {
+            echo ""
+            echo "TITRE: ${TICKET_TITLE}"
+            echo ""
+            echo "DESCRIPTION:"
+            echo "${TICKET_DESC}"
+          } >> /tmp/prompt.txt
+
+          # Exécution headless de Claude Code. Ajuster les flags selon la version installée.
+          claude -p "$(cat /tmp/prompt.txt)" \
+            --permission-mode acceptEdits \
+            --allowedTools "Edit,Write,Read,Bash" \
+            --output-format text | tee /tmp/claude_out.txt || true
+
+      - name: Lancer les tests (best-effort)
+        id: tests
+        run: |
+          if npm test --prefix Backend >/tmp/tests.txt 2>&1; then
+            echo "passed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "passed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Commit + push
+        id: commit
+        run: |
+          git add -A
+          if git diff --cached --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "Aucune modification produite par Claude."
+          else
+            git commit -m "fix(ticket ${TICKET_ID}): ${TICKET_TITLE}"
+            git push -u origin "$BRANCH"
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Ouvrir la PR vers dev
+        id: pr
+        if: steps.commit.outputs.changed == 'true'
+        run: |
+          PR_URL=$(gh pr create \
+            --base "${BASE_BRANCH}" \
+            --head "${BRANCH}" \
+            --title "fix(ticket ${TICKET_ID}): ${TICKET_TITLE}" \
+            --body "Correctif automatique proposé par Claude Code pour le ticket ${TICKET_ID}.\n\nTests: ${{ steps.tests.outputs.passed }}\n\n$(cat /tmp/claude_out.txt | tail -c 3000)" \
+            2>/dev/null) || PR_URL=""
+          echo "url=$PR_URL" >> "$GITHUB_OUTPUT"
+
+      - name: Callback backend
+        if: always()
+        run: |
+          CHANGED="${{ steps.commit.outputs.changed }}"
+          TESTS="${{ steps.tests.outputs.passed }}"
+          PR_URL="${{ steps.pr.outputs.url }}"
+          DIAG="$(tail -c 3000 /tmp/claude_out.txt 2>/dev/null || echo '')"
+          FILES="$(git diff --name-only "origin/${BASE_BRANCH}...HEAD" 2>/dev/null | jq -R . | jq -s . || echo '[]')"
+          OKVAL=$([ "$CHANGED" = "true" ] && echo true || echo false)
+          RISK=$([ "$TESTS" = "false" ] && echo "medium" || echo "low")
+          jq -n \
+            --argjson ok "$OKVAL" \
+            --arg branch "$BRANCH" \
+            --arg pr "$PR_URL" \
+            --arg diag "$DIAG" \
+            --argjson files "$FILES" \
+            --arg risk "$RISK" \
+            '{ok:$ok, branch:$branch, prUrl:$pr, diagnosis:$diag, filesChanged:$files, riskLevel:$risk, recommendedAction:"human_review"}' \
+            > /tmp/payload.json
+          if [ -n "$CALLBACK_URL" ]; then
+            curl -sS -X POST "$CALLBACK_URL" \
+              -H "Content-Type: application/json" \
+              -H "x-ticket-secret: ${CALLBACK_SECRET}" \
+              -d @/tmp/payload.json || true
+          fi

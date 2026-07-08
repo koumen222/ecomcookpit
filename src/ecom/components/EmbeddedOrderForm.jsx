@@ -4,7 +4,7 @@ import { ShoppingCart, User, Phone, MapPin, Loader2, CheckCircle, Truck, Plus, M
 import { publicStoreApi } from '../services/storeApi.js';
 import defaultConfig from './productSettings/defaultConfig.js';
 import { createMetaEventId, injectPixelScripts, safeFirePixelEvent } from '../utils/pixelTracking';
-import { PHONE_CODES, buildFullPhone, findCountryPhoneOptionByName, getCurrencyByPhoneCode, getDefaultPhoneCodeFromConfig, getPhoneCodeByCountryName, getPhoneLength } from '../utils/phoneCodes.js';
+import { PHONE_CODES, buildFullPhone, findCountryPhoneOptionByName, getDefaultPhoneCodeFromConfig, getPhoneCodeByCountryName, getPhoneLength } from '../utils/phoneCodes.js';
 import {
   buildStorefrontOrderWhatsappMessage,
   getPopularCitiesForCountries,
@@ -48,9 +48,9 @@ const EmbeddedOrderForm = ({ product, subdomain, store, pixels, productPageConfi
   const [deliveryZoneOptions, setDeliveryZoneOptions] = useState([]);
   const [countdownSecs, setCountdownSecs] = useState(null);
 
-  const baseCurrency = product?.currency || store?.currency || 'XAF';
-  const [displayCurrency, setDisplayCurrency] = useState(baseCurrency);
-  const currency = displayCurrency;
+  // La devise affichée reste TOUJOURS celle définie sur le produit / la boutique,
+  // indépendamment de l'indicatif téléphonique choisi par le client.
+  const currency = product?.currency || store?.currency || 'XAF';
 
   const design = productPageConfig?.design || {};
   const formConfig = productPageConfig?.form || {};
@@ -674,7 +674,7 @@ const EmbeddedOrderForm = ({ product, subdomain, store, pixels, productPageConfi
                   {field.showLabel === true && field.label && <label style={{ fontSize: 12, fontWeight: 600, color: labelColorResolved, display: 'block', marginBottom: 4 }}>{field.label}</label>}
                   <div style={{ display: 'flex', gap: 0 }}>
                   <div style={{ position: 'relative', flexShrink: 0 }}>
-                    <select value={phoneCode} onChange={e => { phoneCodeUserSet.current = true; setPhoneCode(e.target.value); setDisplayCurrency(getCurrencyByPhoneCode(e.target.value) || baseCurrency); }}
+                    <select value={phoneCode} onChange={e => { phoneCodeUserSet.current = true; setPhoneCode(e.target.value); }}
                       style={{ appearance: 'none', WebkitAppearance: 'none', padding: '11px 28px 11px 10px', borderRadius: `${borderRadius} 0 0 ${borderRadius}`, border: `1.5px solid ${fieldBorderColor}`, borderRight: 'none', backgroundColor: inputBgColor, fontSize: 13, fontWeight: 700, color: inputTextColor, cursor: 'pointer', outline: 'none', minWidth: 90 }}>
                       {availablePhoneCodes.map(c => <option key={`${c.country}-${c.code}`} value={c.code}>{c.label}</option>)}
                     </select>

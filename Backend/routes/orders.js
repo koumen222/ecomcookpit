@@ -1114,10 +1114,13 @@ router.get('/', requireEcomAuth, async (req, res) => {
 
 
     // Stats + total en une seule agrégation (remplace 9 countDocuments séparés)
-    const wsFilter = viewAllWorkspaces ? {} : { workspaceId: req.workspaceId };
-    let statsFilter = { ...wsFilter };
-    if (getEffectiveRole(req) === 'ecom_closeuse' && closeuseVisibilityOr) {
-      statsFilter.$or = closeuseVisibilityOr;
+    // Les stats doivent suivre les mêmes filtres que la liste, sinon l'UI peut
+    // afficher des compteurs non nuls avec une page de commandes vide.
+    const statsFilter = { ...filter };
+    delete statsFilter.status; // Garder les compteurs par statut visibles.
+    const statsMatch = { ...statsFilter };
+    if (!viewAllWorkspaces) {
+      statsMatch.workspaceId = new mongoose.Types.ObjectId(req.workspaceId);
     }
 
     // Cache stats 30s si pas de filtre actif (changement de source/page seulement)
@@ -1125,13 +1128,14 @@ router.get('/', requireEcomAuth, async (req, res) => {
     const statsScope = getEffectiveRole(req) === 'ecom_closeuse'
       ? `closeuse:${req.ecomUser._id}`
       : getEffectiveRole(req) || 'user';
+    const workspaceStatsScope = viewAllWorkspaces ? 'allWorkspaces' : req.workspaceId;
     const storeStatsScope = shouldScopeMainOrdersToStore(req) ? `store:${req.activeStoreId}` : 'allStores';
-    const statsCacheKey = `stats:${req.workspaceId}:${statsScope}:${storeStatsScope}:${sourceId || 'all'}`;
+    const statsCacheKey = `stats:${workspaceStatsScope}:${statsScope}:${storeStatsScope}:${sourceId || 'all'}`;
     let statsAgg = hasActiveFilter ? null : memCache.get(statsCacheKey);
 
     const [statsAggResult, total] = await Promise.all([
       statsAgg ? Promise.resolve(statsAgg) : Order.aggregate([
-        { $match: { ...statsFilter, workspaceId: new mongoose.Types.ObjectId(req.workspaceId) } },
+        { $match: statsMatch },
         { $group: {
           _id: '$status',
           count: { $sum: 1 },
@@ -1152,8 +1156,10 @@ router.get('/', requireEcomAuth, async (req, res) => {
     });
 
     if (period) {
+      const periodMatch = { ...statsMatch, status: 'delivered' };
+      if (filter.date) periodMatch.date = filter.date;
       const periodAgg = await Order.aggregate([
-        { $match: { ...statsFilter, workspaceId: new mongoose.Types.ObjectId(req.workspaceId), status: 'delivered', date: filter.date } },
+        { $match: periodMatch },
         { $group: { _id: null, revenue: { $sum: { $multiply: [{ $ifNull: ['$price', 0] }, { $ifNull: ['$quantity', 1] }] } } } }
       ]);
       stats.periodRevenue = periodAgg[0]?.revenue || 0;

@@ -360,6 +360,23 @@ function buildInfographicsTaskProduct({ product = {}, formTexts = {}, infographi
   };
 }
 
+// Rembourse 1 crédit de génération selon sa source (échec en tâche de fond)
+async function refundGenerationCredit(workspaceId, creditSource) {
+  if (!workspaceId || !creditSource || creditSource === 'unknown') return;
+  try {
+    const ws = await EcomWorkspace.findById(workspaceId);
+    if (!ws) return;
+    if (creditSource === 'simple') ws.simpleGenerationsRemaining = (ws.simpleGenerationsRemaining || 0) + 1;
+    else if (creditSource === 'free') ws.freeGenerationsRemaining = (ws.freeGenerationsRemaining || 0) + 1;
+    else if (creditSource === 'paid') ws.paidGenerationsRemaining = (ws.paidGenerationsRemaining || 0) + 1;
+    ws.totalGenerations = Math.max(0, (ws.totalGenerations || 0) - 1);
+    await ws.save();
+    console.log(`✅ [Refund] Crédit ${creditSource} remboursé (workspace ${workspaceId})`);
+  } catch (err) {
+    console.error('❌ [Refund] Échec remboursement crédit:', err.message);
+  }
+}
+
 async function runBackgroundInfographicGeneration({
   taskId,
   workspaceId,
@@ -368,6 +385,7 @@ async function runBackgroundInfographicGeneration({
   product,
   formTexts,
   productImageBuffer,
+  creditSource = 'unknown',
 }) {
   const totalSlides = Array.isArray(slideTypes) ? slideTypes.length : 0;
 
@@ -437,6 +455,8 @@ async function runBackgroundInfographicGeneration({
       currentStep: 'Erreur',
       errorMessage: error.message || 'Erreur génération infographies',
     });
+    // Aucune infographie livrée → on rembourse le crédit consommé
+    await refundGenerationCredit(workspaceId, creditSource);
   }
 }
 
@@ -959,13 +979,16 @@ function getPremiumImageEntries(productData = {}) {
   const TESTIMONIAL_IMAGE_COUNT = 6;
   for (let index = 0; index < TESTIMONIAL_IMAGE_COUNT; index += 1) {
     const scene = ugcScenes[index % ugcScenes.length];
-    const ugcPrompt = `Authentic candid amateur smartphone photo shot on an iPhone, a real satisfied Black African customer ${scene}, naturally holding ${productName} in hand and smiling, ultra natural user-generated content (UGC) selfie style, realistic skin texture and small imperfections, natural lighting, slightly imperfect framing, looks like a genuine customer review photo.${noTextSuffix}`;
+    // Cadrage UGC TOUJOURS conservé : une personne réelle tenant le VRAI produit en main.
+    const ugcPrompt = `Authentic candid amateur smartphone photo shot on an iPhone, a real satisfied Black African customer ${scene}, naturally holding ${productName} in hand and smiling, ultra natural user-generated content (UGC) selfie style, realistic skin texture and small imperfections, natural lighting, slightly imperfect framing, looks like a genuine customer review photo.`;
+    // Un éventuel prompt IA n'apporte que du contexte/persona : il ne remplace PAS le cadrage "produit en main".
+    const aiFlavor = testimonialPrompts[index] ? ` Context inspiration (persona/scene only): ${testimonialPrompts[index]}.` : '';
     entries.push({
       key: `testimonial_${index + 1}`,
       label: `Témoignage premium ${index + 1}`,
-      mode: 'social_proof',
+      mode: 'ugc',
       aspectRatio: '3:4',
-      prompt: testimonialPrompts[index] ? `${testimonialPrompts[index]}${noTextSuffix}` : ugcPrompt,
+      prompt: `${ugcPrompt}${aiFlavor}${noTextSuffix}`,
       testimonialIndex: index,
     });
   }
@@ -1445,7 +1468,7 @@ function buildStructuredHeroDesignRules(gptResult = {}, template = 'general', vi
 • This first hero image must follow the STRUCTURAL LOGIC of a premium conversion cover, similar to a polished marketplace ad board, not a loose lifestyle photo
 • Use a strong top headline zone, a clear secondary subtitle zone, one dominant human-plus-product visual zone, one structured benefit column, and one strong bottom CTA zone
 • Preferred composition logic:
-  1. TOP: bold premium headline in French with strong hierarchy
+  1. TOP: bold premium headline in ${imgTextLang(visualPrefs).name} with strong hierarchy
   2. UNDER THE HEADLINE: short elegant supporting subtitle clarifying the key promise
   3. MAIN BODY: split or asymmetric layout with a real African model plus the exact product as the dominant visual focus
   4. SIDE BENEFIT COLUMN: 3 to 4 short benefit bullets with premium icon treatment or check markers
@@ -1509,6 +1532,32 @@ function resolveHeroAvatar(gptResult = {}, template = 'general') {
   if (template === 'beauty' || template === 'fashion') return 'African woman';
   return 'African customer';
 }
+
+// ─── Langue du texte rendu sur les images générées ───────────────────────────
+// Les builders de prompts écrivaient "in French" / "French text only" en dur →
+// images toujours en français même quand le wizard était réglé sur EN/ES.
+function imgTextLang(visualPrefs = {}) {
+  return imageLangPack(visualPrefs?.language || 'français');
+}
+
+const IMG_LANG_SNIPPETS = {
+  fr: {
+    testimonialTitles: '"TÉMOIGNAGES" or "AVIS CLIENTS"',
+    socialProofFallback: '1000+ clients satisfaits',
+    chips: '1. Resultats visibles\n2. Utilisation simple\n3. Confiance et qualite',
+  },
+  en: {
+    testimonialTitles: '"TESTIMONIALS" or "CUSTOMER REVIEWS"',
+    socialProofFallback: '1000+ happy customers',
+    chips: '1. Visible results\n2. Easy to use\n3. Trusted quality',
+  },
+  es: {
+    testimonialTitles: '"TESTIMONIOS" or "OPINIONES DE CLIENTES"',
+    socialProofFallback: '1000+ clientes satisfechos',
+    chips: '1. Resultados visibles\n2. Fácil de usar\n3. Calidad de confianza',
+  },
+};
+const imgLangSnippets = (visualPrefs = {}) => IMG_LANG_SNIPPETS[imgTextLang(visualPrefs).code] || IMG_LANG_SNIPPETS.fr;
 
 function resolveBrandColor(visualPrefs = {}, template = 'general') {
   const niche = getNicheAccentColor(template);
@@ -1768,7 +1817,7 @@ Use screenshot-style hierarchy when relevant: bold headline zone, dominant produ
 
 Style: clean, educational, modern, easy to understand, premium, trustworthy.
 Colors must match this website / brand color: ${brandColor}.
-French text only. Perfect spelling. No fake stock-photo feel. No price, no phone number, no URL, no watermark.
+${imgTextLang(visualPrefs).name} text only. Perfect spelling. No fake stock-photo feel. No price, no phone number, no URL, no watermark.
 The visual language should stay consistent with a premium modular product-page board while the content adapts to the current product.
 ${buildUltraSmartInfographicStyleRules(brandColor, template)}${buildStructuredProductPageVisualRules(gptResult, template, brandColor, 'benefits explanation image')}${buildArtDirectionProfile(1, gptResult, template, visualPrefs, 'benefits explanation image')}${buildProfessionalDescriptionGraphicRules(0, template, visualPrefs)}${buildHumanPhotoRealismRules()}${buildGenderConstraintRules(visualPrefs?.targetGender)}${buildVisualPromptDirectives(visualPrefs)}`;
 }
@@ -1776,7 +1825,7 @@ ${buildUltraSmartInfographicStyleRules(brandColor, template)}${buildStructuredPr
 function buildSocialProofCollagePrompt(gptResult, template = 'general', visualPrefs = {}) {
   const productName = gptResult.title || 'the product';
   const brandColor = resolveBrandColor(visualPrefs, template);
-  const socialCount = gptResult.urgency_elements?.social_proof_count || '1000+ clients satisfaits';
+  const socialCount = gptResult.urgency_elements?.social_proof_count || imgLangSnippets(visualPrefs).socialProofFallback;
   const testimonialCards = Array.isArray(gptResult.testimonials)
     ? gptResult.testimonials
         .slice(0, 6)
@@ -1805,7 +1854,7 @@ function buildSocialProofCollagePrompt(gptResult, template = 'general', visualPr
     : '- Carte 1: cliente africaine, note 5 etoiles, resultat visible\n- Carte 2: cliente africaine, note 5 etoiles, utilisation simple\n- Carte 3: cliente africaine, note 5 etoiles, recommandation forte\n- Carte 4: cliente africaine, note 5 etoiles, transformation convaincante';
   const benefitGuidance = benefitChips.length > 0
     ? benefitChips.map((item, index) => `${index + 1}. ${item}`).join('\n')
-    : '1. Resultats visibles\n2. Utilisation simple\n3. Confiance et qualite';
+    : imgLangSnippets(visualPrefs).chips;
 
   return `Create ONE single social proof image for an African ecommerce audience. Vertical 3:4, premium realistic quality.
 
@@ -1814,7 +1863,7 @@ This image must resemble a premium testimonial collage board for a product page,
 USE THE EXACT PRODUCT FROM THE REFERENCE IMAGE. Same packaging, same label, same colors, same shape, no redesign.
 
 MANDATORY COMPOSITION:
-1. Very large condensed top title in French such as "TEMOIGNAGES" or "AVIS CLIENTS" in black or very dark text.
+1. Very large condensed top title in ${imgTextLang(visualPrefs).name} such as ${imgLangSnippets(visualPrefs).testimonialTitles} in black or very dark text.
 2. Small yellow decorative marks around the title when useful.
 3. One colored ribbon just under the title with a short product line mentioning ${productName}.
 4. The exact product must be large, centered and dominant in the composition, as the hero object of the poster.
@@ -1843,7 +1892,7 @@ Do NOT create fake app UI widgets, fake press logos, phone numbers, URLs, or wat
 Do NOT make the product tiny or secondary.
 
 Style: premium ecommerce testimonial poster, trust-building, realistic, editorial, highly converting, African-market relevant.
-French text only. Perfect spelling. Strong mobile readability. Clear hierarchy. No stock-photo feeling, no exaggerated poses, no fake hands.
+${imgTextLang(visualPrefs).name} text only. Perfect spelling. Strong mobile readability. Clear hierarchy. No stock-photo feeling, no exaggerated poses, no fake hands.
 The final result must look like a polished product-page review poster with centered product and surrounding client proof.
 ${buildHumanPhotoRealismRules()}${buildGenderConstraintRules(visualPrefs?.targetGender)}${buildVisualPromptDirectives(visualPrefs)}`;
 }
@@ -1878,7 +1927,7 @@ function buildHeroPrompt(gptResult, hasProductRef, template = 'general', visualP
 Reproduce this EXACT split-panel layout (same as a high-performing African ecommerce ad):
 
 LEFT HALF — COPY ZONE (white or very light background, ${brandColor} accent):
-① TOP: Brand/product icon or small heart/leaf accent in ${brandColor}, then a bold 2-line French headline (large, high contrast, premium weight). Headline reflects: "${mainBenefit}"
+① TOP: Brand/product icon or small heart/leaf accent in ${brandColor}, then a bold 2-line ${imgTextLang(visualPrefs).name} headline (large, high contrast, premium weight). Headline reflects: "${mainBenefit}"
 ② BELOW HEADLINE: one short supporting subtitle (1–2 lines, regular weight)
 ③ BENEFIT BULLETS: 3 benefit lines with a check icon (✓ or ✅) in ${brandColor}. Use: ${benefitLines}
 ④ TRUST BADGE: a round seal or badge shape in ${brandColor} showing "${socialProof}" in bold white text, placed naturally in the lower-left area
@@ -1895,7 +1944,7 @@ The photo must look like a real premium commercial photograph — natural skin, 
 ═══ DESIGN RULES ═══
 • Overall background: white or very light off-white — clean, airy, premium
 • All accent elements (icons, badge, CTA button, check marks, headline emphasis) use ${brandColor} consistently
-• Typography: bold condensed headline (large), elegant subtitle, readable bullet text — all French, 100% correct spelling
+• Typography: bold condensed headline (large), elegant subtitle, readable bullet text — all ${imgTextLang(visualPrefs).name}, 100% correct spelling
 • The lifestyle photo blends into the right half with no hard border, soft vignette or natural fade into white
 • The badge floats naturally between the two halves or in the lower left
 • CTA button is the visual anchor at the bottom — large, solid, impossible to miss
@@ -1944,7 +1993,7 @@ If the angle is about a problem, show the problem clearly and concretely.
 If the angle is about a result, make the result visually obvious.
 If the angle is about reassurance, trust, ingredients, mechanism, transformation or proof, build the visual language that fits that exact message.
 
-French text only if necessary, with perfect spelling. No price, no phone number, no URL, no watermark.
+${imgTextLang(visualPrefs).name} text only if necessary, with perfect spelling. No price, no phone number, no URL, no watermark.
 The image must not feel generic, but it should still belong to the same premium modular visual language used across AI product pages.
 ${buildUltraSmartInfographicStyleRules(brandColor, template)}${buildStructuredProductPageVisualRules(gptResult, template, brandColor, marketingIntent)}${buildArtDirectionProfile(slideIndex + 3, gptResult, template, visualPrefs, marketingIntent)}${buildHumanPhotoRealismRules()}${buildGenderConstraintRules(visualPrefs?.targetGender)}${buildSemanticIllustrationRules({
     mainClaim: angleTitle,
@@ -1988,7 +2037,7 @@ Build a non-generic marketing image specifically for this product.
 - Brand color to respect: ${brandColor}
 
 Use the exact product from the reference image when visible. Do not invent packaging, labels or colors.
-French text only if truly necessary. No price, no phone number, no URL, no watermark.
+${imgTextLang(visualPrefs).name} text only if truly necessary. No price, no phone number, no URL, no watermark.
 Make it feel like a premium mobile landing-page block with a modular product-page board structure, a strong proof cue, and a niche-adapted palette.
 ${buildUltraSmartInfographicStyleRules(brandColor, template)}${buildStructuredProductPageVisualRules(gptResult, template, brandColor, plan?.intent || 'dynamic marketing visual')}${plan?.artDirection || buildArtDirectionProfile(slideIndex + 3, gptResult, template, visualPrefs, plan?.intent || 'dynamic marketing visual')}${buildHumanPhotoRealismRules()}${buildGenderConstraintRules(visualPrefs?.targetGender)}${buildSemanticIllustrationRules({
     mainClaim: angleTitle,
@@ -2151,10 +2200,17 @@ router.get('/images/:jobId', requireEcomAuth, (req, res) => {
 // ── GET /tasks — List generation tasks for the workspace ──────────────────────
 router.get('/tasks', requireEcomAuth, async (req, res) => {
   try {
+    // ?light=1 → polling fréquent (modal générateur) : on ne renvoie que le statut
+    // et 2 marqueurs du produit, pas le produit/images complets (docs de plusieurs Mo).
+    const light = req.query.light === '1';
+    const projection = light
+      ? 'status productName progressPercent currentStep errorMessage createdAt updatedAt product.layout product.pageStyle'
+      : 'status productName progressPercent currentStep product images errorMessage createdAt updatedAt';
+
     const tasks = await GenerationTask.find({ workspaceId: req.workspaceId })
       .sort({ createdAt: -1 })
       .limit(20)
-      .select('status productName progressPercent currentStep product images errorMessage createdAt updatedAt')
+      .select(projection)
       .lean();
     res.json({ success: true, tasks });
   } catch (err) {
@@ -2215,6 +2271,7 @@ router.post('/tasks/:id/retry', requireEcomAuth, validateEcomAccess('products', 
       ? Buffer.from(task.input.referenceImageBase64, 'base64')
       : null;
 
+    const retryPageStyle = task.input?.pageStyle || task.product?.pageStyle || 'classic';
     const visualContext = {
       template: visualTemplate,
       language: task.input?.language || task.product?.language || 'français',
@@ -2226,6 +2283,9 @@ router.post('/tasks/:id/retry', requireEcomAuth, validateEcomAccess('products', 
       decorationDirection: task.input?.decorationDirection || task.product?.decorationDirection || '',
       titleColor: task.input?.titleColor || task.product?.titleColor || '',
       contentColor: task.input?.contentColor || task.product?.contentColor || '',
+      pageStyle: retryPageStyle,
+      fashionConfig: task.product?.fashionConfig || null,
+      targetGender: task.input?.targetGender || task.product?.targetGender || 'auto',
     };
 
     task.status = 'generating_images';
@@ -2269,6 +2329,8 @@ router.post('/tasks/:id/retry', requireEcomAuth, validateEcomAccess('products', 
         sourceBuffer,
         imageJobId,
         existingImages: task.images || {},
+        // Mode gratuit : le retry ne doit régénérer QUE le hero (pas d'angles/GIFs)
+        heroOnly: retryPageStyle === 'hero_page',
       });
     }
 
@@ -2910,13 +2972,56 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
   let generationLogId = null;
   let workspace;
   let consumedCreditSource = 'unknown';
+  // ⚠️ Déclarés au niveau fonction : le catch final les utilise. Avant, `let taskId`
+  // vivait DANS le try → ReferenceError dans le catch → aucune réponse envoyée
+  // (requête suspendue, wizard gelé à 95%, tâche jamais marquée en erreur).
+  let generationTask = null;
+  let taskId = null;
 
   try {
+    // ══════════════════════════════════════════════════════════════════════════
+    // CREATE TASK FIRST — toute tentative laisse une trace dans "Mes Générations",
+    // même si le crédit est refusé ou qu'une erreur survient juste après.
+    // ══════════════════════════════════════════════════════════════════════════
+    try {
+      generationTask = await GenerationTask.create({
+        workspaceId: req.workspaceId,
+        userId: req.user._id || req.user.id,
+        status: 'generating_text',
+        productName: isDescriptionMode ? (userDescription || '').slice(0, 60) : (cleanUrl || 'Produit'),
+        currentStep: 'Requête reçue — vérification...',
+        progressPercent: 2,
+        input: {
+          url: cleanUrl || null,
+          description: isDescriptionMode ? (userDescription || '').slice(0, 2000) : null,
+          skipScraping: isDescriptionMode,
+          marketingApproach: approach,
+          visualTemplate,
+          pageStyle,
+          imageGenerationMode,
+          imageAspectRatio,
+          preferredColor,
+          themeColor,
+          heroVisualDirection,
+          decorationDirection,
+          titleColor,
+          contentColor,
+          tone: tone || 'urgence',
+          language: language || 'français',
+        },
+      });
+      taskId = generationTask._id.toString();
+      console.log(`📋 [Task] Created at request entry, id=${taskId}`);
+    } catch (taskErr) {
+      console.warn('[Task] Could not create early task:', taskErr.message);
+    }
+
     if (req.workspaceId) {
       workspace = await EcomWorkspace.findById(req.workspaceId)
         .select('storeSettings.country storeSettings.city storeSettings.storeName storeSettings.storeCurrency storeSettings.currency name plan freeGenerationsRemaining paidGenerationsRemaining totalGenerations simpleGenerationsRemaining');
 
       if (!workspace) {
+        if (taskId) await updateTask(taskId, { status: 'error', currentStep: 'Erreur', errorMessage: 'Workspace introuvable' });
         return res.status(404).json({ success: false, message: 'Workspace introuvable' });
       }
 
@@ -2948,42 +3053,9 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       console.log(`✅ [HeroMode] Génération gratuite (photo hero, pas d'images IA)`);
     }
 
-    // ══════════════════════════════════════════════════════════════════════════
-    // CREATE TASK IMMEDIATELY — so it appears in "Mes Générations" right away
-    // ══════════════════════════════════════════════════════════════════════════
-    let generationTask = null;
-    let taskId = null;
-    try {
-      generationTask = await GenerationTask.create({
-        workspaceId: req.workspaceId,
-        userId: req.user._id || req.user.id,
-        status: 'generating_text',
-        productName: isDescriptionMode ? (userDescription || '').slice(0, 60) : (cleanUrl || 'Produit'),
-        currentStep: 'Analyse du produit...',
-        progressPercent: 5,
-        input: {
-          url: cleanUrl || null,
-          description: isDescriptionMode ? (userDescription || '').slice(0, 2000) : null,
-          skipScraping: isDescriptionMode,
-          marketingApproach: approach,
-          visualTemplate,
-          pageStyle,
-          imageGenerationMode,
-          imageAspectRatio,
-          preferredColor,
-          themeColor,
-          heroVisualDirection,
-          decorationDirection,
-          titleColor,
-          contentColor,
-          tone: tone || 'urgence',
-          language: language || 'français',
-        },
-      });
-      taskId = generationTask._id.toString();
-      console.log(`📋 [Task] Created early with status=generating_text, id=${taskId}`);
-    } catch (taskErr) {
-      console.warn('[Task] Could not create early task:', taskErr.message);
+    // La tâche a été créée à l'entrée de la requête — on passe à l'analyse
+    if (taskId) {
+      await updateTask(taskId, { currentStep: 'Analyse du produit...', progressPercent: 5 });
     }
 
     try {
@@ -3287,6 +3359,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
 router.post('/infographics', requireEcomAuth, validateEcomAccess('products', 'write'), upload.single('image'), async (req, res) => {
   const userId = req.user?.id || req.user?._id || 'anonymous';
   const workspaceId = req.workspaceId;
+  let creditSource = 'unknown';
 
   try {
     const imageFile = req.file;
@@ -3323,10 +3396,42 @@ router.post('/infographics', requireEcomAuth, validateEcomAccess('products', 'wr
       painPoint: String(req.body.painPoint || '').slice(0, 200),
       mainBenefit: String(req.body.mainBenefit || '').slice(0, 200),
       bodyZone: String(req.body.bodyZone || '').slice(0, 120),
+      // Langue du texte rendu sur les slides (même convention que le générateur standard)
+      language: String(req.body.language || 'français').slice(0, 20),
       // Color theming: passed through to buildInfographicPrompt
       brandColor: /^#[0-9a-fA-F]{6}$/.test(rawBrandColor) ? rawBrandColor : '#1E3A8A',
       colorStyle: ALLOWED_COLOR_STYLES.includes(req.body.colorStyle) ? req.body.colorStyle : 'bleu_royal',
     };
+
+    // ── Consommation d'un crédit (les infographies = génération IA payante,
+    //    même barème que le style classique ; remboursé si la tâche échoue) ──
+    if (workspaceId) {
+      const workspace = await EcomWorkspace.findById(workspaceId)
+        .select('freeGenerationsRemaining paidGenerationsRemaining simpleGenerationsRemaining totalGenerations plan');
+      if (!workspace) {
+        return res.status(404).json({ success: false, message: 'Workspace introuvable' });
+      }
+      const simpleRemaining = workspace.simpleGenerationsRemaining || 0;
+      const freeRemaining = workspace.freeGenerationsRemaining || 0;
+      const paidRemaining = workspace.paidGenerationsRemaining || 0;
+      if (simpleRemaining + freeRemaining + paidRemaining <= 0) {
+        const pricingConfig = await GenerationPricingConfig.getSingleton();
+        return res.status(403).json({
+          success: false,
+          limitReached: true,
+          message: '🎯 Tu n\'as plus de crédits !\n\nAchète des crédits pour générer des infographies.',
+          remaining: 0,
+          totalGenerations: workspace.totalGenerations || 0,
+          pricing: pricingConfig.getSnapshot(),
+        });
+      }
+      if (simpleRemaining > 0) { workspace.simpleGenerationsRemaining = simpleRemaining - 1; creditSource = 'simple'; }
+      else if (freeRemaining > 0) { workspace.freeGenerationsRemaining = freeRemaining - 1; creditSource = 'free'; }
+      else { workspace.paidGenerationsRemaining = paidRemaining - 1; creditSource = 'paid'; }
+      workspace.totalGenerations = (workspace.totalGenerations || 0) + 1;
+      workspace.lastGenerationAt = new Date();
+      await workspace.save();
+    }
 
     const formTexts = {
       headline: String(req.body.formHeadline || 'Remplissez le formulaire, on vous appelle pour valider votre commande').slice(0, 200),
@@ -3373,6 +3478,7 @@ router.post('/infographics', requireEcomAuth, validateEcomAccess('products', 'wr
       product,
       formTexts,
       productImageBuffer,
+      creditSource,
     });
 
     return res.json({
@@ -3384,6 +3490,8 @@ router.post('/infographics', requireEcomAuth, validateEcomAccess('products', 'wr
     });
   } catch (err) {
     console.error('❌ [Infographics] generation error:', err);
+    // Échec avant le lancement de la tâche de fond → remboursement immédiat
+    await refundGenerationCredit(workspaceId, creditSource);
     return res.status(500).json({ success: false, message: 'Erreur génération infographies. Veuillez réessayer.' });
   }
 });

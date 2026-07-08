@@ -13,7 +13,7 @@ import sharp from 'sharp';
 import { uploadImage, isConfigured } from './cloudflareImagesService.js';
 import { generateAnimatedGifFromImages, generateKieImageToVideo, generateGptImage2ImageToImage } from './nanoBananaService.js';
 import { randomUUID } from 'crypto';
-import { callKieChatCompletion, isKieConfigured } from './kieChatService.js';
+import { callKieChatCompletion, callKieGeminiChat, isKieConfigured } from './kieChatService.js';
 
 const KIE_API_KEY = process.env.KIE_API_KEY || '';
 const KIE_CLAUDE_URL = 'https://api.kie.ai/claude/v1/messages';
@@ -384,11 +384,19 @@ function buildFallbackPremiumPage(result = {}, productTitle = '', storeContext =
         { label: 'Jour 7', description: 'L’usage devient plus naturel et les premiers changements se remarquent.' },
         { label: 'Jour 15', description: 'La routine s’installe pour un résultat plus stable et rassurant.' },
       ],
-      steps: (result.guide_utilisation?.etapes || []).slice(0, 4).map((step, index) => ({
-        label: `Étape ${step.numero || index + 1}`,
-        title: step.action || `Utilisez ${productName}`,
-        description: step.detail || 'Suivez l’usage recommandé pour profiter du produit correctement.',
-      })),
+      steps: (result.guide_utilisation?.etapes || []).length
+        ? (result.guide_utilisation.etapes || []).slice(0, 4).map((step, index) => ({
+          label: `Étape ${step.numero || index + 1}`,
+          title: step.action || `Utilisez ${productName}`,
+          description: step.detail || 'Suivez l’usage recommandé pour profiter du produit correctement.',
+        }))
+        // Dernier recours : étapes neutres ancrées sur le nom du produit (jamais "comprimé")
+        : [
+          { label: 'Étape 1', title: `Préparez ${productName}`, description: `Sortez ${productName} et vérifiez qu'il est prêt à l'emploi.` },
+          { label: 'Étape 2', title: `Utilisez ${productName} comme recommandé`, description: 'Suivez le mode d\'emploi fourni avec le produit pour un usage correct.' },
+          { label: 'Étape 3', title: 'Intégrez-le à votre routine', description: 'Un usage régulier donne des résultats plus stables et durables.' },
+          { label: 'Étape 4', title: 'Profitez des résultats', description: `Constatez progressivement ce que ${productName} change au quotidien.` },
+        ],
       imagePrompt: `photorealistic premium routine scene with ${productName}, Black African customer, clean modern interior, natural light, no text overlay`,
     },
     comparisonSection: {
@@ -1307,15 +1315,18 @@ function buildPremiumImagePrompts(result = {}) {
     science: premium.scienceSection?.imagePrompt || `clean premium explainer board for ${productName}, ingredient or technology callouts, product visible, refined medical-free ecommerce style, ${promptBase}`,
     ritual: premium.ritualSection?.imagePrompt || `simple daily ritual scene using ${productName}, step-by-step premium lifestyle mood, modern interior, ${promptBase}`,
     closing: premium.closingSection?.imagePrompt || `large premium product callout image for ${productName}, product sharp with elegant feature lines and spacious white background, ${promptBase}`,
-    testimonials: testimonialItems.slice(0, 4).map((item, index) => (
-      item.imagePrompt || `realistic verified customer photo ${index + 1} for ${productName}, satisfied Black African ecommerce customer holding or using the product, natural light, ${promptBase}`
+    testimonials: testimonialItems.slice(0, 6).map((item, index) => (
+      item.imagePrompt || `realistic candid UGC photo ${index + 1} for ${productName}, a satisfied Black African customer naturally holding the exact product in hand, smartphone selfie style, natural light, ${promptBase}`
     )),
   };
 }
 
 export async function analyzePremiumProductPage(scrapedData, imageBuffers = [], storeContext = {}, premiumContext = {}) {
   const groq = getGroq();
-  if (!groq) throw new Error('Clé du service API non configurée.');
+  // KIE est le service primaire ici — Groq n'est qu'un secours. L'un des deux suffit.
+  if (!groq && !isKieConfigured()) {
+    throw new Error('Aucun service IA configuré (GROQ_API_KEY ou KIE_API_KEY requis).');
+  }
 
   const title = cleanScrapedText(scrapedData.title || 'Produit');
   const description = cleanScrapedText(scrapedData.description || scrapedData.rawText || '');
@@ -1396,9 +1407,11 @@ RÈGLES :
 - Chaque section doit être spécifique au produit et à ce qu'il fait.
 - La page doit être consistante : pas de titres isolés sans paragraphe, pas de bullet d'un seul mot, pas de ligne "Illustration", "Ingrédient actif", "Produit A", "Produit B", "Vérifié" utilisée comme contenu.
 - Minimums obligatoires : 4 avis détaillés, 4 douleurs problème, 4 items science/formule/fonctionnement, 4 étapes de rituel, 4 entrées de timeline, 5 lignes de comparaison.
+- CRITIQUE ritualSection.steps : 4 étapes CONCRÈTES décrivant comment utiliser CE produit précis (geste réel, moment, quantité/zone selon le type de produit). INTERDIT : étapes génériques valables pour n'importe quel produit ("prenez un comprimé", "utilisez régulièrement", "observez les résultats"). Un lecteur doit reconnaître le produit rien qu'en lisant les étapes.
 - Les avis doivent varier : noms différents, situations différentes, structure de phrase différente. Ne répète pas le nom dans le texte de l'avis. Ne mets jamais "Vérifié" comme tag, car l'interface l'affiche déjà.
 - Les textes doivent parler du produit réel : usage, contexte, hésitation avant achat, bénéfice ressenti, livraison, paiement à la livraison ou WhatsApp quand pertinent.
 - Style premium Shopify, titres courts, spacing généreux, pas de wording générique.
+- CONCISION : textes courts et scannables. Paragraphes (body, subheadline) ≤ 3 phrases ; bullets ≤ 12 mots ; avis ≤ 30 mots ; réponses FAQ ≤ 2 phrases ; étapes du rituel : title ≤ 8 mots, description ≤ 20 mots. Jamais de pavé.
 - Langue principale : ${language}. Ton : ${tone}.
 - Marché : ${storeCountry || 'Afrique francophone'}${storeCity ? `, ville référence ${storeCity}` : ''}. ${localeLine}
 - Les prompts d'images sont en anglais, photoréalistes, modernes, avec personnes africaines authentiques si humains présents.
@@ -1456,18 +1469,11 @@ ${premiumContract}`;
   let result;
   try {
     if (isKieConfigured()) {
-      const kie = await callKieChatCompletion({
-        messages: [
-          messages[0],
-          { role: 'user', content: userPrompt },
-        ],
-        temperature: 0.62,
-        maxTokens: 7000,
-        reasoningEffort: process.env.KIE_REASONING_EFFORT || 'high',
-        includeThoughts: false,
-      });
+      // Gemini 2.5 Flash — UNE SEULE tâche texte, photos incluses (multimodal)
+      console.log('🤖 Génération premium via Gemini 2.5 Flash (1 appel)...');
+      const kie = await callKieGeminiChat({ messages });
       result = parseGroqJSON(kie.content || '{}');
-      if (!result) throw new Error('GPT 5.4 premium JSON non parsable');
+      if (!result) throw new Error('Réponse Gemini premium JSON non parsable');
     } else {
       let response;
       if (imageBuffers.length > 0) {
@@ -1542,7 +1548,11 @@ ${premiumContract}`;
 
 export async function analyzeWithVision(scrapedData, imageBuffers = [], marketingApproach = 'AIDA', storeContext = {}, copywritingContext = {}, visualContext = {}) {
   const groq = getGroq();
-  if (!groq) throw new Error('Clé du service API non configurée.');
+  // Groq OU KIE suffit : sans GROQ_API_KEY, on bascule directement sur KIE
+  // (avant : throw immédiat même avec KIE_API_KEY configurée → génération impossible en local)
+  if (!groq && !isKieConfigured()) {
+    throw new Error('Aucun service IA configuré (GROQ_API_KEY ou KIE_API_KEY requis).');
+  }
 
   const title = cleanScrapedText(scrapedData.title || '');
   const description = cleanScrapedText(scrapedData.description || scrapedData.rawText || '');
@@ -1985,7 +1995,7 @@ Le champ "prompt_avant_apres" doit décrire un AVANT/APRÈS SPÉCIFIQUE à CE pr
 ⚠️ seo.slug : URL en kebab-case, sans accents, max 6 mots, ex: "creme-eclaircissante-peau-noire".
 ⚠️ FAQ : Les questions doivent couvrir : Quand voir résultats ? Est-ce naturel ? Effets secondaires ? Peut-on combiner ? Livraison ? Paiement à la livraison ? + 1 question spécifique au produit. ⛔ NE PAS poser de question sur l'entretien du produit ni sur comment l'utiliser — ces infos sont déjà couvertes par d'autres sections de la page.
 ⚠️ FAQ : Les réponses doivent être SIMPLES, RASSURANTES, SANS JARGON — affichées directement (pas de dropdown fermé).
-⚠️ guide_utilisation.applicable = false si le produit n'a pas besoin d'explication.
+⚠️ guide_utilisation : TOUJOURS 3-4 étapes CONCRÈTES et propres à CE produit (geste réel, moment, quantité/zone selon le type de produit) — jamais d'étapes génériques réutilisables sur n'importe quel produit. applicable = false UNIQUEMENT si aucune explication d'usage n'a de sens.
 ⚠️ Adapte prompt_avant_apres au PROBLÈME RÉEL que résout CE produit spécifique.
 ⚠️ description_optimisee doit toujours être une chaîne vide car la page commence directement par les angles marketing.
 ⚠️ ORTHOGRAPHE PARFAITE : zéro faute d'orthographe, zéro faute de grammaire, zéro faute de conjugaison dans TOUT le contenu français.
@@ -1997,7 +2007,7 @@ Le champ "prompt_avant_apres" doit décrire un AVANT/APRÈS SPÉCIFIQUE à CE pr
   const messages = [
     {
       role: "system",
-      content: "Tu es expert e-commerce, copywriting et psychologie de l'acheteur, spécialiste marché africain. MISSION : générer une page produit complète et optimisée pour la conversion avec des visuels représentant des personnes africaines authentiques. RÈGLES ABSOLUES : 1) Analyse le produit en profondeur avant de rédiger quoi que ce soit. 2) " + languageDirective(language) + " (prompts images toujours en anglais). 3) ZÉRO généricité. 4) ZÉRO exagération. 5) CRITIQUE problem_section : 3 vraies douleurs SPÉCIFIQUES. 6) CRITIQUE solution_section : paragraphe persuasif reliant chaque douleur au produit. 7) CRITIQUE hero_cta : bouton d'achat percutant 3-5 mots. 8) CRITIQUE stats_bar : 3 stats crédibles. 9) CRITIQUE seo : meta_title max 60 chars, meta_description max 155 chars, slug kebab-case. 10) RÈGLE GENRE OBLIGATOIRE pour toutes les images : produit FEMME → femme africaine ; produit HOMME → homme africain ; produit MIXTE → genre le plus naturel selon contexte — JAMAIS de femme par défaut pour un produit masculin ou neutre. 11) RÈGLE ZONE CORPORELLE pour toutes les images : identifier la zone exacte (cheveux, visage, corps, ventre, dents, etc.) et cadrer sur cette zone — JAMAIS le visage par défaut si le produit est pour les cheveux ou le corps. 12) LE PRODUIT LUI-MÊME (packaging, flacon, boîte) doit être visible et grand dans chaque image. 13) prompt_hero_poster = affiche graphique, produit grand sur fond sombre dramatique, SANS TITRE sur l'image, avec EXACTEMENT 3 personnes africaines réelles dans un cadre MODERNE et au moins 2 tenant le produit en main. 14) avant/après : zone correcte + genre correct + produit visible côté APRÈS. 15) angles : 4 visuels, produit visible (40%+) + zone et genre corrects. PAS de titre texte sur les images, uniquement éventuellement une courte phrase descriptive. Quand des humains sont présents dans ces visuels, privilégier EXACTEMENT 3 personnes africaines réelles avec le produit en main au lieu d'icônes ou de personnages génériques. 16) Témoignages : noms et villes adaptés au pays. 17) Le template choisi agit uniquement sur le design visuel des images, icones, fonds, ambiance et palette; il ne doit jamais inventer une promesse, une cible ou un usage produit. 18) Les consignes couleur des affiches, visuel hero, décorations, couleur des titres et couleur du contenu doivent être appliquées réellement aux visuels quand elles sont fournies. 19) Les personnes dans les images doivent ressembler a de vraies personnes photographiees: pores de peau visibles, micro-imperfections naturelles, legere asymetrie du visage, mains anatomiquement correctes, yeux avec texture d'iris reelle, dents legerement inegales et naturelles, cheveux avec variation de boucle/frisure, expression subtile et credible, eclairage avec ombres realistes — ZERO peau lisse comme du plastique, ZERO visage CGI symetrique parfait, ZERO retouche excessive, ZERO teint uniforme artificiel. 20) Chaque image doit illustrer exactement le texte marketing correspondant; aucun badge, icone ou scene ne doit etre decoratif sans lien direct avec le message. 21) Même si du texte est posé sur l'image, la scène doit rester explicite sans lire ce texte: le visuel seul doit raconter la situation. 22) description_optimisee = chaîne vide. 23) CONTEXTE MODERNE OBLIGATOIRE: les décors des images doivent toujours être MODERNES et HAUT DE GAMME (appartement contemporain, studio design, bureau élégant, espace urbain chic) — JAMAIS de marché, village, décor traditionnel ou rue de quartier populaire. Les personnes africaines sont dans des endroits beaux et modernes. 24) PAS DE TITRE TEXTE sur les images générées. Les prompts d'images ne doivent PAS inclure de headline/titre. 25) TOUS LES PROMPTS D'IMAGES ET TOUTE LA PAGE DOIVENT STRICTEMENT SE BASER SUR LES CARACTÉRISTIQUES IDENTIFIÉES DANS L'IMAGE FOURNIE. 26) JSON uniquement."
+      content: "Tu es expert e-commerce, copywriting et psychologie de l'acheteur, spécialiste marché africain. MISSION : générer une page produit complète et optimisée pour la conversion avec des visuels représentant des personnes africaines authentiques. RÈGLES ABSOLUES : 1) Analyse le produit en profondeur avant de rédiger quoi que ce soit. 2) " + languageDirective(language) + " (prompts images toujours en anglais). 3) ZÉRO généricité. 4) ZÉRO exagération. 5) CRITIQUE problem_section : 3 vraies douleurs SPÉCIFIQUES. 6) CRITIQUE solution_section : paragraphe persuasif reliant chaque douleur au produit. 7) CRITIQUE hero_cta : bouton d'achat percutant 3-5 mots. 8) CRITIQUE stats_bar : 3 stats crédibles. 9) CRITIQUE seo : meta_title max 60 chars, meta_description max 155 chars, slug kebab-case. 10) RÈGLE GENRE OBLIGATOIRE pour toutes les images : produit FEMME → femme africaine ; produit HOMME → homme africain ; produit MIXTE → genre le plus naturel selon contexte — JAMAIS de femme par défaut pour un produit masculin ou neutre. 11) RÈGLE ZONE CORPORELLE pour toutes les images : identifier la zone exacte (cheveux, visage, corps, ventre, dents, etc.) et cadrer sur cette zone — JAMAIS le visage par défaut si le produit est pour les cheveux ou le corps. 12) LE PRODUIT LUI-MÊME (packaging, flacon, boîte) doit être visible et grand dans chaque image. 13) prompt_hero_poster = affiche graphique, produit grand sur fond sombre dramatique, SANS TITRE sur l'image, avec EXACTEMENT 3 personnes africaines réelles dans un cadre MODERNE et au moins 2 tenant le produit en main. 14) avant/après : zone correcte + genre correct + produit visible côté APRÈS. 15) angles : 4 visuels, produit visible (40%+) + zone et genre corrects. PAS de titre texte sur les images, uniquement éventuellement une courte phrase descriptive. Quand des humains sont présents dans ces visuels, privilégier EXACTEMENT 3 personnes africaines réelles avec le produit en main au lieu d'icônes ou de personnages génériques. 16) Témoignages : noms et villes adaptés au pays. 17) Le template choisi agit uniquement sur le design visuel des images, icones, fonds, ambiance et palette; il ne doit jamais inventer une promesse, une cible ou un usage produit. 18) Les consignes couleur des affiches, visuel hero, décorations, couleur des titres et couleur du contenu doivent être appliquées réellement aux visuels quand elles sont fournies. 19) Les personnes dans les images doivent ressembler a de vraies personnes photographiees: pores de peau visibles, micro-imperfections naturelles, legere asymetrie du visage, mains anatomiquement correctes, yeux avec texture d'iris reelle, dents legerement inegales et naturelles, cheveux avec variation de boucle/frisure, expression subtile et credible, eclairage avec ombres realistes — ZERO peau lisse comme du plastique, ZERO visage CGI symetrique parfait, ZERO retouche excessive, ZERO teint uniforme artificiel. 20) Chaque image doit illustrer exactement le texte marketing correspondant; aucun badge, icone ou scene ne doit etre decoratif sans lien direct avec le message. 21) Même si du texte est posé sur l'image, la scène doit rester explicite sans lire ce texte: le visuel seul doit raconter la situation. 22) description_optimisee = chaîne vide. 23) CONTEXTE MODERNE OBLIGATOIRE: les décors des images doivent toujours être MODERNES et HAUT DE GAMME (appartement contemporain, studio design, bureau élégant, espace urbain chic) — JAMAIS de marché, village, décor traditionnel ou rue de quartier populaire. Les personnes africaines sont dans des endroits beaux et modernes. 24) PAS DE TITRE TEXTE sur les images générées. Les prompts d'images ne doivent PAS inclure de headline/titre. 25) TOUS LES PROMPTS D'IMAGES ET TOUTE LA PAGE DOIVENT STRICTEMENT SE BASER SUR LES CARACTÉRISTIQUES IDENTIFIÉES DANS L'IMAGE FOURNIE. 26) CONCISION STRICTE — une page qui vend est courte et scannable, PAS un pavé : explication de chaque angle ≤ 2 phrases (40 mots max) ; benefits_bullets ≤ 10 mots chacun ; pain_points ≤ 12 mots ; solution_section.description ≤ 3 phrases ; réponses FAQ ≤ 2 phrases ; témoignages ≤ 25 mots ; étapes du guide : action ≤ 8 mots, detail ≤ 15 mots ; hero_slogan ≤ 12 mots. AUCUN champ ne dépasse ces limites. 27) JSON uniquement."
     },
     {
       role: "user",
@@ -2027,6 +2037,7 @@ Le champ "prompt_avant_apres" doit décrire un AVANT/APRÈS SPÉCIFIQUE à CE pr
   const GROQ_TIMEOUT_MS = 60000; // 60s max par tentative (Groq est rapide)
 
   async function callGroqWithTimeout(model, msgs, withImages) {
+    if (!groq) throw new Error('GROQ_API_KEY absente — bascule sur le service de secours');
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), GROQ_TIMEOUT_MS);
     try {
@@ -2047,7 +2058,24 @@ Le champ "prompt_avant_apres" doit décrire un AVANT/APRÈS SPÉCIFIQUE à CE pr
   }
 
   let result;
-  try {
+
+  // ══ Tentative PRINCIPALE : Gemini 2.5 Flash via KIE — UNE SEULE tâche texte ══
+  // Multimodal (photos incluses), rapide, réponse complète en un appel.
+  if (isKieConfigured()) {
+    try {
+      console.log('🤖 Génération texte page produit via Gemini 2.5 Flash (1 appel)...');
+      const kie = await callKieGeminiChat({ messages });
+      console.log('📝 Gemini raw response length:', (kie.content || '').length);
+      result = parseGroqJSON(kie.content || '{}');
+      if (!result) throw new Error('JSON Gemini non parsable');
+      console.log('✅ Gemini JSON parsé, clés:', Object.keys(result).join(', '));
+    } catch (geminiErr) {
+      console.warn(`⚠️ Gemini 2.5 Flash échoué (${geminiErr.message}) — bascule sur la chaîne de secours...`);
+      result = null;
+    }
+  }
+
+  if (!result) try {
     let response;
     // Tentative 1 : modèle vision si images disponibles
     if (imageBuffers.length > 0) {
@@ -2080,32 +2108,47 @@ Le champ "prompt_avant_apres" doit décrire un AVANT/APRÈS SPÉCIFIQUE à CE pr
     console.log('✅ le service JSON parsé, clés:', Object.keys(result).join(', '));
   } catch (error) {
     console.error('❌ le service API error:', error.message);
-    // Fallback KIE (texte) pour garantir la génération même si Groq échoue
+    // Fallback KIE pour garantir la génération même si Groq échoue/absent.
+    // Tentative 1 : messages complets (images incluses — KIE gère input_image).
+    // Tentative 2 : texte seul si la variante vision est refusée.
     if (isKieConfigured()) {
-      try {
-        console.log('🔄 service de secours pour génération page produit...');
-        const kie = await callKieChatCompletion({
-          messages: [
-            messages[0],
-            {
-              role: 'user',
-              content: typeof messages[1].content === 'string'
-                ? messages[1].content
-                : messages[1].content?.[0]?.text || userPrompt,
-            },
-          ],
-          temperature: 0.7,
-          maxTokens: 7000,
-          reasoningEffort: process.env.KIE_REASONING_EFFORT || 'low',
-          includeThoughts: false,
-        });
+      const textOnlyKieMessages = [
+        messages[0],
+        {
+          role: 'user',
+          content: typeof messages[1].content === 'string'
+            ? messages[1].content
+            : messages[1].content?.[0]?.text || userPrompt,
+        },
+      ];
+      const kieAttempts = imageBuffers.length > 0 ? [messages, textOnlyKieMessages] : [textOnlyKieMessages];
 
-        result = parseGroqJSON(kie.content || '{}');
-        if (!result) throw new Error('le service JSON non parsable');
-        console.log('✅ le service JSON parsé, clés:', Object.keys(result).join(', '));
-      } catch (kieErr) {
-        console.error('❌ le service fallback error:', kieErr.message);
-        throw new Error(`Erreur IA: le service=${error.message} | le service=${kieErr.message}`);
+      let kieLastError = null;
+      for (const kieMessages of kieAttempts) {
+        try {
+          const withVision = kieMessages === messages && imageBuffers.length > 0;
+          console.log(`🔄 service de secours pour génération page produit${withVision ? ' (avec photos)' : ' (texte seul)'}...`);
+          const kie = await callKieChatCompletion({
+            messages: kieMessages,
+            temperature: 0.7,
+            maxTokens: 7000,
+            reasoningEffort: process.env.KIE_REASONING_EFFORT || 'low',
+            includeThoughts: false,
+          });
+
+          result = parseGroqJSON(kie.content || '{}');
+          if (!result) throw new Error('le service JSON non parsable');
+          console.log('✅ le service JSON parsé, clés:', Object.keys(result).join(', '));
+          kieLastError = null;
+          break;
+        } catch (kieErr) {
+          kieLastError = kieErr;
+          console.error('❌ le service fallback error:', kieErr.message);
+        }
+      }
+
+      if (kieLastError) {
+        throw new Error(`Erreur IA: le service=${error.message} | le service=${kieLastError.message}`);
       }
     } else {
       throw new Error(`Erreur du service: ${error.message}`);
@@ -2333,7 +2376,7 @@ Graphic design elements (SUBTLE, premium):
 
 Typography (NO TITLE ON IMAGE):
 Do NOT put any headline or title text on the image. The image should be purely visual without text overlay.
-Optional: 1 very short French descriptive phrase (6-8 words max) in lighter weight if needed for context, but NO title.
+Optional: 1 very short ${imgLang.name} descriptive phrase (6-8 words max) in lighter weight if needed for context, but NO title.
 
 NO price, NO phone number, NO URL, NO fake CTA button.
 
@@ -2362,7 +2405,7 @@ PRODUCT REFERENCE (CRITICAL): The reference product image provided MUST be repro
 PERSON: ALWAYS include authentic Black African person (dark skin, natural hair, confident expression) in a MODERN UPSCALE setting.
 ${PHOTO_REALISM_RULES}
 PRODUCT: Large, dominant, sharp, 40-60% of frame. Must match the reference image exactly.
-TEXT: NO title/headline on the image. French only if any short descriptive text is needed, 100% perfect spelling with accents. Max 2 short text elements (NO title).
+TEXT: NO title/headline on the image. ${imgLang.name} only if any short descriptive text is needed, 100% perfect spelling. Max 2 short text elements (NO title).
 NO price, NO phone, NO URL, NO CTA button, NO watermark.
 SETTING: MODERN and UPSCALE — contemporary apartment, design studio, sleek office, chic urban area. NEVER a market, village, or traditional setting.
 CRITICAL: Follow the SPECIFIC visual style described above — unique background, unique decorations, unique mood for THIS image.`;
@@ -2389,7 +2432,7 @@ CRITICAL: Follow the SPECIFIC visual style described above — unique background
   - avoid dark green poster magazine style and avoid a single giant lifestyle scene
 
   TEXT RULES:
-  - French only, perfect spelling, no gibberish
+  - ${imgLang.name} only, perfect spelling, no gibberish
   - short readable words only
   - no CTA button, no price, no phone number, no URL, no fake widget UI
 
@@ -2407,11 +2450,32 @@ A reference image of the EXACT product is provided as input. Reproduce EXCLUSIVE
 The product MUST appear in the generated visual. If it cannot be faithfully reproduced, generate the scene WITHOUT any product rather than inventing a different one.
 `;
 
+    const ugcRules = `
+Create ONE ultra-realistic candid user-generated-content (UGC) photo of a SINGLE real customer, as if taken with a smartphone for a genuine product review.
+USE EXACTLY the product appearance from the reference image provided — same shape, color, packaging, label, size. Do NOT redraw, recreate or redesign the product. If you cannot reproduce the EXACT same product, show the person WITHOUT the product rather than inventing a different one.
+${ratioPrompt}
+
+THE PERSON:
+- ONE authentic Black African person only (dark skin, natural hair, natural everyday look), realistic and relatable — like a real customer, NOT a professional model.
+- The person is NATURALLY HOLDING the exact reference product IN HAND, product clearly visible, sharp and recognizable, at a natural angle like in a real selfie / review photo.
+- Warm, genuine, subtle smile or satisfied expression — never theatrical.
+
+STYLE (CRITICAL):
+- Authentic amateur smartphone photo: natural available lighting, slightly imperfect framing, mild depth of field, real skin texture and small imperfections. It MUST look like a REAL customer review photo, NOT a studio ad, NOT a poster.
+- Everyday realistic setting (home kitchen, living room, near a window, outdoors on a street) — modern but ordinary and believable.
+
+ABSOLUTELY FORBIDDEN:
+- NO text, NO title, NO caption, NO quote, NO stars, NO typography, NO badge, NO watermark, NO logo overlay anywhere.
+- NO collage, NO multiple cards, NO split-screen, NO graphic-design frames — just the single real person and the product.
+${PHOTO_REALISM_RULES}
+`;
+
     let modeRules;
     if (mode === 'hero') modeRules = heroRules;
     else if (mode === 'hero_poster') modeRules = heroPosterRules;
     else if (mode === 'before_after') modeRules = beforeAfterRules;
     else if (mode === 'social_proof') modeRules = socialProofRules;
+    else if (mode === 'ugc') modeRules = ugcRules;
     else modeRules = sceneRules;
 
     // CRITICAL: product reference rule FIRST (survives any truncation),
@@ -2756,11 +2820,16 @@ This is a LIGHT background design. Do NOT use dark full-bleed backgrounds. Keep 
   const enrichedMeta = { ...meta, bgColor, cardColor, textColor, accentColor, highlightColor };
   const slideBody = builder(enrichedMeta);
 
-  return `FORMAT OVERRIDE: Generate the final image in VERTICAL 9:16 (1080×1920). Ignore any other aspect ratio mentioned.
+  // Langue du texte rendu sur les slides (fr par défaut — les prompts sont écrits pour le français)
+  const imgLang = imageLangPack(meta.language);
+  const languageOverride = imgLang.code === 'fr' ? '' : `
+TEXT LANGUAGE OVERRIDE (CRITICAL): Every piece of text rendered on this infographic (headlines, subtitles, bullet lines, badges, labels) MUST be written in perfect ${imgLang.name} — zero spelling or grammar errors. This OVERRIDES any earlier rule requiring French text, and OVERRIDES the French example phrasings below (translate their intent into natural selling ${imgLang.name}). Never mix languages on the image.`;
+
+  return `FORMAT OVERRIDE: Generate the final image in VERTICAL 9:16 (1080×1920). Ignore any other aspect ratio mentioned.${languageOverride}
 ${colorOverride}
 ${INFOGRAPHIC_BASE_RULES}
 ${INFOGRAPHIC_SMART_FUNNEL_STYLE}
-${slideBody}`.trim();
+${slideBody}${languageOverride}`.trim();
 }
 
 /**

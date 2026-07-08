@@ -636,7 +636,7 @@ async function findExistingStoreProductForImport(req, importedProduct) {
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
-    fileSize: 5 * 1024 * 1024, // 5MB max
+    fileSize: 15 * 1024 * 1024, // 15MB max (GIFs animés inclus — non recompressés)
     files: 5 // Max 5 files per upload
   },
   fileFilter: (req, file, cb) => {
@@ -1179,7 +1179,7 @@ router.post(
 
       if (err instanceof multer.MulterError) {
         const message = err.code === 'LIMIT_FILE_SIZE'
-          ? 'Image too large. Max size is 5MB per file.'
+          ? 'Image too large. Max size is 15MB per file.'
           : err.code === 'LIMIT_FILE_COUNT'
             ? 'Too many files. Max 5 images per upload.'
             : err.message;
@@ -1970,7 +1970,7 @@ router.post('/', requireEcomAuth, requireWorkspace, requireStoreOwner, checkPlan
       name, description, price, compareAtPrice, stock,
       images, category, tags, isPublished,
       seoTitle, seoDescription, linkedProductId, currency,
-      targetMarket, country, city, locale,
+      targetMarket, country, city, locale, pageLanguage,
       testimonials, faq, _pageData, productPageConfig
     } = req.body;
 
@@ -2035,6 +2035,7 @@ router.post('/', requireEcomAuth, requireWorkspace, requireStoreOwner, checkPlan
         country: country || '',
         city: city || '',
         locale: locale || '',
+        pageLanguage: ['fr', 'en', 'es'].includes(pageLanguage) ? pageLanguage : null,
         stock: Number(stock) || 0,
         images: (images || []).map((img, i) => ({
           url: img.url,
@@ -2106,7 +2107,7 @@ router.put('/:id', requireEcomAuth, requireWorkspace, requireStoreOwner, async (
       name, description, price, compareAtPrice, stock,
       images, category, tags, isPublished,
       seoTitle, seoDescription, linkedProductId, currency,
-      targetMarket, country, city, locale,
+      targetMarket, country, city, locale, pageLanguage,
       testimonials, faq, variants, _pageData, pageBuilder, productPageConfig
     } = req.body;
 
@@ -2135,6 +2136,7 @@ router.put('/:id', requireEcomAuth, requireWorkspace, requireStoreOwner, async (
     if (country !== undefined) update.country = country;
     if (city !== undefined) update.city = city;
     if (locale !== undefined) update.locale = locale;
+    if (pageLanguage !== undefined) update.pageLanguage = ['fr', 'en', 'es'].includes(pageLanguage) ? pageLanguage : null;
     if (stock !== undefined) update.stock = Number(stock);
     if (images !== undefined) {
       update.images = images.map((img, i) => ({

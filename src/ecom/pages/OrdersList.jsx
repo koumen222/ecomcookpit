@@ -415,8 +415,26 @@ const OrdersList = () => {
     // •• Phase 2 : chargement complet ••
     try {
       const fullParams = { ...params, page, limit: itemsPerPage };
-      const res = await ecomApi.get('/orders', { params: fullParams });
-      const d = { orders: res.data.data.orders, stats: res.data.data.stats, pagination: res.data.data.pagination || {} };
+      let res = await ecomApi.get('/orders', { params: fullParams });
+      let d = {
+        orders: res.data?.data?.orders || [],
+        stats: res.data?.data?.stats || {},
+        pagination: res.data?.data?.pagination || {}
+      };
+
+      const lastPage = Math.max(1, Number(d.pagination?.pages) || 1);
+      const hasPageOverflow = d.orders.length === 0 && Number(d.pagination?.total || 0) > 0 && page > lastPage;
+      if (hasPageOverflow) {
+        const retryParams = { ...params, page: lastPage, limit: itemsPerPage };
+        res = await ecomApi.get('/orders', { params: retryParams });
+        d = {
+          orders: res.data?.data?.orders || [],
+          stats: res.data?.data?.stats || d.stats,
+          pagination: res.data?.data?.pagination || d.pagination
+        };
+        setPage(lastPage);
+      }
+
       // ❌ CACHE DÉSACTIVÉ
       setOrders(d.orders); setStats(d.stats); setPagination(d.pagination);
     } catch (err) {
@@ -456,6 +474,9 @@ const OrdersList = () => {
       setSourcesConfig(configMap);
       if (assignedSources.length === 1) {
         setSelectedSourceId(assignedSources[0]._id);
+      } else if (selectedSourceId && !assignedSources.some(source => String(source._id) === String(selectedSourceId))) {
+        setSelectedSourceId('');
+        setPage(1);
       }
     } catch (err) {
       console.error('Erreur chargement sources closeuse:', err);
@@ -497,6 +518,20 @@ const OrdersList = () => {
         setSourcesConfig(configMap);
         
         setSources(allSources);
+        const validSourceIds = new Set([
+          ...allSources.map(source => String(source._id)),
+          'legacy',
+          'scalor',
+          'shopify',
+          'webhook',
+          'skelor',
+          'boutique',
+          'rita'
+        ]);
+        if (selectedSourceId && !validSourceIds.has(String(selectedSourceId))) {
+          setSelectedSourceId('');
+          setPage(1);
+        }
         
         const syncs = {};
         allSources.forEach(s => {

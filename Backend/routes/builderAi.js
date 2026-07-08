@@ -185,10 +185,16 @@ CONTENU PREMIUM (premiumPage) — STRUCTURE EXACTE :
 - hero.subheadline: sous-titre hero
 - hero.ctaLabel: texte bouton commander
 - testimonials: [{ name, rating, text, avatar }]
-- faq: { items: [{ question, answer }] }
+- testimonialGallery: { headline, subheadline, items: [{ name, text, rating, tags: [] }] }
+- faq: { headline, subheadline, items: [{ question, answer }] }
 - problemSection: { headline, bullets: [] }
 - mechanismSection: { headline, body }
+- scienceSection: { headline, subheadline, items: [{ name, description }] }
+- ritualSection: { headline, subheadline, steps: [{ label, title, description }], resultsTimeline: [{ label, description }] }
+  ← section "Votre rituel au quotidien" : les steps décrivent COMMENT utiliser le produit. Quand tu modifies les étapes, écris des étapes CONCRÈTES et SPÉCIFIQUES au produit (geste réel, moment, quantité/zone) — jamais génériques.
+- comparisonSection: { headline, columns: ["Produit", "Alternative 1", "Alternative 2"], rows: [{ label, values: [true, false, false] }] }
 - closingSection: { headline, subheadline, bullets: [] }
+- rating: { score: "4,9/5", count: "+1 000", label: "clients satisfaits" }
 
 BOUTON CTA (button) :
 - text: texte du bouton
@@ -291,7 +297,9 @@ EXEMPLES :
 - "change l'image hero avec cette URL https://..." → pageConfigPatch: { "premiumImages": { "hero": "https://..." } }
 - "change les images du carousel hero" → pageConfigPatch: { "premiumImages": { "heroGallery": ["URL1", "URL2", "URL3"] } }
 - "ajoute un témoignage" → pageConfigPatch: { "premiumPage": { "testimonials": [{ "name": "Marie D.", "rating": 5, "text": "Produit incroyable !", "avatar": "" }] } }
-- "mets 10 avantages" → pageConfigPatch: { "premiumPage": { "hero": { "benefits": ["Avantage 1","Avantage 2","Avantage 3","Avantage 4","Avantage 5","Avantage 6","Avantage 7","Avantage 8","Avantage 9","Avantage 10"] } } }`;
+- "mets 10 avantages" → pageConfigPatch: { "premiumPage": { "hero": { "benefits": ["Avantage 1","Avantage 2","Avantage 3","Avantage 4","Avantage 5","Avantage 6","Avantage 7","Avantage 8","Avantage 9","Avantage 10"] } } }
+- "adapte le rituel à mon savon éclaircissant" → pageConfigPatch: { "premiumPage": { "ritualSection": { "headline": "Votre rituel peau nette", "steps": [{ "label": "Étape 1", "title": "Faites mousser le savon", "description": "Sous l'eau tiède, frottez le savon entre vos mains jusqu'à obtenir une mousse riche." }, { "label": "Étape 2", "title": "Appliquez sur peau humide", "description": "Massez doucement le visage et le corps en évitant le contour des yeux." }, { "label": "Étape 3", "title": "Laissez agir 1 à 2 minutes", "description": "Le temps que les actifs pénètrent, puis rincez abondamment." }, { "label": "Étape 4", "title": "Répétez matin et soir", "description": "Une utilisation régulière révèle un teint plus uniforme au fil des semaines." }] } } }
+- "change la timeline des résultats" → pageConfigPatch: { "premiumPage": { "ritualSection": { "resultsTimeline": [{ "label": "Jour 1", "description": "Sensation de fraîcheur immédiate." }, { "label": "Jour 7", "description": "Premiers changements visibles." }, { "label": "Jour 30", "description": "Résultat installé et durable." }] } } }`;
 
 router.post('/chat', requireEcomAuth, async (req, res) => {
   try {
@@ -324,26 +332,48 @@ router.post('/chat', requireEcomAuth, async (req, res) => {
     let contextSummary;
 
     if (isStorepageMode) {
-      systemPrompt = `Tu es un assistant IA intégré dans un builder de page boutique e-commerce (homepage).
-Tu peux ajouter, modifier, supprimer ou réordonner des sections de la page d'accueil de la boutique.
+      systemPrompt = `Tu es un développeur web expert intégré dans le Theme Builder d'une boutique e-commerce (homepage). Tu construis et modifies la page comme si tu codais le site toi-même : AUCUNE limite sur ce que tu peux créer.
 
-Chaque section a: id (unique), type, enabled (bool), et config (objet avec les champs propres au type).
-Types de sections disponibles: hero, products, text, image_text, testimonials, features, countdown, newsletter, image_banner, video, divider, spacer, rich_text, social_proof, faq.
+Chaque section a: id (unique, format "sec_<timestamp>_<5 chars>"), type, visible (bool), et config (objet selon le type).
 
-CHAMPS CONFIG PAR TYPE (les plus importants) :
-- hero: { title, subtitle, ctaText, ctaUrl, backgroundImage (URL), backgroundColor, alignment, overlay (bool) }
-- image_text: { image (URL), title, text, imagePosition }
-- image_banner: { image (URL), title, subtitle, overlay }
+TYPES DE SECTIONS DISPONIBLES (catalogue complet et exact) :
+- hero: { title, subtitle, ctaText, ctaLink, backgroundImage (URL), backgroundType ('color'|'image'), backgroundColor, overlay (bool), overlayOpacity (0-100), alignment ('left'|'center'|'right'), minHeight (px), textColor }
+- products: { title, subtitle, layout, columns, showPrice, showAddToCart, limit, backgroundColor }
+- featured_collection: { title, subtitle, category, limit, backgroundColor }
+- text: { title, content, alignment, backgroundColor, textColor, padding ('sm'|'md'|'lg') }
+- rich_text: { title, subtitle, content, alignment, backgroundColor, textColor }
+- image_text: { title, content, image (URL), imageAlt, layout ('image-left'|'image-right'), backgroundColor, ctaText, ctaLink }
+- gallery: { title, images: [{url, alt}], columns, backgroundColor }
 - testimonials: { title, items: [{name, location, content, rating}], layout, showRating, backgroundColor }
-- products: { title, productIds, layout, columns }
-- text: { title, content, alignment }
-- countdown: { title, targetDate, backgroundColor }
-- newsletter: { title, subtitle, buttonText, backgroundColor }
-- video: { url, title, autoplay }
-- features: { title, items: [{icon, title, description}] }
-- faq: { title, items: [{question, answer}] }
+- badges: { items: [{icon (emoji), title, desc}] }  ← bandeau de confiance défilant
+- features: { title, subtitle, image (URL), items: [{icon (emoji), title, desc}] }  ← "Pourquoi nous choisir"
+- multicolumn: { title, columns, backgroundColor, items: [{icon (emoji), title, text}] }
+- icon_bar: { backgroundColor, textColor, items: [{icon (emoji), text}] }
+- before_after: { title, imageBefore (URL), imageAfter (URL), labelBefore, labelAfter, backgroundColor }
+- faq: { title, items: [{question, answer}], backgroundColor }
+- contact: { title, subtitle, whatsapp, email, address, backgroundColor, textColor }
+- banner: { text, ctaText, ctaLink, backgroundColor, textColor }
+- announcement_bar: { text, backgroundColor, textColor, link, linkText }
+- ticker: { items: [string], backgroundColor, textColor, speed }
+- countdown: { title, endDate (ISO "2026-12-31T23:59"), expiredText, ctaText, ctaLink, backgroundColor, textColor }
+- logo_list: { title, logos: [{url, alt}], marquee (bool), grayscale (bool), backgroundColor }
+- newsletter: { title, subtitle, placeholder, buttonText, backgroundColor }
+- video: { title, videoUrl (YouTube ou mp4), poster (URL), backgroundColor }
+- pricing_table: { title, backgroundColor, items: [{name, price, currency, period, features: [string], cta, highlight (bool)}] }
+- spacer: { height (px), backgroundColor }
+- custom_code: { html, css, js }  ← TA SUPER-ARME (voir ci-dessous)
 
-IMAGES : quand l'utilisateur joint une image avec un emplacement (ex: "hero", "banner"), modifie le champ backgroundImage ou image de la section correspondante dans sectionsPatch.
+⚡ CUSTOM_CODE — LIBERTÉ TOTALE :
+Si la demande ne rentre dans AUCUN type standard (layout original, animation, élément interactif, carte, tableau, popup, effet visuel, widget, quiz, calculateur, n'importe quoi), crée une section "custom_code" et ÉCRIS LE CODE TOI-MÊME comme si tu codais le site à la main :
+- html : markup complet et sémantique
+- css : styles complets, responsive mobile-first, design premium moderne
+- js : interactivité (le JS s'exécute sur la boutique publiée)
+Le CSS/HTML doit être autonome (classes préfixées uniques pour ne rien casser), beau, responsive. Ne refuse JAMAIS un élément au motif qu'il n'existe pas de type pour ça — code-le.
+
+OPTIONS DE STYLE COMMUNES (chaque section peut avoir config._style) :
+_style: { paddingTop (px|null), paddingBottom (px|null), backgroundColor, textColor, hideMobile (bool), hideDesktop (bool), anchorId (string), customCss (string, scoped à la section) }
+
+IMAGES : quand l'utilisateur joint une image avec un emplacement (ex: "hero", "banner"), modifie le champ backgroundImage / image / logos de la section correspondante dans sectionsPatch.
 
 FORMAT DE RÉPONSE — UN SEUL OBJET JSON :
 {
@@ -352,16 +382,25 @@ FORMAT DE RÉPONSE — UN SEUL OBJET JSON :
 }
 
 RÈGLES:
-- Si tu modifies des sections, renvoie le tableau COMPLET (pas juste le delta).
-- Ne modifie que ce que l'utilisateur demande, conserve le reste à l'identique.
-- Pour ajouter une section: ajoute un objet avec un id unique (ex: "hero_1", "text_2"), le type, enabled: true, et config avec les valeurs par défaut du type.
-- Pour supprimer: retire la section du tableau.
-- Pour cacher: mets enabled: false.
-- Réponds TOUJOURS en français. Sois bref.
+- Si tu modifies des sections, renvoie le tableau COMPLET (toutes les sections existantes + tes modifications, dans l'ordre voulu). NE PERDS JAMAIS une section existante.
+- Ne modifie que ce que l'utilisateur demande, conserve le reste STRICTEMENT à l'identique (mêmes ids, mêmes configs).
+- Pour ajouter: nouvel objet { id: "sec_" + timestamp + "_xxxxx", type, visible: true, config: {...} } placé à l'endroit logique.
+- Pour supprimer: retire la section du tableau. Pour cacher: visible: false.
+- Pour réordonner: change l'ordre du tableau.
+- Tu peux ajouter AUTANT de sections que nécessaire en une seule réponse.
+- Contenu toujours vendeur, crédible, adapté au e-commerce africain (FCFA, paiement à la livraison, WhatsApp) sauf indication contraire.
+- Réponds TOUJOURS en français. "reply" bref (1-2 phrases).
 - Retourne UNIQUEMENT du JSON valide, rien d'autre.`;
 
-      contextSummary = `SECTIONS ACTUELLES:
-${JSON.stringify(sections || [], null, 2).slice(0, 2000)}`;
+      // Contexte compact : JSON minifié, data-URLs tronquées (l'IA doit voir TOUTES
+      // les sections pour pouvoir renvoyer le tableau complet sans perte).
+      const compactSections = JSON.stringify(sections || [], (key, val) => {
+        if (typeof val === 'string' && val.startsWith('data:') && val.length > 120) return `${val.slice(0, 80)}…[base64 tronqué]`;
+        if (typeof val === 'string' && val.length > 900) return `${val.slice(0, 880)}…[tronqué]`;
+        return val;
+      });
+      contextSummary = `SECTIONS ACTUELLES (JSON complet):
+${compactSections.slice(0, 24000)}`;
     } else {
       const PREMIUM_SECTIONS = ['testimonials', 'problem', 'mechanism', 'science', 'ritual', 'comparison', 'faq', 'closing'];
       const currentSectionOrder = productPageConfig?.sectionOrder || PREMIUM_SECTIONS;

@@ -142,6 +142,27 @@ function truncateText(value = '', max = 180) {
   return `${value.slice(0, max - 1).trimEnd()}…`;
 }
 
+const MAX_PUBLIC_INLINE_MEDIA_LENGTH = 120_000; // ~90 KB binary once base64-decoded.
+
+function publicMediaUrl(value = '') {
+  const mediaUrl = String(value || '');
+  if (/^data:(image|video|audio|application)\//i.test(mediaUrl) && mediaUrl.length > MAX_PUBLIC_INLINE_MEDIA_LENGTH) {
+    return '';
+  }
+  return mediaUrl;
+}
+
+function stripLargeInlineMedia(value) {
+  if (typeof value === 'string') return publicMediaUrl(value);
+  if (Array.isArray(value)) return value.map(stripLargeInlineMedia);
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, child]) => [key, stripLargeInlineMedia(child)])
+    );
+  }
+  return value;
+}
+
 function getRequestOrigin(req) {
   const forwardedProto = String(req.headers['x-forwarded-proto'] || req.protocol || 'https').split(',')[0].trim();
   const forwardedHost = String(req.headers['x-forwarded-host'] || req.headers.host || 'scalor.net').split(',')[0].trim();
@@ -375,8 +396,8 @@ async function resolveRequestMeta(req, routeContext = resolveStoreRouteContext(r
       normalizeText(store.description || `Découvrez la boutique ${storeName} en ligne.`),
       180,
     );
-    const storeLogo = store.logo || '';
-    const storeBanner = store.banner || '';
+    const storeLogo = publicMediaUrl(store.logo || '');
+    const storeBanner = publicMediaUrl(store.banner || '');
     const defaultStoreVisual = toAbsoluteUrl(storeLogo || storeBanner || '/icon.png', req) || DEFAULT_PLATFORM_IMAGE;
     const absoluteLogo = toAbsoluteUrl(storeLogo || '', req);
     const meta = {
@@ -405,7 +426,7 @@ async function resolveRequestMeta(req, routeContext = resolveStoreRouteContext(r
 
     const product = routeContext.pageType === 'product' ? initialData.product : null;
     if (product) {
-      const productImage = product.images?.[0]?.url || product.image || '';
+      const productImage = publicMediaUrl(product.images?.[0]?.url || product.image || '');
       meta.title = normalizeText(product.seoTitle || `${product.name} — ${storeName}`) || `${product.name} — ${storeName}`;
       meta.description = truncateText(
         normalizeText(product.seoDescription || product.description || storeDescription || `Découvrez ${product.name} chez ${storeName}.`),
@@ -438,8 +459,8 @@ async function resolveRequestMeta(req, routeContext = resolveStoreRouteContext(r
     normalizeText(workspace.storeSettings?.description || workspace.storeSettings?.storeDescription || `Découvrez la boutique ${storeName} en ligne.`),
     180,
   );
-  const storeLogo = workspace.storeSettings?.logo || workspace.storeSettings?.storeLogo || '';
-  const storeBanner = workspace.storeSettings?.banner || workspace.storeSettings?.storeBanner || '';
+  const storeLogo = publicMediaUrl(workspace.storeSettings?.logo || workspace.storeSettings?.storeLogo || '');
+  const storeBanner = publicMediaUrl(workspace.storeSettings?.banner || workspace.storeSettings?.storeBanner || '');
   const defaultStoreVisual = toAbsoluteUrl(storeLogo || storeBanner || '/icon.png', req) || DEFAULT_PLATFORM_IMAGE;
 
   const absoluteLogo = toAbsoluteUrl(storeLogo || '', req);
@@ -478,7 +499,7 @@ async function resolveRequestMeta(req, routeContext = resolveStoreRouteContext(r
     }).select('name seoTitle seoDescription description images').lean().maxTimeMS(800);
 
     if (product) {
-      const productImage = product.images?.[0]?.url || '';
+      const productImage = publicMediaUrl(product.images?.[0]?.url || '');
       meta.title = normalizeText(product.seoTitle || `${product.name} — ${storeName}`) || `${product.name} — ${storeName}`;
       meta.description = truncateText(
         normalizeText(product.seoDescription || product.description || storeDescription || `Découvrez ${product.name} chez ${storeName}.`),
@@ -570,8 +591,8 @@ function _buildStorePayload(workspace) {
     _id: workspace._id,
     name: settings.name || settings.storeName || workspace.name,
     description: settings.description || settings.storeDescription || '',
-    logo: settings.logo || settings.storeLogo || '',
-    banner: settings.banner || settings.storeBanner || '',
+    logo: publicMediaUrl(settings.logo || settings.storeLogo || ''),
+    banner: publicMediaUrl(settings.banner || settings.storeBanner || ''),
     phone: settings.phone || settings.storePhone || '',
     whatsapp: settings.whatsapp || settings.storeWhatsApp || '',
     themeColor: settings.themeColor || settings.storeThemeColor || '#0F6B4F',
@@ -714,7 +735,7 @@ async function fetchInitialData(routeContext) {
 
 function injectInitialData(html, initialData) {
   if (!initialData) return html;
-  const safeJson = JSON.stringify(initialData).replace(/<\/script>/gi, '<\\/script>');
+  const safeJson = JSON.stringify(stripLargeInlineMedia(initialData)).replace(/<\/script>/gi, '<\\/script>');
   const scriptTag = `<script>window.__SCALOR_INITIAL__=${safeJson};</script>`;
 
   // Préchargement de l'image hero — en priorité BASSE volontairement.

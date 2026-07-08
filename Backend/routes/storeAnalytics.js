@@ -371,9 +371,17 @@ router.get('/dashboard', requireEcomAuth, async (req, res) => {
 
     // Résoudre le subdomain du store actif pour filtrer les analytics
     let storeSubdomain = null;
+    // Devise de la boutique active (source de vérité pour l'affichage et la conversion).
+    let activeStoreCurrency = null;
     const activeStoreId = useAllStores ? null : req.activeStoreId;
     if (activeStoreId) {
-      const store = await Store.findById(activeStoreId).select('subdomain').lean();
+      const store = await Store.findById(activeStoreId)
+        .select('subdomain storeSettings.storeCurrency storeSettings.currency currency')
+        .lean();
+      activeStoreCurrency = store?.storeSettings?.storeCurrency
+        || store?.storeSettings?.currency
+        || store?.currency
+        || null;
       if (store?.subdomain) {
         storeSubdomain = store.subdomain;
       } else {
@@ -458,8 +466,10 @@ router.get('/dashboard', requireEcomAuth, async (req, res) => {
       so => !linkedStoreOrderIds.has(so._id.toString())
     );
 
-    // Store principal currency for conversion
-    const storeCurrency = req.workspace?.storeSettings?.storeCurrency
+    // Store principal currency for conversion — priorité à la devise de la boutique
+    // active (celle choisie dans les paramètres), puis repli sur le workspace.
+    const storeCurrency = activeStoreCurrency
+      || req.workspace?.storeSettings?.storeCurrency
       || req.workspace?.settings?.currency
       || 'XAF';
 

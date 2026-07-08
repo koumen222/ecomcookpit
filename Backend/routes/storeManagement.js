@@ -960,10 +960,14 @@ router.put('/config', requireEcomAuth, requireWorkspace, requireStoreOwner, asyn
       secondaryColor, productDescription,
       // Product page builder config (visual builder)
       productPageConfig,
-      categoryRegistry
+      categoryRegistry,
+      // Mode panier (boutique pro) — activé/désactivé par le marchand
+      cartEnabled
     } = req.body;
 
     const update = {};
+
+    if (cartEnabled !== undefined) update['storeSettings.cartEnabled'] = !!cartEnabled;
 
     if (storeName !== undefined) update['storeSettings.storeName'] = storeName;
     if (storeDescription !== undefined) update['storeSettings.storeDescription'] = storeDescription;

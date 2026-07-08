@@ -6,6 +6,14 @@ import { useEcomAuth } from '../hooks/useEcomAuth.jsx';
 
 const StoreContext = createContext(null);
 
+// Résout la devise définie sur une boutique (utilisée pour l'affichage du store et des stats)
+export const getStoreCurrency = (store) => (
+  store?.storeSettings?.storeCurrency
+  || store?.storeSettings?.currency
+  || store?.currency
+  || null
+);
+
 export const isStoreEnabled = (store) => (
   !!store && store.isActive !== false && store.storeSettings?.isStoreEnabled !== false
 );
@@ -124,6 +132,21 @@ export const StoreProvider = ({ children }) => {
       localStorage.removeItem(`activeStore:${workspaceId}`);
     }
   }, [workspaceId]);
+
+  // Publie la devise de la boutique active pour que le CurrencyProvider (monté au-dessus
+  // du StoreProvider) affiche montants et stats dans la devise DÉFINIE SUR LE STORE.
+  useEffect(() => {
+    const code = getStoreCurrency(activeStore);
+    window.__activeStoreCurrency__ = code;
+    window.dispatchEvent(new CustomEvent('scalor:currency-change', { detail: { currency: code } }));
+  }, [activeStore]);
+
+  // Au démontage (sortie des routes boutique), on retire la devise du store pour
+  // revenir à la préférence utilisateur ailleurs dans l'app.
+  useEffect(() => () => {
+    window.__activeStoreCurrency__ = null;
+    window.dispatchEvent(new CustomEvent('scalor:currency-change', { detail: { currency: null } }));
+  }, []);
 
   const refreshStores = useCallback(() => {
     if (workspaceId) return loadStores(workspaceId);

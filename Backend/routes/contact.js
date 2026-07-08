@@ -15,14 +15,22 @@ router.post('/', async (req, res) => {
       });
     }
 
+    const normalizedEmail = String(email).trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Adresse email invalide'
+      });
+    }
+
     // Envoyer l'email à l'administrateur
     await sendEmail({
-      to: process.env.ADMIN_EMAIL || 'admin@scalor.site',
+      to: process.env.ADMIN_EMAIL || process.env.EMAIL_REPLY_TO || 'support@scalor.net',
       subject: subject || 'Nouvelle demande de contact',
       template: 'contact-request',
       data: {
         name,
-        email,
+        email: normalizedEmail,
         message,
         subject: subject || 'Nouvelle demande de contact',
         date: new Date().toLocaleDateString('fr-FR', {
@@ -38,7 +46,7 @@ router.post('/', async (req, res) => {
     // Envoyer un accusé de réception à l'utilisateur
     try {
       await sendEmail({
-        to: email,
+        to: normalizedEmail,
         subject: 'Nous avons bien reçu votre demande',
         template: 'contact-confirmation',
         data: {

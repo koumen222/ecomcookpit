@@ -2,7 +2,9 @@ import axios from 'axios';
 
 const KIE_API_KEY = process.env.KIE_API_KEY || '';
 const KIE_BASE_URL = (process.env.KIE_BASE_URL || 'https://api.kie.ai').replace(/\/+$/, '');
-const KIE_TIMEOUT_MS = Number(process.env.KIE_TIMEOUT_MS) || 0; // 0 = pas de timeout
+// Timeout dur par défaut : 5 min. Sans ça (ancienne valeur 0 = infini), un appel
+// KIE qui cale laissait la requête HTTP pendre pour toujours → wizard bloqué à 95%.
+const KIE_TIMEOUT_MS = Number(process.env.KIE_TIMEOUT_MS) || 300000;
 
 export function isKieConfigured() {
   return !!KIE_API_KEY;
@@ -83,6 +85,54 @@ export function extractKieContent(data = {}) {
   }
 
   return '';
+}
+
+// ─── Gemini 2.5 Flash via KIE (endpoint OpenAI-compatible) ────────────────────
+// POST {KIE_BASE_URL}/{model}/v1/chat/completions — UN SEUL appel, réponse complète.
+// Multimodal : content array [{type:'text'},{type:'image_url',image_url:{url}}].
+// ⚠️ stream et include_thoughts sont true PAR DÉFAUT côté KIE → forcés à false.
+const KIE_GEMINI_MODEL = process.env.KIE_GEMINI_MODEL || 'gemini-2.5-flash';
+
+export async function callKieGeminiChat({ messages, responseFormat, timeoutMs }) {
+  if (!KIE_API_KEY) {
+    throw new Error('KIE_API_KEY non configurée');
+  }
+
+  const payload = {
+    messages, // format OpenAI natif — passé tel quel
+    stream: false,
+    include_thoughts: false,
+  };
+  if (responseFormat) payload.response_format = responseFormat;
+
+  const response = await axios.post(
+    `${KIE_BASE_URL}/${KIE_GEMINI_MODEL}/v1/chat/completions`,
+    payload,
+    {
+      headers: {
+        'Authorization': `Bearer ${KIE_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      timeout: timeoutMs || KIE_TIMEOUT_MS,
+    }
+  );
+
+  const kieBodyError = response.data?.message || response.data?.error || '';
+  if (kieBodyError && !response.data?.choices) {
+    throw new Error(`KIE Gemini: ${kieBodyError}`);
+  }
+  const content = response.data?.choices?.[0]?.message?.content;
+  const text = typeof content === 'string' ? content.trim() : extractKieContent(response.data);
+  if (!text) {
+    console.error('[KIE Gemini] Structure de réponse inattendue:', JSON.stringify(response.data, null, 2).slice(0, 1500));
+    throw new Error('Réponse Gemini vide');
+  }
+
+  return {
+    content: text,
+    usage: response.data?.usage || null,
+    raw: response.data,
+  };
 }
 
 export async function callKieChatCompletion({

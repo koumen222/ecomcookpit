@@ -4,8 +4,28 @@ import StockLocation from '../models/StockLocation.js';
 import Product from '../models/Product.js';
 import { requireEcomAuth, validateEcomAccess } from '../middleware/ecomAuth.js';
 import { adjustStockLocationQuantity, StockAdjustmentError } from '../services/stockService.js';
+import { getSyncedCatalogOverview, recomputeProductStock } from '../services/catalogStockSync.js';
 
 const router = express.Router();
+
+// GET /api/ecom/stock-locations/products-overview
+// Vue synchronisée de TOUS les produits (catalogue boutique) avec leur stock agrégé.
+router.get('/products-overview',
+  requireEcomAuth,
+  async (req, res) => {
+    try {
+      const rows = await getSyncedCatalogOverview({
+        workspaceId: req.workspaceId,
+        storeId: req.activeStoreId,
+        userId: req.ecomUser?._id,
+      });
+      res.json({ success: true, data: rows });
+    } catch (error) {
+      console.error('Erreur products-overview stock:', error);
+      res.status(500).json({ success: false, message: 'Erreur serveur' });
+    }
+  }
+);
 
 const normalizeStockDate = (value) => {
   if (!value) return new Date();
@@ -198,6 +218,9 @@ router.post('/',
         { upsert: true, new: true }
       );
 
+      // Sync catalogue : propage l'agrégat de stock vers Product + StoreProduct liés
+      await recomputeProductStock({ workspaceId: req.workspaceId, productId }).catch(() => {});
+
       const populated = await StockLocation.findById(entry._id)
         .populate('productId', 'name sellingPrice productCost')
         .populate('updatedBy', 'email');
@@ -246,6 +269,9 @@ router.put('/:id',
 
       await entry.save();
 
+      // Sync catalogue : propage l'agrégat de stock vers Product + StoreProduct liés
+      await recomputeProductStock({ workspaceId: req.workspaceId, productId: entry.productId }).catch(() => {});
+
       const populated = await StockLocation.findById(entry._id)
         .populate('productId', 'name sellingPrice productCost')
         .populate('updatedBy', 'email');
@@ -268,6 +294,8 @@ router.delete('/:id',
       if (!entry) {
         return res.status(404).json({ success: false, message: 'Emplacement non trouvé' });
       }
+      // Sync catalogue : recalcule après suppression de l'emplacement
+      await recomputeProductStock({ workspaceId: req.workspaceId, productId: entry.productId }).catch(() => {});
       res.json({ success: true, message: 'Emplacement supprimé' });
     } catch (error) {
       console.error('Erreur delete stock location:', error);

@@ -234,7 +234,7 @@ export function securityHeaders(req, res, next) {
     [
       "default-src 'self'",
       [
-        "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:",
         // Paiements
         "https://js.stripe.com https://checkout.stripe.com",
         // Google Sign-In (GSI)
@@ -252,6 +252,26 @@ export function securityHeaders(req, res, next) {
         // Cloudflare Insights
         "https://static.cloudflareinsights.com",
       ].join(' '),
+      [
+        "script-src-elem 'self' 'unsafe-inline' blob:",
+        // Paiements
+        "https://js.stripe.com https://checkout.stripe.com",
+        // Google Sign-In (GSI)
+        "https://accounts.google.com https://apis.google.com",
+        // Meta / Facebook
+        "https://connect.facebook.net https://*.facebook.net https://*.facebook.com",
+        // TikTok
+        "https://analytics.tiktok.com https://*.tiktok.com",
+        // Google Tag / Ads / GA4
+        "https://www.googletagmanager.com https://www.google-analytics.com https://*.googletagmanager.com https://*.google-analytics.com https://www.googleadservices.com https://googleads.g.doubleclick.net",
+        // Snapchat
+        "https://sc-static.net https://*.snapchat.com",
+        // PostHog (analytics interne)
+        "https://*.posthog.com",
+        // Cloudflare Insights
+        "https://static.cloudflareinsights.com",
+      ].join(' '),
+      "worker-src 'self' blob:",
       [
         "style-src 'self' 'unsafe-inline'",
         "https://fonts.googleapis.com https://api.fontshare.com https://cdn.fontshare.com",

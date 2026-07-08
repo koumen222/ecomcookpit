@@ -11,6 +11,7 @@ export function getGoogleClientIds() {
   return [
     ...splitClientIds(process.env.GOOGLE_CLIENT_IDS),
     ...splitClientIds(process.env.GOOGLE_CLIENT_ID),
+    ...splitClientIds(process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID),
     ...splitClientIds(process.env.VITE_GOOGLE_CLIENT_ID),
     FRONTEND_FALLBACK_GOOGLE_CLIENT_ID,
   ].filter((value, index, list) => list.indexOf(value) === index);

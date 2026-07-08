@@ -12,6 +12,7 @@ import WhatsAppLog from '../models/WhatsAppLog.js';
 import SupportConversation from '../models/SupportConversation.js';
 import StoreProduct from '../models/StoreProduct.js';
 import Order from '../models/Order.js';
+import StoreOrder from '../models/StoreOrder.js';
 import Store from '../models/Store.js';
 import WhatsAppInstance from '../models/WhatsAppInstance.js';
 import ScalorUser from '../models/ScalorUser.js';
@@ -26,7 +27,7 @@ import { sendCustomNotificationEmail, sendNotificationEmail } from '../core/noti
 import { sendPushNotification, sendPushNotificationToUser } from '../services/pushService.js';
 import { buildPlanUpdatedWarning, buildRenewalSubscriptionWarning, clearSubscriptionWarning, downgradeWorkspaceToFree } from '../services/workspacePlanService.js';
 import { emitSupportConversationUpdate } from '../services/socketService.js';
-import { formatInternationalPhone } from '../utils/phoneUtils.js';
+import { formatInternationalPhone, getSupportedCountries } from '../utils/phoneUtils.js';
 import evolutionApiService from '../services/evolutionApiService.js';
 
 const router = express.Router();
@@ -1430,6 +1431,174 @@ router.patch('/workspaces/:id/generations', requireEcomAuth, requireSuperAdmin, 
   } catch (err) {
     console.error('[SuperAdmin] PATCH /workspaces/:id/generations error:', err.message);
     res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// ─── Growth & re-engagement console (Super Admin) ────────────────────────────
+// Segments workspaces by REAL engagement (max lastLogin across members + owner)
+// crossed with billing state, and returns an MRR table + owner contacts.
+// Powers the super-admin "Croissance & Relances" page.
+const GROWTH_FALLBACK_PRICES = { free: 0, starter: 6900, pro: 14900, ultra: 29899 };
+
+// GET /api/ecom/super-admin/growth?activeDays=30
+router.get('/growth', requireEcomAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const now = new Date();
+    const activeDays = Math.min(365, Math.max(1, Number(req.query.activeDays) || 30));
+    const activeThreshold = new Date(now.getTime() - activeDays * 86400000);
+    const paidPlans = ['starter', 'pro', 'ultra'];
+
+    const yearAgo = new Date(now.getTime() - 365 * 86400000);
+    const [workspaces, planConfigs, memberActivity, ordersByCountryRaw] = await Promise.all([
+      Workspace.find({}, {
+        name: 1, slug: 1, plan: 1, planExpiresAt: 1, trialEndsAt: 1, trialUsed: 1,
+        isActive: 1, owner: 1, createdAt: 1
+      }).lean(),
+      PlanConfig.find({}, { key: 1, displayName: 1, priceRegular: 1, pricePromo: 1, promoActive: 1, promoExpiresAt: 1, currency: 1 }).lean(),
+      // Latest login across all members of each workspace
+      EcomUser.aggregate([
+        { $match: { workspaceId: { $ne: null } } },
+        { $group: { _id: '$workspaceId', lastLogin: { $max: '$lastLogin' }, members: { $sum: 1 } } }
+      ]),
+      // GMV by country signal (last 12 months) — grouped by dial code + country field
+      StoreOrder.aggregate([
+        { $match: { createdAt: { $gte: yearAgo } } },
+        { $group: { _id: { phoneCode: '$phoneCode', country: '$country' }, revenue: { $sum: { $ifNull: ['$total', 0] } }, orders: { $sum: 1 } } }
+      ])
+    ]);
+
+    // Owner contact lookup (email / name / phone + owner lastLogin)
+    const ownerIds = workspaces.map((w) => w.owner).filter(Boolean);
+    const owners = ownerIds.length
+      ? await EcomUser.find({ _id: { $in: ownerIds } }, { email: 1, name: 1, phone: 1, lastLogin: 1 }).lean()
+      : [];
+    const ownerMap = new Map(owners.map((u) => [String(u._id), u]));
+    const activityMap = new Map(memberActivity.map((m) => [String(m._id), m]));
+
+    // Pricing (promo-aware, PlanConfig with fallback)
+    const configByPlan = new Map(planConfigs.map((p) => [p.key, p]));
+    const priceForPlan = (planKey) => {
+      const c = configByPlan.get(planKey);
+      const promoLive = c?.promoActive && (!c.promoExpiresAt || new Date(c.promoExpiresAt).getTime() > now.getTime());
+      return Number((promoLive ? c?.pricePromo : c?.priceRegular) ?? GROWTH_FALLBACK_PRICES[planKey] ?? 0);
+    };
+    const currency = configByPlan.get('starter')?.currency || 'FCFA';
+
+    const planTally = new Map(); // plan -> counts
+    const bump = (plan, key) => {
+      if (!planTally.has(plan)) planTally.set(plan, { total: 0, activePaid: 0, expiredPaid: 0, trialActive: 0 });
+      planTally.get(plan)[key] += 1;
+    };
+
+    const paying = [], dormant = [], active = [];
+    for (const w of workspaces) {
+      const plan = w.plan || 'free';
+      const owner = ownerMap.get(String(w.owner)) || {};
+      const act = activityMap.get(String(w._id)) || {};
+      const times = [act.lastLogin, owner.lastLogin].filter(Boolean).map((d) => new Date(d).getTime());
+      const lastActivityAt = times.length ? new Date(Math.max(...times)) : null;
+      const isPaid = paidPlans.includes(plan);
+      const isPaying = isPaid && w.planExpiresAt && new Date(w.planExpiresAt) > now;
+      const isActiveEng = lastActivityAt && lastActivityAt >= activeThreshold;
+      const monthlyPrice = priceForPlan(plan);
+
+      bump(plan, 'total');
+      if (isPaying) bump(plan, 'activePaid');
+      else if (isPaid) bump(plan, 'expiredPaid');
+      if (w.trialEndsAt && new Date(w.trialEndsAt) > now) bump(plan, 'trialActive');
+
+      const row = {
+        id: String(w._id),
+        name: w.name || w.slug || '—',
+        plan,
+        planExpiresAt: w.planExpiresAt || null,
+        enabled: w.isActive !== false,
+        lastActivityAt,
+        members: act.members || 0,
+        monthlyPrice,
+        owner: { email: owner.email || null, name: owner.name || null, phone: owner.phone || null },
+        createdAt: w.createdAt || null,
+      };
+      if (isPaying) paying.push(row);
+      if (isActiveEng) active.push(row); else dormant.push(row);
+    }
+
+    // paying: highest value first · dormant: most stale first · active: freshest first
+    paying.sort((a, b) => b.monthlyPrice - a.monthlyPrice);
+    dormant.sort((a, b) => new Date(a.lastActivityAt || 0) - new Date(b.lastActivityAt || 0));
+    active.sort((a, b) => new Date(b.lastActivityAt || 0) - new Date(a.lastActivityAt || 0));
+
+    const mrrByPlan = paidPlans.map((plan) => {
+      const t = planTally.get(plan) || { activePaid: 0, expiredPaid: 0 };
+      const monthlyPrice = priceForPlan(plan);
+      return {
+        plan,
+        label: configByPlan.get(plan)?.displayName || plan,
+        monthlyPrice,
+        activePaid: t.activePaid || 0,
+        expiredPaid: t.expiredPaid || 0,
+        mrr: (t.activePaid || 0) * monthlyPrice,
+      };
+    });
+    const mrrTotal = mrrByPlan.reduce((s, r) => s + r.mrr, 0);
+    const activePaidWorkspaces = mrrByPlan.reduce((s, r) => s + r.activePaid, 0);
+
+    // ── Revenue (GMV) by country ──
+    const dialMap = {}, codeMap = {};
+    for (const c of getSupportedCountries()) {
+      dialMap[String(c.prefix).replace(/[^\d]/g, '')] = c.name;
+      if (c.code) codeMap[String(c.code).toUpperCase()] = c.name;
+    }
+    const resolveCountry = (phoneCode, country) => {
+      const pc = String(phoneCode || '').replace(/[^\d]/g, '');
+      if (pc && dialMap[pc]) return dialMap[pc];
+      const raw = String(country || '').trim();
+      if (raw) {
+        const up = raw.toUpperCase();
+        if (codeMap[up]) return codeMap[up];   // 'CM' → Cameroun
+        if (raw.length > 3) return raw;         // already a country name
+      }
+      if (pc) return `+${pc}`;                  // unknown dial code
+      return 'Inconnu';
+    };
+    const countryMap = new Map();
+    for (const g of (ordersByCountryRaw || [])) {
+      const label = resolveCountry(g._id?.phoneCode, g._id?.country);
+      const cur = countryMap.get(label) || { country: label, revenue: 0, orders: 0 };
+      cur.revenue += g.revenue || 0;
+      cur.orders += g.orders || 0;
+      countryMap.set(label, cur);
+    }
+    const revenueByCountry = [...countryMap.values()].sort((a, b) => b.revenue - a.revenue);
+    const gmvTotal = revenueByCountry.reduce((s, r) => s + r.revenue, 0);
+
+    res.json({
+      success: true,
+      data: {
+        generatedAt: now,
+        activeDays,
+        currency,
+        activityBasis: 'lastLogin',
+        gmv: { total: gmvTotal, currency: 'XAF', byCountry: revenueByCountry },
+        mrr: {
+          total: mrrTotal,
+          arpu: activePaidWorkspaces > 0 ? Math.round(mrrTotal / activePaidWorkspaces) : 0,
+          byPlan: mrrByPlan,
+          activePaidWorkspaces,
+          totalWorkspaces: workspaces.length,
+        },
+        counts: {
+          total: workspaces.length,
+          paying: paying.length,
+          active: active.length,
+          dormant: dormant.length,
+        },
+        segments: { paying, active, dormant },
+      },
+    });
+  } catch (err) {
+    console.error('[SuperAdmin] GET /growth error:', err);
+    res.status(500).json({ success: false, message: 'Erreur lors du calcul de la croissance' });
   }
 });
 

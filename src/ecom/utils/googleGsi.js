@@ -25,11 +25,38 @@ function _masterCallback(response) {
 let _initialized = false;
 let _scriptLoaded = false;
 let _onLoadQueue = [];
+const _pendingRenders = new Map();
+
+function _renderButtonNow(containerId, options = {}) {
+  if (!window.google?.accounts?.id) return false;
+  const container = document.getElementById(containerId);
+  if (!container) return false;
+  const width = Math.min(container.offsetWidth || 400, 400);
+  container.replaceChildren();
+  window.google.accounts.id.renderButton(container, {
+    theme: 'filled_black',
+    size: 'large',
+    width,
+    shape: 'pill',
+    locale: 'fr',
+    ...options,
+  });
+  return true;
+}
+
+function _flushPendingRenders() {
+  for (const [containerId, options] of _pendingRenders.entries()) {
+    if (_renderButtonNow(containerId, options)) {
+      _pendingRenders.delete(containerId);
+    }
+  }
+}
 
 function _onScriptLoad() {
   _scriptLoaded = true;
   _onLoadQueue.forEach(fn => fn());
   _onLoadQueue = [];
+  _flushPendingRenders();
 }
 
 function _doInit(clientId) {
@@ -41,6 +68,7 @@ function _doInit(clientId) {
     callback: _masterCallback,
     cancel_on_tap_outside: false,
   });
+  _flushPendingRenders();
 }
 
 function _ensureScript(clientId, onReady) {
@@ -98,16 +126,6 @@ export function loadGsi(clientId, callback) {
  * @param {object} options      - GSI renderButton options overrides
  */
 export function renderGsiButton(containerId, options = {}) {
-  if (!window.google?.accounts?.id) return;
-  const container = document.getElementById(containerId);
-  if (!container) return;
-  const width = Math.min(container.offsetWidth || 400, 400);
-  window.google.accounts.id.renderButton(container, {
-    theme: 'filled_black',
-    size: 'large',
-    width,
-    shape: 'pill',
-    locale: 'fr',
-    ...options,
-  });
+  if (_renderButtonNow(containerId, options)) return;
+  _pendingRenders.set(containerId, options);
 }
