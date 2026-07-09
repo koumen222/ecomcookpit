@@ -211,6 +211,29 @@ function normalizeObjectIdLike(value) {
   return '';
 }
 
+function normalizeMetaCustomDataIds(customData = {}) {
+  if (!customData || typeof customData !== 'object') return customData;
+
+  const normalized = { ...customData };
+  if (Array.isArray(normalized.content_ids)) {
+    normalized.content_ids = normalized.content_ids
+      .map((id) => normalizeObjectIdLike(id) || String(id || '').trim())
+      .filter(Boolean);
+  }
+
+  if (Array.isArray(normalized.contents)) {
+    normalized.contents = normalized.contents
+      .map((content) => {
+        if (!content || typeof content !== 'object') return null;
+        const id = normalizeObjectIdLike(content.id ?? content.product_id ?? content.productId);
+        return id ? { ...content, id } : content;
+      })
+      .filter(Boolean);
+  }
+
+  return normalized;
+}
+
 function cleanText(value, maxLength = 500) {
   return String(value || '').trim().slice(0, maxLength);
 }
@@ -1189,7 +1212,7 @@ router.post('/:subdomain/track', trackLimiter, async (req, res) => {
       eventId,
       eventSourceUrl,
       userData: normalizedUserData,
-      customData,
+      customData: normalizeMetaCustomDataIds(customData),
     });
 
     await sendMetaCapiEvent({
