@@ -28,6 +28,40 @@ function getClientIp(req) {
   return req.socket?.remoteAddress || '';
 }
 
+function normalizeObjectIdLike(value) {
+  if (!value) return '';
+  if (typeof value === 'string') return value.trim();
+  if (value instanceof mongoose.Types.ObjectId) return value.toString();
+
+  if (typeof value === 'object') {
+    if (typeof value.$oid === 'string') return value.$oid.trim();
+    if (typeof value.toHexString === 'function') return value.toHexString();
+
+    const nested = value.productId ?? value._id ?? value.id;
+    if (nested && nested !== value) {
+      const normalized = normalizeObjectIdLike(nested);
+      if (normalized) return normalized;
+    }
+
+    if (value.buffer && typeof value.buffer === 'object') {
+      const bytes = Array.isArray(value.buffer.data)
+        ? value.buffer.data.map((byte) => Number(byte))
+        : Object.keys(value.buffer)
+          .filter((key) => /^\d+$/.test(key))
+          .sort((a, b) => Number(a) - Number(b))
+          .map((key) => Number(value.buffer[key]));
+      if (bytes.length === 12 && bytes.every((byte) => Number.isInteger(byte) && byte >= 0 && byte <= 255)) {
+        return Buffer.from(bytes).toString('hex');
+      }
+    }
+
+    const asString = value.toString?.();
+    if (asString && asString !== '[object Object]') return asString.trim();
+  }
+
+  return '';
+}
+
 // ── GeoIP lookup (geoip-lite + ipinfo.io fallback) ────────────────────────────
 
 // In-memory cache: IP → { country, city, ts }
@@ -182,6 +216,7 @@ router.post('/track', trackRateLimit, async (req, res) => {
       sessionId,
       visitorId,
     } = req.body;
+    const normalizedProductId = normalizeObjectIdLike(productId);
 
     if (!eventType) {
       return res.status(400).json({ error: 'eventType requis' });
@@ -269,8 +304,8 @@ router.post('/track', trackRateLimit, async (req, res) => {
           timestamp: { $gte: since },
           $or: [{ visitorId: identifier }, { sessionId: identifier }],
         };
-        if (eventType === 'product_view' && productId) {
-          dedupQuery.productId = productId;
+        if (eventType === 'product_view' && normalizedProductId) {
+          dedupQuery.productId = normalizedProductId;
         } else if (eventType === 'page_view') {
           dedupQuery['page.path'] = page?.path || '';
         }
@@ -309,7 +344,7 @@ router.post('/track', trackRateLimit, async (req, res) => {
       subdomain: resolvedSubdomain,
       eventType,
       page,
-      productId,
+      productId: normalizedProductId || null,
       productName,
       productPrice,
       orderId,

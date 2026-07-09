@@ -177,6 +177,40 @@ function normalizeCheckoutSessionId(value) {
     .slice(0, 80);
 }
 
+function normalizeObjectIdLike(value) {
+  if (!value) return '';
+  if (typeof value === 'string') return value.trim();
+  if (value instanceof mongoose.Types.ObjectId) return value.toString();
+
+  if (typeof value === 'object') {
+    if (typeof value.$oid === 'string') return value.$oid.trim();
+    if (typeof value.toHexString === 'function') return value.toHexString();
+
+    const nested = value.productId ?? value._id ?? value.id;
+    if (nested && nested !== value) {
+      const normalized = normalizeObjectIdLike(nested);
+      if (normalized) return normalized;
+    }
+
+    if (value.buffer && typeof value.buffer === 'object') {
+      const bytes = Array.isArray(value.buffer.data)
+        ? value.buffer.data.map((byte) => Number(byte))
+        : Object.keys(value.buffer)
+          .filter((key) => /^\d+$/.test(key))
+          .sort((a, b) => Number(a) - Number(b))
+          .map((key) => Number(value.buffer[key]));
+      if (bytes.length === 12 && bytes.every((byte) => Number.isInteger(byte) && byte >= 0 && byte <= 255)) {
+        return Buffer.from(bytes).toString('hex');
+      }
+    }
+
+    const asString = value.toString?.();
+    if (asString && asString !== '[object Object]') return asString.trim();
+  }
+
+  return '';
+}
+
 function cleanText(value, maxLength = 500) {
   return String(value || '').trim().slice(0, maxLength);
 }
@@ -471,6 +505,46 @@ router.get('/resolve-domain/:hostname', readLimiter, async (req, res) => {
   } catch (error) {
     console.error('Error GET /api/store/resolve-domain:', error);
     sendPublicError(res, error, 'Error resolving domain');
+  }
+});
+
+/**
+ * GET /api/store/:subdomain/delivery-zones
+ *
+ * Public checkout delivery zones for the storefront SPA.
+ */
+router.get('/:subdomain/delivery-zones', readLimiter, async (req, res) => {
+  try {
+    const workspace = await withPublicTimeout(resolveStore(req.params.subdomain), 'resolve public store');
+    if (!workspace) {
+      return res.status(404).json({ success: false, message: 'Store not found' });
+    }
+
+    const config = workspace.storeDeliveryZones || { countries: [], zones: [] };
+    const publicZones = (config.zones || [])
+      .filter((zone) => zone?.enabled !== false)
+      .map((zone) => ({
+        id: zone.id,
+        country: zone.country,
+        city: zone.city,
+        aliases: zone.aliases || [],
+        cost: zone.cost || 0,
+      }));
+
+    setCacheHeaders(res, 60);
+    res.json({
+      success: true,
+      data: {
+        countries: config.countries || [],
+        zones: publicZones,
+        flatShippingEnabled: config.flatShippingEnabled === true,
+        flatShippingFee: Math.max(0, Number(config.flatShippingFee) || 0),
+        freeShippingThreshold: Math.max(0, Number(config.freeShippingThreshold) || 0),
+      },
+    });
+  } catch (error) {
+    console.error('❌ GET /api/store/:subdomain/delivery-zones error:', error.message);
+    sendPublicError(res, error, 'Error loading delivery zones');
   }
 });
 
@@ -1176,7 +1250,7 @@ router.post('/:subdomain/abandoned-checkout', checkoutDraftLimiter, async (req, 
     const requestedProducts = Array.isArray(products)
       ? products
           .map((item) => ({
-            productId: String(item?.productId || item?._id || '').trim(),
+            productId: normalizeObjectIdLike(item?.productId || item?._id || item?.id),
             quantity: normalizeQuantity(item?.quantity),
             offerPrice: toPositiveNumber(item?.offerPrice),
             offerQty: normalizeOfferQuantity(item?.offerQty),
@@ -1401,8 +1475,24 @@ router.post('/:subdomain/orders', orderLimiter, async (req, res) => {
       }
     }
 
+    const requestedProducts = products.map((item) => ({
+      ...item,
+      productId: normalizeObjectIdLike(item?.productId || item?._id || item?.id),
+      quantity: normalizeQuantity(item?.quantity),
+      offerPrice: toPositiveNumber(item?.offerPrice),
+      offerQty: normalizeOfferQuantity(item?.offerQty),
+    }));
+
+    const invalidProduct = requestedProducts.find((item) => !mongoose.Types.ObjectId.isValid(item.productId));
+    if (invalidProduct) {
+      return res.status(400).json({
+        success: false,
+        message: 'Un ou plusieurs produits sont invalides'
+      });
+    }
+
     // Validate products exist and belong to this exact store
-    const productIds = products.map(p => p.productId);
+    const productIds = [...new Set(requestedProducts.map(p => p.productId))];
     const productFetchFilter = {
       _id: { $in: productIds },
       workspaceId: workspace._workspaceId,
@@ -1413,7 +1503,7 @@ router.post('/:subdomain/orders', orderLimiter, async (req, res) => {
     }
     const dbProducts = await StoreProduct.find(productFetchFilter).lean();
 
-    if (dbProducts.length !== products.length) {
+    if (dbProducts.length !== productIds.length) {
       return res.status(400).json({
         success: false,
         message: 'Un ou plusieurs produits sont introuvables'
@@ -1430,7 +1520,7 @@ router.post('/:subdomain/orders', orderLimiter, async (req, res) => {
     const ppConversion = storeSettings.productPageConfig?.conversion || {};
     const storeOffers = ppConversion.offersEnabled ? (ppConversion.offers || []) : [];
 
-    for (const item of products) {
+    for (const item of requestedProducts) {
       const dbProduct = productMap.get(item.productId);
       if (!dbProduct) {
         return res.status(400).json({

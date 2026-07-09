@@ -330,7 +330,12 @@ export function securityHeaders(req, res, next) {
         "https://td.doubleclick.net",
       ].join(' '),
       "frame-ancestors 'self'",
-      "form-action 'self'",
+      [
+        "form-action 'self'",
+        "https://api.scalor.net https://*.scalor.net",
+        "https://checkout.stripe.com",
+        "https://pay.moneyfusion.net https://www.pay.moneyfusion.net",
+      ].join(' '),
       "base-uri 'self'",
       // 'object-src none' bloque Flash/applets — recommandé Meta
       "object-src 'none'",
