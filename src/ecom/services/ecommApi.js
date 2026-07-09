@@ -46,6 +46,7 @@ function isLocalhostLike(value = '') {
 function resolveEcomApiBaseUrl() {
   const envBackend = import.meta.env.VITE_BACKEND_URL;
   const envApi = import.meta.env.VITE_API_URL;
+  const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
 
   // In local Vite dev, prefer the same-origin proxy to avoid brittle direct
   // cross-origin calls to localhost:8080 from the browser.
@@ -59,10 +60,17 @@ function resolveEcomApiBaseUrl() {
     return '/api/ecom';
   }
 
-  // On scalor.net frontend, always target the public API domain first.
+  // On production frontends, always target the public API domain first.
   // This avoids production builds accidentally using a direct Railway URL,
   // which triggers preflight failures when that hostname is not exposed.
-  if (typeof window !== 'undefined' && window.location.hostname.endsWith('scalor.net')) {
+  if (
+    typeof window !== 'undefined'
+    && (
+      hostname.endsWith('scalor.net')
+      || hostname.endsWith('scalor.site')
+      || hostname.endsWith('ecomcookpit.pages.dev')
+    )
+  ) {
     const normalizedFromApi = normalizeBackendBaseUrl(envApi);
     if (normalizedFromApi.includes('api.scalor.net')) {
       return normalizedFromApi;
