@@ -437,7 +437,7 @@ function parsePublicProductSort(sort = '-createdAt') {
 
 function toLightProduct(p, storeCurrency = 'XAF') {
   return {
-    _id: p._id,
+    _id: normalizeObjectIdLike(p._id),
     name: p.name,
     slug: p.slug,
     price: p.price,
@@ -636,7 +636,7 @@ router.get('/:subdomain', readLimiter, async (req, res) => {
       success: true,
       data: {
         store: {
-          _id: workspace._id,
+          _id: normalizeObjectIdLike(workspace._id),
           configVersion: workspace.updatedAt ? new Date(workspace.updatedAt).getTime() : null,
           name: settings.name || settings.storeName || workspace.name,
           description: settings.description || settings.storeDescription || '',
@@ -864,7 +864,7 @@ router.get('/:subdomain/products/:slug', readLimiter, async (req, res) => {
     let payload = {
       success: true,
       data: {
-        _id: product._id,
+        _id: normalizeObjectIdLike(product._id),
         name: product.name,
         slug: product.slug,
         description: product.description,
@@ -1035,7 +1035,7 @@ router.get('/:subdomain/product-page/:slug', readLimiter, async (req, res) => {
     const productCountry = product.country || settings.country || '';
 
     const productData = {
-      _id: product._id,
+      _id: normalizeObjectIdLike(product._id),
       name: product.name,
       slug: product.slug,
       description: product.description,
@@ -1079,7 +1079,7 @@ router.get('/:subdomain/product-page/:slug', readLimiter, async (req, res) => {
       success: true,
       data: {
         store: {
-          _id: workspace._id,
+          _id: normalizeObjectIdLike(workspace._id),
           name: settings.name || settings.storeName || workspace.name,
           description: settings.description || settings.storeDescription || '',
           logo: settings.logo || settings.storeLogo || '',
