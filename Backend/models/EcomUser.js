@@ -99,6 +99,10 @@ const ecomUserSchema = new mongoose.Schema({
   lastLogin: {
     type: Date
   },
+  sessionRevokedAt: {
+    type: Date,
+    default: null
+  },
   currency: {
     type: String,
     default: 'XAF',

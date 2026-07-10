@@ -33,6 +33,20 @@ const isSupportedAuthToken = (token = '') => (
   isRawJwt(token)
 );
 
+function isTokenRevokedForUser(decoded, user) {
+  if (!user?.sessionRevokedAt) return false;
+  const tokenIssuedAtMs = decoded?.iat ? decoded.iat * 1000 : 0;
+  const revokedAtMs = new Date(user.sessionRevokedAt).getTime();
+  return Boolean(revokedAtMs && (!tokenIssuedAtMs || tokenIssuedAtMs <= revokedAtMs));
+}
+
+function sendRevokedSession(res) {
+  return res.status(401).json({
+    success: false,
+    message: 'Session expirée. Veuillez vous reconnecter.'
+  });
+}
+
 const serializeWorkspace = (workspace, userRole) => {
   if (!workspace) return null;
 
@@ -248,6 +262,9 @@ router.post('/refresh', async (req, res) => {
         message: 'Utilisateur non trouvé ou inactif'
       });
     }
+    if (isTokenRevokedForUser(decoded, user)) {
+      return sendRevokedSession(res);
+    }
 
     const { workspace, store } = await ensureAuthWorkspace(user, { source: 'refresh' });
 
@@ -297,6 +314,9 @@ router.post('/register-device', async (req, res) => {
         success: false,
         message: 'Utilisateur non trouvé ou inactif'
       });
+    }
+    if (isTokenRevokedForUser(decoded, user)) {
+      return sendRevokedSession(res);
     }
 
     // Générer un token permanent
@@ -374,6 +394,17 @@ router.get('/device-status', async (req, res) => {
         }
       });
     }
+    if (isTokenRevokedForUser(decoded, user)) {
+      return res.json({
+        success: true,
+        data: {
+          isAuthenticated: false,
+          isPermanent: false,
+          deviceInfo: null,
+          error: 'Session expirée'
+        }
+      });
+    }
 
     res.json({
       success: true,
@@ -420,6 +451,9 @@ router.post('/revoke-device', async (req, res) => {
         success: false,
         message: 'Utilisateur non trouvé ou inactif'
       });
+    }
+    if (isTokenRevokedForUser(decoded, user)) {
+      return sendRevokedSession(res);
     }
 
     // Vérifier que le token correspond
@@ -863,6 +897,9 @@ router.post('/create-workspace', async (req, res) => {
     if (!user || !user.isActive) {
       return res.status(401).json({ success: false, message: 'Utilisateur non trouvé ou inactif' });
     }
+    if (isTokenRevokedForUser(decoded, user)) {
+      return sendRevokedSession(res);
+    }
 
     if (!workspaceName || workspaceName.trim().length < 2) {
       return res.status(400).json({ success: false, message: 'Le nom de l\'espace est requis (min. 2 caractères)' });
@@ -965,6 +1002,9 @@ router.post('/join-workspace', async (req, res) => {
 
     if (!user || !user.isActive) {
       return res.status(401).json({ success: false, message: 'Utilisateur non trouvé ou inactif' });
+    }
+    if (isTokenRevokedForUser(decoded, user)) {
+      return sendRevokedSession(res);
     }
 
     if (!inviteCode || !inviteCode.trim()) {
@@ -1123,6 +1163,12 @@ router.get('/me', async (req, res) => {
         message: 'Utilisateur non trouvé ou inactif'
       });
     }
+    if (isTokenRevokedForUser(decoded, user)) {
+      if (debugAuth) {
+        console.log('❌ Session révoquée pour:', user.email);
+      }
+      return sendRevokedSession(res);
+    }
 
     const { workspace, store, createdWorkspace } = await ensureAuthWorkspace(user, { source: 'me' });
     console.log(`[AUTH_FLOW] me_success user=${user.email} role=${user.role} workspace=${user.workspaceId || 'none'} store=${store?._id || 'none'} repaired=${createdWorkspace}`);
@@ -1165,6 +1211,9 @@ router.put('/profile', async (req, res) => {
     if (!user || !user.isActive) {
       console.log('❌ [Profile Update] Utilisateur non trouvé ou inactif:', decoded.id);
       return res.status(401).json({ success: false, message: 'Utilisateur non trouvé ou inactif' });
+    }
+    if (isTokenRevokedForUser(decoded, user)) {
+      return sendRevokedSession(res);
     }
 
     console.log('📋 [Profile Update] Avant modification:', {
@@ -1323,6 +1372,9 @@ router.put('/change-password', async (req, res) => {
         message: 'Utilisateur non trouvé ou inactif'
       });
     }
+    if (isTokenRevokedForUser(decoded, user)) {
+      return sendRevokedSession(res);
+    }
 
     // Vérifier le mot de passe actuel
     const isCurrentPasswordValid = await user.comparePassword(currentPassword);
@@ -1382,6 +1434,9 @@ router.put('/currency', async (req, res) => {
         success: false,
         message: 'Utilisateur non trouvé ou inactif'
       });
+    }
+    if (isTokenRevokedForUser(decoded, user)) {
+      return sendRevokedSession(res);
     }
 
     // Valider la devise
@@ -1445,6 +1500,9 @@ router.put('/avatar', async (req, res) => {
         success: false,
         message: 'Utilisateur non trouvé ou inactif'
       });
+    }
+    if (isTokenRevokedForUser(decoded, user)) {
+      return sendRevokedSession(res);
     }
 
     // Mettre à jour l'avatar

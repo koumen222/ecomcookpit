@@ -52,6 +52,13 @@ export function invalidateUserCache(userId) {
   userCache.delete(String(userId));
 }
 
+function isTokenRevokedForUser(decoded, user) {
+  if (!user?.sessionRevokedAt) return false;
+  const tokenIssuedAtMs = decoded?.iat ? decoded.iat * 1000 : 0;
+  const revokedAtMs = new Date(user.sessionRevokedAt).getTime();
+  return Boolean(revokedAtMs && (!tokenIssuedAtMs || tokenIssuedAtMs <= revokedAtMs));
+}
+
 // Fonction pour générer un identifiant d'appareil unique
 const generateDeviceId = () => {
   return 'device_' + crypto.randomBytes(16).toString('hex');
@@ -122,6 +129,11 @@ export const requireEcomAuth = async (req, res, next) => {
       
       if (!user || !user.isActive) {
         return res.status(401).json({ success: false, message: 'Utilisateur e-commerce non trouvé ou inactif' });
+      }
+
+      if (isTokenRevokedForUser(decoded, user)) {
+        invalidateUserCache(decoded.id);
+        return res.status(401).json({ success: false, message: 'Session expirée. Veuillez vous reconnecter.' });
       }
     } catch (error) {
       return res.status(401).json({ success: false, message: 'Token e-commerce invalide ou expiré' });
