@@ -4,6 +4,8 @@ import { useEcomAuth } from '../hooks/useEcomAuth';
 import ecomApi from '../services/ecommApi.js';
 import { playConfirmSound, playNewOrderSound, startOrderAlarm, stopOrderAlarm } from '../services/soundService.js';
 import { useMoney } from '../hooks/useMoney.js';
+import { formatMoney } from '../utils/currency.js';
+import { ArrowRight, Box, CheckCircle2, History, MapPin, Navigation, Package, RefreshCw, Route, Wallet, X } from 'lucide-react';
 
 const STATUS_LABELS = {
   pending: 'En attente', confirmed: 'Acceptée', shipped: 'En cours',
@@ -138,7 +140,19 @@ const LivreurDashboard = () => {
     setAssigning(p => ({ ...p, [orderId]: true }));
     setError('');
     try {
-      await ecomApi.patch(`/orders/${orderId}/livreur-action`, { action });
+      const payload = { action };
+      if (action === 'delivered') {
+        const selectedOrder = myOrders.find(order => order._id === orderId);
+        const entered = window.prompt(`Montant réellement encaissé (${selectedOrder?.currency || 'XAF'})`, String(selectedOrder?.price || 0));
+        if (entered === null) return;
+        const collectedAmount = Number(entered);
+        if (!Number.isFinite(collectedAmount) || collectedAmount < 0) {
+          setError('Saisissez un montant encaissé valide.');
+          return;
+        }
+        payload.collectedAmount = collectedAmount;
+      }
+      await ecomApi.patch(`/orders/${orderId}/livreur-action`, payload);
       setSuccess(action === 'delivered' ? 'Livraison confirmée !' : action === 'pickup_confirmed' ? 'Récupération confirmée !' : 'Action enregistrée.');
       loadData(true);
       setTimeout(() => setSuccess(''), 6000);
@@ -182,73 +196,80 @@ const LivreurDashboard = () => {
   if (loading) return <Loader />;
 
   return (
-    <div className="p-3 sm:p-6 max-w-[900px] mx-auto space-y-6">
+    <div className="px-4 py-5 sm:p-8 max-w-[1180px] mx-auto space-y-5 pb-28 lg:pb-10">
       {/* En-tête */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
+      <section className="relative overflow-hidden rounded-[28px] bg-[#073c2e] px-5 py-6 sm:px-8 sm:py-8 text-white shadow-[0_20px_50px_-28px_rgba(7,60,46,.8)]">
+        <div className="absolute -right-10 -top-16 h-48 w-48 rounded-full border-[32px] border-white/5" />
+        <div className="relative flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">{greeting}, {firstName} 🚚</h1>
-          <p className="text-sm text-gray-400 capitalize mt-0.5">{today}</p>
+          <p className="text-xs font-semibold uppercase tracking-[.18em] text-emerald-200">Tableau de bord</p>
+          <h1 className="mt-2 text-2xl sm:text-4xl font-bold tracking-tight">{greeting}, {firstName}</h1>
+          <p className="text-sm text-white/65 capitalize mt-1">{today}</p>
         </div>
-        <button onClick={loadData} className="px-3 py-1.5 text-xs font-medium bg-gray-100 hover:bg-gray-200 rounded-lg transition text-gray-600">↻ Actualiser</button>
-      </div>
+        <button aria-label="Actualiser" onClick={loadData} className="flex min-h-11 items-center gap-2 rounded-xl border border-white/15 bg-white/10 px-3 text-sm font-semibold text-white hover:bg-white/15"><RefreshCw className="h-4 w-4"/><span className="hidden sm:inline">Actualiser</span></button>
+        </div>
+        <div className="relative mt-7 grid grid-cols-3 divide-x divide-white/15 rounded-2xl bg-white/10 p-4 backdrop-blur-sm">
+          <div><p className="text-2xl font-bold tabular-nums">{stats?.inProgress || 0}</p><p className="mt-1 text-[11px] text-white/65">En cours</p></div>
+          <div className="pl-4"><p className="text-2xl font-bold tabular-nums">{stats?.thisWeek?.delivered || 0}</p><p className="mt-1 text-[11px] text-white/65">Cette semaine</p></div>
+          <div className="pl-4"><p className="text-2xl font-bold tabular-nums">{fmt(stats?.thisMonth?.collected || 0)}</p><p className="mt-1 text-[11px] text-white/65">Encaissé ce mois</p></div>
+        </div>
+      </section>
 
       {/* Messages */}
       {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">{error}<button onClick={() => setError('')} className="float-right font-bold">&times;</button></div>}
       {success && <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-xl text-sm">{success}</div>}
 
       {/* ─── Courses disponibles — PRIORITÉ ─── */}
-      <div className={`rounded-2xl border-2 overflow-hidden shadow-md transition-all ${availableOrders.length > 0 ? 'border-amber-400' : 'border-gray-100'}`}>
-        <div className={`flex items-center justify-between px-5 py-4 ${availableOrders.length > 0 ? 'bg-gradient-to-r from-amber-500 to-orange-500' : 'bg-white'}`}>
+      <div className={`rounded-[24px] border overflow-hidden bg-white transition-all ${availableOrders.length > 0 ? 'border-emerald-300 shadow-lg' : 'border-gray-200 shadow-sm'}`}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
           <div className="flex items-center gap-3">
-            {availableOrders.length > 0 && (
-              <span className="flex h-3 w-3 relative flex-shrink-0">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75" />
-                <span className="relative inline-flex rounded-full h-3 w-3 bg-white" />
-              </span>
-            )}
-            <h2 className={`text-sm font-bold uppercase tracking-wide ${availableOrders.length > 0 ? 'text-white' : 'text-gray-700'}`}>
-              📦 Courses disponibles
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-[#0F6B4F]"><Package className="h-5 w-5" /></div><h2 className="text-sm font-bold text-gray-900">
+              Courses disponibles
               {availableOrders.length > 0 && (
-                <span className="ml-2 bg-white text-amber-600 text-xs font-black px-2 py-0.5 rounded-full">{availableOrders.length}</span>
+                <span className="ml-2 bg-emerald-100 text-emerald-800 text-xs font-bold px-2 py-0.5 rounded-full">{availableOrders.length}</span>
               )}
             </h2>
           </div>
-          <Link to="/ecom/livreur/available" className={`text-xs font-medium hover:underline flex-shrink-0 ${availableOrders.length > 0 ? 'text-white/80' : 'text-[#0F6B4F]'}`}>Tout voir →</Link>
+          <Link to="/ecom/livreur/available" className="flex min-h-11 items-center gap-1 text-sm font-semibold text-[#0F6B4F]">Tout voir <ArrowRight className="h-4 w-4"/></Link>
         </div>
         <div className="bg-white">
           {availableOrders.length === 0 ? (
-            <div className="text-center py-8 px-5">
-              <p className="text-gray-400 text-sm">Aucune course disponible pour le moment</p>
-              <p className="text-xs text-gray-300 mt-1">Les nouvelles courses apparaîtront ici automatiquement</p>
+            <div className="flex flex-col items-center text-center py-9 px-5">
+              <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-gray-100 text-gray-400"><Box className="h-5 w-5"/></div><p className="text-gray-700 font-semibold text-sm">Aucune course disponible</p>
+              <p className="text-xs text-gray-400 mt-1">Cette liste se met à jour automatiquement.</p>
             </div>
           ) : (
-            <div className="divide-y divide-gray-50">
+            <div className="space-y-3 p-3 sm:p-4">
               {availableOrders.map(order => {
                 const meta = getOfferMeta(order);
                 const remaining = formatRemaining(meta.responseDeadline);
                 return (
-                  <div key={order._id} className="p-4 hover:bg-amber-50/30 transition">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-sm font-semibold text-gray-900 truncate">{order.clientName || order.clientPhone || 'Client'}</span>
+                  <article key={order._id} className="rounded-[20px] border border-gray-200 bg-gray-50/60 p-4 sm:p-5 transition hover:border-emerald-300">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0"><p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Nouvelle mission</p><h3 className="mt-1 text-base font-bold text-gray-950 truncate">{order.clientName || order.clientPhone || 'Client'}</h3></div>
                       <div className="flex items-center gap-1.5 flex-shrink-0">
-                        <span className="text-xs font-mono text-gray-300">{order.orderId}</span>
+                        <span className="text-[10px] font-mono text-gray-400">{order.orderId}</span>
                         {meta.isTargeted && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700">Ciblée</span>}
-                        {remaining && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-50 text-red-600">{remaining}</span>}
+                        {remaining && <span className="text-[10px] font-bold px-2 py-1 rounded-full bg-red-50 text-red-700">{remaining}</span>}
                       </div>
                     </div>
-                    <p className="text-xs text-gray-400 truncate">{order.city || order.address || '—'}{order.product ? ` · ${order.product}` : ''}</p>
-                    {meta.destination && <p className="text-xs text-gray-400 truncate mt-0.5">🎯 {meta.destination}</p>}
-                    {(meta.gainLabel || meta.estimatedDistanceLabel) && <p className="text-xs text-gray-400 truncate mt-0.5">💸 Montant : {meta.gainLabel || '—'} · 📏 {meta.estimatedDistanceLabel || 'À estimer'}</p>}
-                    {order.price && <p className="text-xs font-semibold text-[#0F6B4F] mt-0.5">{fmt(order.price)}</p>}
-                    <div className="mt-2.5 flex gap-2">
-                      <button onClick={() => handleAssign(order._id)} disabled={assigning[order._id]} className="text-xs px-3 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-bold transition disabled:opacity-50 flex-1">
-                        {assigning[order._id] ? 'En cours…' : '✓ Accepter'}
+                    <div className="mt-4 rounded-2xl bg-white border border-gray-100 p-3 space-y-3">
+                      <div className="flex gap-3"><div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-[#0F6B4F]"><MapPin className="h-4 w-4"/></div><div className="min-w-0"><p className="text-[10px] font-semibold uppercase text-gray-400">Destination</p><p className="text-sm font-medium text-gray-800 line-clamp-2">{meta.destination || [order.address, order.city].filter(Boolean).join(', ') || 'Adresse à confirmer'}</p></div></div>
+                      {order.product && <div className="flex gap-3"><div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-50 text-blue-700"><Package className="h-4 w-4"/></div><div className="min-w-0"><p className="text-[10px] font-semibold uppercase text-gray-400">Colis</p><p className="text-sm font-medium text-gray-800 line-clamp-2">{order.product}{order.quantity > 1 ? ` × ${order.quantity}` : ''}</p></div></div>}
+                    </div>
+                    <div className="mt-4 flex items-end justify-between gap-3">
+                      <div><p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">À encaisser</p><p className="mt-0.5 text-xl font-bold text-[#0F6B4F]">{formatMoney(order.price || 0, order.currency || 'XAF')}</p></div>
+                      <div className="flex items-center gap-1.5 text-xs text-gray-500"><Route className="h-4 w-4"/>{meta.estimatedDistanceLabel || 'Distance à estimer'}</div>
+                    </div>
+                    <div className="mt-4 grid grid-cols-[1fr_auto] gap-2">
+                      <button onClick={() => handleAssign(order._id)} disabled={assigning[order._id]} className="min-h-12 px-4 bg-[#0F6B4F] hover:bg-[#0b5942] text-white rounded-xl text-sm font-bold transition disabled:opacity-50">
+                        {assigning[order._id] ? 'Acceptation…' : 'Accepter la course'}
                       </button>
-                      <button onClick={() => handleRefuse(order._id)} disabled={assigning[order._id]} className="text-xs px-3 py-2 bg-red-50 text-red-600 border border-red-200 rounded-xl font-medium hover:bg-red-100 transition disabled:opacity-50 flex-1">
-                        {assigning[order._id] ? '…' : '✕ Refuser'}
+                      <button aria-label="Refuser la course" title="Refuser" onClick={() => handleRefuse(order._id)} disabled={assigning[order._id]} className="h-12 w-12 flex items-center justify-center bg-white text-gray-500 border border-gray-200 rounded-xl hover:bg-red-50 hover:text-red-700 hover:border-red-200 transition disabled:opacity-50">
+                        <X className="h-5 w-5"/>
                       </button>
                     </div>
-                  </div>
+                  </article>
                 );
               })}
             </div>
@@ -258,15 +279,13 @@ const LivreurDashboard = () => {
 
       {/* KPI Cards */}
       {stats && (
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
           {[
-            { label: 'Disponibles', value: stats.available || 0, iconBg: '#fffbeb', icon: <svg className="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>, sub: 'courses' },
-            { label: 'En cours', value: stats.inProgress || 0, iconBg: '#eef2ff', icon: <svg className="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>, sub: 'livraisons' },
-            { label: 'Ce mois', value: stats.thisMonth?.delivered || 0, iconBg: '#ecfdf5', icon: <svg className="w-4 h-4 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>, sub: 'livrées' },
-            { label: 'Semaine', value: stats.thisWeek?.delivered || 0, iconBg: '#f5f3ff', icon: <svg className="w-4 h-4 text-violet-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>, sub: 'livrées' },
-            { label: 'Total', value: stats.allTime?.delivered || 0, iconBg: '#f0fdf4', icon: <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" /></svg>, sub: 'livrées' },
+            { label: 'Disponibles', value: stats.available || 0, iconBg: '#ecfdf5', icon: <Package className="h-5 w-5 text-emerald-700"/>, sub: 'courses à prendre' },
+            { label: 'Livrées ce mois', value: stats.thisMonth?.delivered || 0, iconBg: '#eff6ff', icon: <CheckCircle2 className="h-5 w-5 text-blue-700"/>, sub: 'livraisons terminées' },
+            { label: 'Total livré', value: stats.allTime?.delivered || 0, iconBg: '#f5f3ff', icon: <History className="h-5 w-5 text-violet-700"/>, sub: 'depuis le début' },
           ].map((k, i) => (
-            <div key={i} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 hover:shadow-md transition">
+            <div key={i} className={`${i === 2 ? 'col-span-2 lg:col-span-1' : ''} bg-white rounded-[20px] border border-gray-200 p-4 transition`}>
               <div className="flex items-center justify-between mb-3">
                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{k.label}</p>
                 <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: k.iconBg }}>{k.icon}</div>
@@ -280,28 +299,28 @@ const LivreurDashboard = () => {
 
       {/* Montant encaissé */}
       {stats && (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+        <div className="bg-white rounded-[24px] border border-gray-200 p-5">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-bold text-gray-700 uppercase tracking-wide">💰 Montant encaissé</h2>
+            <h2 className="flex items-center gap-2 text-sm font-bold text-gray-900"><Wallet className="h-5 w-5 text-[#0F6B4F]"/>Montant encaissé</h2>
             <Link to="/ecom/livreur/earnings" className="text-xs text-[#0F6B4F] font-medium hover:underline">Voir tout →</Link>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <p className="text-xs text-gray-400">Ce mois</p>
-              <p className="text-2xl font-black text-gray-900">{fmt(stats.thisMonth?.amount || 0)}</p>
+              <p className="text-2xl font-black text-gray-900">{fmt(stats.thisMonth?.collected || 0)}</p>
             </div>
             <div>
               <p className="text-xs text-gray-400">Total cumulé</p>
-              <p className="text-2xl font-black text-[#0F6B4F]">{fmt(stats.allTime?.amount || 0)}</p>
+              <p className="text-2xl font-black text-[#0F6B4F]">{fmt(stats.allTime?.collected || 0)}</p>
             </div>
           </div>
         </div>
       )}
 
       {/* Mes livraisons en cours */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+      <div className="bg-white rounded-[24px] border border-gray-200 p-5">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-bold text-gray-700 uppercase tracking-wide">🚚 En cours</h2>
+            <h2 className="flex items-center gap-2 text-sm font-bold text-gray-900"><Navigation className="h-5 w-5 text-[#0F6B4F]"/>Livraisons en cours</h2>
             <Link to="/ecom/livreur/deliveries" className="text-xs text-[#0F6B4F] font-medium hover:underline">Tout voir →</Link>
           </div>
           {myOrders.length === 0 ? (
@@ -323,12 +342,12 @@ const LivreurDashboard = () => {
                     <div className="flex items-center gap-2 mt-2">
                       {order.status === 'confirmed' && (
                         <button onClick={() => handleAction(order._id, 'pickup_confirmed')} disabled={assigning[order._id]} className="text-xs px-3 py-1.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-lg font-medium hover:bg-amber-100 transition disabled:opacity-50">
-                          {assigning[order._id] ? '…' : '📦 Récupéré'}
+                          {assigning[order._id] ? 'En cours…' : 'Colis récupéré'}
                         </button>
                       )}
                       {order.status === 'shipped' && (
                         <button onClick={() => handleAction(order._id, 'delivered')} disabled={assigning[order._id]} className="text-xs px-3 py-1.5 bg-green-50 text-green-700 border border-green-200 rounded-lg font-medium hover:bg-green-100 transition disabled:opacity-50">
-                          {assigning[order._id] ? '…' : '✅ Livré'}
+                          {assigning[order._id] ? 'En cours…' : 'Confirmer la livraison'}
                         </button>
                       )}
                       <Link to={`/ecom/livreur/delivery/${order._id}`} className="text-xs px-3 py-1.5 bg-gray-50 text-gray-600 border border-gray-200 rounded-lg font-medium hover:bg-gray-100 transition">Détails</Link>
@@ -343,12 +362,12 @@ const LivreurDashboard = () => {
       {/* Actions rapides */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {[
-          { href: '/ecom/livreur/available', icon: '📦', label: 'Courses disponibles', sub: 'Accepter de nouvelles courses' },
-          { href: '/ecom/livreur/history', icon: '📋', label: 'Historique', sub: 'Toutes vos livraisons terminées' },
-          { href: '/ecom/livreur/earnings', icon: '💰', label: 'Montant encaissé', sub: 'Détail de vos encaissements' },
+          { href: '/ecom/livreur/available', icon: <Package className="h-5 w-5"/>, label: 'Courses disponibles', sub: 'Accepter de nouvelles courses' },
+          { href: '/ecom/livreur/history', icon: <History className="h-5 w-5"/>, label: 'Historique', sub: 'Toutes vos livraisons terminées' },
+          { href: '/ecom/livreur/earnings', icon: <Wallet className="h-5 w-5"/>, label: 'Montant encaissé', sub: 'Détail de vos encaissements' },
         ].map((a, i) => (
-          <Link key={i} to={a.href} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 hover:shadow-md transition group flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gray-50 flex items-center justify-center text-xl shrink-0">{a.icon}</div>
+          <Link key={i} to={a.href} className="bg-white rounded-[20px] border border-gray-200 p-4 hover:border-emerald-300 transition group flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-emerald-50 text-[#0F6B4F] flex items-center justify-center shrink-0">{a.icon}</div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold text-gray-900">{a.label}</p>
               <p className="text-xs text-gray-400 truncate">{a.sub}</p>

@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom';
 import { useEcomAuth } from '../hooks/useEcomAuth';
 import ecomApi from '../services/ecommApi.js';
 import { useMoney } from '../hooks/useMoney.js';
+import { MapPin, Navigation, Phone, Package, X, RefreshCw, LocateFixed } from 'lucide-react';
+import { getCurrencyInfo } from '../utils/currency.js';
 
 const COST_PER_KM = 500;
 
@@ -121,6 +123,7 @@ const LivreurDeliveries = () => {
   const [courseGps, setCourseGps] = useState(null);
   const [courseGpsErr, setCourseGpsErr] = useState('');
   const [courseSaving, setCourseSaving] = useState(false);
+  const [startWithoutGps, setStartWithoutGps] = useState(false);
   const [addrSuggestions, setAddrSuggestions] = useState([]);
   const [selectedDest, setSelectedDest] = useState(null);
   const [addrLoading, setAddrLoading] = useState(false);
@@ -138,12 +141,14 @@ const LivreurDeliveries = () => {
   // Delivery confirmation modal
   const [deliveryModal, setDeliveryModal] = useState(null); // { orderId }
   const [deliveryNote, setDeliveryNote] = useState('');
+  const [collectedAmount, setCollectedAmount] = useState('');
   const [nonDeliveredReason, setNonDeliveredReason] = useState('');
   const [nonDeliveredCustom, setNonDeliveredCustom] = useState('');
   const [deliveryTab, setDeliveryTab] = useState('livré'); // 'livré' | 'non-livré'
 
   const fetchSuggestions = useCallback((text) => {
     setSelectedDest(null);
+    setStartWithoutGps(false);
     if (addrDebounce.current) clearTimeout(addrDebounce.current);
     if (text.trim().length < 3) { setAddrSuggestions([]); return; }
     addrDebounce.current = setTimeout(async () => {
@@ -191,8 +196,8 @@ const LivreurDeliveries = () => {
     if (watchRef.current !== null) { navigator.geolocation.clearWatch(watchRef.current); watchRef.current = null; }
   }, []);
 
-  const submitCourse = async () => {
-    if (!courseGps) { setCourseGpsErr('En attente du GPS…'); return; }
+  const submitCourse = async (forceWithoutGps = false) => {
+    if (!courseGps && !forceWithoutGps && !startWithoutGps) { setCourseGpsErr('Activez le GPS ou choisissez de démarrer sans localisation.'); return; }
     if (!courseAddr.trim()) return;
     setCourseSaving(true);
     try {
@@ -206,26 +211,28 @@ const LivreurDeliveries = () => {
           if (data.length > 0) { destLat = parseFloat(data[0].lat); destLng = parseFloat(data[0].lon); destDisplay = data[0].display_name; }
         } catch { /* silent */ }
       }
-      if (!destLat) { setCourseGpsErr('Adresse introuvable. Choisissez une suggestion.'); setCourseSaving(false); return; }
-      const dist = Math.round(haversineKm(courseGps.lat, courseGps.lng, destLat, destLng) * 100) / 100;
-      const startSnap = { lat: courseGps.lat, lng: courseGps.lng };
-      await ecomApi.patch(`/orders/${courseModal.orderId}/livreur-action`, {
+      if (!destLat && !forceWithoutGps && !startWithoutGps) { setCourseGpsErr('Adresse introuvable. Choisissez une suggestion ou démarrez sans GPS.'); setCourseSaving(false); return; }
+      const startSnap = !forceWithoutGps && courseGps ? { lat: courseGps.lat, lng: courseGps.lng } : null;
+      const dist = startSnap && destLat ? Math.round(haversineKm(startSnap.lat, startSnap.lng, destLat, destLng) * 100) / 100 : 0;
+      const payload = {
         action: 'start_delivery',
-        startLat: startSnap.lat, startLng: startSnap.lng,
-        endLat: destLat, endLng: destLng,
         endAddress: destDisplay || courseAddr,
         distanceKm: dist,
-      });
+        gpsSkipped: !startSnap,
+      };
+      if (startSnap) Object.assign(payload, { startLat: startSnap.lat, startLng: startSnap.lng });
+      if (destLat && destLng) Object.assign(payload, { endLat: destLat, endLng: destLng });
+      await ecomApi.patch(`/orders/${courseModal.orderId}/livreur-action`, payload);
       // Update local orders state immediately so card shows "Voir la course"
       const savedOrderId = courseModal.orderId;
       setOrders(prev => prev.map(o =>
         o._id === savedOrderId
-          ? { ...o, status: 'shipped', deliveryStartedAt: new Date().toISOString(), deliveryStartLat: startSnap.lat, deliveryStartLng: startSnap.lng, deliveryEndLat: destLat, deliveryEndLng: destLng, deliveryEndAddress: destDisplay || courseAddr, deliveryDistanceKm: dist }
+          ? { ...o, status: 'shipped', deliveryStartedAt: new Date().toISOString(), deliveryStartLat: startSnap?.lat, deliveryStartLng: startSnap?.lng, deliveryEndLat: destLat, deliveryEndLng: destLng, deliveryEndAddress: destDisplay || courseAddr, deliveryDistanceKm: dist }
           : o
       ));
       // Transition to full-screen GPS tracking
       closeCourseModal();
-      setFullTrack({ orderId: savedOrderId, startLat: startSnap.lat, startLng: startSnap.lng, destLat, destLng, destAddr: destDisplay || courseAddr, distKm: dist });
+      if (startSnap && destLat && destLng) setFullTrack({ orderId: savedOrderId, startLat: startSnap.lat, startLng: startSnap.lng, destLat, destLng, destAddr: destDisplay || courseAddr, distKm: dist });
       loadOrders(true);
     } catch (err) {
       setCourseGpsErr(err.response?.data?.message || 'Erreur lors du démarrage.');
@@ -258,8 +265,10 @@ const LivreurDeliveries = () => {
   };
 
   const openDeliveryModal = useCallback((orderId) => {
-    setDeliveryModal({ orderId });
+    const selectedOrder = orders.find(order => order._id === orderId);
+    setDeliveryModal({ orderId, expectedAmount: Number(selectedOrder?.price || 0), currency: selectedOrder?.currency || 'XAF' });
     setDeliveryNote('');
+    setCollectedAmount(String(Number(selectedOrder?.price || 0)));
     setNonDeliveredReason('');
     setNonDeliveredCustom('');
     setDeliveryTab('livré');
@@ -267,7 +276,9 @@ const LivreurDeliveries = () => {
 
   const submitDelivery = async () => {
     const orderId = deliveryModal.orderId;
-    await handleAction(orderId, 'delivered', { deliveryNote: deliveryNote.trim() });
+    const amount = Number(collectedAmount);
+    if (!Number.isFinite(amount) || amount < 0) { setError('Saisissez le montant réellement encaissé.'); return; }
+    await handleAction(orderId, 'delivered', { deliveryNote: deliveryNote.trim(), collectedAmount: amount });
     setDeliveryModal(null);
     if (fullTrack?.orderId === orderId) setFullTrack(null);
   };
@@ -316,7 +327,7 @@ const LivreurDeliveries = () => {
   const filtered = tab === 'all' ? orders : orders.filter(o => o.status === tab);
 
   return (
-    <div className="p-3 sm:p-6 max-w-[900px] mx-auto space-y-5">
+    <div className="px-4 py-5 sm:p-8 max-w-[980px] mx-auto space-y-5 pb-28 lg:pb-10">
 
       {/* ── Full-screen GPS tracking (after starting a course, not closable) ── */}
       {fullTrack && (() => {
@@ -334,7 +345,7 @@ const LivreurDeliveries = () => {
             <div className="flex items-center justify-between px-5 py-4 bg-gradient-to-r from-indigo-600 to-indigo-800 flex-shrink-0">
               <div className="flex-1 min-w-0 mr-3">
                 <div className="flex items-center gap-2">
-                  <h2 className="text-white font-bold text-lg">📍 Course en cours</h2>
+                  <h2 className="text-white font-bold text-lg">Course en cours</h2>
                   <span className="flex h-2.5 w-2.5 relative flex-shrink-0"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"/><span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500"/></span>
                   <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: trackSm.bg, color: trackSm.text }}>{STATUS_LABELS[trackStatus] || trackStatus}</span>
                 </div>
@@ -385,7 +396,7 @@ const LivreurDeliveries = () => {
                       disabled={assigning[trackOrderId]}
                       className="flex-1 py-3 bg-amber-500 text-white rounded-xl font-bold text-sm hover:bg-amber-600 transition disabled:opacity-50 flex items-center justify-center gap-1"
                     >
-                      {assigning[trackOrderId] ? '…' : '📦 Colis récupéré'}
+                      {assigning[trackOrderId] ? '…' : 'Colis récupéré'}
                     </button>
                   )}
                   {trackStatus === 'shipped' && (
@@ -394,7 +405,7 @@ const LivreurDeliveries = () => {
                       disabled={assigning[trackOrderId]}
                       className="flex-1 py-3 bg-green-600 text-white rounded-xl font-bold text-sm hover:bg-green-700 transition disabled:opacity-50 flex items-center justify-center gap-1"
                     >
-                      {assigning[trackOrderId] ? '…' : '✅ Marquer livré'}
+                      {assigning[trackOrderId] ? '…' : 'Marquer livré'}
                     </button>
                   )}
                 </div>
@@ -405,7 +416,7 @@ const LivreurDeliveries = () => {
                   target="_blank" rel="noopener noreferrer"
                   className="flex-1 flex items-center justify-center gap-2 py-3 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700 transition"
                 >
-                  🗺️ Naviguer
+                  Naviguer
                 </a>
                 {trackOrder?.clientPhone && (
                   <a href={`tel:${trackOrder.clientPhone}`} className="px-4 py-3 bg-primary-50 text-primary-700 rounded-xl font-bold text-sm hover:bg-primary-100 transition flex items-center gap-1">
@@ -435,16 +446,24 @@ const LivreurDeliveries = () => {
               {/* Tabs */}
               <div className="flex gap-1 bg-gray-100 rounded-xl p-1">
                 <button onClick={() => setDeliveryTab('livré')} className={`flex-1 py-2 rounded-lg text-xs font-bold transition ${deliveryTab === 'livré' ? 'bg-green-600 text-white shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
-                  ✅ Livré
+                  Livré
                 </button>
                 <button onClick={() => setDeliveryTab('non-livré')} className={`flex-1 py-2 rounded-lg text-xs font-bold transition ${deliveryTab === 'non-livré' ? 'bg-red-500 text-white shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
-                  ❌ Non livré
+                  Non livré
                 </button>
               </div>
 
               {/* Tab: Livré */}
               {deliveryTab === 'livré' && (
                 <div className="space-y-4">
+                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 space-y-2">
+                    <label htmlFor="collected-amount" className="text-xs font-bold text-emerald-900 uppercase tracking-wide">Montant réellement encaissé</label>
+                    <div className="relative">
+                      <input id="collected-amount" type="number" inputMode="numeric" min="0" step="1" value={collectedAmount} onChange={e => setCollectedAmount(e.target.value)} className="w-full min-h-12 rounded-xl border border-emerald-300 bg-white px-4 pr-16 text-lg font-bold text-gray-950 outline-none focus:ring-2 focus:ring-emerald-500/30" />
+                      <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-500">{getCurrencyInfo(deliveryModal.currency).symbol}</span>
+                    </div>
+                    <p className="text-xs text-emerald-800/70">Montant prévu : {Number(deliveryModal.expectedAmount || 0).toLocaleString('fr-FR')} {getCurrencyInfo(deliveryModal.currency).symbol}. Modifiez-le si le client a payé un autre montant.</p>
+                  </div>
                   <div className="space-y-2">
                     <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Précisions sur la course (optionnel)</label>
                     <textarea
@@ -457,12 +476,12 @@ const LivreurDeliveries = () => {
                   </div>
                   <button
                     onClick={submitDelivery}
-                    disabled={assigning[deliveryModal.orderId]}
+                    disabled={assigning[deliveryModal.orderId] || collectedAmount === '' || Number(collectedAmount) < 0}
                     className="w-full py-3.5 bg-gradient-to-r from-green-500 to-primary-600 text-white rounded-xl font-bold text-sm hover:from-green-600 hover:to-primary-700 transition disabled:opacity-50 flex items-center justify-center gap-2"
                   >
                     {assigning[deliveryModal.orderId] ? (
                       <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Enregistrement…</>
-                    ) : <>✅ On livre !</>}
+                    ) : <>Confirmer la livraison</>}
                   </button>
                 </div>
               )}
@@ -502,7 +521,7 @@ const LivreurDeliveries = () => {
                   >
                     {assigning[deliveryModal.orderId] ? (
                       <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Enregistrement…</>
-                    ) : <>❌ Marquer non livré</>}
+                    ) : <>Marquer non livré</>}
                   </button>
                 </div>
               )}
@@ -520,13 +539,13 @@ const LivreurDeliveries = () => {
             {courseModal.phase === 'input' && (
               <div className="p-6 space-y-5">
                 <div className="flex items-center justify-between">
-                  <h2 className="text-lg font-bold text-gray-900">🚀 Commencer la course</h2>
-                  <button onClick={closeCourseModal} className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200">✕</button>
+                  <div><p className="text-xs font-semibold uppercase tracking-wider text-[#0F6B4F]">Nouvelle course</p><h2 className="text-xl font-bold text-gray-950">Démarrer la livraison</h2></div>
+                  <button aria-label="Fermer" onClick={closeCourseModal} className="w-11 h-11 flex items-center justify-center rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200"><X className="w-5 h-5" /></button>
                 </div>
                 {/* GPS status */}
                 <div className={`flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm ${courseGps ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>
                   {courseGps ? (
-                    <><span className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0" /><span className="font-medium">GPS actif</span><span className="text-green-600 text-xs ml-1">{courseGps.lat.toFixed(4)}, {courseGps.lng.toFixed(4)}</span></>
+                    <><LocateFixed className="w-4 h-4" /><span className="font-medium">Position détectée</span><span className="text-green-600 text-xs ml-auto">GPS actif</span></>
                   ) : (
                     <><div className="w-4 h-4 border-2 border-amber-400 border-t-transparent rounded-full animate-spin flex-shrink-0" /><span>Localisation en cours…</span></>
                   )}
@@ -538,7 +557,7 @@ const LivreurDeliveries = () => {
                   <div className="relative">
                     <input
                       type="text"
-                      placeholder="Ex: Marché central, Douala"
+                      placeholder="Adresse, quartier, ville et pays"
                       value={courseAddr}
                       onChange={e => { setCourseAddr(e.target.value); fetchSuggestions(e.target.value); }}
                       onKeyDown={e => e.key === 'Enter' && courseGps && selectedDest && submitCourse()}
@@ -572,14 +591,23 @@ const LivreurDeliveries = () => {
                   </div>
                 </div>
                 <button
-                  onClick={submitCourse}
-                  disabled={courseSaving || !courseGps || !courseAddr.trim() || !!addrSuggestions.length}
-                  className="w-full py-3.5 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl font-bold text-sm hover:from-amber-600 hover:to-orange-600 transition disabled:opacity-50 flex items-center justify-center gap-2"
+                  onClick={() => submitCourse(false)}
+                  disabled={courseSaving || !courseGps || !courseAddr.trim()}
+                  className="w-full min-h-12 bg-[#0F6B4F] text-white rounded-xl font-bold text-sm hover:bg-[#0b5942] transition disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                   {courseSaving ? (
                     <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Calcul en cours…</>
-                  ) : !courseGps ? <>⏳ En attente du GPS</> : <>🚀 Lancer la course</>}
+                  ) : <><Navigation className="w-4 h-4" />{courseGps ? 'Démarrer avec le GPS' : 'Démarrer sans GPS'}</>}
                 </button>
+                <button
+                  type="button"
+                  onClick={() => submitCourse(true)}
+                  disabled={courseSaving || !courseAddr.trim()}
+                  className="w-full min-h-12 border border-gray-300 bg-white text-gray-800 rounded-xl font-bold text-sm hover:bg-gray-50 transition disabled:opacity-50"
+                >
+                  Démarrer sans GPS
+                </button>
+                <p className="-mt-3 text-center text-[11px] text-gray-500">Sans GPS, la distance et le coût ne seront pas calculés automatiquement.</p>
                 <p className="text-center text-[10px] text-gray-400">Coût calculé à {COST_PER_KM} {symbol} / km</p>
               </div>
             )}
@@ -588,10 +616,10 @@ const LivreurDeliveries = () => {
       )}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">🚚 Mes livraisons</h1>
+          <p className="text-xs font-semibold uppercase tracking-wider text-[#0F6B4F]">Espace livreur</p><h1 className="text-2xl font-bold text-gray-950">Mes livraisons</h1>
           <p className="text-sm text-gray-400 mt-0.5">{orders.length} livraison{orders.length !== 1 ? 's' : ''} active{orders.length !== 1 ? 's' : ''}</p>
         </div>
-        <button onClick={loadOrders} className="px-3 py-1.5 text-xs font-medium bg-gray-100 hover:bg-gray-200 rounded-lg transition text-gray-600">↻ Actualiser</button>
+        <button aria-label="Actualiser les livraisons" onClick={loadOrders} className="min-h-11 px-4 text-sm font-semibold bg-white border border-gray-200 hover:bg-gray-50 rounded-xl transition text-gray-700 flex items-center gap-2"><RefreshCw className="w-4 h-4" />Actualiser</button>
       </div>
 
       {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">{error}<button onClick={() => setError('')} className="float-right font-bold">&times;</button></div>}
@@ -621,7 +649,7 @@ const LivreurDeliveries = () => {
           {filtered.map(order => {
             const sm = STATUS_META[order.status] || { bg: '#f9fafb', text: '#374151' };
             return (
-              <div key={order._id} className={`bg-white rounded-2xl border shadow-sm p-4 hover:shadow-md transition ${order.deliveryStartedAt && order.deliveryEndLat ? 'border-indigo-200' : 'border-gray-100'}`}>
+              <div key={order._id} className={`bg-white rounded-[24px] border p-4 sm:p-5 transition ${order.deliveryStartedAt && order.deliveryEndLat ? 'border-emerald-300' : 'border-gray-200'}`}>
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm font-semibold text-gray-900">{order.clientName || order.clientPhone || 'Client'}</span>
                   <div className="flex items-center gap-2">
@@ -634,25 +662,25 @@ const LivreurDeliveries = () => {
                   </div>
                 </div>
                 <div className="space-y-1 text-xs text-gray-500 mb-3">
-                  {order.clientPhone && <p>📞 {order.clientPhone}</p>}
-                  {(order.city || order.address) && <p>📍 {order.city}{order.address ? `, ${order.address}` : ''}</p>}
-                  {order.product && <p>📦 {order.product}{order.quantity > 1 ? ` × ${order.quantity}` : ''}</p>}
+                  {order.clientPhone && <p className="flex items-center gap-2"><Phone className="w-4 h-4" />{order.clientPhone}</p>}
+                  {(order.city || order.address) && <p className="flex items-center gap-2"><MapPin className="w-4 h-4" />{order.city}{order.address ? `, ${order.address}` : ''}</p>}
+                  {order.product && <p className="flex items-center gap-2"><Package className="w-4 h-4" />{order.product}{order.quantity > 1 ? ` × ${order.quantity}` : ''}</p>}
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
                   {order.status === 'confirmed' && !order.deliveryStartedAt && (
                     <button onClick={() => openCourseModal(order)} className="text-xs px-3 py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-lg font-bold hover:from-amber-600 hover:to-orange-600 transition shadow-sm flex items-center gap-1">
-                      🚀 Commencer la course
+                      Commencer la course
                     </button>
                   )}
                   {order.status === 'confirmed' && order.deliveryStartedAt && order.deliveryEndLat && (
                     <button onClick={() => openTrackingModal(order)} className="text-xs px-3 py-2 bg-gradient-to-r from-indigo-500 to-indigo-700 text-white rounded-lg font-bold hover:from-indigo-600 hover:to-indigo-800 transition shadow-sm flex items-center gap-1">
-                      📍 Voir la course
+                      Voir la course
                     </button>
                   )}
                   {order.status === 'confirmed' && (
                     <>
                       <button onClick={() => handleAction(order._id, 'pickup_confirmed')} disabled={assigning[order._id]} className="text-xs px-3 py-1.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-lg font-medium hover:bg-amber-100 transition disabled:opacity-50">
-                        {assigning[order._id] ? '…' : '📦 Récupéré'}
+                        {assigning[order._id] ? '…' : 'Récupéré'}
                       </button>
                       <button onClick={() => handleAction(order._id, 'refused')} disabled={assigning[order._id]} className="text-xs px-3 py-1.5 bg-red-50 text-red-600 border border-red-200 rounded-lg font-medium hover:bg-red-100 transition disabled:opacity-50">
                         {assigning[order._id] ? '…' : '✕ Refuser'}
@@ -661,17 +689,17 @@ const LivreurDeliveries = () => {
                   )}
                   {order.status === 'shipped' && !order.deliveryStartedAt && (
                     <button onClick={() => openCourseModal(order)} className="text-xs px-3 py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-lg font-bold hover:from-amber-600 hover:to-orange-600 transition shadow-sm flex items-center gap-1">
-                      🚀 Commencer la course
+                      Commencer la course
                     </button>
                   )}
                   {order.status === 'shipped' && order.deliveryStartedAt && order.deliveryEndLat && (
                     <button onClick={() => openTrackingModal(order)} className="text-xs px-3 py-2 bg-gradient-to-r from-indigo-500 to-indigo-700 text-white rounded-lg font-bold hover:from-indigo-600 hover:to-indigo-800 transition shadow-sm flex items-center gap-1">
-                      📍 Voir la course
+                      Voir la course
                     </button>
                   )}
                   {order.status === 'shipped' && (
                     <button onClick={() => openDeliveryModal(order._id)} disabled={assigning[order._id]} className="text-xs px-3 py-1.5 bg-green-50 text-green-700 border border-green-200 rounded-lg font-medium hover:bg-green-100 transition disabled:opacity-50">
-                      {assigning[order._id] ? '…' : '✅ Livré'}
+                      {assigning[order._id] ? '…' : 'Livré'}
                     </button>
                   )}
                   <Link to={`/ecom/livreur/delivery/${order._id}`} className="text-xs px-3 py-1.5 bg-gray-50 text-gray-600 border border-gray-200 rounded-lg font-medium hover:bg-gray-100 transition">
@@ -679,7 +707,7 @@ const LivreurDeliveries = () => {
                   </Link>
                   {order.clientPhone && (
                     <a href={`tel:${order.clientPhone}`} className="text-xs px-3 py-1.5 bg-blue-50 text-blue-600 border border-blue-200 rounded-lg font-medium hover:bg-blue-100 transition">
-                      📞 Appeler
+                      Appeler
                     </a>
                   )}
                 </div>

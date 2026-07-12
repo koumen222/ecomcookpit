@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useEcomAuth } from '../hooks/useEcomAuth';
 import ecomApi from '../services/ecommApi.js';
+import { History, MapPin } from 'lucide-react';
 
 const STATUS_LABELS = {
   delivered: 'Livrée', returned: 'Retour', cancelled: 'Annulée',
@@ -56,18 +57,18 @@ const LivreurHistoryPage = () => {
   };
 
   return (
-    <div className="p-3 sm:p-6 max-w-[900px] mx-auto space-y-5">
+    <div className="px-4 py-5 sm:p-8 max-w-[980px] mx-auto space-y-5 pb-28 lg:pb-10">
       <div>
-        <h1 className="text-xl sm:text-2xl font-bold text-gray-900">📋 Historique</h1>
+        <p className="text-xs font-semibold uppercase tracking-[.16em] text-[#0F6B4F]">Activité</p><h1 className="mt-1 text-2xl sm:text-3xl font-bold text-gray-950">Historique</h1>
         <p className="text-sm text-gray-400 mt-0.5">Toutes vos livraisons terminées</p>
       </div>
 
       {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">{error}</div>}
 
       {/* Tabs */}
-      <div className="flex gap-1 bg-gray-100 rounded-xl p-1">
+      <div className="flex gap-1 overflow-x-auto bg-gray-100 rounded-2xl p-1.5">
         {TABS.map(t => (
-          <button key={t.key} onClick={() => setTab(t.key)} className={`flex-1 py-2 px-2 rounded-lg text-xs font-medium transition ${tab === t.key ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+          <button key={t.key} onClick={() => setTab(t.key)} className={`flex-1 min-h-11 py-2 px-4 rounded-xl text-sm font-semibold whitespace-nowrap transition ${tab === t.key ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
             {t.label}
           </button>
         ))}
@@ -79,7 +80,7 @@ const LivreurHistoryPage = () => {
           <p className="text-sm text-gray-400">Chargement…</p>
         </div>
       ) : filtered.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-12 text-center">
+        <div className="bg-white rounded-[24px] border border-gray-200 p-12 text-center"><History className="mx-auto mb-4 h-7 w-7 text-gray-400"/>
           <p className="text-gray-500 font-medium">Aucun historique</p>
           <p className="text-xs text-gray-400 mt-1">Vos livraisons terminées apparaîtront ici</p>
         </div>
@@ -92,7 +93,7 @@ const LivreurHistoryPage = () => {
                 {items.map(order => {
                   const sm = STATUS_META[order.status] || { bg: '#f9fafb', text: '#374151' };
                   return (
-                    <Link key={order._id} to={`/ecom/livreur/delivery/${order._id}`} className="block bg-white rounded-2xl border border-gray-100 shadow-sm p-4 hover:shadow-md transition">
+                    <Link key={order._id} to={`/ecom/livreur/delivery/${order._id}`} className="block bg-white rounded-[20px] border border-gray-200 p-4 hover:border-emerald-300 transition">
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-sm font-semibold text-gray-900">{order.clientName || order.clientPhone || 'Client'}</span>
                         <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: sm.bg, color: sm.text }}>
@@ -100,7 +101,7 @@ const LivreurHistoryPage = () => {
                         </span>
                       </div>
                       <div className="flex items-center justify-between text-xs text-gray-400">
-                        <span>{order.city || '—'}{order.product ? ` · ${order.product}` : ''}</span>
+                        <span className="flex items-center gap-1.5"><MapPin className="h-3.5 w-3.5"/>{order.city || '—'}{order.product ? ` · ${order.product}` : ''}</span>
                         {order.price && <span className="font-semibold text-gray-600">{Number(order.price).toLocaleString('fr-FR')} FCFA</span>}
                       </div>
                     </Link>

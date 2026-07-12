@@ -4,6 +4,7 @@ import { useEcomAuth } from '../hooks/useEcomAuth';
 import ecomApi from '../services/ecommApi.js';
 import { useMoney } from '../hooks/useMoney.js';
 import { CenteredSpinner } from '../components/Skeleton.jsx';
+import { formatMoney } from '../utils/currency.js';
 
 const COST_PER_KM = 500;
 
@@ -113,6 +114,7 @@ const MiniMap = ({ startLat, startLng, destLat, destLng, currentLat, currentLng 
 const LivreurDeliveryDetail = () => {
   const { id } = useParams();
   const { user } = useEcomAuth();
+  const { symbol } = useMoney();
   const navigate = useNavigate();
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -203,9 +205,9 @@ const LivreurDeliveryDetail = () => {
   };
 
   // ── Commencer la course ───────────────────────
-  const handleStartDelivery = async () => {
-    if (!myPosition) {
-      setError('Position GPS non disponible. Activez la localisation.');
+  const handleStartDelivery = async (withoutGps = false) => {
+    if (!myPosition && !withoutGps) {
+      setError('Position indisponible. Réessayez ou démarrez sans GPS.');
       return;
     }
     if (!destination.trim()) {
@@ -216,6 +218,7 @@ const LivreurDeliveryDetail = () => {
     setActing(true);
     setError('');
     try {
+      const startPosition = withoutGps ? null : myPosition;
       // Geocode destination
       const geo = await geocodeDestination(destination);
       if (!geo) {
@@ -226,20 +229,21 @@ const LivreurDeliveryDetail = () => {
 
       const dc = { lat: geo.lat, lng: geo.lng };
       setDestCoords(dc);
-      const dist = haversineKm(myPosition.lat, myPosition.lng, dc.lat, dc.lng);
+      const dist = startPosition ? haversineKm(startPosition.lat, startPosition.lng, dc.lat, dc.lng) : 0;
       const roundedDist = Math.round(dist * 100) / 100;
       setDistance(roundedDist);
 
       // Save to backend
-      await ecomApi.patch(`/orders/${id}/livreur-action`, {
+      const payload = {
         action: 'start_delivery',
-        startLat: myPosition.lat,
-        startLng: myPosition.lng,
         endLat: dc.lat,
         endLng: dc.lng,
         endAddress: geo.display || destination,
         distanceKm: roundedDist,
-      });
+        gpsSkipped: !startPosition,
+      };
+      if (startPosition) Object.assign(payload, { startLat: startPosition.lat, startLng: startPosition.lng });
+      await ecomApi.patch(`/orders/${id}/livreur-action`, payload);
 
       setCourseStarted(true);
       setSuccess('Course démarrée !');
@@ -258,6 +262,17 @@ const LivreurDeliveryDetail = () => {
     setError('');
     try {
       const body = { action };
+      if (action === 'delivered') {
+        const entered = window.prompt(`Montant réellement encaissé (${order?.currency || 'XAF'})`, String(order?.price || 0));
+        if (entered === null) { setActing(false); return; }
+        const collectedAmount = Number(entered);
+        if (!Number.isFinite(collectedAmount) || collectedAmount < 0) {
+          setError('Saisissez un montant encaissé valide.');
+          setActing(false);
+          return;
+        }
+        body.collectedAmount = collectedAmount;
+      }
       if (action === 'delivered' && distance) {
         body.distanceKm = distance;
       }
@@ -275,13 +290,6 @@ const LivreurDeliveryDetail = () => {
   const fmtDate = (d) => d ? new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
 
   if (loading) return <CenteredSpinner message="Chargement…" />;
-
-  return (
-    <div className="flex flex-col items-center justify-center h-64 gap-3">
-      <div className="w-8 h-8 rounded-full border-4 border-gray-200 border-t-amber-600 animate-spin" />
-      <p className="text-sm text-gray-400">Chargement…</p>
-    </div>
-  );
 
   if (!order) return (
     <div className="p-6 text-center">
@@ -301,14 +309,14 @@ const LivreurDeliveryDetail = () => {
   const isDelivered = order.status === 'delivered';
 
   return (
-    <div className="p-3 sm:p-6 max-w-[700px] mx-auto space-y-5 pb-24">
+    <div className="px-4 py-5 sm:p-8 max-w-[820px] mx-auto space-y-5 pb-28 lg:pb-10">
       {/* Header */}
       <div className="flex items-center gap-3">
         <button onClick={() => navigate(-1)} className="w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition">
           <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
         </button>
         <div className="flex-1">
-          <h1 className="text-lg sm:text-xl font-bold text-gray-900">Détail de la course</h1>
+          <p className="text-[11px] font-semibold uppercase tracking-[.14em] text-[#0F6B4F]">Course</p><h1 className="text-xl sm:text-2xl font-bold text-gray-950">Détail de la livraison</h1>
           <p className="text-xs text-gray-400">#{order.orderId || id.slice(-8)}</p>
         </div>
         <span className="text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: sm.bg, color: sm.text }}>
@@ -321,7 +329,7 @@ const LivreurDeliveryDetail = () => {
 
       {/* ── Progression GPS ──────────────────────────────────────────────── */}
       {isMyOrder && (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-[24px] border border-gray-200 overflow-hidden">
           <div className="bg-gradient-to-r from-indigo-600 to-indigo-800 px-5 py-4">
             <h2 className="text-white font-bold text-sm uppercase tracking-wide flex items-center gap-2">
               <span>📍</span> Suivi GPS
@@ -347,25 +355,28 @@ const LivreurDeliveryDetail = () => {
             {/* Destination input + Start button */}
             {isConfirmed && !isStarted && order.status !== 'delivered' && (
               <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-3">
-                <p className="text-sm font-semibold text-amber-800">🚀 Commencer la course</p>
+                <p className="text-sm font-semibold text-amber-800">Commencer la course</p>
                 <p className="text-xs text-amber-700">Entrez l'adresse d'arrivée pour calculer le trajet et le coût.</p>
                 <input
                   type="text"
-                  placeholder="Ex: Marché central, Douala"
+                  placeholder="Adresse, quartier, ville et pays"
                   value={destination}
                   onChange={e => setDestination(e.target.value)}
                   className="w-full px-4 py-3 text-sm border border-amber-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500/40 bg-white"
                 />
                 <button
-                  onClick={handleStartDelivery}
+                  onClick={() => handleStartDelivery(false)}
                   disabled={acting || !destination.trim()}
                   className="w-full py-3 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-bold text-sm transition disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                   {acting ? (
                     <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Calcul en cours…</>
                   ) : (
-                    <>📍 Commencer la course</>
+                    <>Commencer avec le GPS</>
                   )}
+                </button>
+                <button onClick={() => handleStartDelivery(true)} disabled={acting || !destination.trim()} className="w-full min-h-11 border border-amber-300 bg-white text-amber-900 rounded-xl font-semibold text-sm disabled:opacity-50">
+                  Démarrer sans GPS
                 </button>
               </div>
             )}
@@ -516,7 +527,7 @@ const LivreurDeliveryDetail = () => {
           </div>
           <div className="flex items-center justify-between">
             <span className="text-xs text-gray-400">Prix</span>
-            <span className="text-sm font-bold text-[#0F6B4F]">{order.price ? fmt(order.price) : '—'}</span>
+            <span className="text-sm font-bold text-[#0F6B4F]">{order.price ? formatMoney(order.price, order.currency || 'XAF') : '—'}</span>
           </div>
         </div>
       </div>
