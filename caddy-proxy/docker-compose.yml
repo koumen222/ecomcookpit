@@ -14,10 +14,13 @@ services:
       - ./certs:/etc/caddy/certs:ro
       - caddy_data:/data      # certificats TLS (Let's Encrypt)
       - caddy_config:/config  # config Caddy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       - CADDY_ASK_URL=${CADDY_ASK_URL:-https://api.scalor.net/api/caddy/check-domain}
       - CADDY_AUTH_TOKEN=${CADDY_AUTH_TOKEN:?CADDY_AUTH_TOKEN is required and must match the backend}
       - RAILWAY_BACKEND=${RAILWAY_BACKEND:-https://ecomcookpit-production-0ec4.up.railway.app}
+      - STAGING_BACKEND=${STAGING_BACKEND:-http://host.docker.internal:8081}
       - ACME_EMAIL=${ACME_EMAIL:-admin@scalor.net}
 
 volumes:

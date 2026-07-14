@@ -124,8 +124,9 @@ jobs:
       VPS_HOST: ${{ secrets.VPS_HOST }}
       VPS_USER: ${{ secrets.VPS_USER }}
       VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
-      VPS_SSH_PORT: ${{ secrets.VPS_SSH_PORT || '22' }}
-      VPS_APP_DIR: ${{ secrets.VPS_APP_DIR || '/opt/ecomcookpit' }}
+      VPS_SSH_PORT: ${{ secrets.VPS_SSH_PORT || secrets.VPS_PORT || '22' }}
+      VPS_APP_DIR: ${{ vars.VPS_APP_DIR || (needs.build.outputs.environment == 'staging' && '/opt/ecomcookpit-staging' || '/opt/ecomcookpit') }}
+      TARGET_ENV: ${{ needs.build.outputs.environment }}
       IMAGE: ${{ needs.build.outputs.image }}
       APP_TAG: ${{ needs.build.outputs.tag }}
     steps:
@@ -137,6 +138,10 @@ jobs:
           test -n "$VPS_HOST" || (echo "Missing secret VPS_HOST" && exit 1)
           test -n "$VPS_USER" || (echo "Missing secret VPS_USER" && exit 1)
           test -n "$VPS_SSH_KEY" || (echo "Missing secret VPS_SSH_KEY" && exit 1)
+          if [ "$TARGET_ENV" = "staging" ] && [ "$VPS_APP_DIR" = "/opt/ecomcookpit" ]; then
+            echo "Refusing to deploy staging into the production directory" >&2
+            exit 1
+          fi
 
       - name: Configure SSH
         run: |
@@ -156,14 +161,62 @@ jobs:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           ssh -i ~/.ssh/deploy_key -p "$VPS_SSH_PORT" "$VPS_USER@$VPS_HOST" \
-            "VPS_APP_DIR='$VPS_APP_DIR' IMAGE='$IMAGE' APP_TAG='$APP_TAG' BUILD_VERSION='${{ github.sha }}' GHCR_USER='$GHCR_USER' GHCR_TOKEN='$GHCR_TOKEN' bash -s" <<'REMOTE'
+            "TARGET_ENV='$TARGET_ENV' VPS_APP_DIR='$VPS_APP_DIR' IMAGE='$IMAGE' APP_TAG='$APP_TAG' BUILD_VERSION='${{ github.sha }}' GHCR_USER='$GHCR_USER' GHCR_TOKEN='$GHCR_TOKEN' bash -s" <<'REMOTE'
           set -euo pipefail
+
+          if [ "$TARGET_ENV" = "staging" ] && [[ "$VPS_APP_DIR" != *staging* ]]; then
+            echo "Refusing unsafe staging directory: $VPS_APP_DIR" >&2
+            exit 1
+          fi
 
           cd "$VPS_APP_DIR"
 
           if [ ! -f .env ]; then
-            echo "Missing $VPS_APP_DIR/.env on the VPS. Create it from Backend/.env.example before deploying." >&2
-            exit 1
+            if [ "$TARGET_ENV" != "staging" ]; then
+              echo "Missing $VPS_APP_DIR/.env on the VPS. Create it from Backend/.env.example before deploying." >&2
+              exit 1
+            fi
+
+            PROD_ENV="/opt/ecomcookpit/.env"
+            if [ ! -f "$PROD_ENV" ]; then
+              echo "Cannot bootstrap staging: $PROD_ENV is missing" >&2
+              exit 1
+            fi
+
+            install -m 600 "$PROD_ENV" .env
+
+            PROD_MONGO_URI="$(grep -E '^MONGO_URI=' .env | tail -n 1 | cut -d '=' -f 2-)"
+            if [ -z "$PROD_MONGO_URI" ]; then
+              echo "Cannot bootstrap staging: MONGO_URI is missing" >&2
+              exit 1
+            fi
+
+            MONGO_BASE="${PROD_MONGO_URI%%\?*}"
+            MONGO_QUERY=""
+            if [[ "$PROD_MONGO_URI" == *\?* ]]; then
+              MONGO_QUERY="?${PROD_MONGO_URI#*\?}"
+            fi
+            STAGING_MONGO_URI="${MONGO_BASE%/*}/plateforme_staging${MONGO_QUERY}"
+
+            {
+              printf '\n# Isolated staging overrides\n'
+              printf 'APP_ENV=staging\n'
+              printf 'NODE_ENV=production\n'
+              printf 'APP_CONTAINER_NAME=ecomcookpit-staging\n'
+              printf 'APP_PORT=8081\n'
+              printf 'MONGO_URI=%s\n' "$STAGING_MONGO_URI"
+              printf 'FRONTEND_URL=https://staging.scalor.net\n'
+              printf 'BACKEND_URL=https://api-staging.scalor.net\n'
+              printf 'PUBLIC_BACKEND_URL=https://api-staging.scalor.net\n'
+              printf 'CORS_ORIGINS=https://staging.scalor.net,https://api-staging.scalor.net\n'
+              printf 'ENABLE_BACKGROUND_JOBS=false\n'
+              printf 'ALLOW_STAGING_PRODUCTION_DB=false\n'
+              printf 'ECOM_JWT_SECRET=%s\n' "$(openssl rand -hex 32)"
+              printf 'SESSION_SECRET=%s\n' "$(openssl rand -hex 32)"
+              printf 'DATA_ENCRYPTION_KEY=%s\n' "$(openssl rand -hex 32)"
+            } >> .env
+
+            echo "Created isolated staging configuration in $VPS_APP_DIR/.env"
           fi
 
           printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
@@ -177,6 +230,86 @@ jobs:
           APP_PORT_VALUE="$(grep -E '^APP_PORT=' .env | tail -n 1 | cut -d '=' -f 2- || true)"
           APP_PORT_VALUE="${APP_PORT_VALUE:-8080}"
 
-          curl --fail --silent --show-error --max-time 15 "http://127.0.0.1:${APP_PORT_VALUE}/health"
+          HEALTH_RESPONSE="$(curl --fail --silent --show-error --max-time 15 "http://127.0.0.1:${APP_PORT_VALUE}/health")"
+          printf '%s\n' "$HEALTH_RESPONSE"
+          if [ "$TARGET_ENV" = "staging" ] && ! printf '%s' "$HEALTH_RESPONSE" | grep -q '"environment":"staging"'; then
+            echo "Staging health check did not confirm APP_ENV=staging" >&2
+            exit 1
+          fi
+
+          if [ "$TARGET_ENV" = "staging" ]; then
+            CADDYFILE="$(find /opt /root /home -maxdepth 5 -type f -path '*/caddy-proxy/Caddyfile' 2>/dev/null | head -n 1 || true)"
+            if [ -z "$CADDYFILE" ]; then
+              echo "Cannot find the VPS caddy-proxy/Caddyfile" >&2
+              exit 1
+            fi
+
+            CADDY_DIR="$(dirname "$CADDYFILE")"
+            cd "$CADDY_DIR"
+            CADDY_ID="$(docker compose ps -q caddy)"
+            if [ -z "$CADDY_ID" ]; then
+              echo "Cannot find the running Caddy container" >&2
+              exit 1
+            fi
+
+            CADDY_GATEWAY="$(docker inspect --format '{{range .NetworkSettings.Networks}}{{println .Gateway}}{{end}}' "$CADDY_ID" | sed -n '1p')"
+            if [ -z "$CADDY_GATEWAY" ]; then
+              echo "Cannot determine the Caddy Docker gateway" >&2
+              exit 1
+            fi
+
+            CADDY_HEALTH="$(docker compose exec -T caddy wget -qO- "http://${CADDY_GATEWAY}:${APP_PORT_VALUE}/health")"
+            if ! printf '%s' "$CADDY_HEALTH" | grep -q '"environment":"staging"'; then
+              echo "Caddy cannot reach the isolated staging backend" >&2
+              exit 1
+            fi
+
+            if grep -q '^api-staging\.scalor\.net[[:space:]]*{' "$CADDYFILE" && ! grep -q '^# BEGIN SCALOR STAGING ROUTE$' "$CADDYFILE"; then
+              echo "An unmanaged api-staging.scalor.net Caddy route already exists; refusing to overwrite it" >&2
+              exit 1
+            fi
+
+            CADDY_BACKUP="${CADDYFILE}.pre-staging"
+            CADDY_TMP="${CADDYFILE}.staging-tmp"
+            cp "$CADDYFILE" "$CADDY_BACKUP"
+            awk '
+              /^# BEGIN SCALOR STAGING ROUTE$/ { skipping=1; next }
+              /^# END SCALOR STAGING ROUTE$/ { skipping=0; next }
+              !skipping { print }
+            ' "$CADDY_BACKUP" > "$CADDY_TMP"
+
+            cat >> "$CADDY_TMP" <<CADDY
+
+          # BEGIN SCALOR STAGING ROUTE
+          api-staging.scalor.net {
+              reverse_proxy http://${CADDY_GATEWAY}:${APP_PORT_VALUE} {
+                  header_up Host {upstream_hostport}
+                  header_up X-Forwarded-Host {host}
+                  header_up X-Real-IP {remote_host}
+              }
+          }
+          # END SCALOR STAGING ROUTE
+          CADDY
+
+            cat "$CADDY_TMP" > "$CADDYFILE"
+            rm -f "$CADDY_TMP"
+
+            if ! docker compose exec -T caddy caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile; then
+              cat "$CADDY_BACKUP" > "$CADDYFILE"
+              echo "Invalid staging Caddy route; original configuration restored" >&2
+              exit 1
+            fi
+
+            docker compose exec -T caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
+            cd "$VPS_APP_DIR"
+
+            PUBLIC_HEALTH="$(curl --fail --silent --show-error --max-time 20 https://api-staging.scalor.net/health)"
+            printf '%s\n' "$PUBLIC_HEALTH"
+            if ! printf '%s' "$PUBLIC_HEALTH" | grep -q '"environment":"staging"'; then
+              echo "Public staging API does not expose the isolated backend" >&2
+              exit 1
+            fi
+          fi
+
           docker image prune -af --filter "until=168h"
           REMOTE

@@ -25,6 +25,18 @@ api.scalor.net {
 	}
 }
 
+# BEGIN SCALOR STAGING ROUTE
+api-staging.scalor.net {
+	import coop_headers
+
+	reverse_proxy {$STAGING_BACKEND} {
+		header_up Host {upstream_hostport}
+		header_up X-Forwarded-Host {host}
+		header_up X-Real-IP {remote_host}
+	}
+}
+# END SCALOR STAGING ROUTE
+
 rehoboth-market.scalor.net {
 	tls /etc/caddy/certs/scalor.net/fullchain.cer /etc/caddy/certs/scalor.net/scalor.net.key
 	redir https://radia.scalor.net{uri} 308
