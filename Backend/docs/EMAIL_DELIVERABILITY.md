@@ -2,24 +2,30 @@
 
 ## Décision
 
-Les OTP utilisent un canal transactionnel séparé du SMTP auto-hébergé :
+Le backend reste en mode SMTP, mais les messages transactionnels ne doivent plus
+dépendre de la réputation de l'IP du VPS. Le staging utilise donc un relais SMTP
+authentifié :
 
 ```env
-OTP_EMAIL_PROVIDER=resend
-RESEND_API_KEY=...
-OTP_EMAIL_FROM="Scalor <auth@auth.scalor.net>"
+OTP_EMAIL_PROVIDER=smtp
+SMTP_HOST=smtp.resend.com
+SMTP_PORT=587
+SMTP_USER=resend
+SMTP_PASS=... # clé SMTP/API du relais
+EMAIL_FROM="auth@auth.scalor.net"
+EMAIL_FROM_NAME="Scalor"
 OTP_REPLY_TO=support@scalor.net
 ```
 
-Le domaine présent dans `OTP_EMAIL_FROM` doit être vérifié dans Resend. En cas
-d'erreur Resend, la production retourne une erreur d'envoi : elle ne retombe pas
-silencieusement sur le SMTP dont la réputation peut être dégradée.
+Le protocole applicatif reste SMTP. Le relais apporte une IP d'envoi réputée,
+SPF/DKIM alignés, suivi des rebonds et suppression automatique des destinataires
+problématiques.
 
 Pour une activation immédiate avec le compte actuellement configuré, le domaine
 `infomania.store` est déjà vérifié. La valeur temporaire peut donc être :
 
 ```env
-OTP_EMAIL_FROM="Scalor <auth@infomania.store>"
+EMAIL_FROM="auth@infomania.store"
 ```
 
 La cible recommandée reste `auth.scalor.net`, sous-domaine dédié aux emails
@@ -46,6 +52,11 @@ Actions d'infrastructure :
    `p=quarantine`, puis à `p=reject`.
 4. Garder les campagnes marketing séparées des OTP ; ne jamais utiliser la
    même réputation/IP pour les deux flux.
+
+Le jail Fail2ban `postfix-sasl` est versionné dans
+`Backend/deploy/fail2ban/scalor-mail.conf`. Il bloque progressivement les IP qui
+échouent plusieurs authentifications SMTP afin d'éviter le vol de compte et la
+destruction de la réputation d'envoi.
 
 ## Protection contre les abus
 
