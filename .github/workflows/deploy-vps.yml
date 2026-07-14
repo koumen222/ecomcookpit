@@ -238,75 +238,10 @@ jobs:
           fi
 
           if [ "$TARGET_ENV" = "staging" ]; then
-            CADDYFILE="$(find /opt /root /home -maxdepth 5 -type f -path '*/caddy-proxy/Caddyfile' 2>/dev/null | head -n 1 || true)"
-            if [ -z "$CADDYFILE" ]; then
-              echo "Cannot find the VPS caddy-proxy/Caddyfile" >&2
-              exit 1
-            fi
-
-            CADDY_DIR="$(dirname "$CADDYFILE")"
-            cd "$CADDY_DIR"
-            CADDY_ID="$(docker compose ps -q caddy)"
-            if [ -z "$CADDY_ID" ]; then
-              echo "Cannot find the running Caddy container" >&2
-              exit 1
-            fi
-
-            CADDY_GATEWAY="$(docker inspect --format '{{range .NetworkSettings.Networks}}{{println .Gateway}}{{end}}' "$CADDY_ID" | sed -n '1p')"
-            if [ -z "$CADDY_GATEWAY" ]; then
-              echo "Cannot determine the Caddy Docker gateway" >&2
-              exit 1
-            fi
-
-            CADDY_HEALTH="$(docker compose exec -T caddy wget -qO- "http://${CADDY_GATEWAY}:${APP_PORT_VALUE}/health")"
-            if ! printf '%s' "$CADDY_HEALTH" | grep -q '"environment":"staging"'; then
-              echo "Caddy cannot reach the isolated staging backend" >&2
-              exit 1
-            fi
-
-            if grep -q '^api-staging\.scalor\.net[[:space:]]*{' "$CADDYFILE" && ! grep -q '^# BEGIN SCALOR STAGING ROUTE$' "$CADDYFILE"; then
-              echo "An unmanaged api-staging.scalor.net Caddy route already exists; refusing to overwrite it" >&2
-              exit 1
-            fi
-
-            CADDY_BACKUP="${CADDYFILE}.pre-staging"
-            CADDY_TMP="${CADDYFILE}.staging-tmp"
-            cp "$CADDYFILE" "$CADDY_BACKUP"
-            awk '
-              /^# BEGIN SCALOR STAGING ROUTE$/ { skipping=1; next }
-              /^# END SCALOR STAGING ROUTE$/ { skipping=0; next }
-              !skipping { print }
-            ' "$CADDY_BACKUP" > "$CADDY_TMP"
-
-            cat >> "$CADDY_TMP" <<CADDY
-
-          # BEGIN SCALOR STAGING ROUTE
-          api-staging.scalor.net {
-              reverse_proxy http://${CADDY_GATEWAY}:${APP_PORT_VALUE} {
-                  header_up Host {upstream_hostport}
-                  header_up X-Forwarded-Host {host}
-                  header_up X-Real-IP {remote_host}
-              }
-          }
-          # END SCALOR STAGING ROUTE
-          CADDY
-
-            cat "$CADDY_TMP" > "$CADDYFILE"
-            rm -f "$CADDY_TMP"
-
-            if ! docker compose exec -T caddy caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile; then
-              cat "$CADDY_BACKUP" > "$CADDYFILE"
-              echo "Invalid staging Caddy route; original configuration restored" >&2
-              exit 1
-            fi
-
-            docker compose exec -T caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
-            cd "$VPS_APP_DIR"
-
             PUBLIC_HEALTH="$(curl --fail --silent --show-error --max-time 20 https://api-staging.scalor.net/health)"
             printf '%s\n' "$PUBLIC_HEALTH"
             if ! printf '%s' "$PUBLIC_HEALTH" | grep -q '"environment":"staging"'; then
-              echo "Public staging API does not expose the isolated backend" >&2
+              echo "Public staging API does not expose the isolated backend. Configure the staging handler in caddy-proxy/Caddyfile." >&2
               exit 1
             fi
           fi
