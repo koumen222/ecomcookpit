@@ -394,8 +394,9 @@ router.post('/:id/analysis', async (req, res) => {
     const ticket = await Ticket.findById(req.params.id);
     if (!ticket) return res.status(404).json({ success: false, message: 'Ticket introuvable' });
 
-    const { ok, diagnosis, branch, prUrl, filesChanged, testResults, riskLevel, recommendedAction, confidenceScore, error } = req.body || {};
+    const { ok, diagnosis, branch, prUrl, filesChanged, testResults, riskLevel, recommendedAction, confidenceScore, error, runUrl } = req.body || {};
     ticket.claudeAnalysis.analyzedAt = new Date();
+    if (runUrl) ticket.claudeAnalysis.runUrl = String(runUrl).slice(0, 500);
 
     if (ok) {
       ticket.claudeAnalysis.status = 'completed';

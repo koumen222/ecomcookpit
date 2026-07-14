@@ -3,6 +3,24 @@ import { io } from 'socket.io-client';
 import ecomApi from '../services/ecommApi.js';
 
 const resolveSocketUrl = () => {
+  const candidates = [
+    import.meta.env.VITE_SOCKET_URL,
+    import.meta.env.VITE_BACKEND_URL,
+    import.meta.env.VITE_API_BASE_URL,
+    import.meta.env.VITE_API_URL,
+  ];
+
+  for (const raw of candidates) {
+    if (!raw) continue;
+    try {
+      // If it's an absolute URL, extract the origin
+      const url = new URL(raw.startsWith('http') ? raw : `${window.location.origin}${raw}`);
+      return url.origin;
+    } catch {
+      // ignore malformed
+    }
+  }
+
   if (typeof window !== 'undefined') {
     const hostname = window.location.hostname.toLowerCase();
     if (
@@ -14,22 +32,6 @@ const resolveSocketUrl = () => {
       hostname.endsWith('.scalor.site')
     ) {
       return 'https://api.scalor.net';
-    }
-  }
-
-  const candidates = [
-    import.meta.env.VITE_API_URL,
-    import.meta.env.VITE_BACKEND_URL,
-  ];
-
-  for (const raw of candidates) {
-    if (!raw) continue;
-    try {
-      // If it's an absolute URL, extract the origin
-      const url = new URL(raw.startsWith('http') ? raw : `${window.location.origin}${raw}`);
-      return url.origin;
-    } catch {
-      // ignore malformed
     }
   }
 

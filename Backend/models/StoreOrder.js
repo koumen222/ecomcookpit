@@ -102,6 +102,30 @@ const storeOrderSchema = new mongoose.Schema({
     enum: ['store', 'whatsapp'],
     default: 'store'
   },
+  // ── Payment ──
+  // Mode de paiement choisi par le client. 'cod' = paiement à la livraison
+  // (défaut), 'scalor_pay' = encaissement en ligne via Scalor Pay.
+  paymentMethod: {
+    type: String,
+    default: 'cod'
+  },
+  // Statut d'encaissement (indépendant du statut de traitement `status`).
+  paymentStatus: {
+    type: String,
+    enum: ['unpaid', 'pending', 'paid', 'failed'],
+    default: 'unpaid'
+  },
+  // Token MoneyFusion de la session Scalor Pay (si paymentMethod = 'scalor_pay').
+  scalorPayToken: {
+    type: String,
+    default: null,
+    index: true,
+    sparse: true
+  },
+  paidAt: {
+    type: Date,
+    default: null
+  },
   // Delivery zone info
   country: {
     type: String,
@@ -151,6 +175,15 @@ const storeOrderSchema = new mongoose.Schema({
   linkedOrderId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Order',
+    default: null
+  },
+  isUpsell: {
+    type: Boolean,
+    default: false
+  },
+  upsellParentOrderId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'StoreOrder',
     default: null
   },
   abandonedAt: {

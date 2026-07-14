@@ -1,18 +1,44 @@
 import mongoose from 'mongoose';
-import dotenv from 'dotenv';
-import { fileURLToPath } from 'url';
-import path from 'path';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-dotenv.config({ path: path.resolve(__dirname, '..', '.env') });
+import './loadEnv.js';
 
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/plateforme';
+
+function getDatabaseName(uri) {
+  try {
+    const parsed = new URL(uri);
+    return decodeURIComponent(parsed.pathname || '').replace(/^\/+/, '').split('/')[0] || '';
+  } catch {
+    const match = String(uri || '').match(/\/([^/?]+)(?:\?|$)/);
+    return match?.[1] || '';
+  }
+}
+
+function assertStagingDatabaseIsIsolated(uri) {
+  const appEnv = String(process.env.APP_ENV || '').trim().toLowerCase();
+  if (appEnv !== 'staging' && appEnv !== 'sandbox') return;
+
+  const dbName = getDatabaseName(uri).toLowerCase();
+  const override = String(process.env.ALLOW_STAGING_PRODUCTION_DB || '').toLowerCase() === 'true';
+  const looksLikeProduction =
+    dbName === 'plateforme' ||
+    dbName === 'production' ||
+    dbName === 'prod' ||
+    dbName.includes('prod');
+  const looksExplicitlyIsolated = /(staging|stage|sandbox|test)/.test(dbName);
+
+  if ((!looksExplicitlyIsolated || looksLikeProduction) && !override) {
+    throw new Error(
+      `APP_ENV=${appEnv} refuse d'utiliser la base "${dbName}". ` +
+      'Le nom doit contenir staging, stage, sandbox ou test, par exemple "plateforme_staging".'
+    );
+  }
+}
 
 export const connectDB = async () => {
   try {
     console.log('🔄 Tentative de connexion à MongoDB...');
     console.log('📡 URI:', MONGO_URI.replace(/\/\/.*@/, '//***:***@')); // Masquer les credentials dans les logs
+    assertStagingDatabaseIsIsolated(MONGO_URI);
     
     const isAtlas = MONGO_URI.includes('mongodb.net');
     const connectionOptions = {
@@ -223,4 +249,3 @@ export const connectDB = async () => {
     }
   }
 };
-

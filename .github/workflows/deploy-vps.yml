@@ -3,22 +3,33 @@ name: Deploy to VPS
 on:
   # Déploiement volontaire uniquement : les commits/PR auto ne déploient pas.
   workflow_dispatch:
+    inputs:
+      target_environment:
+        description: Environment to deploy
+        type: choice
+        required: true
+        default: staging
+        options:
+          - production
+          - staging
 
 permissions:
   contents: read
   packages: write
 
 concurrency:
-  group: production-vps
+  group: vps-${{ inputs.target_environment || 'staging' }}
   cancel-in-progress: true
 
 jobs:
   build:
     name: Build and publish image
     runs-on: ubuntu-latest
+    environment: ${{ inputs.target_environment || 'staging' }}
     outputs:
       image: ${{ steps.vars.outputs.image }}
       tag: ${{ steps.vars.outputs.tag }}
+      environment: ${{ steps.vars.outputs.environment }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -26,8 +37,17 @@ jobs:
       - name: Compute image metadata
         id: vars
         run: |
+          target_env="${{ inputs.target_environment || 'staging' }}"
+          short_sha="${GITHUB_SHA::12}"
           echo "image=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
-          echo "tag=${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+          echo "environment=$target_env" >> "$GITHUB_OUTPUT"
+          if [ "$target_env" = "production" ]; then
+            echo "tag=$short_sha" >> "$GITHUB_OUTPUT"
+            echo "channel_tag=latest" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=${target_env}-${short_sha}" >> "$GITHUB_OUTPUT"
+            echo "channel_tag=${target_env}-latest" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -54,6 +74,9 @@ jobs:
           VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL || vars.VITE_BACKEND_URL || 'https://api.scalor.net' }}
           VITE_BACKEND_URL: ${{ vars.VITE_BACKEND_URL || 'https://api.scalor.net' }}
           VITE_STORE_API_URL: ${{ vars.VITE_STORE_API_URL }}
+          VITE_SCALOR_API_URL: ${{ vars.VITE_SCALOR_API_URL }}
+          VITE_SOCKET_URL: ${{ vars.VITE_SOCKET_URL }}
+          VITE_APP_ENV: ${{ inputs.target_environment || 'staging' }}
           VITE_GOOGLE_CLIENT_ID: ${{ vars.VITE_GOOGLE_CLIENT_ID }}
           VITE_POSTHOG_KEY: ${{ vars.VITE_POSTHOG_KEY }}
           VITE_POSTHOG_HOST: ${{ vars.VITE_POSTHOG_HOST || 'https://app.posthog.com' }}
@@ -75,7 +98,7 @@ jobs:
           file: ./Dockerfile
           push: true
           tags: |
-            ${{ steps.vars.outputs.image }}:latest
+            ${{ steps.vars.outputs.image }}:${{ steps.vars.outputs.channel_tag }}
             ${{ steps.vars.outputs.image }}:${{ steps.vars.outputs.tag }}
           build-args: |
             BUILD_VERSION=${{ github.sha }}
@@ -83,6 +106,9 @@ jobs:
             VITE_API_BASE_URL=${{ vars.VITE_API_BASE_URL || vars.VITE_BACKEND_URL || 'https://api.scalor.net' }}
             VITE_BACKEND_URL=${{ vars.VITE_BACKEND_URL || 'https://api.scalor.net' }}
             VITE_STORE_API_URL=${{ vars.VITE_STORE_API_URL }}
+            VITE_SCALOR_API_URL=${{ vars.VITE_SCALOR_API_URL }}
+            VITE_SOCKET_URL=${{ vars.VITE_SOCKET_URL }}
+            VITE_APP_ENV=${{ inputs.target_environment || 'staging' }}
             VITE_GOOGLE_CLIENT_ID=${{ vars.VITE_GOOGLE_CLIENT_ID }}
             VITE_POSTHOG_KEY=${{ vars.VITE_POSTHOG_KEY }}
             VITE_POSTHOG_HOST=${{ vars.VITE_POSTHOG_HOST || 'https://app.posthog.com' }}
@@ -93,7 +119,7 @@ jobs:
     name: Deploy on VPS
     needs: build
     runs-on: ubuntu-latest
-    environment: production
+    environment: ${{ needs.build.outputs.environment }}
     env:
       VPS_HOST: ${{ secrets.VPS_HOST }}
       VPS_USER: ${{ secrets.VPS_USER }}

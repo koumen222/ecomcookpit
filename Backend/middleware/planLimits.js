@@ -252,7 +252,9 @@ async function countByResource(resource, workspaceId) {
       ]);
       return p + sp;
     }
-    case 'stores': return Store.countDocuments(filter).catch(() => 0);
+    // Boutiques : ne compter que les actives — les boutiques supprimées
+    // (soft-delete isActive:false) ne doivent pas consommer le quota du plan.
+    case 'stores': return Store.countDocuments({ ...filter, isActive: true }).catch(() => 0);
     case 'whatsappInstances': return WhatsAppInstance.countDocuments(filter).catch(() => 0);
     case 'users': {
       // Count invited members only (exclude the workspace owner).

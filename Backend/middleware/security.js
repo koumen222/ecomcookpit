@@ -398,6 +398,29 @@ export const forgotPasswordRateLimiter = rateLimit({
   message: { success: false, message: 'Trop de demandes de réinitialisation. Réessayez dans 1 heure.' },
 });
 
+// OTP : protéger à la fois la réputation d'envoi (volume par IP) et chaque
+// destinataire. L'email est haché afin de ne jamais l'exposer dans la clé du store.
+export const otpIpRateLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: getClientIp,
+  message: { success: false, message: 'Trop de codes demandés depuis cet appareil. Réessayez dans 1 heure.' },
+});
+
+export const otpRecipientRateLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 3,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    const email = String(req.body?.email || '').trim().toLowerCase();
+    return `otp:${crypto.createHash('sha256').update(email || getClientIp(req)).digest('hex')}`;
+  },
+  message: { success: false, message: 'Trop de codes ont été envoyés à cette adresse. Réessayez dans 1 heure.' },
+});
+
 // API générale : 300 requêtes par minute par IP
 export const apiRateLimiter = rateLimit({
   windowMs: 60 * 1000,

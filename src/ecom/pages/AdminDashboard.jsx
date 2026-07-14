@@ -6,6 +6,7 @@ import ecomApi from '../services/ecommApi.js';
 import { useStore } from '../contexts/StoreContext.jsx';
 import { useLanguage } from '../contexts/LanguageContext.jsx';
 import LanguageSelector from '../components/LanguageSelector.jsx';
+import DashboardActivation from '../components/DashboardActivation.jsx';
 import { ArrowRight, CheckCircle2, Store } from 'lucide-react';
 
 const ChartContent = React.memo(({ data, selectedMetric, fmt }) => {
@@ -194,6 +195,16 @@ const AdminDashboard = () => {
     returnRateTrend: '0',
     topProducts: []
   });
+  // Signaux d'activation (durée de vie du compte) pour le guide de démarrage
+  const [onboarding, setOnboarding] = useState({
+    loaded: false,
+    hasProduct: false,
+    hasReport: false,
+    hasOrder: false
+  });
+  const [guideDismissed, setGuideDismissed] = useState(false);
+  const [reminderDismissed, setReminderDismissed] = useState(false);
+
   const [timeRange, setTimeRange] = useState('today');
   const [selectedMetric, setSelectedMetric] = useState('revenue');
   const [showDatePicker, setShowDatePicker] = useState(false);

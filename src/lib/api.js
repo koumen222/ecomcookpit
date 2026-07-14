@@ -63,12 +63,20 @@ function normalizeEnvBaseUrl(raw = '') {
 }
 
 function resolveApiBaseUrl() {
-  const envBase = normalizeEnvBaseUrl(import.meta.env.VITE_API_URL);
+  const envCandidates = [
+    import.meta.env.VITE_API_URL,
+    import.meta.env.VITE_API_BASE_URL,
+    import.meta.env.VITE_BACKEND_URL,
+  ];
 
-  // On scalor.net frontend, always target public API domain to avoid
-  // accidental Railway/origin redirects that break CORS preflight.
+  const envBase = envCandidates
+    .map((value) => normalizeEnvBaseUrl(value))
+    .find(Boolean);
+
+  // Hosted frontends can be production or staging. Respect explicit env first,
+  // then fall back to the production public API.
   if (typeof window !== 'undefined' && window.location.hostname.endsWith('scalor.net')) {
-    if (envBase.includes('api.scalor.net')) return envBase;
+    if (envBase) return envBase;
     return 'https://api.scalor.net/api/ecom';
   }
 

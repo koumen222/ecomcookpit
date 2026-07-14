@@ -11,6 +11,7 @@ import Workspace from '../models/Workspace.js';
 import { requireEcomAuth } from '../middleware/ecomAuth.js';
 import { emitSupportConversationUpdate } from '../services/socketService.js';
 import { sendWhatsAppMessage } from '../services/whatsappService.js';
+import { deepseekComplete } from '../services/deepseekChatService.js';
 
 const router = express.Router();
 const VALID_CATEGORIES = ['general', 'bug', 'billing', 'feature', 'account', 'other'];
@@ -83,6 +84,13 @@ async function callGroqAI(prompt) {
 }
 
 async function callSupportAI(prompt) {
+  // Décision produit : texte = DeepSeek uniquement (anciens providers en secours)
+  try {
+    const text = await deepseekComplete(prompt, { maxTokens: 200, temperature: 0.7 });
+    if (text) return text;
+  } catch (err) {
+    console.error('[Support AI DeepSeek] Error:', err.message);
+  }
   const kieReply = await callKieAI(prompt);
   if (kieReply) return kieReply;
   console.log('[Support AI] le service failed, trying GROQ fallback...');

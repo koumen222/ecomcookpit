@@ -11,8 +11,10 @@ import { callKieChatCompletion, isKieConfigured } from './kieChatService.js';
 let _openai = null;
 
 function getOpenAI() {
-  if (!_openai && process.env.OPENAI_API_KEY) {
-    _openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  // Utilisé uniquement pour la génération d'IMAGES (openai.images.generate)
+  const key = process.env.OPENAI_IMAGE_API_KEY || process.env.OPENAI_API_KEY;
+  if (!_openai && key) {
+    _openai = new OpenAI({ apiKey: key });
   }
   return _openai;
 }
@@ -202,16 +204,9 @@ RÈGLES STRICTES:
     });
     raw = kieResp.content || '{}';
   } catch (kieErr) {
-    if (!openai) throw kieErr;
-    console.warn(`⚠️ [AlibabaImport] le service indisponible, service de secours: ${kieErr.message}`);
-    const completion = await openai.chat.completions.create({
-      model: process.env.OPENAI_MODEL || 'gpt-4o',
-      messages: [{ role: 'user', content: prompt }],
-      temperature: 0.78,
-      max_tokens: 3500,
-      response_format: { type: 'json_object' }
-    });
-    raw = completion.choices[0]?.message?.content || '{}';
+    // Décision produit : texte = DeepSeek uniquement — plus de fallback gpt-4o.
+    console.error(`❌ [AlibabaImport] génération texte en échec: ${kieErr.message}`);
+    throw kieErr;
   }
 
   try {

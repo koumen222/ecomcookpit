@@ -1,3 +1,4 @@
+import { deepseekClient } from '../services/deepseekChatService.js';
 import express from 'express';
 import Groq from 'groq-sdk';
 import EcomWorkspace from '../models/Workspace.js';
@@ -588,7 +589,7 @@ RÈGLES:
  * Shared by generate-homepage and regenerate-homepage so both always use the same logic.
  */
 async function generateAIHomepageSections(s) {
-  const groq = getGroq();
+  const groq = deepseekClient; // texte → DeepSeek uniquement
   if (!groq) return buildFallbackSections(s);
 
   try {
@@ -695,6 +696,8 @@ Un footer professionnel et optimisé conversion. Objet JSON:
   "quickLinks": [
     { "label": "Accueil", "href": "/" },
     { "label": "Nos Produits", "href": "/products" },
+    { "label": "À propos", "href": "/a-propos" },
+    { "label": "Contact", "href": "/contact" },
     { "label": "Suivi de commande", "href": "/track" }
   ],
   "legalLinks": [
@@ -707,8 +710,8 @@ Un footer professionnel et optimisé conversion. Objet JSON:
   "deliveryInfo": "Livraison rapide en 24h à 72h dans tout le ${country}"
 }
 
-═══ 2. PAGES LÉGALES ═══
-Objet JSON avec 4 clés. Chaque page est un objet { "title": "...", "content": "..." }.
+═══ 2. PAGES LÉGALES + À PROPOS ═══
+Objet JSON avec 5 clés. Chaque page est un objet { "title": "...", "content": "..." }.
 Le content est du HTML simple (h2, h3, p, ul/li) — PAS de markdown.
 Le langage doit être SIMPLE, accessible, compréhensible en Afrique francophone.
 Style professionnel mais PAS de termes juridiques compliqués.
@@ -726,6 +729,10 @@ Adapté au pays: ${country}.
   "mentions": {
     "title": "Mentions Légales",
     "content": "HTML avec: Nom de la marque (${storeName}), Activité (vente en ligne de ${productType}), Contact (${whatsapp || email || 'WhatsApp de la boutique'}), Localisation (${city ? city + ', ' : ''}${country}), Hébergement (site hébergé par Scalor)"
+  },
+  "apropos": {
+    "title": "À propos de ${storeName}",
+    "content": "HTML storytelling de marque (250-350 mots) : Qui nous sommes (histoire courte et crédible de ${storeName}, spécialiste de ${productType} au ${country}), Notre mission (rendre accessibles des produits de qualité, service client WhatsApp réactif), Pourquoi nous choisir (produits vérifiés, livraison rapide 24-72h, paiement à la livraison sans risque), Notre engagement (satisfaction client, accompagnement avant/après achat). Ton chaleureux et professionnel, PAS de superlatifs exagérés, PAS de fausses statistiques."
   },
   "remboursement": {
     "title": "Politique de Remboursement",
@@ -757,6 +764,8 @@ function buildFallbackFooterAndLegal(s) {
       quickLinks: [
         { label: 'Accueil', href: '/' },
         { label: 'Nos Produits', href: '/products' },
+        { label: 'À propos', href: '/a-propos' },
+        { label: 'Contact', href: '/contact' },
         { label: 'Suivi de commande', href: '/track' },
       ],
       legalLinks: [
@@ -769,6 +778,10 @@ function buildFallbackFooterAndLegal(s) {
       deliveryInfo: `Livraison rapide en 24h à 72h dans tout le ${country}`,
     },
     legalPages: {
+      apropos: {
+        title: `À propos de ${storeName}`,
+        content: `<h2>Qui sommes-nous ?</h2><p>${storeName} est une boutique en ligne spécialisée dans ${productType}, au service des clients du ${country}${city ? ` depuis ${city}` : ''}.</p><h3>Notre mission</h3><p>Vous donner accès à des produits de qualité, sélectionnés avec soin, avec un accompagnement client réactif sur WhatsApp à chaque étape de votre commande.</p><h3>Pourquoi nous choisir ?</h3><ul><li>Produits vérifiés avant expédition</li><li>Livraison rapide en 24h à 72h selon votre zone</li><li>Paiement à la livraison : vous payez uniquement à la réception</li><li>Support WhatsApp disponible pour toutes vos questions</li></ul><h3>Notre engagement</h3><p>Votre satisfaction guide chacune de nos décisions. Une question ? Contactez-nous via ${contact} — nous répondons rapidement.</p>`,
+      },
       confidentialite: {
         title: 'Politique de Confidentialité',
         content: `<h2>Politique de Confidentialité</h2><p>${storeName} s'engage à protéger vos données personnelles.</p><h3>Données collectées</h3><p>Nous collectons uniquement les informations nécessaires au traitement de votre commande : nom, prénom, numéro de téléphone et adresse de livraison.</p><h3>Utilisation des données</h3><ul><li>Traitement et suivi de votre commande</li><li>Livraison de vos produits</li><li>Communication concernant votre commande</li></ul><h3>Protection</h3><p>Vos données sont stockées de manière sécurisée et ne sont jamais vendues à des tiers.</p><h3>Partage</h3><p>Vos informations de livraison sont partagées uniquement avec nos partenaires livreurs pour assurer la bonne réception de votre colis.</p><h3>Contact</h3><p>Pour toute question, contactez-nous via ${contact}.</p>`
@@ -790,7 +803,7 @@ function buildFallbackFooterAndLegal(s) {
 }
 
 async function generateFooterAndLegalPages(s) {
-  const groq = getGroq();
+  const groq = deepseekClient; // texte → DeepSeek uniquement
   if (!groq) return buildFallbackFooterAndLegal(s);
 
   try {
@@ -800,7 +813,7 @@ async function generateFooterAndLegalPages(s) {
       messages: [
         {
           role: 'system',
-          content: `Tu génères UNIQUEMENT du JSON valide. Pas de texte en dehors du JSON. Le JSON contient un objet avec 2 clés: "footer" (configuration du footer) et "legalPages" (4 pages légales en HTML simple). Le contenu doit être adapté au e-commerce africain avec paiement à la livraison.`
+          content: `Tu génères UNIQUEMENT du JSON valide. Pas de texte en dehors du JSON. Le JSON contient un objet avec 2 clés: "footer" (configuration du footer) et "legalPages" (5 pages en HTML simple : apropos, confidentialite, cgv, mentions, remboursement). Le contenu doit être adapté au e-commerce africain avec paiement à la livraison.`
         },
         { role: 'user', content: prompt }
       ],

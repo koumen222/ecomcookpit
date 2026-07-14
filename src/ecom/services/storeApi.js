@@ -322,8 +322,8 @@ export const storeDeliveryZonesApi = {
 // Production: https://api.scalor.net (wildcard DNS → Railway)
 // Dev: falls back to VITE_BACKEND_URL or Railway direct URL
 const API_BASE = import.meta.env.VITE_STORE_API_URL
-  || (import.meta.env.PROD ? 'https://api.scalor.net' : null)
   || import.meta.env.VITE_BACKEND_URL
+  || (import.meta.env.PROD ? 'https://api.scalor.net' : null)
   || 'https://api.scalor.net';
 
 const PUBLIC_API_BASE = String(API_BASE).replace(/\/+$/, '');

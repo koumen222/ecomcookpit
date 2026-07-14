@@ -8,9 +8,11 @@ import WhatsAppInstance from '../models/WhatsAppInstance.js';
 import evolutionApiService from './evolutionApiService.js';
 import { Readable } from 'stream';
 
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
-const FISH_AUDIO_DIRECT_API_KEY = process.env.FISH_AUDIO_API_KEY || '';
 const HAS_GROQ_API_KEY = !!process.env.GROQ_API_KEY;
+// Ne jamais empêcher le chargement des routes WhatsApp lorsque Groq est absent.
+// Les fonctionnalités IA concernées renverront leur fallback au moment de l'appel.
+const groq = HAS_GROQ_API_KEY ? new Groq({ apiKey: process.env.GROQ_API_KEY }) : null;
+const FISH_AUDIO_DIRECT_API_KEY = process.env.FISH_AUDIO_API_KEY || '';
 const KIE_API_KEY = process.env.KIE_API_KEY || process.env.NANOBANANA_API_KEY || '';
 const KIE_BASE_URL = (process.env.KIE_BASE_URL || 'https://api.kie.ai').replace(/\/+$/, '');
 const KIE_MODEL_PATH = process.env.KIE_MODEL_PATH || '/gpt-5-2/v1/chat/completions';
@@ -1006,6 +1008,7 @@ function buildActiveConversationContext(config = {}, history = [], latestClientM
  * @returns {Promise<string|null>}
  */
 export async function analyzeClientImage(imageBase64, mimeType = 'image/jpeg', catalogContext = '') {
+  if (!groq) return null;
   try {
     const completion = await groq.chat.completions.create({
       model: process.env.GROQ_VISION_MODEL || 'meta-llama/llama-4-scout-17b-16e-instruct',
@@ -1050,6 +1053,7 @@ Réponds en français, de façon courte et naturelle.`,
  * @returns {Promise<string|null>} - Transcription ou null
  */
 export async function transcribeAudio(base64, mimetype = 'audio/ogg', langHint = 'fr') {
+  if (!groq) return null;
   try {
     const buffer = Buffer.from(base64, 'base64');
     // Groq Whisper attend un objet File-like avec name, type et stream

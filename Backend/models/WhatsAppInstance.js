@@ -25,6 +25,26 @@ const whatsappInstanceSchema = new mongoose.Schema({
     type: String,
     trim: true
   },
+  // Rôle fonctionnel de l'instance dans le workspace.
+  // customer: échanges et relances destinés aux clients.
+  // host: canal interne pour rapports, commandes et alertes d'équipe.
+  usageType: {
+    type: String,
+    enum: ['customer', 'host'],
+    default: 'customer',
+    index: true
+  },
+  hostSettings: {
+    recipientRoles: [{
+      type: String,
+      enum: ['super_admin', 'ecom_admin', 'ecom_closeuse', 'ecom_compta', 'ecom_livreur', 'service_client']
+    }],
+    events: [{
+      type: String,
+      enum: ['daily_report', 'new_order', 'order_assignment', 'important_alert', 'stock_alert']
+    }],
+    enabled: { type: Boolean, default: true }
+  },
   apiUrl: {
     type: String,
     default: 'https://api.evolution-api.com'
@@ -95,5 +115,6 @@ const whatsappInstanceSchema = new mongoose.Schema({
 // Index pour recherche rapide par utilisateur et workspace
 whatsappInstanceSchema.index({ userId: 1 });
 whatsappInstanceSchema.index({ workspaceId: 1 });
+whatsappInstanceSchema.index({ workspaceId: 1, usageType: 1, isActive: 1 });
 
 export default mongoose.model('WhatsappInstance', whatsappInstanceSchema);

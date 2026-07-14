@@ -54,7 +54,7 @@ router.get('/', requireEcomAuth, async (req, res) => {
     const clients = await Client.find(filter)
       .populate('assignedTo', 'email')
       .populate('createdBy', 'email')
-      .sort({ createdAt: -1 })
+      .sort({ lastOrderAt: -1, createdAt: -1 })
       .limit(limit * 1)
       .skip((page - 1) * limit);
 

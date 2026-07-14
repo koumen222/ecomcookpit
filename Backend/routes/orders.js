@@ -163,7 +163,12 @@ const syncProgressEmitter = new EventEmitter();
 const activeSyncControllers = new Map();
 const DEFAULT_DELIVERY_RESPONSE_SECONDS = 15;
 
-const formatMoney = (amount = 0) => `${Number(amount || 0).toLocaleString('fr-FR')} FCFA`;
+const ORDER_CURRENCY_SYMBOLS = { XAF: 'FCFA', XOF: 'CFA', GNF: 'FG', CDF: 'FC', NGN: '₦', GHS: 'GH₵', USD: '$', EUR: '€', GBP: '£', MAD: 'DH' };
+const formatMoney = (amount = 0, currency = 'XAF') => {
+  const code = String(currency || 'XAF').toUpperCase();
+  const symbol = ORDER_CURRENCY_SYMBOLS[code] || code;
+  return `${Number(amount || 0).toLocaleString('fr-FR')} ${symbol}`;
+};
 
 function getPickupLocationLabel(workspaceName) {
   return workspaceName ? `Base ${workspaceName}` : 'Point de récupération';
@@ -3120,43 +3125,40 @@ router.get('/available', requireEcomAuth, async (req, res) => {
     await escalateExpiredDeliveryOffers(req.workspaceId);
 
     const { city, limit = 20 } = req.query;
-    const userId = req.ecomUser._id.toString();
     const now = new Date();
-    
-    // Seules les commandes que l'admin a explicitement envoyées au pool livreur
+
+    // VISIBILITÉ garantie côté BASE (pas seulement en mémoire) :
+    // une commande ciblée sur un autre livreur ne peut PAS être récupérée ici.
     const filter = {
       workspaceId: req.workspaceId,
       readyForDelivery: true,
-      assignedLivreur: null
+      assignedLivreur: null,
+      // Jamais les commandes que ce livreur a déjà refusées
+      deliveryOfferRefusedBy: { $ne: req.ecomUser._id },
+      $or: [
+        { deliveryOfferMode: { $ne: 'targeted' } },        // broadcast/none → visible à tous
+        { deliveryOfferTargetLivreur: req.ecomUser._id },  // ciblée sur MOI
+        { deliveryOfferExpiresAt: { $lte: now } }           // ciblée expirée → redevient publique
+      ]
     };
-    
+
     if (city) {
       filter.city = { $regex: city, $options: 'i' };
     }
-    
+
     const orders = await Order.find(filter)
       .sort({ createdAt: -1 })
       .limit(parseInt(limit));
 
     const visibleOrders = orders
-      .filter((order) => {
-        const refusedBy = (order.deliveryOfferRefusedBy || []).map((entry) => entry.toString());
-        if (refusedBy.includes(userId)) return false;
-
-        const targetLivreurId = order.deliveryOfferTargetLivreur?.toString();
-        const hasActiveTarget = order.deliveryOfferMode === 'targeted' && targetLivreurId && (!order.deliveryOfferExpiresAt || new Date(order.deliveryOfferExpiresAt) > now);
-        if (!hasActiveTarget) return true;
-
-        return targetLivreurId === userId;
-      })
       .map((order) => ({
         ...order,
         livreurView: {
           stateLabel: order.assignedLivreur ? 'Acceptée' : order.deliveryOfferMode === 'targeted' ? 'En attente' : 'Disponible',
           pickupLocation: getPickupLocationLabel(''),
           destination: getDestinationLabel(order),
-          priceLabel: formatMoney(order.price),
-          gainLabel: formatMoney(order.price),
+          priceLabel: formatMoney(order.price, order.currency),
+          gainLabel: formatMoney(order.price, order.currency),
           estimatedDistanceLabel: getEstimatedDistanceLabel(order),
           responseDeadline: order.deliveryOfferExpiresAt || null,
           isTargeted: order.deliveryOfferMode === 'targeted'
@@ -3199,7 +3201,7 @@ router.post('/:id/send-to-delivery-groups', requireEcomAuth, async (req, res) =>
 
     const { sendWhatsAppMessage } = await import('../services/whatsappService.js');
     const message = req.body.message ||
-      `🚚 *Commande à livrer*\n👤 ${order.clientName || 'Client'}\n📞 ${order.phone || order.clientPhone || ''}\n📍 ${order.city || order.deliveryLocation || ''}\n📦 ${order.productName || order.product || ''}\n💰 ${order.totalPrice || order.price || ''} FCFA`;
+      `🚚 *Commande à livrer*\n👤 ${order.clientName || 'Client'}\n📞 ${order.phone || order.clientPhone || ''}\n📍 ${order.city || order.deliveryLocation || ''}\n📦 ${order.productName || order.product || ''}\n💰 ${formatMoney(order.totalPrice || order.price || 0, order.currency)}`;
 
     const results = [];
     for (const group of groups) {
@@ -3259,21 +3261,32 @@ router.post('/:id/delivery-offer', requireEcomAuth, async (req, res) => {
       ? new Date(now.getTime() + DEFAULT_DELIVERY_RESPONSE_SECONDS * 1000)
       : null;
 
-    if (deliveryLocation !== undefined) order.deliveryLocation = deliveryLocation || '';
-    if (deliveryTime !== undefined) order.deliveryTime = deliveryTime || '';
+    const offerUpdate = {
+      readyForDelivery: true,
+      assignedLivreur: null,
+      deliveryOfferMode: mode,
+      deliveryOfferTargetLivreur: mode === 'targeted' ? livreurId : null,
+      deliveryOfferSentAt: now,
+      deliveryOfferExpiresAt: responseDeadline,
+      deliveryOfferEscalatedAt: null,
+      deliveryOfferRefusedBy: []
+    };
+    if (deliveryLocation !== undefined) offerUpdate.deliveryLocation = deliveryLocation || '';
+    if (deliveryTime !== undefined) offerUpdate.deliveryTime = deliveryTime || '';
     if (note) {
-      order.notes = `${order.notes ? `${order.notes} | ` : ''}Livraison: ${note}`;
+      offerUpdate.notes = `${order.notes ? `${order.notes} | ` : ''}Livraison: ${note}`;
     }
 
-    order.readyForDelivery = true;
-    order.assignedLivreur = null;
-    order.deliveryOfferMode = mode;
-    order.deliveryOfferTargetLivreur = mode === 'targeted' ? livreurId : null;
-    order.deliveryOfferSentAt = now;
-    order.deliveryOfferExpiresAt = responseDeadline;
-    order.deliveryOfferEscalatedAt = null;
-    order.deliveryOfferRefusedBy = [];
-    await order.save();
+    // Transition ATOMIQUE : refuse de (ré)offrir la commande si un livreur vient
+    // de l'accepter (garde `assignedLivreur: null` dans le filtre).
+    const offered = await Order.findOneAndUpdate(
+      { _id: order._id, workspaceId: req.workspaceId, assignedLivreur: null },
+      { $set: offerUpdate },
+      { new: true }
+    );
+    if (!offered) {
+      return res.status(409).json({ success: false, code: 'ALREADY_TAKEN', message: 'Cette commande vient d\'être acceptée par un livreur.' });
+    }
 
     const workspaceName = await getWorkspaceName(req.workspaceId);
     const livreurs = mode === 'targeted'
@@ -3283,7 +3296,7 @@ router.post('/:id/delivery-offer', requireEcomAuth, async (req, res) => {
     if (sendWhatsApp && mode === 'targeted' && livreurs[0]?.phone) {
       await sendWhatsAppMessage({
         to: livreurs[0].phone,
-        message: req.body.message || `Nouvelle course: ${order.clientName || 'Client'} • ${getDestinationLabel(order)}`,
+        message: req.body.message || `Nouvelle course: ${offered.clientName || 'Client'} • ${getDestinationLabel(offered)}`,
         workspaceId: req.workspaceId,
         userId: livreurs[0]._id,
         firstName: livreurs[0].name
@@ -3292,7 +3305,7 @@ router.post('/:id/delivery-offer', requireEcomAuth, async (req, res) => {
 
     await sendDeliveryOfferNotifications({
       workspaceId: req.workspaceId,
-      order,
+      order: offered,
       livreurs,
       workspaceName,
       responseDeadline,
@@ -3302,7 +3315,7 @@ router.post('/:id/delivery-offer', requireEcomAuth, async (req, res) => {
     res.json({
       success: true,
       message: mode === 'targeted' ? 'Commande proposée au livreur.' : 'Commande envoyée au pool livreur.',
-      data: order
+      data: offered
     });
   } catch (error) {
     console.error('Erreur delivery-offer:', error);
@@ -3327,39 +3340,73 @@ router.post('/:id/assign', requireEcomAuth, async (req, res) => {
       return res.status(403).json({ success: false, message: 'Accès réservé aux livreurs.' });
     }
     
-    const order = await Order.findOne({
+    const now = new Date();
+
+    // ── ACCEPTATION ATOMIQUE (anti-race) ─────────────────────────────────────
+    // Tout le verrouillage est dans le FILTRE : un seul livreur peut matcher une
+    // commande `assignedLivreur:null` et la basculer. Le second arrivant ne
+    // matche plus rien → il perd la course proprement (pas de read-then-write).
+    // Conditions :
+    //  - dans le pool livraison et pas encore assignée
+    //  - ce livreur ne l'a pas refusée
+    //  - si offre CIBLÉE encore active → seul le livreur ciblé peut la prendre
+    //    (une offre ciblée expirée redevient publique)
+    const claimFilter = {
       _id: orderId,
       workspaceId: req.workspaceId,
       readyForDelivery: true,
-      assignedLivreur: null
-    }, null, { skipLean: true });
-    
+      assignedLivreur: null,
+      deliveryOfferRefusedBy: { $ne: livreurId },
+      $or: [
+        { deliveryOfferMode: { $ne: 'targeted' } },
+        { deliveryOfferTargetLivreur: livreurId },
+        { deliveryOfferExpiresAt: { $lte: now } }
+      ]
+    };
+
+    const order = await Order.findOneAndUpdate(
+      claimFilter,
+      {
+        $set: {
+          assignedLivreur: livreurId,
+          readyForDelivery: false,
+          status: 'confirmed',
+          deliveryOfferMode: 'none',
+          deliveryOfferTargetLivreur: null,
+          deliveryOfferSentAt: null,
+          deliveryOfferExpiresAt: null,
+          deliveryOfferEscalatedAt: null,
+          deliveryOfferRefusedBy: [],
+          updatedAt: now
+        }
+      },
+      { new: true }
+    );
+
+    // Claim échoué → diagnostiquer l'état réel pour un message précis
     if (!order) {
-      return res.status(404).json({ success: false, message: 'Commande non disponible ou déjà assignée.' });
+      const existing = await Order.findOne({ _id: orderId, workspaceId: req.workspaceId })
+        .select('assignedLivreur readyForDelivery deliveryOfferMode deliveryOfferTargetLivreur deliveryOfferExpiresAt deliveryOfferRefusedBy')
+        .lean();
+
+      if (!existing) {
+        return res.status(404).json({ success: false, message: 'Commande introuvable.' });
+      }
+      if (existing.assignedLivreur) {
+        return res.status(409).json({ success: false, code: 'ALREADY_TAKEN', message: 'Cette commande vient d\'être acceptée par un autre livreur.' });
+      }
+      const alreadyRefused = (existing.deliveryOfferRefusedBy || []).some((entry) => entry.toString() === livreurId.toString());
+      if (alreadyRefused) {
+        return res.status(400).json({ success: false, code: 'ALREADY_REFUSED', message: 'Vous avez déjà refusé cette commande.' });
+      }
+      const targetId = existing.deliveryOfferTargetLivreur?.toString();
+      const targetActive = existing.deliveryOfferMode === 'targeted' && targetId && (!existing.deliveryOfferExpiresAt || new Date(existing.deliveryOfferExpiresAt) > now);
+      if (targetActive && targetId !== livreurId.toString()) {
+        return res.status(403).json({ success: false, code: 'RESERVED_OTHER', message: 'Cette commande est réservée à un autre livreur.' });
+      }
+      return res.status(409).json({ success: false, code: 'UNAVAILABLE', message: 'Cette commande n\'est plus disponible.' });
     }
 
-    const refusedBy = (order.deliveryOfferRefusedBy || []).map((entry) => entry.toString());
-    if (refusedBy.includes(livreurId.toString())) {
-      return res.status(400).json({ success: false, message: 'Vous avez déjà refusé cette commande.' });
-    }
-
-    const targetLivreurId = order.deliveryOfferTargetLivreur?.toString();
-    const targetStillActive = order.deliveryOfferMode === 'targeted' && targetLivreurId && (!order.deliveryOfferExpiresAt || new Date(order.deliveryOfferExpiresAt) > new Date());
-    if (targetStillActive && targetLivreurId !== livreurId.toString()) {
-      return res.status(403).json({ success: false, message: 'Cette commande est actuellement proposée à un autre livreur.' });
-    }
-
-    order.assignedLivreur = livreurId;
-    order.readyForDelivery = false;
-    order.status = 'confirmed';
-    order.deliveryOfferMode = 'none';
-    order.deliveryOfferTargetLivreur = null;
-    order.deliveryOfferSentAt = null;
-    order.deliveryOfferExpiresAt = null;
-    order.deliveryOfferEscalatedAt = null;
-    order.deliveryOfferRefusedBy = [];
-    order.updatedAt = new Date();
-    await order.save();
     await order.populate('assignedLivreur', 'name email phone');
     
     // Notifier les autres livreurs que cette commande n'est plus disponible
@@ -3406,50 +3453,56 @@ router.post('/:id/refuse', requireEcomAuth, async (req, res) => {
       return res.status(403).json({ success: false, message: 'Accès réservé aux livreurs.' });
     }
 
-    const order = await Order.findOne({
-      _id: req.params.id,
-      workspaceId: req.workspaceId,
-      readyForDelivery: true,
-      assignedLivreur: null
-    }, null, { skipLean: true });
+    const myId = req.ecomUser._id;
 
-    if (!order) {
-      return res.status(404).json({ success: false, message: 'Commande non trouvée.' });
+    // 1) Enregistrer le refus ATOMIQUEMENT — sans jamais toucher une commande
+    //    déjà acceptée (garde `assignedLivreur: null`). $addToSet = idempotent.
+    const refused = await Order.findOneAndUpdate(
+      { _id: req.params.id, workspaceId: req.workspaceId, readyForDelivery: true, assignedLivreur: null },
+      { $addToSet: { deliveryOfferRefusedBy: myId } },
+      { new: true }
+    );
+
+    if (!refused) {
+      return res.status(404).json({ success: false, message: 'Commande non trouvée ou déjà assignée.' });
     }
 
-    const livreurId = req.ecomUser._id.toString();
-    const refusedBy = (order.deliveryOfferRefusedBy || []).map((entry) => entry.toString());
-    if (!refusedBy.includes(livreurId)) {
-      order.deliveryOfferRefusedBy = [...(order.deliveryOfferRefusedBy || []), req.ecomUser._id];
-    }
+    // 2) Si l'offre était CIBLÉE sur ce livreur, la rebasculer en broadcast —
+    //    également de façon atomique et gardée (ne re-notifie pas une commande prise).
+    const wasTargetedToMe = refused.deliveryOfferMode === 'targeted'
+      && refused.deliveryOfferTargetLivreur?.toString() === myId.toString();
 
-    const isTargetedToCurrentLivreur = order.deliveryOfferMode === 'targeted' && order.deliveryOfferTargetLivreur?.toString() === livreurId;
-    if (isTargetedToCurrentLivreur) {
-      order.deliveryOfferMode = 'broadcast';
-      order.deliveryOfferTargetLivreur = null;
-      order.deliveryOfferSentAt = new Date();
-      order.deliveryOfferExpiresAt = null;
-      order.deliveryOfferEscalatedAt = new Date();
+    if (wasTargetedToMe) {
+      const broadcasted = await Order.findOneAndUpdate(
+        { _id: refused._id, workspaceId: req.workspaceId, assignedLivreur: null, deliveryOfferMode: 'targeted', deliveryOfferTargetLivreur: myId },
+        { $set: {
+            deliveryOfferMode: 'broadcast',
+            deliveryOfferTargetLivreur: null,
+            deliveryOfferSentAt: new Date(),
+            deliveryOfferExpiresAt: null,
+            deliveryOfferEscalatedAt: new Date()
+          } },
+        { new: true }
+      );
 
-      const workspaceName = await getWorkspaceName(req.workspaceId);
-      const otherLivreurs = await EcomUser.find({
-        workspaceId: req.workspaceId,
-        role: 'ecom_livreur',
-        isActive: true,
-        _id: { $nin: order.deliveryOfferRefusedBy }
-      }).select('_id').lean();
+      if (broadcasted) {
+        const workspaceName = await getWorkspaceName(req.workspaceId);
+        const otherLivreurs = await EcomUser.find({
+          workspaceId: req.workspaceId,
+          role: 'ecom_livreur',
+          isActive: true,
+          _id: { $nin: broadcasted.deliveryOfferRefusedBy }
+        }).select('_id').lean();
 
-      await order.save();
-      await sendDeliveryOfferNotifications({
-        workspaceId: req.workspaceId,
-        order,
-        livreurs: otherLivreurs,
-        workspaceName,
-        responseDeadline: null,
-        offerMode: 'broadcast'
-      });
-    } else {
-      await order.save();
+        await sendDeliveryOfferNotifications({
+          workspaceId: req.workspaceId,
+          order: broadcasted,
+          livreurs: otherLivreurs,
+          workspaceName,
+          responseDeadline: null,
+          offerMode: 'broadcast'
+        });
+      }
     }
 
     res.json({ success: true, message: 'Commande refusée.' });
@@ -3796,7 +3849,7 @@ router.patch('/:id/livreur-action', requireEcomAuth, async (req, res) => {
       return res.status(400).json({ success: false, message: 'ID invalide' });
     }
 
-    const { action, startLat, startLng, endLat, endLng, endAddress, distanceKm, deliveryNote, nonDeliveryReason } = req.body;
+    const { action, startLat, startLng, endLat, endLng, endAddress, distanceKm, deliveryNote, nonDeliveryReason, collectedAmount } = req.body;
     const livreurId = req.ecomUser._id;
 
     if (!hasEffectiveRole(req, ['ecom_livreur', 'ecom_admin', 'super_admin'])) {
@@ -3850,6 +3903,13 @@ router.patch('/:id/livreur-action', requireEcomAuth, async (req, res) => {
 
     // GPS tracking: delivered — save distance/cost + note if provided
     if (action === 'delivered') {
+      const normalizedCollectedAmount = Number(collectedAmount);
+      if (!Number.isFinite(normalizedCollectedAmount) || normalizedCollectedAmount < 0) {
+        return res.status(400).json({ success: false, message: 'Confirmez le montant encaissé avant de terminer la livraison.' });
+      }
+      order.collectedAmountFcfa = Math.round(normalizedCollectedAmount);
+      order.collectedCurrency = order.currency || 'XAF';
+      order.collectedAmountConfirmedAt = new Date();
       if (typeof distanceKm === 'number' && distanceKm >= 0) {
         order.deliveryDistanceKm = Math.round(distanceKm * 100) / 100;
         order.deliveryCostFcfa = Math.round(distanceKm * DELIVERY_COST_PER_KM_FCFA);
@@ -4088,21 +4148,21 @@ router.get('/livreur/stats', requireEcomAuth, async (req, res) => {
           _id: null,
           allCount: { $sum: 1 },
           allAmount: { $sum: { $ifNull: ['$deliveryCostFcfa', 0] } },
-          allCollected: { $sum: { $ifNull: ['$price', 0] } },
+          allCollected: { $sum: { $ifNull: ['$collectedAmountFcfa', { $ifNull: ['$price', 0] }] } },
           monthCount: { $sum: { $cond: [{ $gte: ['$updatedAt', startOfMonth] }, 1, 0] } },
           monthAmount: { $sum: { $cond: [{ $gte: ['$updatedAt', startOfMonth] }, { $ifNull: ['$deliveryCostFcfa', 0] }, 0] } },
-          monthCollected: { $sum: { $cond: [{ $gte: ['$updatedAt', startOfMonth] }, { $ifNull: ['$price', 0] }, 0] } },
+          monthCollected: { $sum: { $cond: [{ $gte: ['$updatedAt', startOfMonth] }, { $ifNull: ['$collectedAmountFcfa', { $ifNull: ['$price', 0] }] }, 0] } },
           weekCount: { $sum: { $cond: [{ $gte: ['$updatedAt', startOfWeek] }, 1, 0] } },
           weekAmount: { $sum: { $cond: [{ $gte: ['$updatedAt', startOfWeek] }, { $ifNull: ['$deliveryCostFcfa', 0] }, 0] } },
-          weekCollected: { $sum: { $cond: [{ $gte: ['$updatedAt', startOfWeek] }, { $ifNull: ['$price', 0] }, 0] } },
+          weekCollected: { $sum: { $cond: [{ $gte: ['$updatedAt', startOfWeek] }, { $ifNull: ['$collectedAmountFcfa', { $ifNull: ['$price', 0] }] }, 0] } },
           todayCount: { $sum: { $cond: [{ $gte: ['$updatedAt', startOfDay] }, 1, 0] } },
           todayAmount: { $sum: { $cond: [{ $gte: ['$updatedAt', startOfDay] }, { $ifNull: ['$deliveryCostFcfa', 0] }, 0] } },
-          todayCollected: { $sum: { $cond: [{ $gte: ['$updatedAt', startOfDay] }, { $ifNull: ['$price', 0] }, 0] } },
+          todayCollected: { $sum: { $cond: [{ $gte: ['$updatedAt', startOfDay] }, { $ifNull: ['$collectedAmountFcfa', { $ifNull: ['$price', 0] }] }, 0] } },
         }}
       ]),
       // 10 dernières livraisons
       Order.find({ workspaceId, assignedLivreur: livreurId, status: 'delivered' })
-        .select('orderId clientName city deliveryCostFcfa deliveryDistanceKm updatedAt')
+        .select('orderId clientName city deliveryCostFcfa collectedAmountFcfa deliveryDistanceKm updatedAt')
         .sort({ updatedAt: -1 })
         .limit(10)
         .lean()
@@ -4409,11 +4469,24 @@ router.get('/:id', requireEcomAuth, async (req, res) => {
       return res.status(404).json({ success: false, message: 'Commande non trouvée.' });
     }
 
-    // Vérifier les permissions pour les livreurs : seulement leurs commandes assignées ou celles du pool
+    // Permissions livreur : sa propre commande, OU une offre du pool qui LE concerne.
+    // Une commande ciblée sur un AUTRE livreur reste invisible (garantie de ciblage).
     if (getEffectiveRole(req) === 'ecom_livreur') {
+      const myId = req.ecomUser._id.toString();
       const assignedId = order.assignedLivreur?._id?.toString() || order.assignedLivreur?.toString();
-      const isAssigned = assignedId === req.ecomUser._id.toString();
-      const isInPool = order.readyForDelivery === true;
+      const isAssigned = assignedId === myId;
+
+      const targetId = order.deliveryOfferTargetLivreur?._id?.toString() || order.deliveryOfferTargetLivreur?.toString();
+      const targetActive = order.deliveryOfferMode === 'targeted' && targetId
+        && (!order.deliveryOfferExpiresAt || new Date(order.deliveryOfferExpiresAt) > new Date());
+      const refusedByMe = (order.deliveryOfferRefusedBy || []).some(
+        (entry) => (entry?._id?.toString() || entry?.toString()) === myId
+      );
+      const isInPool = order.readyForDelivery === true
+        && !assignedId
+        && !refusedByMe
+        && (!targetActive || targetId === myId);
+
       if (!isAssigned && !isInPool) {
         return res.status(403).json({ success: false, message: 'Accès refusé: cette commande ne vous est pas assignée.' });
       }
@@ -5095,132 +5168,150 @@ router.post('/sync-clients', requireEcomAuth, async (req, res) => {
       : Object.keys(orderStatusMap);
     console.log('🎯 Statuts à synchroniser:', statusesToSync);
 
-    // Récupérer toutes les commandes avec clientPhone (TOUS les statuts)
-    console.log('🔍 Recherche des commandes avec téléphone (tous statuts)...');
-    const orders = await Order.find({ 
+    // Récupérer toutes les commandes avec clientPhone
+    console.log('🔍 Recherche des commandes avec téléphone...');
+    const orders = await Order.find({
       workspaceId: req.workspaceId,
       clientPhone: { $exists: true, $ne: '' }
     }).lean();
 
     console.log(`📦 ${orders.length} commandes trouvées pour synchronisation`);
-    if (orders.length > 0) {
-      console.log('📈 Exemples de commandes:');
-      orders.slice(0, 3).forEach((order, i) => {
-        console.log(`  ${i+1}. ${order.clientName} - ${order.clientPhone} - ${order.status} - ${order.price}x${order.quantity}`);
-      });
+
+    // Ne retenir que les commandes dont le statut a été demandé
+    const consideredOrders = orders.filter(o => statusesToSync.includes(o.status));
+    console.log(`🎯 ${consideredOrders.length} commandes retenues (statuts sélectionnés)`);
+
+    // Regrouper les commandes par téléphone → un client = une personne
+    const byPhone = new Map();
+    for (const order of consideredOrders) {
+      const phone = (order.clientPhone || '').trim();
+      if (!phone) continue;
+      if (!byPhone.has(phone)) byPhone.set(phone, []);
+      byPhone.get(phone).push(order);
     }
 
+    const totalClients = byPhone.size;
     let created = 0;
     let updated = 0;
     const statusGroups = {};
-    const totalOrders = orders.length;
 
     // Emit progress start
     req.app.get('io')?.emit(`sync-clients-progress-${req.workspaceId}`, {
       type: 'start',
-      total: totalOrders,
-      message: `Démarrage de la synchronisation de ${totalOrders} commandes...`
+      total: totalClients,
+      message: `Démarrage de la synchronisation de ${totalClients} clients...`
     });
 
-    console.log('⚙️ Traitement des commandes...');
-    for (let i = 0; i < orders.length; i++) {
-      const order = orders[i];
-      const phone = (order.clientPhone || '').trim();
-      const nameParts = (order.clientName || '').trim().split(/\s+/);
+    console.log('⚙️ Agrégation par client...');
+    let processed = 0;
+    for (const [phone, clientOrders] of byPhone) {
+      processed++;
+
+      // Trier par date décroissante : la commande la plus récente en premier
+      const sorted = [...clientOrders].sort(
+        (a, b) => new Date(b.date || b.createdAt || 0) - new Date(a.date || a.createdAt || 0)
+      );
+      const latest = sorted[0];
+
+      const nameParts = (latest.clientName || '').trim().split(/\s+/);
       const firstName = nameParts[0] || 'Client';
       const lastName = nameParts.slice(1).join(' ') || '';
-      const orderTotal = (order.price || 0) * (order.quantity || 1);
-      const productName = getOrderProductName(order);
 
-      // Log détaillé pour les premières commandes
-      if (i < 5) {
-        console.log(`📝 Commande ${i+1}: ${order.clientName} (${phone}) - ${order.status} - ${orderTotal}€ - produit: "${productName}" (raw: "${order.product}")`);
-      }
+      // Agrégats sur l'ensemble des commandes du client
+      const totalOrders = clientOrders.length;
+      const totalSpent = clientOrders.reduce((sum, o) => sum + (o.price || 0) * (o.quantity || 1), 0);
+      const products = [...new Set(clientOrders.map(getOrderProductName).filter(Boolean))];
+      const firstCity = sorted.find(o => o.city)?.city || '';
+      const firstAddress = sorted.find(o => o.address)?.address || '';
 
-      // Compter par statut pour le retour
-      const mapping = orderStatusMap[order.status];
-      if (mapping) {
-        statusGroups[mapping.clientStatus] = (statusGroups[mapping.clientStatus] || 0) + 1;
-        if (i < 5) {
-          console.log(`  ↳ Mapping: ${order.status} → ${mapping.clientStatus} (${mapping.tag})`);
-        }
-      } else {
-        if (i < 5) {
-          console.log(`  ⚠️ Aucun mapping pour statut: ${order.status}`);
-        }
+      // Statut client = statut de plus haute priorité parmi ses commandes
+      let bestStatus = 'prospect';
+      let bestPriority = 0;
+      const tagsSet = new Set();
+      for (const o of clientOrders) {
+        const mapping = orderStatusMap[o.status];
+        if (!mapping) continue;
+        tagsSet.add(mapping.tag);
+        const pr = statusPriority[mapping.clientStatus] || 0;
+        if (pr > bestPriority) { bestPriority = pr; bestStatus = mapping.clientStatus; }
       }
+      statusGroups[bestStatus] = (statusGroups[bestStatus] || 0) + 1;
 
       let client = await Client.findOne({ workspaceId: req.workspaceId, phone });
 
       if (!client) {
-        // Créer nouveau client uniquement
-        console.log(`  ➕ Création nouveau client: ${firstName} ${lastName} (${phone})`);
+        // Création d'un nouveau client
         client = new Client({
           workspaceId: req.workspaceId,
           phone,
           firstName,
           lastName,
-          city: order.city || '',
-          address: order.address || '',
-          products: productName ? [productName] : [],
-          status: mapping ? mapping.clientStatus : 'prospect',
-          tags: mapping ? [mapping.tag] : [],
-          totalOrders: 1,
-          totalSpent: orderTotal,
-          lastOrderAt: order.date,
-          lastContactAt: order.date,
+          city: firstCity,
+          address: firstAddress,
+          products,
+          status: bestStatus,
+          tags: [...tagsSet],
+          totalOrders,
+          totalSpent,
+          lastOrderAt: latest.date,
+          lastContactAt: latest.date,
           createdBy: req.ecomUser._id
         });
         await client.save();
         created++;
-        console.log(`  ✅ Client créé avec ID: ${client._id}`);
       } else {
-        // Client existe déjà - on l'ignore complètement
-        console.log(`  ⏭️ Client existant ignoré: ${client.firstName} (${phone})`);
-        // Ne rien faire, passer au suivant
+        // Mise à jour du client existant depuis ses commandes
+        client.totalOrders = totalOrders;
+        client.totalSpent = totalSpent;
+        client.products = [...new Set([...(client.products || []), ...products])];
+        client.tags = [...new Set([...(client.tags || []), ...tagsSet])];
+        if (latest.date) client.lastOrderAt = latest.date;
+        // Compléter les infos manquantes sans écraser les saisies manuelles
+        if (!client.city && firstCity) client.city = firstCity;
+        if (!client.address && firstAddress) client.address = firstAddress;
+        // Refléter le statut des commandes, sauf pour un client bloqué (modération manuelle)
+        if (client.status !== 'blocked') client.status = bestStatus;
+        await client.save();
+        updated++;
       }
 
-      // Emit progress every 10 orders or at the end
-      if (i % 10 === 0 || i === orders.length - 1) {
-        const progress = Math.round(((i + 1) / totalOrders) * 100);
-        console.log(`📊 Progression: ${i + 1}/${totalOrders} (${progress}%) - Créés: ${created}, Mis à jour: ${updated}`);
-        
+      // Emit progress every 10 clients or at the end
+      if (processed % 10 === 0 || processed === totalClients) {
+        const progress = totalClients ? Math.round((processed / totalClients) * 100) : 100;
         req.app.get('io')?.emit(`sync-clients-progress-${req.workspaceId}`, {
           type: 'progress',
-          current: i + 1,
-          total: totalOrders,
+          current: processed,
+          total: totalClients,
           percentage: progress,
           created,
           updated,
-          message: `Traitement de ${i + 1}/${totalOrders} commandes...`
+          message: `Traitement de ${processed}/${totalClients} clients...`
         });
       }
     }
 
     console.log(`✅ ===== SYNCHRONISATION TERMINÉE =====`);
-    console.log(`📊 Résultats:`);
-    console.log(`  • Total commandes traitées: ${totalOrders}`);
-    console.log(`  • Nouveaux clients créés: ${created}`);
-    console.log(`  • Clients existants ignorés: ${totalOrders - created}`);
+    console.log(`  • Clients traités: ${totalClients}`);
+    console.log(`  • Créés: ${created} — Mis à jour: ${updated}`);
     console.log(`📊 Répartition par statut:`, statusGroups);
 
     // Emit completion
     req.app.get('io')?.emit(`sync-clients-progress-${req.workspaceId}`, {
       type: 'complete',
       created,
-      updated: 0,
-      total: created,
+      updated,
+      total: totalClients,
       statusGroups,
-      message: `Synchronisation terminée ! ${created} nouveaux clients créés.`
+      message: `Synchronisation terminée ! ${created} créés, ${updated} mis à jour.`
     });
 
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       message: 'Synchronisation terminée',
       data: {
         created,
-        updated: 0,
-        total: created,
+        updated,
+        total: totalClients,
         statusGroups
       }
     });

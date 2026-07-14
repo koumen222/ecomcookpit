@@ -1,9 +1,11 @@
+import { deepseekComplete, isDeepseekConfigured } from '../services/deepseekChatService.js';
 import express from 'express';
 import mongoose from 'mongoose';
 import fetch from 'node-fetch';
 import DailyReport from '../models/DailyReport.js';
 import Product from '../models/Product.js';
 import Order from '../models/Order.js';
+import WorkspaceSettings from '../models/WorkspaceSettings.js';
 import { requireEcomAuth, validateEcomAccess } from '../middleware/ecomAuth.js';
 import { validateDailyReport } from '../middleware/validation.js';
 import { adjustProductStock, StockAdjustmentError } from '../services/stockService.js';
@@ -365,26 +367,14 @@ Contraintes:
 - Format: 1) Diagnostic global 2) Points forts 3) Points faibles 4) Top opportunités (3-5) 5) Plan d'action (5 actions max) 6) Alertes risques
 - Réponse courte et actionnable (max ~350 mots)`;
 
-      const response = await fetch('https://api.kie.ai/claude/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${process.env.KIE_API_KEY}`
-        },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-6',
-          messages: [{ role: 'user', content: prompt }],
-          max_tokens: 1024
-        })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        return res.status(response.status).json({ success: false, message: errorData.error?.message || 'Erreur du service' });
+      // Décision produit : texte = DeepSeek uniquement
+      let analysis = '';
+      try {
+        analysis = await deepseekComplete(prompt, { maxTokens: 1024 });
+      } catch (aiErr) {
+        const status = aiErr?.response?.status;
+        return res.status(status || 500).json({ success: false, message: aiErr?.response?.data?.error?.message || aiErr.message || 'Erreur du service IA' });
       }
-
-      const data = await response.json();
-      const analysis = data.content?.[0]?.text?.trim() || '';
 
       res.json({ success: true, data: { analysis, overview } });
     } catch (error) {
@@ -1044,6 +1034,111 @@ router.get('/dashboard/stats',
   }
 );
 
+// GET /api/ecom/reports/auto-schedule - Lire la config de génération automatique
+// ⚠️ Déclaré AVANT `/:id` (sinon capté par le GET `/:id`).
+router.get('/auto-schedule', requireEcomAuth, async (req, res) => {
+  try {
+    const ws = await WorkspaceSettings.findOne({ workspaceId: req.workspaceId })
+      .select('autoReportGeneration').lean();
+    const cfg = ws?.autoReportGeneration || {};
+    res.json({ success: true, data: {
+      enabled: !!cfg.enabled,
+      time: cfg.time || '21:00',
+      timezone: cfg.timezone || 'Africa/Douala',
+      target: cfg.target || 'today',
+      lastRunAt: cfg.lastRunAt || null,
+    }});
+  } catch (error) {
+    console.error('Erreur get auto-schedule:', error);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// PUT /api/ecom/reports/auto-schedule - Activer / configurer la génération auto
+// ⚠️ Déclaré AVANT `PUT /:id` (sinon capté par le PUT `/:id`).
+router.put('/auto-schedule', requireEcomAuth, validateEcomAccess('orders', 'write'), async (req, res) => {
+  try {
+    const { enabled, time, target } = req.body || {};
+    const set = {};
+    if (enabled !== undefined) set['autoReportGeneration.enabled'] = !!enabled;
+    if (time !== undefined && /^\d{2}:\d{2}$/.test(String(time))) set['autoReportGeneration.time'] = String(time);
+    if (target !== undefined && ['today', 'yesterday'].includes(target)) set['autoReportGeneration.target'] = target;
+    // (Re)configurer libère le verrou anti-doublon → permet un run le jour même
+    set['autoReportGeneration.lastRunKey'] = '';
+
+    await WorkspaceSettings.updateOne(
+      { workspaceId: req.workspaceId },
+      { $set: set },
+      { upsert: true }
+    );
+
+    const ws = await WorkspaceSettings.findOne({ workspaceId: req.workspaceId })
+      .select('autoReportGeneration').lean();
+    const cfg = ws?.autoReportGeneration || {};
+    res.json({ success: true, data: {
+      enabled: !!cfg.enabled,
+      time: cfg.time || '21:00',
+      timezone: cfg.timezone || 'Africa/Douala',
+      target: cfg.target || 'today',
+    }});
+  } catch (error) {
+    console.error('Erreur put auto-schedule:', error);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// GET /api/ecom/reports/delivered-count - Nombre de commandes LIVRÉES sur une
+// période, SANS effet de bord. Compte par DATE DE LIVRAISON (statusModifiedAt,
+// fallback updatedAt) et somme les quantités — exactement la même logique que
+// /auto-generate. Sert à prévisualiser combien de livraisons seront rapportées
+// (badge du bouton « Générer », parenthèse « livraisons du jour »).
+// ⚠️ Doit rester DÉCLARÉ AVANT `/:id`, sinon Express le route vers `/:id`.
+router.get('/delivered-count', requireEcomAuth, async (req, res) => {
+  try {
+    const { date, startDate, endDate } = req.query;
+
+    let dateFilter;
+    if (date) {
+      dateFilter = { $gte: new Date(`${date}T00:00:00.000Z`), $lte: new Date(`${date}T23:59:59.999Z`) };
+    } else if (startDate || endDate) {
+      dateFilter = {};
+      if (startDate) dateFilter.$gte = new Date(`${startDate}T00:00:00.000Z`);
+      if (endDate) dateFilter.$lte = new Date(`${endDate}T23:59:59.999Z`);
+    } else {
+      const today = new Date().toISOString().split('T')[0];
+      dateFilter = { $gte: new Date(`${today}T00:00:00.000Z`), $lte: new Date(`${today}T23:59:59.999Z`) };
+    }
+
+    const wsOid = new mongoose.Types.ObjectId(req.workspaceId);
+    const agg = await Order.aggregate([
+      { $match: {
+        workspaceId: wsOid,
+        status: 'delivered',
+        $or: [
+          { statusModifiedAt: dateFilter },
+          { $and: [{ statusModifiedAt: null }, { updatedAt: dateFilter }] }
+        ]
+      }},
+      { $group: {
+        _id: null,
+        ordersDelivered: { $sum: { $ifNull: ['$quantity', 1] } },
+        ordersCount: { $sum: 1 }
+      }}
+    ]);
+
+    res.json({
+      success: true,
+      data: {
+        ordersDelivered: agg[0]?.ordersDelivered || 0,
+        ordersCount: agg[0]?.ordersCount || 0
+      }
+    });
+  } catch (error) {
+    console.error('Erreur delivered-count:', error);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
 // GET /api/ecom/reports/:id - Détail d'un rapport
 // ── Helper : corrige deliveryCost / cost / profit à partir de deliveries[] ───
 // Utilisé en lecture pour réparer à la volée les rapports sauvés avant le fix
@@ -1320,7 +1415,10 @@ router.post('/auto-generate',
   validateEcomAccess('orders', 'write'),
   async (req, res) => {
     try {
-      const { date, startDate, endDate, mappings } = req.body || {};
+      const { date, startDate, endDate, mappings, adBudget, deliveryBudget } = req.body || {};
+      // Budgets facultatifs (pub + livraison) pour affiner le rapport sur la période.
+      const adBudgetNum = Math.max(0, parseFloat(adBudget) || 0);
+      const deliveryBudgetNum = Math.max(0, parseFloat(deliveryBudget) || 0);
 
       // Map des assignations manuelles : nomCommande (lowercase) -> productId
       const manualMap = {};
@@ -1426,6 +1524,7 @@ router.post('/auto-generate',
       const updated = [];
       const skipped = [];
       const unmatchedMap = {}; // productName -> { productName, totalDelivered, totalReceived, dates[] }
+      const touched = [];      // rapports créés/màj → base de répartition des budgets
 
       for (const agg of deliveredAgg) {
         const { dateKey, product: productName } = agg._id;
@@ -1499,8 +1598,9 @@ router.post('/auto-generate',
             }}
           );
           updated.push({ dateKey, productName: productDoc.name });
+          touched.push({ id: existing._id, dateKey, qty: ordersDelivered, sp, pc, dc, adSpend });
         } else {
-          await DailyReport.create({
+          const createdDoc = await DailyReport.create({
             workspaceId: req.workspaceId,
             date: reportDate,
             productId: productDoc._id,
@@ -1517,6 +1617,48 @@ router.post('/auto-generate',
             notes: 'Rapport généré automatiquement'
           });
           created.push({ dateKey, productName: productDoc.name });
+          touched.push({ id: createdDoc._id, dateKey, qty: ordersDelivered, sp, pc, dc, adSpend: 0 });
+        }
+      }
+
+      // ── Budgets facultatifs répartis sur la période ──────────────────────
+      // Répartition ÉGALE PAR JOUR ACTIF : le budget est divisé par le nombre de
+      // jours ayant au moins une livraison, puis, à l'intérieur de chaque jour,
+      // réparti entre les rapports au prorata des commandes livrées de CE jour.
+      // Un jour chargé et un jour creux portent donc la même part de budget ;
+      // les jours sans livraison ne comptent pas. On recalcule cost/profit
+      // depuis revenue et productCost (déterministes = prix × qté). Pas d'arrondi
+      // → la somme répartie = le budget saisi.
+      let budgetsApplied = false;
+      if ((adBudgetNum > 0 || deliveryBudgetNum > 0) && touched.length > 0) {
+        // Regrouper les rapports touchés par jour
+        const byDay = new Map(); // dateKey -> { totalQty, items: [] }
+        for (const t of touched) {
+          if (!byDay.has(t.dateKey)) byDay.set(t.dateKey, { totalQty: 0, items: [] });
+          const g = byDay.get(t.dateKey);
+          g.totalQty += t.qty || 0;
+          g.items.push(t);
+        }
+        const activeDays = [...byDay.values()].filter(g => g.totalQty > 0).length;
+        if (activeDays > 0) {
+          const adPerDay = adBudgetNum / activeDays;
+          const delivPerDay = deliveryBudgetNum / activeDays;
+          for (const g of byDay.values()) {
+            if (g.totalQty <= 0) continue;
+            for (const t of g.items) {
+              const share = t.qty / g.totalQty; // part du budget du JOUR pour ce rapport
+              const revenue = t.sp * t.qty;
+              const productCost = t.pc * t.qty;
+              const deliveryCost = deliveryBudgetNum > 0 ? delivPerDay * share : t.dc * t.qty;
+              const adSpend = adBudgetNum > 0 ? adPerDay * share : (t.adSpend || 0);
+              const costT = productCost + deliveryCost + adSpend;
+              await DailyReport.updateOne(
+                { _id: t.id },
+                { $set: { revenue, productCost, deliveryCost, adSpend, cost: costT, profit: revenue - costT, quantity: t.qty } }
+              );
+            }
+          }
+          budgetsApplied = true;
         }
       }
 
@@ -1525,11 +1667,101 @@ router.post('/auto-generate',
       const hasUnmatched = unmatched.length > 0;
       res.json({
         success: true,
-        message: `${total} rapport(s) traité(s) : ${created.length} créé(s), ${updated.length} mis à jour${hasUnmatched ? ` · ${unmatched.length} produit(s) à assigner` : ''}${skipped.length > 0 ? ` · ${skipped.length} ignoré(s)` : ''}`,
+        message: `${total} rapport(s) traité(s) : ${created.length} créé(s), ${updated.length} mis à jour${hasUnmatched ? ` · ${unmatched.length} produit(s) à assigner` : ''}${skipped.length > 0 ? ` · ${skipped.length} ignoré(s)` : ''}${budgetsApplied ? ' · budgets répartis' : ''}`,
         data: { created, updated, skipped, unmatched }
       });
     } catch (error) {
       console.error('Erreur auto-generate reports:', error);
+      res.status(500).json({ success: false, message: 'Erreur serveur' });
+    }
+  }
+);
+
+// POST /api/ecom/reports/ai-match - Suggère, via IA, le produit catalogue le
+// plus proche pour des libellés de commande non reconnus par le matching exact
+// (fautes, quantités « 2x », variantes couleur/taille…). Ne crée AUCUN rapport :
+// renvoie seulement des suggestions (productId + confiance) que l'utilisateur
+// valide dans l'étape « Assigner ». Garde-fous fiabilité :
+//   1. temperature 0 + sortie JSON stricte,
+//   2. chaque id renvoyé est RE-VÉRIFIÉ contre le catalogue (anti-hallucination),
+//   3. si l'IA n'est pas configurée / échoue → fallback null (assignation manuelle).
+router.post('/ai-match',
+  requireEcomAuth,
+  validateEcomAccess('orders', 'write'),
+  async (req, res) => {
+    try {
+      const names = Array.isArray(req.body?.names)
+        ? [...new Set(req.body.names.map(n => String(n || '').trim()).filter(Boolean))]
+        : [];
+      if (names.length === 0) {
+        return res.json({ success: true, data: { matches: [] } });
+      }
+
+      const products = await Product.find({ workspaceId: req.workspaceId }, { name: 1 }).lean();
+      const byId = new Map(products.map(p => [String(p._id), p]));
+      const byName = new Map(products.filter(p => p.name).map(p => [p.name.toLowerCase().trim(), p]));
+
+      const matches = [];
+      const toAsk = [];
+
+      // Court-circuit : match exact (gratuit, aucune dépense IA)
+      for (const name of names) {
+        const exact = byName.get(name.toLowerCase().trim());
+        if (exact) {
+          matches.push({ orderProductName: name, productId: String(exact._id), productName: exact.name, confidence: 100, source: 'exact' });
+        } else {
+          toAsk.push(name);
+        }
+      }
+
+      if (toAsk.length > 0) {
+        if (products.length === 0 || !isDeepseekConfigured()) {
+          for (const name of toAsk) {
+            matches.push({ orderProductName: name, productId: null, productName: null, confidence: 0, source: 'none' });
+          }
+        } else {
+          const catalogue = products.slice(0, 400).map(p => ({ id: String(p._id), name: p.name }));
+          const system = "Tu associes des libellés de commandes e-commerce (souvent avec fautes, quantités ou variantes) au produit de catalogue le plus probable. Tu réponds UNIQUEMENT en JSON valide, sans texte autour.";
+          const prompt = `CATALOGUE (id, nom):\n${JSON.stringify(catalogue)}\n\nLIBELLÉS DE COMMANDE À ASSOCIER:\n${JSON.stringify(toAsk)}\n\nPour CHAQUE libellé, trouve le produit du catalogue le plus probable en ignorant les quantités ("2x", "pack de 3"), les variantes (couleur/taille) et les fautes de frappe. Si aucun produit ne correspond raisonnablement, mets "id": null.\n\nRéponds STRICTEMENT avec:\n{"matches":[{"orderProductName":"<libellé reçu à l'identique>","id":"<id du catalogue ou null>","confidence":<entier 0-100>}]}`;
+
+          let parsed = null;
+          try {
+            const raw = await deepseekComplete(prompt, {
+              system,
+              temperature: 0,
+              maxTokens: 2048,
+              responseFormat: { type: 'json_object' },
+            });
+            parsed = JSON.parse(raw);
+          } catch (e) {
+            console.error('⚠️ ai-match IA indisponible:', e.message);
+            parsed = null;
+          }
+
+          const aiByName = new Map();
+          if (parsed && Array.isArray(parsed.matches)) {
+            parsed.matches.forEach(m => {
+              if (m && m.orderProductName) aiByName.set(String(m.orderProductName).trim(), m);
+            });
+          }
+
+          for (const name of toAsk) {
+            const m = aiByName.get(name.trim());
+            // Anti-hallucination : l'id proposé DOIT exister dans le catalogue
+            const prod = m && m.id ? byId.get(String(m.id)) : null;
+            if (prod) {
+              const conf = Math.max(0, Math.min(100, Math.round(Number(m.confidence) || 0)));
+              matches.push({ orderProductName: name, productId: String(prod._id), productName: prod.name, confidence: conf, source: 'ai' });
+            } else {
+              matches.push({ orderProductName: name, productId: null, productName: null, confidence: 0, source: parsed ? 'ai' : 'none' });
+            }
+          }
+        }
+      }
+
+      res.json({ success: true, data: { matches } });
+    } catch (error) {
+      console.error('Erreur ai-match:', error);
       res.status(500).json({ success: false, message: 'Erreur serveur' });
     }
   }

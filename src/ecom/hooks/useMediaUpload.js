@@ -1,7 +1,18 @@
 import { useState, useCallback } from 'react';
 import api from '../../lib/api.js';
 
-const API_BASE = `${import.meta.env.VITE_BACKEND_URL || 'https://api.scalor.net'}/api/ecom`;
+function resolveEcomApiBase() {
+  const raw = String(
+    import.meta.env.VITE_BACKEND_URL ||
+    import.meta.env.VITE_API_BASE_URL ||
+    import.meta.env.VITE_API_URL ||
+    'https://api.scalor.net'
+  ).trim();
+  const clean = raw.replace(/\/+$/, '');
+  return clean.endsWith('/api/ecom') ? clean : `${clean}/api/ecom`;
+}
+
+const API_BASE = resolveEcomApiBase();
 
 /**
  * Custom hook for media upload with progress tracking

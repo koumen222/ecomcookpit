@@ -7,6 +7,7 @@ import net from 'node:net';
 import tls from 'node:tls';
 import { requireEcomAuth, requireSuperAdmin } from '../middleware/ecomAuth.js';
 import EmailSendLog from '../models/EmailSendLog.js';
+import { getOtpEmailStatus } from '../core/notifications/otpMailer.js';
 
 const execFileAsync = promisify(execFile);
 const router = express.Router();
@@ -461,6 +462,24 @@ async function getDnsStatus() {
   const spf = flattenTxt(spfRecords).filter((value) => value.toLowerCase().startsWith('v=spf1'));
   const dmarc = flattenTxt(dmarcRecords).filter((value) => value.toLowerCase().startsWith('v=dmarc1'));
   const dkim = flattenTxt(dkimRecords).filter((value) => value.toLowerCase().startsWith('v=dkim1'));
+  const dmarcPolicy = dmarc[0]?.match(/(?:^|;)\s*p=(none|quarantine|reject)(?:;|$)/i)?.[1]?.toLowerCase() || '';
+  const ptrAligned = ptrRecords.includes(MAIL_HOST);
+  const issues = [];
+
+  if (!ptrAligned) {
+    issues.push({
+      severity: 'critical',
+      code: 'PTR_MISMATCH',
+      message: `Le reverse DNS de ${SERVER_IP} doit être ${MAIL_HOST}. Valeur actuelle: ${ptrRecords.join(', ') || 'absente'}.`
+    });
+  }
+  if (!['quarantine', 'reject'].includes(dmarcPolicy)) {
+    issues.push({
+      severity: 'warning',
+      code: 'DMARC_MONITOR_ONLY',
+      message: `DMARC n'applique aucune protection (p=${dmarcPolicy || 'absent'}). Passer progressivement à p=quarantine puis p=reject.`
+    });
+  }
 
   return {
     mailA,
@@ -470,13 +489,16 @@ async function getDnsStatus() {
     dmarc,
     dkim,
     ptr: ptrRecords,
+    dmarcPolicy,
+    issues,
     checks: {
       mailA: mailA.includes(SERVER_IP),
       mailAaaa: mailAaaa.length === 0,
       spfSingle: spf.length === 1,
       dmarcSingle: dmarc.length === 1,
+      dmarcEnforced: ['quarantine', 'reject'].includes(dmarcPolicy),
       dkimPresent: dkim.length > 0,
-      ptr: ptrRecords.includes(MAIL_HOST),
+      ptr: ptrAligned,
     },
     expected: {
       mailA: SERVER_IP,
@@ -704,6 +726,7 @@ router.get('/overview', async (_req, res) => {
           from: credentials.from || `noreply@${DOMAIN}`,
           passwordConfigured: Boolean(credentials.password),
         },
+        otpEmail: getOtpEmailStatus(),
         services,
         ports,
         queue,
@@ -843,6 +866,7 @@ router.get('/sends', async (req, res) => {
           subject: entry.subject,
           status: entry.status,
           source: entry.source,
+          provider: entry.provider || 'smtp',
           queueId: entry.queueId,
           messageId: entry.messageId,
           smtpResponse: entry.smtpResponse,

@@ -910,6 +910,20 @@ function getPremiumImageEntries(productData = {}) {
   const prompts = productData.premium_image_prompts || {};
   const productName = productData.title || premium.brandName || 'Produit';
   const basePrompt = 'Photorealistic premium Shopify product page section, modern African ecommerce campaign, authentic Black African people when people are present, bright high-end interior, clean spacing, product visible, no fake press logos, no long text overlay.';
+  // Contrainte démographique cible (genre + âge) réutilisable pour TOUTES les images avec personnes.
+  const _tg = String(productData._targetGender || productData.targetGender || 'auto');
+  const _ta = String(productData._targetAgeRange || productData.targetAgeRange || 'auto').trim();
+  const _taLow = parseInt(_ta, 10);
+  const demoClause = (idx = 0) => {
+    const g = _tg === 'mixed' ? (idx % 2 === 0 ? 'male' : 'female') : _tg;
+    if (g === 'auto' && (!_ta || _ta === 'auto')) return '';
+    const who = g === 'male' ? 'a Black African MAN' : g === 'female' ? 'a Black African WOMAN' : 'a Black African adult';
+    const mature = (Number.isFinite(_taLow) && _taLow >= 40)
+      ? ', a mature adult with visible natural signs of age (fine lines, mature skin, grey hair possible), NOT a young twenty-something'
+      : '';
+    const ageTxt = (_ta && _ta !== 'auto') ? ` aged about ${_ta} years old` : '';
+    return ` PEOPLE CONSTRAINT: if any human appears in this image, they MUST be ${who}${ageTxt}${mature}. Do NOT depict a different gender or a noticeably younger person, and do NOT add people to a pure product-only shot.`;
+  };
   // Set d'images HERO dédié (5 boards distincts), séparé des sections et des UGC.
   const heroPrompts = Array.isArray(prompts.hero) ? prompts.hero : [];
   const heroBoardPrompts = [
@@ -965,22 +979,72 @@ function getPremiumImageEntries(productData = {}) {
     },
   );
 
+  // Applique la contrainte démographique (genre + âge cible) à toutes les images hero + sections.
+  // Les UGC (ci-dessous) ont déjà leur propre verrou démographique.
+  for (const e of entries) { e.prompt = `${e.prompt}${demoClause(e.heroIndex || 0)}`; }
+
   const testimonialPrompts = Array.isArray(prompts.testimonials) ? prompts.testimonials : [];
   // Au moins 6 photos UGC ultra naturelles (iPhone), personne réelle avec le produit en main, AUCUN texte/titre sur l'image.
   const ugcScenes = [
-    'in a bright home kitchen',
-    'in a cozy living room with soft daylight',
-    'outdoors on a sunny street',
-    'near a window in a bedroom',
-    'taking a casual mirror selfie in a bathroom',
-    'sitting at a table with a glass of water',
+    'relaxing on the sofa in a cozy living room with soft daylight',
+    'sitting on the bed in a bedroom, warm morning light through the window',
+    'receiving the parcel from a delivery courier at their front door, smiling',
+    'at a desk in a modern home office',
+    'in a bright kitchen about to use the product',
+    'outdoors on a sunny city street, casual everyday look',
+    'showing the product to a friend at a café table',
+    'in the car right after unboxing, holding the product with a happy expression',
+  ];
+  // Personas DISTINCTS (coiffure / forme du visage / morphologie / tenue) pour éviter le même visage sur tous les avis.
+  // Descripteurs volontairement neutres en âge : la maturité éventuelle est ajoutée par ageBit/maturity.
+  const UGC_FACES_M = [
+    'short afro, oval face, slim build, wearing a navy crew-neck t-shirt',
+    'clean-shaven bald head, broad face, sturdy build, wearing a grey polo shirt',
+    'short twists, rounded face, average build, wearing an olive green henley',
+    'low fade haircut with a short beard, angular face, athletic build, wearing a white button shirt',
+    'short cropped hair with a goatee, square jaw, stocky build, wearing a burgundy sweater',
+    'medium afro with a full beard, long narrow face, lean build, wearing a beige shirt',
+  ];
+  const UGC_FACES_F = [
+    'long box braids, heart-shaped face, slim build, wearing a mustard-yellow blouse',
+    'short natural afro, round face, average build, wearing a teal top',
+    'colorful headwrap, high cheekbones, curvy build, wearing a coral dress',
+    'shoulder-length locs, oval face, slim build, wearing a white blouse',
+    'neat cornrows, soft round face, fuller build, wearing a green cardigan',
+    'afro puff bun, long face, petite build, wearing a lavender blouse',
   ];
   const noTextSuffix = ' ABSOLUTELY NO text, no caption, no title, no quote, no typography, no watermark and no logo overlay anywhere on the image — just the real person and the product.';
   const TESTIMONIAL_IMAGE_COUNT = 6;
+  console.log(`🎯 [UGC premium] genre=${String(productData._targetGender || productData.targetGender || 'auto')} age=${String(productData._targetAgeRange || productData.targetAgeRange || 'auto')} — ${TESTIMONIAL_IMAGE_COUNT} témoignages`);
   for (let index = 0; index < TESTIMONIAL_IMAGE_COUNT; index += 1) {
     const scene = ugcScenes[index % ugcScenes.length];
+    // Genre/âge déduits de la cible ; alternance homme/femme pour un public mixte.
+    const _g = String(productData._targetGender || productData.targetGender || 'auto');
+    const genderForIndex = _g === 'mixed' ? (index % 2 === 0 ? 'male' : 'female') : _g;
+    // Apparence distincte par témoignage (visage/coiffure/tenue différents) — évite le même visage.
+    const facePool = genderForIndex === 'female' ? UGC_FACES_F
+      : genderForIndex === 'male' ? UGC_FACES_M
+      : (index % 2 === 0 ? UGC_FACES_M : UGC_FACES_F);
+    const appearance = facePool[index % facePool.length];
+    const baseGender = genderForIndex === 'female' ? 'woman, clearly female with feminine facial features'
+      : genderForIndex === 'male' ? 'man, clearly male with masculine facial features'
+      : 'adult';
+    const person = `${baseGender}, ${appearance}`;
+    const _a = String(productData._targetAgeRange || productData.targetAgeRange || 'auto').trim();
+    const ageLow = parseInt(_a, 10);
+    const maturity = (Number.isFinite(ageLow) && ageLow >= 40)
+      ? ', a mature adult with visible natural signs of age (fine lines, mature skin, grey hair possible), definitely NOT a young twenty-something'
+      : '';
+    const ageBit = (_a && _a !== 'auto') ? `, aged approximately ${_a} years old with genuinely age-appropriate facial features${maturity}` : '';
+    // Verrou démographique répété en FIN de prompt (les modèles d'image pondèrent davantage les derniers tokens).
+    const lockGender = genderForIndex === 'male' ? 'a MAN' : genderForIndex === 'female' ? 'a WOMAN' : 'an adult';
+    const demoLock = (genderForIndex !== 'auto' || (_a && _a !== 'auto'))
+      ? ` CRITICAL DEMOGRAPHIC: the customer MUST be ${lockGender}${(_a && _a !== 'auto') ? ` who is clearly ${_a} years old` : ''} — do NOT depict a different gender and do NOT depict anyone noticeably younger.`
+      : '';
+    // Instruction d'unicité : chaque avis = une personne DIFFÉRENTE (visage unique).
+    const uniqueBit = ` This is a DIFFERENT individual customer #${index + 1} with a UNIQUE face, clearly distinct from every other review photo — different facial features, hairstyle and outfit as described. Do NOT reuse the same face across reviews.`;
     // Cadrage UGC TOUJOURS conservé : une personne réelle tenant le VRAI produit en main.
-    const ugcPrompt = `Authentic candid amateur smartphone photo shot on an iPhone, a real satisfied Black African customer ${scene}, naturally holding ${productName} in hand and smiling, ultra natural user-generated content (UGC) selfie style, realistic skin texture and small imperfections, natural lighting, slightly imperfect framing, looks like a genuine customer review photo.`;
+    const ugcPrompt = `Authentic candid amateur smartphone photo shot on an iPhone, a real satisfied Black African ${person}${ageBit} ${scene}, naturally holding ${productName} in hand and smiling, ultra natural user-generated content (UGC) selfie style, realistic skin texture and small imperfections, natural lighting, slightly imperfect framing, looks like a genuine customer review photo.${uniqueBit}${demoLock}`;
     // Un éventuel prompt IA n'apporte que du contexte/persona : il ne remplace PAS le cadrage "produit en main".
     const aiFlavor = testimonialPrompts[index] ? ` Context inspiration (persona/scene only): ${testimonialPrompts[index]}.` : '';
     entries.push({
@@ -1494,6 +1558,16 @@ function buildDescriptionGifSpecs(gptResult = {}) {
   ];
 }
 
+function buildAgeConstraintRules(targetAgeRange = 'auto') {
+  const age = String(targetAgeRange || 'auto').trim();
+  if (!age || age === 'auto') return '';
+  return `
+
+═══ AGE CONSTRAINT — MANDATORY ═══
+• EVERY person visible (portraits, avatars, testimonial cards, before/after subjects, hero models, hands, background figures) MUST look ${age} years old — no exception.
+• Render age truthfully for that group: appropriate skin, mature features and greying/white hair if older, realistic body and posture. Do NOT default to young adults in their 20s-30s when the audience is older.`;
+}
+
 function buildTargetAvatarSummary({ targetAvatar = '', targetGender = 'auto', targetAgeRange = 'auto', targetProfile = 'auto' } = {}) {
   const genderLabels = {
     auto: '',
@@ -1819,7 +1893,7 @@ Style: clean, educational, modern, easy to understand, premium, trustworthy.
 Colors must match this website / brand color: ${brandColor}.
 ${imgTextLang(visualPrefs).name} text only. Perfect spelling. No fake stock-photo feel. No price, no phone number, no URL, no watermark.
 The visual language should stay consistent with a premium modular product-page board while the content adapts to the current product.
-${buildUltraSmartInfographicStyleRules(brandColor, template)}${buildStructuredProductPageVisualRules(gptResult, template, brandColor, 'benefits explanation image')}${buildArtDirectionProfile(1, gptResult, template, visualPrefs, 'benefits explanation image')}${buildProfessionalDescriptionGraphicRules(0, template, visualPrefs)}${buildHumanPhotoRealismRules()}${buildGenderConstraintRules(visualPrefs?.targetGender)}${buildVisualPromptDirectives(visualPrefs)}`;
+${buildUltraSmartInfographicStyleRules(brandColor, template)}${buildStructuredProductPageVisualRules(gptResult, template, brandColor, 'benefits explanation image')}${buildArtDirectionProfile(1, gptResult, template, visualPrefs, 'benefits explanation image')}${buildProfessionalDescriptionGraphicRules(0, template, visualPrefs)}${buildHumanPhotoRealismRules()}${buildGenderConstraintRules(visualPrefs?.targetGender)}${buildAgeConstraintRules(visualPrefs?.targetAgeRange)}${buildVisualPromptDirectives(visualPrefs)}`;
 }
 
 function buildSocialProofCollagePrompt(gptResult, template = 'general', visualPrefs = {}) {
@@ -1894,7 +1968,7 @@ Do NOT make the product tiny or secondary.
 Style: premium ecommerce testimonial poster, trust-building, realistic, editorial, highly converting, African-market relevant.
 ${imgTextLang(visualPrefs).name} text only. Perfect spelling. Strong mobile readability. Clear hierarchy. No stock-photo feeling, no exaggerated poses, no fake hands.
 The final result must look like a polished product-page review poster with centered product and surrounding client proof.
-${buildHumanPhotoRealismRules()}${buildGenderConstraintRules(visualPrefs?.targetGender)}${buildVisualPromptDirectives(visualPrefs)}`;
+${buildHumanPhotoRealismRules()}${buildGenderConstraintRules(visualPrefs?.targetGender)}${buildAgeConstraintRules(visualPrefs?.targetAgeRange)}${buildVisualPromptDirectives(visualPrefs)}`;
 }
 
 /**
@@ -1951,7 +2025,7 @@ The photo must look like a real premium commercial photograph — natural skin, 
 • Layout must feel like a polished marketplace ad board: structured, airy, premium, mobile-ready
 • Do NOT place random text on the photo. All text lives in the left copy zone.
 • No watermark, no price, no phone number, no URL
-${buildHumanPhotoRealismRules()}${buildGenderConstraintRules(visualPrefs?.targetGender)}${buildVisualPromptDirectives(visualPrefs)}`;
+${buildHumanPhotoRealismRules()}${buildGenderConstraintRules(visualPrefs?.targetGender)}${buildAgeConstraintRules(visualPrefs?.targetAgeRange)}${buildVisualPromptDirectives(visualPrefs)}`;
 }
 
 /**
@@ -1995,7 +2069,7 @@ If the angle is about reassurance, trust, ingredients, mechanism, transformation
 
 ${imgTextLang(visualPrefs).name} text only if necessary, with perfect spelling. No price, no phone number, no URL, no watermark.
 The image must not feel generic, but it should still belong to the same premium modular visual language used across AI product pages.
-${buildUltraSmartInfographicStyleRules(brandColor, template)}${buildStructuredProductPageVisualRules(gptResult, template, brandColor, marketingIntent)}${buildArtDirectionProfile(slideIndex + 3, gptResult, template, visualPrefs, marketingIntent)}${buildHumanPhotoRealismRules()}${buildGenderConstraintRules(visualPrefs?.targetGender)}${buildSemanticIllustrationRules({
+${buildUltraSmartInfographicStyleRules(brandColor, template)}${buildStructuredProductPageVisualRules(gptResult, template, brandColor, marketingIntent)}${buildArtDirectionProfile(slideIndex + 3, gptResult, template, visualPrefs, marketingIntent)}${buildHumanPhotoRealismRules()}${buildGenderConstraintRules(visualPrefs?.targetGender)}${buildAgeConstraintRules(visualPrefs?.targetAgeRange)}${buildSemanticIllustrationRules({
     mainClaim: angleTitle,
     supportText: angleExplication,
     promise: anglePromesse,
@@ -2039,7 +2113,7 @@ Build a non-generic marketing image specifically for this product.
 Use the exact product from the reference image when visible. Do not invent packaging, labels or colors.
 ${imgTextLang(visualPrefs).name} text only if truly necessary. No price, no phone number, no URL, no watermark.
 Make it feel like a premium mobile landing-page block with a modular product-page board structure, a strong proof cue, and a niche-adapted palette.
-${buildUltraSmartInfographicStyleRules(brandColor, template)}${buildStructuredProductPageVisualRules(gptResult, template, brandColor, plan?.intent || 'dynamic marketing visual')}${plan?.artDirection || buildArtDirectionProfile(slideIndex + 3, gptResult, template, visualPrefs, plan?.intent || 'dynamic marketing visual')}${buildHumanPhotoRealismRules()}${buildGenderConstraintRules(visualPrefs?.targetGender)}${buildSemanticIllustrationRules({
+${buildUltraSmartInfographicStyleRules(brandColor, template)}${buildStructuredProductPageVisualRules(gptResult, template, brandColor, plan?.intent || 'dynamic marketing visual')}${plan?.artDirection || buildArtDirectionProfile(slideIndex + 3, gptResult, template, visualPrefs, plan?.intent || 'dynamic marketing visual')}${buildHumanPhotoRealismRules()}${buildGenderConstraintRules(visualPrefs?.targetGender)}${buildAgeConstraintRules(visualPrefs?.targetAgeRange)}${buildSemanticIllustrationRules({
     mainClaim: angleTitle,
     supportText: angleExplication,
     promise: anglePromesse,
@@ -2096,7 +2170,7 @@ MANDATORY:
 - PHOTOREALISTIC — must look like a REAL photograph, NOT AI-generated
 - NO title text, NO price, NO CTA, NO URL
 - Tight crop, ZERO empty margins
-- ${nichePrompt}${buildHumanPhotoRealismRules()}${buildGenderConstraintRules(explicitGender)}`;
+- ${nichePrompt}${buildHumanPhotoRealismRules()}${buildGenderConstraintRules(explicitGender)}${buildAgeConstraintRules(visualPrefs?.targetAgeRange)}`;
 }
 
 // Plusieurs générations simultanées autorisées — lock supprimé
@@ -2732,6 +2806,7 @@ router.post('/premium', requireEcomAuth, validateEcomAccess('products', 'write')
       premium_page: premiumResult.premium_page || null,
       themeColor,
       _targetGender: ['female', 'male', 'mixed'].includes(targetGender) ? targetGender : 'auto',
+      _targetAgeRange: (targetAgeRange && targetAgeRange !== 'auto') ? String(targetAgeRange).trim() : 'auto',
     };
 
     const creditCharge = workspace ? await chargeGenerationCredits(req.workspaceId, PREMIUM_COST, {
@@ -3234,6 +3309,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       titleColor,
       contentColor,
       _targetGender: ['female', 'male', 'mixed'].includes(targetGender) ? targetGender : 'auto',
+      _targetAgeRange: (targetAgeRange && targetAgeRange !== 'auto') ? String(targetAgeRange).trim() : 'auto',
     };
 
     const creditCharge = workspace && !isHeroMode ? await chargeGenerationCredits(req.workspaceId, 1, {

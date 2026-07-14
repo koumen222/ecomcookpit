@@ -12,6 +12,7 @@ import WhatsAppInstance from '../models/WhatsAppInstance.js';
 import RitaActivity from '../models/RitaActivity.js';
 import Workspace from '../models/Workspace.js';
 import evolutionApiService from './evolutionApiService.js';
+import { notifyWorkspaceRoles } from './whatsappHostService.js';
 
 let dailyCronJob = null;
 let isRunning = false;
@@ -35,10 +36,16 @@ async function sendDailySummary(ritaCfg) {
   const bossPhone = ritaCfg.bossPhone?.replace(/\D/g, '');
   if (!bossPhone) return;
 
-  // Find the WhatsApp instance — prefer instanceId from config, fallback to userId lookup
-  let instance = null;
+  // L'instance hôte est prioritaire pour les communications internes.
+  let instance = await WhatsAppInstance.findOne({
+    userId,
+    usageType: 'host',
+    isActive: true,
+    status: { $in: ['connected', 'active'] },
+  }).lean();
+  // Compatibilité avec les anciennes configurations Rita.
   if (ritaCfg.instanceId) {
-    instance = await WhatsAppInstance.findById(ritaCfg.instanceId).lean();
+    instance = instance || await WhatsAppInstance.findById(ritaCfg.instanceId).lean();
   }
   if (!instance && userId) {
     instance = await WhatsAppInstance.findOne({
@@ -134,6 +141,14 @@ async function sendDailySummary(ritaCfg) {
   }
 
   report += `\n✨ _Rapport automatique généré par Rita_`;
+
+  if (workspaceId) {
+    try {
+      await notifyWorkspaceRoles({ workspaceId, event: 'daily_report', message: report, metadata: { userId } });
+    } catch (err) {
+      console.error(`❌ [RITA-REPORT] Erreur rapport via instance hôte:`, err.message);
+    }
+  }
 
   try {
     await evolutionApiService.sendMessage(

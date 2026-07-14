@@ -7,6 +7,7 @@
  * 4. Upload R2 → Assemble page produit
  */
 
+import { deepseekClient, callDeepseekChat } from './deepseekChatService.js';
 import axios from 'axios';
 import Groq from 'groq-sdk';
 import sharp from 'sharp';
@@ -19,6 +20,21 @@ const KIE_API_KEY = process.env.KIE_API_KEY || '';
 const KIE_CLAUDE_URL = 'https://api.kie.ai/claude/v1/messages';
 
 async function callClaudeForEbook(systemPrompt, userPrompt) {
+  // Décision produit : texte = DeepSeek uniquement
+  const { content: dsContent } = await callDeepseekChat({
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt },
+    ],
+    maxTokens: 8192,
+    timeoutMs: 180000,
+  });
+  return dsContent;
+}
+
+// Ancien chemin KIE Claude — conservé pour rollback rapide, plus appelé.
+// eslint-disable-next-line no-unused-vars
+async function _legacyCallClaudeForEbook(systemPrompt, userPrompt) {
   const body = {
     model: 'claude-sonnet-4-6',
     max_tokens: 16000,
@@ -961,7 +977,7 @@ JSON structure:
   }
 
   // ── 3. Groq fallback ─────────────────────────────────────────────────────
-  const groq = getGroq();
+  const groq = deepseekClient; // texte → DeepSeek uniquement
   if (groq) {
     try {
       console.log('[EbookGen] Groq fallback...');
@@ -1322,7 +1338,7 @@ function buildPremiumImagePrompts(result = {}) {
 }
 
 export async function analyzePremiumProductPage(scrapedData, imageBuffers = [], storeContext = {}, premiumContext = {}) {
-  const groq = getGroq();
+  const groq = deepseekClient; // texte → DeepSeek uniquement
   // KIE est le service primaire ici — Groq n'est qu'un secours. L'un des deux suffit.
   if (!groq && !isKieConfigured()) {
     throw new Error('Aucun service IA configuré (GROQ_API_KEY ou KIE_API_KEY requis).');
@@ -1493,7 +1509,7 @@ ${premiumContract}`;
       if (!result) throw new Error('Réponse premium JSON non parsable');
     }
   } catch (error) {
-    const groq = getGroq();
+    const groq = deepseekClient; // texte → DeepSeek uniquement
     if (!groq) throw new Error(`Erreur IA premium: ${error.message}`);
     try {
       let response;
@@ -1547,7 +1563,7 @@ ${premiumContract}`;
 // ─── Étape 2 : Groq → JSON structuré ultra fiable ──────────────────
 
 export async function analyzeWithVision(scrapedData, imageBuffers = [], marketingApproach = 'AIDA', storeContext = {}, copywritingContext = {}, visualContext = {}) {
-  const groq = getGroq();
+  const groq = deepseekClient; // texte → DeepSeek uniquement
   // Groq OU KIE suffit : sans GROQ_API_KEY, on bascule directement sur KIE
   // (avant : throw immédiat même avec KIE_API_KEY configurée → génération impossible en local)
   if (!groq && !isKieConfigured()) {
@@ -2007,7 +2023,7 @@ Le champ "prompt_avant_apres" doit décrire un AVANT/APRÈS SPÉCIFIQUE à CE pr
   const messages = [
     {
       role: "system",
-      content: "Tu es expert e-commerce, copywriting et psychologie de l'acheteur, spécialiste marché africain. MISSION : générer une page produit complète et optimisée pour la conversion avec des visuels représentant des personnes africaines authentiques. RÈGLES ABSOLUES : 1) Analyse le produit en profondeur avant de rédiger quoi que ce soit. 2) " + languageDirective(language) + " (prompts images toujours en anglais). 3) ZÉRO généricité. 4) ZÉRO exagération. 5) CRITIQUE problem_section : 3 vraies douleurs SPÉCIFIQUES. 6) CRITIQUE solution_section : paragraphe persuasif reliant chaque douleur au produit. 7) CRITIQUE hero_cta : bouton d'achat percutant 3-5 mots. 8) CRITIQUE stats_bar : 3 stats crédibles. 9) CRITIQUE seo : meta_title max 60 chars, meta_description max 155 chars, slug kebab-case. 10) RÈGLE GENRE OBLIGATOIRE pour toutes les images : produit FEMME → femme africaine ; produit HOMME → homme africain ; produit MIXTE → genre le plus naturel selon contexte — JAMAIS de femme par défaut pour un produit masculin ou neutre. 11) RÈGLE ZONE CORPORELLE pour toutes les images : identifier la zone exacte (cheveux, visage, corps, ventre, dents, etc.) et cadrer sur cette zone — JAMAIS le visage par défaut si le produit est pour les cheveux ou le corps. 12) LE PRODUIT LUI-MÊME (packaging, flacon, boîte) doit être visible et grand dans chaque image. 13) prompt_hero_poster = affiche graphique, produit grand sur fond sombre dramatique, SANS TITRE sur l'image, avec EXACTEMENT 3 personnes africaines réelles dans un cadre MODERNE et au moins 2 tenant le produit en main. 14) avant/après : zone correcte + genre correct + produit visible côté APRÈS. 15) angles : 4 visuels, produit visible (40%+) + zone et genre corrects. PAS de titre texte sur les images, uniquement éventuellement une courte phrase descriptive. Quand des humains sont présents dans ces visuels, privilégier EXACTEMENT 3 personnes africaines réelles avec le produit en main au lieu d'icônes ou de personnages génériques. 16) Témoignages : noms et villes adaptés au pays. 17) Le template choisi agit uniquement sur le design visuel des images, icones, fonds, ambiance et palette; il ne doit jamais inventer une promesse, une cible ou un usage produit. 18) Les consignes couleur des affiches, visuel hero, décorations, couleur des titres et couleur du contenu doivent être appliquées réellement aux visuels quand elles sont fournies. 19) Les personnes dans les images doivent ressembler a de vraies personnes photographiees: pores de peau visibles, micro-imperfections naturelles, legere asymetrie du visage, mains anatomiquement correctes, yeux avec texture d'iris reelle, dents legerement inegales et naturelles, cheveux avec variation de boucle/frisure, expression subtile et credible, eclairage avec ombres realistes — ZERO peau lisse comme du plastique, ZERO visage CGI symetrique parfait, ZERO retouche excessive, ZERO teint uniforme artificiel. 20) Chaque image doit illustrer exactement le texte marketing correspondant; aucun badge, icone ou scene ne doit etre decoratif sans lien direct avec le message. 21) Même si du texte est posé sur l'image, la scène doit rester explicite sans lire ce texte: le visuel seul doit raconter la situation. 22) description_optimisee = chaîne vide. 23) CONTEXTE MODERNE OBLIGATOIRE: les décors des images doivent toujours être MODERNES et HAUT DE GAMME (appartement contemporain, studio design, bureau élégant, espace urbain chic) — JAMAIS de marché, village, décor traditionnel ou rue de quartier populaire. Les personnes africaines sont dans des endroits beaux et modernes. 24) PAS DE TITRE TEXTE sur les images générées. Les prompts d'images ne doivent PAS inclure de headline/titre. 25) TOUS LES PROMPTS D'IMAGES ET TOUTE LA PAGE DOIVENT STRICTEMENT SE BASER SUR LES CARACTÉRISTIQUES IDENTIFIÉES DANS L'IMAGE FOURNIE. 26) CONCISION STRICTE — une page qui vend est courte et scannable, PAS un pavé : explication de chaque angle ≤ 2 phrases (40 mots max) ; benefits_bullets ≤ 10 mots chacun ; pain_points ≤ 12 mots ; solution_section.description ≤ 3 phrases ; réponses FAQ ≤ 2 phrases ; témoignages ≤ 25 mots ; étapes du guide : action ≤ 8 mots, detail ≤ 15 mots ; hero_slogan ≤ 12 mots. AUCUN champ ne dépasse ces limites. 27) JSON uniquement."
+      content: "Tu es expert e-commerce, copywriting et psychologie de l'acheteur, spécialiste marché africain. MISSION : générer une page produit complète et optimisée pour la conversion avec des visuels représentant des personnes africaines authentiques. RÈGLES ABSOLUES : 1) Analyse le produit en profondeur avant de rédiger quoi que ce soit. 2) " + languageDirective(language) + " (prompts images toujours en anglais). 3) ZÉRO généricité. 4) ZÉRO exagération. 5) CRITIQUE problem_section : 3 vraies douleurs SPÉCIFIQUES. 6) CRITIQUE solution_section : paragraphe persuasif reliant chaque douleur au produit. 7) CRITIQUE hero_cta : bouton d'achat percutant 3-5 mots. 8) CRITIQUE stats_bar : 3 stats crédibles. 9) CRITIQUE seo : meta_title max 60 chars, meta_description max 155 chars, slug kebab-case. 10) RÈGLE GENRE OBLIGATOIRE (IMAGES ET TEXTE) : déduis le public à partir du PRODUIT lui-même. Produit pour FEMMES → femme africaine ; produit pour HOMMES → homme africain ; produit MIXTE ou NEUTRE → ALTERNE réellement hommes et femmes (témoignages, avatars, modèles, mannequins) ET rédige le TEXTE au neutre (n'écris pas au féminin par défaut : évite les accords comme épuisée, fatiguée, contente ; parle indifféremment à un homme ou une femme). N'assume JAMAIS un public féminin par défaut : pour un produit masculin ou neutre, montre des hommes ou un vrai mixte, jamais uniquement des femmes. 11) RÈGLE ZONE CORPORELLE pour toutes les images : identifier la zone exacte (cheveux, visage, corps, ventre, dents, etc.) et cadrer sur cette zone — JAMAIS le visage par défaut si le produit est pour les cheveux ou le corps. 12) LE PRODUIT LUI-MÊME (packaging, flacon, boîte) doit être visible et grand dans chaque image. 13) prompt_hero_poster = affiche graphique, produit grand sur fond sombre dramatique, SANS TITRE sur l'image, avec EXACTEMENT 3 personnes africaines réelles dans un cadre MODERNE et au moins 2 tenant le produit en main. 14) avant/après : zone correcte + genre correct + produit visible côté APRÈS. 15) angles : 4 visuels, produit visible (40%+) + zone et genre corrects. PAS de titre texte sur les images, uniquement éventuellement une courte phrase descriptive. Quand des humains sont présents dans ces visuels, privilégier EXACTEMENT 3 personnes africaines réelles avec le produit en main au lieu d'icônes ou de personnages génériques. 16) Témoignages : noms et villes adaptés au pays. 17) Le template choisi agit uniquement sur le design visuel des images, icones, fonds, ambiance et palette; il ne doit jamais inventer une promesse, une cible ou un usage produit. 18) Les consignes couleur des affiches, visuel hero, décorations, couleur des titres et couleur du contenu doivent être appliquées réellement aux visuels quand elles sont fournies. 19) Les personnes dans les images doivent ressembler a de vraies personnes photographiees: pores de peau visibles, micro-imperfections naturelles, legere asymetrie du visage, mains anatomiquement correctes, yeux avec texture d'iris reelle, dents legerement inegales et naturelles, cheveux avec variation de boucle/frisure, expression subtile et credible, eclairage avec ombres realistes — ZERO peau lisse comme du plastique, ZERO visage CGI symetrique parfait, ZERO retouche excessive, ZERO teint uniforme artificiel. 20) Chaque image doit illustrer exactement le texte marketing correspondant; aucun badge, icone ou scene ne doit etre decoratif sans lien direct avec le message. 21) Même si du texte est posé sur l'image, la scène doit rester explicite sans lire ce texte: le visuel seul doit raconter la situation. 22) description_optimisee = chaîne vide. 23) CONTEXTE MODERNE OBLIGATOIRE: les décors des images doivent toujours être MODERNES et HAUT DE GAMME (appartement contemporain, studio design, bureau élégant, espace urbain chic) — JAMAIS de marché, village, décor traditionnel ou rue de quartier populaire. Les personnes africaines sont dans des endroits beaux et modernes. 24) PAS DE TITRE TEXTE sur les images générées. Les prompts d'images ne doivent PAS inclure de headline/titre. 25) TOUS LES PROMPTS D'IMAGES ET TOUTE LA PAGE DOIVENT STRICTEMENT SE BASER SUR LES CARACTÉRISTIQUES IDENTIFIÉES DANS L'IMAGE FOURNIE. 26) CONCISION STRICTE — une page qui vend est courte et scannable, PAS un pavé : explication de chaque angle ≤ 2 phrases (40 mots max) ; benefits_bullets ≤ 10 mots chacun ; pain_points ≤ 12 mots ; solution_section.description ≤ 3 phrases ; réponses FAQ ≤ 2 phrases ; témoignages ≤ 25 mots ; étapes du guide : action ≤ 8 mots, detail ≤ 15 mots ; hero_slogan ≤ 12 mots. AUCUN champ ne dépasse ces limites. 27) JSON uniquement."
     },
     {
       role: "user",

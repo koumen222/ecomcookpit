@@ -120,6 +120,7 @@ jobs:
           CHANGED="${{ steps.commit.outputs.changed }}"
           TESTS="${{ steps.tests.outputs.passed }}"
           PR_URL=""   # pas de PR auto — commits seulement
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           DIAG="$(tail -c 3000 /tmp/claude_out.txt 2>/dev/null || echo '')"
           FILES="$(git diff --name-only "origin/${BASE_BRANCH}...HEAD" 2>/dev/null | jq -R . | jq -s . || echo '[]')"
           OKVAL=$([ "$CHANGED" = "true" ] && echo true || echo false)
@@ -131,7 +132,8 @@ jobs:
             --arg diag "$DIAG" \
             --argjson files "$FILES" \
             --arg risk "$RISK" \
-            '{ok:$ok, branch:$branch, prUrl:$pr, diagnosis:$diag, filesChanged:$files, riskLevel:$risk, recommendedAction:"human_review"}' \
+            --arg run "$RUN_URL" \
+            '{ok:$ok, branch:$branch, prUrl:$pr, runUrl:$run, diagnosis:$diag, filesChanged:$files, riskLevel:$risk, recommendedAction:"human_review"}' \
             > /tmp/payload.json
           if [ -n "$CALLBACK_URL" ]; then
             curl -sS -X POST "$CALLBACK_URL" \

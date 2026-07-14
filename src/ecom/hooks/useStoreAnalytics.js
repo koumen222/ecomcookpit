@@ -1,7 +1,10 @@
 import { useRef, useCallback } from 'react';
 import axios from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://ecomcookpit-production.up.railway.app';
+const API_URL =
+  import.meta.env.VITE_API_URL ||
+  import.meta.env.VITE_BACKEND_URL ||
+  'https://api.scalor.net';
 
 const VISITOR_ID_KEY = 'store_visitor_id';
 const THROTTLE_MS = 30 * 60 * 1000; // 30 minutes

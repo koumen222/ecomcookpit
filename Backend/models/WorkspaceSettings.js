@@ -56,6 +56,15 @@ const workspaceSettingsSchema = new mongoose.Schema({
     updatedAt: { type: Date, default: Date.now },
     notifyOnChanges: { type: Boolean, default: true }
   },
+  // Génération automatique des rapports quotidiens à une heure fixe
+  autoReportGeneration: {
+    enabled: { type: Boolean, default: false },
+    time: { type: String, default: '21:00' },              // HH:MM (heure locale du fuseau)
+    timezone: { type: String, default: 'Africa/Douala' },
+    target: { type: String, enum: ['today', 'yesterday'], default: 'today' }, // jour à générer
+    lastRunAt: { type: Date },
+    lastRunKey: { type: String, default: '' }              // 'YYYY-MM-DD' du dernier run (anti-doublon)
+  },
   // Commission par commande livrée pour les closeuses
   commissionRate: {
     type: Number,

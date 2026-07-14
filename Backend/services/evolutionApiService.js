@@ -11,8 +11,16 @@ const __dirname = path.dirname(__filename);
  */
 class EvolutionApiService {
   constructor() {
-    this.baseUrl = process.env.EVOLUTION_API_URL || 'https://api.evolution-api.com';
+    this.baseUrl = String(process.env.EVOLUTION_API_URL || '').replace(/\/$/, '');
     this.apiKey = process.env.EVOLUTION_API_KEY;
+  }
+
+  assertConfigured() {
+    if (!this.baseUrl) {
+      const error = new Error("Le service WhatsApp n'est pas configuré (EVOLUTION_API_URL manquante)");
+      error.code = 'EVOLUTION_NOT_CONFIGURED';
+      throw error;
+    }
   }
 
   /**
@@ -23,6 +31,7 @@ class EvolutionApiService {
    * @param {string} message - Contenu du message
    */
   async sendMessage(instanceName, instanceToken, number, message, retries = 2, delayMs = 1200) {
+    this.assertConfigured();
     // Préserver le JID complet pour les groupes (format: 120363XXXX@g.us)
     // Pour les numéros individuels, garder uniquement les chiffres
     const cleanNumber = number.includes('@g.us') ? number.trim() : number.replace(/\D/g, '');

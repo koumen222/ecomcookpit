@@ -1,10 +1,9 @@
-import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import path from 'path';
+import './config/loadEnv.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-dotenv.config({ path: path.resolve(__dirname, '.env') });
 
 import express from 'express';
 import cors from 'cors';
@@ -13,7 +12,13 @@ import compression from 'compression';
 import helmet from 'helmet';
 import { connectDB } from './config/database.js';
 import { extractSubdomain } from './middleware/subdomain.js';
-import { securityHeaders, authRateLimiter, forgotPasswordRateLimiter, apiRateLimiter } from './middleware/security.js';
+import {
+  securityHeaders,
+  authRateLimiter,
+  forgotPasswordRateLimiter,
+  otpIpRateLimiter,
+  apiRateLimiter
+} from './middleware/security.js';
 
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -160,6 +165,10 @@ app.use('/api/ecom/auth/login', (req, res, next) => {
 app.use('/api/ecom/auth/forgot-password', (req, res, next) => {
   if (req.method === 'OPTIONS') return next();
   return forgotPasswordRateLimiter(req, res, next);
+});
+app.use('/api/ecom/auth/send-otp', (req, res, next) => {
+  if (req.method === 'OPTIONS') return next();
+  return otpIpRateLimiter(req, res, next);
 });
 
 // ⚠️  Webhook endpoints MUST be exempt from rate limiting.
@@ -313,7 +322,11 @@ app.use((req, res, next) => {
 
 // ─── Health check ────────────────────────────────────────────────────────────
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  res.json({
+    status: 'ok',
+    environment: process.env.APP_ENV || process.env.NODE_ENV || 'development',
+    timestamp: new Date().toISOString()
+  });
 });
 
 // ─── Debug encoding ──────────────────────────────────────────────────────────
@@ -396,12 +409,15 @@ const startServer = async () => {
       ['./routes/whatsappOrders.js',          '/api/ecom/whatsapp-orders'],
       // ─── Quantity Offers ──────────────────────────────────────────────
       ['./routes/quantityOffers.js',          '/api/ecom/quantity-offers'],
+      ['./routes/collections.js',            '/api/ecom/collections'],
+      ['./routes/mediaLibrary.js',           '/api/ecom/media-library'],
       // ─── Store / Storefront routes ──────────────────────────────────
       ['./routes/storeProducts.js',           '/api/ecom/store-products'],
       ['./routes/storeOrders.js',             '/api/ecom/store-orders'],
       ['./routes/storeManagement.js',         '/api/ecom/store-manage'],
       ['./routes/stores.js',                  '/api/ecom/stores'],
       ['./routes/storeAdmin.js',              '/api/ecom/store'],
+      ['./routes/scalorPay.js',               '/api/ecom/scalor-pay'],
       ['./routes/storeAnalytics.js',          '/api/ecom/store-analytics'],
       ['./routes/publicStore.js',             '/api/public/store'],
       // ─── New unified Store API (called by SPA on *.scalor.net via api.scalor.net) ──
@@ -478,6 +494,9 @@ const startServer = async () => {
       console.error('⚠️ Public Storefront routes failed:', err.message);
     }
 
+    const backgroundJobsEnabled = String(process.env.ENABLE_BACKGROUND_JOBS || 'true').toLowerCase() === 'true';
+
+    if (backgroundJobsEnabled) {
     // ─── Agent cron jobs ─────────────────────────────────────────────────
     try {
       const { startAgentCronJobs } = await import('./services/agentCronService.js');
@@ -492,6 +511,14 @@ const startServer = async () => {
       startBossReportCron();
     } catch (err) {
       console.warn('⚠️ Rita boss report cron non démarré:', err.message);
+    }
+
+    // ─── Génération auto des rapports quotidiens ─────────────────────────
+    try {
+      const { startReportScheduler } = await import('./services/reportSchedulerService.js');
+      startReportScheduler();
+    } catch (err) {
+      console.warn('⚠️ Cron génération auto des rapports non démarré:', err.message);
     }
 
     // ─── Rita relance cron ───────────────────────────────────────────────
@@ -567,6 +594,9 @@ const startServer = async () => {
       console.log('✅ Push scheduler démarré');
     } catch (err) {
       console.warn('⚠️ Push scheduler non démarré:', err.message);
+    }
+    } else {
+      console.log('🧪 Tâches de fond désactivées pour cet environnement');
     }
 
     // ─── WebSocket ───────────────────────────────────────────────────────

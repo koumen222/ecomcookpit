@@ -27,7 +27,8 @@ function resolveProviderBaseUrl() {
   const fromBackend = normalizeBase(import.meta.env.VITE_BACKEND_URL);
 
   if (typeof window !== 'undefined' && window.location.hostname.endsWith('scalor.net')) {
-    if (fromApi.includes('api.scalor.net')) return fromApi;
+    if (fromApi) return fromApi;
+    if (fromBackend) return fromBackend;
     return 'https://api.scalor.net/api/provider';
   }
 

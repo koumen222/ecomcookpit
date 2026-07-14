@@ -286,6 +286,47 @@ const VALID_EVENT_TYPES = new Set([
   'settings_changed', 'password_reset', 'custom'
 ]);
 
+// ──────────────────────────────────────────────────────────
+// Audience segmentation
+// The platform analytics collections pool three very different
+// populations: real merchant owners (role ecom_admin), invited staff
+// (closeuse / compta / livreur / service client) and anonymous
+// prospects (marketing / landing traffic, userId = null). The dashboard
+// historically counted them together, which drowned the merchant-signup
+// signal. `segment` lets callers isolate one population.
+// ──────────────────────────────────────────────────────────
+const MERCHANT_ROLES = ['ecom_admin'];
+const STAFF_ROLES = ['ecom_closeuse', 'ecom_compta', 'ecom_livreur', 'service_client'];
+const VALID_SEGMENTS = new Set(['all', 'merchants', 'staff', 'anonymous']);
+
+// Pipeline stages to insert right after the date-range $match so that an
+// AnalyticsSession aggregation only keeps sessions of the chosen audience.
+// Returns [] for `all` (no-op = exact legacy behaviour).
+function sessionSegmentStages(segment) {
+  if (segment === 'anonymous') {
+    return [{ $match: { userId: null } }];
+  }
+  if (segment === 'merchants' || segment === 'staff') {
+    const roles = segment === 'merchants' ? MERCHANT_ROLES : STAFF_ROLES;
+    return [
+      { $match: { userId: { $ne: null } } },
+      { $lookup: { from: 'ecom_users', localField: 'userId', foreignField: '_id', as: '_u' } },
+      { $unwind: '$_u' },
+      { $match: { '_u.role': { $in: roles } } }
+    ];
+  }
+  return [];
+}
+
+// Role filter for EcomUser signup counts, matching the chosen segment.
+// `anonymous` has no signups by definition.
+function signupRoleFilter(segment) {
+  if (segment === 'merchants') return { role: { $in: MERCHANT_ROLES } };
+  if (segment === 'staff') return { role: { $in: STAFF_ROLES } };
+  if (segment === 'anonymous') return { _id: null }; // matches nothing
+  return {};
+}
+
 router.post('/track', async (req, res) => {
   try {
     const { sessionId, eventType, page, referrer, meta, userId, workspaceId, userRole } = req.body;
@@ -399,10 +440,14 @@ router.get('/overview',
     try {
       const { range = '30d', startDate, endDate } = req.query;
       const { since, until } = dateFilter(range, startDate, endDate);
+      const segment = VALID_SEGMENTS.has(req.query.segment) ? req.query.segment : 'all';
+      const segStages = sessionSegmentStages(segment);
+      const roleFilter = signupRoleFilter(segment);
 
       // Sessions & page views
       const [sessionStats] = await AnalyticsSession.aggregate([
         { $match: { startedAt: { $gte: since, $lte: until } } },
+        ...segStages,
         {
           $group: {
             _id: null,
@@ -423,13 +468,14 @@ router.get('/overview',
         ? Math.round(((sessionStats?.bounces || 0) / totalSessions) * 100)
         : 0;
 
-      // Signups in period
-      const signups = await EcomUser.countDocuments({ createdAt: { $gte: since, $lte: until } });
+      // Signups in period (role-filtered to the chosen audience)
+      const signups = await EcomUser.countDocuments({ createdAt: { $gte: since, $lte: until }, ...roleFilter });
 
       // Active users with workspace
       const activatedUsers = await EcomUser.countDocuments({
         createdAt: { $gte: since, $lte: until },
-        workspaceId: { $ne: null }
+        workspaceId: { $ne: null },
+        ...roleFilter
       });
 
       // Workspaces created
@@ -487,6 +533,7 @@ router.get('/overview',
       // Trend: daily sessions over period
       const dailySessions = await AnalyticsSession.aggregate([
         { $match: { startedAt: { $gte: since, $lte: until } } },
+        ...segStages,
         {
           $group: {
             _id: { $dateToString: { format: '%Y-%m-%d', date: '$startedAt' } },
@@ -506,9 +553,9 @@ router.get('/overview',
         }
       ]);
 
-      // Daily signups trend
+      // Daily signups trend (role-filtered to the chosen audience)
       const dailySignups = await EcomUser.aggregate([
-        { $match: { createdAt: { $gte: since, $lte: until } } },
+        { $match: { createdAt: { $gte: since, $lte: until }, ...roleFilter } },
         {
           $group: {
             _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
@@ -521,6 +568,7 @@ router.get('/overview',
       res.json({
         success: true,
         data: {
+          segment,
           kpis: {
             totalSessions,
             uniqueVisitors,
@@ -545,6 +593,121 @@ router.get('/overview',
       });
     } catch (error) {
       console.error('Analytics overview error:', error);
+      res.status(500).json({ success: false, message: 'Erreur serveur' });
+    }
+  }
+);
+
+// ──────────────────────────────────────────────────────────
+// GET /api/ecom/analytics/merchant-acquisition
+// Isolates the NEW MERCHANT SIGNUP signal from the noise of global
+// platform traffic — the metric that actually measures an affiliate /
+// influencer campaign. Reconciles two independent sources:
+//   • signupEvents  = AnalyticsEvent { eventType: 'signup_completed' }
+//                     (fires ONLY on a real self-registration, never for
+//                      buyers or invited staff)
+//   • merchantWorkspaces = ecom_workspaces created in the period
+//                     (one per merchant register via ensureAuthWorkspace)
+// Plus a per-affiliate breakdown (EcomUser.referredByAffiliateCode) so the
+// campaign's signups are attributable to each affiliate / influencer.
+// ──────────────────────────────────────────────────────────
+router.get('/merchant-acquisition',
+  requireEcomAuth,
+  requireSuperAdmin,
+  async (req, res) => {
+    try {
+      const { range = '30d', startDate, endDate } = req.query;
+      const { since, until } = dateFilter(range, startDate, endDate);
+      const inRange = { $gte: since, $lte: until };
+
+      // ── Reconciled headline counters ──
+      const [
+        signupEvents,
+        merchantWorkspaces,
+        merchantOwners,
+        allNewAccounts,
+        staffNewAccounts
+      ] = await Promise.all([
+        AnalyticsEvent.countDocuments({ eventType: 'signup_completed', createdAt: inRange }),
+        Workspace.countDocuments({ createdAt: inRange }),
+        EcomUser.countDocuments({ createdAt: inRange, role: { $in: MERCHANT_ROLES } }),
+        EcomUser.countDocuments({ createdAt: inRange }),
+        EcomUser.countDocuments({ createdAt: inRange, role: { $in: STAFF_ROLES } })
+      ]);
+
+      // ── Daily merchant-signup trend (by event and by workspace) ──
+      const [eventTrend, workspaceTrend] = await Promise.all([
+        AnalyticsEvent.aggregate([
+          { $match: { eventType: 'signup_completed', createdAt: inRange } },
+          { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } }, count: { $sum: 1 } } },
+          { $sort: { _id: 1 } }
+        ]),
+        Workspace.aggregate([
+          { $match: { createdAt: inRange } },
+          { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } }, count: { $sum: 1 } } },
+          { $sort: { _id: 1 } }
+        ])
+      ]);
+      // Merge both series onto a single date axis
+      const trendMap = new Map();
+      eventTrend.forEach(d => trendMap.set(d._id, { date: d._id, signupEvents: d.count, workspaces: 0 }));
+      workspaceTrend.forEach(d => {
+        const row = trendMap.get(d._id) || { date: d._id, signupEvents: 0, workspaces: 0 };
+        row.workspaces = d.count;
+        trendMap.set(d._id, row);
+      });
+      const dailySignups = [...trendMap.values()].sort((a, b) => a.date.localeCompare(b.date));
+
+      // ── Per-affiliate / influencer breakdown ──
+      const affiliateAgg = await EcomUser.aggregate([
+        { $match: { createdAt: inRange, referredByAffiliateCode: { $ne: null, $nin: [''] } } },
+        { $group: { _id: '$referredByAffiliateCode', signups: { $sum: 1 } } },
+        {
+          $lookup: {
+            from: 'affiliate_users',
+            localField: '_id',
+            foreignField: 'referralCode',
+            as: 'affiliate'
+          }
+        },
+        {
+          $project: {
+            _id: 0,
+            affiliateCode: '$_id',
+            signups: 1,
+            affiliateName: { $ifNull: [{ $arrayElemAt: ['$affiliate.name', 0] }, null] }
+          }
+        },
+        { $sort: { signups: -1 } }
+      ]);
+
+      const attributedSignups = affiliateAgg.reduce((sum, a) => sum + a.signups, 0);
+      const organicSignups = Math.max(0, merchantOwners - attributedSignups);
+
+      res.json({
+        success: true,
+        data: {
+          range: { since, until },
+          counters: {
+            signupEvents,
+            merchantWorkspaces,
+            merchantOwners,
+            allNewAccounts,
+            staffNewAccounts,
+            // Non-merchant accounts (invited staff etc.) inflating the legacy
+            // "signups" KPI — surfaced so the dilution is explicit.
+            nonMerchantAccounts: Math.max(0, allNewAccounts - merchantOwners)
+          },
+          attribution: {
+            attributedSignups,
+            organicSignups,
+            byAffiliate: affiliateAgg
+          },
+          trends: { dailySignups }
+        }
+      });
+    } catch (error) {
+      console.error('Merchant acquisition error:', error);
       res.status(500).json({ success: false, message: 'Erreur serveur' });
     }
   }

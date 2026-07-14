@@ -651,13 +651,27 @@ router.put('/payments', requireEcomAuth, requireWorkspace, async (req, res) => {
       { new: true }
     );
 
+    let affectedSubdomains = [];
     if (req.activeStoreId) {
-      await Store.findByIdAndUpdate(req.activeStoreId, { $set: { storePayments: req.body } });
+      const updated = await Store.findByIdAndUpdate(
+        req.activeStoreId,
+        { $set: { storePayments: req.body } },
+        { new: true }
+      ).select('subdomain').lean();
+      if (updated?.subdomain) affectedSubdomains = [updated.subdomain];
     } else {
       await Store.updateMany(
         { workspaceId: req.workspaceId, isActive: true },
         { $set: { storePayments: req.body } }
       );
+      const stores = await Store.find({ workspaceId: req.workspaceId, isActive: true }).select('subdomain').lean();
+      affectedSubdomains = stores.map(s => s.subdomain).filter(Boolean);
+    }
+
+    // Purge les caches storefront pour que les modes de paiement se reflètent tout de suite.
+    for (const sub of affectedSubdomains) {
+      invalidateStoreCache(sub);
+      invalidateStorefrontCache(sub);
     }
 
     res.json({

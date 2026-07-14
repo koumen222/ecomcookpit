@@ -83,6 +83,9 @@ const clientSchema = new mongoose.Schema({
   },
   lastContactAt: {
     type: Date
+  },
+  lastOrderAt: {
+    type: Date
   }
 }, {
   timestamps: true,

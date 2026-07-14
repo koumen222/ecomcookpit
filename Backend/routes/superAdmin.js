@@ -292,6 +292,206 @@ router.get('/users',
   }
 );
 
+// GET /api/ecom/super-admin/users-growth — dashboard croissance utilisateurs
+// KPIs inscriptions (jour/7j/30j + deltas), série journalière (inscriptions,
+// cumul, actifs), DAU/WAU/MAU (sessions analytics), temps moyen par session
+// et par utilisateur, top utilisateurs par temps passé.
+router.get('/users-growth', requireEcomAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const days = [7, 30, 90].includes(Number(req.query.days)) ? Number(req.query.days) : 30;
+    const now = new Date();
+    const DAY = 86400000;
+    const startOfToday = new Date(now); startOfToday.setHours(0, 0, 0, 0);
+    const startOfYesterday = new Date(startOfToday.getTime() - DAY);
+    const seriesStart = new Date(startOfToday.getTime() - (days - 1) * DAY);
+    const since = (n) => new Date(now.getTime() - n * DAY);
+
+    // Durée de session : champ duration (secondes) sinon lastActivityAt - startedAt
+    const durationSecExpr = {
+      $cond: [
+        { $gt: [{ $ifNull: ['$duration', 0] }, 0] },
+        { $ifNull: ['$duration', 0] },
+        { $divide: [{ $subtract: [{ $ifNull: ['$lastActivityAt', '$startedAt'] }, '$startedAt'] }, 1000] },
+      ],
+    };
+    // ══ TOUTES les stats de ce dashboard sont calculées sur les MARCHANDS
+    // (role ecom_admin) uniquement : les comptes staff (livreurs, closeuses,
+    // comptables) créés par les marchands pollueraient inscriptions, activité,
+    // temps passé et churn. ══
+    const ADMIN = { role: 'ecom_admin' };
+    const allUsersLight = await EcomUser.find(ADMIN, { lastLogin: 1, createdAt: 1, role: 1, isActive: 1 }).lean();
+    const adminIds = allUsersLight.map((u) => u._id);
+    const adminSessionScope = { userId: { $in: adminIds } };
+
+    const sessionMatch = { startedAt: { $gte: since(days) }, ...adminSessionScope };
+
+    const [
+      lastSessionByUser,
+      signupsToday, signupsYesterday, signups7, signupsPrev7, signups30, signupsPrev30,
+      dauIds, wauIds, mauIds,
+      signupSeriesRaw, activeSeriesRaw, usersBeforeSeries,
+      engagementFacets,
+    ] = await Promise.all([
+      AnalyticsSession.aggregate([
+        { $match: adminSessionScope },
+        { $addFields: { activityAt: { $ifNull: ['$lastActivityAt', '$startedAt'] } } },
+        { $group: {
+          _id: '$userId',
+          lastActivityAt: { $max: '$activityAt' },
+          // Présence par fenêtre pour le churn période-sur-période (standard SaaS)
+          activePrevWindow: { $max: { $cond: [{ $and: [{ $gte: ['$activityAt', new Date(now.getTime() - 60 * DAY)] }, { $lt: ['$activityAt', new Date(now.getTime() - 30 * DAY)] }] }, 1, 0] } },
+          activeRecentWindow: { $max: { $cond: [{ $gte: ['$activityAt', new Date(now.getTime() - 30 * DAY)] }, 1, 0] } },
+        } },
+      ]),
+      EcomUser.countDocuments({ ...ADMIN, createdAt: { $gte: startOfToday } }),
+      EcomUser.countDocuments({ ...ADMIN, createdAt: { $gte: startOfYesterday, $lt: startOfToday } }),
+      EcomUser.countDocuments({ ...ADMIN, createdAt: { $gte: since(7) } }),
+      EcomUser.countDocuments({ ...ADMIN, createdAt: { $gte: since(14), $lt: since(7) } }),
+      EcomUser.countDocuments({ ...ADMIN, createdAt: { $gte: since(30) } }),
+      EcomUser.countDocuments({ ...ADMIN, createdAt: { $gte: since(60), $lt: since(30) } }),
+      AnalyticsSession.distinct('userId', { lastActivityAt: { $gte: startOfToday }, ...adminSessionScope }),
+      AnalyticsSession.distinct('userId', { lastActivityAt: { $gte: since(7) }, ...adminSessionScope }),
+      AnalyticsSession.distinct('userId', { lastActivityAt: { $gte: since(30) }, ...adminSessionScope }),
+      EcomUser.aggregate([
+        { $match: { ...ADMIN, createdAt: { $gte: seriesStart } } },
+        { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } }, count: { $sum: 1 } } },
+      ]),
+      AnalyticsSession.aggregate([
+        { $match: { startedAt: { $gte: seriesStart }, ...adminSessionScope } },
+        { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$startedAt' } }, users: { $addToSet: '$userId' } } },
+        { $project: { count: { $size: '$users' } } },
+      ]),
+      EcomUser.countDocuments({ ...ADMIN, createdAt: { $lt: seriesStart } }),
+      AnalyticsSession.aggregate([
+        { $match: sessionMatch },
+        { $project: { userId: 1, lastActivityAt: 1, durationSec: durationSecExpr } },
+        {
+          $facet: {
+            overall: [
+              { $group: { _id: null, sessions: { $sum: 1 }, totalSec: { $sum: '$durationSec' }, avgSec: { $avg: '$durationSec' }, users: { $addToSet: '$userId' } } },
+              { $project: { sessions: 1, totalSec: 1, avgSec: 1, usersTracked: { $size: '$users' } } },
+            ],
+            perUser: [
+              { $group: { _id: '$userId', sessions: { $sum: 1 }, totalSec: { $sum: '$durationSec' }, lastActivityAt: { $max: '$lastActivityAt' } } },
+              { $sort: { totalSec: -1 } },
+              { $limit: 15 },
+            ],
+          },
+        },
+      ]),
+    ]);
+
+    // ── Activité réelle par utilisateur : max(lastLogin, dernière session) ──
+    const lastSessionMap = new Map(lastSessionByUser.map((r) => [String(r._id), r.lastActivityAt]));
+    const sessionWindowMap = new Map(lastSessionByUser.map((r) => [String(r._id), r]));
+    const totalUsers = allUsersLight.length;
+    let neverActive = 0;
+
+    // ── Churn 30 j PÉRIODE SUR PÉRIODE (standard SaaS) ──
+    // Base = marchands non bloqués actifs dans la fenêtre [-60 j, -30 j[
+    // Churnés = ceux sans AUCUNE activité (session ou login) sur [-30 j, now]
+    let eligible30 = 0;
+    let churned30 = 0;
+    const d30ms = since(30).getTime();
+    const d60ms = since(60).getTime();
+    for (const u of allUsersLight) {
+      const key = String(u._id);
+      const sessInfo = sessionWindowMap.get(key);
+      const lastActivity = Math.max(
+        u.lastLogin ? new Date(u.lastLogin).getTime() : 0,
+        sessInfo?.lastActivityAt ? new Date(sessInfo.lastActivityAt).getTime() : 0,
+      );
+      if (!lastActivity) { neverActive += 1; continue; }
+      if (u.isActive === false) continue;
+
+      const loginMs = u.lastLogin ? new Date(u.lastLogin).getTime() : 0;
+      const activePrev = Boolean(sessInfo?.activePrevWindow)
+        || (loginMs >= d60ms && loginMs < d30ms);
+      if (!activePrev) continue; // pas actif dans la fenêtre précédente → hors base
+      eligible30 += 1;
+      const activeRecent = Boolean(sessInfo?.activeRecentWindow) || loginMs >= d30ms;
+      if (!activeRecent) churned30 += 1;
+    }
+    const churnRate30 = eligible30 > 0 ? Math.round((churned30 / eligible30) * 1000) / 10 : 0;
+
+    const overall = engagementFacets?.[0]?.overall?.[0] || { sessions: 0, totalSec: 0, avgSec: 0, usersTracked: 0 };
+    const perUser = engagementFacets?.[0]?.perUser || [];
+
+    // Enrichir le top utilisateurs (nom / email)
+    const topIds = perUser.map((u) => u._id).filter(Boolean);
+    const topDocs = topIds.length
+      ? await EcomUser.find({ _id: { $in: topIds } }, { name: 1, email: 1, role: 1 }).lean()
+      : [];
+    const topMap = new Map(topDocs.map((u) => [String(u._id), u]));
+    const topUsers = perUser.map((u) => {
+      const doc = topMap.get(String(u._id)) || {};
+      return {
+        id: String(u._id),
+        name: doc.name || '—',
+        email: doc.email || null,
+        role: doc.role || null,
+        sessions: u.sessions,
+        totalMin: Math.round((u.totalSec || 0) / 60),
+        avgSessionMin: u.sessions ? Math.round((u.totalSec || 0) / u.sessions / 60) : 0,
+        lastActivityAt: u.lastActivityAt || null,
+      };
+    });
+
+    // Série journalière continue (inscriptions + cumul + actifs)
+    const signupMap = new Map(signupSeriesRaw.map((r) => [r._id, r.count]));
+    const activeMap = new Map(activeSeriesRaw.map((r) => [r._id, r.count]));
+    const series = [];
+    let cumulative = usersBeforeSeries;
+    for (let i = 0; i < days; i++) {
+      const d = new Date(seriesStart.getTime() + i * DAY);
+      const key = d.toISOString().slice(0, 10);
+      const signups = signupMap.get(key) || 0;
+      cumulative += signups;
+      series.push({ date: key, signups, cumulative, active: activeMap.get(key) || 0 });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        generatedAt: now,
+        days,
+        totals: {
+          users: totalUsers,
+          // « Jamais actifs » : ni login ni session analytics — mesure d'activation honnête
+          neverConnected: neverActive,
+          connectedRate: totalUsers ? Math.round(((totalUsers - neverActive) / totalUsers) * 100) : 0,
+        },
+        churn: {
+          // Churn 30 j : éligibles = inscrits ≥ 30 j ET actifs au moins une fois ;
+          // churned = aucune activité (login ou session) sur les 30 derniers jours.
+          rate30: churnRate30,
+          churned30,
+          eligible30,
+          retention30: Math.round((100 - churnRate30) * 10) / 10,
+        },
+        signups: {
+          today: signupsToday, yesterday: signupsYesterday,
+          last7: signups7, prev7: signupsPrev7,
+          last30: signups30, prev30: signupsPrev30,
+        },
+        activity: { dau: dauIds.length, wau: wauIds.length, mau: mauIds.length },
+        engagement: {
+          sessions: overall.sessions,
+          usersTracked: overall.usersTracked,
+          avgSessionMin: Math.round((overall.avgSec || 0) / 60 * 10) / 10,
+          avgTimePerUserMin: overall.usersTracked ? Math.round((overall.totalSec || 0) / overall.usersTracked / 60) : 0,
+          avgSessionsPerUser: overall.usersTracked ? Math.round((overall.sessions / overall.usersTracked) * 10) / 10 : 0,
+        },
+        series,
+        topUsers,
+      },
+    });
+  } catch (error) {
+    console.error('[SuperAdmin] GET /users-growth error:', error);
+    res.status(500).json({ success: false, message: 'Erreur lors du calcul des statistiques utilisateurs' });
+  }
+});
+
 // GET /api/ecom/super-admin/users/:id - Détails d'un utilisateur spécifique
 router.get('/users/:id',
   requireEcomAuth,
@@ -2548,39 +2748,20 @@ router.get('/dashboard-summary',
         ]),
         // [33] Funnel: visitors count (sessions in range)
         () => AnalyticsSession.aggregate([{ $match: { startedAt: { $gte: since, $lte: until } } }, { $group: { _id: null, count: { $sum: 1 } } }]),
-        // [34] Account inactivity churn: users with a tracked session, by latest activity
+        // [34] Activité par utilisateur (sessions) — pour churn honnête
         () => AnalyticsSession.aggregate([
           { $match: { userId: { $ne: null } } },
           { $addFields: { activityAt: { $ifNull: ['$lastActivityAt', '$startedAt'] } } },
-          {
-            $group: {
-              _id: '$userId',
-              lastActivityAt: { $max: '$activityAt' },
-              sessions: { $sum: 1 },
-            }
-          },
-          {
-            $group: {
-              _id: null,
-              totalSessionUsers: { $sum: 1 },
-              activeSessionUsers10d: { $sum: { $cond: [{ $gte: ['$lastActivityAt', day10] }, 1, 0] } },
-              inactiveSessionUsers10d: { $sum: { $cond: [{ $lt: ['$lastActivityAt', day10] }, 1, 0] } },
-              totalTrackedSessions: { $sum: '$sessions' },
-            }
-          },
-          {
-            $project: {
-              _id: 0,
-              totalSessionUsers: 1,
-              activeSessionUsers10d: 1,
-              inactiveSessionUsers10d: 1,
-              totalTrackedSessions: 1,
-              totalOpenSessions: '$totalSessionUsers',
-              activeSessions10d: '$activeSessionUsers10d',
-              inactiveSessions10d: '$inactiveSessionUsers10d',
-            }
-          }
+          { $group: {
+            _id: '$userId',
+            lastActivityAt: { $max: '$activityAt' },
+            sessions: { $sum: 1 },
+            activePrevWindow: { $max: { $cond: [{ $and: [{ $gte: ['$activityAt', new Date(Date.now() - 60 * 86400000)] }, { $lt: ['$activityAt', new Date(Date.now() - 30 * 86400000)] }] }, 1, 0] } },
+            activeRecentWindow: { $max: { $cond: [{ $gte: ['$activityAt', new Date(Date.now() - 30 * 86400000)] }, 1, 0] } },
+          } },
         ]),
+        // [35] Utilisateurs (léger) — activité réelle = lastLogin ∪ sessions
+        () => EcomUser.find({}, { lastLogin: 1, createdAt: 1, role: 1, isActive: 1 }).lean(),
       ], 10);
 
       // ── Unpack results by index ────────────────────────────────────────────
@@ -2618,7 +2799,8 @@ router.get('/dashboard-summary',
       const pagesRaw          = settled(r[31], []);
       const activityDaily     = settled(r[32], []);
       const funnelVisitors    = settled(r[33], []);
-      const sessionChurnArr   = settled(r[34], []);
+      const perUserSessions   = settled(r[34], []);
+      const usersLightArr     = settled(r[35], []);
 
       // ── Derived stats ──────────────────────────────────────────────────────
       let totalActive = 0, totalInactive = 0, neverLoggedIn = 0;
@@ -2650,12 +2832,40 @@ router.get('/dashboard-summary',
       const conversionActivation = totalUsers > 0 ? Math.round((usersWithWs / totalUsers) * 100) : 0;
       const retained             = retainedResult[0]?.users?.length || 0;
       const retention7d          = signedUp7dAgo > 0 ? Math.round((retained / signedUp7dAgo) * 100) : 0;
-      const sessionChurnStats    = sessionChurnArr[0] || {};
-      const totalSessionUsers    = sessionChurnStats.totalSessionUsers || sessionChurnStats.totalOpenSessions || 0;
-      const activeSessionUsers10d = sessionChurnStats.activeSessionUsers10d || sessionChurnStats.activeSessions10d || 0;
-      const inactiveSessionUsers10d = sessionChurnStats.inactiveSessionUsers10d || sessionChurnStats.inactiveSessions10d || 0;
-      const totalTrackedSessions = sessionChurnStats.totalTrackedSessions || 0;
-      const churnRate10d         = totalSessionUsers > 0 ? Math.round((inactiveSessionUsers10d / totalSessionUsers) * 100) : 0;
+      // ── Churn honnête : activité = max(lastLogin, dernière session analytics).
+      // Éligibles = inscrits depuis ≥ 30 j ET déjà actifs au moins une fois
+      // (les « jamais actifs » relèvent de l'activation, pas du churn ; les
+      // inscrits récents n'ont pas encore eu 30 j pour revenir).
+      const day10Ms = day10.getTime();
+      const day30Ms = Date.now() - 30 * 86400000;
+      const day60Ms = Date.now() - 60 * 86400000;
+      const sessionInfoMap = new Map(perUserSessions.map((u) => [String(u._id), u]));
+      const totalSessionUsers = perUserSessions.length;
+      const totalTrackedSessions = perUserSessions.reduce((s, u) => s + (u.sessions || 0), 0);
+      let activeSessionUsers10d = 0;
+      // Churn 30 j PÉRIODE SUR PÉRIODE (standard SaaS) — marchands non bloqués :
+      // base = actifs dans [-60 j, -30 j[ ; churnés = pas revenus sur [-30 j, now]
+      let eligible30 = 0, churned30 = 0, inactive10dEligible = 0;
+      for (const u of usersLightArr) {
+        const sessInfo = sessionInfoMap.get(String(u._id));
+        const lastActivity = Math.max(
+          u.lastLogin ? new Date(u.lastLogin).getTime() : 0,
+          sessInfo?.lastActivityAt ? new Date(sessInfo.lastActivityAt).getTime() : 0,
+        );
+        if (!lastActivity) continue; // jamais actif → activation, pas churn
+        if (lastActivity >= day10Ms) activeSessionUsers10d += 1;
+        if (u.role !== 'ecom_admin' || u.isActive === false) continue;
+        const loginMs = u.lastLogin ? new Date(u.lastLogin).getTime() : 0;
+        const activePrev = Boolean(sessInfo?.activePrevWindow) || (loginMs >= day60Ms && loginMs < day30Ms);
+        if (!activePrev) continue;
+        eligible30 += 1;
+        const activeRecent = Boolean(sessInfo?.activeRecentWindow) || loginMs >= day30Ms;
+        if (!activeRecent) churned30 += 1;
+        if (lastActivity < day10Ms) inactive10dEligible += 1;
+      }
+      const inactiveSessionUsers10d = inactive10dEligible;
+      const churnRate10d = eligible30 > 0 ? Math.round((inactive10dEligible / eligible30) * 100) : 0;
+      const churnRate30 = eligible30 > 0 ? Math.round((churned30 / eligible30) * 1000) / 10 : 0;
 
       const fVisitors = funnelVisitors[0]?.count || 0;
       const fAccounts = signups;
@@ -2712,6 +2922,9 @@ router.get('/dashboard-summary',
             activeSessions10d: activeSessionUsers10d,
             inactiveSessions10d: inactiveSessionUsers10d,
             churnRate10d,
+            churnRate30,
+            churned30,
+            eligible30,
           },
           trends: { dailySessions, dailySignups }
         },

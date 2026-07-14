@@ -252,6 +252,19 @@ const orderSchema = new mongoose.Schema({
     type: Number,
     default: null
   },
+  collectedAmountFcfa: {
+    type: Number,
+    min: 0,
+    default: null
+  },
+  collectedAmountConfirmedAt: {
+    type: Date,
+    default: null
+  },
+  collectedCurrency: {
+    type: String,
+    default: null
+  },
   deliveryNote: {
     type: String,
     trim: true,

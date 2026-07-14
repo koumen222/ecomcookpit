@@ -9,7 +9,7 @@
 import express from 'express';
 import axios from 'axios';
 import multer from 'multer';
-import Groq from 'groq-sdk';
+import { randomUUID } from 'crypto';
 import { requireEcomAuth } from '../middleware/ecomAuth.js';
 import { generateGptImage2ImageToImage, getImageGenerationStats } from '../services/nanoBananaService.js';
 import { uploadImage } from '../services/cloudflareImagesService.js';
@@ -31,12 +31,47 @@ const upload = multer({
   },
 });
 
-let _groq = null;
-function getGroq() {
-  if (!_groq && process.env.GROQ_API_KEY) {
-    _groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+// Provider LLM pour l'analyse marketing — décision produit : TEXTE = DeepSeek uniquement.
+function marketingLlmProviders() {
+  if (!process.env.DEEPSEEK_API_KEY) return [];
+  return [{ kind: 'deepseek', url: 'https://api.deepseek.com/chat/completions', key: process.env.DEEPSEEK_API_KEY, model: process.env.DEEPSEEK_MODEL || 'deepseek-v4-pro' }];
+}
+
+function marketingLlmProvider() {
+  return marketingLlmProviders()[0] || null;
+}
+
+async function callMarketingLlm(messages) {
+  const providers = marketingLlmProviders();
+  if (!providers.length) throw new Error('Aucune clé LLM configurée (GROQ_API_KEY, DEEPSEEK_API_KEY ou OPENAI_API_KEY)');
+  let lastErr = null;
+  for (const provider of providers) {
+    try {
+      const body = {
+        model: provider.model,
+        messages,
+        response_format: { type: 'json_object' },
+        // gpt-5.x : max_tokens déprécié et temperature restreinte — on les omet pour OpenAI
+        ...(provider.kind === 'openai' ? {} : { max_tokens: 2000, temperature: 0.7 }),
+        // DeepSeek : réflexion désactivée (sinon elle peut vider le budget de tokens)
+        ...(provider.kind === 'deepseek' ? { thinking: { type: 'disabled' } } : {}),
+      };
+      const res = await axios.post(provider.url, body, {
+        headers: { 'Authorization': `Bearer ${provider.key}`, 'Content-Type': 'application/json' },
+        timeout: 120000,
+      });
+      const content = res.data?.choices?.[0]?.message?.content;
+      if (!content) throw new Error('réponse vide');
+      console.log(`✅ [CreativeGen] analyse marketing via ${provider.kind} (${provider.model})`);
+      return content;
+    } catch (err) {
+      const status = err?.response?.status;
+      const msg = err?.response?.data?.error?.message || err.message;
+      lastErr = new Error(`${provider.kind} (${status || 'réseau'}): ${msg}`);
+      console.warn(`⚠️ [CreativeGen] ${provider.kind} en échec (${status || 'réseau'}: ${msg}) — provider suivant...`);
+    }
   }
-  return _groq;
+  throw lastErr;
 }
 
 // ── Premium Listing Image Slide Types ─────────────────────────────────────────
@@ -120,9 +155,8 @@ async function analyzeProduct({ url, description }) {
     throw new Error('Veuillez fournir un lien produit OU une description');
   }
 
-  // Marketing analysis via Groq
-  const groq = getGroq();
-  if (!groq) throw new Error('Clé du service non configurée');
+  // Analyse marketing — Groq / DeepSeek / OpenAI selon les clés disponibles
+  if (!marketingLlmProvider()) throw new Error('Clé du service non configurée (GROQ, DEEPSEEK ou OPENAI)');
 
   const contextParts = [];
   if (url) contextParts.push(`- URL: ${url}`);
@@ -142,7 +176,7 @@ Retourne un JSON avec EXACTEMENT cette structure:
   "keyBenefits": ["Bénéfice 1", "Bénéfice 2", "Bénéfice 3", "Bénéfice 4", "Bénéfice 5"],
   "painPoints": ["Situation quotidienne 1 où le client a besoin du produit", "Situation 2", "Situation 3", "Situation 4"],
   "usageSteps": ["Étape 1 d'utilisation CONCRÈTE du produit (ex: 'Ouvrir le sachet')", "Étape 2 (ex: 'Appliquer/Prendre')", "Étape 3 (ex: 'Profiter des résultats')"],
-  "targetAudience": "Public cible africain",
+  "targetAudience": "Public cible déduit du produit (préciser hommes, femmes ou mixte selon la nature réelle du produit)",
   "emotionalHook": "Accroche émotionnelle puissante pour l'Afrique",
   "priceRange": "Gamme de prix si visible (en FCFA de préférence)",
   "brandColors": "Palette de couleurs idéale pour ce produit (ex: 'bleu lavande doux', 'vert menthe', 'orange chaud'). TOUJOURS proposer une palette même si pas visible",
@@ -159,21 +193,14 @@ IMPORTANT:
 - Les usageSteps doivent être 3 étapes SIMPLES et CONCRÈTES propres à CE produit (ex: "Ouvrir", "Appliquer", "Profiter")
 - Les keyBenefits doivent être des avantages SPÉCIFIQUES au produit, pas des banalités
 - Adapte au contexte culturel africain
+- Déduis le public cible et le genre à partir du PRODUIT lui-même (ex: rasoir/barbe → hommes ; soins → selon le produit ; montre/tech/maison → mixte). N'assume JAMAIS un public féminin par défaut. Reste neutre en genre si le produit est unisexe, et équilibre hommes/femmes quand c'est pertinent
 - Utilise un ton direct, émotionnel et persuasif
 - Retourne UNIQUEMENT le JSON`;
 
-  const response = await groq.chat.completions.create({
-    model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
-    messages: [
-      { role: 'system', content: 'Tu es un expert copywriting e-commerce Afrique. Retourne uniquement du JSON valide.' },
-      { role: 'user', content: prompt },
-    ],
-    max_tokens: 2000,
-    temperature: 0.7,
-    response_format: { type: 'json_object' },
-  });
-
-  const raw = response.choices[0]?.message?.content || '{}';
+  const raw = await callMarketingLlm([
+    { role: 'system', content: 'Tu es un expert copywriting e-commerce Afrique. Retourne uniquement du JSON valide.' },
+    { role: 'user', content: prompt },
+  ]);
   let cleaned = raw.replace(/```(?:json)?\s*/gi, '').replace(/```/g, '').trim();
   const start = cleaned.indexOf('{');
   const end = cleaned.lastIndexOf('}');
@@ -665,36 +692,198 @@ async function scrapeProductImage(url) {
   }
 }
 
+// ── Jobs asynchrones en mémoire (TTL 30 min) ─────────────────────────────────
+// Architecture fiable : le POST valide + réserve les crédits puis rend un jobId
+// IMMÉDIATEMENT. La génération tourne en arrière-plan (runCreativeJob) et le
+// frontend sonde GET /jobs/:id. Plus de connexion HTTP longue → plus de pertes
+// d'affichage ni de fausses erreurs dues aux timeouts proxy. Les images sont de
+// toute façon sauvegardées en galerie au fil de l'eau : rien n'est jamais perdu.
+const creativeJobs = new Map();
+const JOB_TTL_MS = 30 * 60 * 1000;
+const jobsSweeper = setInterval(() => {
+  const now = Date.now();
+  for (const [id, job] of creativeJobs) {
+    if (now - job.createdAt > JOB_TTL_MS) creativeJobs.delete(id);
+  }
+}, 60_000);
+jobsSweeper.unref?.();
+
+async function runCreativeJob(job, params) {
+  const {
+    url, description, visualTemplate, imageQuality, selectedFormats,
+    resolvedImageBuffer, logoBuffer, workspaceId, userId, neededCredits,
+  } = params;
+  const creatives = job.creatives;
+  let refunded = 0;
+
+  const refundUnused = async (reason = 'generation_failed') => {
+    if (!workspaceId || neededCredits <= refunded) return;
+    const successCount = creatives.filter(c => c.imageUrl).length;
+    const refundCount = Math.max(0, neededCredits - successCount - refunded);
+    if (refundCount <= 0) return;
+    await EcomWorkspace.findByIdAndUpdate(workspaceId, {
+      $inc: { creativeCreditsRemaining: refundCount },
+    });
+    refunded += refundCount;
+    console.log(`💳 Refunded ${refundCount} creative credit(s) (${reason}); charged=${successCount}`);
+  };
+
+  try {
+    job.step = 'analysis';
+    console.log('📊 Step 1: Analyse marketing...');
+    const analysis = await analyzeProduct({ url, description });
+    console.log('✅ Analysis done:', analysis.productName);
+
+    job.step = 'generating';
+    job.progress = { done: 0, total: selectedFormats.length };
+    console.log(`🖼️ Step 2: Génération de ${selectedFormats.length} créa(s) avec image produit (image-to-image)...`);
+    const statsBefore = getImageGenerationStats();
+
+    // Génération EN PARALLÈLE de tous les formats (le service impose déjà un
+    // rate-limit de 15 appels/10s, donc lancer les formats simultanément est
+    // sûr et divise le temps total par ~le nombre de formats).
+    let doneCount = 0;
+    await Promise.all(selectedFormats.map(async (format) => {
+      try {
+        const imagePrompt = buildCreativePrompt(analysis, format, true, visualTemplate, !!logoBuffer);
+        console.log(`  🎨 Generating ${format.id} (image-to-image)...`);
+
+        const imageDataUrl = await generateGptImage2ImageToImage(imagePrompt, resolvedImageBuffer, format.aspectRatio, logoBuffer || null, { quality: imageQuality });
+
+        if (!imageDataUrl) {
+          creatives.push({ id: format.id, label: format.label, aspectRatio: format.aspectRatio, imageUrl: null, error: 'Génération échouée' });
+          console.warn(`  ❌ ${format.id} failed — no URL returned`);
+          return;
+        }
+
+        // Republication R2 pour une URL permanente
+        let finalUrl = imageDataUrl;
+        try {
+          let imgBuffer;
+          const base64Match = imageDataUrl.match(/^data:image\/\w+;base64,(.+)$/);
+          if (base64Match) {
+            imgBuffer = Buffer.from(base64Match[1], 'base64');
+          } else if (/^https?:\/\//i.test(imageDataUrl)) {
+            const dlRes = await axios.get(imageDataUrl, { responseType: 'arraybuffer', timeout: 90000 });
+            imgBuffer = Buffer.from(dlRes.data);
+          }
+          if (imgBuffer) {
+            const uploaded = await uploadImage(imgBuffer, `creative-${format.id}-${Date.now()}.png`, {
+              workspaceId: workspaceId || 'creative',
+              uploadedBy: String(userId || 'creative-generator'),
+              optimize: false,
+            });
+            if (uploaded?.url) {
+              finalUrl = uploaded.url;
+              console.log(`  💾 ${format.id} stored → ${finalUrl.slice(0, 80)}`);
+            } else {
+              console.warn(`  ⚠️ ${format.id} R2 upload returned no URL — keeping source URL`);
+            }
+          }
+        } catch (uploadErr) {
+          console.error(`  ❌ ${format.id} R2 upload failed: ${uploadErr.message} — keeping source URL`);
+        }
+
+        creatives.push({ id: format.id, label: format.label, aspectRatio: format.aspectRatio, imageUrl: finalUrl, usedProductImage: true });
+
+        // Sauvegarde galerie — awaited pour visibilité des erreurs
+        if (workspaceId && userId) {
+          try {
+            await CreativeAsset.create({
+              workspaceId,
+              userId,
+              productName: analysis.productName || '',
+              formatId: format.id,
+              label: format.label,
+              imageUrl: finalUrl,
+              aspectRatio: format.aspectRatio,
+              category: analysis.category || '',
+              template: visualTemplate || '',
+            });
+            console.log(`  ✅ ${format.id} saved to gallery`);
+          } catch (dbErr) {
+            console.error(`  ❌ CreativeAsset save failed for ${format.id}:`, dbErr.message);
+          }
+        } else {
+          console.warn(`  ⚠️ ${format.id} NOT saved — missing workspaceId (${workspaceId}) or userId (${userId})`);
+        }
+      } catch (imgErr) {
+        console.error(`  ❌ ${format.id} error:`, imgErr.message);
+        creatives.push({ id: format.id, label: format.label, aspectRatio: format.aspectRatio, imageUrl: null, error: imgErr.message });
+      } finally {
+        doneCount += 1;
+        job.progress = { done: Math.min(doneCount, selectedFormats.length), total: selectedFormats.length };
+      }
+    }));
+
+    // Facturer uniquement les images réussies ; le reste est remboursé
+    const successCount = creatives.filter(c => c.imageUrl).length;
+    await refundUnused('partial_or_failed_generation');
+    console.log(`💳 Charged ${successCount} creative credit(s)`);
+
+    const statsAfter = getImageGenerationStats();
+    const batchCost = {
+      images: statsAfter.totalImages - statsBefore.totalImages,
+      costUsd: +(statsAfter.totalCostUsd - statsBefore.totalCostUsd).toFixed(3),
+      costFcfa: statsAfter.totalCostFcfa - statsBefore.totalCostFcfa,
+    };
+    console.log(`💰 Batch total: ${batchCost.images} images → ~$${batchCost.costUsd} (~${batchCost.costFcfa} FCFA)`);
+
+    if (workspaceId && userId) {
+      FeatureUsageLog.create({
+        workspaceId,
+        userId,
+        feature: 'creative_generator',
+        meta: {
+          slideCount: creatives.length,
+          creditsReserved: neededCredits,
+          creditsUsed: successCount,
+          creditsRefunded: refunded,
+          success: true,
+        },
+      }).catch(() => {});
+    }
+
+    const updatedWorkspace = workspaceId
+      ? await EcomWorkspace.findById(workspaceId).select('creativeCreditsRemaining').lean()
+      : null;
+
+    job.result = {
+      success: true,
+      analysis,
+      creatives,
+      formats: CREATIVE_FORMATS,
+      productImageFound: true,
+      cost: batchCost,
+      creditsUsed: successCount,
+      creditsRefunded: refunded,
+      creditsRemaining: updatedWorkspace?.creativeCreditsRemaining ?? 0,
+    };
+    job.status = 'done';
+    job.step = 'done';
+  } catch (err) {
+    console.error('❌ Creative Generator job error:', err);
+    try {
+      await refundUnused('request_error');
+    } catch (refundErr) {
+      console.error('❌ Creative credit refund failed:', refundErr.message);
+    }
+    job.status = 'error';
+    job.step = 'error';
+    job.error = err.message || 'Erreur lors de la génération';
+  }
+}
+
 // ── POST /api/ecom/ai/creative-generator ──────────────────────────────────────
+// Valide, réserve les crédits, lance le job en arrière-plan, rend le jobId.
 router.post('/', requireEcomAuth, upload.fields([
   { name: 'productImage', maxCount: 1 },
   { name: 'logoImage', maxCount: 1 },
 ]), async (req, res) => {
-  let heartbeat;
-  let clientDisconnected = false;
-  let reservedCreativeCredits = 0;
-  let refundedCreativeCredits = 0;
-  const creatives = [];
-
-  const refundUnusedCreativeCredits = async (reason = 'generation_failed') => {
-    if (!req.workspaceId || reservedCreativeCredits <= refundedCreativeCredits) return;
-
-    const successCount = creatives.filter(c => c.imageUrl).length;
-    const refundCount = Math.max(0, reservedCreativeCredits - successCount - refundedCreativeCredits);
-    if (refundCount <= 0) return;
-
-    await EcomWorkspace.findByIdAndUpdate(req.workspaceId, {
-      $inc: { creativeCreditsRemaining: refundCount },
-    });
-    refundedCreativeCredits += refundCount;
-    console.log(`💳 Refunded ${refundCount} creative credit(s) (${reason}); charged=${successCount}`);
-  };
-
-  res.on('close', () => {
-    if (!res.writableEnded) clientDisconnected = true;
-  });
   try {
-    const { url, description, formats: formatsRaw, visualTemplate } = req.body;
+    const { url, description, formats: formatsRaw, visualTemplate, quality: qualityRaw } = req.body;
+    // Qualité d'image choisie par l'utilisateur (low ≈ brouillon, medium ≈ standard, high ≈ premium)
+    const imageQuality = ['low', 'medium', 'high'].includes(qualityRaw) ? qualityRaw : undefined;
     const formats = typeof formatsRaw === 'string' ? JSON.parse(formatsRaw) : formatsRaw;
     const productImageBuffer = req.files?.productImage?.[0]?.buffer || null;
     const logoBuffer = req.files?.logoImage?.[0]?.buffer || null;
@@ -717,12 +906,8 @@ router.post('/', requireEcomAuth, upload.fields([
 
     console.log(`🎨 Creative Generator: image=${!!productImageBuffer} url=${url || 'none'} desc=${description ? 'yes' : 'no'} → ${selectedFormats.map(f => f.id).join(', ')}`);
 
-    // Step 1: Marketing analysis
-    console.log('📊 Step 1: Analyse marketing...');
-    const analysis = await analyzeProduct({ url, description });
-    console.log('✅ Analysis done:', analysis.productName);
-
-    // Step 1b: If no image uploaded but URL provided, try scraping product image
+    // Step 0: If no image uploaded but URL provided, try scraping product image
+    // (fait AVANT le démarrage du stream pour pouvoir encore renvoyer des 400/402 propres)
     let resolvedImageBuffer = productImageBuffer;
     if (!resolvedImageBuffer && url) {
       console.log('🔍 No image uploaded — scraping product image from URL...');
@@ -738,15 +923,14 @@ router.post('/', requireEcomAuth, upload.fields([
       }
     }
 
-    // Step 2: Generate creatives — smart image usage
     const hasImage = !!resolvedImageBuffer;
-    
+
     // STRICT: block generation without product image — all operations must be image-to-image
     if (!hasImage) {
       return res.status(400).json({ success: false, error: 'Aucune image produit fournie — impossible de générer en mode image-to-image. Uploadez une photo du produit.' });
     }
 
-    // Reserve credits atomically before costly image calls.
+    // Reserve credits atomically before costly calls.
     // Failed images are refunded after the batch, so one successful creative = one consumed credit.
     const neededCredits = selectedFormats.length;
     if (!req.workspaceId) {
@@ -768,158 +952,74 @@ router.post('/', requireEcomAuth, upload.fields([
         creditsAvailable: available,
       });
     }
-    reservedCreativeCredits = neededCredits;
-    console.log(`💳 Reserved ${reservedCreativeCredits} creative credit(s); remaining=${reservedWorkspace.creativeCreditsRemaining}`);
+    console.log(`💳 Reserved ${neededCredits} creative credit(s); remaining=${reservedWorkspace.creativeCreditsRemaining}`);
 
-    console.log(`🖼️ Step 2: Génération de ${selectedFormats.length} créa(s) avec image produit (image-to-image)...`);
-    const statsBefore = getImageGenerationStats();
-
-    // Send whitespace heartbeats every 15s to prevent proxy/load-balancer from
-    // dropping the connection during long image generation (Railway cuts idle at ~60s).
-    res.setHeader('Content-Type', 'application/json');
-    res.setHeader('X-Content-Type-Options', 'nosniff');
-    heartbeat = setInterval(() => {
-      if (clientDisconnected || res.writableEnded || res.destroyed) return;
-      try {
-        res.write(' ');
-      } catch {
-        clientDisconnected = true;
-      }
-    }, 15000);
-
-    for (const format of selectedFormats) {
-      try {
-        const imagePrompt = buildCreativePrompt(analysis, format, true, visualTemplate, !!logoBuffer);
-        console.log(`  🎨 Generating ${format.id} (image-to-image)...`);
-
-        const imageDataUrl = await generateGptImage2ImageToImage(imagePrompt, resolvedImageBuffer, format.aspectRatio, logoBuffer || null);
-
-        if (!imageDataUrl) {
-          creatives.push({ id: format.id, label: format.label, aspectRatio: format.aspectRatio, imageUrl: null, error: 'Génération échouée' });
-          console.warn(`  ❌ ${format.id} failed — no URL returned`);
-          continue;
-        }
-
-        // Download from Kie.ai and upload to R2 for a permanent URL
-        let finalUrl = imageDataUrl;
-        try {
-          let imgBuffer;
-          const base64Match = imageDataUrl.match(/^data:image\/\w+;base64,(.+)$/);
-          if (base64Match) {
-            imgBuffer = Buffer.from(base64Match[1], 'base64');
-          } else if (/^https?:\/\//i.test(imageDataUrl)) {
-            const dlRes = await axios.get(imageDataUrl, { responseType: 'arraybuffer', timeout: 90000 });
-            imgBuffer = Buffer.from(dlRes.data);
-          }
-          if (imgBuffer) {
-            const uploaded = await uploadImage(imgBuffer, `creative-${format.id}-${Date.now()}.png`, {
-              workspaceId: req.workspaceId || 'creative',
-              uploadedBy: String(req.user?.id || req.ecomUser?._id || 'creative-generator'),
-              optimize: false,
-            });
-            if (uploaded?.url) {
-              finalUrl = uploaded.url;
-              console.log(`  💾 ${format.id} stored → ${finalUrl.slice(0, 80)}`);
-            } else {
-              console.warn(`  ⚠️ ${format.id} R2 upload returned no URL — keeping le service URL`);
-            }
-          }
-        } catch (uploadErr) {
-          console.error(`  ❌ ${format.id} R2 upload failed: ${uploadErr.message} — keeping le service URL`);
-        }
-
-        creatives.push({ id: format.id, label: format.label, aspectRatio: format.aspectRatio, imageUrl: finalUrl, usedProductImage: true });
-
-        // Save to DB — awaited so failures are visible in logs
-        const resolvedUserId = req.user?.id || req.ecomUser?._id;
-        if (req.workspaceId && resolvedUserId) {
-          try {
-            await CreativeAsset.create({
-              workspaceId: req.workspaceId,
-              userId: resolvedUserId,
-              productName: analysis.productName || '',
-              formatId: format.id,
-              label: format.label,
-              imageUrl: finalUrl,
-              aspectRatio: format.aspectRatio,
-              category: analysis.category || '',
-              template: visualTemplate || '',
-            });
-            console.log(`  ✅ ${format.id} saved to gallery`);
-          } catch (dbErr) {
-            console.error(`  ❌ CreativeAsset save failed for ${format.id}:`, dbErr.message);
-          }
-        } else {
-          console.warn(`  ⚠️ ${format.id} NOT saved — missing workspaceId (${req.workspaceId}) or userId (${resolvedUserId})`);
-        }
-      } catch (imgErr) {
-        console.error(`  ❌ ${format.id} error:`, imgErr.message);
-        creatives.push({ id: format.id, label: format.label, aspectRatio: format.aspectRatio, imageUrl: null, error: imgErr.message });
-      }
-    }
-
-    // Charge only successfully generated images. Reserved but failed images are refunded.
-    const successCount = creatives.filter(c => c.imageUrl).length;
-    await refundUnusedCreativeCredits('partial_or_failed_generation');
-    console.log(`💳 Charged ${successCount} creative credit(s)${clientDisconnected ? ' after client disconnect' : ''}`);
-
-    // Calculate cost for this generation batch
-    const statsAfter = getImageGenerationStats();
-    const batchCost = {
-      images: statsAfter.totalImages - statsBefore.totalImages,
-      costUsd: +(statsAfter.totalCostUsd - statsBefore.totalCostUsd).toFixed(3),
-      costFcfa: statsAfter.totalCostFcfa - statsBefore.totalCostFcfa,
+    // Créer le job et lancer la génération en arrière-plan
+    const userId = req.user?.id || req.ecomUser?._id || null;
+    const job = {
+      id: randomUUID(),
+      workspaceId: String(req.workspaceId),
+      status: 'running',
+      step: 'queued',
+      progress: { done: 0, total: selectedFormats.length },
+      creatives: [],
+      result: null,
+      error: null,
+      createdAt: Date.now(),
     };
-    console.log(`💰 Batch total: ${batchCost.images} images → ~$${batchCost.costUsd} (~${batchCost.costFcfa} FCFA)`);
+    creativeJobs.set(job.id, job);
 
-    // Track feature usage
-    const resolvedUserId = req.user?.id || req.ecomUser?._id;
-    if (req.workspaceId && resolvedUserId) {
-      FeatureUsageLog.create({
-        workspaceId: req.workspaceId,
-        userId: resolvedUserId,
-        feature: 'creative_generator',
-        meta: {
-          slideCount: creatives.length,
-          creditsReserved: reservedCreativeCredits,
-          creditsUsed: successCount,
-          creditsRefunded: refundedCreativeCredits,
-          success: true
-        }
-      }).catch(() => {});
-    }
-
-    const updatedWorkspace = req.workspaceId
-      ? await EcomWorkspace.findById(req.workspaceId).select('creativeCreditsRemaining').lean()
-      : null;
-
-    clearInterval(heartbeat);
-    const responseBody = JSON.stringify({
-      success: true,
-      analysis,
-      creatives,
-      formats: CREATIVE_FORMATS,
-      productImageFound: hasImage,
-      cost: batchCost,
-      creditsUsed: successCount,
-      creditsRefunded: refundedCreativeCredits,
-      creditsRemaining: updatedWorkspace?.creativeCreditsRemaining ?? 0,
+    runCreativeJob(job, {
+      url,
+      description,
+      visualTemplate,
+      imageQuality,
+      selectedFormats,
+      resolvedImageBuffer,
+      logoBuffer,
+      workspaceId: req.workspaceId,
+      userId,
+      neededCredits,
+    }).catch((err) => {
+      console.error('❌ runCreativeJob crash:', err);
+      job.status = 'error';
+      job.error = err.message || 'Erreur lors de la génération';
     });
-    if (!res.writableEnded) res.end(responseBody);
+
+    return res.json({
+      success: true,
+      jobId: job.id,
+      total: selectedFormats.length,
+      creditsReserved: neededCredits,
+      creditsRemaining: reservedWorkspace.creativeCreditsRemaining,
+    });
   } catch (err) {
     console.error('❌ Creative Generator error:', err);
-    try {
-      await refundUnusedCreativeCredits('request_error');
-    } catch (refundErr) {
-      console.error('❌ Creative credit refund failed:', refundErr.message);
-    }
-    if (heartbeat) clearInterval(heartbeat);
-    if (!res.headersSent) {
-      res.status(500).json({ error: err.message || 'Erreur lors de la génération', message: err.message || 'Erreur lors de la génération' });
-    } else if (!res.writableEnded) {
-      res.end(JSON.stringify({ success: false, error: err.message || 'Erreur lors de la génération' }));
-    }
+    return res.status(500).json({ success: false, error: err.message || 'Erreur lors de la génération', message: err.message || 'Erreur lors de la génération' });
   }
+});
+
+// ── GET /api/ecom/ai/creative-generator/jobs/:id — état d'un job ─────────────
+router.get('/jobs/:id', requireEcomAuth, (req, res) => {
+  const job = creativeJobs.get(req.params.id);
+  if (!job || job.workspaceId !== String(req.workspaceId)) {
+    return res.status(404).json({
+      success: false,
+      message: 'Job introuvable (le serveur a peut-être redémarré) — vos visuels déjà générés sont dans la galerie.',
+    });
+  }
+  res.json({
+    success: true,
+    job: {
+      id: job.id,
+      status: job.status,
+      step: job.step,
+      progress: job.progress,
+      creatives: job.creatives,
+      result: job.status === 'done' ? job.result : null,
+      error: job.error,
+    },
+  });
 });
 
 // ── GET /api/ai/creative-generator/formats ────────────────────────────────────
@@ -936,13 +1036,18 @@ router.get('/gallery', requireEcomAuth, async (req, res) => {
     const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20));
     const skip  = (page - 1) * limit;
 
+    const typeParam = String(req.query.type || 'all');
+    const filter = { workspaceId: req.workspaceId };
+    if (typeParam === 'image') filter.$or = [{ type: 'image' }, { type: { $exists: false } }];
+    else if (typeParam !== 'all') filter.type = typeParam;
+
     const [assets, total] = await Promise.all([
-      CreativeAsset.find({ workspaceId: req.workspaceId })
+      CreativeAsset.find(filter)
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
         .lean(),
-      CreativeAsset.countDocuments({ workspaceId: req.workspaceId }),
+      CreativeAsset.countDocuments(filter),
     ]);
 
     res.json({ success: true, assets, total, page, pages: Math.ceil(total / limit) });
@@ -961,6 +1066,54 @@ router.delete('/gallery/:id', requireEcomAuth, async (req, res) => {
     });
     if (!asset) return res.status(404).json({ error: 'Visuel introuvable' });
     res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── POST /api/ecom/ai/creative-generator/asset — enregistrer un contenu ───────
+// Body: { type, label, content?, imageUrl?, videoUrl?, audioUrl?, productName?, meta? }
+router.post('/asset', requireEcomAuth, async (req, res) => {
+  try {
+    if (!req.workspaceId || !req.ecomUser?._id) return res.status(400).json({ error: 'Contexte manquant' });
+    const { type = 'text', label = '', content = '', imageUrl = '', videoUrl = '', audioUrl = '', productName = '', formatId = '', meta = {} } = req.body || {};
+    const t = ['image', 'text', 'video', 'audio', 'launch'].includes(type) ? type : 'text';
+    if (t === 'text' && !String(content).trim()) return res.status(400).json({ error: 'Contenu vide' });
+    if (t === 'image' && !imageUrl) return res.status(400).json({ error: 'imageUrl requis' });
+    if (t === 'video' && !videoUrl) return res.status(400).json({ error: 'videoUrl requis' });
+    if (t === 'audio' && !audioUrl) return res.status(400).json({ error: 'audioUrl requis' });
+    if (t === 'launch' && !String(content).trim() && !(meta && typeof meta === 'object' && Object.keys(meta).length)) {
+      return res.status(400).json({ error: 'Données de lancement vides' });
+    }
+    const asset = await CreativeAsset.create({
+      workspaceId: req.workspaceId, userId: req.ecomUser._id,
+      type: t, label: String(label).slice(0, 200), content: String(content).slice(0, t === 'launch' ? 200000 : 20000),
+      imageUrl, videoUrl, audioUrl, productName: String(productName).slice(0, 200), formatId,
+      meta: meta && typeof meta === 'object' ? meta : {},
+    });
+    res.json({ success: true, asset });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── POST /api/ecom/ai/creative-generator/assets — enregistrement en lot ───────
+router.post('/assets', requireEcomAuth, async (req, res) => {
+  try {
+    if (!req.workspaceId || !req.ecomUser?._id) return res.status(400).json({ error: 'Contexte manquant' });
+    const items = Array.isArray(req.body?.items) ? req.body.items : [];
+    if (!items.length) return res.status(400).json({ error: 'Aucun élément' });
+    const docs = items.slice(0, 100).map(it => ({
+      workspaceId: req.workspaceId, userId: req.ecomUser._id,
+      type: ['image', 'text', 'video', 'audio', 'launch'].includes(it.type) ? it.type : 'text',
+      label: String(it.label || '').slice(0, 200), content: String(it.content || '').slice(0, it.type === 'launch' ? 200000 : 20000),
+      imageUrl: it.imageUrl || '', videoUrl: it.videoUrl || '', audioUrl: it.audioUrl || '',
+      productName: String(it.productName || '').slice(0, 200), formatId: it.formatId || '',
+      meta: it.meta && typeof it.meta === 'object' ? it.meta : {},
+    })).filter(d => d.content || d.imageUrl || d.videoUrl || d.audioUrl);
+    if (!docs.length) return res.status(400).json({ error: 'Aucun contenu valide' });
+    const saved = await CreativeAsset.insertMany(docs);
+    res.json({ success: true, count: saved.length });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

@@ -9,7 +9,7 @@ import { ensureAuthWorkspace } from '../services/authProvisioningService.js';
 import { formatGoogleClientIdsForLog, getGoogleClientIds, verifyGoogleIdToken } from '../services/googleAuthService.js';
 import { checkPlanLimit } from '../middleware/planLimits.js';
 import { validateEmail, validatePassword } from '../middleware/validation.js';
-import { logAudit } from '../middleware/security.js';
+import { logAudit, otpRecipientRateLimiter } from '../middleware/security.js';
 import AnalyticsEvent from '../models/AnalyticsEvent.js';
 import AffiliateUser from '../models/AffiliateUser.js';
 import AffiliateConversion from '../models/AffiliateConversion.js';
@@ -154,9 +154,16 @@ const FORGOT_PASSWORD_WINDOW = 15 * 60 * 1000; // par 15 minutes
 
 // POST /api/ecom/auth/login - Connexion
 router.post('/login', validateEmail, async (req, res) => {
+  const errorRef = crypto.randomBytes(4).toString('hex');
+  let phase = 'validation';
   try {
-    const { email, password, rememberDevice, deviceInfo } = req.body;
+    const { password, rememberDevice, deviceInfo } = req.body;
+    const email = String(req.body.email || '').trim().toLowerCase();
+    if (typeof password !== 'string' || !password.length) {
+      return res.status(400).json({ success: false, message: 'Mot de passe requis' });
+    }
 
+    phase = 'user_lookup';
     const user = await EcomUser.findOne({ email, isActive: true });
     if (!user) {
       // Log tentative échouée (utilisateur introuvable)
@@ -167,6 +174,7 @@ router.post('/login', validateEmail, async (req, res) => {
       });
     }
 
+    phase = 'password_check';
     const isPasswordValid = await user.comparePassword(password);
     if (!isPasswordValid) {
       // Log tentative échouée (mauvais mot de passe)
@@ -182,9 +190,12 @@ router.post('/login', validateEmail, async (req, res) => {
     console.log(`[AUTH_FLOW] login_start email=${email}`);
 
     // Mettre à jour lastLogin
-    user.lastLogin = new Date();
-    await user.save();
+    phase = 'last_login';
+    const loginAt = new Date();
+    await EcomUser.updateOne({ _id: user._id }, { $set: { lastLogin: loginAt } });
+    user.lastLogin = loginAt;
 
+    phase = 'workspace_provisioning';
     const provisioning = await ensureAuthWorkspace(user, { source: 'login' });
     const { workspace, store } = provisioning;
 
@@ -192,6 +203,7 @@ router.post('/login', validateEmail, async (req, res) => {
     let isPermanent = false;
 
     // Si l'utilisateur demande de se souvenir de l'appareil
+    phase = 'token_generation';
     if (rememberDevice) {
       console.log(`📱 Enregistrement de l'appareil demandé pour ${email}`);
       token = await generatePermanentToken(user, deviceInfo);
@@ -204,6 +216,7 @@ router.post('/login', validateEmail, async (req, res) => {
 
     // Log connexion réussie
     req.ecomUser = user;
+    phase = 'audit';
     await logAudit(req, 'LOGIN', `Connexion réussie: ${user.email} (${user.role}) - Permanent: ${isPermanent}`, 'auth', user._id);
     trackEvent(req, 'login', user._id, { workspaceId: user.workspaceId, userRole: user.role });
     console.log(`[AUTH_FLOW] login_success user=${user.email} role=${user.role} workspace=${user.workspaceId || 'none'} store=${store?._id || 'none'}`);
@@ -223,10 +236,11 @@ router.post('/login', validateEmail, async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Erreur login e-commerce:', error);
+    console.error(`[AUTH_FLOW] login_error ref=${errorRef} phase=${phase}:`, error);
     res.status(500).json({
       success: false,
-      message: 'Erreur serveur'
+      message: 'Connexion momentanément indisponible. Réessayez dans quelques instants.',
+      errorRef
     });
   }
 });
@@ -499,6 +513,7 @@ router.get('/super-admin-exists', async (req, res) => {
 const otpStore = new Map();
 const OTP_TTL_MS = 10 * 60 * 1000; // 10 minutes
 const OTP_MAX_ATTEMPTS = 5;
+const OTP_RESEND_COOLDOWN_MS = 60 * 1000;
 
 // Nettoyage périodique
 setInterval(() => {
@@ -509,7 +524,7 @@ setInterval(() => {
 }, 5 * 60 * 1000);
 
 // POST /api/ecom/auth/send-otp - Envoyer un code de vérification par email
-router.post('/send-otp', validateEmail, async (req, res) => {
+router.post('/send-otp', validateEmail, otpRecipientRateLimiter, async (req, res) => {
   try {
     const { email } = req.body;
     const normalizedEmail = email.toLowerCase().trim();
@@ -520,45 +535,32 @@ router.post('/send-otp', validateEmail, async (req, res) => {
       return res.status(400).json({ success: false, message: 'Cet email est déjà utilisé' });
     }
 
+    const previousOtp = otpStore.get(normalizedEmail);
+    if (previousOtp?.sentAt && Date.now() - previousOtp.sentAt < OTP_RESEND_COOLDOWN_MS) {
+      const retryAfterSeconds = Math.ceil((OTP_RESEND_COOLDOWN_MS - (Date.now() - previousOtp.sentAt)) / 1000);
+      res.set('Retry-After', String(retryAfterSeconds));
+      return res.status(429).json({
+        success: false,
+        message: `Un code vient déjà d'être envoyé. Réessayez dans ${retryAfterSeconds} seconde(s).`
+      });
+    }
+
     // Générer un code à 6 chiffres
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const code = crypto.randomInt(100000, 1000000).toString();
     const expiresAt = Date.now() + OTP_TTL_MS;
 
-    otpStore.set(normalizedEmail, { code, expiresAt, attempts: 0 });
+    otpStore.set(normalizedEmail, { code, expiresAt, attempts: 0, sentAt: Date.now() });
 
-    // Envoyer l'email via le serveur mail Scalor (mail.scalor.net) — TOUJOURS via SMTP.
-    // En dev uniquement, si le SMTP n'est pas joignable/configuré, on loggue le code
-    // en console pour ne pas bloquer l'inscription.
-    const { sendMail, defaultFrom } = await import('../core/notifications/mailer.js');
-    {
-      const otpText = [
-        `Votre code Scalor est : ${code}`,
-        '',
-        'Ce code expire dans 10 minutes.',
-        "Si vous n'avez pas demande ce code, vous pouvez ignorer cet email.",
-        '',
-        'Scalor'
-      ].join('\n');
-      const result = await sendMail({
-        from: defaultFrom(),
-        to: normalizedEmail,
-        replyTo: process.env.OTP_REPLY_TO || 'support@scalor.net',
-        source: 'otp',
-        subject: `Code Scalor : ${code}`,
-        text: otpText,
-        headers: {
-          'Auto-Submitted': 'auto-generated',
-          'X-Auto-Response-Suppress': 'All',
-          'X-Scalor-Email-Type': 'transactional-otp',
-          'X-Scalor-Email-Format': 'plain-text'
-        }
-      });
-      if (!result.success) {
-        if (process.env.NODE_ENV === 'production') throw new Error(result.error);
-        console.warn(`⚠️ [OTP] Envoi SMTP échoué (${result.error}) — code DEV pour ${normalizedEmail}: ${code}`);
-      } else {
-        console.log(`📧 [OTP] Code envoyé via SMTP à ${normalizedEmail} (queue ${result.queueId || '?'})`);
+    const { sendOtpEmail } = await import('../core/notifications/otpMailer.js');
+    const result = await sendOtpEmail({ to: normalizedEmail, code });
+    if (!result.success) {
+      if (process.env.NODE_ENV === 'production') {
+        otpStore.delete(normalizedEmail);
+        throw new Error(result.error);
       }
+      console.warn(`⚠️ [OTP] Envoi ${result.provider || 'email'} échoué (${result.error}) — code DEV pour ${normalizedEmail}: ${code}`);
+    } else {
+      console.log(`📧 [OTP] Code envoyé via ${result.provider} à ${normalizedEmail} (id ${result.id || result.queueId || '?'})`);
     }
 
     res.json({ success: true, message: 'Code envoyé par email' });

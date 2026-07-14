@@ -135,8 +135,8 @@ export function resetSubdomainCache() {
  */
 export async function resolveCustomDomain(hostname) {
   const API_BASE = import.meta.env.VITE_STORE_API_URL
-    || (import.meta.env.PROD ? 'https://api.scalor.net' : null)
     || import.meta.env.VITE_BACKEND_URL
+    || (import.meta.env.PROD ? 'https://api.scalor.net' : null)
     || 'https://api.scalor.net';
 
   const res = await fetch(`${API_BASE}/api/store/resolve-domain/${encodeURIComponent(hostname)}`);

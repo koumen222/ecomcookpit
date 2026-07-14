@@ -9,7 +9,7 @@ import axios from 'axios';
  */
 class ScalorEvolutionService {
   constructor() {
-    this.baseUrl = process.env.EVOLUTION_API_URL || 'https://api.evolution-api.com';
+    this.baseUrl = String(process.env.EVOLUTION_API_URL || '').replace(/\/$/, '');
     this.masterKey = process.env.EVOLUTION_ADMIN_TOKEN || process.env.EVOLUTION_MASTER_API_KEY || process.env.EVOLUTION_API_KEY;
   }
 

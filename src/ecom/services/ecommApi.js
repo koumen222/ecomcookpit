@@ -46,6 +46,7 @@ function isLocalhostLike(value = '') {
 function resolveEcomApiBaseUrl() {
   const envBackend = import.meta.env.VITE_BACKEND_URL;
   const envApi = import.meta.env.VITE_API_URL;
+  const envApiBase = import.meta.env.VITE_API_BASE_URL;
   const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
 
   // In local Vite dev, prefer the same-origin proxy to avoid brittle direct
@@ -55,14 +56,14 @@ function resolveEcomApiBaseUrl() {
     && typeof window !== 'undefined'
     && isLocalhostLike(window.location.origin)
     && (!envApi || isLocalhostLike(envApi))
+    && (!envApiBase || isLocalhostLike(envApiBase))
     && (!envBackend || isLocalhostLike(envBackend))
   ) {
     return '/api/ecom';
   }
 
-  // On production frontends, always target the public API domain first.
-  // This avoids production builds accidentally using a direct Railway URL,
-  // which triggers preflight failures when that hostname is not exposed.
+  // On hosted frontends, respect the build-time API env first. This is what
+  // lets staging.scalor.net target api-staging.scalor.net instead of prod.
   if (
     typeof window !== 'undefined'
     && (
@@ -72,15 +73,20 @@ function resolveEcomApiBaseUrl() {
     )
   ) {
     const normalizedFromApi = normalizeBackendBaseUrl(envApi);
-    if (normalizedFromApi.includes('api.scalor.net')) {
-      return normalizedFromApi;
-    }
+    if (normalizedFromApi) return normalizedFromApi;
+    const normalizedFromApiBase = normalizeBackendBaseUrl(envApiBase);
+    if (normalizedFromApiBase) return normalizedFromApiBase;
+    const normalizedFromBackend = normalizeBackendBaseUrl(envBackend);
+    if (normalizedFromBackend) return normalizedFromBackend;
     return 'https://api.scalor.net/api/ecom';
   }
 
   // priorité: VITE_API_URL, puis VITE_BACKEND_URL
   const normalizedFromApi = normalizeBackendBaseUrl(envApi);
   if (normalizedFromApi) return normalizedFromApi;
+
+  const normalizedFromApiBase = normalizeBackendBaseUrl(envApiBase);
+  if (normalizedFromApiBase) return normalizedFromApiBase;
 
   const normalizedFromBackend = normalizeBackendBaseUrl(envBackend);
   if (normalizedFromBackend) return normalizedFromBackend;
@@ -89,7 +95,16 @@ function resolveEcomApiBaseUrl() {
 }
 
 const ECOM_API_BASE_URL = resolveEcomApiBaseUrl();
-console.log('🔧 [API] ECOM_API_BASE_URL =', ECOM_API_BASE_URL, '| VITE_API_URL =', import.meta.env.VITE_API_URL, '| VITE_BACKEND_URL =', import.meta.env.VITE_BACKEND_URL);
+console.log(
+  '🔧 [API] ECOM_API_BASE_URL =',
+  ECOM_API_BASE_URL,
+  '| VITE_API_URL =',
+  import.meta.env.VITE_API_URL,
+  '| VITE_API_BASE_URL =',
+  import.meta.env.VITE_API_BASE_URL,
+  '| VITE_BACKEND_URL =',
+  import.meta.env.VITE_BACKEND_URL
+);
 
 const RETRYABLE_STATUS_CODES = new Set([502, 503, 504]);
 const MAX_RETRY_ATTEMPTS = 2;

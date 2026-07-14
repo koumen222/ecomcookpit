@@ -206,6 +206,7 @@ export async function sendMail({ from, to, subject, html, text, replyTo, headers
       subject: String(subject || '').slice(0, 300),
       status: result.success ? 'sent' : 'failed',
       source,
+      provider: 'smtp',
       messageId: result.id || '',
       queueId: result.queueId || '',
       smtpResponse: String(result.response || '').slice(0, 500),

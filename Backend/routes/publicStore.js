@@ -58,10 +58,18 @@ router.get('/:subdomain', readLimiter, resolveStoreBySubdomain, async (req, res)
     const { store } = req;
 
     // Also get delivery zones from workspace
-    const workspace = await EcomWorkspace.findById(store._id)
-      .select('storeDeliveryZones')
+    // (store.workspaceId pour les Store multi-boutiques ; store._id pour les
+    // workspaces legacy où req.store EST le document workspace)
+    const workspace = await EcomWorkspace.findById(store.workspaceId || store._id)
+      .select('storeDeliveryZones storePayments')
       .lean();
-    const deliveryConfig = workspace?.storeDeliveryZones || { countries: [], zones: [] };
+    const deliveryConfig = store.storeDeliveryZones || workspace?.storeDeliveryZones || { countries: [], zones: [] };
+
+    // Modes de paiement publics — booléens uniquement, jamais de clés.
+    // Config au niveau du store (multi-boutique) prioritaire, fallback workspace.
+    const payCfg = (store.storePayments && Object.keys(store.storePayments).length > 0)
+      ? store.storePayments
+      : (workspace?.storePayments || {});
 
     // Only expose enabled zones publicly
     const publicZones = (deliveryConfig.zones || [])
@@ -109,6 +117,13 @@ router.get('/:subdomain', readLimiter, resolveStoreBySubdomain, async (req, res)
         flatShippingEnabled: deliveryConfig.flatShippingEnabled === true,
         flatShippingFee: Math.max(0, Number(deliveryConfig.flatShippingFee) || 0),
         freeShippingThreshold: Math.max(0, Number(deliveryConfig.freeShippingThreshold) || 0),
+        // Modes de paiement activés — permet au checkout/formulaires d'afficher
+        // Scalor Pay quel que soit l'endpoint qui a chargé la boutique.
+        paymentMethods: {
+          cod: payCfg.cod?.enabled !== false, // activé par défaut
+          scalorPay: payCfg.scalor_pay?.enabled === true,
+          whatsapp: payCfg.whatsapp?.enabled === true,
+        },
       }
     });
   } catch (error) {
@@ -267,6 +282,83 @@ router.get('/:subdomain/categories', readLimiter, resolveStoreBySubdomain, async
     res.json({ success: true, data: categories.sort() });
   } catch (error) {
     console.error('Erreur GET /public/store/:subdomain/categories:', error.message);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+/**
+ * GET /public/store/:subdomain/collections
+ * Collections actives de la boutique (couverture + nombre de produits).
+ */
+router.get('/:subdomain/collections', readLimiter, resolveStoreBySubdomain, async (req, res) => {
+  try {
+    const { default: Collection } = await import('../models/Collection.js');
+    const filter = { workspaceId: req.storeWorkspaceId, enabled: true };
+    const collections = await Collection.find(filter)
+      .sort({ sortOrder: 1, createdAt: -1 })
+      .select('name slug description image productIds')
+      .lean();
+
+    setCacheHeaders(res, 300);
+    res.json({
+      success: true,
+      data: collections.map((c) => ({
+        _id: c._id,
+        name: c.name,
+        slug: c.slug,
+        description: c.description || '',
+        image: c.image || '',
+        productCount: (c.productIds || []).length,
+      })),
+    });
+  } catch (error) {
+    console.error('Erreur GET /public/store/:subdomain/collections:', error.message);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+/**
+ * GET /public/store/:subdomain/collections/:slug
+ * Détail d'une collection + ses produits publiés.
+ */
+router.get('/:subdomain/collections/:slug', readLimiter, resolveStoreBySubdomain, async (req, res) => {
+  try {
+    const { default: Collection } = await import('../models/Collection.js');
+    const collection = await Collection.findOne({
+      workspaceId: req.storeWorkspaceId,
+      slug: String(req.params.slug || '').toLowerCase(),
+      enabled: true,
+    }).lean();
+    if (!collection) return res.status(404).json({ success: false, message: 'Collection introuvable' });
+
+    const products = await StoreProduct.find({
+      _id: { $in: collection.productIds || [] },
+      workspaceId: req.storeWorkspaceId,
+      isPublished: true,
+    })
+      .select('name slug price compareAtPrice image images category currency stock')
+      .lean();
+
+    // Conserver l'ordre choisi par le marchand
+    const order = new Map((collection.productIds || []).map((id, i) => [String(id), i]));
+    products.sort((a, b) => (order.get(String(a._id)) ?? 0) - (order.get(String(b._id)) ?? 0));
+
+    setCacheHeaders(res, 300);
+    res.json({
+      success: true,
+      data: {
+        collection: {
+          _id: collection._id,
+          name: collection.name,
+          slug: collection.slug,
+          description: collection.description || '',
+          image: collection.image || '',
+        },
+        products,
+      },
+    });
+  } catch (error) {
+    console.error('Erreur GET /public/store/:subdomain/collections/:slug:', error.message);
     res.status(500).json({ success: false, message: 'Erreur serveur' });
   }
 });

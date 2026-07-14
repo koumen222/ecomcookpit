@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { isOpenAiImageConfigured, generateOpenAiImage } from './openaiImageService.js';
 
 const KIE_API_KEY   = process.env.KIE_API_KEY || process.env.NANOBANANA_PRO_API_KEY || '';
 const KIE_BASE      = 'https://api.kie.ai/api/v1/jobs';
@@ -7,7 +8,7 @@ const POLL_INTERVAL = 4000;
 const MAX_WAIT_MS   = 180000; // 3 min
 
 export function isKieImageConfigured() {
-  return !!KIE_API_KEY;
+  return !!KIE_API_KEY || isOpenAiImageConfigured();
 }
 
 function extractUrl(data) {
@@ -32,6 +33,14 @@ function extractUrl(data) {
  * @param {string} aspectRatio  e.g. '3:4', '1:1', '16:9'
  */
 export async function generateKieGptImage2(prompt, aspectRatio = '1:1') {
+  // OpenAI direct en priorité — KIE en secours
+  if (isOpenAiImageConfigured()) {
+    try {
+      return await generateOpenAiImage(prompt, aspectRatio);
+    } catch (openaiErr) {
+      console.warn(`⚠️ OpenAI image en échec (${openaiErr.message}) — bascule sur KIE...`);
+    }
+  }
   if (!KIE_API_KEY) throw new Error('KIE_API_KEY not configured');
 
   const truncated = String(prompt).slice(0, 20000);

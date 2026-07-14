@@ -60,6 +60,7 @@ const ticketSchema = new mongoose.Schema({
       testResults: { type: mongoose.Schema.Types.Mixed, default: null }, // {passed, total, failed, output}
     },
     error: { type: String, default: '' },
+    runUrl: { type: String, default: '' },      // URL de l'exécution GitHub Actions (logs)
     analyzedAt: { type: Date, default: null },
   },
 

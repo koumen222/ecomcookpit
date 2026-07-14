@@ -19,13 +19,18 @@ const creativeAssetSchema = new mongoose.Schema(
       index: true,
     },
     productName: { type: String, default: '', trim: true },
+    type:        { type: String, default: 'image', enum: ['image', 'text', 'video', 'audio', 'launch'], index: true },
     formatId:    { type: String, default: '' },   // ex: 'hero-benefits'
     label:       { type: String, default: '' },   // ex: 'Bénéfices Clés'
-    imageUrl:    { type: String, required: true },
+    imageUrl:    { type: String, default: '' },    // requis seulement pour type=image
+    videoUrl:    { type: String, default: '' },
+    audioUrl:    { type: String, default: '' },
+    content:     { type: String, default: '' },    // texte : angles, hooks, scripts, stratégie…
     aspectRatio: { type: String, default: '1:1' },
     // Optional tags for filtering
     category:    { type: String, default: '' },
     template:    { type: String, default: '' },
+    meta:        { type: mongoose.Schema.Types.Mixed, default: {} },
   },
   { timestamps: true }
 );

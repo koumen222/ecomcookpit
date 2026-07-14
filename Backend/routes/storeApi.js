@@ -29,6 +29,7 @@ import Workspace from '../models/Workspace.js';
 import Store from '../models/Store.js';
 import StoreProduct from '../models/StoreProduct.js';
 import StoreOrder from '../models/StoreOrder.js';
+import ScalorPayTransaction from '../models/ScalorPayTransaction.js';
 import Order from '../models/Order.js';
 import OrderSource from '../models/OrderSource.js';
 import EcomUser from '../models/EcomUser.js';
@@ -38,6 +39,7 @@ import { notifyNewOrder } from '../services/notificationHelper.js';
 import { memCache } from '../services/memoryCache.js';
 import { sendClientOrderConfirmation } from '../services/shopifyWhatsappService.js';
 import { normalizeCity } from '../utils/cityNormalizer.js';
+import { createMoneyFusionSession, computeSplit } from '../services/scalorPayService.js';
 import { buildMetaEventPayload, buildMetaUserData, isSupportedMetaEvent, sendMetaCapiEvent } from '../services/metaCapi.js';
 import { createAffiliateConversionFromOrder, normalizeCode } from '../services/affiliateService.js';
 import { getPlanRuntimeSnapshot } from '../middleware/planLimits.js';
@@ -699,6 +701,12 @@ router.get('/:subdomain', readLimiter, async (req, res) => {
           flatShippingFee: Math.max(0, Number(deliveryConfig.flatShippingFee) || 0),
           freeShippingThreshold: Math.max(0, Number(deliveryConfig.freeShippingThreshold) || 0),
           productPageConfig: settings.productPageConfig || theme.productPageConfig || null,
+          // Modes de paiement activés — booléens uniquement, JAMAIS de clés secrètes.
+          paymentMethods: {
+            cod: workspace.storePayments?.cod?.enabled !== false, // activé par défaut
+            scalorPay: workspace.storePayments?.scalor_pay?.enabled === true,
+            whatsapp: workspace.storePayments?.whatsapp?.enabled === true,
+          },
         },
         // Page sections: null = never configured (use defaults), [] = builder empty page
         sections: pages ? (pages.sections ?? null) : null,
@@ -938,6 +946,100 @@ router.get('/:subdomain/products/:slug', readLimiter, async (req, res) => {
 /**
  * GET /api/store/:subdomain/categories
  */
+/**
+ * GET /api/store/:subdomain/collections — collections actives de la boutique.
+ */
+router.get('/:subdomain/collections', readLimiter, async (req, res) => {
+  try {
+    const workspace = await withPublicTimeout(resolveStore(req.params.subdomain), 'resolve public store');
+    if (!workspace) return res.status(404).json({ success: false, message: 'Store not found' });
+
+    const { default: Collection } = await import('../models/Collection.js');
+    const collections = await withPublicTimeout(
+      Collection.find({ workspaceId: workspace._workspaceId, enabled: true })
+        .sort({ sortOrder: 1, createdAt: -1 })
+        .select('name slug description image productIds')
+        .lean()
+        .maxTimeMS(1200),
+      'load public collections'
+    );
+
+    setCacheHeaders(res, 300);
+    res.json({
+      success: true,
+      data: (collections || []).map((c) => ({
+        _id: c._id,
+        name: c.name,
+        slug: c.slug,
+        description: c.description || '',
+        image: c.image || '',
+        productCount: (c.productIds || []).length,
+      })),
+    });
+  } catch (error) {
+    console.error('❌ GET /api/store/:subdomain/collections error:', error.message);
+    sendPublicError(res, error, 'Error loading collections');
+  }
+});
+
+/**
+ * GET /api/store/:subdomain/collections/:slug — collection + produits publiés.
+ */
+router.get('/:subdomain/collections/:slug', readLimiter, async (req, res) => {
+  try {
+    const workspace = await withPublicTimeout(resolveStore(req.params.subdomain), 'resolve public store');
+    if (!workspace) return res.status(404).json({ success: false, message: 'Store not found' });
+
+    const { default: Collection } = await import('../models/Collection.js');
+    const collection = await withPublicTimeout(
+      Collection.findOne({
+        workspaceId: workspace._workspaceId,
+        slug: String(req.params.slug || '').toLowerCase(),
+        enabled: true,
+      }).lean().maxTimeMS(1200),
+      'load public collection'
+    );
+    if (!collection) return res.status(404).json({ success: false, message: 'Collection introuvable' });
+
+    const rawProducts = await withPublicTimeout(
+      StoreProduct.find({
+        _id: { $in: collection.productIds || [] },
+        workspaceId: workspace._workspaceId,
+        isPublished: true,
+      })
+        .select('name slug price compareAtPrice images category currency stock country targetMarket city locale createdAt')
+        .lean()
+        .maxTimeMS(1500),
+      'load collection products'
+    );
+
+    // Même format que /products (image résolue depuis images[0].url)
+    const storeCurrencyCol = workspace.storeSettings?.storeCurrency || workspace.storeSettings?.currency || 'XAF';
+    const products = rawProducts.map((prod) => toLightProduct(prod, storeCurrencyCol));
+
+    const order = new Map((collection.productIds || []).map((id, i) => [String(id), i]));
+    products.sort((a, b) => (order.get(String(a._id)) ?? 0) - (order.get(String(b._id)) ?? 0));
+
+    setCacheHeaders(res, 300);
+    res.json({
+      success: true,
+      data: {
+        collection: {
+          _id: collection._id,
+          name: collection.name,
+          slug: collection.slug,
+          description: collection.description || '',
+          image: collection.image || '',
+        },
+        products,
+      },
+    });
+  } catch (error) {
+    console.error('❌ GET /api/store/:subdomain/collections/:slug error:', error.message);
+    sendPublicError(res, error, 'Error loading collection');
+  }
+});
+
 router.get('/:subdomain/categories', readLimiter, async (req, res) => {
   try {
     const subdomainKey = normalizeSubdomainKey(req.params.subdomain);
@@ -1140,6 +1242,12 @@ router.get('/:subdomain/product-page/:slug', readLimiter, async (req, res) => {
           freeShippingThreshold: Math.max(0, Number(deliveryConfig.freeShippingThreshold) || 0),
           cartEnabled: settings.cartEnabled === true,
           productPageConfig: settings.productPageConfig || theme.productPageConfig || null,
+          // Modes de paiement activés — booléens uniquement, JAMAIS de clés secrètes.
+          paymentMethods: {
+            cod: workspace.storePayments?.cod?.enabled !== false, // activé par défaut
+            scalorPay: workspace.storePayments?.scalor_pay?.enabled === true,
+            whatsapp: workspace.storePayments?.whatsapp?.enabled === true,
+          },
         },
         product: productData,
         pixels: {
@@ -1437,6 +1545,194 @@ router.post('/:subdomain/abandoned-checkout', checkoutDraftLimiter, async (req, 
  * Guest checkout — place a public order without authentication.
  * Validates stock, creates order, decrements stock atomically.
  */
+/**
+ * POST /api/store/:subdomain/orders/:orderId/upsell
+ * Le client accepte un upsell 1-clic après sa commande → crée une commande liée.
+ */
+router.post('/:subdomain/orders/:orderId/upsell', orderLimiter, async (req, res) => {
+  try {
+    const workspace = await resolveStore(req.params.subdomain);
+    if (!workspace) return res.status(404).json({ success: false, message: 'Store not found' });
+    const workspaceId = workspace._workspaceId || workspace._id;
+    const storeId = workspace._storeId || null;
+
+    if (!mongoose.Types.ObjectId.isValid(req.params.orderId)) {
+      return res.status(400).json({ success: false, message: 'Commande invalide' });
+    }
+    const parent = await StoreOrder.findOne({ _id: req.params.orderId, workspaceId });
+    if (!parent) return res.status(404).json({ success: false, message: 'Commande introuvable' });
+
+    const offer = (req.body && req.body.offer) || {};
+    const offerPrice = Math.round(Number(offer.offerPrice) || 0);
+
+    // 1) Produits réels sélectionnés dans l'offre → lignes catalogue
+    let lines = [];
+    const wantedIds = Array.isArray(offer.upsellProductIds)
+      ? offer.upsellProductIds.filter((id) => mongoose.Types.ObjectId.isValid(id))
+      : [];
+    if (wantedIds.length) {
+      const prods = await StoreProduct.find({ _id: { $in: wantedIds }, workspaceId }).lean();
+      lines = prods.map((pr) => ({
+        productId: pr._id,
+        name: String(pr.name || 'Produit').slice(0, 200),
+        price: Math.max(0, Number(pr.price) || 0),
+        quantity: 1,
+        image: (Array.isArray(pr.images) && pr.images[0] && pr.images[0].url) || '',
+      }));
+    }
+
+    // 2) Fallback : ligne « offre » custom si aucun produit sélectionné
+    if (!lines.length) {
+      if (offerPrice <= 0) return res.status(400).json({ success: false, message: 'Prix upsell invalide' });
+      let fallbackPid = null;
+      if (offer.productId && mongoose.Types.ObjectId.isValid(offer.productId)) fallbackPid = offer.productId;
+      if (!fallbackPid && Array.isArray(parent.products) && parent.products[0] && parent.products[0].productId) {
+        fallbackPid = parent.products[0].productId;
+      }
+      if (!fallbackPid) return res.status(400).json({ success: false, message: 'Produit de référence introuvable' });
+      lines = [{ productId: fallbackPid, name: String(offer.title || offer.productName || 'Offre upsell').slice(0, 200), price: offerPrice, quantity: 1, image: String(offer.image || '') }];
+    }
+
+    const catalogSum = lines.reduce((sum, l) => sum + (Number(l.price) || 0) * (l.quantity || 1), 0);
+    const upsellTotal = offerPrice > 0 ? offerPrice : catalogSum;
+
+    const upsellOrder = new StoreOrder({
+      workspaceId,
+      storeId,
+      customerName: parent.customerName,
+      phone: parent.phone,
+      phoneCode: parent.phoneCode,
+      email: parent.email,
+      address: parent.address,
+      city: parent.city,
+      country: parent.country,
+      products: lines,
+      total: upsellTotal,
+      currency: parent.currency,
+      status: 'pending',
+      channel: parent.channel,
+      isUpsell: true,
+      upsellParentOrderId: parent._id,
+      notes: `Upsell 1-clic — lié à ${parent.orderNumber}`,
+    });
+    await upsellOrder.save();
+
+    return res.status(201).json({ success: true, data: { orderNumber: upsellOrder.orderNumber, total: upsellOrder.total, currency: upsellOrder.currency } });
+  } catch (error) {
+    console.error('❌ POST /:subdomain/orders/:orderId/upsell error:', error.message);
+    return res.status(500).json({ success: false, message: "Impossible d'enregistrer l'upsell" });
+  }
+});
+
+// ─── Scalor Pay — online checkout for an existing order ───────────────────────
+// Le storefront crée d'abord la commande (POST /orders), récupère son _id, puis
+// appelle cet endpoint pour ouvrir une session de paiement MoneyFusion sur le
+// compte plateforme. Le montant fait autorité côté serveur (order.total) : on ne
+// fait jamais confiance à un montant fourni par le client.
+router.post('/:subdomain/scalor-pay/checkout', orderLimiter, async (req, res) => {
+  try {
+    const workspace = await resolveStore(req.params.subdomain);
+    if (!workspace) {
+      return res.status(404).json({ success: false, message: 'Store not found' });
+    }
+
+    // Scalor Pay doit être activé pour cette boutique.
+    const scalorCfg = workspace.storePayments?.scalor_pay;
+    if (!scalorCfg?.enabled) {
+      return res.status(403).json({ success: false, message: 'Scalor Pay n\'est pas activé sur cette boutique' });
+    }
+
+    const { orderId, orderNumber, phone: payerPhone, returnUrl: rawReturnUrl } = req.body || {};
+
+    const orderFilter = {
+      workspaceId: workspace._workspaceId,
+      status: { $ne: 'abandoned' },
+    };
+    if (workspace._storeId) orderFilter.storeId = workspace._storeId;
+    if (orderId && mongoose.Types.ObjectId.isValid(orderId)) orderFilter._id = orderId;
+    else if (orderNumber) orderFilter.orderNumber = String(orderNumber).trim();
+    else return res.status(400).json({ success: false, message: 'orderId ou orderNumber requis' });
+
+    const order = await StoreOrder.findOne(orderFilter);
+    if (!order) {
+      return res.status(404).json({ success: false, message: 'Commande introuvable' });
+    }
+    if (order.paymentStatus === 'paid') {
+      return res.status(200).json({ success: true, alreadyPaid: true, message: 'Commande déjà payée' });
+    }
+
+    const amount = Math.round(Number(order.total) || 0);
+    if (amount <= 0) {
+      return res.status(400).json({ success: false, message: 'Montant de commande invalide' });
+    }
+
+    const frontendUrl = process.env.FRONTEND_URL || 'https://scalor.net';
+    const backendUrl = process.env.BACKEND_URL || 'https://api.scalor.net';
+    const phone = String(payerPhone || order.phone || '').trim();
+
+    // Le client revient sur la boutique d'origine après paiement (si fourni & valide).
+    const returnUrl = /^https?:\/\//i.test(String(rawReturnUrl || '').trim())
+      ? String(rawReturnUrl).trim()
+      : `${frontendUrl}/order-confirmation?order=${encodeURIComponent(order.orderNumber)}`;
+
+    let session;
+    try {
+      session = await createMoneyFusionSession({
+        amount,
+        phone,
+        clientName: order.customerName,
+        personalInfo: {
+          scalorPay: true,
+          workspaceId: String(workspace._workspaceId),
+          storeId: workspace._storeId ? String(workspace._storeId) : '',
+          orderId: String(order._id),
+          orderNumber: order.orderNumber,
+        },
+        returnUrl,
+        webhookUrl: `${backendUrl}/api/ecom/scalor-pay/webhook`,
+      });
+    } catch (err) {
+      console.error('[storeApi] Scalor Pay session error:', err.mfBadResponse || err.message);
+      return res.status(502).json({ success: false, message: 'Erreur lors de l\'initialisation du paiement' });
+    }
+
+    const { gross, commissionAmount, netAmount, commissionRate } = computeSplit(amount);
+
+    await ScalorPayTransaction.create({
+      workspaceId: workspace._workspaceId,
+      storeId: workspace._storeId || null,
+      type: 'sale',
+      orderId: order._id,
+      orderNumber: order.orderNumber,
+      currency: order.currency || 'XAF',
+      grossAmount: gross,
+      commissionRate,
+      commissionAmount,
+      netAmount,
+      mfToken: session.mfToken,
+      paymentUrl: session.paymentUrl,
+      status: 'pending',
+      customerName: order.customerName,
+      phone,
+    });
+
+    order.paymentMethod = 'scalor_pay';
+    order.paymentStatus = 'pending';
+    order.scalorPayToken = session.mfToken;
+    await order.save();
+
+    res.json({
+      success: true,
+      paymentUrl: session.paymentUrl,
+      mfToken: session.mfToken,
+      amount: gross,
+    });
+  } catch (err) {
+    console.error('[storeApi] POST /scalor-pay/checkout error:', err);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
 router.post('/:subdomain/orders', orderLimiter, async (req, res) => {
   try {
     const workspace = await resolveStore(req.params.subdomain);
@@ -1466,7 +1762,7 @@ router.post('/:subdomain/orders', orderLimiter, async (req, res) => {
       }
     }
 
-    const { customerName, phone, phoneCode, email, address, city, country, products, notes, channel, deliveryType, deliveryCost, orderBump, metaEventId, metaSourceUrl, affiliateCode, affiliateLinkCode, checkoutSessionId } = req.body;
+    const { customerName, phone, phoneCode, email, address, city, country, products, notes, channel, deliveryType, deliveryCost, orderBump, bumpProductIds, metaEventId, metaSourceUrl, affiliateCode, affiliateLinkCode, checkoutSessionId } = req.body;
 
     if (!customerName || !phone || !products?.length) {
       return res.status(400).json({
@@ -1616,6 +1912,25 @@ router.post('/:subdomain/orders', orderLimiter, async (req, res) => {
       }
     }
 
+    // Produits inclus dans l'order bump → ajoutés aux lignes (validés contre la config produit)
+    if (Array.isArray(bumpProductIds) && bumpProductIds.length) {
+      const bumpCfg = dbProducts[0]?.productPageConfig?.upsells?.bump;
+      const allowed = new Set((bumpCfg?.upsellProductIds || []).map(String));
+      const validBumpIds = bumpProductIds.filter((id) => mongoose.Types.ObjectId.isValid(id) && allowed.has(String(id)));
+      if (validBumpIds.length) {
+        const bumpProds = await StoreProduct.find({ _id: { $in: validBumpIds }, workspaceId: workspace._workspaceId }).lean();
+        for (const bp of bumpProds) {
+          orderProducts.push({
+            productId: bp._id,
+            name: `${bp.name} (inclus dans l'option)`,
+            price: 0,
+            quantity: 1,
+            image: bp.images?.[0]?.url || '',
+          });
+        }
+      }
+    }
+
     const resolvedOrderCurrency = orderCurrencies.size === 1
       ? Array.from(orderCurrencies)[0]
       : (workspace.storeSettings?.storeCurrency || 'XAF');
@@ -1687,6 +2002,7 @@ router.post('/:subdomain/orders', orderLimiter, async (req, res) => {
       success: true,
       message: 'Commande passée avec succès',
       data: {
+        _id: order._id,
         orderNumber: order.orderNumber,
         total: order.total,
         currency: order.currency,

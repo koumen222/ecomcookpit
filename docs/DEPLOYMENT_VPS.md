@@ -75,13 +75,28 @@ PORT=8080
 NODE_ENV=production
 ```
 
+Pour que les codes OTP n'utilisent pas l'IP du SMTP auto-hébergé, ajouter aussi :
+
+```bash
+OTP_EMAIL_PROVIDER=resend
+RESEND_API_KEY=...
+OTP_EMAIL_FROM="Scalor <auth@auth.scalor.net>"
+OTP_REPLY_TO=support@scalor.net
+```
+
+`OTP_EMAIL_FROM` doit appartenir à un domaine vérifié dans Resend. La procédure
+et les correctifs DNS du SMTP sont détaillés dans
+`Backend/docs/EMAIL_DELIVERABILITY.md`.
+
 ## Premier deploiement
 
 Une fois les secrets GitHub et le `.env` VPS en place:
 
 1. Va dans l'onglet `Actions` du repo GitHub.
 2. Lance `Deploy to VPS` avec `Run workflow`.
-3. Les prochains pushs sur `main` redeploieront automatiquement.
+3. Choisis `target_environment: production`.
+
+Pour une V2 / staging separee, lis aussi `docs/STAGING.md`. Le meme workflow peut deployer `staging`, avec un dossier VPS different comme `/opt/ecomcookpit-staging`, un `APP_PORT` different et une base MongoDB separee.
 
 ## Notes Caddy / reverse proxy
 

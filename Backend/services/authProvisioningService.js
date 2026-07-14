@@ -49,12 +49,22 @@ async function findOrCreateWorkspace(user, options) {
 
   if (!workspace) {
     const workspaceName = sanitizeName(options.workspaceName) || buildDefaultWorkspaceName(user);
-    workspace = await Workspace.create({
-      name: workspaceName,
-      owner: user._id
-    });
-    options.createdWorkspace = true;
-    console.log(`[AUTH_PROVISION] workspace_created user=${user.email} workspace=${workspace._id} source=${options.source}`);
+    try {
+      workspace = await Workspace.create({
+        name: workspaceName,
+        owner: user._id
+      });
+      options.createdWorkspace = true;
+      console.log(`[AUTH_PROVISION] workspace_created user=${user.email} workspace=${workspace._id} source=${options.source}`);
+    } catch (error) {
+      // Deux requêtes de session peuvent provisionner le même ancien compte en
+      // parallèle (login + restauration /me). L'autre requête a alors déjà créé
+      // l'espace : on le réutilise au lieu de transformer la connexion en 500.
+      if (error?.code !== 11000) throw error;
+      workspace = await Workspace.findOne({ owner: user._id, isActive: true }).sort({ createdAt: 1 });
+      if (!workspace) throw error;
+      console.warn(`[AUTH_PROVISION] concurrent_workspace_reused user=${user.email} workspace=${workspace._id}`);
+    }
   }
 
   return workspace;

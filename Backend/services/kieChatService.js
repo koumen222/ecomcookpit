@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { isDeepseekConfigured, callDeepseekChat, hasImageContent } from './deepseekChatService.js';
 
 const KIE_API_KEY = process.env.KIE_API_KEY || '';
 const KIE_BASE_URL = (process.env.KIE_BASE_URL || 'https://api.kie.ai').replace(/\/+$/, '');
@@ -94,6 +95,11 @@ export function extractKieContent(data = {}) {
 const KIE_GEMINI_MODEL = process.env.KIE_GEMINI_MODEL || 'gemini-2.5-flash';
 
 export async function callKieGeminiChat({ messages, responseFormat, timeoutMs }) {
+  // Décision produit : le TEXTE passe par DeepSeek uniquement.
+  // Gemini est conservé pour les appels multimodaux (images en entrée).
+  if (isDeepseekConfigured() && !hasImageContent(messages)) {
+    return callDeepseekChat({ messages, responseFormat, timeoutMs });
+  }
   if (!KIE_API_KEY) {
     throw new Error('KIE_API_KEY non configurée');
   }
@@ -144,6 +150,13 @@ export async function callKieChatCompletion({
   includeThoughts,
   timeoutMs,
 }) {
+  // Décision produit : le TEXTE passe par DeepSeek uniquement.
+  // Le chemin KIE GPT est conservé pour les appels avec tools (function calling
+  // au format Responses) ou avec images en entrée.
+  const needsLegacy = (Array.isArray(tools) && tools.length > 0) || hasImageContent(messages);
+  if (isDeepseekConfigured() && !needsLegacy) {
+    return callDeepseekChat({ messages, temperature, maxTokens, timeoutMs });
+  }
   if (!KIE_API_KEY) {
     throw new Error('KIE_API_KEY non configurée');
   }

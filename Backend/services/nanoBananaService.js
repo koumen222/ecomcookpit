@@ -7,6 +7,7 @@
 import axios from 'axios';
 import sharp from 'sharp';
 import { uploadToR2 } from './cloudflareImagesService.js';
+import { isOpenAiImageConfigured, generateOpenAiImage, generateOpenAiImageEdit } from './openaiImageService.js';
 import { generateGeminiImageToImage, isGeminiConfigured } from './geminiImageService.js';
 import ffmpegPath from 'ffmpeg-static';
 import { promises as fs } from 'fs';
@@ -20,7 +21,7 @@ const KIE_BASE = 'https://api.kie.ai/api/v1/jobs';
 const KIE_UPLOAD_BASE = 'https://kieai.redpandaai.co';
 const NANOBANANA_MODEL = process.env.NANOBANANA_MODEL || 'gpt-image-2-text-to-image';
 const GPT_IMAGE_2_IMG2IMG_MODEL = process.env.GPT_IMAGE_2_IMG2IMG_MODEL || 'gpt-image-2-image-to-image';
-const KIE_IMAGE_TO_VIDEO_MODEL = process.env.KIE_IMAGE_TO_VIDEO_MODEL || 'grok-imagine/image-to-video';
+const KIE_IMAGE_TO_VIDEO_MODEL = process.env.KIE_IMAGE_TO_VIDEO_MODEL || 'grok-imagine-video-1-5-preview';
 
 const NANOBANANA_PRO_COST_USD = 0.09; // 1K Pro
 const USD_TO_FCFA = 600;
@@ -160,7 +161,7 @@ function extractTaskResultUrl(data, mediaType = 'image') {
   return typedMatch || deduped[0] || null;
 }
 
-async function submitKieTask(body, maxRetries = 3) {
+export async function submitKieTask(body, maxRetries = 3) {
   await acquireSlot();
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -208,7 +209,7 @@ async function submitKieTask(body, maxRetries = 3) {
   }
 }
 
-async function pollKieTask(taskId, { maxWaitMs = IMAGE_GEN_MAX_WAIT_MS, mediaType = 'image', label = 'Kie.ai' } = {}) {
+export async function pollKieTask(taskId, { maxWaitMs = IMAGE_GEN_MAX_WAIT_MS, mediaType = 'image', label = 'Kie.ai' } = {}) {
   const pollInterval = 3000;
   const startTime = Date.now();
 
@@ -319,6 +320,16 @@ async function generateViaGrokImagine(prompt, imageUrls = [], aspectRatio = '1:1
  * Text-to-image — nano-banana-2 supports text-to-image natively.
  */
 export async function generateNanoBananaImage(prompt, aspectRatio = '4:5', numImages = 1) {
+  // OpenAI direct en priorité — KIE en secours
+  if (isOpenAiImageConfigured()) {
+    try {
+      const url = await generateOpenAiImage(prompt, aspectRatio);
+      sessionStats.totalImages++;
+      return url;
+    } catch (openaiErr) {
+      console.warn(`⚠️ OpenAI image en échec (${openaiErr.message}) — bascule sur KIE...`);
+    }
+  }
   console.log(`🎨 le service 2 text-to-image (${aspectRatio})...`);
   return await generateViaGrokImagine(prompt, [], aspectRatio);
 }
@@ -327,6 +338,16 @@ export async function generateNanoBananaImage(prompt, aspectRatio = '4:5', numIm
  * Image-to-image — Kie.ai NanoBanana Pro (only)
  */
 export async function generateNanoBananaImageToImage(prompt, imageInput, aspectRatio = '4:5', numImages = 1) {
+  // OpenAI direct en priorité — KIE en secours
+  if (isOpenAiImageConfigured()) {
+    try {
+      const url = await generateOpenAiImageEdit(prompt, [imageInput], aspectRatio);
+      sessionStats.totalImages++;
+      return url;
+    } catch (openaiErr) {
+      console.warn(`⚠️ OpenAI image-to-image en échec (${openaiErr.message}) — bascule sur KIE...`);
+    }
+  }
 
   // Resize input image
   let base64Image;
@@ -443,7 +464,18 @@ async function tryGeminiFallback(prompt, imageInput, aspectRatio, logoInput, ori
   }
 }
 
-export async function generateGptImage2ImageToImage(prompt, imageInput, aspectRatio = 'auto', logoInput = null) {
+export async function generateGptImage2ImageToImage(prompt, imageInput, aspectRatio = 'auto', logoInput = null, options = {}) {
+  // OpenAI direct en priorité — KIE puis Gemini en secours
+  if (isOpenAiImageConfigured()) {
+    try {
+      const refs = [imageInput, logoInput].filter(Boolean);
+      const url = await generateOpenAiImageEdit(prompt, refs, aspectRatio, { quality: options.quality });
+      sessionStats.totalImages++;
+      return url;
+    } catch (openaiErr) {
+      console.warn(`⚠️ OpenAI image-to-image en échec (${openaiErr.message}) — bascule sur KIE/Gemini...`);
+    }
+  }
   // Si Kie.ai n'est pas configuré du tout, on bascule directement sur Gemini.
   if (!KIE_API_KEY) {
     if (isGeminiConfigured()) {
@@ -555,16 +587,19 @@ export async function generateKieImageToVideo(prompt, imageInput, options = {}) 
     ? `${prompt.slice(0, 11900)}\n[...prompt truncated]`
     : prompt;
 
+  // Schéma "Grok Imagine Video 1.5 Preview" : image_urls (≤1), duration entier 1-15,
+  // resolution 480p/720p, aspect_ratio (dont "auto"). Pas de champ "mode".
+  const durInt = Math.max(1, Math.min(15, Math.round(Number(duration) || 8)));
   const body = {
     model: KIE_IMAGE_TO_VIDEO_MODEL,
     input: {
       image_urls: imageUrls.slice(0, 1),
-      prompt: truncatedPrompt,
-      mode,
-      duration: String(duration),
-      resolution,
-      aspect_ratio: aspectRatio,
-    }
+      prompt: truncatedPrompt.slice(0, 4096),
+      duration: durInt,
+      resolution: resolution === '720p' ? '720p' : '480p',
+      aspect_ratio: aspectRatio || 'auto',
+      nsfw_checker: false,
+    },
   };
 
   console.log(`🎬 le service image-to-video (${aspectRatio}, ${duration}s, ${resolution})...`);

@@ -45,12 +45,22 @@ class AnalyticsService {
       return '/api/ecom/analytics/track';
     }
 
-    // In production on scalor.net, use the public API
+    const configuredBackend = String(
+      import.meta.env.VITE_BACKEND_URL ||
+      import.meta.env.VITE_API_BASE_URL ||
+      ''
+    ).trim();
+    if (configuredBackend) {
+      const backendUrl = configuredBackend.replace(/\/api\/ecom\/?$/, '').replace(/\/$/, '');
+      return `${backendUrl}/api/ecom/analytics/track`;
+    }
+
+    // In production on scalor.net, use the public API as the final fallback.
     if (typeof window !== 'undefined' && window.location.hostname.endsWith('scalor.net')) {
       return 'https://api.scalor.net/api/ecom/analytics/track';
     }
 
-    const backendUrl = (import.meta.env.VITE_BACKEND_URL || 'https://api.scalor.net').replace(/\/$/, '');
+    const backendUrl = 'https://api.scalor.net';
     return `${backendUrl}/api/ecom/analytics/track`;
   }
 

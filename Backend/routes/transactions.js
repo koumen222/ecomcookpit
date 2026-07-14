@@ -15,50 +15,28 @@ import {
   notifyBudgetExceeded,
   notifyCriticalTransaction
 } from '../core/notifications/notification.service.js';
+import { deepseekComplete } from '../services/deepseekChatService.js';
 
-// Helper KIE.AI (claude-sonnet-4-6) with retry + 120s timeout
+// Helper texte — DeepSeek uniquement (décision produit), avec retry sur erreurs transitoires
 async function kieAiChat(prompt, maxTokens = 2000, retries = 3) {
+  let lastErr = null;
   for (let attempt = 1; attempt <= retries; attempt++) {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 600_000); // 10 min
-    let response;
     try {
-      response = await fetch('https://api.kie.ai/claude/v1/messages', {
-        method: 'POST',
-        signal: controller.signal,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${process.env.KIE_API_KEY}`
-        },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-6',
-          messages: [{ role: 'user', content: prompt }],
-          max_tokens: maxTokens
-        })
-      });
-    } finally {
-      clearTimeout(timer);
+      return await deepseekComplete(prompt, { maxTokens, timeoutMs: 600_000 });
+    } catch (err) {
+      lastErr = err;
+      const status = err?.response?.status;
+      const retryable = status === 429 || status === 503 || status === 500 || !status;
+      if (retryable && attempt < retries) {
+        const delay = attempt * 5000; // 5s, 10s
+        console.warn(`⚠️ DeepSeek indisponible (${status || 'réseau'}) — retry ${attempt}/${retries} in ${delay}ms`);
+        await new Promise(r => setTimeout(r, delay));
+        continue;
+      }
+      throw err;
     }
-
-    if (response.ok) {
-      const data = await response.json();
-      return data.content?.[0]?.text || '';
-    }
-
-    const err = await response.json().catch(() => ({}));
-    const isOverload = response.status === 529 || response.status === 503 ||
-      (err.error?.message || '').toLowerCase().includes('system load') ||
-      (err.error?.message || '').toLowerCase().includes('overloaded');
-
-    if (isOverload && attempt < retries) {
-      const delay = attempt * 5000; // 5s, 10s
-      console.warn(`⚠️  le service overloaded — retry ${attempt}/${retries} in ${delay}ms`);
-      await new Promise(r => setTimeout(r, delay));
-      continue;
-    }
-
-    throw new Error(err.error?.message || `le service error ${response.status}`);
   }
+  throw lastErr;
 }
 
 // Seuil transaction critique (configurable via env)

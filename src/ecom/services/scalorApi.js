@@ -5,6 +5,7 @@ import axios from 'axios';
 // ═══════════════════════════════════════════════
 
 const SCALOR_API_BASE = import.meta.env.VITE_SCALOR_API_URL
+  || import.meta.env.VITE_BACKEND_URL
   || (import.meta.env.PROD ? 'https://api.scalor.net' : '')
   || '';
 

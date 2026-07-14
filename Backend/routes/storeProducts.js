@@ -19,15 +19,8 @@ import {
   chargeGenerationCredits,
   isGenerationCreditError,
 } from '../services/generationCreditService.js';
-import OpenAI from 'openai';
+import { deepseekClient } from '../services/deepseekChatService.js';
 
-let openai = null;
-const getOpenAI = () => {
-  if (!openai && process.env.OPENAI_API_KEY) {
-    openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-  }
-  return openai;
-};
 
 const router = express.Router();
 const MAX_PRODUCT_NAME_LENGTH = 200;
@@ -726,7 +719,7 @@ router.get('/categories/list', requireEcomAuth, requireWorkspace, async (req, re
  */
 router.post('/categories/auto-generate', requireEcomAuth, requireWorkspace, requireStoreOwner, async (req, res) => {
   try {
-    const ai = getOpenAI();
+    const ai = deepseekClient; // texte → DeepSeek uniquement
     if (!ai) {
       return res.status(503).json({ success: false, message: 'Génération IA non configurée.' });
     }
@@ -1266,7 +1259,7 @@ router.post(
  */
 router.post('/generate', requireEcomAuth, requireWorkspace, async (req, res) => {
   try {
-    const ai = getOpenAI();
+    const ai = deepseekClient; // texte → DeepSeek uniquement
     if (!ai) {
       return res.status(503).json({
         success: false,
@@ -1354,7 +1347,7 @@ Si le prix n'est pas mentionné, mettre 0. Répondre en français.`;
  */
 router.post('/generate-reviews', requireEcomAuth, requireWorkspace, async (req, res) => {
   try {
-    const ai = getOpenAI();
+    const ai = deepseekClient; // texte → DeepSeek uniquement
     if (!ai) {
       return res.status(503).json({
         success: false,
@@ -1439,6 +1432,112 @@ Format JSON strict :
       return res.status(429).json({ success: false, message: 'Quota du service dépassé. Réessayez plus tard.' });
     }
     res.status(500).json({ success: false, message: 'Erreur lors de la génération des avis' });
+  }
+});
+
+/**
+ * POST /store-products/generate-upsell-offer
+ * Génère une offre (titre, description, prix, remise) à partir d'un produit, via IA.
+ */
+router.post('/generate-upsell-offer', requireEcomAuth, requireWorkspace, async (req, res) => {
+  try {
+    const ai = deepseekClient; // texte → DeepSeek uniquement
+    if (!ai) {
+      return res.status(503).json({ success: false, message: 'Génération IA non configurée.' });
+    }
+    const { productId, kind = 'upsell' } = req.body || {};
+    if (!productId || !mongoose.Types.ObjectId.isValid(productId)) {
+      return res.status(400).json({ success: false, message: 'Produit invalide' });
+    }
+    const product = await StoreProduct.findOne({ _id: productId, workspaceId: req.workspaceId }).lean();
+    if (!product) {
+      return res.status(404).json({ success: false, message: 'Produit introuvable' });
+    }
+    const price = Math.max(0, Number(product.price) || 0);
+    const kindLabel = kind === 'exit' ? "offre de dernière chance (pop-up de sortie)"
+      : kind === 'bump' ? "petit supplément à cocher (order bump)"
+      : "upsell 1-clic complémentaire";
+
+    const systemPrompt = `Tu es un expert en optimisation de tunnel de vente e-commerce pour le marché africain (prix en FCFA).
+Tu crées une ${kindLabel} irrésistible et pertinente pour un produit donné.
+Réponds UNIQUEMENT avec un objet JSON valide, sans markdown, sans explication.
+
+RÈGLES :
+- L'offre est un complément, bundle ou bonus cohérent avec le produit (pas une simple répétition du produit à prix plein).
+- "title" : accrocheur, max 60 caractères, en français.
+- "productName" : nom court de ce qui est offert.
+- "description" : 1 à 2 phrases orientées bénéfice, en français naturel.
+- Prix en FCFA, nombres entiers uniquement (pas d'espaces ni symboles). offerPrice STRICTEMENT inférieur à originalPrice.
+- Base-toi sur le prix du produit (${price} FCFA) pour des prix cohérents : originalPrice ~ 30-70% du prix produit, offerPrice avec 20-50% de remise.
+- "discountType" = "percent", "discountValue" = entier (20 à 50).
+
+Format JSON strict :
+{ "title": "...", "productName": "...", "description": "...", "originalPrice": 5000, "offerPrice": 2500, "discountType": "percent", "discountValue": 50 }`;
+
+    const brief = (req.body && typeof req.body.brief === 'object' && req.body.brief) || {};
+    const angleMap = { complement: 'un produit complémentaire pertinent', bundle: 'un lot / bundle du produit', bonus: 'un bonus ou cadeau offert', upgrade: 'une montée en gamme (version premium)' };
+    const discountMap = { light: 'légère (environ 15%)', medium: 'moyenne (environ 30%)', strong: 'forte (environ 50%)' };
+    const goalMap = { margin: 'maximiser la marge', volume: 'maximiser le volume de ventes', destock: 'déstocker rapidement' };
+    const toneMap = { premium: 'premium et rassurant', urgent: 'urgent et incitatif', friendly: 'amical et proche du client' };
+    const briefLines = [
+      `- Type d'offre souhaité : ${angleMap[brief.angle] || 'un complément pertinent'}`,
+      `- Niveau de remise : ${discountMap[brief.discount] || 'moyenne (environ 30%)'} (adapte "discountValue" en conséquence)`,
+      `- Objectif : ${goalMap[brief.goal] || 'maximiser la marge'}`,
+      `- Ton : ${toneMap[brief.tone] || 'premium et rassurant'}`,
+    ];
+    if (brief.highlight) briefLines.push(`- À METTRE EN AVANT (argument central, doit dominer le titre et la description) : ${String(brief.highlight).slice(0, 300)}`);
+    if (brief.note) briefLines.push(`- Précision du marchand (À RESPECTER) : ${String(brief.note).slice(0, 300)}`);
+
+    const userPrompt = `Produit : ${String(product.name || '').slice(0, 200)}
+Description : ${String(product.description || '').replace(/<[^>]+>/g, ' ').slice(0, 1200)}
+Prix du produit : ${price} FCFA
+
+Contraintes de l'offre à générer :
+${briefLines.join('\n')}`;
+
+    const completion = await ai.chat.completions.create({
+      model: process.env.OPENAI_MINI_MODEL || 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ],
+      temperature: 0.8,
+      max_tokens: 400,
+      response_format: { type: 'json_object' },
+    });
+
+    let g;
+    try { g = JSON.parse(completion.choices[0].message.content); }
+    catch { return res.status(500).json({ success: false, message: 'Réponse IA invalide, réessayez.' }); }
+
+    const toInt = (v) => { const n = Math.round(Number(v)); return Number.isFinite(n) && n > 0 ? n : 0; };
+    let originalPrice = toInt(g.originalPrice);
+    let offerPrice = toInt(g.offerPrice);
+    if (offerPrice > 0 && originalPrice > 0 && offerPrice >= originalPrice) {
+      originalPrice = Math.round(offerPrice / 0.6);
+    }
+    let discountValue = Math.max(0, Math.min(90, Math.round(Number(g.discountValue) || 0)));
+    if (!discountValue && originalPrice > 0 && offerPrice > 0) {
+      discountValue = Math.round((1 - offerPrice / originalPrice) * 100);
+    }
+
+    const offer = {
+      title: String(g.title || '').slice(0, 80),
+      productName: String(g.productName || product.name || '').slice(0, 120),
+      description: String(g.description || '').replace(/https?:\/\/\S+/gi, '').slice(0, 400),
+      originalPrice: originalPrice || '',
+      offerPrice: offerPrice || '',
+      discountType: 'percent',
+      discountValue: discountValue || '',
+    };
+
+    return res.json({ success: true, data: { offer } });
+  } catch (error) {
+    console.error('❌ POST /store-products/generate-upsell-offer error:', error.message);
+    if (error?.status === 429) {
+      return res.status(429).json({ success: false, message: 'Quota du service dépassé. Réessayez plus tard.' });
+    }
+    return res.status(500).json({ success: false, message: "Erreur lors de la génération de l'offre" });
   }
 });
 
@@ -1725,11 +1824,13 @@ router.post('/:id/digital-product', requireEcomAuth, requireWorkspace, requireSt
       data: product.toObject(),
     });
   } catch (error) {
-    console.error('Erreur POST /store-products/:id/digital-product:', error.message);
+    // Log complet (stack) pour pinpoint la ligne exacte qui casse.
+    console.error('Erreur POST /store-products/:id/digital-product:', error?.stack || error?.message || error);
     if (isGenerationCreditError(error)) {
       return res.status(error.status || 403).json(error.payload);
     }
-    res.status(500).json({ success: false, message: 'Erreur lors de la génération du produit digital' });
+    // On renvoie le détail réel au front (outil admin) au lieu d'un message générique.
+    res.status(500).json({ success: false, message: 'Erreur lors de la génération du produit digital', detail: error?.message || String(error) });
   }
 });
 

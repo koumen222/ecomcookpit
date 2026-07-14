@@ -361,24 +361,29 @@ router.delete('/:storeId', requireEcomAuth, async (req, res) => {
     const store = await Store.findOne({ _id: req.params.storeId, workspaceId: req.workspaceId });
     if (!store) return res.status(404).json({ success: false, message: 'Boutique non trouvée' });
 
-    // Can't delete primary store if it's the only one
+    // La suppression de la dernière boutique est autorisée : le marchand
+    // retombe sur le wizard de création (primaryStoreId est alors désaffecté).
     const ws = await Workspace.findById(req.workspaceId).select('primaryStoreId').lean();
-    const storeCount = await Store.countDocuments({ workspaceId: req.workspaceId, isActive: true });
-    if (String(ws?.primaryStoreId) === String(store._id) && storeCount <= 1) {
-      return res.status(400).json({ success: false, message: 'Impossible de supprimer la seule boutique' });
-    }
 
     const subdomain = store.subdomain;
     store.isActive = false;
+    // Libérer le sous-domaine (index unique) pour permettre sa réutilisation :
+    // le doc archivé est renommé, la boutique supprimée garde son historique.
+    if (subdomain && !subdomain.includes('--deleted-')) {
+      store.subdomain = `${subdomain}--deleted-${Date.now()}`;
+    }
     await store.save();
 
     // Purge public store cache so the subdomain returns 404 immediately
     if (subdomain) invalidateStoreCache(subdomain); invalidateStorefrontCache(subdomain);
 
-    // If it was primary, promote another store
+    // If it was primary, promote another store — or unset if none remains
     if (String(ws?.primaryStoreId) === String(store._id)) {
       const next = await Store.findOne({ workspaceId: req.workspaceId, isActive: true, _id: { $ne: store._id } }).select('_id').lean();
-      if (next) await Workspace.updateOne({ _id: req.workspaceId }, { $set: { primaryStoreId: next._id } });
+      await Workspace.updateOne(
+        { _id: req.workspaceId },
+        next ? { $set: { primaryStoreId: next._id } } : { $unset: { primaryStoreId: 1 } }
+      );
     }
 
     res.json({ success: true, message: 'Boutique supprimée' });

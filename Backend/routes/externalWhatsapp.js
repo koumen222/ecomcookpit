@@ -24,6 +24,7 @@ import Workspace from '../models/Workspace.js';
 import mongoose from 'mongoose';
 import fs from 'fs';
 import { preserveRitaSecretFields, sanitizeRitaConfigForResponse } from '../utils/ritaConfigResponse.js';
+import { notifyWorkspaceRoles } from '../services/whatsappHostService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -2102,6 +2103,14 @@ router.post('/incoming', async (req, res) => {
                     });
                     await ritaOrder.save();
                     console.log(`✅ [RITA] Commande ecom créée: ${ritaOrder.orderId} (workspaceId=${instanceDoc.workspaceId})`);
+
+                    const hostOrderMessage = `📦 *Nouvelle commande — ${ritaOrder.orderId}*\n\n👤 ${ritaOrder.clientName || 'Client'}\n📱 ${ritaOrder.clientPhone || 'N/A'}\n📍 ${ritaOrder.city || 'N/A'}\n🛍️ ${ritaOrder.product || 'Produit'} × ${ritaOrder.quantity || 1}\n💰 ${Number(ritaOrder.price || 0).toLocaleString('fr-FR')} FCFA\n\n_Ouvrez Scalor pour traiter ou affecter la commande._`;
+                    notifyWorkspaceRoles({
+                      workspaceId: instanceDoc.workspaceId,
+                      event: 'new_order',
+                      message: hostOrderMessage,
+                      metadata: { orderId: ritaOrder.orderId },
+                    }).catch(hostErr => console.error('⚠️ [WHATSAPP-HOST] Notification commande:', hostErr.message));
                   } catch (orderErr) {
                     console.error(`❌ [RITA] Erreur création commande ecom:`, orderErr.message);
                   }
@@ -3531,6 +3540,64 @@ router.get('/orders/stats', requireEcomAuth, async (req, res) => {
 // Création directe d'instance via Scalot (sans passer par ZenChat)
 // ═══════════════════════════════════════════════════════════════
 
+const HOST_RECIPIENT_ROLES = ['super_admin', 'ecom_admin', 'ecom_closeuse', 'ecom_compta', 'ecom_livreur', 'service_client'];
+const HOST_EVENTS = ['daily_report', 'new_order', 'order_assignment', 'important_alert', 'stock_alert'];
+const DEFAULT_HOST_SETTINGS = {
+  recipientRoles: ['ecom_admin', 'ecom_closeuse'],
+  events: ['daily_report', 'new_order', 'order_assignment', 'important_alert'],
+  enabled: true,
+};
+
+function sanitizeEnumList(values, allowed, fallback = []) {
+  if (!Array.isArray(values)) return fallback;
+  return [...new Set(values.filter(value => allowed.includes(value)))];
+}
+
+/**
+ * @route   PATCH /api/ecom/v1/external/whatsapp/instances/:id/usage
+ * @desc    Définit si une instance sert les clients ou agit comme canal hôte interne.
+ */
+router.patch('/instances/:id/usage', requireEcomAuth, async (req, res) => {
+  try {
+    if (!['super_admin', 'ecom_admin'].includes(req.ecomUser?.role)) {
+      return res.status(403).json({ success: false, error: "Seul un administrateur peut configurer l'instance hôte" });
+    }
+
+    const instance = await findAccessibleWhatsAppInstance(req, req.params.id, { activeOnly: true });
+    if (!instance) return res.status(404).json({ success: false, error: 'Instance introuvable' });
+
+    const usageType = req.body?.usageType === 'host' ? 'host' : 'customer';
+    if (usageType === 'host') {
+      const scopeQuery = await buildWhatsAppInstanceScopeQuery(req, '', { activeOnly: true });
+      const existingHost = await WhatsAppInstance.findOne({
+        ...scopeQuery,
+        usageType: 'host',
+        _id: { $ne: instance._id },
+      }).select('_id customName instanceName').lean();
+      if (existingHost) {
+        return res.status(409).json({
+          success: false,
+          error: `L'instance hôte est déjà « ${existingHost.customName || existingHost.instanceName} »`,
+        });
+      }
+    }
+
+    const currentSettings = instance.hostSettings?.toObject?.() || instance.hostSettings || {};
+    instance.usageType = usageType;
+    instance.hostSettings = {
+      recipientRoles: sanitizeEnumList(req.body?.hostSettings?.recipientRoles, HOST_RECIPIENT_ROLES, currentSettings.recipientRoles?.length ? currentSettings.recipientRoles : DEFAULT_HOST_SETTINGS.recipientRoles),
+      events: sanitizeEnumList(req.body?.hostSettings?.events, HOST_EVENTS, currentSettings.events?.length ? currentSettings.events : DEFAULT_HOST_SETTINGS.events),
+      enabled: req.body?.hostSettings?.enabled !== false,
+    };
+    await instance.save();
+
+    res.json({ success: true, instance });
+  } catch (error) {
+    console.error('❌ [INSTANCE-USAGE]', error.message);
+    res.status(500).json({ success: false, error: "Impossible d'enregistrer le rôle de l'instance" });
+  }
+});
+
 /**
  * @route   POST /api/ecom/v1/external/whatsapp/create-instance
  * @desc    Crée une instance WhatsApp directement depuis Scalot via Evolution Master API Key
@@ -3540,6 +3607,28 @@ router.post('/create-instance', requireEcomAuth, async (req, res) => {
     const userId = req.ecomUser._id.toString();
     const workspaceId = req.workspaceId;
     const { customName } = req.body;
+    const usageType = req.body?.usageType === 'host' ? 'host' : 'customer';
+
+    if (usageType === 'host' && !['super_admin', 'ecom_admin'].includes(req.ecomUser?.role)) {
+      return res.status(403).json({ success: false, error: "Seul un administrateur peut créer l'instance hôte" });
+    }
+    if (usageType === 'host') {
+      const scopeQuery = await buildWhatsAppInstanceScopeQuery(req, '', { activeOnly: true });
+      const existingHost = await WhatsAppInstance.findOne({ ...scopeQuery, usageType: 'host' }).lean();
+      if (existingHost) {
+        return res.status(409).json({ success: false, error: "Une instance hôte existe déjà dans cet espace" });
+      }
+    }
+
+    // Garde de configuration : sans clé globale Evolution, aucun appel (création,
+    // QR, envoi) ne peut s'authentifier — on renvoie une erreur explicite et actionnable.
+    const evoKey = process.env.EVOLUTION_ADMIN_TOKEN || process.env.EVOLUTION_MASTER_API_KEY || process.env.EVOLUTION_API_KEY || '';
+    if (!evoKey) {
+      return res.status(503).json({
+        success: false,
+        error: "WhatsApp non configuré : ajoutez EVOLUTION_API_KEY (la clé globale AUTHENTICATION_API_KEY de votre serveur Evolution) dans le .env du backend, puis redémarrez le service.",
+      });
+    }
 
     // Générer un nom d'instance unique basé sur le userId
     const slug = (customName || 'scalot').replace(/[^a-zA-Z0-9_-]/g, '_').substring(0, 20).toLowerCase();
@@ -3553,11 +3642,28 @@ router.post('/create-instance', requireEcomAuth, async (req, res) => {
       return res.status(400).json({ success: false, error: result.error || "Impossible de créer l'instance sur le service" });
     }
 
-    // Extraire le token de l'instance créée
-    const instanceToken = result.data?.hash || result.data?.instance?.apikey || result.data?.apikey || result.data?.token;
+    // Extraire le token de l'instance (formes variables selon la version Evolution :
+    // v2 → hash string ; v1 → hash {apikey} ; certains forks → instance.token / instance.hash).
+    // Repli : la clé globale Evolution authentifie toutes les instances, on l'utilise si aucune
+    // clé par-instance n'est renvoyée, pour que la connexion QR et l'envoi restent fonctionnels.
+    const rawHash = result.data?.hash;
+    const masterKey = process.env.EVOLUTION_ADMIN_TOKEN || process.env.EVOLUTION_MASTER_API_KEY || process.env.EVOLUTION_API_KEY || '';
+    const instanceToken =
+      (typeof rawHash === 'string' && rawHash) ? rawHash
+        : (rawHash && typeof rawHash === 'object' && rawHash.apikey) ? rawHash.apikey
+          : result.data?.instance?.apikey
+          || result.data?.instance?.hash
+          || result.data?.instance?.token
+          || result.data?.apikey
+          || result.data?.token
+          || result.data?.Auth?.apikey
+          || masterKey;
     if (!instanceToken) {
-      console.error('❌ [CREATE] Pas de token dans la réponse:', JSON.stringify(result.data));
-      return res.status(500).json({ success: false, error: "Instance créée mais pas de token retourné" });
+      console.error('❌ [CREATE] Aucun token dans la réponse ET aucune clé globale configurée:', JSON.stringify(result.data));
+      return res.status(500).json({ success: false, error: "Instance créée mais aucun token retourné (et EVOLUTION_API_KEY/MASTER absente côté serveur)" });
+    }
+    if (instanceToken === masterKey && !rawHash) {
+      console.warn(`⚠️ [CREATE] Aucune clé par-instance renvoyée par Evolution — repli sur la clé globale pour "${instanceName}".`);
     }
 
     // 2. Sauvegarder en base de données
@@ -3567,6 +3673,8 @@ router.post('/create-instance', requireEcomAuth, async (req, res) => {
       instanceName,
       instanceToken,
       customName: customName || instanceName,
+      usageType,
+      hostSettings: usageType === 'host' ? DEFAULT_HOST_SETTINGS : undefined,
       status: 'disconnected',
       isActive: true,
       plan: 'free',
@@ -3586,6 +3694,8 @@ router.post('/create-instance', requireEcomAuth, async (req, res) => {
         customName: instance.customName,
         instanceToken,
         status: 'disconnected',
+        usageType: instance.usageType,
+        hostSettings: instance.hostSettings,
       },
       qrcode: qrResult.success ? qrResult.qrcode : null,
       pairingCode: qrResult.success ? qrResult.pairingCode : null,
