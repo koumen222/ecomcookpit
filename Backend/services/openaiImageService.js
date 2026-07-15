@@ -32,8 +32,47 @@ export function isOpenAiImageConfigured() {
  * packaging, et surtout les GESTES physiques d'utilisation.
  * Retourne un texte anglais compact ('' en cas d'échec : étape best-effort).
  */
+// ── Description générique d'une image pour le chat Scalor (pièce jointe) ──
+// Le modèle de chat (DeepSeek) n'est pas multimodal : cette description écrite
+// devient les « yeux » de l'assistant. Générique (produit, capture d'écran,
+// facture, graphique…), chiffres et textes lisibles retranscrits.
+export async function describeImageForAssistant(imageUrl) {
+  if (!isOpenAiImageConfigured() || !imageUrl) return '';
+  try {
+    const res = await axios.post('https://api.openai.com/v1/chat/completions', {
+      model: process.env.OPENAI_VISION_MODEL || 'gpt-4o-mini',
+      max_tokens: 320,
+      messages: [{
+        role: 'user',
+        content: [
+          {
+            type: 'text',
+            text: "Décris cette image en français pour un assistant e-commerce qui ne la voit pas : nature de l'image (photo produit, capture d'écran, facture, graphique…), contenu principal, et RETRANSCRIS fidèlement les textes et chiffres lisibles importants. 3 à 6 phrases, factuel, sans interprétation.",
+          },
+          { type: 'image_url', image_url: { url: imageUrl } },
+        ],
+      }],
+    }, {
+      headers: { Authorization: `Bearer ${OPENAI_IMAGE_API_KEY}`, 'Content-Type': 'application/json' },
+      timeout: 45000,
+    });
+    return String(res.data?.choices?.[0]?.message?.content || '').trim();
+  } catch (err) {
+    console.warn('[OpenAI vision] assistant image description failed:', err?.response?.data?.error?.message || err.message);
+    return '';
+  }
+}
+
+// Cache mémoire de l'analyse visuelle : en montage auto, la MÊME photo produit
+// est analysée pour CHAQUE scène (6-9 appels vision identiques) — on ne paie
+// et n'attend qu'une fois. TTL 15 min, ~50 entrées max.
+const VISION_CACHE = new Map(); // url -> { text, ts }
+const VISION_TTL_MS = 15 * 60 * 1000;
+
 export async function analyzeProductImageForVideo(imageUrl) {
   if (!isOpenAiImageConfigured() || !imageUrl) return '';
+  const cached = VISION_CACHE.get(imageUrl);
+  if (cached && Date.now() - cached.ts < VISION_TTL_MS) return cached.text;
   try {
     const res = await axios.post('https://api.openai.com/v1/chat/completions', {
       model: process.env.OPENAI_VISION_MODEL || 'gpt-4o-mini',
@@ -52,7 +91,12 @@ export async function analyzeProductImageForVideo(imageUrl) {
       headers: { Authorization: `Bearer ${OPENAI_IMAGE_API_KEY}`, 'Content-Type': 'application/json' },
       timeout: 45000,
     });
-    return String(res.data?.choices?.[0]?.message?.content || '').trim();
+    const text = String(res.data?.choices?.[0]?.message?.content || '').trim();
+    if (text) {
+      VISION_CACHE.set(imageUrl, { text, ts: Date.now() });
+      if (VISION_CACHE.size > 50) VISION_CACHE.delete(VISION_CACHE.keys().next().value);
+    }
+    return text;
   } catch (err) {
     console.warn('[OpenAI vision] product analysis failed:', err?.response?.data?.error?.message || err.message);
     return '';

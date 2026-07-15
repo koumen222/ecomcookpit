@@ -51,10 +51,16 @@ export function buildConfirmationMessage({
   deliveryType = '',
   storeName = '',
   customTemplate = null,
+  unitPrice: unitPriceOverride = null,
 }) {
   // Si un template personnalisé est défini, on remplace les variables
   if (customTemplate) {
-    const unitPrice = totalPrice && quantity > 1 ? Math.round(totalPrice / quantity) : (totalPrice || 0);
+    // Prix unitaire : la valeur de la boutique Scalor prime (produit), sinon on
+    // dérive du total de la commande.
+    const computedUnit = totalPrice && quantity > 1 ? Math.round(totalPrice / quantity) : (totalPrice || 0);
+    const unitPrice = (unitPriceOverride != null && Number(unitPriceOverride) > 0)
+      ? Number(unitPriceOverride)
+      : computedUnit;
     return customTemplate
       .replace(/\{\{first_name\}\}/gi,      firstName || 'Client')
       .replace(/\{\{order_number\}\}/gi,    orderNumber || '')
@@ -326,7 +332,7 @@ export async function sendOrderConfirmationToClient(order, workspaceId) {
   try {
     // Charger le workspace en premier pour avoir les règles produit
     const workspace = await EcomWorkspace.findById(workspaceId)
-      .select('whatsappAutoConfirm whatsappOrderTemplate whatsappAutoInstanceId whatsappAutoImageUrl whatsappAutoVideoUrl whatsappAutoDocumentUrl whatsappAutoAudioUrl whatsappAutoSendOrder whatsappAutoProductMediaRules storeSettings name')
+      .select('whatsappAutoConfirm whatsappOrderTemplate whatsappAutoInstanceId whatsappAutoImageUrl whatsappAutoSendProductImage whatsappAutoVideoUrl whatsappAutoDocumentUrl whatsappAutoAudioUrl whatsappAutoSendOrder whatsappAutoProductMediaRules storeSettings name')
       .lean();
 
     console.log(`🔍 ${logPrefix} workspace trouvé: ${workspace ? 'OUI' : 'NON'}, whatsappAutoConfirm: ${workspace?.whatsappAutoConfirm}, workspaceId: ${workspaceId}`);
@@ -430,14 +436,34 @@ export async function sendOrderConfirmationToClient(order, workspaceId) {
     // Template: règle produit > template global
     const effectiveTemplate = matchedRule?.template || workspace.whatsappOrderTemplate || null;
 
+    // ── Adaptation automatique selon le produit : on récupère les infos du
+    //    produit sur la boutique Scalor (StoreProduct) — nom, prix unitaire,
+    //    devise, 1re image — pour personnaliser le message et le média envoyés.
+    let storeProduct = null;
+    try {
+      const { default: StoreProduct } = await import('../models/StoreProduct.js');
+      if (order.product) {
+        const nameRegex = `^${String(order.product).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`;
+        storeProduct = await StoreProduct.findOne({ workspaceId, name: { $regex: nameRegex, $options: 'i' } })
+          .select('name price currency images')
+          .lean();
+        if (storeProduct) {
+          console.log(`🛍️ ${logPrefix} Produit boutique Scalor trouvé: "${storeProduct.name}" (prix ${storeProduct.price} ${storeProduct.currency || ''})`);
+        }
+      }
+    } catch (spErr) {
+      console.warn(`⚠️ ${logPrefix} Récupération produit boutique ignorée: ${spErr.message}`);
+    }
+
     const message = buildConfirmationMessage({
       firstName:      order.clientName?.split(' ')[0] || 'Client',
       orderNumber:    order.orderId,
-      product:        order.product || 'Produit',
+      product:        storeProduct?.name || order.product || 'Produit',
       quantity:       order.quantity || 1,
       city:           order.city || '',
       totalPrice:     order.price || 0,
-      currency:       order.currency || 'XAF',
+      unitPrice:      storeProduct?.price ?? null,             // prix unitaire boutique → {{price}}
+      currency:       storeProduct?.currency || order.currency || 'XAF',
       country:        order.rawData?.shipping_address?.country || order.country || '',
       deliveryType:   order.rawData?.delivery_type || order.deliveryType || '',
       storeName,
@@ -446,8 +472,11 @@ export async function sendOrderConfirmationToClient(order, workspaceId) {
 
     console.log(`📱 ${logPrefix} Envoi WhatsApp à ${whatsappNumber} — commande #${order.orderId}${autoInstanceId ? ` via instance ${autoInstanceId}` : ''}`);
 
+    // Image du produit boutique : seulement si l'option est activée (défaut oui).
+    const sendProductImage = workspace.whatsappAutoSendProductImage !== false;
     const media = {
-      imageUrl: matchedRule?.imageUrl || workspace.whatsappAutoImageUrl || null,
+      // Image : média configuré > image du produit sur la boutique Scalor (si activé).
+      imageUrl: matchedRule?.imageUrl || workspace.whatsappAutoImageUrl || (sendProductImage ? storeProduct?.images?.[0]?.url : null) || null,
       videoUrl: matchedRule?.videoUrl || workspace.whatsappAutoVideoUrl || null,
       documentUrl: matchedRule?.documentUrl || workspace.whatsappAutoDocumentUrl || null,
       audioUrl: matchedRule?.audioUrl || workspace.whatsappAutoAudioUrl || null,

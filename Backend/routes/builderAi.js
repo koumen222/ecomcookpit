@@ -13,6 +13,7 @@ import StockLocation from '../models/StockLocation.js';
 import StockOrder from '../models/StockOrder.js';
 import Supplier from '../models/Supplier.js';
 import { executeScalorAgentActions } from '../services/scalorAgentActionService.js';
+import { deepseekClient, isDeepseekConfigured } from '../services/deepseekChatService.js';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
 
@@ -81,6 +82,48 @@ async function transcribeBuffer(buffer, mimetype) {
 }
 
 const router = express.Router();
+
+// POST /api/ecom/builder-ai/free-chat - Chat conversationnel général (façon ChatGPT).
+// Multi-tours, sans contexte builder : l'utilisateur « cause » librement avec l'IA.
+router.post('/free-chat', requireEcomAuth, async (req, res) => {
+  try {
+    if (!isDeepseekConfigured()) {
+      return res.status(503).json({ success: false, message: 'Service IA non disponible' });
+    }
+    const { messages } = req.body || {};
+    const clean = (Array.isArray(messages) ? messages : [])
+      .filter(m => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string' && m.content.trim())
+      .slice(-20)
+      .map(m => ({ role: m.role, content: String(m.content).slice(0, 6000) }));
+    if (clean.length === 0) {
+      return res.status(400).json({ success: false, message: 'Message requis' });
+    }
+
+    const systemPrompt = `Tu es l'assistant IA de Scalor, plateforme e-commerce COD (paiement à la livraison) pour marchands en Afrique francophone. Tu discutes librement et aides sur tout : marketing, produits, publicités, textes de vente, idées, ou questions générales. Réponds en français (sauf si on te parle dans une autre langue), de façon claire, concrète et bienveillante. Utilise un markdown léger (listes, gras) quand c'est utile. Sois concis par défaut, détaillé si on te le demande.`;
+
+    let reply = '';
+    try {
+      const raw = await deepseekClient.chat.completions.create({
+        messages: [{ role: 'system', content: systemPrompt }, ...clean],
+        temperature: 0.7,
+        max_tokens: 2000,
+      });
+      reply = raw?.choices?.[0]?.message?.content?.trim() || '';
+    } catch (aiErr) {
+      const status = aiErr?.response?.status;
+      return res.status(status && status >= 400 && status < 600 ? status : 502).json({
+        success: false,
+        message: aiErr?.response?.data?.error?.message || aiErr.message || 'Erreur du service IA',
+      });
+    }
+
+    if (!reply) return res.status(502).json({ success: false, message: 'Réponse IA vide' });
+    res.json({ success: true, data: { reply } });
+  } catch (error) {
+    console.error('Erreur free-chat:', error);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
 
 // ─── DeepSeek — moteur IA unique du builder (format OpenAI-compatible) ───────
 const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || '';
@@ -643,9 +686,10 @@ RÈGLES :
 - Réponds en français simple, direct, orienté ACTION.
 - Parcours = étapes numérotées courtes avec le chemin de menu exact.
 - Donne des conseils e-commerce concrets adaptés au marché africain COD : prix psychologiques en FCFA, réassurance paiement à la livraison, WhatsApp, créas Facebook/TikTok.
-- Tu ne modifies rien toi-même : tu guides. Pour modifier une page produit par IA, renvoie vers l'Assistant IA du Page Builder.
+- Pour modifier une page produit par IA, renvoie vers l'Assistant IA du Page Builder.
 - Hors sujet boutique/e-commerce → ramène poliment au sujet.
 - Réponse courte (≤ 200 mots) sauf nécessité réelle.
+- Un ADDENDUM DE MODE (Chat ou Agent) complète ces règles — respecte-le strictement.
 
 BOUTONS D'ACTION (obligatoire) :
 Chaque fois que ta réponse mentionne un écran de Scalor, ajoute à la TOUTE FIN de la réponse un marqueur par écran cité (4 maximum, pas de doublon), au format EXACT :
@@ -669,6 +713,27 @@ Chemins AUTORISÉS (uniquement ceux-ci, ne jamais en inventer) :
 - /ecom/boutique/domains — Domaines
 - /ecom/boutique/settings — Paramètres de la boutique
 - /ecom/creatives — Générateur de créas publicitaires`;
+
+// ── Addendums de mode de l'ASSISTANT BOUTIQUE (vitrine) ──
+const STORE_CHAT_ADDENDUM = `
+
+TU ES EN MODE CHAT — conseil et guidage UNIQUEMENT :
+- Tu réponds aux questions et guides avec les boutons de navigation. Tu ne modifies RIEN toi-même.
+- N'émets JAMAIS de bloc <scalor_actions>, <scalor_plan> ou <scalor_question>.
+- Si l'utilisateur demande une action concrète (créer un produit, changer un prix, publier, supprimer…), réponds en UNE phrase que le mode Agent peut le faire pour lui, ajoute le parcours manuel en 2-3 étapes, puis termine par le marqueur EXACT [[mode:agent]].`;
+
+const STORE_AGENT_ADDENDUM = `
+
+TU ES EN MODE AGENT (boutique) — tu PLANIFIES, tu QUESTIONNES, tu EXÉCUTES :
+- Demande multi-étapes → commence par <scalor_plan>{"title":"…","steps":["…","…"]}</scalor_plan> (2 à 6 étapes courtes), puis exécute.
+- Information indispensable manquante ou décision sensible → pose UNE question : <scalor_question>{"question":"…","options":["…","…"]}</scalor_question> (options cliquables). Pas d'action tant que l'info manque.
+- Action demandée → émets à la toute fin : <scalor_actions>[{"type":"...","payload":{...}}]</scalor_actions>
+Actions boutique autorisées :
+- store_product.create : name, price, description?, compareAtPrice?, stock?, category?, isPublished? (défaut false = brouillon). Si l'utilisateur ne donne qu'un NOM : rédige TOI-MÊME une description vendeuse (3-5 phrases, marché africain, paiement à la livraison) et propose un prix psychologique en FCFA (ex. 14 900) — confirme le prix via <scalor_question> si aucun indice de prix n'est donné.
+- store_product.update : product (nom exact pour le retrouver) + champs : newName?, price?, compareAtPrice?, description?, stock?, isPublished? (true = publier, false = dépublier). Sert aussi pour « publie X », « baisse le prix de X », « mets X en rupture ».
+- store_product.delete : product (uniquement suppression définitive explicitement confirmée)
+N'invente aucun champ manquant : pose une <scalor_question>. N'annonce jamais qu'une action est réussie avant son résultat serveur. Maximum 3 actions.
+EXÉCUTE, NE DÉCLINE PAS : si la demande correspond à une action ci-dessus (ex. « ajoute un produit X à 15 000 F »), tu DOIS l'exécuter en émettant le bloc — n'affirme jamais que tu ne peux pas le faire. Les étapes manuelles ne servent que pour ce qui n'a PAS d'action (ex. design de la page → Page Builder).`;
 
 const BACKOFFICE_ASSISTANT_PROMPT = `Tu es l'Assistant Scalor, copilote opérationnel d'un back-office e-commerce COD en Afrique francophone.
 
@@ -702,25 +767,68 @@ N'utilise que ces chemins :
 - /ecom/settings — Paramètres
 - /ecom/boutique — Boutique
 
-MODE ACTION AUTONOME :
-Si et seulement si l'utilisateur demande explicitement d'effectuer une action, ajoute à la toute fin :
+Un ADDENDUM DE MODE (Chat ou Agent) complète ces règles — respecte-le strictement.`;
+
+// ── Addendum MODE CHAT : conseil et analyse uniquement, aucune exécution. ──
+const BACKOFFICE_CHAT_ADDENDUM = `
+
+TU ES EN MODE CHAT — conseil et analyse UNIQUEMENT :
+- Tu réponds aux questions, analyses les données fournies et guides avec les boutons de navigation. Tu n'exécutes RIEN.
+- N'émets JAMAIS de bloc <scalor_actions>, <scalor_plan> ou <scalor_question>.
+- Si l'utilisateur demande une action concrète (créer, modifier, supprimer, envoyer, relancer, générer…), réponds en UNE phrase que le mode Agent peut le faire pour lui, ajoute éventuellement le parcours manuel en 2-3 étapes, puis termine ta réponse par le marqueur EXACT [[mode:agent]] (l'interface affichera un bouton pour basculer et exécuter).`;
+
+// ── Addendum MODE AGENT : planifie, questionne, exécute. ──
+const BACKOFFICE_AGENT_ADDENDUM = `
+
+TU ES EN MODE AGENT — tu n'es plus seulement un conseiller : tu PLANIFIES, tu QUESTIONNES, tu EXÉCUTES.
+
+PLANIFICATION (demandes multi-étapes) :
+Si la demande implique plusieurs actions ou étapes (« prépare ma journée », « lance le produit X », « nettoie les commandes en retard »), commence ta réponse par un plan court au format EXACT :
+<scalor_plan>{"title":"…","steps":["Étape 1 …","Étape 2 …"]}</scalor_plan>
+(2 à 6 étapes, chacune ≤ 12 mots.) Ensuite exécute immédiatement ce qui peut l'être et dis clairement ce qui attend une décision de l'utilisateur. Pas de plan pour une demande simple.
+
+QUESTIONS (information manquante ou décision) :
+S'il manque une information indispensable à une action, ou avant une opération sensible, pose UNE question précise au format EXACT :
+<scalor_question>{"question":"…","options":["…","…"]}</scalor_question>
+(options facultatives, 2 à 4, courtes — cliquables dans l'interface.) N'émets PAS l'action tant que l'information manque. Ne pose pas de question si la réponse est déjà dans le message, l'historique ou les données.
+
+ACTIONS (exécution réelle) :
+Quand l'utilisateur demande d'effectuer une action, émets à la toute fin :
 <scalor_actions>[{"type":"...","payload":{...}}]</scalor_actions>
 Actions autorisées :
+COMMANDES :
 - order.create : clientName, clientPhone, city?, address?, product, quantity, price, status?
+- order.update : orderId + champs à modifier : clientName?, clientPhone?, city?, address?, quantity?, price?, notes?, deliveryLocation?, deliveryTime?, postponedUntil? (date ISO, ou null pour annuler le report), livreur? (nom/téléphone du livreur à assigner)
 - order.update_status : orderId, status
-- order.delete : orderId (uniquement demande de suppression définitive explicitement confirmée)
+- order.assign : orderId, livreur (nom/téléphone/email) — assigne la commande à ce livreur
+- order.delete : orderId (uniquement suppression définitive explicitement confirmée)
+PRODUITS :
 - product.create : name, sellingPrice, productCost, deliveryCost, avgAdsCost?, stock?, status?
-- product.update_price : name, sellingPrice
-- product.update_status : name, status (test|stable|winner|pause|stop)
-- product.update_stock : name, et stock (valeur absolue) OU delta (ajustement, ex. -5, +20)
-- product.delete : name (uniquement demande de suppression définitive explicitement confirmée)
+- product.update : name + champs : newName?, sellingPrice?, productCost?, deliveryCost?, avgAdsCost?, stock?, status?
+- product.update_price : name, sellingPrice · product.update_status : name, status (test|stable|winner|pause|stop) · product.update_stock : name, stock OU delta
+- product.delete : name (uniquement suppression définitive explicitement confirmée)
+CLIENTS :
+- client.create : firstName (ou name complet), lastName?, phone?, email?, city?, address?, source?(facebook|instagram|tiktok|whatsapp|site|referral|other), notes?
+- client.update : client (nom ou téléphone pour le retrouver) + champs à modifier (mêmes que create + status, tags)
+- client.delete : client (uniquement suppression définitive explicitement confirmée)
+FINANCES :
+- transaction.create : type (income/entrée | expense/dépense), amount, category? (publicite, produit, livraison, salaire, abonnement, materiel, transport, vente, remboursement_client, investissement…), description?, date? (YYYY-MM-DD, défaut aujourd'hui)
+SOURCING / STOCK :
 - sourcing.create : productName, sourcing(local|chine), quantity, weightKg, pricePerKg, purchasePrice, sellingPrice, transportCost?, supplierName?, expectedArrival?
+- sourcing.receive : productName (ou stockOrderId) — marque la commande de stock reçue et INCRÉMENTE le stock produit
+- sourcing.cancel : productName (ou stockOrderId) — annule la commande de stock
+ÉQUIPE (réservé aux admins) :
+- team.create : name, role (admin|closeuse|compta|livreur), phone?, email?, password?. Email/mot de passe absents → générés et retournés à l'admin pour transmission. À utiliser dès qu'on demande d'« ajouter un membre / un livreur / une closeuse ».
+- team.update : member (nom/email/téléphone) + champs : role?, newName?, phone?, isActive? (false = désactiver)
+- team.reset_password : member — nouveau mot de passe généré et retourné à l'admin
+- team.delete : member (uniquement suppression définitive explicitement confirmée)
+COMMUNICATION & RAPPORTS :
 - whatsapp.send : orderId ou to, et message
-- report.generate : génère les rapports quotidiens par produit (à partir des commandes livrées/reçues). Champs : date? (YYYY-MM-DD, défaut = aujourd'hui) OU startDate?+endDate? pour une période. Utilise-la dès qu'on te demande de « créer / générer un rapport ».
-- orders.relance : relance EN MASSE les clients par WhatsApp selon un statut de commande. Champs : status (ex. "shipped", "reported", "postponed"), message? (avec les variables {prenom} et {produit}), limit? (défaut 30, max 100). Le serveur récupère lui-même les commandes ET les numéros et envoie les messages — tu n'as PAS besoin de la liste des contacts ni des numéros pour émettre cette action. Utilise-la dès qu'on te demande de « relancer les clients (non livrés / expédiés / reportés) ».
-N'invente aucun champ manquant : pose une question au lieu d'émettre l'action. N'annonce jamais qu'une action est réussie avant son résultat serveur. Maximum 3 actions.
+- report.generate : rapports quotidiens par produit. Champs : date? (YYYY-MM-DD, défaut aujourd'hui) OU startDate?+endDate?. À utiliser dès qu'on demande de « créer / générer un rapport ».
+- orders.relance : relance EN MASSE les clients par WhatsApp selon un statut. Champs : status (ex. "shipped", "reported", "postponed"), message? (variables {prenom} et {produit}), limit? (défaut 30, max 100). Le serveur récupère lui-même commandes et numéros — tu n'as PAS besoin de la liste des contacts. À utiliser dès qu'on demande de « relancer les clients ».
+N'invente aucun champ manquant : pose une <scalor_question> au lieu d'émettre l'action. N'annonce jamais qu'une action est réussie avant son résultat serveur. Maximum 3 actions.
 
-EXÉCUTE, NE DÉCLINE PAS : si la demande correspond à une action ci-dessus (ex. « génère le rapport d'aujourd'hui »), tu DOIS l'exécuter en émettant le bloc d'action — n'affirme JAMAIS que tu « ne peux pas le faire dans Scalor » et ne remplace pas l'action par une liste d'étapes manuelles. Les étapes manuelles ne servent que pour ce qui n'a PAS d'action disponible.`;
+EXÉCUTE, NE DÉCLINE PAS : si la demande correspond à une action ci-dessus (ex. « génère le rapport d'aujourd'hui », « ajoute Morgan comme livreur »), tu DOIS l'exécuter en émettant le bloc d'action — n'affirme JAMAIS que tu « ne peux pas le faire dans Scalor » et ne remplace pas l'action par une liste d'étapes manuelles. Les étapes manuelles ne servent que pour ce qui n'a PAS d'action disponible.`;
 
 const AI_DATA_STOP_WORDS = new Set(['avec', 'dans', 'pour', 'quel', 'quelle', 'quels', 'quelles', 'comment', 'combien', 'sont', 'plus', 'moins', 'cette', 'produit', 'produits', 'commande', 'commandes', 'scalor']);
 const escapeRegex = (value = '') => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -751,7 +859,19 @@ async function buildBackofficeDataContext(req, question = '') {
   const tasks = {
     orderStatuses: Order.aggregate([{ $match: orderScope }, { $group: { _id: '$status', count: { $sum: 1 }, amount: { $sum: { $multiply: [{ $ifNull: ['$price', 0] }, { $ifNull: ['$quantity', 1] }] } } } }, { $sort: { count: -1 } }]),
     ordersToday: Order.countDocuments({ ...orderScope, $or: [{ date: { $gte: startToday } }, { createdAt: { $gte: startToday } }] }),
-    orders30d: Order.aggregate([{ $match: { ...orderScope, $or: [{ date: { $gte: since30d } }, { createdAt: { $gte: since30d } }] } }, { $group: { _id: null, count: { $sum: 1 }, amount: { $sum: { $multiply: [{ $ifNull: ['$price', 0] }, { $ifNull: ['$quantity', 1] }] } } } }]),
+    // Fenêtre 30j. IMPORTANT : le CA/ventes ne compte QUE les commandes livrées
+    // (delivered). Les commandes "en attente" (pending) ne sont jamais des ventes.
+    orders30d: Order.aggregate([
+      { $match: { ...orderScope, $or: [{ date: { $gte: since30d } }, { createdAt: { $gte: since30d } }] } },
+      { $group: {
+        _id: null,
+        count: { $sum: 1 }, // total commandes (tous statuts) — activité, PAS des ventes
+        deliveredCount: { $sum: { $cond: [{ $eq: ['$status', 'delivered'] }, 1, 0] } },
+        deliveredRevenue: { $sum: { $cond: [{ $eq: ['$status', 'delivered'] }, { $multiply: [{ $ifNull: ['$price', 0] }, { $ifNull: ['$quantity', 1] }] }, 0] } },
+        confirmedCount: { $sum: { $cond: [{ $in: ['$status', ['confirmed', 'shipped', 'delivered']] }, 1, 0] } },
+        pendingCount: { $sum: { $cond: [{ $eq: ['$status', 'pending'] }, 1, 0] } },
+      } },
+    ]),
     recentOrders: Order.find(orderScope).select('-_id orderId date createdAt product quantity price currency status city source').sort({ createdAt: -1 }).limit(12).lean(),
     products: Product.find({ workspaceId: workspaceObjectId, ...productSearch }).select(canSeeFinance ? '-_id name status sellingPrice productCost deliveryCost avgAdsCost stock reorderThreshold isActive' : '-_id name status sellingPrice stock reorderThreshold isActive').sort({ updatedAt: -1 }).limit(30).lean(),
     productTotals: Product.aggregate([{ $match: { workspaceId: workspaceObjectId } }, { $group: { _id: null, total: { $sum: 1 }, active: { $sum: { $cond: ['$isActive', 1, 0] } }, stock: { $sum: '$stock' } } }]),
@@ -809,22 +929,45 @@ router.post('/store-assistant', requireEcomAuth, async (req, res) => {
     }
 
     const isBackoffice = context === 'backoffice';
+    // Mode de l'assistant (backoffice ET boutique) : 'chat' (conseil/analyse
+    // uniquement, aucune action — DÉFAUT) ou 'agent' (planifie, questionne,
+    // exécute les actions de son contexte).
+    const assistantMode = String(req.body.assistantMode || 'chat').toLowerCase() === 'agent' ? 'agent' : 'chat';
     const contextDetails = isBackoffice
       ? `\n\nPage actuellement ouverte : « ${String(pageTitle || 'Scalor').slice(0, 120)} ».${workspaceName ? ` Espace de travail : « ${String(workspaceName).slice(0, 120)} ».` : ''}`
       : (storeName ? `\n\nBoutique du marchand : « ${String(storeName).slice(0, 120)} ».` : '');
 
+    // Images jointes au message : décrites par vision (best-effort) puis
+    // injectées dans le message utilisateur — le modèle de chat n'est pas
+    // multimodal, la description écrite fait foi.
+    const imageUrls = (Array.isArray(req.body.images) ? req.body.images : [])
+      .map((u) => String(u || '').trim())
+      .filter((u) => /^https?:\/\//.test(u))
+      .slice(0, 3);
+    let imageNotes = '';
+    if (imageUrls.length) {
+      try {
+        const { describeImageForAssistant } = await import('../services/openaiImageService.js');
+        const settled = await Promise.allSettled(imageUrls.map((u) => describeImageForAssistant(u)));
+        const parts = settled.map((r, i) => `Image ${i + 1} : ${(r.status === 'fulfilled' && r.value) ? r.value : 'jointe (analyse indisponible)'}`);
+        imageNotes = `\n\n[IMAGES JOINTES PAR L'UTILISATEUR — descriptions vision]\n${parts.join('\n')}`;
+      } catch { imageNotes = `\n\n[${imageUrls.length} image(s) jointe(s) — analyse indisponible]`; }
+    }
+
     const scalorContext = isBackoffice ? await buildBackofficeDataContext(req, message) : null;
     const dataInstructions = scalorContext
-      ? `\n\nDONNÉES SCALOR EN LECTURE SEULE (JSON, générées maintenant) :\n${JSON.stringify(scalorContext)}\n\nUtilise ces données pour répondre factuellement. Cite la période et le périmètre quand c'est utile. Si une information n'est pas dans ce JSON, dis clairement qu'elle n'est pas disponible. Ne révèle jamais workspaceId ni détails techniques du JSON.`
+      ? `\n\nDONNÉES SCALOR EN LECTURE SEULE (JSON, générées maintenant) :\n${JSON.stringify(scalorContext)}\n\nUtilise ces données pour répondre factuellement. Cite la période et le périmètre quand c'est utile. Si une information n'est pas dans ce JSON, dis clairement qu'elle n'est pas disponible. Ne révèle jamais workspaceId ni détails techniques du JSON.\n\nRÈGLE COMPTABLE STRICTE : le chiffre d'affaires et les « ventes » ne comptent QUE les commandes LIVRÉES (status delivered → champ deliveredRevenue / deliveredCount). Les commandes « en attente » (pending) et non confirmées ne sont JAMAIS comptées comme des ventes ni comme du CA — au mieux comme des commandes en cours. Ne présente jamais le total de commandes comme un montant de ventes.`
       : '';
 
     const messages = [
-      { role: 'system', content: (isBackoffice ? BACKOFFICE_ASSISTANT_PROMPT : STORE_ASSISTANT_PROMPT) + contextDetails + dataInstructions },
+      { role: 'system', content: (isBackoffice
+        ? BACKOFFICE_ASSISTANT_PROMPT + (assistantMode === 'agent' ? BACKOFFICE_AGENT_ADDENDUM : BACKOFFICE_CHAT_ADDENDUM)
+        : STORE_ASSISTANT_PROMPT + (assistantMode === 'agent' ? STORE_AGENT_ADDENDUM : STORE_CHAT_ADDENDUM)) + contextDetails + dataInstructions },
       ...(Array.isArray(history) ? history : [])
         .slice(-8)
         .filter((m) => ['user', 'assistant'].includes(m?.role))
         .map((m) => ({ role: m.role, content: String(m.content || '').slice(0, 800) })),
-      { role: 'user', content: message.trim().slice(0, 2000) },
+      { role: 'user', content: message.trim().slice(0, 2000) + imageNotes },
     ];
 
     const rawReply = await callDeepseek(messages);
@@ -838,22 +981,78 @@ router.post('/store-assistant', requireEcomAuth, async (req, res) => {
         if (Array.isArray(parsed)) proposedActions = parsed;
       } catch { /* bloc invalide ignoré */ }
     }
-    const reply = String(rawReply).replace(/<scalor_actions>[\s\S]*?<\/scalor_actions>/gi, '').trim();
-    const explicitActionIntent = /\b(crée|créer|ajoute|ajouter|modifie|modifier|change|changer|mets|mettre|passe|passer|marque|marquer|supprime|supprimer|envoie|envoyer|commande|commander|génère|génere|générer|generer|génération|generation|lance|lancer|rapport|rapports|relance|relancer|relances|relanc)\b/i.test(message);
-    const actionResults = isBackoffice && explicitActionIntent && proposedActions.length
-      ? await executeScalorAgentActions(proposedActions, {
+    // ── Blocs structurés du MODE AGENT : plan de tâches + question posée ──
+    let plan = null;
+    const planBlock = String(rawReply).match(/<scalor_plan>([\s\S]*?)<\/scalor_plan>/i);
+    if (planBlock) {
+      try {
+        const p = JSON.parse(planBlock[1]);
+        if (p && Array.isArray(p.steps) && p.steps.length) {
+          plan = {
+            title: String(p.title || 'Plan').slice(0, 120),
+            steps: p.steps.slice(0, 6).map((s) => String(s).slice(0, 140)),
+          };
+        }
+      } catch { /* plan invalide ignoré */ }
+    }
+    let question = null;
+    const questionBlock = String(rawReply).match(/<scalor_question>([\s\S]*?)<\/scalor_question>/i);
+    if (questionBlock) {
+      try {
+        const q = JSON.parse(questionBlock[1]);
+        if (q && q.question) {
+          question = {
+            question: String(q.question).slice(0, 300),
+            options: Array.isArray(q.options) ? q.options.slice(0, 4).map((o) => String(o).slice(0, 80)) : [],
+          };
+        }
+      } catch { /* question invalide ignorée */ }
+    }
+    // Marqueur du MODE CHAT : proposer la bascule en Agent pour exécuter.
+    const suggestAgent = /\[\[mode:agent\]\]/i.test(String(rawReply));
+    const reply = String(rawReply)
+      .replace(/<scalor_actions>[\s\S]*?<\/scalor_actions>/gi, '')
+      .replace(/<scalor_plan>[\s\S]*?<\/scalor_plan>/gi, '')
+      .replace(/<scalor_question>[\s\S]*?<\/scalor_question>/gi, '')
+      .replace(/\[\[mode:agent\]\]/gi, '')
+      .trim();
+
+    // ── Exécution : MODE AGENT uniquement (backoffice ET boutique). Garde-fou
+    //    serveur : une suppression n'est exécutée que si le message courant la
+    //    confirme explicitement — sinon question de confirmation cliquable. ──
+    let actionResults = [];
+    if (assistantMode === 'agent' && proposedActions.length) {
+      const confirmRe = /\b(confirme|confirmé|confirmée|oui|vas-y|vasy|d'accord|ok)\b/i;
+      const destructive = proposedActions.filter((a) => /\.delete$/i.test(String(a?.type || '')));
+      const toRun = destructive.length && !confirmRe.test(message)
+        ? proposedActions.filter((a) => !/\.delete$/i.test(String(a?.type || '')))
+        : proposedActions;
+      if (toRun.length) {
+        actionResults = await executeScalorAgentActions(toRun, {
           workspaceId: req.workspaceId,
+          storeId: req.activeStoreId || null, // scope des actions boutique (store_product.*)
           user: req.ecomUser,
           sourceMessage: message,
-        })
-      : [];
+        });
+      }
+      if (destructive.length && toRun.length !== proposedActions.length && !question) {
+        question = {
+          question: `Suppression définitive demandée (${destructive.length} élément${destructive.length > 1 ? 's' : ''}). Confirmes-tu ?`,
+          options: ['Oui, confirme la suppression', 'Non, annule'],
+        };
+      }
+    }
 
     return res.json({
       success: true,
       reply,
+      mode: assistantMode,
       grounded: Boolean(scalorContext?.available),
       dataGeneratedAt: scalorContext?.generatedAt || null,
       actions: actionResults,
+      plan,
+      question,
+      suggestAgent,
     });
   } catch (error) {
     console.error('[StoreAssistant] error:', error?.response?.status, error?.response?.data?.error?.message || error.message);
@@ -934,13 +1133,14 @@ router.post('/generate-gif', requireEcomAuth, async (req, res) => {
         return res.status(400).json({ success: false, message: 'Choisissez un scénario ou décrivez la situation à illustrer' });
       }
       const { isFalConfigured, isKieVideoConfigured, isXaiConfigured, falImageToVideo, grokImageToVideo, xaiImageToVideo, mp4UrlToGifBuffer, addVoiceoverToVideo } = await import('../services/falVideoService.js');
-      // Providers par ordre de priorité : xAI officiel (grok-imagine-video-1.5,
-      // 480p) → Grok via kie.ai → fal.ai. GIF_VIDEO_PROVIDER=xai|grok|fal force
-      // le premier essayé ; les suivants servent de bascule automatique.
+      // Providers par ordre de priorité : Grok via kie.ai (rapide et ~10×
+      // moins cher que l'API xAI facturée à la seconde) → xAI officiel →
+      // fal.ai. GIF_VIDEO_PROVIDER=grok|xai|fal force le premier essayé ;
+      // les suivants servent de bascule automatique.
       const forced = String(process.env.GIF_VIDEO_PROVIDER || '').toLowerCase();
       const available = [
-        ['xai', isXaiConfigured()],
         ['grok', isKieVideoConfigured()],
+        ['xai', isXaiConfigured()],
         ['fal', isFalConfigured()],
       ].filter(([, ok]) => ok).map(([id]) => id);
       const providerOrder = forced && available.includes(forced)
@@ -1063,7 +1263,7 @@ Reply ONLY with JSON: {"start_frame_prompt":"...","motion_prompt":"..."} — sta
 
       // 3. Vidéo → GIF → R2 (le mp4 est aussi republié pour un usage <video>)
       // Résilience : les providers configurés sont essayés DANS L'ORDRE
-      // (xAI officiel → kie.ai → fal.ai) ; chaque échec bascule sur le suivant
+      // (kie.ai → xAI officiel → fal.ai) ; chaque échec bascule sur le suivant
       // et l'erreur finale nomme chaque provider avec sa cause.
       const runProvider = (p) => (p === 'xai'
         ? xaiImageToVideo(motionPrompt, startImage, { durationSec: gifSeconds })
@@ -1412,6 +1612,116 @@ router.post('/voiceover', requireEcomAuth, async (req, res) => {
   }
 });
 
+// ─── Avatar parlant — image/vidéo + voix → lip sync MuseTalk (RunPod) ────────
+// POST /builder-ai/lipsync { imageUrl? | videoUrl?, audioUrl? | text (+voiceRefId?),
+//                            motion?(presenter|hands|calm), motionPrompt? } → { jobId }
+// GET  /builder-ai/lipsync/jobs/:id → { status, step, progress, url, error }
+router.post('/lipsync', requireEcomAuth, async (req, res) => {
+  try {
+    const { isLipSyncConfigured, createAvatarJob } = await import('../services/lipSyncService.js');
+    if (!isLipSyncConfigured()) {
+      return res.status(503).json({ success: false, message: 'Lip sync non configuré — ajoutez RUNPOD_API_KEY et RUNPOD_ENDPOINT_ID dans le .env backend' });
+    }
+    const { imageUrl = '', videoUrl = '', audioUrl = '', text = '', voiceRefId = '', motion = 'presenter', motionPrompt = '' } = req.body || {};
+    const isUrl = (u) => /^https?:\/\//.test(String(u || ''));
+    if (!isUrl(imageUrl) && !isUrl(videoUrl)) {
+      return res.status(400).json({ success: false, message: 'Fournis une image (imageUrl) ou une vidéo (videoUrl) du personnage' });
+    }
+    if (!isUrl(audioUrl) && String(text).trim().length < 2) {
+      return res.status(400).json({ success: false, message: 'Fournis le texte à faire dire (text) ou un audio (audioUrl)' });
+    }
+    const jobId = createAvatarJob({
+      imageUrl: isUrl(imageUrl) ? imageUrl : '',
+      videoUrl: isUrl(videoUrl) ? videoUrl : '',
+      audioUrl: isUrl(audioUrl) ? audioUrl : '',
+      text: String(text).trim(),
+      voiceRefId: String(voiceRefId || ''),
+      motion: ['presenter', 'hands', 'calm'].includes(motion) ? motion : 'presenter',
+      motionPrompt: String(motionPrompt || '').slice(0, 800),
+    });
+    return res.json({ success: true, jobId });
+  } catch (err) {
+    console.error('[BuilderAI] lipsync error:', err.message);
+    return res.status(500).json({ success: false, message: err.message || 'Lancement du lip sync impossible' });
+  }
+});
+
+router.get('/lipsync/jobs/:id', requireEcomAuth, async (req, res) => {
+  const { getAvatarJob } = await import('../services/lipSyncService.js');
+  const job = getAvatarJob(req.params.id);
+  if (!job) return res.status(404).json({ success: false, message: 'Job introuvable ou expiré' });
+  return res.json({ success: true, ...job });
+});
+
+// ─── GET /builder-ai/voices — Catalogue de voix Fish Audio ───────────────────
+// Proxifie https://api.fish.audio/model (la clé reste côté serveur).
+// Query : q?, language?, sort?(score|task_count|created_at), self?(bool),
+//         page?(1), pageSize?(24, max 48)
+// → { success, total, page, pageSize, voices:[{ id, title, description,
+//     languages, tags, cover, sampleUrl, sampleText, author, likeCount, taskCount }] }
+const _voicesCache = new Map(); // clé JSON → { at, data } (TTL 5 min)
+router.get('/voices', requireEcomAuth, async (req, res) => {
+  try {
+    const FISH_API_KEY = process.env.FISH_API_KEY || process.env.FISHAUDIO_API_KEY || '';
+    if (!FISH_API_KEY) return res.status(503).json({ success: false, message: 'Voix non configurées — ajoutez FISH_API_KEY dans le .env backend' });
+
+    const q = String(req.query.q || '').trim().slice(0, 80);
+    const language = String(req.query.language || '').trim().toLowerCase().slice(0, 5);
+    const sort = ['score', 'task_count', 'created_at'].includes(String(req.query.sort)) ? String(req.query.sort) : 'task_count';
+    const self = String(req.query.self || '') === 'true';
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const pageSize = Math.min(48, Math.max(1, parseInt(req.query.pageSize, 10) || 24));
+
+    const cacheKey = JSON.stringify({ q, language, sort, self, page, pageSize });
+    const hit = _voicesCache.get(cacheKey);
+    if (hit && Date.now() - hit.at < 5 * 60 * 1000) return res.json(hit.data);
+
+    // Construction manuelle de la query (Fish attend language=fr, pas language[]=fr)
+    const sp = new URLSearchParams();
+    sp.set('page_size', String(pageSize));
+    sp.set('page_number', String(page));
+    sp.set('sort_by', sort);
+    if (q) sp.set('title', q);
+    if (language) sp.append('language', language);
+    if (self) sp.set('self', 'true');
+
+    const r = await axios.get(`https://api.fish.audio/model?${sp.toString()}`, {
+      headers: { Authorization: `Bearer ${FISH_API_KEY}` },
+      timeout: 20000,
+    });
+    const data = r.data || {};
+    const items = Array.isArray(data.items) ? data.items : [];
+    const voices = items.map((m) => {
+      const sample = Array.isArray(m.samples) && m.samples[0] ? m.samples[0] : null;
+      return {
+        id: m._id,
+        title: m.title || 'Voix',
+        description: String(m.description || '').slice(0, 200),
+        languages: Array.isArray(m.languages) ? m.languages : [],
+        tags: Array.isArray(m.tags) ? m.tags.slice(0, 6) : [],
+        cover: m.cover_image || '',
+        sampleUrl: sample?.audio || '',
+        sampleText: String(sample?.text || '').slice(0, 160),
+        author: m.author?.nickname || '',
+        likeCount: m.like_count || 0,
+        taskCount: m.task_count || 0,
+      };
+    }).filter((v) => v.id);
+
+    const payload = { success: true, total: Number(data.total) || voices.length, page, pageSize, voices };
+    _voicesCache.set(cacheKey, { at: Date.now(), data: payload });
+    if (_voicesCache.size > 200) _voicesCache.delete(_voicesCache.keys().next().value);
+    return res.json(payload);
+  } catch (err) {
+    const status = err?.response?.status;
+    let msg = err.message;
+    if (err?.response?.data) { try { msg = (typeof err.response.data === 'string' ? err.response.data : JSON.stringify(err.response.data)).slice(0, 300) || msg; } catch { /* noop */ } }
+    console.error('[BuilderAI] voices error:', status || '', msg);
+    if (status === 401 || status === 403) return res.status(502).json({ success: false, message: 'Clé Fish Audio invalide' });
+    return res.status(500).json({ success: false, message: msg || 'Catalogue de voix indisponible' });
+  }
+});
+
 // ─── POST /builder-ai/upload-media — upload générique clip/voix/musique → R2 ──
 router.post('/upload-media', requireEcomAuth, upload.single('file'), async (req, res) => {
   try {
@@ -1534,6 +1844,56 @@ Valeurs autorisées — transitions: ${TR.join(',')} ; kenBurns: ${KB.join(',')}
   } catch (err) {
     console.error('[BuilderAI] montage-director error:', err.message);
     return res.status(500).json({ success: false, message: err.message || 'Directeur de montage indisponible' });
+  }
+});
+
+// ─── POST /builder-ai/scene-brief — « Générer une scène » à la demande ───────
+// L'utilisateur dit ce qu'il veut (« un CTA », « un hook qui choque », ou une
+// description libre) ; l'IA écrit la phrase dite, le sous-titre court, le brief
+// visuel LITTÉRAL et choisit vidéo/image éco + produit visible. Le front génère
+// ensuite visuel + voix avec les mêmes cœurs que le mode manuel.
+router.post('/scene-brief', requireEcomAuth, async (req, res) => {
+  try {
+    if (!DEEPSEEK_API_KEY) return res.status(503).json({ success: false, message: 'Service IA non disponible' });
+    const { instruction = '', productName = '', productContext = '', existingLines = [] } = req.body || {};
+    const inst = String(instruction).slice(0, 300).trim();
+    if (inst.length < 2) return res.status(400).json({ success: false, message: 'Décris la scène voulue (ex. « un CTA », « un hook », ou une description).' });
+    const lines = (Array.isArray(existingLines) ? existingLines : []).map((l) => String(l).slice(0, 160)).filter(Boolean).slice(0, 12);
+
+    const system = `Tu es un concepteur-rédacteur publicitaire senior (pubs TikTok/Reels e-commerce, marché francophone africain, paiement à la livraison).
+On te demande UNE scène à insérer dans un montage existant. Réponds UNIQUEMENT avec ce JSON (aucun texte autour) :
+{"role":"hook|probleme|benefice|demo|preuve|cta","voiceText":"…","subtitleText":"…","clipPrompt":"…","media":"video|image","showProduct":true}
+Règles :
+- voiceText : LA phrase dite, 8 à 16 mots, PHRASE COMPLÈTE grammaticalement (articles, verbes conjugués — jamais de style télégraphique), français naturel parlé, percutante, cohérente avec les lignes existantes SANS les répéter.
+- subtitleText : version courte affichable (≤ 8 mots) de voiceText.
+- clipPrompt : description visuelle LITTÉRALE et filmable de ce qu'on voit à l'écran pour ILLUSTRER voiceText (qui, où, quelle action, quel détail du produit). Une phrase concrète en français.
+- media : "video" si le mouvement est indispensable (personne qui parle/agit, démonstration, geste d'utilisation, CTA face caméra) ; "image" si un plan fixe animé suffit (macro, packshot, texture, ambiance, problème statique).
+- showProduct : true si le produit doit apparaître (bénéfice, preuve, démo, cta), false pour un plan d'ambiance/problème sans produit.
+- role : déduis-le de l'instruction (« un CTA » → cta, « un hook » → hook ; sinon le rôle le plus pertinent).`;
+    const user = `Produit : ${String(productName).slice(0, 120) || '—'}
+Contexte : ${String(productContext).replace(/<[^>]+>/g, ' ').slice(0, 600) || '—'}
+Lignes déjà dans le montage :
+${lines.length ? lines.map((l, i) => `${i + 1}. ${l}`).join('\n') : '—'}
+Instruction du monteur : ${inst}`;
+
+    const raw = await callDeepseek([{ role: 'system', content: system }, { role: 'user', content: user }]);
+    const match = String(raw || '').match(/\{[\s\S]*\}/);
+    if (!match) throw new Error('Réponse IA invalide');
+    const d = JSON.parse(match[0]);
+    const ROLES = ['hook', 'probleme', 'benefice', 'demo', 'preuve', 'cta'];
+    const scene = {
+      role: ROLES.includes(d.role) ? d.role : 'benefice',
+      voiceText: String(d.voiceText || '').trim().slice(0, 300),
+      subtitleText: String(d.subtitleText || d.voiceText || '').trim().slice(0, 120),
+      clipPrompt: String(d.clipPrompt || '').trim().slice(0, 400),
+      media: d.media === 'image' ? 'image' : 'video',
+      showProduct: d.showProduct !== false,
+    };
+    if (scene.voiceText.length < 8) throw new Error('Texte de scène invalide — réessaye');
+    return res.json({ success: true, scene });
+  } catch (err) {
+    console.error('[BuilderAI] scene-brief error:', err.message);
+    return res.status(500).json({ success: false, message: err.message || 'Génération de scène indisponible' });
   }
 });
 

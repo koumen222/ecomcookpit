@@ -237,6 +237,13 @@ function getCategoryStyle(category = '', brandColors = '') {
       mood: 'clean, natural, modern marketplace listing, trust-driven, fresh vitality',
       benefitIcons: ['🌿 Ingrédients naturels', '⚡ Haute concentration', '🛡️ Testé en labo', '✅ Usage quotidien'],
       layoutStyle: 'green-listing-premium',
+      artDirection: 'clean natural-wellness marketplace listing, premium supplement-brand polish',
+      surface: 'soft matte-white pedestal with a light wood base',
+      lighting: 'bright soft daylight, gentle top-left key, airy soft shadows',
+      palette: 'emerald #0f7a46, fresh lime #7cb342, crisp white',
+      typography: 'bold condensed grotesque sans, uppercase headlines, clean numerals',
+      camera: 'straight-on product hero, 50mm look, medium depth of field',
+      finish: 'bright, high-clarity, natural color grade',
       problemColor: '#eef5ef',
       solutionHighlight: 'soft emerald glow halo with subtle white rim light around product bottle',
       trustBadges: ['LAB TESTED', 'NATURAL', 'NON GMO', 'PREMIUM FORMULA'],
@@ -255,6 +262,13 @@ function getCategoryStyle(category = '', brandColors = '') {
       mood: 'sleek, premium, futuristic, high-performance',
       benefitIcons: ['⚡ Performance', '🔋 Longue durée', '📶 Connectivité', '🛡️ Durabilité'],
       layoutStyle: 'dark-tech',
+      artDirection: 'flagship tech product page, Apple/Samsung campaign energy',
+      surface: 'dark reflective glass / matte graphite surface',
+      lighting: 'hard directional rim light plus cool gradient fill, controlled speculars',
+      palette: 'electric blue #0066ff, silver, deep navy #0a0f1e',
+      typography: 'geometric bold sans (SF/Inter feel), tight tracking',
+      camera: '3/4 hero angle, 85mm, shallow depth of field, crisp reflections',
+      finish: 'high-contrast, cool color grade, glossy',
       problemColor: '#0a0f1e',
       solutionHighlight: 'electric blue glow halo around the product',
       trustBadges: ['CERTIFIÉ', 'GARANTIE 1 AN', 'SAV RAPIDE', 'TECH PRO'],
@@ -273,6 +287,13 @@ function getCategoryStyle(category = '', brandColors = '') {
       mood: 'luxurious, elegant, aspirational, African haute couture',
       benefitIcons: ['✨ Style unique', '👑 Qualité luxe', '🌍 Fait en Afrique', '💎 Exclusif'],
       layoutStyle: 'fashion-editorial',
+      artDirection: 'haute-couture fashion editorial, Vogue-cover polish',
+      surface: 'seamless cream backdrop or elegantly draped fabric',
+      lighting: 'dramatic soft key with rim separation, elegant falloff',
+      palette: 'gold #c9a84c, warm cream, soft blush',
+      typography: 'high-contrast couture serif paired with a thin sans',
+      camera: '85mm editorial portrait, shallow depth of field',
+      finish: 'warm luxe color grade, fine skin and fabric texture',
       problemColor: '#f5f0e8',
       solutionHighlight: 'warm golden studio glow around the product on cream background',
       trustBadges: ['FAIT MAIN', 'ARTISAN LOCAL', 'WEARABLE ART', 'ÉDITION LIMITÉE'],
@@ -291,15 +312,22 @@ function getCategoryStyle(category = '', brandColors = '') {
       mood: 'clean, luxurious, natural ingredients, skin-glowing, premium beauty editorial',
       benefitIcons: ['🌿 100% Naturel', '✨ Peau éclatante', '💧 Hydratation profonde', '🛡️ Sans Parabènes'],
       layoutStyle: 'beauty-flatlay',
+      artDirection: 'luxury skincare campaign, clean-beauty / Sephora aesthetic',
+      surface: 'polished marble or soft satin with dewy droplets',
+      lighting: 'soft beauty-dish key with reflector fill, luminous glow',
+      palette: 'forest green #1a5c2a, gold #c9a84c, ivory',
+      typography: 'elegant high-contrast serif plus refined small-caps sans',
+      camera: 'macro texture and soft beauty portrait, 100mm, creamy bokeh',
+      finish: 'luminous high-end retouch, glowing skin, glossy product',
       problemColor: '#f9f9f9',
-      solutionHighlight: 'soft diffuse white light halo, product surrounded by botanicals',
+      solutionHighlight: 'soft diffuse luminous halo around the product, clean and glossy',
       trustBadges: ['ALL NATURAL', 'SANS PARABÈNES', 'TESTÉ DERM.', 'VEGAN FRIENDLY'],
       comparisonCriteria: ['Ingrédients naturels', 'Résultats visibles', 'Sans Parabènes', 'Hydratation', 'Odeur', 'Dermatologique'],
     };
   }
 
   // Alimentation / nutrition / santé
-  if (/aliment|food|nutri|santé|sante|supplement|complément|protéine|protein|minceur|régime|diet|bio|organic/.test(cat)) {
+  if (/aliment|food|nutri|santé|sante|health|wellness|supplement|complément|protéine|protein|minceur|régime|diet|bio|organic/.test(cat)) {
     return {
       bgStyle: 'pure white (#ffffff) with very subtle warm orange-yellow radial glow at center, fresh energetic feel',
       decorativeElements: 'photorealistic fresh ingredients scattered naturally: fruits (citrus slices, berries), herbs (mint, ginger), or grains/seeds — whichever matches the product — vibrant saturated colors, some slightly overlapping the product',
@@ -309,8 +337,15 @@ function getCategoryStyle(category = '', brandColors = '') {
       mood: 'energetic, healthy, fresh, natural, transformational',
       benefitIcons: ['💪 Énergie Maximale', '🌿 100% Bio', '⚡ Résultats Rapides', '🛡️ Système Immunitaire'],
       layoutStyle: 'nutrition-energy',
+      artDirection: 'fresh natural-nutrition campaign, vibrant health brand',
+      surface: 'bright white or light stone with fresh ingredients',
+      lighting: 'bright natural daylight, crisp appetizing highlights',
+      palette: 'vibrant green #2e7d32, warm orange #e65100, white',
+      typography: 'bold rounded sans, energetic, clear numerals',
+      camera: 'dynamic hero with ingredient motion, 50mm, sharp',
+      finish: 'saturated, fresh, high-clarity color grade',
       problemColor: '#f5f5f5',
-      solutionHighlight: 'warm golden glow halo around product, fresh ingredients surrounding it',
+      solutionHighlight: 'warm golden glow halo around the product, clean and appetizing',
       trustBadges: ['100% NATUREL', 'SANS ADDITIFS', 'BIO CERTIFIÉ', 'APPROUVÉ DIÉT.'],
       comparisonCriteria: ['Ingrédients naturels', 'Sans additifs', 'Efficacité prouvée', 'Goût', 'Certifié Bio', 'Rapport qualité/prix'],
     };
@@ -327,6 +362,13 @@ function getCategoryStyle(category = '', brandColors = '') {
       mood: 'warm, cozy, trustworthy, practical, homely',
       benefitIcons: ['🏠 Facile à utiliser', '⏱️ Gain de temps', '💧 Efficace', '🌿 Sans produits nocifs'],
       layoutStyle: 'home-cozy',
+      artDirection: 'warm lifestyle home campaign, cozy premium homeware',
+      surface: 'natural wood or warm stone counter in a styled interior',
+      lighting: 'soft warm window daylight, gentle long shadows',
+      palette: 'terracotta #c0622a, warm beige, natural wood tones',
+      typography: 'friendly humanist sans, warm and clean',
+      camera: 'in-context 3/4 lifestyle, 35mm, natural depth',
+      finish: 'warm inviting natural color grade',
       problemColor: '#f0ebe0',
       solutionHighlight: 'warm amber glow on product, placed on wood surface',
       trustBadges: ['QUALITÉ MAISON', 'DURABLE', 'FACILE D\'USAGE', 'GARANTI'],
@@ -345,6 +387,13 @@ function getCategoryStyle(category = '', brandColors = '') {
       mood: 'gentle, safe, caring, joyful, trustworthy for parents',
       benefitIcons: ['👶 Sûr pour bébé', '🌿 Sans toxines', '❤️ Testé & Approuvé', '🛡️ Certifié Pédiatre'],
       layoutStyle: 'baby-soft',
+      artDirection: 'gentle premium baby-care campaign, soft and trustworthy',
+      surface: 'soft pastel fabric or clean nursery surface',
+      lighting: 'soft diffuse wrap light, gentle and nearly shadow-free',
+      palette: 'soft teal #2a7a6a, pastel blue, sunny yellow',
+      typography: 'rounded soft sans, friendly and highly legible',
+      camera: 'tender close-up, 85mm, soft bokeh',
+      finish: 'soft bright pastel color grade, delicate texture',
       problemColor: '#eef7fc',
       solutionHighlight: 'soft diffuse pastel glow around product, surrounded by small stars',
       trustBadges: ['SAFE FOR BABY', 'SANS TOXINES', 'PÉDIATRE OK', 'CERTIFIÉ'],
@@ -362,6 +411,13 @@ function getCategoryStyle(category = '', brandColors = '') {
     mood: 'premium, professional, trustworthy, aspirational',
     benefitIcons: ['✅ Qualité Garantie', '⚡ Résultats Rapides', '🌟 Premium', '🛡️ Certifié'],
     layoutStyle: 'generic-premium',
+    artDirection: 'premium DTC advertising visual, polished and trustworthy',
+    surface: 'clean seamless studio surface with a subtle accent glow',
+    lighting: 'balanced studio softbox key with rim separation',
+    palette: 'deep navy #0d1b2e, white, product accent color',
+    typography: 'bold modern sans with strong hierarchy',
+    camera: 'centered hero, 50mm, medium depth of field',
+    finish: 'clean high-clarity professional color grade',
     problemColor: '#f5f5f5',
     solutionHighlight: 'subtle accent color glow halo around product',
     trustBadges: ['QUALITÉ PREMIUM', 'CERTIFIÉ', 'GARANTI', 'APPROUVÉ'],
@@ -391,15 +447,44 @@ function buildCreativePrompt(analysis, format, hasRefImage, visualTemplate = 'ge
     ? 'BRAND LOGO: A brand logo image is provided as reference. Place it prominently but elegantly — top-left or top-right corner, respecting proportions, on a clean background zone. Do not distort or recolor the logo.'
     : '';
 
-  // ── Concise style anchor (injected into every prompt) ──────────────────────
+  // ── Creative variation — casse l'effet « toutes les affiches se ressemblent » ──
+  const VARIATIONS = [
+    'bold minimalist composition with generous negative space',
+    'dynamic diagonal layout with movement and energy',
+    'dramatic single-source spotlight on the product, moody depth',
+    'confident editorial layout with asymmetric balance',
+    'clean symmetrical hero with one strong focal point',
+    'punchy color-blocked composition, modern and graphic',
+    'immersive lifestyle scene with the product in real context',
+  ];
+  const variation = VARIATIONS[Math.floor(Math.random() * VARIATIONS.length)];
+
+  // ── Art-direction anchor — piloté par le produit, varié, ultra-qualité ──
   const ANCHOR = `
-Style: premium e-commerce listing, square 1:1, photorealistic HD, clean ${style.mood} aesthetic.
-Background: ${style.bgStyle}.
-Product: ${hasRefImage ? 'use the reference image — reproduce packaging faithfully, exact colors and logo' : 'create a realistic product render'}.
+── CREATIVE DIRECTION ──
+${style.artDirection}. Mood: ${style.mood}.
+Design THIS visual around the actual product — its category, material, colour, shape and real use context drive the whole concept. Do not fall back on a generic template.
+Creative treatment for this visual: ${variation}. Make it visually distinct from other listings — vary the composition, angle and background so results never look repetitive.
+── SET, LIGHT & COLOR ──
+Background direction (adapt it to the product, keep it clean and vary it): ${style.bgStyle}. Surface/staging: ${style.surface}.
+Lighting: ${style.lighting}. Color palette: ${style.palette}.
+Keep decoration minimal and purposeful. Do NOT scatter leaves, flowers, petals, herbs or generic botanicals — only include elements that literally belong to THIS product.
 ${logoInstruction}
-Decorative elements: ${style.decorativeElements}.
-People (if any): dark-skinned African person, natural hair, warm confident expression, studio lighting.
-Typography: bold condensed sans-serif, French text only, razor-sharp, dominant headlines.`.trim();
+── PRODUCT (hero — non-negotiable) ──
+${hasRefImage
+    ? 'The reference image IS the product: reproduce the packaging exactly — identical label, wording, colors, finish and proportions. Never restyle, recolor, relabel or distort it.'
+    : 'Render a believable product with accurate materials and realistic reflections.'}
+Tack-sharp focal hero with realistic materials, contact shadows and reflections.
+── PEOPLE (only if the layout uses one) ──
+${style.personStyle}. Correct anatomy: natural hands and fingers, realistic skin, no deformation.
+── RENDER QUALITY ──
+Ultra-high-quality commercial advertising visual. ${style.camera}. ${style.finish}. Crisp edges, high micro-detail, 8K, no noise, no banding, no artifacts.
+── LAYOUT (premium DTC / Amazon A+ standard) ──
+Balanced composition, clear focal hierarchy, generous margins and safe area, aligned elements, intentional negative space, nothing cut off at the edges.
+── TYPOGRAPHY & TEXT (critical) ──
+${style.typography}. Render ONLY the exact French strings given above — correctly spelled, well-kerned, perfectly legible, max ~4 words per label. No invented words, no lorem ipsum, no gibberish or warped letters, no duplicated text.
+── AVOID ──
+Clichéd or gratuitous leaves/flowers/petals/botanicals, repetitive templated layouts, misspelled or warped text, distorted or duplicated product, extra fingers or limbs, plastic-looking skin, watermarks, stock-photo feel, cluttered amateur layout, low resolution.`.trim();
 
   const slidePrompts = {
 

@@ -1046,6 +1046,7 @@ router.get('/auto-schedule', requireEcomAuth, async (req, res) => {
       time: cfg.time || '21:00',
       timezone: cfg.timezone || 'Africa/Douala',
       target: cfg.target || 'today',
+      whatsappNumber: cfg.whatsappNumber || '',
       lastRunAt: cfg.lastRunAt || null,
     }});
   } catch (error) {
@@ -1058,11 +1059,12 @@ router.get('/auto-schedule', requireEcomAuth, async (req, res) => {
 // ⚠️ Déclaré AVANT `PUT /:id` (sinon capté par le PUT `/:id`).
 router.put('/auto-schedule', requireEcomAuth, validateEcomAccess('orders', 'write'), async (req, res) => {
   try {
-    const { enabled, time, target } = req.body || {};
+    const { enabled, time, target, whatsappNumber } = req.body || {};
     const set = {};
     if (enabled !== undefined) set['autoReportGeneration.enabled'] = !!enabled;
     if (time !== undefined && /^\d{2}:\d{2}$/.test(String(time))) set['autoReportGeneration.time'] = String(time);
     if (target !== undefined && ['today', 'yesterday'].includes(target)) set['autoReportGeneration.target'] = target;
+    if (whatsappNumber !== undefined) set['autoReportGeneration.whatsappNumber'] = String(whatsappNumber || '').replace(/[^\d+]/g, '');
     // (Re)configurer libère le verrou anti-doublon → permet un run le jour même
     set['autoReportGeneration.lastRunKey'] = '';
 
@@ -1080,6 +1082,7 @@ router.put('/auto-schedule', requireEcomAuth, validateEcomAccess('orders', 'writ
       time: cfg.time || '21:00',
       timezone: cfg.timezone || 'Africa/Douala',
       target: cfg.target || 'today',
+      whatsappNumber: cfg.whatsappNumber || '',
     }});
   } catch (error) {
     console.error('Erreur put auto-schedule:', error);

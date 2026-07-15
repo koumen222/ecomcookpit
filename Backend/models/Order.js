@@ -171,6 +171,17 @@ const orderSchema = new mongoose.Schema({
     type: Date,
     default: null
   },
+  // Commande reportée : date/heure de rappel choisie + trace du rappel envoyé
+  // (le cron de rappel notifie quand postponedUntil est atteint).
+  postponedUntil: {
+    type: Date,
+    default: null,
+    index: true
+  },
+  postponeReminderSentAt: {
+    type: Date,
+    default: null
+  },
   storeOrderId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'StoreOrder',

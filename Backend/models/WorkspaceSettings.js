@@ -62,6 +62,7 @@ const workspaceSettingsSchema = new mongoose.Schema({
     time: { type: String, default: '21:00' },              // HH:MM (heure locale du fuseau)
     timezone: { type: String, default: 'Africa/Douala' },
     target: { type: String, enum: ['today', 'yesterday'], default: 'today' }, // jour à générer
+    whatsappNumber: { type: String, default: '' },         // envoi WhatsApp du rapport (vide = pas d'envoi)
     lastRunAt: { type: Date },
     lastRunKey: { type: String, default: '' }              // 'YYYY-MM-DD' du dernier run (anti-doublon)
   },

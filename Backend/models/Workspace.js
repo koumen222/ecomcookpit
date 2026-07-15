@@ -134,6 +134,12 @@ const workspaceSchema = new mongoose.Schema({
     type: String,
     default: null
   },
+  // Envoyer automatiquement l'image du produit (récupérée sur la boutique Scalor)
+  // avec le message auto. Activable/désactivable par le marchand.
+  whatsappAutoSendProductImage: {
+    type: Boolean,
+    default: true
+  },
   // URL audio/vocal par défaut à envoyer avec le message auto
   whatsappAutoAudioUrl: {
     type: String,

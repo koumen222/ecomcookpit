@@ -442,6 +442,8 @@ const startServer = async () => {
       ['./routes/upload.js',                  '/api/ecom/upload'],
       // ─── WhatsApp Configuration ────────────────────────────────────────
       ['./routes/whatsappConfig.js',           '/api/ecom/integrations/whatsapp'],
+      // ─── Telegram (messagerie) ────────────────────────────────────────
+      ['./routes/telegram.js',                 '/api/ecom/telegram'],
       // ─── Shopify OAuth Integration ────────────────────────────────────
       ['./routes/shopify.js',                  '/api/ecom/shopify'],
       // ─── Shopify Webhooks (orders/create) ─────────────────────────────
@@ -453,6 +455,8 @@ const startServer = async () => {
       ['./routes/billing.js',                   '/api/ecom/billing'],
       // ─── Builder AI Chat ──────────────────────────────────────────────────
       ['./routes/builderAi.js',                '/api/ecom/builder-ai'],
+      // ─── Traduction / doublage vidéo ──────────────────────────────────────
+      ['./routes/videoTranslation.js',         '/api/ecom/video-translation'],
       // ─── Promo Codes (super admin) ─────────────────────────────────────
       ['./routes/promoCodes.js',               '/api/ecom/promo-codes'],      // ─── Test Routes ───────────────────────────────────────────────────
       ['./routes/test.js',                      '/api/ecom/test'],
@@ -503,6 +507,14 @@ const startServer = async () => {
       startAgentCronJobs();
     } catch (err) {
       console.warn('⚠️ Agent cron non démarré:', err.message);
+    }
+
+    // ─── Rappels des commandes reportées ─────────────────────────────────
+    try {
+      const { startPostponedReminderCron } = await import('./services/postponedReminderCron.js');
+      startPostponedReminderCron();
+    } catch (err) {
+      console.warn('⚠️ Cron rappels reportées non démarré:', err.message);
     }
 
     // ─── Rita boss report cron ───────────────────────────────────────────

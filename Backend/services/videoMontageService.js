@@ -49,6 +49,10 @@ const DIMENSIONS = {
 const MAX_SCENES = 12;
 const MAX_SCENE_SEC = 60;
 const MAX_TOTAL_SEC = 240;
+// Micro-finale après la fin de la phrase, avant la coupe (évite une coupe
+// « sur la dernière syllabe »). Les PAROLES S'ENCHAÎNENT : la voix du plan
+// suivant démarre pile à la coupe (J-cut), pendant le fondu visuel.
+const VOICE_TAIL = 0.1;
 
 // Accents « symbole » dessinés par drawtext avec la police embarquée (glyphes
 // vérifiés dans DejaVu Sans Bold) — zéro asset à héberger, contour noir pour
@@ -200,7 +204,7 @@ const CAPTION_ANIMS = {
 
 // Sous-titres "dynamiques" façon CapCut : petits groupes de mots révélés dans le
 // temps, avec animation choisie. Style (couleur) + animation paramétrables. → .ass
-function buildAssCaption(text, dur, w, h, format, mode = 'dynamic', styleId = 'classic', anim = 'pop', position = 'bottom', offsetPct = null, scale = 1, maxLines = 1, fontId = 'sans', textCase = 'none') {
+function buildAssCaption(text, dur, w, h, format, mode = 'dynamic', styleId = 'classic', anim = 'pop', position = 'bottom', offsetPct = null, scale = 1, maxLines = 1, fontId = 'sans', textCase = 'none', startAt = 0) {
   let clean = String(text || '').replace(/\s+/g, ' ').trim();
   if (!clean) return '';
   // Casse : MAJUSCULES (style pub TikTok) sur demande.
@@ -288,8 +292,10 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
   const per = dur / chunks.length;
   const styleOv = st.ov || '';
   const lines = chunks.map((c, i) => {
-    const start = assTime(i * per);
-    const end = assTime(Math.min(dur, (i + 1) * per + 0.03));
+    // startAt : décalage des événements (segment rembourré pour la transition
+    // entrante — le sous-titre démarre avec la voix, pas pendant le fondu).
+    const start = assTime(startAt + i * per);
+    const end = assTime(startAt + Math.min(dur, (i + 1) * per + 0.03));
     const ov = mode === 'block' ? '{\\fad(150,120)}' : A.ov;
     // Accent : 1 groupe sur 3 en couleur (mots-clés surlignés) en mode dynamique.
     const accent = st.accent && mode !== 'block' && chunks.length > 1 && i % 3 === 2 ? `{\\c${st.accent}}` : '';
@@ -334,6 +340,14 @@ export async function renderMontage(spec = {}, onProgress = () => {}) {
       } catch { narrationPath = null; }
     }
 
+    // ── Passe A : durées de CONTENU (la voix sondée fixe la durée du plan).
+    //    Nécessaire AVANT le rendu : les transitions xfade/acrossfade
+    //    chevauchent les segments adjacents — sans précaution elles MANGENT la
+    //    fin de la voix du plan A et le début de celle du plan B. On rembourre
+    //    donc chaque segment (visuel prolongé + silence) de la durée exacte des
+    //    fondus qui le concernent : le chevauchement consomme du rembourrage,
+    //    jamais la parole. ──
+    const pre = [];
     for (let i = 0; i < scenes.length; i += 1) {
       const sc = scenes[i];
       // Voix off PAR SCÈNE → la scène suit exactement la durée de son audio.
@@ -344,18 +358,59 @@ export async function renderMontage(spec = {}, onProgress = () => {}) {
         try { await download(sc.audioUrl, aIn); audioDur = await probeDuration(aIn); } catch { aIn = null; }
       }
       let dur;
-      // Suit la voix de la scène, SANS jamais descendre sous la durée demandée
-      // (règle produit : une scène de montage fait au minimum 5 s — le front
-      // envoie durationSec ≥ 5 ; une voix plus courte laisse le plan respirer).
-      if (audioDur && audioDur > 0.3) dur = Math.max(audioDur, Number(sc.durationSec) || 0);
+      // LA VOIX DICTE LE RYTHME : un plan avec voix dure sa phrase + une courte
+      // finale, ni plus ni moins. (L'ancienne règle max(voix, durée planifiée)
+      // laissait un silence mort en fin de plan quand la voix était plus courte
+      // que le plan — « petit silence entre 2 scènes » à couper.)
+      if (audioDur && audioDur > 0.3) dur = Math.max(1.2, audioDur + VOICE_TAIL);
       else if (spec.narrationUrl) dur = (Number(sc.durationSec) || 4) * narrScale; // étiré sur la narration
-      else dur = Number(sc.durationSec) || 4;
+      else dur = Number(sc.durationSec) || 4; // sans voix : la durée demandée fait foi
       dur = Math.max(1, Math.min(MAX_SCENE_SEC, dur));
       if (cursor + dur > MAX_TOTAL_SEC) dur = Math.max(1, MAX_TOTAL_SEC - cursor);
       if (dur <= 0) break;
+      pre.push({ sc, aIn, dur });
+      cursor += dur;
+      onProgress(5 + Math.round(((i + 1) / scenes.length) * 6));
+    }
+
+    // ── Transitions décidées AVANT le rendu (le rembourrage en dépend) ──
+    const TRANSITIONS = ['fade', 'fadeblack', 'fadewhite', 'slideleft', 'slideright', 'slideup', 'slidedown', 'wipeleft', 'wiperight', 'wipeup', 'wipedown', 'circleopen', 'circleclose', 'radial', 'dissolve', 'pixelize', 'smoothleft', 'diagtl'];
+    // Mode « dynamic » (défaut) : chaque jonction reçoit une transition punchy
+    // différente, en rotation — rendu vivant sans réglage manuel.
+    const DYNAMIC_SET = ['slideleft', 'circleopen', 'fadewhite', 'slideup', 'smoothleft', 'wipeleft', 'fadewhite', 'dissolve', 'slideright', 'radial'];
+    const perJunction = Array.isArray(spec.transitions) && spec.transitions.length ? spec.transitions : null;
+    const globalTransition = spec.transition === 'none' ? 'none'
+      : TRANSITIONS.includes(spec.transition) ? spec.transition
+      : 'dynamic';
+    const junctionAt = (j) => {
+      const t = perJunction ? (perJunction[j] || globalTransition) : globalTransition;
+      if (t === 'none') return 'none';
+      if (TRANSITIONS.includes(t)) return t;
+      return DYNAMIC_SET[j % DYNAMIC_SET.length]; // 'dynamic' ou valeur inconnue
+    };
+    const anyTransition = pre.length >= 2 && (perJunction
+      ? perJunction.some((t) => t && t !== 'none')
+      : globalTransition !== 'none');
+    // Fondu court (≤ 0,35 s) : la coupe reste dynamique, façon montage pub.
+    const baseT = pre.length >= 2 ? Math.max(0.2, Math.min(0.35, Math.min(...pre.map((p) => p.dur)) / 2)) : 0;
+    // Durée de fondu par jonction j (entre les plans j et j+1). Concat pur
+    // (aucune transition) : aucun chevauchement → aucun rembourrage.
+    const TJ = pre.length >= 2
+      ? pre.slice(0, -1).map((_, j) => (anyTransition ? (junctionAt(j) === 'none' ? 0.04 : baseT) : 0))
+      : [];
+
+    // ── Passe B : rendu des segments, rembourrés pour les transitions ──
+    for (let i = 0; i < pre.length; i += 1) {
+      const { sc, aIn, dur } = pre[i];
+      // Queue rembourrée (fondu sortant) : le xfade consomme cette queue —
+      // image prolongée + silence de fin — jamais le contenu. Pas de
+      // rembourrage de tête : le contenu (et la voix) du plan démarre PILE à
+      // la coupe, pendant que le fondu visuel se termine (paroles enchaînées).
+      const padOut = i < pre.length - 1 ? TJ[i] : 0;
+      const padDur = dur + padOut;
 
       const seg = path.join(workDir, `seg${i}.mp4`);
-      const durFrames = Math.max(1, Math.round(dur * 30));
+      const durFrames = Math.max(1, Math.round(padDur * 30));
       // Effet ken-burns : léger zoom continu sur clips ET images → rendu dynamique.
       let vInputArgs;
       let vChain;
@@ -391,7 +446,8 @@ export async function renderMontage(spec = {}, onProgress = () => {}) {
         vChain = `[0:v]scale=${w * 2}:${h * 2}:force_original_aspect_ratio=increase,crop=${w * 2}:${h * 2},${kb}:s=${w}x${h}:fps=30,setsar=1,format=yuv420p,eq=saturation=1.13:contrast=1.05`;
       }
 
-      // Fondus d'entrée / sortie du plan (animation par clip).
+      // Fondus d'entrée / sortie du plan (animation par clip), sur la fenêtre
+      // de contenu [0, dur] — la queue rembourrée reste après le fondu.
       const fadeIn = Math.max(0, Math.min(dur / 2, Number(sc.fadeIn) || 0));
       const fadeOut = Math.max(0, Math.min(dur / 2, Number(sc.fadeOut) || 0));
       if (fadeIn > 0) vChain += `,fade=t=in:st=0:d=${fadeIn.toFixed(2)}`;
@@ -493,9 +549,9 @@ export async function renderMontage(spec = {}, onProgress = () => {}) {
         return g;
       };
 
-      // (aIn — voix off de la scène — est déjà téléchargée en haut de la boucle.)
+      // (aIn — voix off de la scène — est déjà téléchargée en passe A.)
       const common = [
-        '-t', String(dur),
+        '-t', String(padDur.toFixed(3)),
         '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20', '-pix_fmt', 'yuv420p',
         '-c:a', 'aac', '-b:a', '160k', '-ar', '44100', '-ac', '2',
         seg,
@@ -504,6 +560,8 @@ export async function renderMontage(spec = {}, onProgress = () => {}) {
         const vFilter = buildVFilter(withSub);
         if (aIn) {
           const vol = Math.max(0, Math.min(2, sc.volume == null ? 1 : Number(sc.volume)));
+          // La voix démarre à 0 (pile à la coupe — paroles enchaînées) ;
+          // apad = silence de queue (le fondu sortant ne coupe rien).
           let aFilter = `[1:a]apad,volume=${vol}`;
           if (fadeIn > 0) aFilter += `,afade=t=in:st=0:d=${fadeIn.toFixed(2)}`;
           if (fadeOut > 0) aFilter += `,afade=t=out:st=${(dur - fadeOut).toFixed(2)}:d=${fadeOut.toFixed(2)}`;
@@ -523,59 +581,54 @@ export async function renderMontage(spec = {}, onProgress = () => {}) {
         }
       }
       segPaths.push(seg);
-      durs.push(dur);
-      cursor += dur;
-      onProgress(Math.round(((i + 1) / scenes.length) * 60) + 5);
+      durs.push(padDur); // longueur RÉELLE du segment (contenu + rembourrages)
+      onProgress(11 + Math.round(((i + 1) / pre.length) * 54));
     }
 
-    // ── Assemblage : transitions PAR JONCTION (xfade + acrossfade) ou concaténation ──
-    const TRANSITIONS = ['fade', 'fadeblack', 'fadewhite', 'slideleft', 'slideright', 'slideup', 'slidedown', 'wipeleft', 'wiperight', 'wipeup', 'wipedown', 'circleopen', 'circleclose', 'radial', 'dissolve', 'pixelize', 'smoothleft', 'diagtl'];
-    // Mode « dynamic » (défaut) : chaque jonction reçoit une transition punchy
-    // différente, en rotation — rendu vivant sans réglage manuel.
-    const DYNAMIC_SET = ['slideleft', 'circleopen', 'fadewhite', 'slideup', 'smoothleft', 'wipeleft', 'fadewhite', 'dissolve', 'slideright', 'radial'];
-    const perJunction = Array.isArray(spec.transitions) && spec.transitions.length ? spec.transitions : null;
-    const globalTransition = spec.transition === 'none' ? 'none'
-      : TRANSITIONS.includes(spec.transition) ? spec.transition
-      : 'dynamic';
-    const junctionAt = (j) => {
-      const t = perJunction ? (perJunction[j] || globalTransition) : globalTransition;
-      if (t === 'none') return 'none';
-      if (TRANSITIONS.includes(t)) return t;
-      return DYNAMIC_SET[j % DYNAMIC_SET.length]; // 'dynamic' ou valeur inconnue
-    };
-    const anyTransition = segPaths.length >= 2 && (perJunction
-      ? perJunction.some((t) => t && t !== 'none')
-      : globalTransition !== 'none');
-
+    // ── Assemblage : transitions PAR JONCTION (xfade + acrossfade) ou
+    //    concaténation. Les transitions et leurs durées (TJ) ont été décidées
+    //    AVANT le rendu : les segments sont déjà rembourrés en conséquence, le
+    //    chevauchement des fondus ne consomme donc QUE du rembourrage. ──
     let current = path.join(workDir, 'assembled.mp4');
     let totalDuration = cursor;
 
     if (anyTransition) {
-      const baseT = Math.max(0.2, Math.min(0.6, Math.min(...durs) / 2));
       const inputs = [];
       segPaths.forEach((p) => inputs.push('-i', p));
       const vParts = [];
       const aParts = [];
       const junctionSfx = []; // { off, kind } → effet sonore ADAPTÉ à chaque coupe
       let vPrev = '[0:v]';
-      let aPrev = '[0:a]';
       let acc = durs[0];
       for (let i = 1; i < segPaths.length; i += 1) {
         const tj = junctionAt(i - 1);
         const isCut = tj === 'none';
         const kind = isCut ? 'fade' : tj;
-        const Tj = isCut ? 0.04 : baseT;
+        const Tj = TJ[i - 1]; // même durée que la queue rembourrée des segments
         const off = (acc - Tj).toFixed(3);
         if (!isCut) junctionSfx.push({ off: Number(off), kind });
         const vOut = i === segPaths.length - 1 ? '[vout]' : `[vx${i}]`;
-        const aOut = i === segPaths.length - 1 ? '[aout]' : `[ax${i}]`;
         vParts.push(`${vPrev}[${i}:v]xfade=transition=${kind}:duration=${Tj}:offset=${off}${vOut}`);
-        aParts.push(`${aPrev}[${i}:a]acrossfade=d=${Tj}${aOut}`);
         vPrev = vOut;
-        aPrev = aOut;
         acc = acc + durs[i] - Tj;
       }
       totalDuration = acc;
+      // PAROLES ENCHAÎNÉES (J-cut) : PAS d'acrossfade — il fondait la fin et le
+      // début des phrases autour de chaque jonction. Chaque piste de segment
+      // est posée à la position de départ de son plan (cumul des durées de
+      // CONTENU, égal aux offsets xfade) puis le tout est sommé : la voix du
+      // plan suivant démarre pile à la coupe, à plein niveau.
+      {
+        let sAt = 0;
+        const lbl = [];
+        for (let i = 0; i < segPaths.length; i += 1) {
+          const ms = Math.round(sAt * 1000);
+          aParts.push(ms > 0 ? `[${i}:a]adelay=${ms}|${ms}[adl${i}]` : `[${i}:a]anull[adl${i}]`);
+          lbl.push(`[adl${i}]`);
+          sAt += pre[i].dur;
+        }
+        aParts.push(`${lbl.join('')}amix=inputs=${segPaths.length}:normalize=0:duration=longest:dropout_transition=0[aout]`);
+      }
       // EFFETS SONORES aux transitions (spec.sfx !== false) : une PALETTE
       // adaptée au type de coupe — plus jamais le même son partout :
       //  · fadewhite (flash)            → swish brillant et court

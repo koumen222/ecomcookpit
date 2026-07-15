@@ -161,7 +161,53 @@ function fixOrderPhone(order) {
 // Créer un EventEmitter global pour la progression
 const syncProgressEmitter = new EventEmitter();
 const activeSyncControllers = new Map();
-const DEFAULT_DELIVERY_RESPONSE_SECONDS = 15;
+// Fenêtre de réponse d'une offre CIBLÉE avant retour au pool : 15 s était
+// beaucoup trop court (la commande « apparaissait chez tous les livreurs »
+// quasi immédiatement). Défaut 15 min, configurable via DELIVERY_RESPONSE_SECONDS.
+const DEFAULT_DELIVERY_RESPONSE_SECONDS = Math.max(60, Number(process.env.DELIVERY_RESPONSE_SECONDS) || 900);
+
+// ── Visibilité CLOSEUSE unifiée ──────────────────────────────────────────────
+// Règles : 1) une commande affectée nominativement (closerId = moi) est
+// TOUJOURS visible, même sans assignation de source/produit/ville (corrige
+// « la closeuse ne voit pas ses commandes ») ; 2) une commande réservée à une
+// AUTRE closeuse (closerId ≠ moi) n'est JAMAIS visible, même si elle vient
+// d'une source partagée (corrige « visible par toutes les closeuses ») ;
+// 3) le reste du périmètre (sources/produits/villes assignés) reste visible.
+async function applyCloseuseVisibilityFilter(req, filter) {
+  const allAssignments = await CloseuseAssignment.find({
+    closeuseId: req.ecomUser._id, workspaceId: req.workspaceId, isActive: true
+  });
+  const mineCond = { closerId: req.ecomUser._id };
+  const allConditions = [];
+  if (allAssignments.length > 0) {
+    const assignedCityNames = allAssignments.flatMap(a => (a.cityAssignments || []).flatMap(ca => ca.cityNames || []));
+    const assignedSourceIds = [...new Set(allAssignments.flatMap(a => (a.orderSources || []).map(os => String(os.sourceId)).filter(Boolean)))];
+    const sourceTypeMap = await loadSourceTypeMap(req.workspaceId);
+    const allProductNames = await resolveProductNames(allAssignments);
+    assignedSourceIds.forEach(sid => {
+      const cond = buildSourceCondition(sid, sourceTypeMap);
+      if (cond) allConditions.push(cond);
+    });
+    allProductNames.forEach(name => allConditions.push({
+      product: { $regex: name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').trim(), $options: 'i' }
+    }));
+    assignedCityNames.forEach(name => allConditions.push({
+      city: { $regex: `^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').trim()}$`, $options: 'i' }
+    }));
+  }
+  const visibilityOr = allConditions.length > 0
+    ? [mineCond, { $and: [{ $or: [{ closerId: null }, { closerId: { $exists: false } }] }, { $or: allConditions }] }]
+    : [mineCond];
+  if (filter.$or) {
+    const searchOr = filter.$or;
+    delete filter.$or;
+    filter.$and = [...(filter.$and || []), { $or: searchOr }, { $or: visibilityOr }];
+  } else if (filter.$and) {
+    filter.$and.push({ $or: visibilityOr });
+  } else {
+    filter.$or = visibilityOr;
+  }
+}
 
 const ORDER_CURRENCY_SYMBOLS = { XAF: 'FCFA', XOF: 'CFA', GNF: 'FG', CDF: 'FC', NGN: '₦', GHS: 'GH₵', USD: '$', EUR: '€', GBP: '£', MAD: 'DH' };
 const formatMoney = (amount = 0, currency = 'XAF') => {
@@ -591,38 +637,9 @@ router.get('/filter-options', requireEcomAuth, async (req, res) => {
       }
     }
 
-    // Closeuse: restrict to assigned sources/products/cities
+    // Closeuse: affectations nominatives + périmètre (helper unifié)
     if (getEffectiveRole(req) === 'ecom_closeuse') {
-      const allAssignments = await CloseuseAssignment.find({
-        closeuseId: req.ecomUser._id, workspaceId: req.workspaceId, isActive: true
-      });
-
-      if (allAssignments.length > 0) {
-        const allConditions = [];
-        const assignedCityNames = allAssignments.flatMap(a => (a.cityAssignments || []).flatMap(ca => ca.cityNames || []));
-        const assignedSourceIds = [...new Set(allAssignments.flatMap(a => (a.orderSources || []).map(os => String(os.sourceId)).filter(Boolean)))];
-        const allProductNames = await resolveProductNames(allAssignments);
-
-        assignedSourceIds.forEach(sid => {
-          const cond = buildSourceCondition(sid, sourceTypeMap);
-          if (cond) allConditions.push(cond);
-        });
-        if (allProductNames.length > 0) {
-          allProductNames.forEach(name => allConditions.push({
-            product: { $regex: `^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').trim()}$`, $options: 'i' }
-          }));
-        }
-        if (assignedCityNames.length > 0) {
-          assignedCityNames.forEach(name => allConditions.push({
-            city: { $regex: `^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').trim()}$`, $options: 'i' }
-          }));
-        }
-
-        if (allConditions.length > 0) filter.$or = allConditions;
-        else return res.json({ success: true, data: { cities: [], products: [], tags: [] } });
-      } else {
-        return res.json({ success: true, data: { cities: [], products: [], tags: [] } });
-      }
+      await applyCloseuseVisibilityFilter(req, filter);
     }
 
     const [cities, products, tags] = await Promise.all([
@@ -665,30 +682,9 @@ router.get('/quick', requireEcomAuth, async (req, res) => {
     // Déterminer l'ordre de tri (1 = ascending/oldest first, -1 = descending/newest first)
     const sortDirection = sortOrder === 'oldest_first' ? 1 : -1;
 
-    // Filtre closeuse
+    // Filtre closeuse : affectations nominatives + périmètre (helper unifié)
     if (getEffectiveRole(req) === 'ecom_closeuse') {
-      const allAssignments = await CloseuseAssignment.find({
-        closeuseId: req.ecomUser._id, workspaceId: req.workspaceId, isActive: true
-      });
-
-      if (allAssignments.length > 0) {
-        const allConditions = [];
-        const assignedCityNames = allAssignments.flatMap(a => (a.cityAssignments || []).flatMap(ca => ca.cityNames || []));
-        const assignedSourceIds = [...new Set(allAssignments.flatMap(a => (a.orderSources || []).map(os => String(os.sourceId)).filter(Boolean)))];
-        const allProductNames = await resolveProductNames(allAssignments);
-
-        assignedSourceIds.forEach(sid => {
-          const cond = buildSourceCondition(sid, sourceTypeMap);
-          if (cond) allConditions.push(cond);
-        });
-        allProductNames.forEach(name => allConditions.push({ product: { $regex: name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').trim(), $options: 'i' } }));
-        assignedCityNames.forEach(name => allConditions.push({ city: { $regex: `^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').trim()}$`, $options: 'i' } }));
-
-        if (allConditions.length > 0) filter.$or = allConditions;
-        else filter._id = null;
-      } else {
-        filter._id = null;
-      }
+      await applyCloseuseVisibilityFilter(req, filter);
     }
 
     const orders = await Order.find(filter)
@@ -735,48 +731,9 @@ router.get('/new-since', requireEcomAuth, async (req, res) => {
       }
     }
 
-    // Filtre closeuse: même logique que la liste complète (sources OU produits OU villes assignés)
+    // Filtre closeuse : affectations nominatives + périmètre (helper unifié)
     if (getEffectiveRole(req) === 'ecom_closeuse') {
-      const allAssignments = await CloseuseAssignment.find({
-        closeuseId: req.ecomUser._id,
-        workspaceId: req.workspaceId,
-        isActive: true
-      });
-
-      if (allAssignments.length > 0) {
-        const allConditions = [];
-        const assignedCityNames = allAssignments.flatMap(a => (a.cityAssignments || []).flatMap(ca => ca.cityNames || []));
-        const assignedSourceIds = [...new Set(
-          allAssignments.flatMap(a => (a.orderSources || []).map(os => String(os.sourceId)).filter(Boolean))
-        )];
-        const sourceTypeMap = await loadSourceTypeMap(req.workspaceId);
-        const allProductNames = await resolveProductNames(allAssignments);
-
-        assignedSourceIds.forEach(sid => {
-          const cond = buildSourceCondition(sid, sourceTypeMap);
-          if (cond) allConditions.push(cond);
-        });
-        allProductNames.forEach(name => allConditions.push({
-          product: { $regex: name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').trim(), $options: 'i' }
-        }));
-        assignedCityNames.forEach(name => allConditions.push({
-          city: { $regex: `^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').trim()}$`, $options: 'i' }
-        }));
-
-        if (allConditions.length > 0) {
-          if (filter.$or) {
-            const searchOr = filter.$or;
-            delete filter.$or;
-            filter.$and = [{ $or: searchOr }, { $or: allConditions }];
-          } else {
-            filter.$or = allConditions;
-          }
-        } else {
-          filter._id = null;
-        }
-      } else {
-        filter._id = null;
-      }
+      await applyCloseuseVisibilityFilter(req, filter);
     }
 
     const orders = await Order.find(filter)
@@ -1038,70 +995,9 @@ router.get('/', requireEcomAuth, async (req, res) => {
       ];
     }
 
-    let closeuseVisibilityOr = null;
-
-    // Filtre closeuse: montrer les commandes des sources assignées OU des produits/villes assignés
+    // Filtre closeuse : affectations nominatives + périmètre (helper unifié)
     if (getEffectiveRole(req) === 'ecom_closeuse') {
-      // Use find() to get ALL assignments (one per source possible)
-      const allAssignments = await CloseuseAssignment.find({
-        closeuseId: req.ecomUser._id,
-        workspaceId: req.workspaceId,
-        isActive: true
-      });
-
-      if (allAssignments.length > 0) {
-        // Merge all assignments
-        const assignedCityNames = allAssignments.flatMap(a => (a.cityAssignments || []).flatMap(ca => ca.cityNames || []));
-        const assignedSourceIds = [...new Set(
-          allAssignments.flatMap(a => (a.orderSources || []).map(os => String(os.sourceId)).filter(Boolean))
-        )];
-
-        const sourceTypeMap = await loadSourceTypeMap(req.workspaceId);
-        const allConditions = [];
-
-        // Condition 1: Commandes des sources assignées
-        for (const sid of assignedSourceIds) {
-          const cond = buildSourceCondition(sid, sourceTypeMap);
-          if (cond) allConditions.push(cond);
-        }
-
-        const allProductNames = await resolveProductNames(allAssignments);
-
-        // Condition 2: Commandes des produits assignés
-        if (allProductNames.length > 0) {
-          const productConditions = allProductNames.map(name => ({
-            product: { $regex: name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').trim(), $options: 'i' }
-          }));
-          allConditions.push(...productConditions);
-        }
-
-        // Condition 3: Commandes des villes assignées
-        if (assignedCityNames.length > 0) {
-          const cityConditions = assignedCityNames.map(name => ({
-            city: { $regex: `^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').trim()}$`, $options: 'i' }
-          }));
-          allConditions.push(...cityConditions);
-        }
-
-
-        if (allConditions.length > 0) {
-          closeuseVisibilityOr = allConditions;
-          if (filter.$or) {
-            // search filter exists: wrap both in $and
-            const searchOr = filter.$or;
-            delete filter.$or;
-            filter.$and = [{ $or: searchOr }, { $or: allConditions }];
-          } else {
-            filter.$or = allConditions;
-          }
-        } else {
-          // Si aucune source/produit/ville assigné, ne retourner aucune commande
-          filter._id = null;
-        }
-      } else {
-        // Si la closeuse n'a aucune assignment, ne retourner aucune commande
-        filter._id = null;
-      }
+      await applyCloseuseVisibilityFilter(req, filter);
     }
 
     // Filtre livreur : ne voir que SES commandes assignées
@@ -3550,6 +3446,13 @@ router.put('/:id', requireEcomAuth, async (req, res) => {
       if (req.body[field] !== undefined) updateData[field] = req.body[field];
     });
 
+    // Report de commande : date de rappel (le cron notifiera à l'échéance).
+    if (req.body.postponedUntil !== undefined) {
+      const d = req.body.postponedUntil ? new Date(req.body.postponedUntil) : null;
+      updateData.postponedUntil = d && !Number.isNaN(d.getTime()) ? d : null;
+      updateData.postponeReminderSentAt = null; // nouvelle date → nouveau rappel
+    }
+
     const statusChanged = req.body.status !== undefined && req.body.status !== order.status;
 
     // Marquer le statut comme modifié manuellement
@@ -4634,6 +4537,7 @@ router.patch('/config/whatsapp-auto', requireEcomAuth, validateEcomAccess('produ
       whatsappAutoConfirm,
       whatsappAutoInstanceId,
       whatsappAutoImageUrl,
+      whatsappAutoSendProductImage,
       whatsappAutoAudioUrl,
       whatsappAutoVideoUrl,
       whatsappAutoDocumentUrl,
@@ -4649,6 +4553,7 @@ router.patch('/config/whatsapp-auto', requireEcomAuth, validateEcomAccess('produ
     // Mettre à jour les champs optionnels s'ils sont fournis
     if (whatsappAutoInstanceId !== undefined) updateFields.whatsappAutoInstanceId = whatsappAutoInstanceId || null;
     if (whatsappAutoImageUrl !== undefined) updateFields.whatsappAutoImageUrl = whatsappAutoImageUrl || null;
+    if (typeof whatsappAutoSendProductImage === 'boolean') updateFields.whatsappAutoSendProductImage = whatsappAutoSendProductImage;
     if (whatsappAutoAudioUrl !== undefined) updateFields.whatsappAutoAudioUrl = whatsappAutoAudioUrl || null;
     if (whatsappAutoVideoUrl !== undefined) updateFields.whatsappAutoVideoUrl = whatsappAutoVideoUrl || null;
     if (whatsappAutoDocumentUrl !== undefined) updateFields.whatsappAutoDocumentUrl = whatsappAutoDocumentUrl || null;
@@ -4785,7 +4690,7 @@ router.get('/config/whatsapp', requireEcomAuth, validateEcomAccess('products', '
     const [settings, workspace] = await Promise.all([
       WorkspaceSettings.findOne({ workspaceId: req.workspaceId }),
       EcomWorkspace.findById(req.workspaceId)
-        .select('whatsappAutoConfirm whatsappAutoInstanceId whatsappAutoImageUrl whatsappAutoAudioUrl whatsappAutoVideoUrl whatsappAutoDocumentUrl whatsappAutoSendOrder whatsappAutoProductMediaRules whatsappOrderTemplate')
+        .select('whatsappAutoConfirm whatsappAutoInstanceId whatsappAutoImageUrl whatsappAutoSendProductImage whatsappAutoAudioUrl whatsappAutoVideoUrl whatsappAutoDocumentUrl whatsappAutoSendOrder whatsappAutoProductMediaRules whatsappOrderTemplate')
         .lean()
     ]);
     
@@ -4800,6 +4705,7 @@ router.get('/config/whatsapp', requireEcomAuth, validateEcomAccess('products', '
         whatsappAutoConfirm: workspace?.whatsappAutoConfirm || false,
         whatsappAutoInstanceId: workspace?.whatsappAutoInstanceId || null,
         whatsappAutoImageUrl: workspace?.whatsappAutoImageUrl || null,
+        whatsappAutoSendProductImage: workspace?.whatsappAutoSendProductImage !== false,
         whatsappAutoAudioUrl: workspace?.whatsappAutoAudioUrl || null,
         whatsappAutoVideoUrl: workspace?.whatsappAutoVideoUrl || null,
         whatsappAutoDocumentUrl: workspace?.whatsappAutoDocumentUrl || null,
