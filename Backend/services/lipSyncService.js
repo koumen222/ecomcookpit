@@ -27,16 +27,39 @@ const itKey = () => String(process.env.RUNPOD_INFINITETALK_API_KEY || process.en
 const keyForEndpoint = (endpointId) => (endpointId && endpointId === itEndpoint() ? itKey() : rpKey());
 export const isInfiniteTalkConfigured = () => Boolean(itKey() && itEndpoint());
 
+// Erreur axios → message exploitable : SERVICE + code HTTP + extrait du corps.
+// Sans ça, job.error affiche « Request failed with status code 403 » sans dire
+// QUI a refusé (Fish ? RunPod ? kie ?). err.response est préservé pour les
+// catch en aval qui testent le status (ex. submitInfiniteTalk).
+function httpErr(service, err) {
+  const st = err?.response?.status;
+  if (!st) return new Error(`${service} : ${err.message}`);
+  let body = '';
+  try {
+    const d = err.response.data;
+    const txt = Buffer.isBuffer(d) ? d.toString('utf8') : typeof d === 'string' ? d : JSON.stringify(d);
+    body = String(txt || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 200);
+  } catch { /* body illisible */ }
+  const e = new Error(`${service} a répondu HTTP ${st}${body ? ` — ${body}` : ''}`);
+  e.response = err.response;
+  return e;
+}
+
 async function runpodRequest(path, { method = 'GET', data, endpointId } = {}) {
   const key = keyForEndpoint(endpointId);
-  const res = await axios({
-    method,
-    url: `${RUNPOD_BASE}/${endpointId || rpEndpoint()}${path}`,
-    data,
-    headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-    timeout: 30000,
-  });
-  return res.data;
+  try {
+    const res = await axios({
+      method,
+      url: `${RUNPOD_BASE}/${endpointId || rpEndpoint()}${path}`,
+      data,
+      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+      timeout: 30000,
+    });
+    return res.data;
+  } catch (err) {
+    const which = endpointId && endpointId === itEndpoint() ? 'RunPod InfiniteTalk' : 'RunPod MuseTalk';
+    throw httpErr(which, err);
+  }
 }
 
 /** Soumet un job MuseTalk → { id }. quality 'pro' (fp32 + fusion large) et
@@ -142,11 +165,16 @@ async function ttsToUrl(text, referenceId) {
   if (!FISH_API_KEY) throw new Error('Voix-off non configurée (FISH_API_KEY)');
   const body = { text: String(text).trim().slice(0, 5000), format: 'mp3', mp3_bitrate: 128, normalize: true, latency: 'normal' };
   if (referenceId) body.reference_id = String(referenceId);
-  const fishRes = await axios.post('https://api.fish.audio/v1/tts', body, {
-    headers: { Authorization: `Bearer ${FISH_API_KEY}`, 'Content-Type': 'application/json', model: process.env.FISH_MODEL || 's2.1-pro-free' },
-    responseType: 'arraybuffer',
-    timeout: 120000,
-  });
+  let fishRes;
+  try {
+    fishRes = await axios.post('https://api.fish.audio/v1/tts', body, {
+      headers: { Authorization: `Bearer ${FISH_API_KEY}`, 'Content-Type': 'application/json', model: process.env.FISH_MODEL || 's2.1-pro-free' },
+      responseType: 'arraybuffer',
+      timeout: 120000,
+    });
+  } catch (err) {
+    throw httpErr('Fish Audio (voix off)', err);
+  }
   const audioBuffer = Buffer.from(fishRes.data);
   if (!audioBuffer?.length) throw new Error('Réponse audio vide');
   const { uploadToR2 } = await import('./cloudflareImagesService.js');
