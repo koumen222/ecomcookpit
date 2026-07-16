@@ -23,14 +23,17 @@ export const isLipSyncConfigured = () => Boolean(rpKey() && rpEndpoint());
 
 // endpointId optionnel : MuseTalk par défaut, InfiniteTalk pour le Premium.
 const itEndpoint = () => String(process.env.RUNPOD_INFINITETALK_ENDPOINT_ID || '').trim();
-export const isInfiniteTalkConfigured = () => Boolean(rpKey() && itEndpoint());
+const itKey = () => String(process.env.RUNPOD_INFINITETALK_API_KEY || process.env.RUNPOD_API_KEY || '').trim();
+const keyForEndpoint = (endpointId) => (endpointId && endpointId === itEndpoint() ? itKey() : rpKey());
+export const isInfiniteTalkConfigured = () => Boolean(itKey() && itEndpoint());
 
 async function runpodRequest(path, { method = 'GET', data, endpointId } = {}) {
+  const key = keyForEndpoint(endpointId);
   const res = await axios({
     method,
     url: `${RUNPOD_BASE}/${endpointId || rpEndpoint()}${path}`,
     data,
-    headers: { Authorization: `Bearer ${rpKey()}`, 'Content-Type': 'application/json' },
+    headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
     timeout: 30000,
   });
   return res.data;
@@ -66,21 +69,30 @@ export async function lipSyncStatus(jobId, endpointId) {
 /** Soumet un job InfiniteTalk (Premium self-host) → { id }. */
 export async function submitInfiniteTalk({ imageUrl, audioUrl, prompt = '' }) {
   if (!isInfiniteTalkConfigured()) {
-    throw new Error('Premium non configuré — ajoute RUNPOD_INFINITETALK_ENDPOINT_ID dans le .env backend (voir infinitetalk-runpod/README.md)');
+    throw new Error('Premium non configuré — ajoute RUNPOD_INFINITETALK_ENDPOINT_ID et, si l’endpoint est dans un autre compte RunPod, RUNPOD_INFINITETALK_API_KEY dans le .env backend');
   }
-  const r = await runpodRequest('/run', {
-    method: 'POST',
-    endpointId: itEndpoint(),
-    data: {
-      input: {
-        image_url: String(imageUrl),
-        audio_url: String(audioUrl),
-        ...(prompt ? { prompt: String(prompt).slice(0, 800) } : {}),
-        size: String(process.env.INFINITETALK_SIZE || '720'),
-        sample_steps: Math.max(8, Math.min(50, Number(process.env.INFINITETALK_STEPS) || 40)),
+  let r;
+  try {
+    r = await runpodRequest('/run', {
+      method: 'POST',
+      endpointId: itEndpoint(),
+      data: {
+        input: {
+          image_url: String(imageUrl),
+          audio_url: String(audioUrl),
+          ...(prompt ? { prompt: String(prompt).slice(0, 800) } : {}),
+          size: String(process.env.INFINITETALK_SIZE || '720'),
+          sample_steps: Math.max(8, Math.min(50, Number(process.env.INFINITETALK_STEPS) || 40)),
+        },
       },
-    },
-  });
+    });
+  } catch (err) {
+    const status = err?.response?.status;
+    if (status === 401 || status === 403) {
+      throw new Error('RunPod refuse l’accès à l’endpoint Premium — ajoute RUNPOD_INFINITETALK_API_KEY depuis le compte qui possède cet endpoint, ou recrée l’endpoint dans le même compte que MuseTalk');
+    }
+    throw err;
+  }
   if (!r?.id) throw new Error('Soumission RunPod (InfiniteTalk) refusée');
   return r.id;
 }
