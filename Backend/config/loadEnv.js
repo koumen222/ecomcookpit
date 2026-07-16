@@ -38,7 +38,12 @@ export function loadBackendEnv() {
   const exists = fs.existsSync(envPath);
 
   if (exists) {
-    dotenv.config({ path: envPath });
+    const parsed = dotenv.config({ path: envPath }).parsed || {};
+    // PM2 can keep empty variables from an older process dump. dotenv does not
+    // override existing keys, so fill only missing/empty values from the file.
+    for (const [key, value] of Object.entries(parsed)) {
+      if (!process.env[key]) process.env[key] = value;
+    }
   }
 
   loadedEnv = {
