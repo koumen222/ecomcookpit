@@ -2569,7 +2569,14 @@ router.post('/premium', requireEcomAuth, validateEcomAccess('products', 'write')
     language,
     themeColor: rawThemeColor,
     customThemeColor: rawCustomThemeColor,
+    price: rawPrice,
+    compareAtPrice: rawCompareAtPrice,
   } = req.body || {};
+
+  // Prix saisi dans le modal : injecté TEL QUEL dans la page générée (hero +
+  // cartes d'offre) — l'IA ne doit jamais inventer de prix.
+  const userPrice = Math.max(0, Number(String(rawPrice ?? '').replace(/[^\d.]/g, '')) || 0);
+  const userCompareAt = Math.max(0, Number(String(rawCompareAtPrice ?? '').replace(/[^\d.]/g, '')) || 0);
 
   const imageFiles = req.files || [];
   const isDescriptionMode = skipScraping === 'true' || skipScraping === true;
@@ -2807,7 +2814,29 @@ router.post('/premium', requireEcomAuth, validateEcomAccess('products', 'write')
       themeColor,
       _targetGender: ['female', 'male', 'mixed'].includes(targetGender) ? targetGender : 'auto',
       _targetAgeRange: (targetAgeRange && targetAgeRange !== 'auto') ? String(targetAgeRange).trim() : 'auto',
+      // Prix du modal : posé sur la page (le rendu StoreProductPagePremium lit
+      // product.price en priorité) — l'IA n'invente jamais de prix.
+      ...(userPrice > 0 ? { price: userPrice } : {}),
+      ...(userCompareAt > 0 ? { compareAtPrice: userCompareAt } : {}),
     };
+
+    // Injection du prix dans le bloc premium (hero.priceLabel + cartes d'offre),
+    // que l'IA laisse volontairement vides par contrat.
+    if (userPrice > 0 && productPage.premium_page) {
+      const currency = storeContext.currency || 'FCFA';
+      const fmt = (n) => `${Number(n).toLocaleString('fr-FR')} ${currency}`;
+      const pp = productPage.premium_page;
+      pp.hero = pp.hero || {};
+      pp.hero.priceLabel = fmt(userPrice);
+      if (userCompareAt > userPrice) pp.hero.oldPriceLabel = fmt(userCompareAt);
+      if (Array.isArray(pp.offerCards) && pp.offerCards.length) {
+        pp.offerCards = pp.offerCards.map((card, i) => ({
+          ...card,
+          price: i === 0 ? fmt(userPrice) : card.price,
+          oldPrice: i === 0 && userCompareAt > userPrice ? fmt(userCompareAt) : card.oldPrice,
+        }));
+      }
+    }
 
     const creditCharge = workspace ? await chargeGenerationCredits(req.workspaceId, PREMIUM_COST, {
       purpose: 'une page produit premium',

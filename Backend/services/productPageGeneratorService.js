@@ -1318,21 +1318,25 @@ function strengthenPremiumPageContent(premiumPage = {}, fallbackPremiumPage = {}
   };
 }
 
-function buildPremiumImagePrompts(result = {}) {
+function buildPremiumImagePrompts(result = {}, genderClause = 'authentic Black African people when people are present') {
   const premium = result.premium_page || {};
   const productName = result.title || premium.brandName || 'product';
-  const promptBase = 'photorealistic premium Shopify product page section image, modern African ecommerce campaign, authentic Black African people when people are present, clean bright composition, no fake logos, no long text overlay';
+  const promptBase = `photorealistic premium Shopify product page section image, modern African ecommerce campaign, ${genderClause}, clean bright composition, no fake logos, no long text overlay`;
   const testimonialItems = Array.isArray(premium.testimonialGallery?.items) ? premium.testimonialGallery.items : [];
+  // Même quand l'IA a fourni un imagePrompt, la clause GENRE est ajoutée en
+  // tête : elle prime sur toute description de personne écrite par le modèle.
+  const withGender = (p) => (p ? `${genderClause !== 'authentic Black African people when people are present' ? `${genderClause}. ` : ''}${p}` : '');
+  const person = genderClause.includes('MEN') ? 'a satisfied Black African man' : genderClause.includes('WOMEN') ? 'a satisfied Black African woman' : 'a satisfied Black African customer';
 
   return {
-    hero: premium.hero?.imagePrompt || `large clean product hero packshot for ${productName}, product and packaging sharp on white premium ecommerce background, realistic scale, soft shadows, ${promptBase}`,
-    problem: premium.problemSection?.imagePrompt || `lifestyle scene showing the concrete problem solved by ${productName}, emotional but realistic, modern home or workplace, ${promptBase}`,
-    mechanism: premium.mechanismSection?.imagePrompt || `premium explanatory lifestyle image showing why ordinary solutions fail and how ${productName} addresses the root cause, product visible, ${promptBase}`,
-    science: premium.scienceSection?.imagePrompt || `clean premium explainer board for ${productName}, ingredient or technology callouts, product visible, refined medical-free ecommerce style, ${promptBase}`,
-    ritual: premium.ritualSection?.imagePrompt || `simple daily ritual scene using ${productName}, step-by-step premium lifestyle mood, modern interior, ${promptBase}`,
-    closing: premium.closingSection?.imagePrompt || `large premium product callout image for ${productName}, product sharp with elegant feature lines and spacious white background, ${promptBase}`,
+    hero: withGender(premium.hero?.imagePrompt) || `large clean product hero packshot for ${productName}, product and packaging sharp on white premium ecommerce background, realistic scale, soft shadows, ${promptBase}`,
+    problem: withGender(premium.problemSection?.imagePrompt) || `lifestyle scene showing the concrete problem solved by ${productName}, emotional but realistic, modern home or workplace, ${promptBase}`,
+    mechanism: withGender(premium.mechanismSection?.imagePrompt) || `premium explanatory lifestyle image showing why ordinary solutions fail and how ${productName} addresses the root cause, product visible, ${promptBase}`,
+    science: withGender(premium.scienceSection?.imagePrompt) || `clean premium explainer board for ${productName}, ingredient or technology callouts, product visible, refined medical-free ecommerce style, ${promptBase}`,
+    ritual: withGender(premium.ritualSection?.imagePrompt) || `simple daily ritual scene using ${productName}, step-by-step premium lifestyle mood, modern interior, ${promptBase}`,
+    closing: withGender(premium.closingSection?.imagePrompt) || `large premium product callout image for ${productName}, product sharp with elegant feature lines and spacious white background, ${promptBase}`,
     testimonials: testimonialItems.slice(0, 6).map((item, index) => (
-      item.imagePrompt || `realistic candid UGC photo ${index + 1} for ${productName}, a satisfied Black African customer naturally holding the exact product in hand, smartphone selfie style, natural light, ${promptBase}`
+      withGender(item.imagePrompt) || `realistic candid UGC photo ${index + 1} for ${productName}, ${person} naturally holding the exact product in hand, smartphone selfie style, natural light, ${promptBase}`
     )),
   };
 }
@@ -1354,6 +1358,22 @@ export async function analyzePremiumProductPage(scrapedData, imageBuffers = [], 
   const targetAvatar = cleanScrapedText(premiumContext.targetAvatar || '');
   const mainProblem = cleanScrapedText(premiumContext.mainProblem || '');
   const themeColor = cleanScrapedText(premiumContext.themeColor || '');
+  // Genre cible : DOIT contraindre le texte ET tous les prompts d'images —
+  // sinon l'IA écrit des imagePrompt au féminin par défaut et la clause genre
+  // ajoutée en aval par la route entre en conflit avec eux.
+  const targetGender = ['female', 'male', 'mixed'].includes(premiumContext.targetGender) ? premiumContext.targetGender : 'auto';
+  const genderLine = targetGender === 'male'
+    ? 'CIBLE HOMMES : toutes les personnes présentes dans les prompts d\'images ("imagePrompt") sont des HOMMES africains ("Black African man/men") — jamais de femme. Le texte s\'adresse à des hommes.'
+    : targetGender === 'female'
+      ? 'CIBLE FEMMES : toutes les personnes présentes dans les prompts d\'images ("imagePrompt") sont des FEMMES africaines ("Black African woman/women") — jamais d\'homme. Le texte s\'adresse à des femmes.'
+      : targetGender === 'mixed'
+        ? 'CIBLE MIXTE : varie les personnes des prompts d\'images entre hommes ET femmes africains.'
+        : '';
+  const genderImageClause = targetGender === 'male'
+    ? 'when people are present they MUST be Black African MEN only (no women)'
+    : targetGender === 'female'
+      ? 'when people are present they MUST be Black African WOMEN only (no men)'
+      : 'authentic Black African people when people are present';
   const localeLine = buildStoreLocaleInstruction(storeCountry, storeCity);
 
   const premiumContract = `{
@@ -1431,6 +1451,7 @@ RÈGLES :
 - Langue principale : ${language}. Ton : ${tone}.
 - Marché : ${storeCountry || 'Afrique francophone'}${storeCity ? `, ville référence ${storeCity}` : ''}. ${localeLine}
 - Les prompts d'images sont en anglais, photoréalistes, modernes, avec personnes africaines authentiques si humains présents.
+${genderLine ? `- ${genderLine}` : ''}
 - Pas de diagnostic médical, pas de guérison, pas de chiffres impossibles. Promesses crédibles uniquement.
 - Si le produit n'est pas santé/beauté, adapte science en technologie/matière/mécanisme/praticité.
 - Couleur accent demandée : ${themeColor || 'à déduire du produit'}.
@@ -1442,6 +1463,7 @@ SOURCE PRODUIT :
 Titre : ${title || 'Non disponible'}
 Description : ${description || 'Non disponible'}
 ${targetAvatar ? `Avatar cible : ${targetAvatar}` : ''}
+${targetGender !== 'auto' ? `Genre cible : ${targetGender === 'male' ? 'HOMMES uniquement' : targetGender === 'female' ? 'FEMMES uniquement' : 'mixte'}` : ''}
 ${mainProblem ? `Problème principal : ${mainProblem}` : ''}
 
 Réponds uniquement avec un JSON valide suivant ce contrat :
@@ -1555,7 +1577,10 @@ ${premiumContract}`;
     fallbackPremiumPage,
     result,
   );
-  result.premium_image_prompts = buildPremiumImagePrompts(result);
+  // Genre cible propagé : les fallbacks d'image reçoivent la clause genre, et
+  // la route (demoClause, casting UGC) lit result._targetGender.
+  result._targetGender = targetGender;
+  result.premium_image_prompts = buildPremiumImagePrompts(result, genderImageClause);
 
   return result;
 }
