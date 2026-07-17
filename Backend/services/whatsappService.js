@@ -621,7 +621,8 @@ export async function sendOrderClientMessage(order, workspaceId) {
             .replace(/\{\{devise\}\}/gi,       order.currency || 'XAF')
             .replace(/\{\{store_name\}\}/gi,   storeName);
         } else {
-          message = `Bonjour ${order.clientName?.split(' ')[0] || 'Client'} 👋\n\nVotre commande #${order.orderId} a bien été reçue${storeName ? ` chez ${storeName}` : ''}.\n\nProduit : ${order.product}\nQuantité : ${order.quantity || 1}\nTotal : ${order.price || 0} ${order.currency || 'XAF'}\n\nMerci pour votre confiance 🙏`;
+          // Total = price × quantity (Order.price est le prix UNITAIRE).
+          message = `Bonjour ${order.clientName?.split(' ')[0] || 'Client'} 👋\n\nVotre commande #${order.orderId} a bien été reçue${storeName ? ` chez ${storeName}` : ''}.\n\nProduit : ${order.product}\nQuantité : ${order.quantity || 1}\nTotal : ${(order.price || 0) * (order.quantity || 1)} ${order.currency || 'XAF'}\n\nMerci pour votre confiance 🙏`;
         }
 
         const instanceId = matchedRule.instanceId || undefined;

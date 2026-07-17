@@ -132,6 +132,11 @@ export function extractOrderData(payload) {
     totalPrice: sanitizePrice(
       raw.totalPrice || raw.total_price  || raw['Total Price']
     ),
+    // Prix UNITAIRE explicite (optionnel) : prioritaire sur la division
+    // totalPrice / quantité quand l'expéditeur le fournit.
+    unitPrice: sanitizePrice(
+      raw.unitPrice  || raw.unit_price   || raw['Unit Price']
+    ),
     productLink: sanitizeText(
       raw.productLink || raw.product_link || raw['Product Link'] || '',
       1000
@@ -282,6 +287,19 @@ export async function saveWebhookOrder(orderData, workspaceId) {
   }
 
   // ── Création du document ───────────────────────────────────────────────
+  // INVARIANT SCALOR : Order.price est le prix UNITAIRE — tous les tableaux
+  // de bord et rapports calculent le CA en price × quantity ($multiply du
+  // modèle, reports.js, orders.js). Or le webhook reçoit un TOTAL de
+  // commande (totalPrice, déjà multiplié par la quantité côté expéditeur) :
+  // le stocker tel quel comptait la quantité DEUX fois (qté 3 → CA ×9).
+  // On ramène donc au prix unitaire : unitPrice explicite si fourni, sinon
+  // totalPrice / quantité (division exacte, sans arrondi, pour que
+  // price × quantity redonne le total au centime près).
+  const qty = Math.max(1, Number(orderData.productQuantity) || 1);
+  const unitPrice = orderData.unitPrice > 0
+    ? orderData.unitPrice
+    : Math.max(0, (Number(orderData.totalPrice) || 0) / qty);
+
   const newOrder = await Order.create({
     workspaceId,
     orderId:              orderData.orderNumber,
@@ -292,8 +310,8 @@ export async function saveWebhookOrder(orderData, workspaceId) {
     city:                 normalizedCity,
     address:              orderData.address1,
     product:              orderData.product || orderData.productLink,
-    quantity:             orderData.productQuantity,
-    price:                orderData.totalPrice,
+    quantity:             qty,
+    price:                unitPrice,
     notes:                orderData.note,
     source:               'webhook',
     rawData: {

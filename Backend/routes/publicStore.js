@@ -614,6 +614,18 @@ router.post('/:subdomain/orders', orderLimiter, resolveStoreBySubdomain, async (
         const normalizedPhone = normalizePhone(order.phone, defaultPrefix) || (order.phone || '').replace(/\D/g, '');
         const normalizedCityVal = normalizeCity(order.city || '') || order.city;
 
+        // INVARIANT SCALOR : Order.price est le prix UNITAIRE et quantity le
+        // nombre RÉEL d'unités — les rapports calculent CA = price × quantity
+        // et coût produit = pc × quantity. L'ancien mapping (quantity:1,
+        // price = total livraison incluse) perdait la quantité (coût produit
+        // sous-estimé, logistique fausse) et gonflait le CA de la livraison.
+        // Désormais : quantité totale réelle, prix unitaire = montant produits
+        // (HORS livraison, comme toutes les autres sources) / quantité —
+        // price × quantity redonne exactement le montant produits, offres de
+        // quantité incluses (prix d'offre non linéaire divisé tel quel).
+        const totalUnits = Math.max(1, orderProducts.reduce((s, p) => s + Math.max(1, Number(p.quantity) || 1), 0));
+        const productsAmount = Math.max(0, (Number(order.total) || 0) - (Number(order.deliveryCost) || 0));
+
         const mainOrder = new Order({
           workspaceId,
           storeId: req.storeId || null,
@@ -627,10 +639,8 @@ router.post('/:subdomain/orders', orderLimiter, resolveStoreBySubdomain, async (
           city: normalizedCityVal,
           address: order.address,
           product: productSummary,
-          // quantity = 1 : le prix ci-dessous est DÉJÀ le total de la commande.
-          // (Sinon price × quantity multiplierait le prix dans les stats / le centre de contrôle.)
-          quantity: 1,
-          price: order.total,
+          quantity: totalUnits,
+          price: productsAmount / totalUnits,
           currency: order.currency,
           status: 'pending',
           source: 'skelor',

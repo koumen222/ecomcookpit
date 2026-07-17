@@ -1109,7 +1109,28 @@ router.post('/generate-gif', requireEcomAuth, async (req, res) => {
 
     // ── Mode scène animée (image-to-video) ──
     if (mode === 'scene') {
-      const { scenario = '', productContext = '', voiceoverText = '', stage = 'complete', preparedImageUrl = '', preparedVideoUrl = '' } = req.body || {};
+      const { scenario = '', productContext = '', voiceoverText = '', stage = 'complete', preparedImageUrl = '', preparedVideoUrl = '', characterDesc = '', characterRefUrl = '', speakText = '' } = req.body || {};
+      // Profil du créateur UGC imposé par l'utilisateur (genre, âge, peau,
+      // style) + photo de référence optionnelle (même visage, même peau).
+      const charDesc = String(characterDesc || '').trim().slice(0, 400);
+      const charRef = /^https?:\/\//.test(String(characterRefUrl)) ? String(characterRefUrl) : '';
+      // UGC SANS lip sync : le créateur DIT cette phrase en français dans le
+      // clip lui-même (voix native du moteur, audio conservé) — pas de TTS après.
+      const speakClean = String(speakText || '').trim().slice(0, 400);
+      // Moteur des scènes parlées, choisi côté studio : grok (Imagine 1.5,
+      // 6 s) | kling (V3 Turbo, 10 s) | veo (3.1, 8 s). Les autres restent en
+      // secours automatique.
+      const talkEngine = ['grok', 'kling', 'veo'].includes(String(req.body?.talkEngine || '')) ? String(req.body.talkEngine) : 'grok';
+      // B-ROLL UGC : plan d'illustration COURT (produit en action) — style
+      // réel + cadre 9:16 comme les scènes UGC, mais généré en Grok éco
+      // (jamais Veo en tête : c'est un insert de 3 s).
+      const isBroll = req.body?.broll === true;
+      // Résolution des scènes parlées : 480p (éco) ou 720p. Kling ne descend
+      // pas sous 720p ; Veo sort en 720p de base quoi qu'il arrive.
+      const talkRes = String(req.body?.talkResolution || '') === '720p' ? '720p' : '480p';
+      // Ajustement demandé à la RÉGÉNÉRATION d'une scène (« moins de gestes »,
+      // « il sourit », « parle plus vite »…) — appliqué en plus des verrous.
+      const tweakClean = String(req.body?.sceneTweak || '').trim().slice(0, 300);
       if (stage === 'voice') {
         if (!/^https?:\/\//.test(String(preparedVideoUrl))) {
           return res.status(400).json({ success: false, message: 'La vidéo à sonoriser est requise' });
@@ -1129,20 +1150,40 @@ router.post('/generate-gif', requireEcomAuth, async (req, res) => {
       const SCENARIOS = ['ugc_testimonial', 'before_after', 'action', 'worn', 'lifestyle', 'unboxing', 'product_spot', 'rotation'];
       const scenarioId = SCENARIOS.includes(scenario) ? scenario : '';
       const sceneTxt = String(prompt || '').trim();
-      if (!scenarioId && sceneTxt.length < 8) {
+      // La PHRASE DITE du plan (voix off / speakText) est un brief suffisant :
+      // le réalisateur illustre littéralement ce que les mots disent. On ne
+      // bloque que si on n'a VRAIMENT rien (ni scénario, ni description, ni
+      // phrase) pour guider la génération.
+      const briefLine = String(voiceoverText || speakText || '').trim();
+      if (!scenarioId && sceneTxt.length < 8 && briefLine.length < 8) {
         return res.status(400).json({ success: false, message: 'Choisissez un scénario ou décrivez la situation à illustrer' });
       }
-      const { isFalConfigured, isKieVideoConfigured, isXaiConfigured, falImageToVideo, grokImageToVideo, xaiImageToVideo, mp4UrlToGifBuffer, addVoiceoverToVideo } = await import('../services/falVideoService.js');
-      // Providers par ordre de priorité : Grok via kie.ai (rapide et ~10×
-      // moins cher que l'API xAI facturée à la seconde) → xAI officiel →
-      // fal.ai. GIF_VIDEO_PROVIDER=grok|xai|fal force le premier essayé ;
-      // les suivants servent de bascule automatique.
+      const { isFalConfigured, isKieVideoConfigured, isXaiConfigured, isVeoConfigured, falImageToVideo, grokImageToVideo, xaiImageToVideo, veoImageToVideo, klingImageToVideo, mp4UrlToGifBuffer, addVoiceoverToVideo } = await import('../services/falVideoService.js');
+      // Providers par ordre de priorité. UGC : Veo 3.1 via kie.ai en PREMIER
+      // (personnes et gestes les plus réalistes du marché, vrai 9:16 natif,
+      // sortie 720p) ; les autres scénarios restent sur Grok (10× moins cher,
+      // suffisant pour packshots/macros). Chaque échec bascule sur le suivant.
+      // GIF_VIDEO_PROVIDER=veo|grok|xai|fal force le premier essayé.
+      const UGC_SCENARIOS = ['ugc_testimonial', 'action', 'unboxing'];
+      // UGC = scénario UGC explicite OU créateur imposé (plans du montage UGC :
+      // le réalisme des personnes justifie Veo sur ces plans-là aussi).
+      const isUgcScene = UGC_SCENARIOS.includes(scenarioId) || Boolean(charDesc) || isBroll;
       const forced = String(process.env.GIF_VIDEO_PROVIDER || '').toLowerCase();
-      const available = [
-        ['grok', isKieVideoConfigured()],
-        ['xai', isXaiConfigured()],
-        ['fal', isFalConfigured()],
-      ].filter(([, ok]) => ok).map(([id]) => id);
+      // Scènes PARLÉES : le moteur choisi passe en tête, les deux autres en
+      // secours automatique (tous savent faire parler le personnage).
+      const talkOrder = { grok: ['groktalk', 'klingtalk', 'veo'], kling: ['klingtalk', 'groktalk', 'veo'], veo: ['veo', 'groktalk', 'klingtalk'] }[talkEngine];
+      const available = (speakClean
+        ? talkOrder.map((id) => [id, id === 'veo' ? isVeoConfigured() : isKieVideoConfigured()])
+        : [
+          // B-roll : Grok éco d'abord (insert de 3 s — Veo serait du gâchis).
+          ['veo', ((isUgcScene && !isBroll) || forced === 'veo') && isVeoConfigured()],
+          ['grok', isKieVideoConfigured()],
+          ['xai', isXaiConfigured()],
+          ['fal', isFalConfigured()],
+        ]).filter(([, ok]) => ok).map(([id]) => id);
+      if (speakClean && !isKieVideoConfigured() && !isVeoConfigured()) {
+        return res.status(503).json({ success: false, message: 'UGC parlant (voix native) non configuré — ajoutez KIE_API_KEY dans le .env backend' });
+      }
       const providerOrder = forced && available.includes(forced)
         ? [forced, ...available.filter((p) => p !== forced)]
         : available;
@@ -1154,6 +1195,10 @@ router.post('/generate-gif', requireEcomAuth, async (req, res) => {
       const subjTxt = String(subject || '').trim();
       const ctxTxt = String(productContext || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 800);
       const hasSourcePhoto = Boolean(sourceUrl && /^https?:\/\//.test(String(sourceUrl)));
+      // ── Style ULTRA-RÉEL des plans UGC : une vraie personne filmée par un
+      //    téléphone normal. Interdit le « look IA » : sur-netteté, grading
+      //    sombre/cinématique, peau lissée, éclairage studio parfait. ──
+      const UGC_REAL_STYLE = 'REAL-PERSON RENDERING (calibrated on approved reference photos): the result must be indistinguishable from a real photo of a real person taken with a good smartphone. LIGHT: bright and soft — window daylight or plain indoor light — true-to-life colors, never dark. BACKGROUND: a REAL lived-in interior gently out of focus (home shelves, simple office, small shop) with normal everyday details. PERSON: believable everyday African adult (not a fashion model), relaxed natural expression (calm, or a light genuine smile), casual clean clothes or work attire matching the role, realistic skin with visible texture and pores. PRODUCT (when present): held at chest level at its REAL physical size relative to the hand (never enlarged to make the label readable — small products look small in a hand, and that is correct), perfectly sharp, never covering the face. STRICTLY FORBIDDEN: dark or moody cinematic grading, teal-orange grade, dramatic rim light, oversharpened AI crispness, airbrushed beauty-filter skin, studio seamless backdrop. It must look like a real photo someone would post on WhatsApp or TikTok.';
       // Plan SANS produit : quand la génération est demandée sans produit visible,
       // on n'injecte pas le nom/la ref du produit et on interdit tout produit à l'écran.
       const noProduct = req.body?.showProduct === false;
@@ -1179,7 +1224,21 @@ router.post('/generate-gif', requireEcomAuth, async (req, res) => {
       // (plante citée → la plante à l'écran, processus → les gestes, etc.).
       const voiceLine = String(voiceoverText || '').trim().slice(0, 300);
       let motionPrompt = `${sceneTxt || scenarioId}${subjForPrompt ? ` (product: ${subjForPrompt})` : ''}${noProduct ? '. NO product anywhere in the frame — lifestyle/emotional shot only' : ''}${voiceLine ? `. The visuals must illustrate: "${voiceLine}"` : ''}. Smooth realistic physically consistent motion, professional lighting. Absolutely no on-screen text, no captions, no logos.`;
-      if (DEEPSEEK_API_KEY) {
+      if (speakClean) {
+        // ── UGC PARLÉ : AUCUNE mise en scène. La personne reste en place et
+        //    PARLE, c'est tout. Le réalisateur IA est court-circuité : ses
+        //    inventions (démonstrations, autres objets, gestes) créent des
+        //    artefacts (mauvais produit, mains irréelles). Verrouillage dur.
+        //    Les MOTS EXACTS sont dans le prompt (format Kling : « saying the
+        //    exact words ») — la bouche est animée sur ce phrasé précis. ──
+        // Voix STABLE entre les scènes d'une même vidéo : description
+        // déterministe construite depuis le personnage — la même à chaque
+        // clip, pour réduire l'irrégularité de timbre d'une scène à l'autre.
+        const voiceProfile = charDesc
+          ? `VOICE PROFILE (identical in EVERY clip of this series): the natural voice of ${charDesc} — same timbre, same medium pitch, same warm energy, same speaking style in every single clip, as if all clips were recorded in one take.`
+          : 'VOICE PROFILE (identical in EVERY clip of this series): one consistent natural francophone voice — same timbre, pitch and energy in every clip, as if recorded in one take.';
+        motionPrompt = `Based on the uploaded image, animate the person speaking FLUENT NATIVE FRENCH directly to the camera, saying the exact words: « ${speakClean} ». ${voiceProfile} LANGUAGE (critical): the ENTIRE speech is in FRENCH ONLY — perfect natural French pronunciation and native francophone accent matching the person, never a single English word, never an anglophone accent. The mouth moves precisely to match this exact French phrasing. SPEECH FILLS THE CLIP (critical): the person starts speaking at the VERY FIRST frame and speaks CONTINUOUSLY until the VERY LAST frame — the voice covers every second of the clip, NO silence at any moment, no pause at the start, no pause at the end, no dead air between sentences. PACE: FAST energetic delivery, like an excited TikTok creator — quick natural talking speed, never slow, never drawn out. The person stays in the EXACT same position and framing as the image, with ONLY subtle natural talking micro-movements: slight head motion, steady eye contact, tiny hand emphasis kept close to the body. ${noProduct ? 'No product anywhere in the frame.' : 'If a product is visible in the image, it stays EXACTLY as it is — same product, same label, same position in the hand — never lifted higher, swapped, opened, pointed at or demonstrated.'} STRICTLY FORBIDDEN: demonstrations, introducing or showing ANY other object or product, walking, standing up, scene or background change, camera movement, zooms, unrealistic gestures, morphing or extra fingers. Static camera, casual smartphone video look, bright natural light. No captions, no on-screen text.${tweakClean ? ` MERCHANT ADJUSTMENT (requested for this take — apply it while keeping every rule above; the instruction may be written in French): ${tweakClean}.` : ''}`;
+      } else if (DEEPSEEK_API_KEY) {
         try {
           const directorRaw = await callDeepseek([
             {
@@ -1210,13 +1269,14 @@ PRECISION RULES for motion_prompt — this is the most important part:
 - Camera: prefer DYNAMIC, energetic movement — a confident push-in, a quick reveal pan, a punchy dolly or lively handheld energy — to feel scroll-stopping (reserve a locked-off shot only for a clean product spot). State one clear camera behavior for the whole shot.
 - ENERGY (crucial): the clip must feel DYNAMIC and lively — purposeful, visible motion in EVERY beat, snappy pacing, engaging body language and expressions; never a static, slow or sleepy shot. Think TikTok/Reels ad energy.
 - PHYSICAL CONSISTENCY: no morphing, no objects appearing or vanishing mid-shot, hands keep five natural fingers, and the product's geometry, colors and label never change during the shot.
-QUALITY BAR for start_frame_prompt: a photorealistic, professionally lit commercial frame — one clear subject, clean composition, flattering key light coherent with the setting, sharp focus, natural skin, premium appetizing styling of any ingredients (fresh, glistening, precisely arranged); it must read as a high-end ad still, never a casual snapshot.
-HARD CONSTRAINTS for BOTH prompts: absolutely NO on-screen text, NO captions, NO subtitles, NO watermarks, NO logo overlays, and no visual storytelling that depends on audible dialogue; realistic people and lighting; modern African urban setting whenever people appear; the product must stay EXACTLY as provided — same shape, colors, packaging and labels, never invent readable text on it; one single continuous shot with smooth motion.
+QUALITY BAR for start_frame_prompt: ${isUgcScene ? `${UGC_REAL_STYLE} Ingredients or products in frame stay appetizing and clearly visible, but styled like real life (on a kitchen table, a shelf), never like a studio ad set.` : 'a photorealistic, professionally lit commercial frame — one clear subject, clean composition, flattering key light coherent with the setting, sharp focus, natural skin, premium appetizing styling of any ingredients (fresh, glistening, precisely arranged); it must read as a high-end ad still, never a casual snapshot.'}${charDesc ? `
+CREATOR IMPOSED BY THE MERCHANT — non-negotiable: whenever a person appears, it is EXACTLY this person: ${charDesc}. Respect every attribute literally (gender, age range, skin tone, style). NATURAL RENDERING REQUIRED: realistic skin texture with visible pores, no beauty-filter or airbrushed look, believable everyday person (not a model), candid smartphone-quality feel appropriate for authentic UGC.` : ''}
+HARD CONSTRAINTS for BOTH prompts: absolutely NO on-screen text, NO captions, NO subtitles, NO watermarks, NO logo overlays, and no visual storytelling that depends on audible dialogue; realistic people and lighting; modern African urban setting whenever people appear; the product must stay EXACTLY as provided — same shape, colors, packaging and labels, never invent readable text on it; one single continuous shot with smooth motion.${isUgcScene ? ' UGC LOOK applies to the MOTION too: the clip must feel like a casual handheld smartphone video (natural bright light, true-to-life colors, believable everyday person) — never a polished dark cinematic commercial.' : ''}
 Reply ONLY with JSON: {"start_frame_prompt":"...","motion_prompt":"..."} — start_frame_prompt (English, max 100 words) describes the FIRST still frame and must already place everything needed for beat 0-2s (including any ingredients/props the message requires); motion_prompt (English, max 130 words) is the timeline starting from exactly that frame.${noProduct ? '\n\nABSOLUTE OVERRIDE — NO PRODUCT: this scene must contain NO product at all. Do NOT show, hold, place, reveal or reference any product, package, bottle, box, jar, tube or label anywhere. It is a lifestyle / emotional / contextual shot of the person and setting ONLY. Ignore every instruction above about featuring or preserving the product.' : ''}`,
             },
             {
               role: 'user',
-              content: `Produit : ${noProduct ? 'AUCUN — plan lifestyle SANS produit' : (subjTxt || 'non précisé')}\nDescription (contexte only) : ${ctxTxt || '—'}\nAnalyse visuelle de la photo (vérité terrain) : ${noProduct ? '—' : (visualAnalysis || '—')}\nScénario : ${scenarioId || 'free'}\nPrécisions du marchand : ${sceneTxt || '—'}\nTexte prononcé pendant ce plan — la vidéo doit l'ILLUSTRER littéralement : ${voiceLine || '—'}\nDurée du GIF : ${gifSeconds} secondes\nPhoto du produit fournie : ${noProduct ? 'non (plan sans produit)' : (hasSourcePhoto ? 'oui (référence exacte)' : 'non')}`,
+              content: `Produit : ${noProduct ? 'AUCUN — plan lifestyle SANS produit' : (subjTxt || 'non précisé')}\nDescription (contexte only) : ${ctxTxt || '—'}\nAnalyse visuelle de la photo (vérité terrain) : ${noProduct ? '—' : (visualAnalysis || '—')}\nScénario : ${scenarioId || 'free'}\nCréateur imposé (genre, âge, peau, style — à respecter littéralement) : ${charDesc || '—'}\nPhoto de référence de la personne fournie : ${charRef ? 'oui (même visage, même peau)' : 'non'}\nPrécisions du marchand : ${sceneTxt || '—'}\nTexte prononcé pendant ce plan — la vidéo doit l'ILLUSTRER littéralement : ${voiceLine || '—'}\nDurée du GIF : ${gifSeconds} secondes\nPhoto du produit fournie : ${noProduct ? 'non (plan sans produit)' : (hasSourcePhoto ? 'oui (référence exacte)' : 'non')}`,
             },
           ]);
           const jsonMatch = String(directorRaw || '').match(/\{[\s\S]*\}/);
@@ -1230,7 +1290,18 @@ Reply ONLY with JSON: {"start_frame_prompt":"...","motion_prompt":"..."} — sta
         }
       }
       if (!startFramePrompt) {
-        startFramePrompt = `First frame of a short silent e-commerce clip: ${sceneTxt || scenarioId}${subjForPrompt ? ` — product: ${subjForPrompt}` : ''}${noProduct ? ' — absolutely NO product visible, lifestyle/emotional shot only' : ''}${voiceLine ? `. The frame must illustrate: "${voiceLine}" (show the named ingredients/process physically)` : ''}. Photorealistic, professionally lit commercial photo, sharp focus, no text anywhere, composition ready to be animated.`;
+        startFramePrompt = `First frame of a short silent e-commerce clip: ${sceneTxt || scenarioId}${subjForPrompt ? ` — product: ${subjForPrompt}` : ''}${noProduct ? ' — absolutely NO product visible, lifestyle/emotional shot only' : ''}${charDesc ? `. The person shown is EXACTLY: ${charDesc} (respect gender, age range and skin tone literally, natural realistic skin, no beauty-filter look)` : ''}${voiceLine ? `. The frame must illustrate: "${voiceLine}" (show the named ingredients/process physically)` : ''}. ${isUgcScene ? UGC_REAL_STYLE : 'Photorealistic, professionally lit commercial photo, sharp focus, composition ready to be animated.'} No text anywhere.`;
+      }
+
+      // 1bis. ÉCHELLE RÉELLE du produit : les modèles d'image ont tendance à
+      //    AGRANDIR le produit pour rendre l'étiquette lisible — un flacon de
+      //    60 ml devient une bouteille géante. On extrait les indices de
+      //    taille de la fiche (ml, g, cm…) et on impose l'échelle réelle par
+      //    rapport à la main (~18 cm) dans le prompt d'image.
+      if (!noProduct) {
+        const sizeHints = String(`${subjTxt} ${ctxTxt}`).match(/\b\d+[.,]?\d*\s?(?:ml|cl|litres?|l\b|g\b|kg|cm|mm|gélules|capsules|comprimés)\b/gi) || [];
+        const sizeClause = `REAL-WORLD SCALE (critical): render the product at its EXACT real physical size relative to the person's hand and body — an adult hand is about 18 cm long.${sizeHints.length ? ` Known size details from the product page: ${[...new Set(sizeHints.map((s) => s.toLowerCase()))].slice(0, 4).join(', ')} — size the product accordingly.` : ' Estimate the real size from the packaging type visible in the reference photo (a spray ≈ 12-15 cm, a cream jar ≈ 7-9 cm, a supplement tub ≈ 12-18 cm).'} NEVER enlarge the product to make its label more readable — a real product held in a hand often looks small, and that is CORRECT. No giant packaging.`;
+        startFramePrompt = `${startFramePrompt}\n${sizeClause}`;
       }
 
       // 2. Image de départ. Scénarios avec personnage : même si la photo produit
@@ -1245,9 +1316,24 @@ Reply ONLY with JSON: {"start_frame_prompt":"...","motion_prompt":"..."} — sta
       const keepRawPhoto = scenarioId === 'rotation' && hasSourcePhoto;
       if (!preparedImageUrl && !keepRawPhoto) {
         try {
+          // Photo de référence du créateur : 2ᵉ image de référence du modèle
+          // (même visage, même carnation), la photo produit reste la 1ʳᵉ.
+          const personClause = charRef
+            ? '\nThe person must match the SECOND reference photo exactly: same face, same skin tone, same hair — only the pose, outfit and setting may change.'
+            : '';
+          // Rappel du style téléphone réel au moment de la génération d'image
+          // (le modèle d'image a tendance à retomber dans le rendu pub léché).
+          const realClause = isUgcScene ? `\n${UGC_REAL_STYLE}` : '';
+          // UGC = VERTICAL 9:16 obligatoire (TikTok/Reels). Kling/Veo suivent
+          // le ratio de l'image d'entrée : une image carrée donnerait une
+          // vidéo carrée (« 1:1 ») recadrée au montage — on génère donc
+          // l'image de départ directement en 9:16.
+          const imgRatio = isUgcScene ? '9:16' : 'auto';
           startImage = hasSourcePhoto
-            ? await generateGptImage2ImageToImage(`${startFramePrompt}\nUse the provided photo as the EXACT product reference: same product, same packaging, same colors and labels. No added text.`, String(sourceUrl), 'auto', null, {})
-            : await generateNanoBananaImage(startFramePrompt, '1:1', 1);
+            ? await generateGptImage2ImageToImage(`${startFramePrompt}\nUse the provided photo as the EXACT product reference: same product, same packaging, same colors and labels. No added text.${personClause}${realClause}${isUgcScene ? '\nVERTICAL 9:16 portrait framing (smartphone video frame).' : ''}`, String(sourceUrl), imgRatio, charRef || null, {})
+            : (charRef
+              ? await generateGptImage2ImageToImage(`${startFramePrompt}\nThe person must match the reference photo exactly: same face, same skin tone, same hair — only the pose, outfit and setting may change. No added text.${realClause}${isUgcScene ? '\nVERTICAL 9:16 portrait framing (smartphone video frame).' : ''}`, charRef, imgRatio, null, {})
+              : await generateNanoBananaImage(`${startFramePrompt}${realClause}`, isUgcScene ? '9:16' : '1:1', 1));
         } catch (imgErr) {
           console.warn('[BuilderAI] scene start-image failed, fallback to raw photo:', imgErr.message);
           if (!startImage) {
@@ -1265,11 +1351,20 @@ Reply ONLY with JSON: {"start_frame_prompt":"...","motion_prompt":"..."} — sta
       // Résilience : les providers configurés sont essayés DANS L'ORDRE
       // (kie.ai → xAI officiel → fal.ai) ; chaque échec bascule sur le suivant
       // et l'erreur finale nomme chaque provider avec sa cause.
-      const runProvider = (p) => (p === 'xai'
-        ? xaiImageToVideo(motionPrompt, startImage, { durationSec: gifSeconds })
-        : p === 'grok'
-          ? grokImageToVideo(motionPrompt, startImage, { durationSec: gifSeconds })
-          : falImageToVideo(motionPrompt, startImage, { durationSec: gifSeconds }));
+      // Durée des scènes PARLÉES : 10 s par défaut (durée libre Kling 3-15 s),
+      // hors du plafond 6 s des clips muets — la phrase doit tenir entière.
+      const speakDur = Math.max(3, Math.min(15, Math.round(Number(durationSec) || 10)));
+      const runProvider = (p) => (p === 'groktalk'
+        ? grokImageToVideo(motionPrompt, startImage, { durationSec: 6, resolution: talkRes, aspectRatio: '9:16' }) // Grok Imagine 1.5 : 6 s, dialogue DANS le prompt
+        : p === 'klingtalk'
+        ? klingImageToVideo(motionPrompt, startImage, { durationSec: speakDur, resolution: '720p' }) // Kling : 720p minimum, mots DANS motionPrompt
+        : p === 'veo'
+        ? veoImageToVideo(motionPrompt, startImage, { aspectRatio: '9:16', speech: speakClean }) // clip ~8 s 720p ; parlé si speakText
+        : p === 'xai'
+          ? xaiImageToVideo(motionPrompt, startImage, { durationSec: gifSeconds })
+          : p === 'grok'
+            ? grokImageToVideo(motionPrompt, startImage, { durationSec: gifSeconds })
+            : falImageToVideo(motionPrompt, startImage, { durationSec: gifSeconds }));
       let videoUrl;
       {
         const failures = [];
@@ -1495,7 +1590,23 @@ router.post('/transcribe', requireEcomAuth, upload.single('audio'), async (req, 
 router.post('/launch-kit', requireEcomAuth, async (req, res) => {
   try {
     if (!DEEPSEEK_API_KEY) return res.status(503).json({ success: false, message: 'DeepSeek non configuré' });
-    const { productName = '', description = '', url = '', language = 'fr', tone = 'direct', part = 'all', angleCount = 3, scriptCount = 5, angleTitles = [], selectedAngle = null, marketingAngles = [], marketInputs = {} } = req.body || {};
+    const { productName = '', description = '', url = '', language = 'fr', tone = 'direct', part = 'all', angleCount = 3, scriptCount = 5, angleTitles = [], selectedAngle = null, marketingAngles = [], marketInputs = {}, targetAudience = '', hookIndex = null, speakerDesc = '' } = req.body || {};
+    // QUI parle : le créateur configuré AVANT le script (flux UGC inversé) —
+    // le script s'écrit pour CETTE personne (un docteur ≠ un client ≠ un
+    // vendeur : ton, vocabulaire, posture, crédibilité).
+    const speakerClean = String(speakerDesc || '').trim().slice(0, 300);
+    // Suggestion LIBRE du marchand pour orienter les angles (ex. « axe sur la
+    // récupération sportive », « insiste sur le prix »).
+    const angleSuggestion = String(req.body?.angleSuggestion || '').trim().slice(0, 300);
+    // Script pour UN SEUL hook (l'utilisateur décide : un hook ou les trois).
+    const hookIdx = [0, 1, 2, '0', '1', '2'].includes(hookIndex) ? Number(hookIndex) : null;
+    const oneHook = hookIdx != null && selectedAngle ? String(selectedAngle?.hooks?.[hookIdx] || '').slice(0, 240) : '';
+    const scriptsHowMany = oneHook
+      ? `génère EXACTEMENT UN SEUL script — pour ce hook précis (renseigne "hookIndex":${hookIdx}) : « ${oneHook} ». Le script commence mot pour mot par ce hook`
+      : 'génère exactement TROIS scripts distincts, un pour chacun des 3 hooks de l\'angle sélectionné. Chaque script commence mot pour mot par son hook';
+    // Cible imposée par le marchand (optionnelle) : tous les angles/hooks la
+    // respectent ; vide = l'IA déduit la cible du produit (comportement normal).
+    const audienceClean = String(targetAudience || '').trim().slice(0, 220);
     const ctx = String(description || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 1500);
     const langName = { fr: 'français', en: 'anglais', es: 'espagnol' }[language] || 'français';
     const nAngles = Math.min(10, Math.max(1, Number(angleCount) || 3));
@@ -1533,7 +1644,7 @@ router.post('/launch-kit', requireEcomAuth, async (req, res) => {
     const schemas = {
       angles: `"angles":[{"title":"nom court de l'angle","audience":"cible visée","description":"2 à 3 phrases","hooks":["hook 1 qui stoppe le scroll","hook 2","hook 3"]}] (exactement ${nAngles} angles, CHACUN avec exactement 3 hooks publicitaires courts et distincts)`,
       scripts: selectedAngle && typeof selectedAngle === 'object'
-        ? `"videoScripts":[{"title":"titre du script","hookIndex":0,"hook":"hook exact","durationSec":45,"framework":"AIDA ou PAS","script":"script UGC complet prêt à lire","scenes":[{"voiceover":"phrase exacte prononcée sur ce plan","visual":"description visuelle PRÉCISE du plan à filmer : lieu, sujet, action, cadrage, ambiance","product":true,"media":"video ou image","role":"hook|probleme|benefice|preuve|demo|cta","highlight":false}]}] (génère exactement TROIS scripts distincts, un pour chacun des 3 hooks de l'angle sélectionné. Chaque script commence mot pour mot par son hook, puis suit STRICTEMENT une structure de copywriting professionnelle — choisis pour chaque script le framework le plus adapté à l'angle : AIDA (Attention → Intérêt → Désir → Preuve → Action) ou PAS (Problème → Agitation qui remue la douleur → Solution produit → Preuve → Action) — et renseigne "framework":"AIDA" ou "PAS". Aligne les "role" des plans sur les étapes (attention/problème → hook ou probleme ; intérêt/agitation → probleme ou benefice ; désir/solution → benefice ou demo ; preuve → preuve ; action → cta). Durée 35 à 50 secondes (90 à 125 mots), JAMAIS moins de 30 secondes ; narration parlée naturelle, sans didascalies. Copywriting pro : bénéfices concrets et spécifiques (zéro superlatif creux), une objection levée, une preuve crédible, un CTA urgent et précis. CTA OBLIGATOIRE : le DERNIER plan de CHAQUE script a "role":"cta" et sa phrase est un appel à l'action D'ACHAT explicite adapté au paiement à la livraison — sur le modèle « Commandez maintenant et faites-vous livrer directement chez vous » ou « Cliquez sur Commander, vous ne payez qu'à la livraison » (varie la formulation d'un script à l'autre, mais TOUJOURS un verbe d'action commander/appeler/cliquer + la livraison ou le paiement à la réception) — JAMAIS un CTA vague type « découvrez-le » ou une fin sans appel à l'action ; chaque phrase ENCHAÎNE sur la précédente avec des connecteurs parlés (« et le pire… », « résultat… », « c'est là que… ») — la vidéo doit se dérouler comme une histoire, pas une liste. Utilise "hookIndex":0, puis 1, puis 2. Découpe AUSSI chaque script en 6 à 9 plans "scenes" dont les "voiceover" mis bout à bout reproduisent EXACTEMENT le "script". Chaque "visual" doit ILLUSTRER LITTÉRALEMENT sa phrase "voiceover" : plante ou ingrédient cité → plan macro de cette plante/cet ingrédient réel (frais, texture, gouttes) ; composition ou formule → ingrédients disposés autour du produit, texture en gros plan, poudre ou goutte en mouvement ; processus, fabrication ou étapes d'utilisation → gestes concrets filmés étape par étape ; effet INTERNE au corps (poumons, digestion, peau, cheveux…) → plan façon animation 3D médicale réaliste de l'organe/du processus en action ; effet visible du produit à l'usage (vapeur, mousse, texture) → montré clairement à l'écran ; problème ou résultat → rendu VISIBLE à l'écran. Varie les types de plans (macro ingrédient, gros plan produit, démonstration, animation 3D, plan personne) — jamais une suite de plans génériques de personnes qui sourient. Structure gagnante style UGC TikTok : hook selfie percutant → révélation du produit avec ses ingrédients en scène → bénéfices en plans COURTS → démonstration réelle avec effet visible → CTA final face caméra. CONTRAINTE DURE : chaque "voiceover" est une PHRASE COMPLÈTE et grammaticale, avec articles et verbes conjugués, naturelle à l'oral — par exemple « La fatigue oculaire constante, les picotements qui gâchent vos soirées, ça vous parle ? » et JAMAIS le style télégraphique « Fatigue oculaire constante, picotements qui gâchent vos soirées ». Chaque phrase a un sens complet toute seule. RYTHME PRO (la longueur de la phrase fait la durée du plan) : hook et bénéfices en phrases COURTES et percutantes de 7 à 10 mots (plans de 3-4 s) ; problème et agitation en 10 à 13 mots (4-5 s) ; démonstration, preuve et CTA en 12 à 16 mots (5-6 s) — c'est cette alternance court/long qui rend le montage dynamique. STRATÉGIE DE COÛT — champ "media" de chaque plan : mets "video" UNIQUEMENT quand le mouvement est indispensable (hook avec personne qui parle/agit, démonstration ou geste d'utilisation, effet interne 3D, CTA final face caméra) ; mets "image" pour les plans illustratifs qui vivent très bien en photo animée au montage (macro plante/ingrédient, composition autour du produit, packshot, texture, décor, problème statique). Vise ENVIRON LA MOITIÉ des plans en "image". MONTEUR EXPERT — champs obligatoires par plan : "role" = fonction narrative exacte du plan (hook, probleme, benefice, preuve, demo, cta) — le montage choisit ses transitions avec ; "highlight":true UNIQUEMENT sur le ou les 1-2 plans (démo/preuve) où un détail précis du produit mérite un cercle d'accent à l'écran, false partout ailleurs. Mets "product":true UNIQUEMENT quand le produit apparaît réellement dans le plan, et "product":false pour les plans lifestyle/émotion/personne — NE montre PAS le produit dans chaque plan. Angle sélectionné : ${JSON.stringify(selectedAngle).slice(0, 1800)})`
+        ? `"videoScripts":[{"title":"titre du script","hookIndex":0,"hook":"hook exact","durationSec":45,"framework":"AIDA ou PAS","script":"script UGC complet prêt à lire","scenes":[{"voiceover":"phrase exacte prononcée sur ce plan","visual":"description visuelle PRÉCISE du plan à filmer : lieu, sujet, action, cadrage, ambiance","product":true,"media":"video ou image","role":"hook|probleme|benefice|preuve|demo|cta","highlight":false}]}] (${scriptsHowMany}, puis suit STRICTEMENT une structure de copywriting professionnelle — choisis pour chaque script le framework le plus adapté à l'angle : AIDA (Attention → Intérêt → Désir → Preuve → Action) ou PAS (Problème → Agitation qui remue la douleur → Solution produit → Preuve → Action) — et renseigne "framework":"AIDA" ou "PAS". Aligne les "role" des plans sur les étapes (attention/problème → hook ou probleme ; intérêt/agitation → probleme ou benefice ; désir/solution → benefice ou demo ; preuve → preuve ; action → cta). Durée 35 à 50 secondes (90 à 125 mots), JAMAIS moins de 30 secondes ; narration parlée naturelle, sans didascalies. Copywriting pro : bénéfices concrets et spécifiques (zéro superlatif creux), une objection levée, une preuve crédible, un CTA urgent et précis. CTA OBLIGATOIRE : le DERNIER plan de CHAQUE script a "role":"cta" et sa phrase est un appel à l'action D'ACHAT explicite adapté au paiement à la livraison — sur le modèle « Commandez maintenant et faites-vous livrer directement chez vous » ou « Cliquez sur Commander, vous ne payez qu'à la livraison » (varie la formulation d'un script à l'autre, mais TOUJOURS un verbe d'action commander/appeler/cliquer + la livraison ou le paiement à la réception) — JAMAIS un CTA vague type « découvrez-le » ou une fin sans appel à l'action ; chaque phrase ENCHAÎNE sur la précédente avec des connecteurs parlés (« et le pire… », « résultat… », « c'est là que… ») — la vidéo doit se dérouler comme une histoire, pas une liste. ${oneHook ? `"hookIndex" vaut ${hookIdx}.` : 'Utilise "hookIndex":0, puis 1, puis 2.'} Découpe AUSSI chaque script en 6 à 9 plans "scenes" dont les "voiceover" mis bout à bout reproduisent EXACTEMENT le "script". Chaque "visual" doit ILLUSTRER LITTÉRALEMENT sa phrase "voiceover" : plante ou ingrédient cité → plan macro de cette plante/cet ingrédient réel (frais, texture, gouttes) ; composition ou formule → ingrédients disposés autour du produit, texture en gros plan, poudre ou goutte en mouvement ; processus, fabrication ou étapes d'utilisation → gestes concrets filmés étape par étape ; effet INTERNE au corps (poumons, digestion, peau, cheveux…) → plan façon animation 3D médicale réaliste de l'organe/du processus en action ; effet visible du produit à l'usage (vapeur, mousse, texture) → montré clairement à l'écran ; problème ou résultat → rendu VISIBLE à l'écran. Varie les types de plans (macro ingrédient, gros plan produit, démonstration, animation 3D, plan personne) — jamais une suite de plans génériques de personnes qui sourient. Structure gagnante style UGC TikTok : hook selfie percutant → révélation du produit avec ses ingrédients en scène → bénéfices en plans COURTS → démonstration réelle avec effet visible → CTA final face caméra. CONTRAINTE DURE : chaque "voiceover" est une PHRASE COMPLÈTE et grammaticale, avec articles et verbes conjugués, naturelle à l'oral — par exemple « La fatigue oculaire constante, les picotements qui gâchent vos soirées, ça vous parle ? » et JAMAIS le style télégraphique « Fatigue oculaire constante, picotements qui gâchent vos soirées ». Chaque phrase a un sens complet toute seule. RYTHME PRO (la longueur de la phrase fait la durée du plan) : hook et bénéfices en phrases COURTES et percutantes de 7 à 10 mots (plans de 3-4 s) ; problème et agitation en 10 à 13 mots (4-5 s) ; démonstration, preuve et CTA en 12 à 16 mots (5-6 s) — c'est cette alternance court/long qui rend le montage dynamique. STRATÉGIE DE COÛT — champ "media" de chaque plan : mets "video" UNIQUEMENT quand le mouvement est indispensable (hook avec personne qui parle/agit, démonstration ou geste d'utilisation, effet interne 3D, CTA final face caméra) ; mets "image" pour les plans illustratifs qui vivent très bien en photo animée au montage (macro plante/ingrédient, composition autour du produit, packshot, texture, décor, problème statique). Vise ENVIRON LA MOITIÉ des plans en "image". MONTEUR EXPERT — champs obligatoires par plan : "role" = fonction narrative exacte du plan (hook, probleme, benefice, preuve, demo, cta) — le montage choisit ses transitions avec ; "highlight":true UNIQUEMENT sur le ou les 1-2 plans (démo/preuve) où un détail précis du produit mérite un cercle d'accent à l'écran, false partout ailleurs. Mets "product":true UNIQUEMENT quand le produit apparaît réellement dans le plan, et "product":false pour les plans lifestyle/émotion/personne — NE montre PAS le produit dans chaque plan. Angle sélectionné : ${JSON.stringify(selectedAngle).slice(0, 1800)})`
         : titles.length
         ? `"videoScripts":[{"title":"titre : angle + durée","durationSec":40,"framework":"AIDA ou PAS","script":"narration continue prête à lire à voix haute, sans didascalies","scenes":[{"voiceover":"phrase exacte de ce plan","visual":"description visuelle PRÉCISE du plan : lieu, sujet, action, cadrage, ambiance","product":true,"media":"video ou image","role":"hook|probleme|benefice|preuve|demo|cta","highlight":false}]}] (pour CHAQUE angle ci-dessous, génère DEUX scripts : d'abord une version de 40 secondes (~100 mots, "durationSec":40), puis une version de 60 secondes (~150 mots, "durationSec":60) — AUCUN script sous 30 secondes. Chaque script suit STRICTEMENT un framework de copywriting — AIDA (Attention → Intérêt → Désir → Preuve → Action) ou PAS (Problème → Agitation → Solution → Preuve → Action), renseigné dans "framework" — avec les "role" des plans alignés sur les étapes, des connecteurs parlés entre les phrases (la narration s'enchaîne comme une histoire), des bénéfices concrets, une preuve crédible et un CTA urgent. CTA OBLIGATOIRE : le DERNIER plan de CHAQUE script a "role":"cta" et sa phrase est un appel à l'action D'ACHAT explicite adapté au paiement à la livraison — sur le modèle « Commandez maintenant et faites-vous livrer directement chez vous » ou « Cliquez sur Commander, vous ne payez qu'à la livraison » (varie la formulation, mais TOUJOURS un verbe d'action commander/appeler/cliquer + la livraison ou le paiement à la réception) — JAMAIS un CTA vague ni une fin sans appel à l'action. Découpe CHAQUE script en 6 à 9 plans "scenes" dont les "voiceover" bout à bout reproduisent EXACTEMENT le "script". Chaque "visual" doit ILLUSTRER LITTÉRALEMENT sa phrase "voiceover" : plante ou ingrédient cité → plan macro de cette plante/cet ingrédient réel (frais, texture, gouttes) ; composition ou formule → ingrédients disposés autour du produit, texture en gros plan, poudre ou goutte en mouvement ; processus, fabrication ou étapes d'utilisation → gestes concrets filmés étape par étape ; effet INTERNE au corps (poumons, digestion, peau, cheveux…) → plan façon animation 3D médicale réaliste de l'organe/du processus en action ; effet visible du produit à l'usage (vapeur, mousse, texture) → montré clairement à l'écran ; problème ou résultat → rendu VISIBLE à l'écran. Varie les types de plans (macro ingrédient, gros plan produit, démonstration, animation 3D, plan personne) — jamais une suite de plans génériques de personnes qui sourient. Structure gagnante style UGC TikTok : hook selfie percutant → révélation du produit avec ses ingrédients en scène → bénéfices en plans COURTS → démonstration réelle avec effet visible → CTA final face caméra. CONTRAINTE DURE : chaque "voiceover" est une PHRASE COMPLÈTE et grammaticale, avec articles et verbes conjugués, naturelle à l'oral — par exemple « La fatigue oculaire constante, les picotements qui gâchent vos soirées, ça vous parle ? » et JAMAIS le style télégraphique « Fatigue oculaire constante, picotements qui gâchent vos soirées ». Chaque phrase a un sens complet toute seule. RYTHME PRO (la longueur de la phrase fait la durée du plan) : hook et bénéfices en phrases COURTES et percutantes de 7 à 10 mots (plans de 3-4 s) ; problème et agitation en 10 à 13 mots (4-5 s) ; démonstration, preuve et CTA en 12 à 16 mots (5-6 s) — c'est cette alternance court/long qui rend le montage dynamique. STRATÉGIE DE COÛT — champ "media" de chaque plan : mets "video" UNIQUEMENT quand le mouvement est indispensable (hook avec personne qui parle/agit, démonstration ou geste d'utilisation, effet interne 3D, CTA final face caméra) ; mets "image" pour les plans illustratifs qui vivent très bien en photo animée au montage (macro plante/ingrédient, composition autour du produit, packshot, texture, décor, problème statique). Vise ENVIRON LA MOITIÉ des plans en "image". MONTEUR EXPERT — champs obligatoires par plan : "role" = fonction narrative exacte du plan (hook, probleme, benefice, preuve, demo, cta) — le montage choisit ses transitions avec ; "highlight":true UNIQUEMENT sur le ou les 1-2 plans (démo/preuve) où un détail précis du produit mérite un cercle d'accent à l'écran, false partout ailleurs. Mets "product":true seulement si le produit apparaît dans le plan, "product":false pour les plans lifestyle/personne — pas de produit à chaque plan. Angles dans l'ordre : ${titles.map((t, i) => `${i + 1}) ${t}`).join(' ; ')})`
         : `"videoScripts":[{"title":"titre","durationSec":40,"framework":"AIDA ou PAS","script":"narration continue prête à lire à voix haute, sans didascalies","scenes":[{"voiceover":"phrase exacte de ce plan","visual":"description visuelle PRÉCISE du plan : lieu, sujet, action, cadrage, ambiance","product":true,"media":"video ou image","role":"hook|probleme|benefice|preuve|demo|cta","highlight":false}]}] (${nScripts} scripts, en alternant des durées de 40 et 60 secondes ("durationSec":40 ou 60), ~100 mots pour 40 s et ~150 mots pour 60 s — AUCUN script sous 30 secondes. Chaque script suit STRICTEMENT AIDA (Attention → Intérêt → Désir → Preuve → Action) ou PAS (Problème → Agitation → Solution → Preuve → Action), renseigné dans "framework", avec les "role" des plans alignés sur les étapes, des connecteurs parlés entre les phrases, des bénéfices concrets, une preuve crédible et un CTA urgent. CTA OBLIGATOIRE : le DERNIER plan de CHAQUE script a "role":"cta" et sa phrase est un appel à l'action D'ACHAT explicite adapté au paiement à la livraison — sur le modèle « Commandez maintenant et faites-vous livrer directement chez vous » ou « Cliquez sur Commander, vous ne payez qu'à la livraison » (varie la formulation, mais TOUJOURS un verbe d'action commander/appeler/cliquer + la livraison ou le paiement à la réception) — JAMAIS un CTA vague ni une fin sans appel à l'action. Découpe CHAQUE script en 6 à 9 plans "scenes" dont les "voiceover" bout à bout reproduisent EXACTEMENT le "script". Chaque "visual" doit ILLUSTRER LITTÉRALEMENT sa phrase "voiceover" : plante ou ingrédient cité → plan macro de cette plante/cet ingrédient réel (frais, texture, gouttes) ; composition ou formule → ingrédients disposés autour du produit, texture en gros plan, poudre ou goutte en mouvement ; processus, fabrication ou étapes d'utilisation → gestes concrets filmés étape par étape ; effet INTERNE au corps (poumons, digestion, peau, cheveux…) → plan façon animation 3D médicale réaliste de l'organe/du processus en action ; effet visible du produit à l'usage (vapeur, mousse, texture) → montré clairement à l'écran ; problème ou résultat → rendu VISIBLE à l'écran. Varie les types de plans (macro ingrédient, gros plan produit, démonstration, animation 3D, plan personne) — jamais une suite de plans génériques de personnes qui sourient. Structure gagnante style UGC TikTok : hook selfie percutant → révélation du produit avec ses ingrédients en scène → bénéfices en plans COURTS → démonstration réelle avec effet visible → CTA final face caméra. CONTRAINTE DURE : chaque "voiceover" est une PHRASE COMPLÈTE et grammaticale, avec articles et verbes conjugués, naturelle à l'oral — par exemple « La fatigue oculaire constante, les picotements qui gâchent vos soirées, ça vous parle ? » et JAMAIS le style télégraphique « Fatigue oculaire constante, picotements qui gâchent vos soirées ». Chaque phrase a un sens complet toute seule. RYTHME PRO (la longueur de la phrase fait la durée du plan) : hook et bénéfices en phrases COURTES et percutantes de 7 à 10 mots (plans de 3-4 s) ; problème et agitation en 10 à 13 mots (4-5 s) ; démonstration, preuve et CTA en 12 à 16 mots (5-6 s) — c'est cette alternance court/long qui rend le montage dynamique. STRATÉGIE DE COÛT — champ "media" de chaque plan : mets "video" UNIQUEMENT quand le mouvement est indispensable (hook avec personne qui parle/agit, démonstration ou geste d'utilisation, effet interne 3D, CTA final face caméra) ; mets "image" pour les plans illustratifs qui vivent très bien en photo animée au montage (macro plante/ingrédient, composition autour du produit, packshot, texture, décor, problème statique). Vise ENVIRON LA MOITIÉ des plans en "image". MONTEUR EXPERT — champs obligatoires par plan : "role" = fonction narrative exacte du plan (hook, probleme, benefice, preuve, demo, cta) — le montage choisit ses transitions avec ; "highlight":true UNIQUEMENT sur le ou les 1-2 plans (démo/preuve) où un détail précis du produit mérite un cercle d'accent à l'écran, false partout ailleurs. Mets "product":true seulement si le produit apparaît dans le plan, "product":false pour les plans lifestyle/personne — pas de produit à chaque plan)`,
@@ -1543,7 +1654,7 @@ router.post('/launch-kit', requireEcomAuth, async (req, res) => {
     if (!wanted.length) return res.status(400).json({ success: false, message: 'Paramètre "part" invalide' });
 
     const system = 'Tu es un stratège e-commerce (Afrique francophone, vente cash on delivery, Facebook/TikTok Ads, WhatsApp). Déduis le public cible (hommes, femmes ou mixte) UNIQUEMENT à partir de la nature du produit — n\'assume JAMAIS un public féminin par défaut. Adapte le vocabulaire, les accroches, les hooks, les scripts et le ciblage au public réellement pertinent ; si le produit est unisexe, reste neutre en genre (évite les accords genrés type "épuisé(e)" et les formulations qui ne s\'adressent qu\'aux femmes). Tu réponds UNIQUEMENT en JSON valide, sans texte autour, sans balises markdown.';
-    const userMsg = `Produit : ${productName || '(non précisé)'}\nDescription : ${ctx || '—'}\nLien : ${url || '—'}\nLangue de rédaction : ${langName}\nTon : ${tone}\nDonnées commerciales : ${JSON.stringify(safeMarketInputs)}\nAngles marketing à respecter : ${adsAngles.length ? JSON.stringify(adsAngles) : '—'}\n\nGénère uniquement : ${wanted.join(', ')}. Réponds EXACTEMENT avec ce JSON :\n{${wanted.map(p => schemas[p]).join(',')}}\nÉcris tout en ${langName}.`;
+    const userMsg = `Produit : ${productName || '(non précisé)'}\nDescription : ${ctx || '—'}\nLien : ${url || '—'}\nLangue de rédaction : ${langName}\nTon : ${tone}\nCible imposée par le marchand : ${audienceClean || '— (déduis la cible du produit)'}\nQui prononce le script face caméra : ${speakerClean || '— (créateur UGC générique)'}\nSuggestion du marchand pour les angles : ${angleSuggestion || '—'}\nDonnées commerciales : ${JSON.stringify(safeMarketInputs)}\nAngles marketing à respecter : ${adsAngles.length ? JSON.stringify(adsAngles) : '—'}\n\nGénère uniquement : ${wanted.join(', ')}. Réponds EXACTEMENT avec ce JSON :\n{${wanted.map(p => schemas[p]).join(',')}}\nÉcris tout en ${langName}.${audienceClean ? ` CONTRAINTE : chaque angle, hook et script s'adresse EXCLUSIVEMENT à cette cible : ${audienceClean}.` : ''}${angleSuggestion ? ` CONSIGNE DU MARCHAND (prioritaire pour les angles) : ${angleSuggestion} — au moins la moitié des angles suivent explicitement cette direction.` : ''}${speakerClean ? ` CONTRAINTE : le script est prononcé par cette personne : ${speakerClean} — adapte le ton, le vocabulaire et la posture à qui elle est (docteur/expert → autorité calme et rassurante, preuves ; client → témoignage authentique à la première personne ; vendeur → enthousiasme commerçant direct). Le texte doit sonner CRÉDIBLE dans sa bouche.` : ''}`;
 
     const raw = await callDeepseek([{ role: 'system', content: system }, { role: 'user', content: userMsg }]);
     const match = String(raw || '').match(/\{[\s\S]*\}/);
@@ -1554,11 +1665,11 @@ router.post('/launch-kit', requireEcomAuth, async (req, res) => {
     const kit = {};
     if (wanted.includes('angles')) kit.angles = Array.isArray(parsed.angles) ? parsed.angles.slice(0, nAngles).map(a => ({ ...a, hooks: Array.isArray(a.hooks) ? a.hooks.slice(0, 3) : [] })) : [];
     if (wanted.includes('scripts')) kit.videoScripts = Array.isArray(parsed.videoScripts)
-      ? parsed.videoScripts.slice(0, selectedAngle ? 3 : nScripts).map((s, index) => ({
+      ? parsed.videoScripts.slice(0, selectedAngle ? (hookIdx != null ? 1 : 3) : nScripts).map((s, index) => ({
           ...s,
           angleTitle: selectedAngle?.title || s.angleTitle || '',
-          hookIndex: selectedAngle ? index : s.hookIndex,
-          hook: selectedAngle?.hooks?.[index] || s.hook || '',
+          hookIndex: selectedAngle ? (hookIdx != null ? hookIdx : index) : s.hookIndex,
+          hook: selectedAngle?.hooks?.[hookIdx != null ? hookIdx : index] || s.hook || '',
           scenes: Array.isArray(s.scenes)
             ? s.scenes.slice(0, 8).map(sc => ({ voiceover: String(sc?.voiceover || '').slice(0, 400), visual: String(sc?.visual || '').slice(0, 400), product: sc?.product !== false })).filter(sc => sc.voiceover || sc.visual)
             : [],
@@ -1678,7 +1789,7 @@ router.post('/clone-product-page/save', requireEcomAuth, async (req, res) => {
 router.post('/avatar-script', requireEcomAuth, async (req, res) => {
   try {
     if (!DEEPSEEK_API_KEY) return res.status(503).json({ success: false, message: 'Service IA non disponible' });
-    const { productName = '', productContext = '', productImageUrl = '', durationSec = 25 } = req.body || {};
+    const { productName = '', productContext = '', productImageUrl = '', durationSec = 25, angle = '', hook = '' } = req.body || {};
     let visual = '';
     if (!String(productContext).trim() && /^https?:\/\//.test(String(productImageUrl))) {
       const { analyzeProductImageForVideo } = await import('../services/openaiImageService.js');
@@ -1689,13 +1800,19 @@ router.post('/avatar-script', requireEcomAuth, async (req, res) => {
     }
     const sec = Math.max(12, Math.min(45, Number(durationSec) || 25));
     const words = Math.round(sec * 2.4); // ≈ 145 mots/minute de parole naturelle
+    const angleClean = String(angle).slice(0, 240).trim();
+    const hookClean = String(hook).slice(0, 240).trim();
 
     const system = `Tu écris le MONOLOGUE d'un avatar vendeur face caméra (pub TikTok/Reels, marché africain francophone, paiement à la livraison). L'avatar TIENT LE PRODUIT EN MAIN — il peut dire « ce que j'ai en main », « ce pack », « regardez ».
 Réponds UNIQUEMENT avec le texte à prononcer : aucun titre, aucune didascalie, aucun emoji, aucun guillemet.
-Règles : environ ${words} mots (${sec} secondes de parole) ; phrases COMPLÈTES et naturelles à l'oral, tutoiement, français simple et percutant ; structure hook qui arrête le scroll → problème ou bénéfice concret → preuve simple → CTA FINAL OBLIGATOIRE d'achat explicite avec la livraison (« Commande maintenant et fais-toi livrer directement chez toi », « Clique sur Commander, tu ne paies qu'à la livraison »…) — jamais de fin sans appel à l'action.`;
+Règles : environ ${words} mots (${sec} secondes de parole) ; phrases COMPLÈTES et naturelles à l'oral, tutoiement, français simple et percutant ; structure hook qui arrête le scroll → problème ou bénéfice concret → preuve simple → CTA FINAL OBLIGATOIRE d'achat explicite avec la livraison (« Commande maintenant et fais-toi livrer directement chez toi », « Clique sur Commander, tu ne paies qu'à la livraison »…) — jamais de fin sans appel à l'action.${hookClean ? `
+HOOK IMPOSÉ : le monologue COMMENCE MOT POUR MOT par ce hook (adapte seulement la ponctuation orale) : « ${hookClean} ».` : ''}${angleClean ? `
+ANGLE MARKETING IMPOSÉ : tout le monologue défend cet angle, sans en dévier : ${angleClean}.` : ''}`;
     const user = `Produit : ${String(productName).slice(0, 150) || '—'}
 Description : ${String(productContext).replace(/<[^>]+>/g, ' ').slice(0, 800) || '—'}
-Analyse visuelle de la photo (vérité terrain) : ${visual || '—'}`;
+Analyse visuelle de la photo (vérité terrain) : ${visual || '—'}${angleClean ? `
+Angle marketing choisi : ${angleClean}` : ''}${hookClean ? `
+Hook choisi (première phrase du monologue) : ${hookClean}` : ''}`;
 
     const raw = await callDeepseek([{ role: 'system', content: system }, { role: 'user', content: user }]);
     const script = String(raw || '').trim().replace(/^["«\s]+|["»\s]+$/g, '');
@@ -1868,7 +1985,7 @@ router.get('/music-presets', requireEcomAuth, async (req, res) => {
 router.post('/montage-director', requireEcomAuth, async (req, res) => {
   try {
     if (!DEEPSEEK_API_KEY) return res.status(503).json({ success: false, message: 'Service IA non disponible' });
-    const { productName = '', productContext = '', scenes = [], musicPresets = [] } = req.body || {};
+    const { productName = '', productContext = '', scenes = [], musicPresets = [], ugc = false } = req.body || {};
     const sc = (Array.isArray(scenes) ? scenes : []).slice(0, 12).map((s, i) => ({
       i,
       texte: String(s.voiceText || s.subtitleText || '').slice(0, 200),
@@ -1889,7 +2006,12 @@ router.post('/montage-director', requireEcomAuth, async (req, res) => {
     const presetIds = (Array.isArray(musicPresets) ? musicPresets : []).map((p) => String(p)).slice(0, 20);
 
     const system = `Tu es un directeur de montage publicitaire TikTok/Reels senior. On te donne le storyboard d'une pub e-commerce ; tu rends TOUTES les décisions de montage, comme sur un plateau : rythme, transition à chaque jonction, habillage des sous-titres, musique, médaillon produit, cercles d'accent, mouvements de caméra des plans image.
-Règles du métier :
+${ugc ? `MODE MONTAGE UGC — règles PRIORITAIRES sur toutes les autres :
+- Le plan 1 (hook) et le DERNIER plan (CTA) sont des plans PARLANTS face caméra : le créateur parle réellement, lèvres synchronisées sur la voix. Pour ces DEUX plans : "media" OBLIGATOIREMENT "video", "kenBurns" null, "overlayProduct" false (le produit est déjà dans sa main), "accent" null.
+- Esthétique UGC authentique smartphone : transitions SIMPLES uniquement ("none", "fade", "fadeblack") — bannis circleopen, radial, pixelize, wipes et slides démonstratifs sur TOUTE la vidéo.
+- Sous-titres style créateur TikTok : "duo_yellow" ou "box_black", captionCase "upper", position "middle".
+- musicVolume discret : 0.35 (la voix du créateur domine, la musique accompagne).
+` : ''}Règles du métier :
 - Transitions : impact (fadewhite) après le hook et juste avant le CTA ; dissolve sur le malaise du problème puis circleopen pour la révélation de la solution ; glissés rythmés (slideleft/slideup) entre bénéfices ; wipe sur les preuves ; JAMAIS deux fois la même transition d'affilée.
 - Sous-titres : UN style cohérent pour toute la vidéo, choisi selon le ton du script (énergique/promo → duo_yellow ou box_black avec captionCase "upper" ; premium/élégant → classic ou serif ; tech/moderne → neon). Position "middle" par défaut.
 - overlayProduct:true UNIQUEMENT sur les plans de vente (benefice, preuve, cta) où le produit n'est PAS visible à l'écran.

@@ -170,6 +170,93 @@ export async function grokImageToVideo(prompt, imageUrl, { durationSec = 8, reso
   return pollKieTask(taskId, { mediaType: 'video', maxWaitMs: 8 * 60 * 1000, label: 'Grok Imagine 1.5' });
 }
 
+/**
+ * Kling V3 Turbo (image → vidéo) via kie.ai — LE moteur des scènes UGC
+ * PARLÉES : anime la personne de l'image en train de DIRE les mots exacts
+ * (bouche synchronisée sur le phrasé), durée LIBRE 3-15 s (vs 8 s fixes Veo),
+ * 720p/1080p. Endpoint générique kie jobs/createTask (mécanique submitKieTask
+ * partagée avec Grok/OmniHuman). Env : KIE_TALK_MODEL (défaut
+ * kling/v3-turbo-image-to-video), KIE_TALK_RESOLUTION (défaut 720p).
+ * @returns {Promise<string>} URL mp4
+ */
+export async function klingImageToVideo(prompt, imageUrl, { durationSec = 10, resolution = '' } = {}) {
+  if (!isKieVideoConfigured()) throw new Error('KIE_API_KEY manquante');
+  const { submitKieTask, pollKieTask } = await import('./nanoBananaService.js');
+  // Durées ACCEPTÉES par paliers : 10, 20, 30, 40 s. Jusqu'à ~13 s de texte
+  // on reste sur 10 s (débit rapide, aucun silence) plutôt qu'un clip de 20 s
+  // à moitié muet ; au-delà, palier supérieur.
+  const want = Math.round(Number(durationSec) || 10);
+  const duration = want <= 13 ? 10 : ([20, 30, 40].find((v) => v >= want) || 40);
+  const input = {
+    prompt: String(prompt || '').slice(0, 2500),
+    image_urls: imageUrl && /^https?:\/\//i.test(String(imageUrl)) ? [String(imageUrl)] : [],
+    duration,
+    resolution: (resolution || process.env.KIE_TALK_RESOLUTION || '720p') === '1080p' ? '1080p' : '720p',
+  };
+  const model = String(process.env.KIE_TALK_MODEL || 'kling/v3-turbo-image-to-video').trim();
+  const taskId = await submitKieTask({ model, input }, 3);
+  return pollKieTask(taskId, { mediaType: 'video', maxWaitMs: 12 * 60 * 1000, label: 'Kling V3 Turbo' });
+}
+
+/**
+ * Veo 3.1 (Google) via kie.ai — le réalisme de référence pour les UGC :
+ * personnes crédibles, gestes naturels, vrai 9:16 natif. Image + prompt →
+ * clip ~8 s, sortie 720p par défaut (l'upgrade 1080p est un endpoint séparé,
+ * volontairement non appelé). API dédiée kie : POST /api/v1/veo/generate puis
+ * poll GET /api/v1/veo/record-info (successFlag 0|1|2|3).
+ * Env : KIE_API_KEY (partagée), KIE_VEO_MODEL (défaut veo3_fast — Veo 3.1
+ * Fast, le meilleur rapport qualité/coût), KIE_VEO_GENERATION_TYPE.
+ * @returns {Promise<string>} URL mp4
+ */
+export const isVeoConfigured = () => isKieVideoConfigured();
+
+export async function veoImageToVideo(prompt, imageUrl, { aspectRatio = '9:16', speech = '' } = {}) {
+  const key = String(process.env.NANOBANANA_PRO_API_KEY || process.env.KIE_API_KEY || '').trim();
+  if (!key) throw new Error('KIE_API_KEY manquante');
+  const headers = { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' };
+  // Deux régimes audio :
+  //  · speech fourni (UGC sans lip sync) : le créateur DIT la phrase en
+  //    FRANÇAIS — voix native Veo, lèvres synchrones, audio conservé.
+  //  · sinon : clip muet de dialogue (la voix off Fish est posée après).
+  const speechClean = String(speech || '').trim().slice(0, 400);
+  const body = {
+    prompt: speechClean
+      ? `${String(prompt || '').slice(0, 3300)} The person looks into the camera and SPEAKS FLUENT NATIVE FRENCH, saying exactly, word for word: « ${speechClean} ». LANGUAGE: French ONLY — perfect natural French pronunciation, native francophone accent matching the person, never a single English word. Lips perfectly synced to the words, believable everyday delivery (not a professional announcer). SPEECH FILLS THE CLIP: starts speaking at the VERY FIRST frame and speaks CONTINUOUSLY until the VERY LAST frame — no silence at any moment, no pause at the start or the end, brisk energetic pace. No captions, no on-screen text.`
+      : `${String(prompt || '').slice(0, 3800)} No spoken dialogue, no talking voice — natural ambient sound only.`,
+    model: String(process.env.KIE_VEO_MODEL || 'veo3_fast').trim(),
+    aspect_ratio: aspectRatio === '16:9' ? '16:9' : '9:16',
+    // 1 image = frame de départ EXACTE (le personnage validé est préservé).
+    generationType: String(process.env.KIE_VEO_GENERATION_TYPE || 'FIRST_AND_LAST_FRAMES_2_VIDEO').trim(),
+    // Bascule kie automatique en cas de refus du modèle principal : sortie
+    // 720p garantie — précisément la cible.
+    enableFallback: true,
+    enableTranslation: true,
+  };
+  if (imageUrl && /^https?:\/\//i.test(String(imageUrl))) body.imageUrls = [String(imageUrl)];
+  const submit = await axios.post('https://api.kie.ai/api/v1/veo/generate', body, { headers, timeout: 30000 });
+  const taskId = submit.data?.data?.taskId;
+  if (!taskId) throw new Error(submit.data?.msg || 'Soumission Veo 3.1 refusée');
+  const deadline = Date.now() + 10 * 60 * 1000;
+  while (Date.now() < deadline) {
+    await sleep(8000);
+    let d;
+    try {
+      const st = await axios.get(`https://api.kie.ai/api/v1/veo/record-info?taskId=${encodeURIComponent(taskId)}`, { headers, timeout: 20000 });
+      d = st.data?.data;
+    } catch { continue; } // erreur réseau ponctuelle → on repolle
+    if (!d) continue;
+    if (d.successFlag === 1) {
+      const url = d.response?.resultUrls?.[0];
+      if (!url) throw new Error('Réponse Veo 3.1 sans URL vidéo');
+      return url;
+    }
+    if (d.successFlag === 2 || d.successFlag === 3) {
+      throw new Error(d.errorMessage || `Veo 3.1 : génération échouée (flag ${d.successFlag})`);
+    }
+  }
+  throw new Error('Génération Veo 3.1 trop longue (timeout 10 min), réessayez');
+}
+
 function runFfmpeg(args) {
   if (!ffmpegPath) throw new Error('Binaire ffmpeg indisponible (npm rebuild ffmpeg-static)');
   return new Promise((resolve, reject) => {

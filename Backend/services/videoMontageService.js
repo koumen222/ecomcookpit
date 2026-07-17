@@ -357,12 +357,20 @@ export async function renderMontage(spec = {}, onProgress = () => {}) {
         aIn = path.join(workDir, `a${i}.mp3`);
         try { await download(sc.audioUrl, aIn); audioDur = await probeDuration(aIn); } catch { aIn = null; }
       }
+      // AUDIO NATIF DU CLIP (UGC sans lip sync : le créateur parle DANS le clip
+      // Veo) : la durée du plan = celle du clip — la parole embarquée dicte.
+      let clipDur = null;
+      if (!aIn && sc.useClipAudio && sc.videoUrl && !spec.narrationUrl) {
+        const vPre = path.join(workDir, `v${i}.mp4`);
+        try { await download(sc.videoUrl, vPre); clipDur = await probeDuration(vPre); } catch { clipDur = null; }
+      }
       let dur;
       // LA VOIX DICTE LE RYTHME : un plan avec voix dure sa phrase + une courte
       // finale, ni plus ni moins. (L'ancienne règle max(voix, durée planifiée)
       // laissait un silence mort en fin de plan quand la voix était plus courte
       // que le plan — « petit silence entre 2 scènes » à couper.)
       if (audioDur && audioDur > 0.3) dur = Math.max(1.2, audioDur + VOICE_TAIL);
+      else if (clipDur && clipDur > 0.5) dur = Math.max(1.2, clipDur - Math.max(0, Number(sc.trimStart) || 0)); // clip parlant : tout le clip
       else if (spec.narrationUrl) dur = (Number(sc.durationSec) || 4) * narrScale; // étiré sur la narration
       else dur = Number(sc.durationSec) || 4; // sans voix : la durée demandée fait foi
       dur = Math.max(1, Math.min(MAX_SCENE_SEC, dur));
@@ -416,7 +424,8 @@ export async function renderMontage(spec = {}, onProgress = () => {}) {
       let vChain;
       if (sc.videoUrl) {
         const vIn = path.join(workDir, `v${i}.mp4`);
-        await download(sc.videoUrl, vIn);
+        // Déjà téléchargé en passe A pour sonder la durée (clip parlant) ?
+        try { await fs.access(vIn); } catch { await download(sc.videoUrl, vIn); }
         // Découpe (cut/trim) : on démarre la lecture du clip à trimStart. Le
         // stream_loop comble si la durée demandée dépasse la portion restante.
         const trimStart = Math.max(0, Number(sc.trimStart) || 0);
@@ -477,7 +486,7 @@ export async function renderMontage(spec = {}, onProgress = () => {}) {
       // overlay ignoré avec avertissement, le plan est rendu quand même.
       const ovList = [];
       const wantedOverlays = Array.isArray(sc.overlays)
-        ? sc.overlays.filter((o) => o && (o.shape === 'ring' || SYMBOL_ACCENTS[o.shape] || /^https?:\/\//.test(String(o.url || '')))).slice(0, 3)
+        ? sc.overlays.filter((o) => o && (o.shape === 'ring' || SYMBOL_ACCENTS[o.shape] || /^https?:\/\//.test(String(o.url || '')) || /^https?:\/\//.test(String(o.videoUrl || '')))).slice(0, 3)
         : [];
       for (const o of wantedOverlays) {
         try {
@@ -517,14 +526,22 @@ export async function renderMontage(spec = {}, onProgress = () => {}) {
             });
             continue;
           }
-          await downloadWithRetry(String(o.url), p);
+          // B-ROLL VIDÉO plein écran : un clip (produit en action) COUVRE le
+          // cadre pendant sa fenêtre — la voix du plan continue en dessous.
+          const isVideoOverlay = /^https?:\/\//.test(String(o.videoUrl || ''));
+          await downloadWithRetry(String(isVideoOverlay ? o.videoUrl : o.url), p);
           ovList.push({
             path: p,
+            isVideo: isVideoOverlay,
             xPct: Math.max(0, Math.min(100, Number(o.xPct) || 50)),
             yPct: Math.max(0, Math.min(100, Number(o.yPct) || 30)),
-            wPct: Math.max(5, Math.min(80, Number(o.wPct) || 35)),
+            wPct: Math.max(5, Math.min(100, Number(o.wPct) || 35)),
             // hPct optionnel : étirement vertical libre ; sinon proportions gardées.
             hPct: Number(o.hPct) > 0 ? Math.max(5, Math.min(95, Number(o.hPct))) : null,
+            // Fenêtre d'affichage optionnelle (B-ROLL) : l'insert n'apparaît
+            // qu'entre startSec et endSec — la voix du plan continue dessous.
+            tStart: Number(o.startSec) >= 0 && Number.isFinite(Number(o.startSec)) ? Number(o.startSec) : null,
+            tEnd: Number(o.endSec) > 0 && Number.isFinite(Number(o.endSec)) ? Number(o.endSec) : null,
           });
         } catch (e) {
           console.warn(`[Montage] overlay ignoré (plan ${i + 1}):`, e.message);
@@ -540,8 +557,12 @@ export async function renderMontage(spec = {}, onProgress = () => {}) {
         let cur = 'vb';
         ovList.forEach((o, k) => {
           const idx = 2 + k;
-          g += `;[${idx}:v]scale=${Math.round(w * o.wPct / 100)}:${o.hPct ? Math.round(h * o.hPct / 100) : -1}[ov${k}]`;
-          g += `;[${cur}][ov${k}]overlay=x='W*${(o.xPct / 100).toFixed(4)}-w/2':y='H*${(o.yPct / 100).toFixed(4)}-h/2':eof_action=repeat[vc${k}]`;
+          // Overlay VIDÉO : recalé dans le temps (setpts) pour démarrer PILE à
+          // l'ouverture de sa fenêtre (sinon le clip aurait déjà défilé).
+          const ovPts = o.isVideo ? `,setpts=PTS-STARTPTS${o.tStart != null ? `+${o.tStart.toFixed(2)}/TB` : ''}` : '';
+          g += `;[${idx}:v]scale=${Math.round(w * o.wPct / 100)}:${o.hPct ? Math.round(h * o.hPct / 100) : -1}${ovPts}[ov${k}]`;
+          const ovEnable = o.tStart != null && o.tEnd != null ? `:enable='between(t,${o.tStart.toFixed(2)},${o.tEnd.toFixed(2)})'` : '';
+          g += `;[${cur}][ov${k}]overlay=x='W*${(o.xPct / 100).toFixed(4)}-w/2':y='H*${(o.yPct / 100).toFixed(4)}-h/2':eof_action=repeat${ovEnable}[vc${k}]`;
           cur = `vc${k}`;
         });
         // Sous-titres appliqués en DERNIER (au-dessus des images superposées).
@@ -556,16 +577,28 @@ export async function renderMontage(spec = {}, onProgress = () => {}) {
         '-c:a', 'aac', '-b:a', '160k', '-ar', '44100', '-ac', '2',
         seg,
       ];
+      // Audio natif du clip (UGC parlant Veo) : coupé au contenu (le
+      // stream_loop rebouclerait la parole sur la queue rembourrée) puis
+      // silence de queue. Si le clip n'a pas de piste audio (fallback muet),
+      // on retombe proprement sur la branche silence.
+      let clipAudioOn = Boolean(sc.useClipAudio && sc.videoUrl && !spec.narrationUrl && !aIn);
       const runSeg = async (withSub) => {
         const vFilter = buildVFilter(withSub);
+        const vol = Math.max(0, Math.min(2, sc.volume == null ? 1 : Number(sc.volume)));
         if (aIn) {
-          const vol = Math.max(0, Math.min(2, sc.volume == null ? 1 : Number(sc.volume)));
           // La voix démarre à 0 (pile à la coupe — paroles enchaînées) ;
           // apad = silence de queue (le fondu sortant ne coupe rien).
           let aFilter = `[1:a]apad,volume=${vol}`;
           if (fadeIn > 0) aFilter += `,afade=t=in:st=0:d=${fadeIn.toFixed(2)}`;
           if (fadeOut > 0) aFilter += `,afade=t=out:st=${(dur - fadeOut).toFixed(2)}:d=${fadeOut.toFixed(2)}`;
           await runFfmpeg(['-y', ...vInputArgs, '-i', aIn, ...ovInputArgs, '-filter_complex', `${vFilter};${aFilter}[a]`, '-map', '[v]', '-map', '[a]', ...common]);
+        } else if (clipAudioOn) {
+          // L'entrée 1 reste un anullsrc pour préserver les index d'overlays
+          // (2+) ; la piste du plan vient de [0:a] (la parole du clip).
+          let aFilter = `[0:a]atrim=0:${dur.toFixed(3)},apad,volume=${vol}`;
+          if (fadeIn > 0) aFilter += `,afade=t=in:st=0:d=${fadeIn.toFixed(2)}`;
+          if (fadeOut > 0) aFilter += `,afade=t=out:st=${(dur - fadeOut).toFixed(2)}:d=${fadeOut.toFixed(2)}`;
+          await runFfmpeg(['-y', ...vInputArgs, '-f', 'lavfi', '-i', 'anullsrc=r=44100:cl=stereo', ...ovInputArgs, '-filter_complex', `${vFilter};${aFilter}[a]`, '-map', '[v]', '-map', '[a]', ...common]);
         } else {
           await runFfmpeg(['-y', ...vInputArgs, '-f', 'lavfi', '-i', 'anullsrc=r=44100:cl=stereo', ...ovInputArgs, '-filter_complex', vFilter, '-map', '[v]', '-map', '1:a', ...common]);
         }
@@ -573,7 +606,18 @@ export async function renderMontage(spec = {}, onProgress = () => {}) {
       try {
         await runSeg(true);
       } catch (segErr) {
-        if (subFilter) {
+        if (clipAudioOn) {
+          // Clip sans piste audio (provider de secours muet) → branche silence.
+          console.warn(`[Montage] audio du clip indisponible sur le plan ${i} (${segErr.message}) — plan rendu muet.`);
+          warnings.push(`Plan ${i + 1} : audio du clip indisponible`);
+          clipAudioOn = false;
+          try {
+            await runSeg(true);
+          } catch (e2) {
+            if (subFilter) { console.warn(`[Montage] sous-titres échoués sur le plan ${i} (${e2.message}) — rendu sans sous-titre.`); await runSeg(false); }
+            else throw e2;
+          }
+        } else if (subFilter) {
           console.warn(`[Montage] sous-titres échoués sur le plan ${i} (${segErr.message}) — rendu du plan sans sous-titre.`);
           await runSeg(false);
         } else {
