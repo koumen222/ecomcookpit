@@ -315,6 +315,21 @@ router.get('/plans/public', async (_req, res) => {
   }
 });
 
+// ─── GET /billing/creative-pricing — grille tarifaire du Creative Center ─────
+// Public (comme /plans/public) : le front affiche les coûts en crédits par
+// fonctionnalité. Grille DYNAMIQUE : défauts config/creativePricing.js +
+// overrides du super admin (CreativePricingConfig), servie avec cache 30 s.
+router.get('/creative-pricing', async (_req, res) => {
+  try {
+    const { getCreativePricingSnapshot } = await import('../services/creativeCredits.js');
+    const snap = await getCreativePricingSnapshot();
+    res.json({ success: true, pricePerCreditFcfa: snap.pricePerCreditFcfa, features: snap.features });
+  } catch (err) {
+    console.error('[Billing] GET /creative-pricing error:', err.message);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
 router.get('/plan', requireEcomAuth, async (req, res) => {
   try {
     const workspaceId = req.workspaceId || req.query.workspaceId || req.body?.workspaceId;

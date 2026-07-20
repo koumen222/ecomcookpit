@@ -64,6 +64,15 @@ router.post('/translate', requireEcomAuth, upload.single('video'), async (req, r
   const keepOriginalAudio = String(req.body?.keepOriginalAudio ?? 'true') !== 'false';
   const burnSubtitles = String(req.body?.burnSubtitles ?? 'false') === 'true';
 
+  // Débit Creative Center : 1 vidéo doublée = featureCost('translation') crédits.
+  // Réservé avant le lancement du job, remboursé si la traduction échoue.
+  const { reserveFeatureCredits, sendInsufficientCredits } = await import('../services/creativeCredits.js');
+  const transResv = await reserveFeatureCredits(req.workspaceId, 'translation');
+  if (!transResv.ok) {
+    await fs.rm(videoPath, { force: true }).catch(() => {});
+    return sendInsufficientCredits(res, 'translation', transResv);
+  }
+
   await VideoTranslationJob.push(jobId, {
     workspaceId: req.workspaceId || null,
     status: 'processing', stage: 'En file', progress: 2,
@@ -71,7 +80,7 @@ router.post('/translate', requireEcomAuth, upload.single('video'), async (req, r
   });
 
   // Réponse immédiate ; le traitement continue en tâche de fond.
-  res.status(202).json({ success: true, jobId });
+  res.status(202).json({ success: true, jobId, creditsUsed: transResv.credits, creditsRemaining: transResv.remaining });
 
   // ── Worker asynchrone ──
   (async () => {
@@ -89,6 +98,7 @@ router.post('/translate', requireEcomAuth, upload.single('video'), async (req, r
       });
     } catch (err) {
       console.error('[VideoTranslation] job failed:', err.message);
+      await transResv.refund(err.message);
       await VideoTranslationJob.push(jobId, {
         status: 'error', stage: 'Erreur', error: err.message?.slice(0, 400) || 'Échec de la traduction.',
       });

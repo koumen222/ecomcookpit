@@ -337,7 +337,7 @@ async function runAvatarPipeline(job) {
  *  tier : 'standard' (Grok + MuseTalk, éco) | 'premium' (InfiniteTalk
  *  self-host — gestes pilotés par la voix, coût GPU brut) | 'cinema'
  *  (OmniHuman 1.5 via kie — 1080p, lecture sémantique, le plus cher). */
-export function createAvatarJob({ imageUrl = '', videoUrl = '', audioUrl = '', text = '', voiceRefId = '', motion = 'presenter', motionPrompt = '', tier = 'standard' }) {
+export function createAvatarJob({ imageUrl = '', videoUrl = '', audioUrl = '', text = '', voiceRefId = '', motion = 'presenter', motionPrompt = '', tier = 'standard', onDone = null }) {
   const id = `lip_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   const job = {
     id, createdAt: Date.now(), status: 'running', step: 'start', progress: 2,
@@ -346,7 +346,11 @@ export function createAvatarJob({ imageUrl = '', videoUrl = '', audioUrl = '', t
     url: '', durationSec: null, error: '',
   };
   avatarJobs.set(id, job);
-  setImmediate(() => runAvatarPipeline(job));
+  // onDone(status, job) : hook de fin (done|error) — remboursement des crédits
+  // Creative Center par la route si le pipeline échoue.
+  setImmediate(() => runAvatarPipeline(job).finally(() => {
+    try { onDone?.(job.status, job); } catch (e) { console.warn('[lipsync] onDone hook failed:', e.message); }
+  }));
   return id;
 }
 

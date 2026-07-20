@@ -14,7 +14,10 @@ const COUNTRY_PHONE_PATTERNS = {
   '227': { code: 'NE', name: 'Niger', minLength: 8, maxLength: 8 },
   '228': { code: 'TG', name: 'Togo', minLength: 8, maxLength: 8 },
   '229': { code: 'BJ', name: 'Bénin', minLength: 8, maxLength: 8 },
-  '241': { code: 'GA', name: 'Gabon', minLength: 7, maxLength: 8 },
+  // Gabon : ancien format 8 chiffres (06 XX XX XX) toujours actif sur WhatsApp
+  // + nouveau plan 2020 à 9 chiffres (066 XX XX XX). Le 0 initial FAIT PARTIE
+  // du numéro international (+241 0…) — ne jamais le retirer.
+  '241': { code: 'GA', name: 'Gabon', minLength: 7, maxLength: 9, keepLeadingZero: true },
   '242': { code: 'CG', name: 'Congo Brazzaville', minLength: 9, maxLength: 9 },
   '243': { code: 'CD', name: 'Congo RDC', minLength: 9, maxLength: 9 },
   '240': { code: 'GQ', name: 'Guinée Équatoriale', minLength: 9, maxLength: 9 },
@@ -476,14 +479,15 @@ export function normalizePhone(phone, defaultPrefix = null) {
     }
   }
   
+  // Certains plans de numérotation gardent le 0 initial à l'international
+  // (Gabon : +241 0X…). Pour ces préfixes, ne JAMAIS retirer le 0 du numéro local.
+  const keepZero = COUNTRY_PHONE_PATTERNS[defaultPrefix]?.keepLeadingZero === true;
+  const withDefaultPrefix = (num) => defaultPrefix + (!keepZero && num.startsWith('0') ? num.substring(1) : num);
+
   if (!hasCountryCode) {
     if (defaultPrefix && !hasExplicitInternationalPrefix) {
       // Si le numéro est local/ambigu, le contexte workspace doit primer sur une auto-détection hasardeuse.
-      if (cleaned.startsWith('0')) {
-        cleaned = defaultPrefix + cleaned.substring(1);
-      } else {
-        cleaned = defaultPrefix + cleaned;
-      }
+      cleaned = withDefaultPrefix(cleaned);
     } else {
       // Tentative de détection automatique via formatInternationalPhone
       const autoResult = formatInternationalPhone(cleaned);
@@ -492,11 +496,7 @@ export function normalizePhone(phone, defaultPrefix = null) {
         hasCountryCode = true;
       } else if (defaultPrefix) {
         // Fallback sur le préfixe par défaut si fourni
-        if (cleaned.startsWith('0')) {
-          cleaned = defaultPrefix + cleaned.substring(1);
-        } else {
-          cleaned = defaultPrefix + cleaned;
-        }
+        cleaned = withDefaultPrefix(cleaned);
       } else {
         // Aucun code pays détecté et pas de fallback → invalide
         return null;

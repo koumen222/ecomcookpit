@@ -142,6 +142,14 @@ const ecomUserSchema = new mongoose.Schema({
     ordersPerMonth: String,
     completed: { type: Boolean, default: false }
   },
+  // Onboarding « boutique d'abord » : true pour les NOUVEAUX comptes tant que
+  // leur boutique n'est pas créée. Les comptes existants (champ absent/false)
+  // ne sont jamais bloqués. Remis à false à la création du 1er Store ou quand
+  // l'utilisateur rejoint un workspace existant via invitation.
+  needsStoreSetup: {
+    type: Boolean,
+    default: false
+  },
   createdAt: {
     type: Date,
     default: Date.now

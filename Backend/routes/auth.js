@@ -3,8 +3,10 @@ import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import EcomUser from '../models/EcomUser.js';
 import Workspace from '../models/Workspace.js';
+import Store from '../models/Store.js';
 import PasswordResetToken from '../models/PasswordResetToken.js';
-import { generateEcomToken, generatePermanentToken, requireEcomAuth } from '../middleware/ecomAuth.js';
+import { generateEcomToken, generatePermanentToken, requireEcomAuth, invalidateUserCache } from '../middleware/ecomAuth.js';
+import { isSubdomainAvailable } from './stores.js';
 import { ensureAuthWorkspace } from '../services/authProvisioningService.js';
 import { formatGoogleClientIdsForLog, getGoogleClientIds, verifyGoogleIdToken } from '../services/googleAuthService.js';
 import { checkPlanLimit } from '../middleware/planLimits.js';
@@ -90,7 +92,10 @@ const serializeAuthUser = (user, store = null) => ({
   createdAt: user.createdAt,
   workspaceId: user.workspaceId,
   storeId: store?._id || null,
-  onboardingData: user.onboardingData
+  onboardingData: user.onboardingData,
+  // Onboarding « boutique d'abord » : le front redirige vers la création de
+  // boutique tant que ce flag est vrai. Un store existant le neutralise.
+  needsStoreSetup: !!user.needsStoreSetup && !store
 });
 
 async function getDefaultPhonePrefixForWorkspace(workspaceId) {
@@ -692,6 +697,8 @@ router.post('/register', validateEmail, validatePassword, async (req, res) => {
     console.log(`[AUTH_FLOW] register_start email=${email}`);
 
     // Créer l'utilisateur puis provisionner immédiatement son workspace.
+    // needsStoreSetup=true : parcours « boutique d'abord » — le compte n'accède
+    // au système central qu'après avoir créé sa boutique.
     const user = new EcomUser({
       email,
       password,
@@ -699,6 +706,7 @@ router.post('/register', validateEmail, validatePassword, async (req, res) => {
       phone: phone?.trim() || '',
       role: null,
       workspaceId: null,
+      needsStoreSetup: true,
       referredByAffiliateCode: affiliateCode?.trim().toUpperCase() || null
     });
     await user.save();
@@ -746,6 +754,23 @@ router.post('/register', validateEmail, validatePassword, async (req, res) => {
     }
     console.error('Erreur register e-commerce:', error);
     res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// GET /api/ecom/auth/check-subdomain/:subdomain — vérification PUBLIQUE de la
+// disponibilité d'un sous-domaine (étape boutique du funnel d'inscription,
+// avant même la création du compte). Rejette aussi les noms réservés.
+router.get('/check-subdomain/:subdomain', async (req, res) => {
+  try {
+    const clean = String(req.params.subdomain || '').toLowerCase().trim();
+    if (!/^[a-z0-9-]{3,30}$/.test(clean)) {
+      return res.json({ success: true, available: false, reason: 'Format invalide (3 à 30 caractères : lettres, chiffres, tirets)' });
+    }
+    const available = await isSubdomainAvailable(clean);
+    return res.json({ success: true, available, reason: available ? undefined : 'Ce sous-domaine est déjà pris' });
+  } catch (err) {
+    console.error('Erreur check-subdomain public:', err);
+    return res.status(500).json({ success: false, message: 'Erreur serveur' });
   }
 });
 
@@ -827,6 +852,7 @@ router.post('/google', async (req, res) => {
       await user.save();
     } else {
       // Nouvel utilisateur — créé minimalement, puis provisionné juste après.
+      // needsStoreSetup=true : boutique obligatoire avant l'accès au système.
       user = new EcomUser({
         email,
         googleId,
@@ -834,6 +860,7 @@ router.post('/google', async (req, res) => {
         avatar: picture || '',
         role: null,
         workspaceId: null,
+        needsStoreSetup: true,
         referredByAffiliateCode: affiliateCode?.trim().toUpperCase() || null
       });
       await user.save();
@@ -1071,7 +1098,11 @@ router.post('/join-workspace', async (req, res) => {
     user.workspaceId = workspace._id;
     user.role = role;
     if (user.phone) user.phone = await normalizeWorkspacePhone(user.phone, workspace._id);
+    // L'utilisateur rejoint un workspace existant : pas de boutique à créer,
+    // lever le blocage d'onboarding « boutique d'abord ».
+    if (user.needsStoreSetup) user.needsStoreSetup = false;
     await user.save();
+    invalidateUserCache(user._id);
 
     const provisioned = await ensureAuthWorkspace(user, {
       source: 'join_workspace',
@@ -1174,6 +1205,29 @@ router.get('/me', async (req, res) => {
 
     const { workspace, store, createdWorkspace } = await ensureAuthWorkspace(user, { source: 'me' });
     console.log(`[AUTH_FLOW] me_success user=${user.email} role=${user.role} workspace=${user.workspaceId || 'none'} store=${store?._id || 'none'} repaired=${createdWorkspace}`);
+
+    // Auto-réparation du flag « boutique d'abord » : une boutique peut exister
+    // sans doc Store dans le workspace actif (boutique legacy portée par le
+    // Workspace, ou Store créé dans un autre workspace de l'utilisateur).
+    // Sans cette réparation, le front renverrait l'utilisateur en boucle vers
+    // l'étape de création de boutique.
+    if (user.needsStoreSetup === true && !store) {
+      try {
+        const hasStoreElsewhere = Boolean(
+          (await Store.exists({ createdBy: user._id, isActive: true }))
+          || workspace?.subdomain
+          || workspace?.storeSettings?.isStoreEnabled === true
+        );
+        if (hasStoreElsewhere) {
+          user.needsStoreSetup = false;
+          await EcomUser.updateOne({ _id: user._id }, { $set: { needsStoreSetup: false } });
+          invalidateUserCache(user._id);
+          console.log(`[STORE_ONBOARDING] auto-healed (me) user=${user.email}`);
+        }
+      } catch (e) {
+        console.warn('[STORE_ONBOARDING] auto-heal me failed:', e.message);
+      }
+    }
 
     res.json({
       success: true,

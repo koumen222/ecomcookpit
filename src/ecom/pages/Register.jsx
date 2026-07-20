@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useEcomAuth } from '../hooks/useEcomAuth';
 import { authApi, warmUpBackend } from '../services/ecommApi';
@@ -81,6 +81,11 @@ const Register = () => {
       }
       return { path: '/ecom/workspace-setup', options: { replace: true } };
     }
+    // Boutique obligatoire : après l'inscription, un nouveau compte crée sa
+    // boutique avant d'accéder au dashboard.
+    if (nextUser?.needsStoreSetup && !nextUser?.storeId) {
+      return { path: '/ecom/onboarding/boutique', options: { replace: true } };
+    }
 
     return { path: nextUser?.workspaceId ? '/ecom/dashboard' : '/ecom/workspace-setup', options: {} };
   }, [pendingPlanSelection, inviteToken]);
@@ -101,13 +106,13 @@ const Register = () => {
   }, [getPostAuthDestination, inviteToken, pendingPlanSelection]);
 
   const handleGoogleCallback = useCallback(async (response) => {
-    console.log('\ud83d\udd11 [Google Auth] Callback reçu (Register):', {
+    console.log('🔑 [Google Auth] Callback reçu (Register):', {
       hasCredential: !!response?.credential,
       credentialLength: response?.credential?.length,
     });
 
     if (!response?.credential) {
-      console.error('\u274c [Google Auth] Pas de credential dans la réponse Google !');
+      console.error('❌ [Google Auth] Pas de credential dans la réponse Google !');
       setError('Erreur Google : aucun token reçu.');
       return;
     }
@@ -115,12 +120,12 @@ const Register = () => {
     setLoading(true); setError('');
     try {
       const result = await googleLogin(response.credential, affiliateCode || undefined);
-      console.log('\u2705 [Google Auth] Login réussi (Register):', { user: result.data?.user?.email });
+      console.log('✅ [Google Auth] Login réussi (Register):', { user: result.data?.user?.email });
       const u = result.data?.user;
       if (result.data?.isNewUser === true && offerFormationAfterAuth(u)) return;
       navigateAfterAuth(u);
     } catch (err) {
-      console.error('\u274c [Google Auth] Erreur:', err);
+      console.error('❌ [Google Auth] Erreur:', err);
       setError(getContextualError(err, 'login'));
     } finally { setLoading(false); }
   }, [affiliateCode, googleLogin, navigateAfterAuth, offerFormationAfterAuth]);

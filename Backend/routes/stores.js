@@ -7,14 +7,23 @@ import express from 'express';
 import mongoose from 'mongoose';
 import Store from '../models/Store.js';
 import Workspace from '../models/Workspace.js';
+import EcomUser from '../models/EcomUser.js';
 import StoreProduct from '../models/StoreProduct.js';
 import StoreOrder from '../models/StoreOrder.js';
-import { requireEcomAuth } from '../middleware/ecomAuth.js';
+import { requireEcomAuth, invalidateUserCache } from '../middleware/ecomAuth.js';
 import { checkPlanLimit } from '../middleware/planLimits.js';
 import { invalidateStoreCache } from './storeApi.js';
 import { invalidateStorefrontCache } from './publicStorefront.js';
 
 const router = express.Router();
+
+// Sous-domaines réservés à la plateforme (jamais attribuables à une boutique).
+// Liste alignée sur RESERVED_SUBDOMAINS de storeManagement.js.
+export const RESERVED_SUBDOMAINS = new Set([
+  'www', 'api', 'app', 'admin', 'dashboard', 'mail', 'ftp', 'store', 'shop',
+  'scalor', 'help', 'support', 'docs', 'blog', 'static', 'cdn', 'assets',
+  'dev', 'staging', 'test'
+]);
 
 // Helper: generate a subdomain suggestion from a store name
 function generateSubdomain(name) {
@@ -79,8 +88,10 @@ function buildLegacyWorkspaceStore(workspace) {
 }
 
 // Helper: check subdomain availability across Store + Workspace (for backward compat)
-async function isSubdomainAvailable(subdomain, excludeStoreId = null, excludeWorkspaceId = null) {
+// Exported: also used by the public availability check in auth.js (funnel d'inscription).
+export async function isSubdomainAvailable(subdomain, excludeStoreId = null, excludeWorkspaceId = null) {
   const cleanSub = subdomain.toLowerCase().trim();
+  if (RESERVED_SUBDOMAINS.has(cleanSub)) return false;
   // Always exclude all stores belonging to the same workspace
   const storeQuery = { subdomain: cleanSub };
   if (excludeWorkspaceId) storeQuery.workspaceId = { $ne: excludeWorkspaceId };
@@ -223,6 +234,18 @@ router.post('/', requireEcomAuth, checkPlanLimit('stores'), async (req, res) => 
     const ws = await Workspace.findById(req.workspaceId).select('primaryStoreId').lean();
     if (!ws?.primaryStoreId) {
       await Workspace.updateOne({ _id: req.workspaceId }, { $set: { primaryStoreId: store._id } });
+    }
+
+    // Onboarding « boutique d'abord » : la boutique existe désormais, lever le
+    // blocage d'accès au reste de la plateforme pour ce nouveau compte.
+    if (req.ecomUser?.needsStoreSetup) {
+      try {
+        await EcomUser.updateOne({ _id: req.ecomUser._id }, { $set: { needsStoreSetup: false } });
+        invalidateUserCache(req.ecomUser._id);
+        console.log(`[STORE_ONBOARDING] completed user=${req.ecomUser.email} store=${store._id}`);
+      } catch (e) {
+        console.warn('[STORE_ONBOARDING] clear flag failed:', e.message);
+      }
     }
 
     res.status(201).json({ success: true, data: store });

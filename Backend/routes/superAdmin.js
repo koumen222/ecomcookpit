@@ -6,6 +6,9 @@ import FeatureUsageLog from '../models/FeatureUsageLog.js';
 import PlanPayment from '../models/PlanPayment.js';
 import PlanConfig, { PLAN_KEYS } from '../models/PlanConfig.js';
 import GenerationPricingConfig from '../models/GenerationPricingConfig.js';
+import CreativePricingConfig from '../models/CreativePricingConfig.js';
+import { CREATIVE_PRICING } from '../config/creativePricing.js';
+import { invalidateCreativePricingCache } from '../services/creativeCredits.js';
 import GenerationPayment from '../models/GenerationPayment.js';
 import ProductPageGenerationLog from '../models/ProductPageGenerationLog.js';
 import WhatsAppLog from '../models/WhatsAppLog.js';
@@ -1564,6 +1567,54 @@ router.patch('/generation-pricing', requireEcomAuth, requireSuperAdmin, async (r
     res.json({ success: true, pricing: updated.getSnapshot() });
   } catch (err) {
     console.error('[SuperAdmin] PATCH /generation-pricing error:', err.message);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// ─── Tarifs Creative Center (crédits par fonctionnalité) ─────────────────────
+// GET /api/ecom/super-admin/creative-pricing — grille effective (défauts + overrides)
+router.get('/creative-pricing', requireEcomAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const config = await CreativePricingConfig.getSingleton();
+    res.json({ success: true, pricing: config.getSnapshot() });
+  } catch (err) {
+    console.error('[SuperAdmin] GET /creative-pricing error:', err.message);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// PATCH /api/ecom/super-admin/creative-pricing
+// Body : { pricePerCreditFcfa?, features?: { video: 3, voice: 0, … } } (crédits, 0 = gratuit)
+router.patch('/creative-pricing', requireEcomAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const config = await CreativePricingConfig.getSingleton();
+
+    if ('pricePerCreditFcfa' in req.body) {
+      const v = Number(req.body.pricePerCreditFcfa);
+      if (!Number.isFinite(v) || v < 1 || v > 1_000_000) {
+        return res.status(400).json({ success: false, message: 'Prix du crédit invalide (min 1 FCFA)' });
+      }
+      config.pricePerCreditFcfa = Math.round(v);
+    }
+
+    const feats = req.body.features && typeof req.body.features === 'object' ? req.body.features : {};
+    for (const [key, raw] of Object.entries(feats)) {
+      if (!(key in CREATIVE_PRICING)) {
+        return res.status(400).json({ success: false, message: `Fonctionnalité inconnue : ${key}` });
+      }
+      const n = Number(raw);
+      if (!Number.isFinite(n) || n < 0 || n > 1000) {
+        return res.status(400).json({ success: false, message: `Coût invalide pour « ${CREATIVE_PRICING[key].label} » (0 à 1000 crédits)` });
+      }
+      config.featureCredits.set(key, Math.round(n));
+    }
+
+    await config.save();
+    invalidateCreativePricingCache(); // les débits utilisent la nouvelle grille immédiatement
+    await logAudit(req, 'UPDATE_CREATIVE_PRICING', 'Creative Center pricing updated', 'creative_pricing', config._id);
+    res.json({ success: true, pricing: config.getSnapshot() });
+  } catch (err) {
+    console.error('[SuperAdmin] PATCH /creative-pricing error:', err.message);
     res.status(500).json({ success: false, message: 'Erreur serveur' });
   }
 });

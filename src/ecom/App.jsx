@@ -23,10 +23,12 @@ import {
 import EcomLayout from './components/EcomLayout.jsx';
 import PrivacyBanner from './components/PrivacyBanner.jsx';
 import VersionWatcher from './components/VersionWatcher.jsx';
+import { needsStoreOnboarding } from './utils/storeOnboarding.js';
 
 // Pages - Imports directs (pas de lazy loading)
 const Login = lazy(() => import('./pages/Login.jsx'));
 const Register = lazy(() => import('./pages/Register.jsx'));
+const StoreOnboarding = lazy(() => import('./pages/StoreOnboarding.jsx'));
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard.jsx'));
 const Dashboard = lazy(() => import('./pages/Dashboard.jsx'));
 const ProductsList = lazy(() => import('./pages/ProductsList.jsx'));
@@ -355,6 +357,7 @@ const PlatformPageMeta = ({ enabled = true }) => {
 
 const ProtectedRoute = ({ children, requiredRole, requireRitaAgentAccess = false }) => {
   const { user, isAuthenticated } = useEcomAuth();
+  const location = useLocation();
 
   const hasLocalSession = !!localStorage.getItem('ecomToken') && !!localStorage.getItem('ecomUser');
   const hasToken = !!localStorage.getItem('ecomToken');
@@ -364,6 +367,17 @@ const ProtectedRoute = ({ children, requiredRole, requireRitaAgentAccess = false
 
   if (!effectiveAuth) {
     return <Navigate to="/ecom/login" replace />;
+  }
+
+  // Boutique d'abord : un NOUVEAU compte admin sans boutique est cantonné à la
+  // création de sa boutique (le billing reste accessible pour le choix du plan).
+  const currentPath = location.pathname || '';
+  if (
+    needsStoreOnboarding(effectiveUser)
+    && !currentPath.startsWith('/ecom/onboarding')
+    && !currentPath.startsWith('/ecom/billing')
+  ) {
+    return <Navigate to="/ecom/onboarding/boutique" replace />;
   }
 
   if (requiredRole) {
@@ -435,6 +449,11 @@ const DashboardRedirect = () => {
     return <Navigate to="/ecom/login" replace />;
   }
 
+  // Boutique d'abord : boutique obligatoire avant le dashboard.
+  if (needsStoreOnboarding(effectiveUser)) {
+    return <Navigate to="/ecom/onboarding/boutique" replace />;
+  }
+
   const roleDashboardMap = {
     'super_admin': '/ecom/super-admin',
     'ecom_admin': '/ecom/dashboard/admin',
@@ -455,6 +474,11 @@ const RootRedirect = () => {
 
   if (!effectiveAuth) {
     return <Navigate to="/ecom/landing" replace />;
+  }
+
+  // Boutique d'abord : boutique obligatoire avant le dashboard.
+  if (needsStoreOnboarding(effectiveUser)) {
+    return <Navigate to="/ecom/onboarding/boutique" replace />;
   }
 
   const roleDashboardMap = {
@@ -676,6 +700,9 @@ const EcomApp = () => {
               <Route path="/ecom/setup-admin" element={<SetupSuperAdmin />} />
               <Route path="/ecom/invite/:token" element={<InviteAccept />} />
               <Route path="/ecom/workspace-setup" element={<WorkspaceSetup />} />
+
+              {/* Boutique d'abord — étape obligatoire pour les nouveaux comptes sans boutique */}
+              <Route path="/ecom/onboarding/boutique" element={<ProtectedRoute requiredRole="ecom_admin"><StoreOnboarding /></ProtectedRoute>} />
 
               {/* Routes protégées avec layout */}
               <Route path="/ecom/dashboard" element={<DashboardRedirect />} />

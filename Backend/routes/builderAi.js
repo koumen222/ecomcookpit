@@ -1104,6 +1104,7 @@ router.post('/generate-image', requireEcomAuth, async (req, res) => {
 // Body steps : { steps: [string 2..5], sourceUrl?, subject?, aspectRatio?, frameDelayMs? }
 // → { success, url (gif), videoUrl? (mp4), frames?: [urls] }
 router.post('/generate-gif', requireEcomAuth, async (req, res) => {
+  let sceneResv = null; // réservation de crédits du mode scène (remboursée si échec)
   try {
     const { steps, sourceUrl = null, subject = '', aspectRatio = '1:1', frameDelayMs = 1300, mode = 'steps', prompt = '', durationSec = 5 } = req.body || {};
 
@@ -1191,6 +1192,14 @@ router.post('/generate-gif', requireEcomAuth, async (req, res) => {
         return res.status(503).json({ success: false, message: 'Vidéo IA non configurée — ajoutez XAI_API_KEY, KIE_API_KEY ou FAL_KEY dans le .env' });
       }
       const provider = providerOrder[0];
+
+      // Débit Creative Center — après TOUTES les validations, avant les appels coûteux.
+      // stage 'character' = image de départ seule → tarif image ; sinon tarif vidéo.
+      {
+        const { reserveFeatureCredits, sendInsufficientCredits, getFeatureCost } = await import('../services/creativeCredits.js');
+        sceneResv = await reserveFeatureCredits(req.workspaceId, 'video', stage === 'character' ? await getFeatureCost('image') : undefined);
+        if (!sceneResv.ok) { const r = sceneResv; sceneResv = null; return sendInsufficientCredits(res, 'video', r); }
+      }
 
       const subjTxt = String(subject || '').trim();
       const ctxTxt = String(productContext || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 800);
@@ -1337,6 +1346,7 @@ Reply ONLY with JSON: {"start_frame_prompt":"...","motion_prompt":"..."} — sta
         } catch (imgErr) {
           console.warn('[BuilderAI] scene start-image failed, fallback to raw photo:', imgErr.message);
           if (!startImage) {
+            if (sceneResv?.ok) await sceneResv.refund('image de départ impossible');
             return res.status(503).json({ success: false, message: 'Génération de l\'image de départ impossible — ajoutez une photo du produit et réessayez' });
           }
           // sinon : on conserve la photo produit brute, l'i2v (Grok) fera le reste
@@ -1344,7 +1354,7 @@ Reply ONLY with JSON: {"start_frame_prompt":"...","motion_prompt":"..."} — sta
       }
 
       if (stage === 'character') {
-        return res.json({ success: true, startImage });
+        return res.json({ success: true, startImage, creditsUsed: sceneResv?.credits ?? 0, creditsRemaining: sceneResv?.remaining });
       }
 
       // 3. Vidéo → GIF → R2 (le mp4 est aussi republié pour un usage <video>)
@@ -1384,7 +1394,7 @@ Reply ONLY with JSON: {"start_frame_prompt":"...","motion_prompt":"..."} — sta
         const rawVideo = Buffer.from((await axios.get(videoUrl, { responseType: 'arraybuffer', timeout: 120000, maxRedirects: 5 })).data);
         const rawUp = await uploadToR2(rawVideo, `ai-scene-preview-${Date.now()}.mp4`, 'video/mp4');
         if (!rawUp?.success) throw new Error(rawUp?.error || 'Publication de l’aperçu vidéo impossible');
-        return res.json({ success: true, videoUrl: rawUp.url, startImage });
+        return res.json({ success: true, videoUrl: rawUp.url, startImage, creditsUsed: sceneResv?.credits ?? 0, creditsRemaining: sceneResv?.remaining });
       }
       let voicedVideoBuffer = null;
       const requestedVoice = String(voiceoverText || '').trim().slice(0, 300);
@@ -1420,7 +1430,7 @@ Reply ONLY with JSON: {"start_frame_prompt":"...","motion_prompt":"..."} — sta
       GeneratedMedia.record({ ...mediaBase, type: 'gif', url: gifUp.url, kind: 'scene-gif' });
       GeneratedMedia.record({ ...mediaBase, type: 'video', url: mp4Url, kind: 'scene-video' });
 
-      return res.json({ success: true, url: gifUp.url, videoUrl: mp4Url, startImage });
+      return res.json({ success: true, url: gifUp.url, videoUrl: mp4Url, startImage, creditsUsed: sceneResv?.credits ?? 0, creditsRemaining: sceneResv?.remaining });
     }
 
     // ── Mode étapes (mode d'emploi) ──
@@ -1505,6 +1515,7 @@ Style CONSTANT sur toutes les étapes : même produit, même décor, même écla
     return res.json({ success: true, url: uploadRes.url, frames: frameUrls });
   } catch (error) {
     // Stack complète en log : indispensable pour diagnostiquer les 500 en prod.
+    if (sceneResv?.ok) await sceneResv.refund(error.message);
     console.error('[BuilderAI] generate-gif error:', error.message, '\n', error.stack);
     return res.status(500).json({ success: false, message: error.message || 'Génération du GIF impossible, réessayez' });
   }
@@ -1686,6 +1697,7 @@ router.post('/launch-kit', requireEcomAuth, async (req, res) => {
 // ─── POST /builder-ai/voiceover — Voix-off via Fish Audio ────────────────────
 // Body: { text, referenceId? } → { success, url } (mp3 hébergé sur R2)
 router.post('/voiceover', requireEcomAuth, async (req, res) => {
+  let voiceResv = null; // réservation de crédits (remboursée dans le catch si échec)
   try {
     const FISH_API_KEY = process.env.FISH_API_KEY || process.env.FISHAUDIO_API_KEY || '';
     if (!FISH_API_KEY) return res.status(503).json({ success: false, message: 'Voix-off non configurée — ajoutez FISH_API_KEY dans le .env backend' });
@@ -1693,6 +1705,11 @@ router.post('/voiceover', requireEcomAuth, async (req, res) => {
     const clean = String(text || '').trim();
     if (clean.length < 2) return res.status(400).json({ success: false, message: 'Texte de narration requis' });
     if (clean.length > 5000) return res.status(400).json({ success: false, message: 'Texte trop long (max 5000 caractères)' });
+
+    // Débit Creative Center : 1 voix off = featureCost('voice') crédits.
+    const { reserveFeatureCredits, sendInsufficientCredits } = await import('../services/creativeCredits.js');
+    voiceResv = await reserveFeatureCredits(req.workspaceId, 'voice');
+    if (!voiceResv.ok) return sendInsufficientCredits(res, 'voice', voiceResv);
 
     const body = { text: clean, format: 'mp3', mp3_bitrate: 128, normalize: true, latency: 'normal' };
     if (referenceId) body.reference_id = String(referenceId);
@@ -1712,8 +1729,9 @@ router.post('/voiceover', requireEcomAuth, async (req, res) => {
     const { uploadToR2 } = await import('../services/cloudflareImagesService.js');
     const up = await uploadToR2(audioBuffer, `voiceover-${Date.now()}.mp3`, 'audio/mpeg');
     if (!up?.success || !up.url) throw new Error(up?.error || 'Publication audio impossible');
-    return res.json({ success: true, url: up.url });
+    return res.json({ success: true, url: up.url, creditsUsed: voiceResv.credits, creditsRemaining: voiceResv.remaining });
   } catch (err) {
+    if (voiceResv?.ok) await voiceResv.refund(err.message);
     const status = err?.response?.status;
     let msg = err.message;
     if (err?.response?.data) { try { msg = Buffer.from(err.response.data).toString('utf8').slice(0, 300) || msg; } catch { /* noop */ } }
@@ -1734,9 +1752,19 @@ router.post('/clone-product-page', requireEcomAuth, async (req, res) => {
     if (!/^https?:\/\/.+\..+/.test(String(url).trim())) {
       return res.status(400).json({ success: false, message: 'URL du produit concurrent requise (http/https)' });
     }
+    // Débit Creative Center : 1 page clonée = featureCost('clone') crédits.
+    // Remboursé automatiquement si le job termine en erreur (hook onDone).
+    const { reserveFeatureCredits, sendInsufficientCredits } = await import('../services/creativeCredits.js');
+    const cloneResv = await reserveFeatureCredits(req.workspaceId, 'clone');
+    if (!cloneResv.ok) return sendInsufficientCredits(res, 'clone', cloneResv);
+
     const { createCloneJob } = await import('../services/productCloneService.js');
-    const jobId = createCloneJob({ url: String(url).trim(), maxImages: Math.max(1, Math.min(6, Number(maxImages) || 4)) });
-    return res.json({ success: true, jobId });
+    const jobId = createCloneJob({
+      url: String(url).trim(),
+      maxImages: Math.max(1, Math.min(6, Number(maxImages) || 4)),
+      onDone: (status, job) => { if (status !== 'done') cloneResv.refund(job?.error || 'clonage échoué'); },
+    });
+    return res.json({ success: true, jobId, creditsUsed: cloneResv.credits, creditsRemaining: cloneResv.remaining });
   } catch (err) {
     console.error('[BuilderAI] clone-product-page error:', err.message);
     return res.status(500).json({ success: false, message: err.message || 'Clonage impossible' });
@@ -1846,6 +1874,13 @@ router.post('/lipsync', requireEcomAuth, async (req, res) => {
     if (tierClean !== 'standard' && !isUrl(imageUrl)) {
       return res.status(400).json({ success: false, message: 'Les modes Premium et Cinéma partent d’une image du personnage — pas d’une vidéo' });
     }
+
+    // Débit Creative Center : 1 vidéo avatar = featureCost('lipsync') crédits.
+    // Remboursé automatiquement si le pipeline termine en erreur (hook onDone).
+    const { reserveFeatureCredits, sendInsufficientCredits } = await import('../services/creativeCredits.js');
+    const lipResv = await reserveFeatureCredits(req.workspaceId, 'lipsync');
+    if (!lipResv.ok) return sendInsufficientCredits(res, 'lipsync', lipResv);
+
     const jobId = createAvatarJob({
       imageUrl: isUrl(imageUrl) ? imageUrl : '',
       videoUrl: isUrl(videoUrl) ? videoUrl : '',
@@ -1855,8 +1890,9 @@ router.post('/lipsync', requireEcomAuth, async (req, res) => {
       motion: ['presenter', 'hands', 'calm'].includes(motion) ? motion : 'presenter',
       motionPrompt: String(motionPrompt || '').slice(0, 800),
       tier: tierClean,
+      onDone: (status, job) => { if (status !== 'done') lipResv.refund(job?.error || 'lip sync échoué'); },
     });
-    return res.json({ success: true, jobId });
+    return res.json({ success: true, jobId, creditsUsed: lipResv.credits, creditsRemaining: lipResv.remaining });
   } catch (err) {
     console.error('[BuilderAI] lipsync error:', err.message);
     return res.status(500).json({ success: false, message: err.message || 'Lancement du lip sync impossible' });
@@ -2136,6 +2172,12 @@ router.post('/montage', requireEcomAuth, async (req, res) => {
     const scenes = Array.isArray(spec.scenes) ? spec.scenes.filter((s) => s && (s.videoUrl || s.imageUrl)) : [];
     if (!scenes.length) return res.status(400).json({ success: false, message: 'Ajoute au moins une scène avec un clip ou une image.' });
 
+    // Débit Creative Center : 1 montage rendu = featureCost('montage') crédits.
+    // Réservé au lancement, remboursé si le rendu échoue (catch du worker).
+    const { reserveFeatureCredits, sendInsufficientCredits } = await import('../services/creativeCredits.js');
+    const montageResv = await reserveFeatureCredits(req.workspaceId, 'montage');
+    if (!montageResv.ok) return sendInsufficientCredits(res, 'montage', montageResv);
+
     const id = `mtg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     const job = { id, status: 'processing', progress: 3, url: null, durationSec: 0, format: spec.format || '9:16', error: null, warning: null, createdAt: Date.now() };
     montageJobs.set(id, job);
@@ -2193,13 +2235,14 @@ router.post('/montage', requireEcomAuth, async (req, res) => {
         pushJob({ status: 'done', progress: 100, url: job.url, durationSec, format, warning: job.warning, musicApplied: job.musicApplied });
       } catch (e) {
         console.error('[BuilderAI] montage error:', e.message);
+        await montageResv.refund(e.message);
         job.status = 'error';
         job.error = e.message || 'Montage échoué';
         pushJob({ status: 'error', error: job.error });
       }
     })();
 
-    return res.json({ success: true, jobId: id });
+    return res.json({ success: true, jobId: id, creditsUsed: montageResv.credits, creditsRemaining: montageResv.remaining });
   } catch (err) {
     console.error('[BuilderAI] montage submit error:', err.message);
     return res.status(500).json({ success: false, message: err.message || 'Montage impossible' });

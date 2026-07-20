@@ -52,6 +52,19 @@ export function invalidateUserCache(userId) {
   userCache.delete(String(userId));
 }
 
+// Routes accessibles pendant l'onboarding « boutique d'abord » (nouveau compte
+// admin sans boutique). Tout le reste renvoie 403 STORE_ONBOARDING_REQUIRED.
+// Comparé au chemin complet (baseUrl + path).
+const ONBOARDING_ALLOWED_PREFIXES = [
+  '/api/ecom/auth',          // session, profil, join-workspace, logout
+  '/api/ecom/stores',        // création de la boutique + check sous-domaine
+  '/api/ecom/store-manage',  // config boutique (logo, couleur, devise…)
+  '/api/ecom/store',         // thème / pages (storeAdmin)
+  '/api/ecom/media-upload',  // upload du logo
+  '/api/ecom/billing',       // choix d'un plan pendant l'inscription
+  '/api/ecom/users/me',      // actions self-service du compte (dont suppression)
+];
+
 function isTokenRevokedForUser(decoded, user) {
   if (!user?.sessionRevokedAt) return false;
   const tokenIssuedAtMs = decoded?.iat ? decoded.iat * 1000 : 0;
@@ -203,6 +216,50 @@ export const requireEcomAuth = async (req, res, next) => {
         req.activeStoreIdSource = fallback ? 'fallback' : null;
       } catch (_) {
         // Non-critical — leave activeStoreId null for legacy workspace-only accounts
+      }
+    }
+
+    // ─── Onboarding « boutique d'abord » (nouveaux comptes uniquement) ──────
+    // Un nouveau compte admin (needsStoreSetup=true) n'accède au système
+    // central qu'après avoir créé sa boutique. Seules les routes nécessaires
+    // à l'onboarding restent accessibles. Les comptes existants (flag absent)
+    // et les rôles invités ne sont jamais concernés.
+    if (user.needsStoreSetup === true && req.ecomUserRole === 'ecom_admin') {
+      // La boutique peut exister sous plusieurs formes : doc Store du workspace
+      // actif (activeStoreId), doc Store créé par l'utilisateur dans un autre
+      // workspace, ou boutique « legacy » portée par le Workspace lui-même
+      // (subdomain / isStoreEnabled, sans doc Store).
+      let hasStore = Boolean(req.activeStoreId);
+      if (!hasStore) {
+        try {
+          const [otherStore, wsLegacy] = await Promise.all([
+            Store.exists({ createdBy: user._id, isActive: true }),
+            EcomWorkspace.findById(req.workspaceId).select('subdomain storeSettings').lean(),
+          ]);
+          hasStore = Boolean(
+            otherStore
+            || wsLegacy?.subdomain
+            || wsLegacy?.storeSettings?.isStoreEnabled === true
+          );
+        } catch (_) { /* strict : en cas d'échec du check, hasStore reste false */ }
+      }
+
+      if (hasStore) {
+        // Auto-réparation du flag, sans bloquer la requête en cours.
+        user.needsStoreSetup = false;
+        EcomUser.updateOne({ _id: user._id }, { $set: { needsStoreSetup: false } })
+          .then(() => invalidateUserCache(user._id))
+          .catch(() => {});
+      } else {
+        const fullPath = `${req.baseUrl || ''}${req.path || ''}`;
+        const allowed = ONBOARDING_ALLOWED_PREFIXES.some(p => fullPath.startsWith(p));
+        if (!allowed) {
+          return res.status(403).json({
+            success: false,
+            code: 'STORE_ONBOARDING_REQUIRED',
+            message: 'Créez votre boutique pour accéder à votre espace.'
+          });
+        }
       }
     }
 

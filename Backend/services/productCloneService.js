@@ -192,12 +192,16 @@ async function runCloneJob(job) {
   }
 }
 
-/** Lance un job de clonage → jobId. */
-export function createCloneJob({ url, maxImages = 4 }) {
+/** Lance un job de clonage → jobId.
+ *  onDone(status, job) : appelé à la fin du job (done|error) — utilisé par la
+ *  route pour rembourser les crédits Creative Center si le clonage échoue. */
+export function createCloneJob({ url, maxImages = 4, onDone = null }) {
   const id = `clone_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   const job = { id, createdAt: Date.now(), status: 'running', step: 'start', progress: 3, url, maxImages, imagesDone: 0, result: null, warning: '', error: '' };
   cloneJobs.set(id, job);
-  setImmediate(() => runCloneJob(job));
+  setImmediate(() => runCloneJob(job).finally(() => {
+    try { onDone?.(job.status, job); } catch (e) { console.warn('[clone] onDone hook failed:', e.message); }
+  }));
   return id;
 }
 
