@@ -17,6 +17,7 @@ import sharp from 'sharp';
 import axios from 'axios';
 import { requireEcomAuth, validateEcomAccess } from '../middleware/ecomAuth.js';
 import { analyzeWithVision, analyzePremiumProductPage, generateProductBonusEbook, generateDescriptionGifFromImages, generatePosterImage, generateInfographicsProductPage, INFOGRAPHIC_SLIDE_TYPES, downloadAndUploadToR2, imageLangPack } from '../services/productPageGeneratorService.js';
+import { toUserAiError } from '../utils/aiErrorMessages.js';
 import { uploadImage } from '../services/cloudflareImagesService.js';
 import { extractProductInfo } from '../services/geminiProductExtractor.js';
 import EcomWorkspace from '../models/Workspace.js';
@@ -453,7 +454,7 @@ async function runBackgroundInfographicGeneration({
     await updateTask(taskId, {
       status: 'error',
       currentStep: 'Erreur',
-      errorMessage: error.message || 'Erreur génération infographies',
+      errorMessage: toUserAiError(error, 'La génération des infographies a échoué. Réessayez.'),
     });
     // Aucune infographie livrée → on rembourse le crédit consommé
     await refundGenerationCredit(workspaceId, creditSource);
@@ -874,7 +875,7 @@ async function runBackgroundImageGeneration({
       totalImages: jobData.total,
       progressPercent: Math.max(40, Math.min(95, Math.round((jobData.progress / Math.max(jobData.total || 1, 1)) * 100))),
       currentStep: 'Échec partiel — contenu sauvegardé',
-      errorMessage: error.message,
+      errorMessage: toUserAiError(error, 'Certaines images n\'ont pas pu être générées. Le contenu est sauvegardé — relancez la génération.'),
       images: buildTaskImagesPayload(jobData),
     });
     await updateGenerationLog(generationLogId, {
@@ -1285,7 +1286,7 @@ async function runBackgroundPremiumImageGeneration({
       totalImages: jobData.total,
       progressPercent: Math.max(40, Math.min(95, Math.round((jobData.progress / Math.max(jobData.total || 1, 1)) * 100))),
       currentStep: 'Échec partiel — contenu premium sauvegardé',
-      errorMessage: error.message,
+      errorMessage: toUserAiError(error, 'Certaines images n\'ont pas pu être générées. Le contenu est sauvegardé — relancez la génération.'),
       images: buildTaskImagesPayload(jobData),
     });
     await updateGenerationLog(generationLogId, {
@@ -2922,7 +2923,7 @@ router.post('/premium', requireEcomAuth, validateEcomAccess('products', 'write')
       await updateTask(taskId, {
         status: 'error',
         currentStep: 'Erreur',
-        errorMessage: error.message || 'Erreur génération premium',
+        errorMessage: toUserAiError(error, 'La génération premium a échoué. Réessayez.'),
         progressPercent: 100,
       });
     }
@@ -3439,7 +3440,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
     if (taskId) {
       await updateTask(taskId, {
         status: 'error',
-        errorMessage: error.message || 'Erreur lors de la génération',
+        errorMessage: toUserAiError(error),
         currentStep: 'Erreur',
       });
     }

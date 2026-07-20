@@ -254,13 +254,29 @@ export function getDefaultPhoneCodeFromConfig(countries, currency) {
 const PHONE_LOCAL_LENGTH = {
   '+237': 9, '+225': 10, '+221': 9, '+228': 8, '+229': 10,
   '+226': 8, '+223': 8, '+224': 9, '+222': 8, '+227': 8,
-  '+235': 8, '+241': 8, '+242': 9, '+243': 9, '+240': 9,
+  '+235': 8, '+241': 9, '+242': 9, '+243': 9, '+240': 9,
   '+236': 8, '+234': 10, '+233': 9, '+212': 9, '+216': 8,
   '+213': 9, '+33': 9, '+32': 9, '+41': 9, '+1': 10,
 };
 
+// Longueur minimale quand elle diffère du max (plans de numérotation en
+// transition). Gabon : ancien format 8 chiffres (06 XX XX XX) toujours actif
+// + nouveau plan à 9 chiffres (066 XX XX XX).
+const PHONE_LOCAL_MIN_LENGTH = {
+  '+241': 8,
+};
+
+// Indicatifs où le 0 initial FAIT PARTIE du numéro international.
+// Gabon : un numéro se compose +241 06 XX XX XX — retirer le 0 rend le
+// numéro injoignable (appel comme WhatsApp).
+const KEEP_LEADING_ZERO_CODES = new Set(['+241']);
+
 export function getPhoneLength(code) {
   return PHONE_LOCAL_LENGTH[code] || 15;
+}
+
+export function getPhoneMinLength(code) {
+  return PHONE_LOCAL_MIN_LENGTH[code] || getPhoneLength(code);
 }
 
 export function buildFullPhone(phoneCode, rawPhone) {
@@ -270,6 +286,11 @@ export function buildFullPhone(phoneCode, rawPhone) {
 
   const codeDigits = String(phoneCode || '').replace('+', '');
   if (codeDigits && phone.startsWith(codeDigits)) return `+${phone}`;
+
+  if (KEEP_LEADING_ZERO_CODES.has(phoneCode)) {
+    // Le 0 initial est conservé — et réintroduit s'il manque.
+    return `${phoneCode}${phone.startsWith('0') ? phone : `0${phone}`}`;
+  }
 
   const cleaned = phone.startsWith('0') ? phone.substring(1) : phone;
   return `${phoneCode || ''}${cleaned}`;

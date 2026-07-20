@@ -4,6 +4,7 @@ import { CheckCircle2, Package, Gift } from 'lucide-react';
 import { createCheckout, getPublicPlans, checkGlobalPromoCode } from '../services/billingApi.js';
 import PaymentModalFrame from '../components/PaymentModalFrame.jsx';
 import { PAYMENT_COUNTRY_CODES } from '../constants/paymentCountryCodes.js';
+import { buildFullPhone } from '../utils/phoneCodes.js';
 import { savePendingPlanSelection } from '../utils/pendingPlanFlow.js';
 
 const fmtFCFA = (n) => Number(n || 0).toLocaleString('fr-FR').replace(/,/g, ' ');
@@ -21,7 +22,8 @@ function PublicCheckoutModal({ plan, onClose }) {
   const durationLabel = plan?.durationLabel || '1 mois';
   const planName = plan?.name || 'Scalor';
   const selectedCountry = PAYMENT_COUNTRY_CODES.find((item) => item.country === country) || PAYMENT_COUNTRY_CODES[0];
-  const fullPhone = phoneLocal ? `${selectedCountry.code}${phoneLocal.replace(/^0+/, '')}` : '';
+  // buildFullPhone préserve le 0 initial des plans qui l'exigent (Gabon : +241 0X…)
+  const fullPhone = phoneLocal ? buildFullPhone(selectedCountry.code, phoneLocal) : '';
   const inputClassName = 'w-full rounded-[18px] border border-[#D7E3DA] bg-white px-4 py-3.5 text-[15px] text-slate-800 shadow-[0_10px_30px_rgba(15,107,79,0.04)] outline-none transition placeholder:text-slate-300 focus:border-[#0F6B4F]/35 focus:ring-4 focus:ring-[#0F6B4F]/10';
   const labelClassName = 'mb-2 block text-[11px] font-black uppercase tracking-[0.16em] text-[#6A776F]';
 

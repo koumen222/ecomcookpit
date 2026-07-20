@@ -337,7 +337,16 @@ export function formatInternationalPhone(phone) {
   }
 
   // Calculer la longueur sans l'indicatif
-  const nationalNumber = digits.substring(matchedPrefix.length);
+  let nationalNumber = digits.substring(matchedPrefix.length);
+
+  // Réparation Gabon : le 0 initial FAIT PARTIE du numéro international
+  // (+241 06 XX XX XX). Un numéro sans ce 0 est injoignable (appel comme
+  // WhatsApp) — on le réintroduit.
+  if (matchedPrefix === '241' && nationalNumber && !nationalNumber.startsWith('0')
+      && nationalNumber.length >= 7 && nationalNumber.length <= 8) {
+    nationalNumber = `0${nationalNumber}`;
+    digits = matchedPrefix + nationalNumber;
+  }
 
   // Vérifier la longueur
   if (nationalNumber.length < countryInfo.minLength || nationalNumber.length > countryInfo.maxLength) {
@@ -504,9 +513,19 @@ export function normalizePhone(phone, defaultPrefix = null) {
     }
   }
   
+  // Réparation Gabon : le 0 initial FAIT PARTIE du numéro international
+  // (+241 06 XX XX XX). Les numéros saisis ou stockés sans ce 0 sont
+  // injoignables (appel comme WhatsApp) — on le réintroduit.
+  if (cleaned.startsWith('241')) {
+    const national = cleaned.substring(3);
+    if (national && !national.startsWith('0') && national.length >= 7 && national.length <= 8) {
+      cleaned = `2410${national}`;
+    }
+  }
+
   // Validation longueur finale : minimum 10 chiffres, maximum 15
   if (cleaned.length < 10 || cleaned.length > 15) return null;
-  
+
   return cleaned;
 }
 

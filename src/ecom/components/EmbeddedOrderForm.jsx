@@ -4,7 +4,7 @@ import { ShoppingCart, User, Phone, MapPin, Loader2, CheckCircle, Truck, Plus, M
 import { publicStoreApi } from '../services/storeApi.js';
 import defaultConfig from './productSettings/defaultConfig.js';
 import { createMetaEventId, injectPixelScripts, safeFirePixelEvent } from '../utils/pixelTracking';
-import { PHONE_CODES, buildFullPhone, findCountryPhoneOptionByName, getDefaultPhoneCodeFromConfig, getPhoneCodeByCountryName, getPhoneLength } from '../utils/phoneCodes.js';
+import { PHONE_CODES, buildFullPhone, findCountryPhoneOptionByName, getDefaultPhoneCodeFromConfig, getPhoneCodeByCountryName, getPhoneLength, getPhoneMinLength } from '../utils/phoneCodes.js';
 import {
   buildStorefrontOrderWhatsappMessage,
   getPopularCitiesForCountries,
@@ -282,7 +282,8 @@ const EmbeddedOrderForm = ({ product, subdomain, store, pixels, productPageConfi
       if (f.type === 'phone' && val) {
         const digits = val.replace(/[^0-9]/g, '');
         const expected = getPhoneLength(phoneCode);
-        if (digits.length !== expected) { setError(`Numéro invalide — ${expected} chiffres requis pour ${phoneCode}`); return; }
+        const minExpected = getPhoneMinLength(phoneCode);
+        if (digits.length < minExpected || digits.length > expected) { setError(`Numéro invalide — ${minExpected === expected ? `${expected} chiffres requis` : `${minExpected} à ${expected} chiffres`} pour ${phoneCode}`); return; }
       }
       if (f.type === 'email' && val) {
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(val)) { setError('Adresse e-mail invalide'); return; }

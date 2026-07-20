@@ -5,6 +5,7 @@ import { getCurrentPlan, createCheckout, getPaymentStatus, getPaymentHistory, ac
 import { Package, Bot, Zap, Clock, CheckCircle2, CalendarDays, CreditCard, Shield, RefreshCw, MessageCircle, AlertTriangle, Lock, Gift, Globe } from 'lucide-react';
 import PaymentModalFrame from '../components/PaymentModalFrame.jsx';
 import { PAYMENT_COUNTRY_CODES } from '../constants/paymentCountryCodes.js';
+import { buildFullPhone } from '../utils/phoneCodes.js';
 import { clearPendingPlanSelection, getPendingPlanSelection } from '../utils/pendingPlanFlow.js';
 
 // ─── Plan definitions (static template — prices overridden at runtime from DB) ────────────
@@ -191,7 +192,8 @@ function CheckoutModal({ plan, tier, onClose, onSuccess, workspaceId, userName, 
   const selectedCode = PAYMENT_COUNTRY_CODES.find(c => c.country === country);
   const dialCode = selectedCode?.code || '+237';
   const flag = selectedCode?.flag || '🌍'; // flags stay as emoji (country flags)
-  const fullPhone = phoneLocal ? `${dialCode}${phoneLocal.replace(/^0+/, '')}` : '';
+  // buildFullPhone préserve le 0 initial des plans qui l'exigent (Gabon : +241 0X…)
+  const fullPhone = phoneLocal ? buildFullPhone(dialCode, phoneLocal) : '';
 
   const finalPrice = appliedPromo ? appliedPromo.finalAmount : plan.price;
   const summaryBeforeValue = appliedPromo

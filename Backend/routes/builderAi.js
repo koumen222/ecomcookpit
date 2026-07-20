@@ -4,6 +4,7 @@ import multer from 'multer';
 import FormData from 'form-data';
 import mongoose from 'mongoose';
 import { requireEcomAuth } from '../middleware/ecomAuth.js';
+import { toUserAiError } from '../utils/aiErrorMessages.js';
 import EcomWorkspace from '../models/Workspace.js';
 import Order from '../models/Order.js';
 import Product from '../models/Product.js';
@@ -1091,7 +1092,7 @@ router.post('/generate-image', requireEcomAuth, async (req, res) => {
     return res.json({ success: true, url });
   } catch (error) {
     console.error('[BuilderAI] generate-image error:', error.message);
-    return res.status(500).json({ success: false, message: error.message || 'Génération impossible, réessayez' });
+    return res.status(500).json({ success: false, message: toUserAiError(error, 'Génération impossible, réessayez') });
   }
 });
 
@@ -1517,7 +1518,7 @@ Style CONSTANT sur toutes les étapes : même produit, même décor, même écla
     // Stack complète en log : indispensable pour diagnostiquer les 500 en prod.
     if (sceneResv?.ok) await sceneResv.refund(error.message);
     console.error('[BuilderAI] generate-gif error:', error.message, '\n', error.stack);
-    return res.status(500).json({ success: false, message: error.message || 'Génération du GIF impossible, réessayez' });
+    return res.status(500).json({ success: false, message: toUserAiError(error, 'Génération du GIF impossible, réessayez') });
   }
 });
 

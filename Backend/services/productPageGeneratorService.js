@@ -15,6 +15,7 @@ import { uploadImage, isConfigured } from './cloudflareImagesService.js';
 import { generateAnimatedGifFromImages, generateKieImageToVideo, generateGptImage2ImageToImage } from './nanoBananaService.js';
 import { randomUUID } from 'crypto';
 import { callKieChatCompletion, callKieGeminiChat, isKieConfigured } from './kieChatService.js';
+import { GENERIC_AI_ERROR } from '../utils/aiErrorMessages.js';
 
 const KIE_API_KEY = process.env.KIE_API_KEY || '';
 const KIE_CLAUDE_URL = 'https://api.kie.ai/claude/v1/messages';
@@ -1532,7 +1533,11 @@ ${premiumContract}`;
     }
   } catch (error) {
     const groq = deepseekClient; // texte → DeepSeek uniquement
-    if (!groq) throw new Error(`Erreur IA premium: ${error.message}`);
+    if (!groq) {
+      // Détail technique dans les logs uniquement — jamais côté utilisateur.
+      console.error('❌ [Premium] Génération échouée (aucun fallback dispo):', error.message);
+      throw new Error(GENERIC_AI_ERROR);
+    }
     try {
       let response;
       if (imageBuffers.length > 0) {
@@ -1550,7 +1555,9 @@ ${premiumContract}`;
       result = parseGroqJSON(response.choices[0]?.message?.content || '{}');
       if (!result) throw new Error('Groq fallback JSON non parsable');
     } catch (groqError) {
-      throw new Error(`Erreur IA premium: GPT5.4=${error.message} | Groq=${groqError.message}`);
+      // Détail technique dans les logs uniquement — jamais côté utilisateur.
+      console.error(`❌ [Premium] Tous les fournisseurs ont échoué: primaire=${error.message} | fallback=${groqError.message}`);
+      throw new Error(GENERIC_AI_ERROR);
     }
   }
 
@@ -2189,15 +2196,18 @@ Le champ "prompt_avant_apres" doit décrire un AVANT/APRÈS SPÉCIFIQUE à CE pr
       }
 
       if (kieLastError) {
-        throw new Error(`Erreur IA: le service=${error.message} | le service=${kieLastError.message}`);
+        // Détail technique dans les logs uniquement — jamais côté utilisateur.
+        console.error(`❌ [Generator] Tous les fournisseurs ont échoué: primaire=${error.message} | fallback=${kieLastError.message}`);
+        throw new Error(GENERIC_AI_ERROR);
       }
     } else {
-      throw new Error(`Erreur du service: ${error.message}`);
+      console.error('❌ [Generator] Génération échouée (aucun fallback configuré):', error.message);
+      throw new Error(GENERIC_AI_ERROR);
     }
   }
 
   if (!result) {
-    throw new Error('Aucune structure générée par GPT');
+    throw new Error(GENERIC_AI_ERROR);
   }
 
   // Validation de la structure - Fallbacks SPÉCIFIQUES au produit

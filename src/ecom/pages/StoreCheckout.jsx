@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, ShoppingCart, CheckCircle, AlertCircle, Loader2, User, Phone, MapPin, FileText, Truck, Package, ChevronDown } from 'lucide-react';
-import { PHONE_CODES, getDefaultPhoneCodeFromConfig, getPhoneCodeByCountryName, buildFullPhone, getPhoneLength } from '../utils/phoneCodes.js';
+import { PHONE_CODES, getDefaultPhoneCodeFromConfig, getPhoneCodeByCountryName, buildFullPhone, getPhoneLength, getPhoneMinLength } from '../utils/phoneCodes.js';
 import { publicStoreApi } from '../services/storeApi.js';
 import { useSubdomain } from '../hooks/useSubdomain.js';
 import { setDocumentMeta } from '../utils/pageMeta';
@@ -520,8 +520,9 @@ const StoreCheckout = () => {
     }
     const phoneDigits = form.phone.replace(/[^0-9]/g, '');
     const expectedLen = getPhoneLength(phoneCode);
-    if (phoneDigits.length !== expectedLen) {
-      setError(`Numéro invalide — ${expectedLen} chiffres requis pour ${phoneCode}`);
+    const minLen = getPhoneMinLength(phoneCode);
+    if (phoneDigits.length < minLen || phoneDigits.length > expectedLen) {
+      setError(`Numéro invalide — ${minLen === expectedLen ? `${expectedLen} chiffres requis` : `${minLen} à ${expectedLen} chiffres`} pour ${phoneCode}`);
       return;
     }
     if (form.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(form.email.trim())) {

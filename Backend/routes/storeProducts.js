@@ -1,6 +1,7 @@
 import express from 'express';
 import mongoose from 'mongoose';
 import multer from 'multer';
+import { toUserAiError } from '../utils/aiErrorMessages.js';
 import StoreProduct from '../models/StoreProduct.js';
 import Store from '../models/Store.js';
 import Product from '../models/Product.js';
@@ -1245,7 +1246,10 @@ router.post(
           : 500;
       res.status(status).json({
         success: false,
-        message: error.message || 'Image upload failed'
+        // Détail technique en log uniquement — message neutre côté utilisateur.
+        message: status === 500
+          ? toUserAiError(error, 'L\'upload de l\'image a échoué. Réessayez.')
+          : 'Le service d\'images est momentanément indisponible. Réessayez dans quelques instants.'
       });
     }
   }
