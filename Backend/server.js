@@ -457,6 +457,8 @@ const startServer = async () => {
       ['./routes/builderAi.js',                '/api/ecom/builder-ai'],
       // ─── Traduction / doublage vidéo ──────────────────────────────────────
       ['./routes/videoTranslation.js',         '/api/ecom/video-translation'],
+      // ─── Montage automatique IA (outil Montage Auto) ──────────────────────
+      ['./routes/autoMontage.js',              '/api/ecom/auto-montage'],
       // ─── Promo Codes (super admin) ─────────────────────────────────────
       ['./routes/promoCodes.js',               '/api/ecom/promo-codes'],      // ─── Test Routes ───────────────────────────────────────────────────
       ['./routes/test.js',                      '/api/ecom/test'],

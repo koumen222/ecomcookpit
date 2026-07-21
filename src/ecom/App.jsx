@@ -29,6 +29,7 @@ import { needsStoreOnboarding } from './utils/storeOnboarding.js';
 const Login = lazy(() => import('./pages/Login.jsx'));
 const Register = lazy(() => import('./pages/Register.jsx'));
 const StoreOnboarding = lazy(() => import('./pages/StoreOnboarding.jsx'));
+const AutoMontage = lazy(() => import('./pages/AutoMontage.jsx'));
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard.jsx'));
 const Dashboard = lazy(() => import('./pages/Dashboard.jsx'));
 const ProductsList = lazy(() => import('./pages/ProductsList.jsx'));
@@ -371,10 +372,15 @@ const ProtectedRoute = ({ children, requiredRole, requireRitaAgentAccess = false
 
   // Boutique d'abord : un NOUVEAU compte admin sans boutique est cantonné à la
   // création de sa boutique (le billing reste accessible pour le choix du plan).
+  // Lecture FRAÎCHE du localStorage (mis à jour dès la création de la boutique) :
+  // elle fait foi contre un contexte périmé — évite la boucle dashboard ⇄ onboarding.
   const currentPath = location.pathname || '';
+  const freshLocalUser = (() => { try { return JSON.parse(localStorage.getItem('ecomUser') || 'null'); } catch { return null; } })();
   if (
     needsStoreOnboarding(effectiveUser)
+    && needsStoreOnboarding(freshLocalUser || effectiveUser)
     && !currentPath.startsWith('/ecom/onboarding')
+    && !currentPath.startsWith('/ecom/boutique')
     && !currentPath.startsWith('/ecom/billing')
   ) {
     return <Navigate to="/ecom/onboarding/boutique" replace />;
@@ -449,8 +455,10 @@ const DashboardRedirect = () => {
     return <Navigate to="/ecom/login" replace />;
   }
 
-  // Boutique d'abord : boutique obligatoire avant le dashboard.
-  if (needsStoreOnboarding(effectiveUser)) {
+  // Boutique d'abord : boutique obligatoire avant le dashboard (lecture fraîche
+  // du localStorage contre un contexte périmé — évite la boucle de redirection).
+  const freshLocalUser = (() => { try { return JSON.parse(localStorage.getItem('ecomUser') || 'null'); } catch { return null; } })();
+  if (needsStoreOnboarding(effectiveUser) && needsStoreOnboarding(freshLocalUser || effectiveUser)) {
     return <Navigate to="/ecom/onboarding/boutique" replace />;
   }
 
@@ -476,8 +484,10 @@ const RootRedirect = () => {
     return <Navigate to="/ecom/landing" replace />;
   }
 
-  // Boutique d'abord : boutique obligatoire avant le dashboard.
-  if (needsStoreOnboarding(effectiveUser)) {
+  // Boutique d'abord : boutique obligatoire avant le dashboard (lecture fraîche
+  // du localStorage contre un contexte périmé — évite la boucle de redirection).
+  const freshLocalUser = (() => { try { return JSON.parse(localStorage.getItem('ecomUser') || 'null'); } catch { return null; } })();
+  if (needsStoreOnboarding(effectiveUser) && needsStoreOnboarding(freshLocalUser || effectiveUser)) {
     return <Navigate to="/ecom/onboarding/boutique" replace />;
   }
 
@@ -805,6 +815,9 @@ const EcomApp = () => {
               {/* Route Créatives Images */}
               <Route path="/ecom/creatives" element={<LayoutRoute requiredRole="ecom_admin"><CreativeGenerator /></LayoutRoute>} />
               <Route path="/ecom/creatives/gallery" element={<LayoutRoute requiredRole="ecom_admin"><CreativeGallery /></LayoutRoute>} />
+
+              {/* Route Montage Auto (outil de montage vidéo automatique) */}
+              <Route path="/ecom/montage-auto" element={<LayoutRoute requiredRole="ecom_admin"><AutoMontage /></LayoutRoute>} />
 
               {/* Route marketing */}
               <Route path="/ecom/marketing" element={<LayoutRoute requiredRole="super_admin"><Marketing /></LayoutRoute>} />

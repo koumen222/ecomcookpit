@@ -47,6 +47,11 @@ const storeSchema = new mongoose.Schema({
   },
   storeTheme: { type: mongoose.Schema.Types.Mixed, default: {} },
   storePages: { type: mongoose.Schema.Types.Mixed, default: null },
+  // Footer + pages légales (À propos, CGV, confidentialité…) du storefront.
+  // IMPORTANT : sans ces champs déclarés, mongoose (strict) IGNORAIT
+  // silencieusement leur sauvegarde → boutiques multi-store sans pages.
+  storeFooter: { type: mongoose.Schema.Types.Mixed, default: null },
+  storeLegalPages: { type: mongoose.Schema.Types.Mixed, default: null },
   storePixels: { type: mongoose.Schema.Types.Mixed, default: {} },
   storePayments: { type: mongoose.Schema.Types.Mixed, default: {} },
   storeDomains: { type: mongoose.Schema.Types.Mixed, default: {} },

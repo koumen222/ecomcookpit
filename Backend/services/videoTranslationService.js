@@ -92,14 +92,16 @@ function langName(code) {
 const TTS_VOICES = new Set(['alloy', 'ash', 'ballad', 'coral', 'echo', 'fable', 'nova', 'onyx', 'sage', 'shimmer', 'verse']);
 
 // ─── 1. Extraction audio ─────────────────────────────────────────────────────
-async function extractAudio(videoPath, outPath) {
+// Exporté : réutilisé par autoEditService (montage automatique IA).
+export async function extractAudio(videoPath, outPath) {
   // mono 16 kHz mp3 : format attendu par Whisper, ~1 Mo/min → reste sous la
   // limite 25 Mo de l'API pour des vidéos de plusieurs minutes.
   await runFfmpeg(['-y', '-i', videoPath, '-vn', '-ac', '1', '-ar', '16000', '-b:a', '96k', outPath]);
 }
 
 // ─── 2. Transcription horodatée (segments) ───────────────────────────────────
-async function transcribeSegments(audioPath) {
+// Exporté : réutilisé par autoEditService (sous-titres word-level).
+export async function transcribeSegments(audioPath) {
   const buffer = await fs.readFile(audioPath);
   // Groq whisper-large-v3-turbo : précis, rapide, verbose_json = segments+timings.
   if (process.env.GROQ_API_KEY) {
@@ -146,7 +148,7 @@ function normalizeTranscript(data) {
   // avant/après la parole. On les resserre sur le 1er/dernier MOT du segment →
   // onset exact (pour le placement) et durée réelle de parole (pour le tempo).
   const words = (Array.isArray(data?.words) ? data.words : [])
-    .map((w) => ({ start: Number(w.start) || 0, end: Number(w.end) || 0 }))
+    .map((w) => ({ word: String(w.word || '').trim(), start: Number(w.start) || 0, end: Number(w.end) || 0 }))
     .filter((w) => w.end > w.start);
   if (words.length) {
     for (const seg of segments) {
@@ -157,7 +159,9 @@ function normalizeTranscript(data) {
       }
     }
   }
-  return { language: lang, segments };
+  // `words` exposé pour les consommateurs word-level (sous-titres animés du
+  // montage auto) — champ additif, ne change rien aux usages existants.
+  return { language: lang, segments, words };
 }
 
 /**

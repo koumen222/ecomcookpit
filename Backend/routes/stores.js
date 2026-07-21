@@ -14,6 +14,7 @@ import { requireEcomAuth, invalidateUserCache } from '../middleware/ecomAuth.js'
 import { checkPlanLimit } from '../middleware/planLimits.js';
 import { invalidateStoreCache } from './storeApi.js';
 import { invalidateStorefrontCache } from './publicStorefront.js';
+import { buildFallbackSections, buildFallbackFooterAndLegal } from './storeManagement.js';
 
 const router = express.Router();
 
@@ -204,6 +205,21 @@ router.post('/', requireEcomAuth, checkPlanLimit('stores'), async (req, res) => 
     const initialCountry = String(country || '').trim().slice(0, 120);
     const initialCurrency = String(storeCurrency || '').trim().toUpperCase().slice(0, 12) || 'XAF';
 
+    // TOUTE boutique naît COMPLÈTE : sections d'accueil + footer + pages
+    // légales (À propos, CGV, confidentialité…) initialisées immédiatement
+    // avec un contenu statique de qualité. La génération IA du wizard vient
+    // ensuite ENRICHIR par-dessus — mais même si elle échoue, le storefront
+    // n'est jamais vide.
+    const seed = { storeName: name.trim(), country: initialCountry, storeCurrency: initialCurrency };
+    let initialPages = null;
+    let initialFooterLegal = { footer: null, legalPages: null };
+    try {
+      initialPages = { sections: buildFallbackSections(seed) };
+      initialFooterLegal = buildFallbackFooterAndLegal(seed);
+    } catch (e) {
+      console.warn('[Stores] sections par défaut indisponibles:', e.message);
+    }
+
     const store = await Store.create({
       workspaceId: req.workspaceId,
       name: name.trim(),
@@ -227,6 +243,9 @@ router.post('/', requireEcomAuth, checkPlanLimit('stores'), async (req, res) => 
           }
         }
       },
+      storePages: initialPages,
+      storeFooter: initialFooterLegal.footer,
+      storeLegalPages: initialFooterLegal.legalPages,
       createdBy: req.ecomUser._id
     });
 

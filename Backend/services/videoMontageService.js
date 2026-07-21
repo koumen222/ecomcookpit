@@ -22,7 +22,7 @@ import { fileURLToPath } from 'url';
 
 // Police embarquée (DejaVu Sans Bold) → les sous-titres se rendent sur tout serveur,
 // même headless sans fontconfig/police système (cause fréquente de sous-titres vides).
-const FONTS_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'assets', 'fonts');
+export const FONTS_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'assets', 'fonts');
 
 // Résout un binaire ffmpeg RÉELLEMENT fonctionnel : selon l'hôte, ffmpeg-static
 // peut être manquant/incompatible → on retombe sur le ffmpeg du PATH.
@@ -66,7 +66,8 @@ const SYMBOL_ACCENTS = {
   arrow: { ch: '→', color: '0xFFD84D' },
 };
 
-function runFfmpeg(args) {
+// Exporté : réutilisé par autoEditService (montage automatique IA).
+export function runFfmpeg(args) {
   const bin = resolveFfmpeg();
   return new Promise((resolve, reject) => {
     const child = spawn(bin, args, { stdio: ['ignore', 'ignore', 'pipe'] });
@@ -80,6 +81,18 @@ function runFfmpeg(args) {
   });
 }
 
+// Variante exportée : capture la sortie stderr complète (parsing silencedetect…).
+export function runFfmpegCapture(args) {
+  const bin = resolveFfmpeg();
+  return new Promise((resolve, reject) => {
+    const child = spawn(bin, args, { stdio: ['ignore', 'ignore', 'pipe'] });
+    let stderr = '';
+    child.stderr.on('data', (c) => { stderr += c.toString(); });
+    child.on('error', reject);
+    child.on('close', () => resolve(stderr));
+  });
+}
+
 async function download(url, dest) {
   const resp = await axios.get(url, { responseType: 'arraybuffer', timeout: 120000, maxRedirects: 5 });
   await fs.writeFile(dest, Buffer.from(resp.data));
@@ -87,7 +100,8 @@ async function download(url, dest) {
 
 // Téléchargement avec 2e chance : les URLs R2/CDN échouent parfois de façon
 // transitoire — cause principale des « musiques qui ne s'appliquent pas ».
-async function downloadWithRetry(url, dest, tries = 3) {
+// Exporté : réutilisé par autoEditService.
+export async function downloadWithRetry(url, dest, tries = 3) {
   let lastErr;
   for (let i = 0; i < tries; i += 1) {
     try { await download(url, dest); return; } catch (e) {
@@ -99,7 +113,8 @@ async function downloadWithRetry(url, dest, tries = 3) {
 }
 
 // Sonde la durée d'un média via ffmpeg (parse "Duration:") — pas besoin de ffprobe.
-function probeDuration(file) {
+// Exporté : réutilisé par autoEditService.
+export function probeDuration(file) {
   return new Promise((resolve) => {
     let bin;
     try { bin = resolveFfmpeg(); } catch { return resolve(null); }

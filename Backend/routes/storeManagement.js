@@ -386,7 +386,9 @@ const TONE_LABELS = {
 };
 
 // ─── Fallback sections si Groq échoue ────────────────────────────────────────
-function buildFallbackSections(s) {
+// Exporté : utilisé par stores.js pour que TOUTE boutique naisse complète
+// (sections d'accueil + footer + pages légales), avant enrichissement IA.
+export function buildFallbackSections(s) {
   const storeName = s.storeName || 'Notre Boutique';
   const productType = PRODUCT_TYPE_LABELS[s.productType] || 'Produits de qualité';
   const city = s.city || 'votre ville';
@@ -749,7 +751,8 @@ RÈGLES:
 - JSON pur uniquement, sans markdown ni texte autour`;
 }
 
-function buildFallbackFooterAndLegal(s) {
+// Exporté : utilisé par stores.js (boutique complète dès la création).
+export function buildFallbackFooterAndLegal(s) {
   const storeName = s.storeName || 'Notre Boutique';
   const country = s.country || 'Cameroun';
   const city = s.city || '';

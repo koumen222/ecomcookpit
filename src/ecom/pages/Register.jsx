@@ -81,10 +81,10 @@ const Register = () => {
       }
       return { path: '/ecom/workspace-setup', options: { replace: true } };
     }
-    // Boutique obligatoire : après l'inscription, un nouveau compte crée sa
-    // boutique avant d'accéder au dashboard.
+    // Boutique obligatoire : après l'inscription, un nouveau compte passe par
+    // le WIZARD de création de boutique avant d'accéder au dashboard.
     if (nextUser?.needsStoreSetup && !nextUser?.storeId) {
-      return { path: '/ecom/onboarding/boutique', options: { replace: true } };
+      return { path: '/ecom/boutique/wizard', options: { replace: true } };
     }
 
     return { path: nextUser?.workspaceId ? '/ecom/dashboard' : '/ecom/workspace-setup', options: {} };
