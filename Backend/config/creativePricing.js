@@ -17,6 +17,7 @@ export const CREATIVE_PRICING = {
   clone:       { credits: 2, label: 'Clone de page produit',     unit: 'par page clonée' },
   lipsync:     { credits: 4, label: 'Avatar parlant (lip sync)', unit: 'par vidéo avatar' },
   translation: { credits: 4, label: 'Traduction vidéo',          unit: 'par vidéo doublée' },
+  auto_montage: { credits: 4, label: 'Montage automatique IA',   unit: 'par vidéo montée' },
 };
 
 /** Coût en crédits d'une fonctionnalité (0 si inconnue ou gratuite). */

@@ -1,0 +1,24 @@
+{
+  "_readme": [
+    "Banque audio du Montage Auto — PRÉ-CÂBLÉE : déposez simplement les fichiers",
+    "ci-dessous dans music/ et sfx/ (mêmes noms) et tout s'active sans rien éditer.",
+    "Tant qu'un fichier manque : musiques → ignorées (l'utilisateur peut uploader",
+    "la sienne) ; SFX → remplacés par les sons synthétiques intégrés.",
+    "",
+    "Où télécharger (libre de droits, usage commercial) :",
+    "  Musiques : freepd.com (domaine public), pixabay.com/music, mixkit.co/free-stock-music",
+    "  SFX whoosh/boom/pop : pixabay.com/sound-effects, mixkit.co/free-sound-effects",
+    "Choisissez ~60-120s par musique, MP3 128kbps+ ; SFX courts (< 1s)."
+  ],
+  "music": [
+    { "file": "energetic.mp3", "mood": "energetic" },
+    { "file": "chill.mp3", "mood": "chill" },
+    { "file": "epic.mp3", "mood": "epic" },
+    { "file": "emotional.mp3", "mood": "emotional" }
+  ],
+  "sfx": [
+    { "file": "whoosh.mp3", "type": "whoosh" },
+    { "file": "boom.mp3", "type": "boom" },
+    { "file": "pop.mp3", "type": "pop" }
+  ]
+}

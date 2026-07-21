@@ -883,6 +883,17 @@ const StoreCreationWizard = ({ onComplete }) => {
           // Set as active store in window so subsequent API calls target it
           window.__activeStoreId__ = newStore._id;
           switchStore(newStore);
+          // Onboarding « boutique d'abord » : refléter immédiatement la fin
+          // de l'onboarding dans la session locale (le backend a déjà levé le
+          // flag) — évite toute boucle de redirection des guards.
+          try {
+            const u = JSON.parse(localStorage.getItem('ecomUser') || 'null');
+            if (u) {
+              u.needsStoreSetup = false;
+              u.storeId = newStore._id;
+              localStorage.setItem('ecomUser', JSON.stringify(u));
+            }
+          } catch { /* localStorage indisponible */ }
         }
       }
 
@@ -926,8 +937,8 @@ const StoreCreationWizard = ({ onComplete }) => {
       // Étape 4 : Génération IA de la page d'accueil
       if (!isEditMode || isResetMode) {
         setGenerationStep('homepage');
-        try {
-          await storeManageApi.generateHomepage({
+        {
+          const homepagePayload = {
             storeName: form.storeName,
             storeDescription: form.storeDescription,
             productType: form.productType,
@@ -935,11 +946,20 @@ const StoreCreationWizard = ({ onComplete }) => {
             city: form.city,
             country: form.country,
             storeWhatsApp: form.storeWhatsApp,
-          });
-        } catch {
-          // Silently continue -- the backend fallback sections are already saved,
-          // or the storefront will use its default layout.
-          console.warn('Homepage AI generation failed, storefront will use fallback');
+          };
+          // 2 tentatives ; en dernier recours, les sections par défaut posées
+          // à la création de la boutique assurent un site complet.
+          try {
+            await storeManageApi.generateHomepage(homepagePayload);
+          } catch {
+            console.warn('Homepage AI generation failed, retrying once…');
+            await new Promise((r) => setTimeout(r, 2000));
+            try {
+              await storeManageApi.generateHomepage(homepagePayload);
+            } catch {
+              console.warn('Homepage AI generation failed twice — default sections (set at creation) remain.');
+            }
+          }
         }
         // Images are generated in parallel server-side during generateHomepage,
         // so by the time we reach here everything (text + images) is ready.
@@ -964,6 +984,16 @@ const StoreCreationWizard = ({ onComplete }) => {
 
       // Step final : tout est prêt
       setGenerationStep('done');
+      // Onboarding « boutique d'abord » : quel que soit le mode de création,
+      // la boutique existe désormais — lever le flag dans la session locale
+      // pour que le retour au dashboard ne soit jamais bloqué.
+      try {
+        const u = JSON.parse(localStorage.getItem('ecomUser') || 'null');
+        if (u && u.needsStoreSetup) {
+          u.needsStoreSetup = false;
+          localStorage.setItem('ecomUser', JSON.stringify(u));
+        }
+      } catch { /* localStorage indisponible */ }
       onComplete?.();
 
       // Refresh stores list & switch to the new store
