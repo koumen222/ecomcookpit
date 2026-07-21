@@ -14,6 +14,7 @@ import StockLocation from '../models/StockLocation.js';
 import StockOrder from '../models/StockOrder.js';
 import Supplier from '../models/Supplier.js';
 import { executeScalorAgentActions } from '../services/scalorAgentActionService.js';
+import { parseScalorAgentActionBlocks } from '../services/scalorAgentBlockParser.js';
 import { deepseekClient, isDeepseekConfigured } from '../services/deepseekChatService.js';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
@@ -974,14 +975,7 @@ router.post('/store-assistant', requireEcomAuth, async (req, res) => {
     const rawReply = await callDeepseek(messages);
     if (!rawReply) return res.status(502).json({ success: false, message: 'Réponse IA vide, réessayez' });
 
-    let proposedActions = [];
-    const actionBlock = String(rawReply).match(/<scalor_actions>([\s\S]*?)<\/scalor_actions>/i);
-    if (actionBlock) {
-      try {
-        const parsed = JSON.parse(actionBlock[1]);
-        if (Array.isArray(parsed)) proposedActions = parsed;
-      } catch { /* bloc invalide ignoré */ }
-    }
+    const { actions: proposedActions, reply: replyWithoutActionBlocks } = parseScalorAgentActionBlocks(rawReply);
     // ── Blocs structurés du MODE AGENT : plan de tâches + question posée ──
     let plan = null;
     const planBlock = String(rawReply).match(/<scalor_plan>([\s\S]*?)<\/scalor_plan>/i);
@@ -1011,8 +1005,7 @@ router.post('/store-assistant', requireEcomAuth, async (req, res) => {
     }
     // Marqueur du MODE CHAT : proposer la bascule en Agent pour exécuter.
     const suggestAgent = /\[\[mode:agent\]\]/i.test(String(rawReply));
-    const reply = String(rawReply)
-      .replace(/<scalor_actions>[\s\S]*?<\/scalor_actions>/gi, '')
+    const reply = replyWithoutActionBlocks
       .replace(/<scalor_plan>[\s\S]*?<\/scalor_plan>/gi, '')
       .replace(/<scalor_question>[\s\S]*?<\/scalor_question>/gi, '')
       .replace(/\[\[mode:agent\]\]/gi, '')
