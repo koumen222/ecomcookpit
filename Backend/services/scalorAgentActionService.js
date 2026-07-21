@@ -97,7 +97,9 @@ async function findOrder(workspaceId, user, orderId) {
   const query = { workspaceId, orderId: text(orderId, 'Numéro de commande', 100) };
   if (user.role === 'ecom_closeuse') query.closerId = user._id;
   if (user.role === 'ecom_livreur') query.assignedLivreur = user._id;
-  const order = await Order.findOne(query);
+  // Le modèle Order applique lean() par défaut à tous les find/findOne.
+  // Les actions mutantes ont besoin d'un document Mongoose (save/deleteOne).
+  const order = await Order.findOne(query).setOptions({ skipLean: true });
   if (!order) throw new Error('Commande introuvable dans votre périmètre');
   return order;
 }
