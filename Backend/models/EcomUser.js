@@ -29,6 +29,18 @@ const ecomUserSchema = new mongoose.Schema({
     trim: true,
     default: ''
   },
+  // Canal d'acquisition déclaré à l'inscription (« Comment as-tu connu Scalor ? »)
+  acquisitionSource: {
+    type: String,
+    trim: true,
+    default: ''
+  },
+  // Compte créé via Google : infos (téléphone, source) à compléter au premier
+  // accès — le front redirige vers /ecom/onboarding/profil tant que true.
+  needsProfileInfo: {
+    type: Boolean,
+    default: false
+  },
   supportNotificationPhone: {
     type: String,
     trim: true,

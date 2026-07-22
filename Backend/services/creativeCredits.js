@@ -17,7 +17,7 @@ const PRICING_TTL_MS = 30_000;
 function staticSnapshot() {
   const features = {};
   for (const [k, v] of Object.entries(CREATIVE_PRICING)) features[k] = { ...v };
-  return { pricePerCreditFcfa: PRICE_PER_CREDIT_FCFA, features };
+  return { pricePerCreditFcfa: PRICE_PER_CREDIT_FCFA, features, freeMode: false };
 }
 
 /** Grille tarifaire effective (overrides super admin inclus). */
@@ -47,6 +47,13 @@ export async function getFeatureCost(key) {
   return snap.features?.[key]?.credits ?? 0;
 }
 
+/** Mode gratuit global du Creative Center (toggle super admin) — cache 30 s.
+ *  true = aucun crédit débité, quelle que soit la fonctionnalité. */
+export async function isCreativeFreeModeEnabled() {
+  const snap = await getCreativePricingSnapshot();
+  return !!snap.freeMode;
+}
+
 /**
  * Réserve les crédits d'une fonctionnalité pour un workspace.
  * @param {string} workspaceId
@@ -56,6 +63,11 @@ export async function getFeatureCost(key) {
  *  refund(reason?) est idempotent — appelable sans risque dans plusieurs chemins d'échec.
  */
 export async function reserveFeatureCredits(workspaceId, feature, overrideCredits) {
+  // Mode gratuit global (toggle super admin) : aucun débit, refund no-op.
+  if (await isCreativeFreeModeEnabled()) {
+    console.log(`🎁 [creativeCredits] Mode gratuit actif — 0 crédit débité (${feature})`);
+    return { ok: true, credits: 0, remaining: null, refund: async () => {}, freeMode: true };
+  }
   const credits = Number.isFinite(overrideCredits) ? overrideCredits : await getFeatureCost(feature);
   if (!credits) return { ok: true, credits: 0, remaining: null, refund: async () => {} };
   if (!workspaceId) return { ok: false, credits, available: 0 };

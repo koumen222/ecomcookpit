@@ -93,6 +93,10 @@ const serializeAuthUser = (user, store = null) => ({
   workspaceId: user.workspaceId,
   storeId: store?._id || null,
   onboardingData: user.onboardingData,
+  acquisitionSource: user.acquisitionSource || '',
+  // Compte Google : téléphone + source d'acquisition à compléter au premier
+  // accès (le front redirige vers /ecom/onboarding/profil tant que true).
+  needsProfileInfo: !!user.needsProfileInfo,
   // Onboarding « boutique d'abord » : le front redirige vers la création de
   // boutique tant que ce flag est vrai. Un store existant le neutralise.
   needsStoreSetup: !!user.needsStoreSetup && !store
@@ -618,7 +622,7 @@ router.post('/verify-otp', async (req, res) => {
 // POST /api/ecom/auth/register - Création d'un compte avec workspace par défaut
 router.post('/register', validateEmail, validatePassword, async (req, res) => {
   try {
-    const { password, name, phone, superAdmin, acceptPrivacy, affiliateCode, setupToken } = req.body;
+    const { password, name, phone, acquisitionSource, superAdmin, acceptPrivacy, affiliateCode, setupToken } = req.body;
 
     // Normaliser l'email AVANT toute vérification.
     // Sans cela, "John@Mail.com" passait le contrôle de doublon (qui cherchait
@@ -704,6 +708,7 @@ router.post('/register', validateEmail, validatePassword, async (req, res) => {
       password,
       name: name?.trim() || '',
       phone: phone?.trim() || '',
+      acquisitionSource: String(acquisitionSource || '').trim().slice(0, 80),
       role: null,
       workspaceId: null,
       needsStoreSetup: true,
@@ -861,6 +866,9 @@ router.post('/google', async (req, res) => {
         role: null,
         workspaceId: null,
         needsStoreSetup: true,
+        // Google ne fournit ni téléphone ni canal d'acquisition : le front
+        // les collecte sur /ecom/onboarding/profil avant le funnel boutique.
+        needsProfileInfo: true,
         referredByAffiliateCode: affiliateCode?.trim().toUpperCase() || null
       });
       await user.save();
@@ -1294,6 +1302,62 @@ router.put('/profile', async (req, res) => {
   } catch (error) {
     console.error('❌ [Profile Update] Erreur:', error);
     res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// POST /api/ecom/auth/complete-profile — complétion du profil post-Google.
+// Body : { phone (requis), acquisitionSource (requis), name? }.
+// Lève needsProfileInfo et renvoie l'utilisateur sérialisé (avec store) pour
+// que le relais d'onboarding décide de la suite (wizard boutique / dashboard).
+router.post('/complete-profile', async (req, res) => {
+  try {
+    const token = req.header('Authorization')?.replace('Bearer ', '');
+    if (!token || !isSupportedAuthToken(token)) {
+      return res.status(401).json({ success: false, message: 'Token invalide' });
+    }
+    const decoded = jwt.verify(normalizeToken(token), ECOM_JWT_SECRET);
+    const user = await EcomUser.findById(decoded.id);
+    if (!user || !user.isActive) {
+      return res.status(401).json({ success: false, message: 'Utilisateur non trouvé ou inactif' });
+    }
+    if (isTokenRevokedForUser(decoded, user)) {
+      return sendRevokedSession(res);
+    }
+
+    const phone = String(req.body?.phone || '').trim();
+    const acquisitionSource = String(req.body?.acquisitionSource || '').trim().slice(0, 80);
+    const name = req.body?.name !== undefined ? String(req.body.name).trim() : undefined;
+
+    if (phone.replace(/\D/g, '').length < 6) {
+      return res.status(400).json({ success: false, message: 'Numéro de téléphone invalide' });
+    }
+    if (!acquisitionSource) {
+      return res.status(400).json({ success: false, message: 'Indiquez comment vous avez connu Scalor' });
+    }
+
+    user.phone = await normalizeWorkspacePhone(phone, user.workspaceId);
+    user.acquisitionSource = acquisitionSource;
+    if (name) user.name = name;
+    user.needsProfileInfo = false;
+    await user.save();
+    invalidateUserCache(user._id);
+
+    const { workspace, store } = await ensureAuthWorkspace(user, { source: 'complete-profile' });
+    console.log(`[AUTH_FLOW] complete_profile user=${user.email} source=${acquisitionSource}`);
+
+    res.json({
+      success: true,
+      message: 'Profil complété',
+      data: {
+        user: serializeAuthUser(user, store),
+        workspace: serializeWorkspace(workspace, user.role),
+        store: serializeStore(store)
+      }
+    });
+  } catch (error) {
+    console.error('❌ [Complete Profile] Erreur:', error);
+    const isJwtError = ['JsonWebTokenError', 'TokenExpiredError', 'NotBeforeError'].includes(error?.name);
+    res.status(isJwtError ? 401 : 500).json({ success: false, message: isJwtError ? 'Token invalide' : 'Erreur serveur' });
   }
 });
 

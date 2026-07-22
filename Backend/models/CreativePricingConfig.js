@@ -14,6 +14,9 @@ const creativePricingConfigSchema = new mongoose.Schema({
   // Map clé fonctionnalité → coût en crédits (0 = gratuit). Les clés absentes
   // retombent sur le défaut de config/creativePricing.js.
   featureCredits: { type: Map, of: Number, default: {} },
+  // Mode gratuit global : toutes les fonctionnalités du Creative Center
+  // deviennent gratuites (aucun crédit débité), la grille reste affichée.
+  freeMode: { type: Boolean, default: false },
 }, {
   timestamps: true,
   collection: 'ecom_creative_pricing_configs',
@@ -28,6 +31,7 @@ creativePricingConfigSchema.methods.getSnapshot = function getSnapshot() {
   return {
     pricePerCreditFcfa: Number.isFinite(this.pricePerCreditFcfa) ? this.pricePerCreditFcfa : PRICE_PER_CREDIT_FCFA,
     features,
+    freeMode: !!this.freeMode,
   };
 };
 

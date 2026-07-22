@@ -17,6 +17,7 @@ import { extractProductInfo } from '../services/geminiProductExtractor.js';
 import FeatureUsageLog from '../models/FeatureUsageLog.js';
 import CreativeAsset from '../models/CreativeAsset.js';
 import EcomWorkspace from '../models/Workspace.js';
+import { isCreativeFreeModeEnabled } from '../services/creativeCredits.js';
 
 // All slides now use image-to-image mode (product reference mandatory)
 
@@ -1017,27 +1018,35 @@ router.post('/', requireEcomAuth, upload.fields([
 
     // Reserve credits atomically before costly calls.
     // Failed images are refunded after the batch, so one successful creative = one consumed credit.
-    const neededCredits = selectedFormats.length;
+    // Mode gratuit global (toggle super admin) : neededCredits=0 → aucun débit,
+    // et refundUnused (garde `neededCredits <= refunded`) devient no-op.
+    const freeModeActive = await isCreativeFreeModeEnabled();
+    const neededCredits = freeModeActive ? 0 : selectedFormats.length;
     if (!req.workspaceId) {
       return res.status(400).json({ success: false, error: 'Workspace requis pour générer des créatives.' });
     }
-    const reservedWorkspace = await EcomWorkspace.findOneAndUpdate(
-      { _id: req.workspaceId, creativeCreditsRemaining: { $gte: neededCredits } },
-      { $inc: { creativeCreditsRemaining: -neededCredits } },
-      { new: true, select: 'creativeCreditsRemaining' }
-    );
+    let reservedWorkspace = null;
+    if (neededCredits > 0) {
+      reservedWorkspace = await EcomWorkspace.findOneAndUpdate(
+        { _id: req.workspaceId, creativeCreditsRemaining: { $gte: neededCredits } },
+        { $inc: { creativeCreditsRemaining: -neededCredits } },
+        { new: true, select: 'creativeCreditsRemaining' }
+      );
 
-    if (!reservedWorkspace) {
-      const workspace = await EcomWorkspace.findById(req.workspaceId).select('creativeCreditsRemaining').lean();
-      const available = workspace?.creativeCreditsRemaining ?? 0;
-      return res.status(402).json({
-        success: false,
-        error: `Crédits insuffisants. Vous avez ${available} crédit${available !== 1 ? 's' : ''} et avez besoin de ${neededCredits}.`,
-        creditsRequired: neededCredits,
-        creditsAvailable: available,
-      });
+      if (!reservedWorkspace) {
+        const workspace = await EcomWorkspace.findById(req.workspaceId).select('creativeCreditsRemaining').lean();
+        const available = workspace?.creativeCreditsRemaining ?? 0;
+        return res.status(402).json({
+          success: false,
+          error: `Crédits insuffisants. Vous avez ${available} crédit${available !== 1 ? 's' : ''} et avez besoin de ${neededCredits}.`,
+          creditsRequired: neededCredits,
+          creditsAvailable: available,
+        });
+      }
+      console.log(`💳 Reserved ${neededCredits} creative credit(s); remaining=${reservedWorkspace.creativeCreditsRemaining}`);
+    } else {
+      console.log('🎁 [creativeGenerator] Mode gratuit actif — aucun crédit débité');
     }
-    console.log(`💳 Reserved ${neededCredits} creative credit(s); remaining=${reservedWorkspace.creativeCreditsRemaining}`);
 
     // Créer le job et lancer la génération en arrière-plan
     const userId = req.user?.id || req.ecomUser?._id || null;
@@ -1076,7 +1085,8 @@ router.post('/', requireEcomAuth, upload.fields([
       jobId: job.id,
       total: selectedFormats.length,
       creditsReserved: neededCredits,
-      creditsRemaining: reservedWorkspace.creativeCreditsRemaining,
+      creditsRemaining: reservedWorkspace?.creativeCreditsRemaining ?? null,
+      freeMode: freeModeActive,
     });
   } catch (err) {
     console.error('❌ Creative Generator error:', err);

@@ -11,6 +11,9 @@ import { CREATIVE_PRICING } from '../config/creativePricing.js';
 import { invalidateCreativePricingCache } from '../services/creativeCredits.js';
 import GenerationPayment from '../models/GenerationPayment.js';
 import ProductPageGenerationLog from '../models/ProductPageGenerationLog.js';
+import CreativeAsset from '../models/CreativeAsset.js';
+import GeneratedMedia from '../models/GeneratedMedia.js';
+import AutoMontageJob from '../models/AutoMontageJob.js';
 import WhatsAppLog from '../models/WhatsAppLog.js';
 import SupportConversation from '../models/SupportConversation.js';
 import StoreProduct from '../models/StoreProduct.js';
@@ -1615,6 +1618,150 @@ router.patch('/creative-pricing', requireEcomAuth, requireSuperAdmin, async (req
     res.json({ success: true, pricing: config.getSnapshot() });
   } catch (err) {
     console.error('[SuperAdmin] PATCH /creative-pricing error:', err.message);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// ── Creative Center : mode gratuit global ────────────────────────────────────
+// GET /api/ecom/super-admin/creative-free-mode — état du toggle
+router.get('/creative-free-mode', requireEcomAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const config = await CreativePricingConfig.getSingleton();
+    res.json({ success: true, enabled: !!config.freeMode });
+  } catch (err) {
+    console.error('[SuperAdmin] GET /creative-free-mode error:', err.message);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// PATCH /api/ecom/super-admin/creative-free-mode — Body : { enabled: bool }
+// true = toutes les fonctionnalités du Creative Center gratuites (aucun débit).
+router.patch('/creative-free-mode', requireEcomAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    if (typeof req.body?.enabled !== 'boolean') {
+      return res.status(400).json({ success: false, message: 'Champ « enabled » (booléen) requis' });
+    }
+    const config = await CreativePricingConfig.getSingleton();
+    config.freeMode = req.body.enabled;
+    await config.save();
+    invalidateCreativePricingCache(); // effectif immédiatement sur les débits
+    await logAudit(req, 'UPDATE_CREATIVE_FREE_MODE', `Creative free mode ${config.freeMode ? 'enabled' : 'disabled'}`, 'creative_pricing', config._id);
+    res.json({ success: true, enabled: !!config.freeMode });
+  } catch (err) {
+    console.error('[SuperAdmin] PATCH /creative-free-mode error:', err.message);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// ── Creative Center : toutes les générations (tous utilisateurs) ────────────
+// GET /api/ecom/super-admin/creative-generations?page=&limit=&search=
+// Agrège 3 sources : CreativeAsset (affiches/textes/vidéos/voix du générateur),
+// GeneratedMedia (images/GIF/vidéos du builder) et AutoMontageJob (montages,
+// TTL 2 h). Réponse : { items, total, page, pages }.
+router.get('/creative-generations', requireEcomAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(60, Math.max(1, parseInt(req.query.limit, 10) || 24));
+    const search = String(req.query.search || '').trim().slice(0, 80);
+
+    // Recherche : texte (produit, label, prompt) OU utilisateur (nom, email).
+    const filters = { asset: {}, media: {}, montage: {} };
+    if (search) {
+      const rx = new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+      const users = await EcomUser.find({ $or: [{ name: rx }, { email: rx }] })
+        .select('_id').limit(300).lean();
+      const userIds = users.map((u) => u._id);
+      filters.asset = { $or: [{ productName: rx }, { label: rx }, { userId: { $in: userIds } }] };
+      filters.media = { $or: [{ prompt: rx }, { kind: rx }, { userId: { $in: userIds } }] };
+      // AutoMontageJob n'a pas de champ user/texte : ne matche que sans recherche.
+      filters.montage = { _id: { $in: [] } };
+    }
+
+    // Chaque source triée par date, bornée à page*limit : le merge trié + slice
+    // donne une pagination correcte sans charger les collections entières.
+    const fetchCount = page * limit;
+    const [assets, medias, montages, cAssets, cMedias, cMontages] = await Promise.all([
+      CreativeAsset.find(filters.asset).sort({ createdAt: -1 }).limit(fetchCount)
+        .select('workspaceId userId productName type formatId label imageUrl videoUrl audioUrl createdAt').lean(),
+      GeneratedMedia.find(filters.media).sort({ createdAt: -1 }).limit(fetchCount)
+        .select('workspaceId storeId userId type url prompt kind createdAt').lean(),
+      AutoMontageJob.find(filters.montage).sort({ createdAt: -1 }).limit(fetchCount)
+        .select('workspaceId status outputs report createdAt').lean(),
+      CreativeAsset.countDocuments(filters.asset),
+      GeneratedMedia.countDocuments(filters.media),
+      AutoMontageJob.countDocuments(filters.montage),
+    ]);
+
+    const items = [
+      ...assets.map((a) => ({
+        id: String(a._id),
+        type: a.type === 'audio' ? 'voice' : (a.type === 'launch' ? 'text' : (a.type || 'image')),
+        title: a.label || a.productName || '',
+        productName: a.productName || '',
+        mediaUrl: a.imageUrl || a.videoUrl || a.audioUrl || '',
+        thumbnailUrl: a.imageUrl || '',
+        cost: a.type === 'image' ? 1 : undefined,
+        userId: a.userId || null,
+        storeId: null,
+        workspaceId: a.workspaceId || null,
+        createdAt: a.createdAt,
+      })),
+      ...medias.map((m) => ({
+        id: String(m._id),
+        type: m.type === 'gif' ? 'video' : (m.type || 'image'),
+        title: (m.prompt || '').slice(0, 90) || m.kind || '',
+        productName: '',
+        mediaUrl: m.url || '',
+        thumbnailUrl: m.type === 'image' ? (m.url || '') : '',
+        userId: m.userId || null,
+        storeId: m.storeId || null,
+        workspaceId: m.workspaceId || null,
+        createdAt: m.createdAt,
+      })),
+      ...montages.map((j) => ({
+        id: String(j._id),
+        type: 'montage',
+        title: 'Montage automatique IA',
+        productName: '',
+        mediaUrl: j.outputs?.[0]?.url || '',
+        thumbnailUrl: '',
+        cost: 4,
+        userId: null,
+        storeId: null,
+        workspaceId: j.workspaceId || null,
+        createdAt: j.createdAt,
+      })),
+    ]
+      .sort((x, y) => new Date(y.createdAt) - new Date(x.createdAt))
+      .slice((page - 1) * limit, page * limit);
+
+    // Enrichissement user/store sur la page servie uniquement.
+    const userIds = [...new Set(items.map((i) => i.userId).filter(Boolean).map(String))];
+    const storeIds = [...new Set(items.map((i) => i.storeId).filter(Boolean).map(String))];
+    const [userDocs, storeDocs] = await Promise.all([
+      userIds.length ? EcomUser.find({ _id: { $in: userIds } }).select('name email').lean() : [],
+      storeIds.length ? Store.find({ _id: { $in: storeIds } }).select('name').lean() : [],
+    ]);
+    const userMap = new Map(userDocs.map((u) => [String(u._id), u]));
+    const storeMap = new Map(storeDocs.map((s) => [String(s._id), s]));
+    for (const it of items) {
+      const u = it.userId ? userMap.get(String(it.userId)) : null;
+      const s = it.storeId ? storeMap.get(String(it.storeId)) : null;
+      it.user = u ? { name: u.name || '', email: u.email || '' } : null;
+      it.store = s ? { name: s.name || '' } : null;
+      delete it.userId; delete it.storeId; delete it.workspaceId;
+    }
+
+    const total = cAssets + cMedias + cMontages;
+    res.json({
+      success: true,
+      items,
+      total,
+      page,
+      pages: Math.max(1, Math.ceil(total / limit)),
+    });
+  } catch (err) {
+    console.error('[SuperAdmin] GET /creative-generations error:', err.message);
     res.status(500).json({ success: false, message: 'Erreur serveur' });
   }
 });
