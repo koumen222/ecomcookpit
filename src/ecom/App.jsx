@@ -356,6 +356,36 @@ const PlatformPageMeta = ({ enabled = true }) => {
   return null;
 };
 
+// ─── Tracking affiliation (programme Scalor) ─────────────────────────────────
+// À chaque navigation : capture ?aff=&aff_link=&aff_click= (last-click, 60j)
+// puis envoie une visite référée au backend si une attribution est active.
+// Exclut le portail affilié et l'app interne (/ecom/* authentifié) pour ne
+// tracker que le parcours public (landing → inscription).
+const AffiliateVisitTracker = () => {
+  const location = useLocation();
+
+  React.useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const mod = await import('./utils/affiliateAttribution.js');
+        if (cancelled) return;
+        mod.captureAffiliateAttributionFromSearch(location.search);
+        const path = location.pathname || '/';
+        const isAffiliatePortal = path.startsWith('/affiliate');
+        const isAuthedApp = path.startsWith('/ecom/') && !!localStorage.getItem('ecomToken')
+          && !['/ecom/register', '/ecom/login', '/ecom/tarifs', '/ecom/pricing'].some((p) => path.startsWith(p));
+        if (!isAffiliatePortal && !isAuthedApp) {
+          mod.trackAffiliateVisit(path);
+        }
+      } catch { /* tracking best-effort */ }
+    })();
+    return () => { cancelled = true; };
+  }, [location.pathname, location.search]);
+
+  return null;
+};
+
 const ProtectedRoute = ({ children, requiredRole, requireRitaAgentAccess = false }) => {
   const { user, isAuthenticated } = useEcomAuth();
   const location = useLocation();
@@ -688,6 +718,7 @@ const EcomApp = () => {
         <div className="min-h-screen">
           <PageViewTracker />
           <PlatformPageMeta enabled={!isStoreDomain} />
+          <AffiliateVisitTracker />
 
           <Suspense fallback={<PageLoader />}>
             <Routes>

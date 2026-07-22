@@ -82,6 +82,31 @@ const affiliateConversionSchema = new mongoose.Schema({
     default: null,
     index: true
   },
+  // Idempotence paiement : une seule conversion par PlanPayment (webhook rejoué)
+  planPaymentId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'PlanPayment',
+    default: null
+  },
+  // Attribution fine : clic /r/ d'origine (AffiliateClick.clickId)
+  clickId: {
+    type: String,
+    default: '',
+    trim: true,
+    index: true
+  },
+  visitorId: {
+    type: String,
+    default: '',
+    trim: true
+  },
+  // Retrait auquel cette commission est rattachée (AffiliatePayout)
+  payoutId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'AffiliatePayout',
+    default: null,
+    index: true
+  },
   statusNote: {
     type: String,
     default: ''
@@ -93,6 +118,16 @@ const affiliateConversionSchema = new mongoose.Schema({
 
 affiliateConversionSchema.index({ affiliateId: 1, createdAt: -1 });
 affiliateConversionSchema.index({ status: 1, createdAt: -1 });
+// Anti-doublon : un seul bonus d'inscription par filleul
+affiliateConversionSchema.index(
+  { conversionType: 1, referredUserId: 1 },
+  { unique: true, partialFilterExpression: { conversionType: 'signup', referredUserId: { $type: 'objectId' } } }
+);
+// Idempotence : une seule commission par paiement de plan
+affiliateConversionSchema.index(
+  { planPaymentId: 1 },
+  { unique: true, partialFilterExpression: { planPaymentId: { $type: 'objectId' } } }
+);
 
 const AffiliateConversion = mongoose.model('AffiliateConversion', affiliateConversionSchema);
 export default AffiliateConversion;

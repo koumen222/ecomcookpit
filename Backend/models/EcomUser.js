@@ -139,6 +139,21 @@ const ecomUserSchema = new mongoose.Schema({
     trim: true,
     index: true
   },
+  // Attribution fine (fenêtre 60j last-click) : lien et clic /r/ d'origine
+  referredByAffiliateLinkCode: {
+    type: String,
+    default: null,
+    trim: true
+  },
+  referredByClickId: {
+    type: String,
+    default: null,
+    trim: true
+  },
+  referredAt: {
+    type: Date,
+    default: null
+  },
   deviceToken: {
     type: String,
     default: null

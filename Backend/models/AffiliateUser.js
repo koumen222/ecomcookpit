@@ -61,6 +61,22 @@ const affiliateUserSchema = new mongoose.Schema({
     default: '',
     trim: true
   },
+  // ── Coordonnées de retrait (mémorisées à la 1re demande) ──────────────────
+  payoutMethod: {
+    type: String,
+    enum: ['mtn_momo', 'orange_money', 'bank', 'other', ''],
+    default: ''
+  },
+  payoutPhone: {
+    type: String,
+    default: '',
+    trim: true
+  },
+  payoutAccountName: {
+    type: String,
+    default: '',
+    trim: true
+  },
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'EcomUser',

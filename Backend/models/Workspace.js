@@ -305,6 +305,19 @@ const workspaceSchema = new mongoose.Schema({
       type: String,
       required: true
     },
+    // Invitation CIBLÉE (optionnel) : email du destinataire — seul un compte
+    // avec cet email pourra l'utiliser — et rôle imposé par l'admin à la
+    // création (l'invité ne choisit plus son propre rôle).
+    email: {
+      type: String,
+      trim: true,
+      lowercase: true,
+      default: ''
+    },
+    role: {
+      type: String,
+      default: ''
+    },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'EcomUser',

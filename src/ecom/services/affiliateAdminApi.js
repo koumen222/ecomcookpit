@@ -8,5 +8,8 @@ export const affiliateAdminApi = {
   createAffiliate: (payload) => ecomApi.post('/affiliates/admin/affiliates', payload),
   updateAffiliate: (id, payload) => ecomApi.put(`/affiliates/admin/affiliates/${id}`, payload),
   getConversions: (params = {}) => ecomApi.get('/affiliates/admin/conversions', { params }),
-  updateConversionStatus: (id, payload) => ecomApi.put(`/affiliates/admin/conversions/${id}/status`, payload)
+  updateConversionStatus: (id, payload) => ecomApi.put(`/affiliates/admin/conversions/${id}/status`, payload),
+  // Retraits de commissions
+  getPayouts: (params = {}) => ecomApi.get('/affiliates/admin/payouts', { params }),
+  updatePayout: (id, payload) => ecomApi.put(`/affiliates/admin/payouts/${id}`, payload)
 };

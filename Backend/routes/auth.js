@@ -13,8 +13,7 @@ import { checkPlanLimit } from '../middleware/planLimits.js';
 import { validateEmail, validatePassword } from '../middleware/validation.js';
 import { logAudit, otpRecipientRateLimiter } from '../middleware/security.js';
 import AnalyticsEvent from '../models/AnalyticsEvent.js';
-import AffiliateUser from '../models/AffiliateUser.js';
-import AffiliateConversion from '../models/AffiliateConversion.js';
+import { creditSignupConversion, normalizeCode as normalizeAffiliateCode } from '../services/affiliateService.js';
 import { getPhonePrefixFromWorkspace, normalizePhone } from '../utils/phoneUtils.js';
 import {
   notifyUserRegistered,
@@ -23,6 +22,7 @@ import {
   notifyPasswordChanged,
   notifySuspiciousLogin
 } from '../core/notifications/notification.service.js';
+import { sendCustomNotificationEmail } from '../core/notifications/email.service.js';
 
 const router = express.Router();
 const ECOM_JWT_SECRET = process.env.ECOM_JWT_SECRET || 'ecom-secret-key-change-in-production';
@@ -136,26 +136,40 @@ function trackEvent(req, eventType, userId, extra = {}) {
 const forgotPasswordAttempts = new Map();
 
 /**
- * Fire-and-forget: credit 500 FCFA signup commission to the referring affiliate.
+ * Fire-and-forget : bonus d'inscription (montant configurable, anti
+ * auto-parrainage, idempotent) — logique centralisée dans affiliateService.
  */
-async function creditSignupCommission(affiliateCode, referredUserId) {
+function creditSignupCommission(user) {
+  creditSignupConversion(user).catch((err) =>
+    console.warn('[affiliate] signup commission error:', err.message)
+  );
+}
+
+/**
+ * Attribution affiliée à l'inscription (fenêtre 60j last-click).
+ * Priorité : body (params URL + localStorage frontend) puis cookie first-party
+ * scalor_aff posé par la redirection /r/:code.
+ */
+function resolveAffiliateAttribution(req, { affiliateCode, affiliateLinkCode, affiliateClickId } = {}) {
+  const fromBody = {
+    code: normalizeAffiliateCode(affiliateCode || ''),
+    linkCode: normalizeAffiliateCode(affiliateLinkCode || ''),
+    clickId: String(affiliateClickId || '').trim().slice(0, 64)
+  };
+  if (fromBody.code) return fromBody;
+
   try {
-    const affiliate = await AffiliateUser.findOne({ referralCode: affiliateCode.toUpperCase(), isActive: true });
-    if (!affiliate) return;
-    await AffiliateConversion.create({
-      affiliateId: affiliate._id,
-      affiliateCode: affiliate.referralCode,
-      conversionType: 'signup',
-      referredUserId,
-      commissionType: 'fixed',
-      commissionValue: 500,
-      commissionAmount: 500,
-      status: 'approved',
-      statusNote: 'Bonus inscription automatique'
-    });
-    console.log(`[affiliate] 500 FCFA signup commission for affiliate ${affiliate.referralCode} (referred user ${referredUserId})`);
-  } catch (err) {
-    console.warn('[affiliate] signup commission error:', err.message);
+    const raw = req.cookies?.scalor_aff;
+    if (!raw) return fromBody;
+    const parsed = JSON.parse(Buffer.from(String(raw), 'base64url').toString('utf8'));
+    if (!parsed?.aff || (parsed.exp && Number(parsed.exp) < Date.now())) return fromBody;
+    return {
+      code: normalizeAffiliateCode(parsed.aff),
+      linkCode: normalizeAffiliateCode(parsed.link || ''),
+      clickId: String(parsed.click || '').trim().slice(0, 64)
+    };
+  } catch {
+    return fromBody;
   }
 }
 const FORGOT_PASSWORD_LIMIT = 3; // max 3 demandes
@@ -622,7 +636,7 @@ router.post('/verify-otp', async (req, res) => {
 // POST /api/ecom/auth/register - Création d'un compte avec workspace par défaut
 router.post('/register', validateEmail, validatePassword, async (req, res) => {
   try {
-    const { password, name, phone, acquisitionSource, superAdmin, acceptPrivacy, affiliateCode, setupToken } = req.body;
+    const { password, name, phone, acquisitionSource, superAdmin, acceptPrivacy, affiliateCode, affiliateLinkCode, affiliateClickId, setupToken } = req.body;
 
     // Normaliser l'email AVANT toute vérification.
     // Sans cela, "John@Mail.com" passait le contrôle de doublon (qui cherchait
@@ -700,6 +714,9 @@ router.post('/register', validateEmail, validatePassword, async (req, res) => {
 
     console.log(`[AUTH_FLOW] register_start email=${email}`);
 
+    // Attribution affiliée : body (URL + localStorage) puis cookie /r/ 60j
+    const attribution = resolveAffiliateAttribution(req, { affiliateCode, affiliateLinkCode, affiliateClickId });
+
     // Créer l'utilisateur puis provisionner immédiatement son workspace.
     // needsStoreSetup=true : parcours « boutique d'abord » — le compte n'accède
     // au système central qu'après avoir créé sa boutique.
@@ -712,7 +729,10 @@ router.post('/register', validateEmail, validatePassword, async (req, res) => {
       role: null,
       workspaceId: null,
       needsStoreSetup: true,
-      referredByAffiliateCode: affiliateCode?.trim().toUpperCase() || null
+      referredByAffiliateCode: attribution.code || null,
+      referredByAffiliateLinkCode: attribution.linkCode || null,
+      referredByClickId: attribution.clickId || null,
+      referredAt: attribution.code ? new Date() : null
     });
     await user.save();
 
@@ -722,9 +742,9 @@ router.post('/register', validateEmail, validatePassword, async (req, res) => {
       role: 'ecom_admin'
     });
 
-    // Credit 500 FCFA signup commission to referring affiliate (non-blocking)
+    // Bonus d'inscription affilié (non bloquant, idempotent, anti auto-parrainage)
     if (user.referredByAffiliateCode) {
-      creditSignupCommission(user.referredByAffiliateCode, user._id);
+      creditSignupCommission(user);
     }
 
     const token = generateEcomToken(user);
@@ -797,7 +817,7 @@ router.get('/health', (req, res) => {
 // POST /api/ecom/auth/google - Connexion / inscription via Google
 router.post('/google', async (req, res) => {
   try {
-    const { credential, affiliateCode } = req.body;
+    const { credential, affiliateCode, affiliateLinkCode, affiliateClickId } = req.body;
     if (!credential) {
       return res.status(400).json({ success: false, message: 'Token Google manquant' });
     }
@@ -856,6 +876,9 @@ router.post('/google', async (req, res) => {
       user.lastLogin = new Date();
       await user.save();
     } else {
+      // Attribution affiliée : body (URL + localStorage) puis cookie /r/ 60j
+      const attribution = resolveAffiliateAttribution(req, { affiliateCode, affiliateLinkCode, affiliateClickId });
+
       // Nouvel utilisateur — créé minimalement, puis provisionné juste après.
       // needsStoreSetup=true : boutique obligatoire avant l'accès au système.
       user = new EcomUser({
@@ -869,14 +892,17 @@ router.post('/google', async (req, res) => {
         // Google ne fournit ni téléphone ni canal d'acquisition : le front
         // les collecte sur /ecom/onboarding/profil avant le funnel boutique.
         needsProfileInfo: true,
-        referredByAffiliateCode: affiliateCode?.trim().toUpperCase() || null
+        referredByAffiliateCode: attribution.code || null,
+        referredByAffiliateLinkCode: attribution.linkCode || null,
+        referredByClickId: attribution.clickId || null,
+        referredAt: attribution.code ? new Date() : null
       });
       await user.save();
       isNewUser = true;
 
-      // Credit 500 FCFA signup commission to referring affiliate (non-blocking)
+      // Bonus d'inscription affilié (non bloquant, idempotent, anti auto-parrainage)
       if (user.referredByAffiliateCode) {
-        creditSignupCommission(user.referredByAffiliateCode, user._id);
+        creditSignupCommission(user);
       }
 
       console.log(`✅ Nouveau compte Google créé: ${user.email}`);
@@ -1695,7 +1721,11 @@ router.get('/invite/:token', async (req, res) => {
       data: {
         workspaceName: workspace.name,
         invitedBy,
-        expiresAt: invite.expiresAt
+        expiresAt: invite.expiresAt,
+        // Invitation ciblée : rôle imposé par l'admin et email attendu —
+        // le front n'affiche plus de sélecteur de rôle dans ce cas.
+        role: invite.role || '',
+        invitedEmail: invite.email || ''
       }
     });
   } catch (error) {
@@ -1721,7 +1751,7 @@ router.post('/accept-invite', requireEcomAuth, async (req, res) => {
       ecom_closeuse: 'ecom_closeuse',
       ecom_compta: 'ecom_compta'
     };
-    const finalRole = roleMap[role];
+    let finalRole = roleMap[role];
     if (!finalRole) {
       return res.status(400).json({ success: false, message: 'Rôle invalide' });
     }
@@ -1735,6 +1765,21 @@ router.post('/accept-invite', requireEcomAuth, async (req, res) => {
     const invite = (workspace.invites || []).find((inv) => inv.token === token);
     if (!invite || invite.used || (invite.expiresAt && new Date(invite.expiresAt) < new Date())) {
       return res.status(404).json({ success: false, message: 'Lien d\'invitation invalide ou expiré' });
+    }
+
+    // Invitation ciblée : seul le compte portant l'email invité peut l'utiliser.
+    if (invite.email && String(user.email).toLowerCase() !== invite.email) {
+      return res.status(403).json({
+        success: false,
+        message: `Cette invitation est réservée à ${invite.email}. Connectez-vous avec cette adresse (ou créez un compte avec).`
+      });
+    }
+
+    // Rôle IMPOSÉ par l'admin à la création de l'invitation : il prime sur le
+    // choix de l'invité (sécurité — sinon n'importe qui avec le lien pouvait
+    // se déclarer administrateur).
+    if (invite.role && roleMap[invite.role]) {
+      finalRole = roleMap[invite.role];
     }
 
     // Vérifier si l'utilisateur n'est pas déjà dans le workspace
@@ -1779,8 +1824,14 @@ router.post('/accept-invite', requireEcomAuth, async (req, res) => {
     // Basculer sur ce workspace (comportement attendu après acceptation)
     user.workspaceId = workspace._id;
     user.role = finalRole;
+    // Un membre invité rejoint une équipe EXISTANTE : les parcours « crée ta
+    // boutique » et « complète ton profil » ne le concernent pas — sans ça,
+    // un livreur fraîchement inscrit serait bloqué sur le wizard boutique.
+    user.needsStoreSetup = false;
+    user.needsProfileInfo = false;
 
     await user.save();
+    invalidateUserCache(user._id);
 
     // Marquer l'invitation comme utilisée
     invite.used = true;
@@ -1851,6 +1902,29 @@ router.post('/generate-invite', requireEcomAuth, checkPlanLimit('users'), async 
       return res.status(404).json({ success: false, message: 'Workspace non trouvé' });
     }
 
+    // Invitation CIBLÉE (optionnel) : email du destinataire + rôle imposé.
+    // Sans email/rôle → lien ouvert (comportement historique conservé).
+    const INVITE_ROLES = ['ecom_admin', 'ecom_closeuse', 'ecom_compta', 'ecom_livreur'];
+    const inviteEmail = String(req.body?.email || '').toLowerCase().trim();
+    const inviteRole = String(req.body?.role || '').trim();
+    if (inviteEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(inviteEmail)) {
+      return res.status(400).json({ success: false, message: 'Email du destinataire invalide' });
+    }
+    if (inviteRole && !INVITE_ROLES.includes(inviteRole)) {
+      return res.status(400).json({ success: false, message: 'Rôle d\'invitation invalide' });
+    }
+    // Déjà membre ? Inutile d'inviter.
+    if (inviteEmail) {
+      const existingMember = await EcomUser.findOne({
+        email: inviteEmail,
+        'workspaces.workspaceId': workspace._id,
+        isActive: true
+      }).select('_id').lean();
+      if (existingMember) {
+        return res.status(400).json({ success: false, message: 'Cette personne est déjà membre de votre équipe' });
+      }
+    }
+
     // Générer un token d'invitation
     const token = crypto.randomBytes(32).toString('hex');
 
@@ -1858,6 +1932,8 @@ router.post('/generate-invite', requireEcomAuth, checkPlanLimit('users'), async 
     if (!Array.isArray(workspace.invites)) workspace.invites = [];
     workspace.invites.push({
       token,
+      email: inviteEmail,
+      role: inviteRole,
       createdBy: user._id,
       createdAt: new Date(),
       expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
@@ -1872,16 +1948,44 @@ router.post('/generate-invite', requireEcomAuth, checkPlanLimit('users'), async 
       : configuredFrontend.replace(/\/$/, '');
     const inviteLink = `${frontendBase}/ecom/invite/${token}`;
 
-    console.log(`🔗 Invitation générée par ${user.email}: ${inviteLink}`);
+    // Envoi de l'email au destinataire (non bloquant) — la personne peut ne
+    // PAS avoir de compte Scalor : le lien la guide vers l'inscription puis
+    // la fait rejoindre l'équipe automatiquement.
+    if (inviteEmail) {
+      const ROLE_LABELS = { ecom_admin: 'Administrateur', ecom_closeuse: 'Closeuse', ecom_compta: 'Comptable', ecom_livreur: 'Livreur' };
+      const inviterName = user.name || user.email;
+      sendCustomNotificationEmail({
+        to: inviteEmail,
+        subject: `${inviterName} vous invite à rejoindre « ${workspace.name} » sur Scalor`,
+        message: [
+          `${inviterName} vous invite à rejoindre l'équipe « ${workspace.name} » sur Scalor${inviteRole ? ` en tant que ${ROLE_LABELS[inviteRole] || inviteRole}` : ''}.`,
+          '',
+          `Pour accepter l'invitation, ouvrez ce lien :`,
+          inviteLink,
+          '',
+          `Pas encore de compte Scalor ? Le lien vous permettra d'en créer un avec cette adresse email (${inviteEmail}), puis vous rejoindrez l'équipe automatiquement.`,
+          '',
+          `Ce lien expire dans 7 jours.`,
+        ].join('\n'),
+        userId: user._id,
+        workspaceId: workspace._id,
+        eventType: 'team_invite'
+      }).catch((e) => console.warn('[invite] email non envoyé:', e.message));
+    }
 
-    await logAudit(req, 'GENERATE_INVITE', `Lien d'invitation généré par ${user.email}`, 'workspace', workspace._id.toString());
+    console.log(`🔗 Invitation générée par ${user.email}: ${inviteLink}${inviteEmail ? ` → ${inviteEmail} (${inviteRole || 'rôle libre'})` : ''}`);
+
+    await logAudit(req, 'GENERATE_INVITE', `Lien d'invitation généré par ${user.email}${inviteEmail ? ` pour ${inviteEmail}` : ''}`, 'workspace', workspace._id.toString());
 
     res.json({
       success: true,
-      message: 'Lien d\'invitation généré',
+      message: inviteEmail ? 'Invitation envoyée par email' : 'Lien d\'invitation généré',
       data: {
         token,
         inviteLink,
+        email: inviteEmail,
+        role: inviteRole,
+        emailSent: !!inviteEmail,
         expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
       }
     });

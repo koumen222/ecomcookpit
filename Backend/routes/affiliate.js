@@ -1,16 +1,22 @@
 import express from 'express';
 import jwt from 'jsonwebtoken';
+import rateLimit from 'express-rate-limit';
 import AffiliateUser from '../models/AffiliateUser.js';
 import AffiliateLink from '../models/AffiliateLink.js';
 import AffiliateClick from '../models/AffiliateClick.js';
+import AffiliateVisit from '../models/AffiliateVisit.js';
 import AffiliateConversion from '../models/AffiliateConversion.js';
+import AffiliatePayout, { PAYOUT_METHODS } from '../models/AffiliatePayout.js';
 import EcomUser from '../models/EcomUser.js';
 import { requireEcomAuth } from '../middleware/ecomAuth.js';
 import {
   generateCode,
+  generateClickId,
   normalizeCode,
   getAffiliateConfig,
-  resolveCommissionRule
+  resolveCommissionRule,
+  recordAffiliateVisit,
+  getAffiliateBalance
 } from '../services/affiliateService.js';
 import { verifyGoogleIdToken } from '../services/googleAuthService.js';
 
@@ -73,6 +79,10 @@ function requireSuperAdmin(req, res, next) {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Public tracking redirect
+// /r/:linkCode[?sub=ma_campagne&utm_source=...] →
+//   destination?aff=CODE&aff_link=LNK&aff_click=ID[&aff_sub=...]
+// Chaque clic reçoit un clickId unique, repris par le beacon de visite et les
+// conversions → funnel exact clic → visite → inscription → paiement.
 // ─────────────────────────────────────────────────────────────────────────────
 router.get('/r/:linkCode', async (req, res) => {
   try {
@@ -83,10 +93,7 @@ router.get('/r/:linkCode', async (req, res) => {
       return res.redirect('https://scalor.net');
     }
 
-    const destinationUrl = link.destinationUrl || 'https://scalor.net';
-    const separator = destinationUrl.includes('?') ? '&' : '?';
-    const redirectUrl = `${destinationUrl}${separator}aff=${encodeURIComponent(link.affiliateId.referralCode)}&aff_link=${encodeURIComponent(link.code)}`;
-
+    const subId = String(req.query.sub || req.query.subid || '').trim().slice(0, 100);
     const ipAddress = (req.headers['x-forwarded-for'] || req.ip || '').toString().split(',')[0].trim();
 
     // Deduplicate: skip if same IP + same link within last 30 seconds
@@ -97,12 +104,20 @@ router.get('/r/:linkCode', async (req, res) => {
       createdAt: { $gte: deduplicationWindow }
     }).lean();
 
+    // Réutiliser le clickId du clic récent (double-clic) sinon en créer un
+    const clickId = recentClick?.clickId || generateClickId();
+
     if (!recentClick) {
       await AffiliateClick.create({
         affiliateId: link.affiliateId._id,
         affiliateCode: link.affiliateId.referralCode,
         affiliateLinkCode: link.code,
-        destinationUrl,
+        clickId,
+        subId,
+        utmSource: String(req.query.utm_source || '').trim().slice(0, 100),
+        utmMedium: String(req.query.utm_medium || '').trim().slice(0, 100),
+        utmCampaign: String(req.query.utm_campaign || '').trim().slice(0, 100),
+        destinationUrl: link.destinationUrl || 'https://scalor.net',
         sourceUrl: req.get('referer') || '',
         ipAddress,
         userAgent: req.get('user-agent') || ''
@@ -112,10 +127,78 @@ router.get('/r/:linkCode', async (req, res) => {
       await AffiliateLink.updateOne({ _id: link._id }, { $inc: { clickCount: 1 } });
     }
 
+    const destinationUrl = link.destinationUrl || 'https://scalor.net';
+    const separator = destinationUrl.includes('?') ? '&' : '?';
+    const redirectParams = new URLSearchParams({
+      aff: link.affiliateId.referralCode,
+      aff_link: link.code,
+      aff_click: clickId
+    });
+    if (subId) redirectParams.set('aff_sub', subId);
+    const redirectUrl = `${destinationUrl}${separator}${redirectParams.toString()}`;
+
+    // Cookie first-party best-effort (fallback serveur si les params se perdent
+    // sur un domaine scalor.net). Canal principal : params URL + localStorage.
+    try {
+      const config = await getAffiliateConfig();
+      const windowDays = Math.max(1, Number(config.attributionWindowDays || 60));
+      const payload = Buffer.from(JSON.stringify({
+        aff: link.affiliateId.referralCode,
+        link: link.code,
+        click: clickId,
+        exp: Date.now() + windowDays * 24 * 60 * 60 * 1000
+      })).toString('base64url');
+      const cookieOptions = {
+        maxAge: windowDays * 24 * 60 * 60 * 1000,
+        httpOnly: true,
+        secure: true,
+        sameSite: 'lax',
+        path: '/'
+      };
+      const hostname = String(req.hostname || '');
+      if (hostname.endsWith('scalor.net')) cookieOptions.domain = '.scalor.net';
+      res.cookie('scalor_aff', payload, cookieOptions);
+    } catch { /* cookie best-effort */ }
+
     return res.redirect(redirectUrl);
   } catch (error) {
     console.error('affiliate redirect error:', error.message);
     return res.redirect('https://scalor.net');
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Public visit beacon — appelé par le frontend quand une attribution affiliée
+// est active. Répond toujours 200 (ne révèle pas la validité des codes).
+// ─────────────────────────────────────────────────────────────────────────────
+const trackLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 120,
+  standardHeaders: false,
+  legacyHeaders: false
+});
+
+router.post('/track/visit', trackLimiter, async (req, res) => {
+  try {
+    const { affiliateCode, affiliateLinkCode, clickId, visitorId, sessionId, url, referrer } = req.body || {};
+    const ipAddress = (req.headers['x-forwarded-for'] || req.ip || '').toString().split(',')[0].trim();
+
+    const result = await recordAffiliateVisit({
+      affiliateCode,
+      affiliateLinkCode,
+      clickId,
+      visitorId,
+      sessionId,
+      url,
+      referrer,
+      ipAddress,
+      userAgent: req.get('user-agent') || ''
+    });
+
+    return res.json({ success: true, recorded: result.recorded });
+  } catch (error) {
+    console.warn('affiliate track visit error:', error.message);
+    return res.json({ success: true, recorded: false });
   }
 });
 
@@ -491,6 +574,444 @@ router.get('/conversions', requireAffiliateAuth, async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Affiliate portal — statistiques (funnel, séries temporelles, par lien)
+// ─────────────────────────────────────────────────────────────────────────────
+const STATS_TZ = 'Africa/Douala';
+
+function parsePeriodDays(query, def = 30) {
+  const days = Number(query?.days);
+  if (!Number.isFinite(days) || days <= 0) return def;
+  return Math.min(365, Math.max(1, Math.round(days)));
+}
+
+function localDayKey(date) {
+  return date.toLocaleDateString('fr-CA', { timeZone: STATS_TZ });
+}
+
+function maskEmail(email = '') {
+  const [local, domain] = String(email).split('@');
+  if (!domain) return '***';
+  const visible = local.slice(0, 2);
+  return `${visible}${'*'.repeat(Math.max(2, local.length - 2))}@${domain}`;
+}
+
+// Funnel de la période + soldes à vie
+router.get('/stats/summary', requireAffiliateAuth, async (req, res) => {
+  try {
+    const affiliateId = req.affiliate._id;
+    const days = parsePeriodDays(req.query, 30);
+    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+    const [
+      visitsCount,
+      uniqueVisitorIds,
+      clicksCount,
+      convAgg,
+      lifetimeAgg,
+      balance,
+      pendingPayoutAgg,
+      config
+    ] = await Promise.all([
+      AffiliateVisit.countDocuments({ affiliateId, createdAt: { $gte: since } }),
+      AffiliateVisit.distinct('visitorId', { affiliateId, createdAt: { $gte: since } }),
+      AffiliateClick.countDocuments({ affiliateId, createdAt: { $gte: since } }),
+      AffiliateConversion.aggregate([
+        { $match: { affiliateId, createdAt: { $gte: since }, status: { $ne: 'rejected' } } },
+        {
+          $group: {
+            _id: '$conversionType',
+            count: { $sum: 1 },
+            amount: { $sum: '$orderAmount' },
+            commissions: { $sum: '$commissionAmount' }
+          }
+        }
+      ]),
+      AffiliateConversion.aggregate([
+        { $match: { affiliateId } },
+        { $group: { _id: '$status', count: { $sum: 1 }, commissions: { $sum: '$commissionAmount' } } }
+      ]),
+      getAffiliateBalance(affiliateId),
+      AffiliatePayout.aggregate([
+        { $match: { affiliateId, status: 'pending' } },
+        { $group: { _id: null, amount: { $sum: '$amount' }, count: { $sum: 1 } } }
+      ]),
+      getAffiliateConfig()
+    ]);
+
+    const byType = Object.fromEntries(convAgg.map((r) => [r._id, r]));
+    const byStatus = Object.fromEntries(lifetimeAgg.map((r) => [r._id, r]));
+    const signups = byType.signup?.count || 0;
+    const payments = byType.payment?.count || 0;
+
+    return res.json({
+      success: true,
+      data: {
+        periodDays: days,
+        funnel: {
+          clicks: clicksCount,
+          visits: visitsCount,
+          uniqueVisitors: uniqueVisitorIds.length,
+          signups,
+          payments,
+          revenue: byType.payment?.amount || 0,
+          periodCommissions:
+            (byType.signup?.commissions || 0) +
+            (byType.payment?.commissions || 0) +
+            (byType.order?.commissions || 0),
+          clickToSignupRate: clicksCount > 0 ? Number(((signups / clicksCount) * 100).toFixed(2)) : 0,
+          signupToPaymentRate: signups > 0 ? Number(((payments / signups) * 100).toFixed(2)) : 0
+        },
+        lifetime: {
+          pendingCommissions: byStatus.pending?.commissions || 0,
+          approvedCommissions: byStatus.approved?.commissions || 0,
+          paidCommissions: byStatus.paid?.commissions || 0,
+          rejectedCommissions: byStatus.rejected?.commissions || 0,
+          totalCommissions:
+            (byStatus.pending?.commissions || 0) +
+            (byStatus.approved?.commissions || 0) +
+            (byStatus.paid?.commissions || 0)
+        },
+        balance: {
+          available: balance.amount,
+          conversions: balance.count,
+          pendingPayouts: pendingPayoutAgg[0]?.amount || 0,
+          minPayoutAmount: Number(config.minPayoutAmount ?? 5000)
+        },
+        program: {
+          signupBonusAmount: Number(config.signupBonusAmount ?? 500),
+          paymentCommissionPercent: Number(config.paymentCommissionPercent ?? 50),
+          attributionWindowDays: Number(config.attributionWindowDays ?? 60)
+        }
+      }
+    });
+  } catch (error) {
+    console.error('affiliate stats summary error:', error);
+    return res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// Séries par jour : visites, visiteurs uniques, clics, inscriptions, paiements, commissions
+router.get('/stats/timeseries', requireAffiliateAuth, async (req, res) => {
+  try {
+    const affiliateId = req.affiliate._id;
+    const days = parsePeriodDays(req.query, 30);
+    const since = new Date(Date.now() - (days - 1) * 24 * 60 * 60 * 1000);
+    since.setHours(0, 0, 0, 0);
+
+    const dateExpr = { $dateToString: { format: '%Y-%m-%d', date: '$createdAt', timezone: STATS_TZ } };
+
+    const [visitRows, clickRows, convRows] = await Promise.all([
+      AffiliateVisit.aggregate([
+        { $match: { affiliateId, createdAt: { $gte: since } } },
+        { $group: { _id: dateExpr, visits: { $sum: 1 }, visitors: { $addToSet: '$visitorId' } } },
+        { $project: { visits: 1, uniqueVisitors: { $size: '$visitors' } } }
+      ]),
+      AffiliateClick.aggregate([
+        { $match: { affiliateId, createdAt: { $gte: since } } },
+        { $group: { _id: dateExpr, clicks: { $sum: 1 } } }
+      ]),
+      AffiliateConversion.aggregate([
+        { $match: { affiliateId, createdAt: { $gte: since }, status: { $ne: 'rejected' } } },
+        {
+          $group: {
+            _id: { day: dateExpr, type: '$conversionType' },
+            count: { $sum: 1 },
+            commissions: { $sum: '$commissionAmount' }
+          }
+        }
+      ])
+    ]);
+
+    const visitMap = Object.fromEntries(visitRows.map((r) => [r._id, r]));
+    const clickMap = Object.fromEntries(clickRows.map((r) => [r._id, r]));
+    const convMap = {};
+    for (const row of convRows) {
+      const day = row._id.day;
+      if (!convMap[day]) convMap[day] = { signups: 0, payments: 0, commissions: 0 };
+      if (row._id.type === 'signup') convMap[day].signups += row.count;
+      if (row._id.type === 'payment') convMap[day].payments += row.count;
+      convMap[day].commissions += row.commissions;
+    }
+
+    const series = [];
+    for (let i = days - 1; i >= 0; i -= 1) {
+      const day = localDayKey(new Date(Date.now() - i * 24 * 60 * 60 * 1000));
+      series.push({
+        date: day,
+        visits: visitMap[day]?.visits || 0,
+        uniqueVisitors: visitMap[day]?.uniqueVisitors || 0,
+        clicks: clickMap[day]?.clicks || 0,
+        signups: convMap[day]?.signups || 0,
+        payments: convMap[day]?.payments || 0,
+        commissions: convMap[day]?.commissions || 0
+      });
+    }
+
+    return res.json({ success: true, data: { periodDays: days, series } });
+  } catch (error) {
+    console.error('affiliate stats timeseries error:', error);
+    return res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// Performance par lien (+ répartition par sub-ID)
+router.get('/stats/links', requireAffiliateAuth, async (req, res) => {
+  try {
+    const affiliateId = req.affiliate._id;
+    const days = parsePeriodDays(req.query, 30);
+    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+    const [links, clickAgg, visitAgg, convAgg, subAgg] = await Promise.all([
+      AffiliateLink.find({ affiliateId }).sort({ createdAt: -1 }).lean(),
+      AffiliateClick.aggregate([
+        { $match: { affiliateId, createdAt: { $gte: since } } },
+        { $group: { _id: '$affiliateLinkCode', clicks: { $sum: 1 } } }
+      ]),
+      AffiliateVisit.aggregate([
+        { $match: { affiliateId, createdAt: { $gte: since } } },
+        { $group: { _id: '$affiliateLinkCode', visits: { $sum: 1 } } }
+      ]),
+      AffiliateConversion.aggregate([
+        { $match: { affiliateId, createdAt: { $gte: since }, status: { $ne: 'rejected' } } },
+        {
+          $group: {
+            _id: { link: '$affiliateLinkCode', type: '$conversionType' },
+            count: { $sum: 1 },
+            commissions: { $sum: '$commissionAmount' }
+          }
+        }
+      ]),
+      AffiliateClick.aggregate([
+        { $match: { affiliateId, createdAt: { $gte: since }, subId: { $ne: '' } } },
+        { $group: { _id: '$subId', clicks: { $sum: 1 } } },
+        { $sort: { clicks: -1 } },
+        { $limit: 50 }
+      ])
+    ]);
+
+    const clickMap = Object.fromEntries(clickAgg.map((r) => [r._id || '', r.clicks]));
+    const visitMap = Object.fromEntries(visitAgg.map((r) => [r._id || '', r.visits]));
+    const convByLink = {};
+    for (const row of convAgg) {
+      const key = row._id.link || '';
+      if (!convByLink[key]) convByLink[key] = { signups: 0, payments: 0, commissions: 0 };
+      if (row._id.type === 'signup') convByLink[key].signups += row.count;
+      if (row._id.type === 'payment') convByLink[key].payments += row.count;
+      convByLink[key].commissions += row.commissions;
+    }
+
+    const rows = links.map((link) => {
+      const clicks = clickMap[link.code] || 0;
+      const conv = convByLink[link.code] || { signups: 0, payments: 0, commissions: 0 };
+      return {
+        code: link.code,
+        name: link.name,
+        destinationUrl: link.destinationUrl,
+        isActive: link.isActive,
+        createdAt: link.createdAt,
+        lifetimeClicks: link.clickCount || 0,
+        clicks,
+        visits: visitMap[link.code] || 0,
+        signups: conv.signups,
+        payments: conv.payments,
+        commissions: conv.commissions,
+        clickToSignupRate: clicks > 0 ? Number(((conv.signups / clicks) * 100).toFixed(2)) : 0
+      };
+    });
+
+    // Conversions rattachées à l'ancien système (sans lien identifié)
+    const direct = convByLink[''];
+    if (direct && (direct.signups || direct.payments)) {
+      rows.push({
+        code: '',
+        name: '(sans lien identifié)',
+        destinationUrl: '',
+        isActive: true,
+        createdAt: null,
+        lifetimeClicks: 0,
+        clicks: clickMap[''] || 0,
+        visits: visitMap[''] || 0,
+        signups: direct.signups,
+        payments: direct.payments,
+        commissions: direct.commissions,
+        clickToSignupRate: 0
+      });
+    }
+
+    return res.json({
+      success: true,
+      data: {
+        periodDays: days,
+        links: rows,
+        subIds: subAgg.map((r) => ({ subId: r._id, clicks: r.clicks }))
+      }
+    });
+  } catch (error) {
+    console.error('affiliate stats links error:', error);
+    return res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// Filleuls (utilisateurs Scalor référés) — emails masqués
+router.get('/referrals', requireAffiliateAuth, async (req, res) => {
+  try {
+    const referred = await EcomUser.find({ referredByAffiliateCode: req.affiliate.referralCode })
+      .select('name email createdAt')
+      .sort({ createdAt: -1 })
+      .limit(500)
+      .lean();
+
+    const ids = referred.map((u) => u._id);
+    const totals = await AffiliateConversion.aggregate([
+      {
+        $match: {
+          affiliateId: req.affiliate._id,
+          referredUserId: { $in: ids },
+          status: { $ne: 'rejected' }
+        }
+      },
+      {
+        $group: {
+          _id: '$referredUserId',
+          commissions: { $sum: '$commissionAmount' },
+          payments: { $sum: { $cond: [{ $eq: ['$conversionType', 'payment'] }, 1, 0] } },
+          revenue: { $sum: '$orderAmount' }
+        }
+      }
+    ]);
+    const totalsMap = Object.fromEntries(totals.map((t) => [String(t._id), t]));
+
+    return res.json({
+      success: true,
+      data: {
+        referrals: referred.map((u) => {
+          const t = totalsMap[String(u._id)] || {};
+          return {
+            id: u._id,
+            name: u.name || '',
+            email: maskEmail(u.email),
+            signedUpAt: u.createdAt,
+            payments: t.payments || 0,
+            revenue: t.revenue || 0,
+            commissions: t.commissions || 0
+          };
+        })
+      }
+    });
+  } catch (error) {
+    console.error('affiliate referrals error:', error);
+    return res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Affiliate portal — retraits de commissions
+// ─────────────────────────────────────────────────────────────────────────────
+router.get('/payouts', requireAffiliateAuth, async (req, res) => {
+  try {
+    const [payouts, balance, config] = await Promise.all([
+      AffiliatePayout.find({ affiliateId: req.affiliate._id }).sort({ createdAt: -1 }).limit(100).lean(),
+      getAffiliateBalance(req.affiliate._id),
+      getAffiliateConfig()
+    ]);
+
+    return res.json({
+      success: true,
+      data: {
+        payouts,
+        balance: balance.amount,
+        balanceConversions: balance.count,
+        minPayoutAmount: Number(config.minPayoutAmount ?? 5000),
+        savedMethod: {
+          method: req.affiliate.payoutMethod || '',
+          phoneNumber: req.affiliate.payoutPhone || '',
+          accountName: req.affiliate.payoutAccountName || ''
+        }
+      }
+    });
+  } catch (error) {
+    console.error('affiliate payouts error:', error);
+    return res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+router.post('/payouts/request', requireAffiliateAuth, async (req, res) => {
+  try {
+    const { method, phoneNumber, accountName } = req.body || {};
+
+    if (!PAYOUT_METHODS.includes(method)) {
+      return res.status(400).json({ success: false, message: 'Méthode de retrait invalide' });
+    }
+    const cleanPhone = String(phoneNumber || '').trim().slice(0, 30);
+    if (['mtn_momo', 'orange_money'].includes(method) && !cleanPhone) {
+      return res.status(400).json({ success: false, message: 'Numéro Mobile Money requis' });
+    }
+
+    const existingPending = await AffiliatePayout.findOne({
+      affiliateId: req.affiliate._id,
+      status: 'pending'
+    }).lean();
+    if (existingPending) {
+      return res.status(409).json({ success: false, message: 'Un retrait est déjà en cours de traitement' });
+    }
+
+    const config = await getAffiliateConfig();
+    const minAmount = Number(config.minPayoutAmount ?? 5000);
+
+    const conversions = await AffiliateConversion.find({
+      affiliateId: req.affiliate._id,
+      status: 'approved',
+      payoutId: null
+    }).select('_id commissionAmount').lean();
+
+    const amount = conversions.reduce((sum, c) => sum + (Number(c.commissionAmount) || 0), 0);
+    if (amount < minAmount) {
+      return res.status(400).json({
+        success: false,
+        message: `Solde insuffisant : minimum ${minAmount.toLocaleString('fr-FR')} FCFA (solde actuel ${amount.toLocaleString('fr-FR')} FCFA)`
+      });
+    }
+
+    const payout = await AffiliatePayout.create({
+      affiliateId: req.affiliate._id,
+      amount,
+      currency: 'XAF',
+      method,
+      phoneNumber: cleanPhone,
+      accountName: String(accountName || '').trim().slice(0, 120),
+      conversionCount: conversions.length
+    });
+
+    // Verrouiller les conversions sur ce retrait (protégé contre les courses)
+    const ids = conversions.map((c) => c._id);
+    const upd = await AffiliateConversion.updateMany(
+      { _id: { $in: ids }, payoutId: null, status: 'approved' },
+      { $set: { payoutId: payout._id } }
+    );
+
+    // Si une conversion a bougé entre-temps, recaler le montant exact
+    if (upd.modifiedCount !== ids.length) {
+      const attached = await AffiliateConversion.find({ payoutId: payout._id })
+        .select('commissionAmount').lean();
+      payout.amount = attached.reduce((s, c) => s + (Number(c.commissionAmount) || 0), 0);
+      payout.conversionCount = attached.length;
+      await payout.save();
+    }
+
+    // Mémoriser les coordonnées de retrait
+    req.affiliate.payoutMethod = method;
+    req.affiliate.payoutPhone = cleanPhone;
+    req.affiliate.payoutAccountName = String(accountName || '').trim().slice(0, 120);
+    await req.affiliate.save();
+
+    return res.status(201).json({ success: true, message: 'Demande de retrait enregistrée', data: { payout } });
+  } catch (error) {
+    console.error('affiliate payout request error:', error);
+    return res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Super admin management
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -511,7 +1032,12 @@ router.get('/admin/overview', requireEcomAuth, requireSuperAdmin, async (req, re
       // Clics totaux + clics du jour depuis AffiliateLink.clickCount (source de vérité)
       clickAggregates,
       // Top 10 affiliés par sum(clickCount) sur leurs liens
-      topAffiliates
+      topAffiliates,
+      // Funnel : visites référées + conversions par jour + retraits en attente
+      visitsByDay,
+      visitsTotal,
+      conversionsByDay,
+      payoutsPendingAgg
     ] = await Promise.all([
       AffiliateUser.countDocuments(),
       AffiliateUser.countDocuments({ isActive: true }),
@@ -578,6 +1104,38 @@ router.get('/admin/overview', requireEcomAuth, requireSuperAdmin, async (req, re
         { $match: { $or: [{ totalConversions: { $gt: 0 } }, { totalClicks: { $gt: 0 } }] } },
         { $sort: { totalConversions: -1, totalCommissions: -1, totalClicks: -1 } },
         { $limit: 10 }
+      ]),
+      // Visites référées par jour (30j)
+      AffiliateVisit.aggregate([
+        { $match: { createdAt: { $gte: start30d } } },
+        {
+          $group: {
+            _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt', timezone: STATS_TZ } },
+            visits: { $sum: 1 },
+            visitors: { $addToSet: '$visitorId' }
+          }
+        },
+        { $project: { visits: 1, uniqueVisitors: { $size: '$visitors' } } },
+        { $sort: { _id: 1 } }
+      ]),
+      AffiliateVisit.countDocuments(),
+      // Inscriptions / paiements par jour (30j)
+      AffiliateConversion.aggregate([
+        { $match: { createdAt: { $gte: start30d }, status: { $ne: 'rejected' } } },
+        {
+          $group: {
+            _id: {
+              day: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt', timezone: STATS_TZ } },
+              type: '$conversionType'
+            },
+            count: { $sum: 1 },
+            commissions: { $sum: '$commissionAmount' }
+          }
+        }
+      ]),
+      AffiliatePayout.aggregate([
+        { $match: { status: 'pending' } },
+        { $group: { _id: null, amount: { $sum: '$amount' }, count: { $sum: 1 } } }
       ])
     ]);
 
@@ -590,6 +1148,32 @@ router.get('/admin/overview', requireEcomAuth, requireSuperAdmin, async (req, re
       clicks: d.clicks
     }));
 
+    // Fusion funnel par jour (visites + inscriptions + paiements + commissions)
+    const convDayMap = {};
+    for (const row of conversionsByDay) {
+      const day = row._id.day;
+      if (!convDayMap[day]) convDayMap[day] = { signups: 0, payments: 0, commissions: 0 };
+      if (row._id.type === 'signup') convDayMap[day].signups += row.count;
+      if (row._id.type === 'payment') convDayMap[day].payments += row.count;
+      convDayMap[day].commissions += row.commissions;
+    }
+    const visitDayMap = Object.fromEntries(visitsByDay.map((v) => [v._id, v]));
+    const clickDayMap = Object.fromEntries(clicksByDayFormatted.map((c) => [c.date, c.clicks]));
+    const funnelDays = [...new Set([
+      ...Object.keys(visitDayMap),
+      ...Object.keys(convDayMap),
+      ...Object.keys(clickDayMap)
+    ])].sort();
+    const funnelByDay = funnelDays.map((day) => ({
+      date: day,
+      visits: visitDayMap[day]?.visits || 0,
+      uniqueVisitors: visitDayMap[day]?.uniqueVisitors || 0,
+      clicks: clickDayMap[day] || 0,
+      signups: convDayMap[day]?.signups || 0,
+      payments: convDayMap[day]?.payments || 0,
+      commissions: convDayMap[day]?.commissions || 0
+    }));
+
     return res.json({
       success: true,
       data: {
@@ -600,9 +1184,13 @@ router.get('/admin/overview', requireEcomAuth, requireSuperAdmin, async (req, re
           clicksToday,
           clicksTotal,
           conversionsToday,
-          conversionsPending
+          conversionsPending,
+          visitsTotal,
+          payoutsPendingCount: payoutsPendingAgg[0]?.count || 0,
+          payoutsPendingAmount: payoutsPendingAgg[0]?.amount || 0
         },
         clicksByDay: clicksByDayFormatted,
+        funnelByDay,
         topAffiliates
       }
     });
@@ -623,7 +1211,11 @@ router.put('/admin/config', requireEcomAuth, requireSuperAdmin, async (req, res)
     baseCommissionType,
     baseCommissionValue,
     defaultLandingUrl,
-    linkTypeRules
+    linkTypeRules,
+    signupBonusAmount,
+    paymentCommissionPercent,
+    attributionWindowDays,
+    minPayoutAmount
   } = req.body || {};
 
   if (baseCommissionType && ['fixed', 'percentage'].includes(baseCommissionType)) {
@@ -634,6 +1226,18 @@ router.put('/admin/config', requireEcomAuth, requireSuperAdmin, async (req, res)
   }
   if (defaultLandingUrl !== undefined) {
     config.defaultLandingUrl = String(defaultLandingUrl || '').trim() || config.defaultLandingUrl;
+  }
+  if (signupBonusAmount !== undefined) {
+    config.signupBonusAmount = Math.max(0, Number(signupBonusAmount) || 0);
+  }
+  if (paymentCommissionPercent !== undefined) {
+    config.paymentCommissionPercent = Math.min(100, Math.max(0, Number(paymentCommissionPercent) || 0));
+  }
+  if (attributionWindowDays !== undefined) {
+    config.attributionWindowDays = Math.max(1, Number(attributionWindowDays) || 60);
+  }
+  if (minPayoutAmount !== undefined) {
+    config.minPayoutAmount = Math.max(0, Number(minPayoutAmount) || 0);
   }
   if (Array.isArray(linkTypeRules)) {
     config.linkTypeRules = linkTypeRules
@@ -834,6 +1438,88 @@ router.put('/admin/conversions/:id/status', requireEcomAuth, requireSuperAdmin, 
   await conversion.save();
 
   return res.json({ success: true, data: conversion });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Super admin — retraits
+// ─────────────────────────────────────────────────────────────────────────────
+router.get('/admin/payouts', requireEcomAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { status, page = 1, limit = 50 } = req.query;
+    const filter = {};
+    if (status && ['pending', 'paid', 'rejected'].includes(status)) filter.status = status;
+
+    const pageNum = Math.max(1, Number(page) || 1);
+    const limitNum = Math.min(200, Math.max(1, Number(limit) || 50));
+
+    const [items, total, pendingAgg] = await Promise.all([
+      AffiliatePayout.find(filter)
+        .populate('affiliateId', 'name email referralCode phone')
+        .sort({ createdAt: -1 })
+        .skip((pageNum - 1) * limitNum)
+        .limit(limitNum)
+        .lean(),
+      AffiliatePayout.countDocuments(filter),
+      AffiliatePayout.aggregate([
+        { $match: { status: 'pending' } },
+        { $group: { _id: null, amount: { $sum: '$amount' }, count: { $sum: 1 } } }
+      ])
+    ]);
+
+    return res.json({
+      success: true,
+      data: {
+        items,
+        pendingTotal: pendingAgg[0]?.amount || 0,
+        pendingCount: pendingAgg[0]?.count || 0,
+        pagination: { page: pageNum, limit: limitNum, total, pages: Math.ceil(total / limitNum) }
+      }
+    });
+  } catch (error) {
+    console.error('affiliate admin payouts error:', error);
+    return res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+router.put('/admin/payouts/:id', requireEcomAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { status, adminNote, paymentReference } = req.body || {};
+    if (!['paid', 'rejected'].includes(status)) {
+      return res.status(400).json({ success: false, message: 'Statut invalide (paid ou rejected)' });
+    }
+
+    const payout = await AffiliatePayout.findById(req.params.id);
+    if (!payout) return res.status(404).json({ success: false, message: 'Retrait introuvable' });
+    if (payout.status !== 'pending') {
+      return res.status(409).json({ success: false, message: `Retrait déjà ${payout.status}` });
+    }
+
+    if (status === 'paid') {
+      // Les commissions verrouillées passent définitivement à "paid"
+      await AffiliateConversion.updateMany(
+        { payoutId: payout._id },
+        { $set: { status: 'paid' } }
+      );
+    } else {
+      // Rejet : les commissions retournent au solde disponible
+      await AffiliateConversion.updateMany(
+        { payoutId: payout._id },
+        { $set: { payoutId: null } }
+      );
+    }
+
+    payout.status = status;
+    payout.adminNote = String(adminNote || '').trim().slice(0, 500);
+    payout.paymentReference = String(paymentReference || '').trim().slice(0, 200);
+    payout.processedAt = new Date();
+    payout.processedBy = req.ecomUser._id;
+    await payout.save();
+
+    return res.json({ success: true, message: `Retrait ${status === 'paid' ? 'payé' : 'rejeté'}`, data: payout });
+  } catch (error) {
+    console.error('affiliate admin payout update error:', error);
+    return res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
 });
 
 // Helper endpoint to preview commission rule

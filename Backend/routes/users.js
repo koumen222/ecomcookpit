@@ -5,6 +5,7 @@ import EcomWorkspace from '../models/Workspace.js';
 import Order from '../models/Order.js';
 import Transaction from '../models/Transaction.js';
 import { requireEcomAuth, validateEcomAccess, generateEcomToken, invalidateUserCache } from '../middleware/ecomAuth.js';
+import { checkPlanLimit } from '../middleware/planLimits.js';
 import { logAudit, AuditLog } from '../middleware/security.js';
 import { getPhonePrefixFromWorkspace, normalizePhone } from '../utils/phoneUtils.js';
 
@@ -180,6 +181,8 @@ router.get('/invites/list',
         .map(inv => ({
           _id: inv._id,
           token: inv.token,
+          email: inv.email || '',
+          role: inv.role || '',
           createdBy: inv.createdBy,
           createdAt: inv.createdAt,
           expiresAt: inv.expiresAt,
@@ -270,6 +273,9 @@ router.get('/:id',
 router.post('/',
   requireEcomAuth,
   validateEcomAccess('admin', 'write'),
+  // Limite de membres du plan appliquée aussi à l'AJOUT DIRECT (pas seulement
+  // aux invitations) — sinon le quota était contournable depuis « Ajouter ».
+  checkPlanLimit('users'),
   async (req, res) => {
     try {
       const { email, password, role, canAccessRitaAgent } = req.body;

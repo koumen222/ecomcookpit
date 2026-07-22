@@ -18,19 +18,26 @@ export default function AffiliateLinks() {
   const [creating, setCreating] = useState(false);
   const [copied, setCopied] = useState(null);
   const [search, setSearch] = useState('');
+  const [linkStats, setLinkStats] = useState({});
+  const [subIds, setSubIds] = useState([]);
+  const [statsDays, setStatsDays] = useState(30);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (days = 30) => {
     const token = getAffiliateToken();
     if (!token) { navigate('/affiliate/login'); return; }
     setLoading(true);
     setError('');
     try {
-      const [me, l] = await Promise.all([
+      const [me, l, s] = await Promise.all([
         affiliatePortalApi.me(),
-        affiliatePortalApi.getLinks()
+        affiliatePortalApi.getLinks(),
+        affiliatePortalApi.getStatsLinks({ days })
       ]);
-      setAffiliate(me.data?.data || me.data?.affiliate || null);
+      setAffiliate(me.data?.data?.affiliate || me.data?.data || null);
       setLinks(l.data?.data?.links || []);
+      const statRows = s.data?.data?.links || [];
+      setLinkStats(Object.fromEntries(statRows.map((row) => [row.code, row])));
+      setSubIds(s.data?.data?.subIds || []);
     } catch (err) {
       if (err.response?.status === 401) { clearAffiliateToken(); navigate('/affiliate/login'); return; }
       setError(err.response?.data?.message || 'Chargement impossible');
@@ -39,7 +46,7 @@ export default function AffiliateLinks() {
     }
   }, [navigate]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load(statsDays); }, [load, statsDays]);
 
   const createLink = async (e) => {
     e.preventDefault();
@@ -48,7 +55,7 @@ export default function AffiliateLinks() {
     try {
       await affiliatePortalApi.createLink(newLink);
       setNewLink({ name: '', destinationUrl: '' });
-      await load();
+      await load(statsDays);
     } catch (err) {
       setError(err.response?.data?.message || 'Création du lien impossible');
     } finally {
@@ -91,15 +98,30 @@ export default function AffiliateLinks() {
           </div>
         )}
 
-        {/* Stats row */}
-        <div className="grid grid-cols-2 gap-3">
-          <div className="bg-white border border-gray-200 rounded-xl p-4">
-            <p className="text-2xl font-bold text-gray-900">{links.length}</p>
-            <p className="text-xs uppercase tracking-wide text-gray-500 mt-0.5">Liens créés</p>
+        {/* Stats row + période */}
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div className="grid grid-cols-2 gap-3 flex-1 min-w-[260px]">
+            <div className="bg-white border border-gray-200 rounded-xl p-4">
+              <p className="text-2xl font-bold text-gray-900">{links.length}</p>
+              <p className="text-xs uppercase tracking-wide text-gray-500 mt-0.5">Liens créés</p>
+            </div>
+            <div className="bg-white border border-gray-200 rounded-xl p-4">
+              <p className="text-2xl font-bold text-gray-900">{totalClicks.toLocaleString('fr-FR')}</p>
+              <p className="text-xs uppercase tracking-wide text-gray-500 mt-0.5">Clics totaux (vie)</p>
+            </div>
           </div>
-          <div className="bg-white border border-gray-200 rounded-xl p-4">
-            <p className="text-2xl font-bold text-gray-900">{totalClicks.toLocaleString('fr-FR')}</p>
-            <p className="text-xs uppercase tracking-wide text-gray-500 mt-0.5">Clics totaux</p>
+          <div className="inline-flex rounded-lg border border-gray-200 bg-white p-0.5 self-start">
+            {[7, 30, 90].map((d) => (
+              <button
+                key={d}
+                onClick={() => setStatsDays(d)}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${
+                  statsDays === d ? 'bg-[#0F6B4F] text-white' : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                {d} j
+              </button>
+            ))}
           </div>
         </div>
 
@@ -115,6 +137,9 @@ export default function AffiliateLinks() {
               {creating ? 'Création...' : '+ Créer un lien'}
             </button>
           </form>
+          <p className="text-xs text-gray-500 mt-3">
+            Astuce : ajoutez <code className="bg-gray-100 px-1.5 py-0.5 rounded font-mono">?sub=nom_campagne</code> à la fin de votre lien tracké pour segmenter vos campagnes (ex. <code className="bg-gray-100 px-1.5 py-0.5 rounded font-mono">.../r/LNK123?sub=tiktok_video1</code>). Les clics par campagne apparaissent ci-dessous.
+          </p>
         </div>
 
         {/* Search */}
@@ -144,11 +169,34 @@ export default function AffiliateLinks() {
                     <p className="text-xs text-gray-500 truncate">{l.destinationUrl}</p>
                     <code className="block mt-1.5 text-[11px] bg-gray-900 text-primary-300 rounded-lg px-3 py-2 break-all font-mono">{linkUrl}</code>
                   </div>
-                  <div className="flex items-center gap-4 flex-shrink-0">
-                    <div className="text-center">
-                      <p className="text-lg font-bold text-gray-900">{l.clickCount || 0}</p>
-                      <p className="text-[10px] text-gray-500 uppercase">Clics</p>
-                    </div>
+                  <div className="flex items-center gap-4 flex-shrink-0 flex-wrap">
+                    {(() => {
+                      const s = linkStats[l.code] || {};
+                      return (
+                        <>
+                          <div className="text-center">
+                            <p className="text-lg font-bold text-gray-900">{s.clicks ?? 0}</p>
+                            <p className="text-[10px] text-gray-500 uppercase">Clics {statsDays}j</p>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-lg font-bold text-gray-900">{s.visits ?? 0}</p>
+                            <p className="text-[10px] text-gray-500 uppercase">Visites</p>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-lg font-bold text-[#0F6B4F]">{s.signups ?? 0}</p>
+                            <p className="text-[10px] text-gray-500 uppercase">Inscr.</p>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-lg font-bold text-[#0F6B4F]">{s.payments ?? 0}</p>
+                            <p className="text-[10px] text-gray-500 uppercase">Paiem.</p>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-lg font-bold text-gray-900">{(s.commissions ?? 0).toLocaleString('fr-FR')} F</p>
+                            <p className="text-[10px] text-gray-500 uppercase">Commis.</p>
+                          </div>
+                        </>
+                      );
+                    })()}
                     <button
                       onClick={() => copyToClipboard(linkUrl, l._id)}
                       className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
@@ -170,6 +218,23 @@ export default function AffiliateLinks() {
             )}
           </div>
         </div>
+
+        {/* Clics par campagne (sub-ID) */}
+        {subIds.length > 0 && (
+          <div className="bg-white border border-gray-200 rounded-xl">
+            <div className="px-4 py-3 border-b border-gray-100">
+              <h3 className="text-sm font-semibold text-gray-900">Clics par campagne (sub-ID, {statsDays} derniers jours)</h3>
+            </div>
+            <div className="divide-y divide-gray-100">
+              {subIds.map((s) => (
+                <div key={s.subId} className="px-4 py-2.5 flex items-center justify-between">
+                  <span className="text-sm font-mono text-gray-700">{s.subId}</span>
+                  <span className="text-sm font-bold text-gray-900">{s.clicks.toLocaleString('fr-FR')} clics</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </AffiliateLayout>
   );

@@ -19,8 +19,7 @@ import PlanConfig from '../models/PlanConfig.js';
 import GenerationPayment from '../models/GenerationPayment.js';
 import GenerationPricingConfig from '../models/GenerationPricingConfig.js';
 import EcomUser from '../models/EcomUser.js';
-import AffiliateUser from '../models/AffiliateUser.js';
-import AffiliateConversion from '../models/AffiliateConversion.js';
+import { creditPlanPaymentConversion } from '../services/affiliateService.js';
 import Order from '../models/Order.js';
 import { requireEcomAuth } from '../middleware/ecomAuth.js';
 import { getPlanRuntimeSnapshot } from '../middleware/planLimits.js';
@@ -250,33 +249,17 @@ async function sendSubscriptionActivatedEmail(workspace, payment) {
 }
 
 /**
- * If the paying user was referred by an affiliate, create a 50% commission.
+ * Commission d'abonnement pour l'affilié référent.
+ * Logique centralisée dans affiliateService : % configurable (défaut 50, à
+ * vie), idempotent par PlanPayment (webhook rejoué = 0 doublon), anti
+ * auto-parrainage, lien/clic d'origine rattachés.
  */
 async function creditPaymentCommission(payment) {
-  const user = await EcomUser.findById(payment.userId).select('referredByAffiliateCode');
+  const user = await EcomUser.findById(payment.userId)
+    .select('email referredByAffiliateCode referredByAffiliateLinkCode referredByClickId');
   if (!user?.referredByAffiliateCode) return;
 
-  const affiliate = await AffiliateUser.findOne({
-    referralCode: user.referredByAffiliateCode,
-    isActive: true
-  });
-  if (!affiliate) return;
-
-  const commissionAmount = Math.round(payment.amount * 0.5);
-  await AffiliateConversion.create({
-    affiliateId: affiliate._id,
-    affiliateCode: affiliate.referralCode,
-    conversionType: 'payment',
-    referredUserId: user._id,
-    orderAmount: payment.amount,
-    commissionType: 'percentage',
-    commissionValue: 50,
-    commissionAmount,
-    status: 'approved',
-    statusNote: `50% commission sur paiement ${payment.plan} (${payment.durationMonths} mois)`
-  });
-
-  console.log(`[affiliate] ${commissionAmount} FCFA payment commission for affiliate ${affiliate.referralCode} (payment ${payment._id})`);
+  await creditPlanPaymentConversion({ payment, user });
 }
 
 // ─── GET /plan ────────────────────────────────────────────────────────────────

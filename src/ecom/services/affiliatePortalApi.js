@@ -57,5 +57,18 @@ export const affiliatePortalApi = {
   getDashboard: () => affiliateApi.get('/dashboard'),
   getLinks: () => affiliateApi.get('/links'),
   createLink: (payload) => affiliateApi.post('/links', payload),
-  getConversions: (params = {}) => affiliateApi.get('/conversions', { params })
+  getConversions: (params = {}) => affiliateApi.get('/conversions', { params }),
+  // Statistiques (funnel, séries temporelles, par lien) + filleuls
+  getStatsSummary: (params = {}) => affiliateApi.get('/stats/summary', { params }),
+  getStatsTimeseries: (params = {}) => affiliateApi.get('/stats/timeseries', { params }),
+  getStatsLinks: (params = {}) => affiliateApi.get('/stats/links', { params }),
+  getReferrals: () => affiliateApi.get('/referrals'),
+  // Retraits de commissions
+  getPayouts: () => affiliateApi.get('/payouts'),
+  requestPayout: (payload) => affiliateApi.post('/payouts/request', payload)
 };
+
+// URL publique d'un lien affilié (redirection trackée /r/:code)
+export function affiliateTrackingUrl(linkCode) {
+  return `${API_BASE}/api/affiliate/r/${encodeURIComponent(linkCode || '')}`;
+}
