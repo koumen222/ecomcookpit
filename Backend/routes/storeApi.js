@@ -1196,9 +1196,12 @@ router.get('/:subdomain/product-page/:slug', readLimiter, async (req, res) => {
       if (quantityOffer.design) productData.quantityOfferDesign = quantityOffer.design;
     }
 
-    // 5min CDN cache + stale-while-revalidate=3600s.
-    // invalidateStoreCache() est appelé immédiatement sur save admin → pas de données périmées.
-    setCacheHeaders(res, 300);
+    // PAS de cache CDN sur la page produit : invalidateStoreCache() ne purge
+    // QUE le cache mémoire du process — le CDN servait l'ancien prix et les
+    // anciennes sections jusqu'à ~50 min (s-maxage 300 + swr 3000) après une
+    // modification. Le cache mémoire backend (5 min, invalidé au save) suffit
+    // pour la perf ; le marchand voit ses changements immédiatement.
+    setCacheHeaders(res, 0);
 
     let payload = {
       success: true,
