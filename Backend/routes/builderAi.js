@@ -1,4 +1,5 @@
 import express from 'express';
+import rateLimit from 'express-rate-limit';
 import axios from 'axios';
 import multer from 'multer';
 import FormData from 'form-data';
@@ -84,6 +85,77 @@ async function transcribeBuffer(buffer, mimetype) {
 }
 
 const router = express.Router();
+
+// ─── Téléchargement direct des médias générés ────────────────────────────────
+// Les CDN médias (R2, kie, fal…) n'envoient ni CORS ni Content-Disposition :
+// côté front, « Télécharger » ouvrait le fichier dans un onglet. Ce proxy
+// streame le fichier avec Content-Disposition: attachment → téléchargement
+// direct garanti. Route publique (les objets proxifiés sont déjà publics),
+// bornée par une allowlist d'hôtes (anti-SSRF) + rate limit.
+const DOWNLOAD_HOST_ALLOWLIST = [
+  /\.r2\.dev$/i,
+  /\.r2\.cloudflarestorage\.com$/i,
+  /(^|\.)scalor\.(net|site)$/i,
+  /(^|\.)res\.cloudinary\.com$/i,
+  /(^|\.)fal\.(media|ai)$/i,
+  /(^|\.)fish\.audio$/i,
+  /(^|\.)kie\.ai$/i,
+  /(^|\.)aiquickdraw\.com$/i,
+];
+
+function isDownloadHostAllowed(hostname = '') {
+  const host = String(hostname).toLowerCase();
+  if (DOWNLOAD_HOST_ALLOWLIST.some((rx) => rx.test(host))) return true;
+  // Extension via env (hôtes exacts, séparés par des virgules)
+  return String(process.env.MEDIA_DOWNLOAD_HOSTS || '')
+    .split(',').map((h) => h.trim().toLowerCase()).filter(Boolean)
+    .includes(host);
+}
+
+const downloadLimiter = rateLimit({ windowMs: 60 * 1000, max: 60, standardHeaders: false, legacyHeaders: false });
+
+router.get('/download', downloadLimiter, async (req, res) => {
+  try {
+    const src = String(req.query.src || '');
+    const rawName = String(req.query.name || 'creative').replace(/[^\w.\- ]+/g, '_').slice(0, 120) || 'creative';
+
+    let parsed;
+    try { parsed = new URL(src); } catch { return res.status(400).json({ success: false, message: 'URL invalide' }); }
+    if (!/^https?:$/.test(parsed.protocol) || !isDownloadHostAllowed(parsed.hostname)) {
+      return res.status(403).json({ success: false, message: 'Hôte non autorisé' });
+    }
+
+    const upstream = await axios.get(src, { responseType: 'stream', timeout: 60000, maxRedirects: 3 });
+
+    // Re-vérifier l'hôte final après redirections (anti-SSRF)
+    const finalUrl = upstream.request?.res?.responseUrl || src;
+    let finalHost = parsed.hostname;
+    try { finalHost = new URL(finalUrl).hostname; } catch { /* garde l'initial */ }
+    if (!isDownloadHostAllowed(finalHost)) {
+      upstream.data.destroy();
+      return res.status(403).json({ success: false, message: 'Hôte non autorisé' });
+    }
+
+    const type = String(upstream.headers['content-type'] || 'application/octet-stream');
+    const extFromType = {
+      'image/png': '.png', 'image/jpeg': '.jpg', 'image/webp': '.webp', 'image/gif': '.gif',
+      'video/mp4': '.mp4', 'video/webm': '.webm',
+      'audio/mpeg': '.mp3', 'audio/mp3': '.mp3', 'audio/wav': '.wav',
+    }[type.split(';')[0].trim()] || '';
+    const filename = /\.[a-z0-9]{2,5}$/i.test(rawName) ? rawName : `${rawName}${extFromType}`;
+
+    res.setHeader('Content-Type', type);
+    if (upstream.headers['content-length']) res.setHeader('Content-Length', upstream.headers['content-length']);
+    res.setHeader('Content-Disposition', `attachment; filename="${filename.replace(/"/g, '')}"`);
+    res.setHeader('Cache-Control', 'no-store');
+
+    upstream.data.pipe(res);
+    upstream.data.on('error', () => { try { res.destroy(); } catch { /* noop */ } });
+  } catch (error) {
+    console.warn('[builder-ai/download] échec:', error.message);
+    return res.status(502).json({ success: false, message: 'Téléchargement impossible' });
+  }
+});
 
 // POST /api/ecom/builder-ai/free-chat - Chat conversationnel général (façon ChatGPT).
 // Multi-tours, sans contexte builder : l'utilisateur « cause » librement avec l'IA.
