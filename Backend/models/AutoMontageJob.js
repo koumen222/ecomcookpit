@@ -12,6 +12,7 @@ import mongoose from 'mongoose';
 const autoMontageJobSchema = new mongoose.Schema({
   jobId: { type: String, required: true, unique: true, index: true },
   workspaceId: { type: mongoose.Schema.Types.ObjectId, default: null, index: true },
+  userId: { type: mongoose.Schema.Types.ObjectId, default: null, index: true },
   status: { type: String, enum: ['processing', 'done', 'error'], default: 'processing' },
   // Étape lisible pour l'UI (« Transcription… », « Génération des b-rolls… »).
   stage: { type: String, default: 'Initialisation' },

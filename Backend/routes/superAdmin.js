@@ -1654,26 +1654,72 @@ router.patch('/creative-free-mode', requireEcomAuth, requireSuperAdmin, async (r
 });
 
 // ── Creative Center : toutes les générations (tous utilisateurs) ────────────
-// GET /api/ecom/super-admin/creative-generations?page=&limit=&search=
+// GET /api/ecom/super-admin/creative-generations?page=&limit=&search=&scope=
 // Agrège 3 sources : CreativeAsset (affiches/textes/vidéos/voix du générateur),
 // GeneratedMedia (images/GIF/vidéos du builder) et AutoMontageJob (montages,
 // TTL 2 h). Réponse : { items, total, page, pages }.
+//
+// scope=final-videos retourne uniquement les CreativeAsset vidéo durables,
+// enregistrés avec leur auteur à la fin des jobs. Les GeneratedMedia (GIF et
+// clips de scène) ainsi que les documents de suivi temporaires sont exclus.
 router.get('/creative-generations', requireEcomAuth, requireSuperAdmin, async (req, res) => {
   try {
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
     const limit = Math.min(60, Math.max(1, parseInt(req.query.limit, 10) || 24));
     const search = String(req.query.search || '').trim().slice(0, 80);
+    const finalVideosOnly = String(req.query.scope || '') === 'final-videos';
+
+    const finalVideoUrlFilter = () => ({
+      $type: 'string',
+      $nin: [''],
+      $not: /\.gif(?:$|[?#])/i,
+    });
+    const intermediateVideoKinds = [
+      'scene', 'scene-video', 'segment', 'video-segment', 'clip',
+      'preview', 'broll', 'b-roll',
+    ];
 
     // Recherche : texte (produit, label, prompt) OU utilisateur (nom, email).
-    const filters = { asset: {}, media: {}, montage: {} };
+    const filters = finalVideosOnly
+      ? {
+          asset: {
+            type: 'video',
+            videoUrl: finalVideoUrlFilter(),
+            'meta.kind': { $nin: intermediateVideoKinds },
+            'meta.isSegment': { $ne: true },
+            'meta.final': { $ne: false },
+          },
+          // Les GeneratedMedia sont des images, GIF ou clips de scène. Ils ne
+          // constituent pas des rendus finaux, même lorsque type=video.
+          media: { _id: { $in: [] } },
+          // AutoMontageJob est un suivi temporaire (TTL). Les rendus finaux
+          // sont copiés dans CreativeAsset avec le userId exact.
+          montage: { _id: { $in: [] } },
+        }
+      : { asset: {}, media: {}, montage: {} };
+
     if (search) {
       const rx = new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
-      const users = await EcomUser.find({ $or: [{ name: rx }, { email: rx }] })
-        .select('_id').limit(300).lean();
+      const [users, workspaces] = await Promise.all([
+        EcomUser.find({ $or: [{ name: rx }, { email: rx }] })
+          .select('_id').limit(300).lean(),
+        Workspace.find({ name: rx }).select('_id').limit(300).lean(),
+      ]);
       const userIds = users.map((u) => u._id);
-      filters.asset = { $or: [{ productName: rx }, { label: rx }, { userId: { $in: userIds } }] };
-      filters.media = { $or: [{ prompt: rx }, { kind: rx }, { userId: { $in: userIds } }] };
-      // AutoMontageJob n'a pas de champ user/texte : ne matche que sans recherche.
+      const workspaceIds = workspaces.map((w) => w._id);
+      filters.asset = {
+        $and: [
+          filters.asset,
+          { $or: [
+            { productName: rx }, { label: rx },
+            { userId: { $in: userIds } },
+            { workspaceId: { $in: workspaceIds } },
+          ] },
+        ],
+      };
+      filters.media = finalVideosOnly
+        ? filters.media
+        : { $or: [{ prompt: rx }, { kind: rx }, { userId: { $in: userIds } }, { workspaceId: { $in: workspaceIds } }] };
       filters.montage = { _id: { $in: [] } };
     }
 
@@ -1682,11 +1728,11 @@ router.get('/creative-generations', requireEcomAuth, requireSuperAdmin, async (r
     const fetchCount = page * limit;
     const [assets, medias, montages, cAssets, cMedias, cMontages] = await Promise.all([
       CreativeAsset.find(filters.asset).sort({ createdAt: -1 }).limit(fetchCount)
-        .select('workspaceId userId productName type formatId label imageUrl videoUrl audioUrl createdAt').lean(),
+        .select('workspaceId userId productName type formatId label imageUrl videoUrl audioUrl meta createdAt').lean(),
       GeneratedMedia.find(filters.media).sort({ createdAt: -1 }).limit(fetchCount)
         .select('workspaceId storeId userId type url prompt kind createdAt').lean(),
       AutoMontageJob.find(filters.montage).sort({ createdAt: -1 }).limit(fetchCount)
-        .select('workspaceId status outputs report createdAt').lean(),
+        .select('workspaceId userId status outputs report createdAt').lean(),
       CreativeAsset.countDocuments(filters.asset),
       GeneratedMedia.countDocuments(filters.media),
       AutoMontageJob.countDocuments(filters.montage),
@@ -1701,6 +1747,10 @@ router.get('/creative-generations', requireEcomAuth, requireSuperAdmin, async (r
         mediaUrl: a.imageUrl || a.videoUrl || a.audioUrl || '',
         thumbnailUrl: a.imageUrl || '',
         cost: a.type === 'image' ? 1 : undefined,
+        kind: a.meta?.kind || a.meta?.source || '',
+        format: a.meta?.format || '',
+        durationSec: Number(a.meta?.durationSec) || undefined,
+        final: a.type === 'video',
         userId: a.userId || null,
         storeId: null,
         workspaceId: a.workspaceId || null,
@@ -1718,37 +1768,51 @@ router.get('/creative-generations', requireEcomAuth, requireSuperAdmin, async (r
         workspaceId: m.workspaceId || null,
         createdAt: m.createdAt,
       })),
-      ...montages.map((j) => ({
-        id: String(j._id),
-        type: 'montage',
-        title: 'Montage automatique IA',
-        productName: '',
-        mediaUrl: j.outputs?.[0]?.url || '',
-        thumbnailUrl: '',
-        cost: 4,
-        userId: null,
-        storeId: null,
-        workspaceId: j.workspaceId || null,
-        createdAt: j.createdAt,
-      })),
+      ...montages.flatMap((j) => {
+        const outputs = finalVideosOnly ? (j.outputs || []) : (j.outputs || []).slice(0, 1);
+        return outputs
+          .filter((output) => output?.url && !/\.gif(?:$|[?#])/i.test(output.url))
+          .map((output, outputIndex) => ({
+            id: `${String(j._id)}:${output.format || outputIndex}`,
+            type: 'montage',
+            title: `Montage automatique IA${output.format ? ` · ${output.format}` : ''}`,
+            productName: '',
+            mediaUrl: output.url,
+            thumbnailUrl: '',
+            cost: 4,
+            kind: 'auto-montage',
+            format: output.format || '',
+            durationSec: Number(output.durationSec) || undefined,
+            final: true,
+            userId: j.userId || null,
+            storeId: null,
+            workspaceId: j.workspaceId || null,
+            createdAt: j.createdAt,
+          }));
+      }),
     ]
       .sort((x, y) => new Date(y.createdAt) - new Date(x.createdAt))
       .slice((page - 1) * limit, page * limit);
 
-    // Enrichissement user/store sur la page servie uniquement.
+    // Enrichissement user/store/workspace sur la page servie uniquement.
     const userIds = [...new Set(items.map((i) => i.userId).filter(Boolean).map(String))];
     const storeIds = [...new Set(items.map((i) => i.storeId).filter(Boolean).map(String))];
-    const [userDocs, storeDocs] = await Promise.all([
+    const workspaceIds = [...new Set(items.map((i) => i.workspaceId).filter(Boolean).map(String))];
+    const [userDocs, storeDocs, workspaceDocs] = await Promise.all([
       userIds.length ? EcomUser.find({ _id: { $in: userIds } }).select('name email').lean() : [],
       storeIds.length ? Store.find({ _id: { $in: storeIds } }).select('name').lean() : [],
+      workspaceIds.length ? Workspace.find({ _id: { $in: workspaceIds } }).select('name').lean() : [],
     ]);
     const userMap = new Map(userDocs.map((u) => [String(u._id), u]));
     const storeMap = new Map(storeDocs.map((s) => [String(s._id), s]));
+    const workspaceMap = new Map(workspaceDocs.map((w) => [String(w._id), w]));
     for (const it of items) {
       const u = it.userId ? userMap.get(String(it.userId)) : null;
       const s = it.storeId ? storeMap.get(String(it.storeId)) : null;
+      const w = it.workspaceId ? workspaceMap.get(String(it.workspaceId)) : null;
       it.user = u ? { name: u.name || '', email: u.email || '' } : null;
       it.store = s ? { name: s.name || '' } : null;
+      it.workspace = w ? { name: w.name || '' } : null;
       delete it.userId; delete it.storeId; delete it.workspaceId;
     }
 
@@ -1759,6 +1823,7 @@ router.get('/creative-generations', requireEcomAuth, requireSuperAdmin, async (r
       total,
       page,
       pages: Math.max(1, Math.ceil(total / limit)),
+      scope: finalVideosOnly ? 'final-videos' : 'all',
     });
   } catch (err) {
     console.error('[SuperAdmin] GET /creative-generations error:', err.message);

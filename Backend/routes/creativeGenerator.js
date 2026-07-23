@@ -1180,12 +1180,25 @@ router.post('/asset', requireEcomAuth, async (req, res) => {
     if (t === 'launch' && !String(content).trim() && !(meta && typeof meta === 'object' && Object.keys(meta).length)) {
       return res.status(400).json({ error: 'Données de lancement vides' });
     }
-    const asset = await CreativeAsset.create({
+    const assetData = {
       workspaceId: req.workspaceId, userId: req.ecomUser._id,
       type: t, label: String(label).slice(0, 200), content: String(content).slice(0, t === 'launch' ? 200000 : 20000),
       imageUrl, videoUrl, audioUrl, productName: String(productName).slice(0, 200), formatId,
-      meta: meta && typeof meta === 'object' ? meta : {},
-    });
+      meta: {
+        ...(meta && typeof meta === 'object' ? meta : {}),
+        ...(t === 'video' ? { final: true } : {}),
+      },
+    };
+    // Le backend historise déjà certains rendus finaux dès la fin du job.
+    // L'enregistrement demandé ensuite par le frontend enrichit le même asset
+    // au lieu de créer un doublon portant la même URL.
+    const asset = t === 'video'
+      ? await CreativeAsset.findOneAndUpdate(
+          { workspaceId: req.workspaceId, type: 'video', videoUrl },
+          { $set: assetData },
+          { upsert: true, new: true, setDefaultsOnInsert: true },
+        )
+      : await CreativeAsset.create(assetData);
     res.json({ success: true, asset });
   } catch (err) {
     res.status(500).json({ error: err.message });

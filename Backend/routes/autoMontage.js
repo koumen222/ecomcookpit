@@ -18,6 +18,7 @@ import { requireEcomAuth } from '../middleware/ecomAuth.js';
 import AutoMontageJob from '../models/AutoMontageJob.js';
 import { autoEditVideo, CAPTION_STYLES } from '../services/autoEditService.js';
 import { reserveFeatureCredits, sendInsufficientCredits, getFeatureCost } from '../services/creativeCredits.js';
+import { recordFinalCreativeVideo } from '../services/creativeFinalVideoService.js';
 import { toUserAiError } from '../utils/aiErrorMessages.js';
 
 const router = express.Router();
@@ -83,8 +84,12 @@ router.post('/start', requireEcomAuth,
     }
 
     const jobId = crypto.randomUUID();
-    await AutoMontageJob.push(jobId, {
+    const owner = {
       workspaceId: req.workspaceId || null,
+      userId: req.ecomUser?._id || null,
+    };
+    await AutoMontageJob.push(jobId, {
+      ...owner,
       status: 'processing', stage: 'En file', progress: 2,
       formats,
     });
@@ -107,6 +112,15 @@ router.post('/start', requireEcomAuth,
           report: result.report || null,
           warning: result.warnings?.length ? result.warnings.join(' · ').slice(0, 600) : null,
         });
+        await Promise.all((result.outputs || []).map((output) => recordFinalCreativeVideo({
+          ...owner,
+          videoUrl: output?.url,
+          label: `Montage automatique IA${output?.format ? ` · ${output.format}` : ''}`,
+          kind: 'auto-montage',
+          format: output?.format || '',
+          durationSec: output?.durationSec || 0,
+          meta: { jobId },
+        })));
       } catch (err) {
         console.error('[AutoMontage] job failed:', err.message);
         await resv.refund(err.message);

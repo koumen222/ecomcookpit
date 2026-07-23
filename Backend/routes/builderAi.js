@@ -17,6 +17,7 @@ import Supplier from '../models/Supplier.js';
 import { executeScalorAgentActions } from '../services/scalorAgentActionService.js';
 import { parseScalorAgentActionBlocks } from '../services/scalorAgentBlockParser.js';
 import { deepseekClient, isDeepseekConfigured } from '../services/deepseekChatService.js';
+import { recordFinalCreativeVideo } from '../services/creativeFinalVideoService.js';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
 
@@ -1312,7 +1313,7 @@ router.post('/generate-gif', requireEcomAuth, async (req, res) => {
         const voiceProfile = charDesc
           ? `VOICE PROFILE (identical in EVERY clip of this series): the natural voice of ${charDesc} — same timbre, same medium pitch, same warm energy, same speaking style in every single clip, as if all clips were recorded in one take.`
           : 'VOICE PROFILE (identical in EVERY clip of this series): one consistent natural francophone voice — same timbre, pitch and energy in every clip, as if recorded in one take.';
-        motionPrompt = `Based on the uploaded image, animate the person speaking FLUENT NATIVE FRENCH directly to the camera, saying the exact words: « ${speakClean} ». ${voiceProfile} LANGUAGE (critical): the ENTIRE speech is in FRENCH ONLY — perfect natural French pronunciation and native francophone accent matching the person, never a single English word, never an anglophone accent. The mouth moves precisely to match this exact French phrasing. SPEECH FILLS THE CLIP (critical): the person starts speaking at the VERY FIRST frame and speaks CONTINUOUSLY until the VERY LAST frame — the voice covers every second of the clip, NO silence at any moment, no pause at the start, no pause at the end, no dead air between sentences. PACE: FAST energetic delivery, like an excited TikTok creator — quick natural talking speed, never slow, never drawn out. The person stays in the EXACT same position and framing as the image, with ONLY subtle natural talking micro-movements: slight head motion, steady eye contact, tiny hand emphasis kept close to the body. ${noProduct ? 'No product anywhere in the frame.' : 'If a product is visible in the image, it stays EXACTLY as it is — same product, same label, same position in the hand — never lifted higher, swapped, opened, pointed at or demonstrated.'} STRICTLY FORBIDDEN: demonstrations, introducing or showing ANY other object or product, walking, standing up, scene or background change, camera movement, zooms, unrealistic gestures, morphing or extra fingers. Static camera, casual smartphone video look, bright natural light. No captions, no on-screen text.${tweakClean ? ` MERCHANT ADJUSTMENT (requested for this take — apply it while keeping every rule above; the instruction may be written in French): ${tweakClean}.` : ''}`;
+        motionPrompt = `Based on the uploaded image, animate the person speaking FLUENT NATIVE FRENCH directly to the camera, saying the exact words: « ${speakClean} ». ${voiceProfile} LANGUAGE (critical): the ENTIRE speech is in FRENCH ONLY — perfect natural French pronunciation and native francophone accent matching the person, never a single English word, never an anglophone accent. The mouth moves precisely to match this exact French phrasing. TIMING (critical): the person starts speaking at the VERY FIRST frame, with NO pause at the start. PACE (critical): a NATURAL CONSTANT conversational tempo of about 2.5 words per second — the EXACT SAME tempo in every clip of this video. NEVER stretch, slow down or drag the words to fill the clip duration, and NEVER rush or compress them to fit: keep the one true natural pace. If the sentence ends before the clip does, the person simply holds a warm confident look at the camera (a slight smile, a small nod) — no re-speaking, no filler sounds. The person stays in the EXACT same position and framing as the image, with ONLY subtle natural talking micro-movements: slight head motion, steady eye contact, tiny hand emphasis kept close to the body. ${noProduct ? 'No product anywhere in the frame.' : 'If a product is visible in the image, it stays EXACTLY as it is — same product, same label, same position in the hand — never lifted higher, swapped, opened, pointed at or demonstrated.'} STRICTLY FORBIDDEN: demonstrations, introducing or showing ANY other object or product, walking, standing up, scene or background change, camera movement, zooms, unrealistic gestures, morphing or extra fingers. Static camera, casual smartphone video look, bright natural light. No captions, no on-screen text.${tweakClean ? ` MERCHANT ADJUSTMENT (requested for this take — apply it while keeping every rule above; the instruction may be written in French): ${tweakClean}.` : ''}`;
       } else if (DEEPSEEK_API_KEY) {
         try {
           const directorRaw = await callDeepseek([
@@ -1427,11 +1428,16 @@ Reply ONLY with JSON: {"start_frame_prompt":"...","motion_prompt":"..."} — sta
       // Résilience : les providers configurés sont essayés DANS L'ORDRE
       // (kie.ai → xAI officiel → fal.ai) ; chaque échec bascule sur le suivant
       // et l'erreur finale nomme chaque provider avec sa cause.
-      // Durée des scènes PARLÉES : 10 s par défaut (durée libre Kling 3-15 s),
-      // hors du plafond 6 s des clips muets — la phrase doit tenir entière.
-      const speakDur = Math.max(3, Math.min(15, Math.round(Number(durationSec) || 10)));
+      // Durée des scènes PARLÉES calée sur la RÉPLIQUE (débit naturel ~2,5
+      // mots/s + 1 s de respiration) : une durée fixe forçait le modèle à
+      // étirer les phrases courtes (débit lent) et compresser les longues
+      // (débit rapide) — d'où des scènes qui parlaient à des vitesses
+      // différentes. Bornes Kling 3-15 s ; Grok clampe sur 5-10 s.
+      const speakWords = speakClean.split(/\s+/).filter(Boolean).length;
+      const idealDur = Math.ceil(speakWords / 2.5) + 1;
+      const speakDur = Math.max(3, Math.min(15, speakWords ? idealDur : Math.round(Number(durationSec) || 10)));
       const runProvider = (p) => (p === 'groktalk'
-        ? grokImageToVideo(motionPrompt, startImage, { durationSec: 6, resolution: talkRes, aspectRatio: '9:16' }) // Grok Imagine 1.5 : 6 s, dialogue DANS le prompt
+        ? grokImageToVideo(motionPrompt, startImage, { durationSec: 6, resolution: talkRes, aspectRatio: '9:16' }) // Grok Imagine 1.5 : 6 s (fixe API), le tempo constant vient du prompt + répliques ~15 mots
         : p === 'klingtalk'
         ? klingImageToVideo(motionPrompt, startImage, { durationSec: speakDur, resolution: '720p' }) // Kling : 720p minimum, mots DANS motionPrompt
         : p === 'veo'
@@ -1946,6 +1952,10 @@ router.post('/lipsync', requireEcomAuth, async (req, res) => {
     const { reserveFeatureCredits, sendInsufficientCredits } = await import('../services/creativeCredits.js');
     const lipResv = await reserveFeatureCredits(req.workspaceId, 'lipsync');
     if (!lipResv.ok) return sendInsufficientCredits(res, 'lipsync', lipResv);
+    const owner = {
+      workspaceId: req.workspaceId || null,
+      userId: req.ecomUser?._id || null,
+    };
 
     const jobId = createAvatarJob({
       imageUrl: isUrl(imageUrl) ? imageUrl : '',
@@ -1956,7 +1966,20 @@ router.post('/lipsync', requireEcomAuth, async (req, res) => {
       motion: ['presenter', 'hands', 'calm'].includes(motion) ? motion : 'presenter',
       motionPrompt: String(motionPrompt || '').slice(0, 800),
       tier: tierClean,
-      onDone: (status, job) => { if (status !== 'done') lipResv.refund(job?.error || 'lip sync échoué'); },
+      onDone: (status, job) => {
+        if (status !== 'done') {
+          lipResv.refund(job?.error || 'lip sync échoué');
+          return;
+        }
+        recordFinalCreativeVideo({
+          ...owner,
+          videoUrl: job?.url,
+          label: `Avatar parlant · ${tierClean}`,
+          kind: 'avatar-lipsync',
+          durationSec: job?.durationSec || 0,
+          meta: { jobId: job?.id || '', tier: tierClean },
+        });
+      },
     });
     return res.json({ success: true, jobId, creditsUsed: lipResv.credits, creditsRemaining: lipResv.remaining });
   } catch (err) {
@@ -2246,12 +2269,16 @@ router.post('/montage', requireEcomAuth, async (req, res) => {
 
     const id = `mtg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     const job = { id, status: 'processing', progress: 3, url: null, durationSec: 0, format: spec.format || '9:16', error: null, warning: null, createdAt: Date.now() };
+    const owner = {
+      workspaceId: req.workspaceId || null,
+      userId: req.ecomUser?._id || null,
+    };
     montageJobs.set(id, job);
     // Suivi AUSSI en base : en cluster/multi-instances, le poll GET peut taper
     // une autre instance que celle qui rend — la Map locale ne suffit pas.
     const MontageJob = (await import('../models/MontageJob.js')).default;
     const pushJob = (patch) => MontageJob.push(id, patch);
-    pushJob({ workspaceId: req.workspaceId || null, status: 'processing', progress: 3, format: job.format });
+    pushJob({ ...owner, status: 'processing', progress: 3, format: job.format });
 
     (async () => {
       try {
@@ -2299,6 +2326,16 @@ router.post('/montage', requireEcomAuth, async (req, res) => {
         job.progress = 100;
         job.status = 'done';
         pushJob({ status: 'done', progress: 100, url: job.url, durationSec, format, warning: job.warning, musicApplied: job.musicApplied });
+        await recordFinalCreativeVideo({
+          ...owner,
+          videoUrl: job.url,
+          label: 'Montage créatif',
+          productName: String(spec.subject || spec.productName || '').slice(0, 200),
+          kind: 'montage',
+          format,
+          durationSec,
+          meta: { jobId: id, musicApplied: job.musicApplied },
+        });
       } catch (e) {
         console.error('[BuilderAI] montage error:', e.message);
         await montageResv.refund(e.message);

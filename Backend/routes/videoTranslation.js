@@ -16,6 +16,7 @@ import crypto from 'crypto';
 import { requireEcomAuth } from '../middleware/ecomAuth.js';
 import VideoTranslationJob from '../models/VideoTranslationJob.js';
 import { translateVideo } from '../services/videoTranslationService.js';
+import { recordFinalCreativeVideo } from '../services/creativeFinalVideoService.js';
 
 const router = express.Router();
 
@@ -59,6 +60,10 @@ router.post('/translate', requireEcomAuth, upload.single('video'), async (req, r
 
   const jobId = crypto.randomUUID();
   const videoPath = req.file.path;
+  const owner = {
+    workspaceId: req.workspaceId || null,
+    userId: req.ecomUser?._id || null,
+  };
   const { targetLang = 'en', voice = 'alloy' } = req.body || {};
   // Cases HTML → chaînes 'true'/'false' ; on normalise.
   const keepOriginalAudio = String(req.body?.keepOriginalAudio ?? 'true') !== 'false';
@@ -74,7 +79,7 @@ router.post('/translate', requireEcomAuth, upload.single('video'), async (req, r
   }
 
   await VideoTranslationJob.push(jobId, {
-    workspaceId: req.workspaceId || null,
+    ...owner,
     status: 'processing', stage: 'En file', progress: 2,
     targetLang: String(targetLang).toLowerCase(), voice: String(voice),
   });
@@ -95,6 +100,18 @@ router.post('/translate', requireEcomAuth, upload.single('video'), async (req, r
         videoUrl: result.videoUrl, srtUrl: result.srtUrl,
         sourceLang: result.sourceLang, targetLang: result.targetLang,
         segmentCount: result.segmentCount, durationSec: result.durationSec,
+      });
+      await recordFinalCreativeVideo({
+        ...owner,
+        videoUrl: result.videoUrl,
+        label: `Vidéo traduite · ${String(result.targetLang || targetLang).toUpperCase()}`,
+        kind: 'video-translation',
+        durationSec: result.durationSec || 0,
+        meta: {
+          jobId,
+          sourceLang: result.sourceLang || '',
+          targetLang: result.targetLang || targetLang,
+        },
       });
     } catch (err) {
       console.error('[VideoTranslation] job failed:', err.message);
