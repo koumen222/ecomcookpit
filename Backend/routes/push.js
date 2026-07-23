@@ -1,10 +1,63 @@
 import express from 'express';
 import Subscription from '../models/Subscription.js';
+import ExpoPushToken from '../models/ExpoPushToken.js';
 import { sendPushNotification } from '../services/pushService.js';
 import { requireEcomAuth } from '../middleware/ecomAuth.js';
 import { base64ToBase64Url } from '../utils/vapidUtils.js';
 
 const router = express.Router();
+
+/**
+ * POST /api/ecom/push/subscribe-expo - Enregistrer un appareil mobile (app Scalor)
+ * Body: { token: "ExponentPushToken[...]", platform: "ios" | "android" }
+ */
+router.post('/subscribe-expo', requireEcomAuth, async (req, res) => {
+  try {
+    const { token, platform } = req.body;
+
+    if (!token || typeof token !== 'string' || !token.startsWith('ExponentPushToken')) {
+      return res.status(400).json({
+        success: false,
+        message: 'Token Expo invalide'
+      });
+    }
+
+    await ExpoPushToken.findOneAndUpdate(
+      { userId: req.ecomUser._id, token },
+      {
+        workspaceId: req.workspaceId,
+        userId: req.ecomUser._id,
+        token,
+        platform: ['ios', 'android'].includes(platform) ? platform : 'unknown',
+        lastUsed: new Date()
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+
+    console.log(`📲 Appareil mobile enregistré (${platform}) pour ${req.ecomUser._id}`);
+    res.json({ success: true, message: 'Appareil mobile enregistré' });
+  } catch (error) {
+    console.error('❌ Erreur enregistrement appareil mobile:', error);
+    res.status(500).json({ success: false, message: "Erreur lors de l'enregistrement de l'appareil" });
+  }
+});
+
+/**
+ * DELETE /api/ecom/push/unsubscribe-expo - Désenregistrer un appareil mobile
+ */
+router.delete('/unsubscribe-expo', requireEcomAuth, async (req, res) => {
+  try {
+    const { token } = req.body;
+    if (!token) {
+      return res.status(400).json({ success: false, message: 'Token requis' });
+    }
+    await ExpoPushToken.deleteMany({ userId: req.ecomUser._id, token });
+    res.json({ success: true, message: 'Appareil mobile désenregistré' });
+  } catch (error) {
+    console.error('❌ Erreur désenregistrement appareil mobile:', error);
+    res.status(500).json({ success: false, message: 'Erreur lors du désenregistrement' });
+  }
+});
 
 /**
  * POST /api/ecom/push/subscribe - Ajouter un abonnement push

@@ -420,6 +420,8 @@ const startServer = async () => {
       ['./routes/scalorPay.js',               '/api/ecom/scalor-pay'],
       ['./routes/storeAnalytics.js',          '/api/ecom/store-analytics'],
       ['./routes/publicStore.js',             '/api/public/store'],
+      // ─── Classement public « Top vendeurs » (landing, sans auth) ──────
+      ['./routes/publicLeaderboard.js',       '/api/ecom/public'],
       // ─── New unified Store API (called by SPA on *.scalor.net via api.scalor.net) ──
       ['./routes/storeApi.js',                '/api/store'],
       ['./routes/affiliate.js',               '/api/affiliate'],

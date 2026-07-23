@@ -1,6 +1,7 @@
 import webpush from 'web-push';
 import Subscription from '../models/Subscription.js';
 import { validateAndNormalizeSubscription } from '../utils/vapidUtils.js';
+import { sendExpoPushToWorkspace, sendExpoPushToUser } from './expoPushService.js';
 
 // Configuration VAPID (depuis .env)
 const vapidPublicKey = process.env.VAPID_PUBLIC_KEY;
@@ -51,7 +52,10 @@ const sendPushNotification = async (workspaceId, notificationData, notificationT
     }
     
     console.log(`📱 Envoi notification push pour workspace: ${workspaceId}`);
-    
+
+    // 📲 Appareils mobiles (app Scalor) — en parallèle du Web Push, jamais bloquant
+    sendExpoPushToWorkspace(workspaceId, notificationData).catch(() => {});
+
     // Récupérer tous les abonnés du workspace (timeout 5s)
     const subscriptions = await Subscription.find({ workspaceId }).maxTimeMS(5000).catch(() => []);
     
@@ -136,6 +140,9 @@ const sendPushNotification = async (workspaceId, notificationData, notificationT
  */
 const sendPushNotificationToUser = async (userId, notificationData) => {
   try {
+    // 📲 Appareils mobiles (app Scalor) — en parallèle du Web Push, jamais bloquant
+    sendExpoPushToUser(userId, notificationData).catch(() => {});
+
     const subscriptions = await Subscription.find({ userId }).maxTimeMS(5000).catch(() => []);
     
     if (subscriptions.length === 0) {

@@ -52,6 +52,8 @@ function sanitizeAffiliate(affiliate) {
 }
 
 async function requireAffiliateAuth(req, res, next) {
+  // Pont « compte Scalor » : attachEcomAffiliate a déjà résolu l'affilié
+  if (req.affiliate) return next();
   try {
     const authHeader = req.headers.authorization || '';
     const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
@@ -69,6 +71,72 @@ async function requireAffiliateAuth(req, res, next) {
     return res.status(401).json({ success: false, message: 'Token affilié invalide' });
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Affiliation intégrée au compte Scalor — AUCUN compte affilié séparé.
+// Chaque utilisateur Scalor (admin) obtient automatiquement son profil affilié
+// (adossé à son compte : scalorUserId) au premier accès à /me/*.
+// ─────────────────────────────────────────────────────────────────────────────
+async function attachEcomAffiliate(req, res, next) {
+  try {
+    let affiliate = await AffiliateUser.findOne({ scalorUserId: req.ecomUser._id });
+
+    if (!affiliate) {
+      // Ancien compte affilié créé avec le même email → on le rattache
+      affiliate = await AffiliateUser.findOne({ email: String(req.ecomUser.email || '').toLowerCase() });
+      if (affiliate && !affiliate.scalorUserId) {
+        affiliate.scalorUserId = req.ecomUser._id;
+        await affiliate.save();
+      }
+    }
+
+    if (!affiliate) {
+      // Auto-provision : profil affilié transparent, lié au compte Scalor
+      let referralCode = generateCode('SCL');
+      while (await AffiliateUser.exists({ referralCode })) referralCode = generateCode('SCL');
+
+      const config = await getAffiliateConfig();
+      affiliate = await AffiliateUser.create({
+        name: req.ecomUser.name || String(req.ecomUser.email || '').split('@')[0],
+        email: String(req.ecomUser.email || '').toLowerCase(),
+        password: `scalor_linked_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+        phone: req.ecomUser.phone || '',
+        referralCode,
+        scalorUserId: req.ecomUser._id,
+        commissionType: config.baseCommissionType || 'fixed',
+        commissionValue: Number(config.baseCommissionValue || 500),
+        lastLoginAt: new Date()
+      });
+
+      await AffiliateLink.create({
+        affiliateId: affiliate._id,
+        code: generateCode('LNK'),
+        name: 'Lien principal',
+        destinationUrl: config.defaultLandingUrl || 'https://scalor.net',
+        linkType: 'default'
+      });
+      console.log(`[affiliate] profil auto-provisionné pour ${affiliate.email} (${affiliate.referralCode})`);
+    }
+
+    if (!affiliate.isActive) {
+      return res.status(403).json({ success: false, message: 'Programme d’affiliation désactivé pour ce compte' });
+    }
+
+    req.affiliate = affiliate;
+    return next();
+  } catch (error) {
+    console.error('attachEcomAffiliate error:', error);
+    return res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+}
+
+// Alias /me/* : mêmes endpoints que le portail affilié, authentifiés par la
+// session Scalor (Bearer ecom). La réécriture d'URL délègue aux routes
+// existantes (/dashboard, /links, /stats/*, /referrals, /payouts, …).
+router.all('/me/*', requireEcomAuth, attachEcomAffiliate, (req, res, next) => {
+  req.url = req.url.replace(/^\/me/, '') || '/';
+  next();
+});
 
 function requireSuperAdmin(req, res, next) {
   if (req.ecomUser?.role !== 'super_admin') {
