@@ -79,15 +79,34 @@ function requireSuperAdmin(req, res, next) {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Public tracking redirect
-// /r/:linkCode[?sub=ma_campagne&utm_source=...] →
+// /r/:trackingCode[?sub=ma_campagne&utm_source=...] →
 //   destination?aff=CODE&aff_link=LNK&aff_click=ID[&aff_sub=...]
 // Chaque clic reçoit un clickId unique, repris par le beacon de visite et les
 // conversions → funnel exact clic → visite → inscription → paiement.
 // ─────────────────────────────────────────────────────────────────────────────
-router.get('/r/:linkCode', async (req, res) => {
+router.get('/r/:trackingCode', async (req, res) => {
   try {
-    const linkCode = normalizeCode(req.params.linkCode);
-    const link = await AffiliateLink.findOne({ code: linkCode, isActive: true }).populate('affiliateId');
+    const trackingCode = normalizeCode(req.params.trackingCode);
+    let link = await AffiliateLink.findOne({ code: trackingCode, isActive: true }).populate('affiliateId');
+
+    // Le lien court principal utilise le code public SCL… de l'affilié.
+    // Les codes LNK… continuent de cibler précisément les campagnes.
+    if (!link) {
+      const affiliate = await AffiliateUser.findOne({ referralCode: trackingCode, isActive: true }).select('_id');
+      if (affiliate) {
+        link = await AffiliateLink.findOne({
+          affiliateId: affiliate._id,
+          isActive: true,
+          linkType: 'default'
+        }).populate('affiliateId');
+        if (!link) {
+          link = await AffiliateLink.findOne({
+            affiliateId: affiliate._id,
+            isActive: true
+          }).sort({ createdAt: 1 }).populate('affiliateId');
+        }
+      }
+    }
 
     if (!link || !link.affiliateId || !link.affiliateId.isActive) {
       return res.redirect('https://scalor.net');
