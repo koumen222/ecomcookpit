@@ -600,6 +600,7 @@ function _buildStorePayload(workspace) {
     country: settings.country || settings.storeCountry || '',
     subdomain: workspace.subdomain,
     template: theme.template || 'classic',
+    templateExplicit: Boolean(theme.template),
     primaryColor: settings.primaryColor || settings.storeThemeColor || theme.primaryColor || '#0F6B4F',
     accentColor: settings.accentColor || theme.accentColor || '#059669',
     backgroundColor: settings.backgroundColor || theme.backgroundColor || '#FFFFFF',

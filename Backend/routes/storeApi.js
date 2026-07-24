@@ -677,6 +677,7 @@ router.get('/:subdomain', readLimiter, async (req, res) => {
           customDomain: workspace.storeDomains?.customDomain || '',
           // Theme config - PRIORITÉ AUX SETTINGS (configurés dans /boutique/settings)
           template: theme.template || 'classic',
+          templateExplicit: Boolean(theme.template),
           primaryColor: settings.primaryColor || settings.storeThemeColor || theme.primaryColor || '#0F6B4F',
           accentColor: settings.accentColor || settings.ctaColor || theme.accentColor || theme.ctaColor || '#059669',
           backgroundColor: settings.backgroundColor || theme.backgroundColor || '#FFFFFF',
@@ -1221,6 +1222,7 @@ router.get('/:subdomain/product-page/:slug', readLimiter, async (req, res) => {
           subdomain: workspace.subdomain,
           customDomain: workspace.storeDomains?.customDomain || '',
           template: theme.template || 'classic',
+          templateExplicit: Boolean(theme.template),
           primaryColor: settings.primaryColor || settings.storeThemeColor || theme.primaryColor || '#0F6B4F',
           accentColor: settings.accentColor || settings.ctaColor || theme.accentColor || theme.ctaColor || '#059669',
           backgroundColor: settings.backgroundColor || theme.backgroundColor || '#FFFFFF',

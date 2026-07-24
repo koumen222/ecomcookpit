@@ -109,6 +109,7 @@ router.get('/:subdomain', readLimiter, resolveStoreBySubdomain, async (req, res)
         font: theme.font || store.storeSettings?.font || 'inter',
         borderRadius: theme.borderRadius || 'lg',
         template: theme.template || 'classic',
+        templateExplicit: Boolean(theme.template),
         sections: theme.sections || {},
         sectionColors: theme.sectionColors || {},
         productPageConfig: store.storeSettings?.productPageConfig || null,
