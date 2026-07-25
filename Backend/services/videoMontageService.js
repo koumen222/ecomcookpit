@@ -130,6 +130,52 @@ export function probeDuration(file) {
   });
 }
 
+// ── Bornes de parole d'un clip parlé (UGC) ───────────────────────────────────
+// Les moteurs vidéo (Veo/Kling/Grok) laissent souvent un silence mort avant et
+// après la réplique du créateur : à l'assemblage, ces silences cassent
+// l'enchaînement entre les plans. On détecte la fenêtre de parole réelle
+// (seuil adaptatif comme autoEditService : volumedetect → silencedetect) et on
+// ne rogne QUE les bords — jamais de coupe au milieu du clip.
+// Retourne { from, to } (secondes) ou null si la détection est douteuse
+// (dans le doute : on ne coupe rien, comportement identique à avant).
+const SPEECH_EDGE_PAD = 0.12; // coussin conservé autour de la parole (s)
+async function detectSpeechWindow(file, totalDur) {
+  if (!Number.isFinite(totalDur) || totalDur <= 0.8) return null;
+  // Seuil juste au-dessus du bruit de fond réel du clip (fiable sur les
+  // clips générés dont le « silence » n'est jamais un vrai zéro numérique).
+  let noiseDb = -32;
+  try {
+    const vol = await runFfmpegCapture(['-i', file, '-af', 'volumedetect', '-f', 'null', '-']);
+    const mean = vol.match(/mean_volume:\s*(-?[\d.]+) dB/);
+    if (mean) noiseDb = Math.min(-18, Math.round(parseFloat(mean[1]) + 5));
+  } catch { /* seuil par défaut */ }
+  let stderr = '';
+  try {
+    stderr = await runFfmpegCapture(['-i', file, '-af', `silencedetect=noise=${noiseDb}dB:d=0.2`, '-f', 'null', '-']);
+  } catch { return null; }
+  if (!/silence_start/.test(stderr)) return null; // aucun silence → rien à rogner
+
+  const starts = [...stderr.matchAll(/silence_start:\s*(-?[\d.]+)/g)].map((m) => parseFloat(m[1]));
+  const ends = [...stderr.matchAll(/silence_end:\s*(-?[\d.]+)/g)].map((m) => parseFloat(m[1]));
+
+  let from = 0;
+  let to = totalDur;
+  // Silence de tête : commence à ~0 → la parole démarre à la fin de ce silence.
+  if (starts.length && starts[0] <= 0.1) from = ends.length ? ends[0] : totalDur;
+  // Silence de queue : le dernier silence court jusqu'à la fin du clip
+  // (silence_end absent = fichier terminé en silence).
+  if (starts.length) {
+    const lastStart = starts[starts.length - 1];
+    const lastEnd = ends.length >= starts.length ? ends[ends.length - 1] : null;
+    if ((lastEnd == null || lastEnd >= totalDur - 0.1) && lastStart > from) to = lastStart;
+  }
+  from = Math.max(0, from - SPEECH_EDGE_PAD);
+  to = Math.min(totalDur, to + SPEECH_EDGE_PAD);
+  if (to - from < 0.6) return null;                        // quasi tout silence : douteux
+  if (from <= 0.05 && to >= totalDur - 0.05) return null;  // rien à rogner aux bords
+  return { from, to };
+}
+
 function srtTimecode(totalSeconds) {
   const clamp = Math.max(0, totalSeconds);
   const h = Math.floor(clamp / 3600);
@@ -373,25 +419,40 @@ export async function renderMontage(spec = {}, onProgress = () => {}) {
         try { await download(sc.audioUrl, aIn); audioDur = await probeDuration(aIn); } catch { aIn = null; }
       }
       // AUDIO NATIF DU CLIP (UGC sans lip sync : le créateur parle DANS le clip
-      // Veo) : la durée du plan = celle du clip — la parole embarquée dicte.
+      // Veo) : la durée du plan = la FENÊTRE DE PAROLE du clip — les silences
+      // morts de tête/queue laissés par le moteur sont rognés, sinon ils
+      // cassent l'enchaînement avec les plans suivants.
       let clipDur = null;
+      let speechWin = null;
       if (!aIn && sc.useClipAudio && sc.videoUrl && !spec.narrationUrl) {
         const vPre = path.join(workDir, `v${i}.mp4`);
         try { await download(sc.videoUrl, vPre); clipDur = await probeDuration(vPre); } catch { clipDur = null; }
+        if (clipDur) {
+          try { speechWin = await detectSpeechWindow(vPre, clipDur); } catch { speechWin = null; }
+          if (speechWin) console.log(`[Montage] plan ${i} : silences rognés — parole ${speechWin.from.toFixed(2)}s → ${speechWin.to.toFixed(2)}s (clip ${clipDur.toFixed(2)}s)`);
+        }
       }
       let dur;
+      let clipStartAt = null; // seek effectif du clip parlé en passe B
       // LA VOIX DICTE LE RYTHME : un plan avec voix dure sa phrase + une courte
       // finale, ni plus ni moins. (L'ancienne règle max(voix, durée planifiée)
       // laissait un silence mort en fin de plan quand la voix était plus courte
       // que le plan — « petit silence entre 2 scènes » à couper.)
       if (audioDur && audioDur > 0.3) dur = Math.max(1.2, audioDur + VOICE_TAIL);
-      else if (clipDur && clipDur > 0.5) dur = Math.max(1.2, clipDur - Math.max(0, Number(sc.trimStart) || 0)); // clip parlant : tout le clip
+      else if (clipDur && clipDur > 0.5) {
+        // Clip parlant : fenêtre de parole (si détectée) combinée au trim manuel.
+        const userTrim = Math.max(0, Number(sc.trimStart) || 0);
+        const from = Math.max(userTrim, speechWin ? speechWin.from : 0);
+        const to = speechWin ? speechWin.to : clipDur;
+        clipStartAt = from;
+        dur = Math.max(1.2, to - from);
+      }
       else if (spec.narrationUrl) dur = (Number(sc.durationSec) || 4) * narrScale; // étiré sur la narration
       else dur = Number(sc.durationSec) || 4; // sans voix : la durée demandée fait foi
       dur = Math.max(1, Math.min(MAX_SCENE_SEC, dur));
       if (cursor + dur > MAX_TOTAL_SEC) dur = Math.max(1, MAX_TOTAL_SEC - cursor);
       if (dur <= 0) break;
-      pre.push({ sc, aIn, dur });
+      pre.push({ sc, aIn, dur, clipStartAt });
       cursor += dur;
       onProgress(5 + Math.round(((i + 1) / scenes.length) * 6));
     }
@@ -424,7 +485,7 @@ export async function renderMontage(spec = {}, onProgress = () => {}) {
 
     // ── Passe B : rendu des segments, rembourrés pour les transitions ──
     for (let i = 0; i < pre.length; i += 1) {
-      const { sc, aIn, dur } = pre[i];
+      const { sc, aIn, dur, clipStartAt } = pre[i];
       // Queue rembourrée (fondu sortant) : le xfade consomme cette queue —
       // image prolongée + silence de fin — jamais le contenu. Pas de
       // rembourrage de tête : le contenu (et la voix) du plan démarre PILE à
@@ -441,9 +502,11 @@ export async function renderMontage(spec = {}, onProgress = () => {}) {
         const vIn = path.join(workDir, `v${i}.mp4`);
         // Déjà téléchargé en passe A pour sonder la durée (clip parlant) ?
         try { await fs.access(vIn); } catch { await download(sc.videoUrl, vIn); }
-        // Découpe (cut/trim) : on démarre la lecture du clip à trimStart. Le
-        // stream_loop comble si la durée demandée dépasse la portion restante.
-        const trimStart = Math.max(0, Number(sc.trimStart) || 0);
+        // Découpe (cut/trim) : on démarre la lecture du clip à trimStart —
+        // ou au DÉBUT DE LA PAROLE pour un clip parlé dont les silences de
+        // bord ont été rognés en passe A (clipStartAt). Le stream_loop comble
+        // si la durée demandée dépasse la portion restante.
+        const trimStart = clipStartAt != null ? clipStartAt : Math.max(0, Number(sc.trimStart) || 0);
         vInputArgs = ['-stream_loop', '-1', '-ss', String(trimStart), '-i', vIn];
         // PUNCH-IN sur les clips vidéo : zoompan d=1 (1 frame → 1 frame, donc la
         // vidéo continue de bouger) avec un zoom lent 1→1,08 alterné avant/arrière
