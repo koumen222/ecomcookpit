@@ -695,13 +695,21 @@ EXIGENCES :
 RÉPONDS UNIQUEMENT AVEC LE CODE BRUT. Pas de markdown, pas de \`\`\`, pas d'explication.`;
 
 router.post('/generate-code', requireEcomAuth, async (req, res) => {
+  let codeResv = null; // réservation crédits (thème builder)
   try {
     const { prompt, productName = '', existingCode = '', model = 'claude-sonnet' } = req.body;
 
     if (!prompt || typeof prompt !== 'string' || prompt.trim().length < 3) {
       return res.status(400).json({ success: false, message: 'Description requise' });
     }
+    // Débit : 1 génération de thème/page builder = featureCost('builder_ai') crédits.
+    {
+      const { reserveFeatureCredits, sendInsufficientCredits } = await import('../services/creativeCredits.js');
+      codeResv = await reserveFeatureCredits(req.workspaceId, 'builder_ai');
+      if (!codeResv.ok) return sendInsufficientCredits(res, 'builder_ai', codeResv);
+    }
     if (!DEEPSEEK_API_KEY) {
+      if (codeResv?.ok) await codeResv.refund('service indisponible');
       return res.status(503).json({ success: false, message: 'Service IA non disponible' });
     }
 
@@ -735,8 +743,9 @@ router.post('/generate-code', requireEcomAuth, async (req, res) => {
 
     if (!code) return res.status(502).json({ success: false, message: 'Réponse IA vide, réessayez' });
 
-    return res.json({ success: true, code });
+    return res.json({ success: true, code, creditsUsed: codeResv?.credits ?? 0, creditsRemaining: codeResv?.remaining });
   } catch (error) {
+    if (codeResv?.ok) await codeResv.refund(error.message);
     console.error('[BuilderAI] generate-code error:', error?.response?.status, error?.response?.data?.error?.message || error.message);
     return res.status(500).json({ success: false, message: aiErrorMessage(error) });
   }
@@ -1134,10 +1143,18 @@ router.post('/store-assistant', requireEcomAuth, async (req, res) => {
 // Body: { prompt, sourceUrl?, aspectRatio? } → { success, url }
 // sourceUrl fourni = édition de l'image existante (image-to-image), sinon création.
 router.post('/generate-image', requireEcomAuth, async (req, res) => {
+  let imgResv = null; // réservation de crédits (remboursée dans le catch si échec)
   try {
     const { prompt, sourceUrl = null, aspectRatio = '4:3' } = req.body || {};
     if (!prompt || !String(prompt).trim()) {
       return res.status(400).json({ success: false, message: 'Décrivez l\'image souhaitée' });
+    }
+    // Débit : 1 génération d'image builder (personnage avatar, image de page
+    // produit, visuel builder) = featureCost('builder_ai') crédits.
+    {
+      const { reserveFeatureCredits, sendInsufficientCredits } = await import('../services/creativeCredits.js');
+      imgResv = await reserveFeatureCredits(req.workspaceId, 'builder_ai');
+      if (!imgResv.ok) return sendInsufficientCredits(res, 'builder_ai', imgResv);
     }
     // edit = modification d'une image existante (sourceUrl) vs création pure.
     (await import('../models/FeatureUsageLog.js')).default.track(req, 'builder_ai_image', { edit: !!sourceUrl });
@@ -1160,8 +1177,9 @@ router.post('/generate-image', requireEcomAuth, async (req, res) => {
       type: 'image', url, kind: 'builder-image', prompt, sourceUrl: sourceUrl || '',
     });
 
-    return res.json({ success: true, url });
+    return res.json({ success: true, url, creditsUsed: imgResv?.credits ?? 0, creditsRemaining: imgResv?.remaining });
   } catch (error) {
+    if (imgResv?.ok) await imgResv.refund(error.message);
     console.error('[BuilderAI] generate-image error:', error.message);
     return res.status(500).json({ success: false, message: toUserAiError(error, 'Génération impossible, réessayez') });
   }
@@ -1650,10 +1668,19 @@ Style CONSTANT sur toutes les étapes : même produit, même décor, même écla
 // Body: { purpose, context?, instruction?, maxWords? } → { success, text }
 // purpose ex: 'collection-description', 'product-title', 'section-title'…
 router.post('/generate-text', requireEcomAuth, async (req, res) => {
+  let textResv = null; // réservation crédits (descriptions uniquement)
   try {
     const { purpose = 'texte', context = {}, instruction = '', maxWords = 45, format = 'plain' } = req.body || {};
     if (!DEEPSEEK_API_KEY) {
       return res.status(503).json({ success: false, message: 'Service IA non disponible' });
+    }
+    // Débit : la GÉNÉRATION DE DESCRIPTION (fiche produit, collection…) coûte
+    // featureCost('builder_ai') crédits. Les micro-champs (titres, sous-titres,
+    // boutons…) restent gratuits.
+    if (/description/i.test(String(purpose))) {
+      const { reserveFeatureCredits, sendInsufficientCredits } = await import('../services/creativeCredits.js');
+      textResv = await reserveFeatureCredits(req.workspaceId, 'builder_ai');
+      if (!textResv.ok) return sendInsufficientCredits(res, 'builder_ai', textResv);
     }
     (await import('../models/FeatureUsageLog.js')).default.track(req, 'creative_text', { purpose: String(purpose).slice(0, 60) });
 
@@ -1698,8 +1725,9 @@ Longueur maximum : ${words} mots. Langue : français (sauf indication contraire 
       text = text.replace(/^["'«\s]+|["'»\s]+$/g, '');
     }
     if (!text) return res.status(502).json({ success: false, message: 'Réponse IA vide, réessayez' });
-    return res.json({ success: true, text, format: isHtml ? 'html' : 'plain' });
+    return res.json({ success: true, text, format: isHtml ? 'html' : 'plain', creditsUsed: textResv?.credits ?? 0, creditsRemaining: textResv?.remaining });
   } catch (error) {
+    if (textResv?.ok) await textResv.refund(error.message);
     console.error('[BuilderAI] generate-text error:', error?.response?.status, error.message);
     return res.status(500).json({ success: false, message: aiErrorMessage(error) });
   }

@@ -495,18 +495,22 @@ export async function translateVideo(videoPath, opts = {}, onProgress = () => {}
       srtPath: burnSubtitles ? srtPath : null,
     });
 
-    // 7. Upload R2
+    // 7. Upload R2 — vidéo doublée + SRT + vidéo ORIGINALE (conservée pour le
+    //    ré-assemblage « voix off Scalor » : texte traduit → TTS Fish → ffmpeg).
     onProgress(95, 'Publication');
     const stamp = String(totalDur).replace('.', '') + '-' + targetLang;
-    const [videoUp, srtUp] = await Promise.all([
+    const [videoUp, srtUp, origUp] = await Promise.all([
       uploadToR2(await fs.readFile(outPath), `video-translation/${stamp}.mp4`, 'video/mp4'),
       uploadToR2(Buffer.from(srt, 'utf8'), `video-translation/${stamp}.srt`, 'application/x-subrip'),
+      uploadToR2(await fs.readFile(videoPath), `video-translation/${stamp}-original.mp4`, 'video/mp4').catch(() => null),
     ]);
     if (!videoUp?.success || !videoUp.url) throw new Error(videoUp?.error || 'Publication vidéo impossible.');
 
     return {
       videoUrl: videoUp.url,
       srtUrl: srtUp?.url || null,
+      originalUrl: origUp?.success ? origUp.url : null,
+      translatedText: translations.filter(Boolean).join(' ').replace(/\s+/g, ' ').trim().slice(0, 12000),
       sourceLang,
       targetLang,
       segmentCount: sentences.length,

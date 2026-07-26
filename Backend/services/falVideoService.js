@@ -322,7 +322,9 @@ export async function addVoiceoverToVideo(videoUrl, audioBuffer, { maxSeconds = 
     ]);
     await runFfmpeg([
       '-y', '-i', videoPath, '-i', audioPath,
-      '-t', String(Math.max(1, Math.min(6, maxSeconds))),
+      // Plafond 30 min : les clips courts passent 6 s comme avant, le
+      // ré-assemblage des vidéos traduites passe leur durée réelle.
+      '-t', String(Math.max(1, Math.min(1800, maxSeconds))),
       '-map', '0:v:0', '-map', '1:a:0', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '160k',
       '-shortest', '-movflags', '+faststart', outputPath,
     ]);

@@ -19,6 +19,9 @@ export const CREATIVE_PRICING = {
   lipsync:     { credits: 4, label: 'Avatar parlant (lip sync)', unit: 'par vidéo avatar' },
   translation: { credits: 4, label: 'Traduction vidéo',          unit: 'par vidéo doublée' },
   auto_montage: { credits: 4, label: 'Montage automatique IA',   unit: 'par vidéo montée' },
+  // Générations IA du builder / pages produits : image (dont personnage
+  // avatar), description produit, thème builder — 1 crédit chacune.
+  builder_ai:  { credits: 1, label: 'Génération builder (image, description, thème)', unit: 'par génération' },
 };
 
 /** Coût en crédits d'une fonctionnalité (0 si inconnue ou gratuite). */

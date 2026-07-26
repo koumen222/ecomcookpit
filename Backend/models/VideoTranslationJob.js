@@ -25,8 +25,17 @@ const videoTranslationJobSchema = new mongoose.Schema({
   // Résultats
   videoUrl: { type: String, default: null },      // MP4 doublé
   srtUrl: { type: String, default: null },        // sous-titres traduits (.srt)
+  originalUrl: { type: String, default: null },   // vidéo SOURCE (pour ré-assemblage voix off)
+  translatedText: { type: String, default: '' },  // texte traduit complet (extraction/voix off)
   durationSec: { type: Number, default: 0 },
   segmentCount: { type: Number, default: 0 },
+
+  // Ré-assemblage « voix off Scalor » : texte traduit → TTS Fish → ffmpeg
+  // sur la vidéo originale. Pollé via le même job.
+  revoiceStatus: { type: String, enum: [null, 'processing', 'done', 'error'], default: null },
+  revoiceProgress: { type: Number, default: 0 },
+  revoiceUrl: { type: String, default: null },
+  revoiceError: { type: String, default: null },
 
   error: { type: String, default: null },
   warning: { type: String, default: null },
