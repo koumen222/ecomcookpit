@@ -29,6 +29,16 @@ const featureUsageSchema = new mongoose.Schema({
       'pixel_tracking',            // Pixel FB/TikTok configuré
       'delivery_offer',            // Offre livreur envoyée
       'custom_domain',             // Domaine personnalisé configuré
+      // ── Utilisation IA détaillée (historique complet) ──
+      'assistant_chat',            // Message envoyé au chat assistant (mode chat ou agent)
+      'creative_text',             // Génération de texte IA (builder + Creative Center)
+      'builder_ai_image',          // Image générée (page builder / pages produits)
+      'creative_video',            // Scène vidéo IA (Creative Center)
+      'creative_voice',            // Voix off générée
+      'creative_montage',          // Montage vidéo rendu
+      'creative_lipsync',          // Avatar parlant (lip sync)
+      'creative_translation',      // Traduction/doublage vidéo
+      'creative_clone',            // Clone de page produit
     ]
   },
 
@@ -70,5 +80,18 @@ featureUsageSchema.index({ feature: 1, createdAt: -1 });
 featureUsageSchema.index({ workspaceId: 1, feature: 1, createdAt: -1 });
 featureUsageSchema.index({ userId: 1, feature: 1, createdAt: -1 });
 featureUsageSchema.index({ createdAt: 1 }, { expireAfterSeconds: 365 * 24 * 3600 }); // TTL 1 an
+
+/** Enregistrement BEST-EFFORT depuis une route Express : ne bloque jamais,
+ *  n'échoue jamais la requête. Usage : FeatureUsageLog.track(req, 'assistant_chat', { mode }). */
+featureUsageSchema.statics.track = function track(req, feature, meta = {}) {
+  try {
+    const workspaceId = req?.workspaceId;
+    const userId = req?.ecomUser?._id || req?.user?.id;
+    if (!workspaceId || !userId) return;
+    this.create({ workspaceId, userId, feature, meta }).catch((e) => {
+      console.warn(`[FeatureUsageLog] track ${feature} failed:`, e.message);
+    });
+  } catch { /* jamais bloquant */ }
+};
 
 export default mongoose.model('FeatureUsageLog', featureUsageSchema);

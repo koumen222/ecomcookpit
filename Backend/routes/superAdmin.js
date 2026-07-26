@@ -1831,6 +1831,180 @@ router.get('/creative-generations', requireEcomAuth, requireSuperAdmin, async (r
   }
 });
 
+// ── Utilisation IA : fréquence et historique (page super admin Creative) ────
+// GET /api/ecom/super-admin/creative-usage?days=30
+// → totaux par fonctionnalité IA, fréquence du CHAT par utilisateur (qui,
+//   combien de messages, à quelle fréquence, dernier usage) et activité récente.
+const AI_USAGE_FEATURES = [
+  'assistant_chat', 'creative_text', 'builder_ai_image', 'creative_video',
+  'creative_voice', 'creative_montage', 'creative_lipsync',
+  'creative_translation', 'creative_clone', 'creative_generator', 'product_page_generator',
+];
+router.get('/creative-usage', requireEcomAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const days = Math.max(1, Math.min(365, parseInt(req.query.days, 10) || 30));
+    const since = new Date(Date.now() - days * 24 * 3600 * 1000);
+    const match = { feature: { $in: AI_USAGE_FEATURES }, createdAt: { $gte: since } };
+
+    // Clé d'activité AFFINÉE : le chat est séparé de l'agent IA (meta.mode) et
+    // les modifications d'image sont distinguées des créations (meta.edit).
+    const featureKey = {
+      $switch: {
+        branches: [
+          { case: { $and: [{ $eq: ['$feature', 'assistant_chat'] }, { $eq: ['$meta.mode', 'agent'] }] }, then: 'assistant_agent' },
+          { case: { $and: [{ $eq: ['$feature', 'builder_ai_image'] }, { $eq: ['$meta.edit', true] }] }, then: 'image_edit' },
+        ],
+        default: '$feature',
+      },
+    };
+
+    const [totals, usersAgg, daily, recent] = await Promise.all([
+      FeatureUsageLog.aggregate([
+        { $match: match },
+        { $addFields: { fkey: featureKey } },
+        { $group: { _id: '$fkey', count: { $sum: 1 }, lastAt: { $max: '$createdAt' } } },
+        { $sort: { count: -1 } },
+      ]),
+      // Matrice COMPLÈTE par utilisateur : total + détail par activité IA
+      // (chat, agent, images, modifications, vidéos, textes, pages produit…).
+      FeatureUsageLog.aggregate([
+        { $match: match },
+        { $addFields: { fkey: featureKey } },
+        { $group: { _id: { userId: '$userId', workspaceId: '$workspaceId', f: '$fkey' }, count: { $sum: 1 }, lastAt: { $max: '$createdAt' } } },
+        { $group: {
+          _id: { userId: '$_id.userId', workspaceId: '$_id.workspaceId' },
+          total: { $sum: '$count' },
+          lastAt: { $max: '$lastAt' },
+          features: { $push: { k: '$_id.f', n: '$count' } },
+        } },
+        { $sort: { total: -1 } },
+        { $limit: 50 },
+        { $lookup: { from: USER_COLLECTION, localField: '_id.userId', foreignField: '_id', as: 'u', pipeline: [{ $project: { name: 1, email: 1 } }] } },
+        { $lookup: { from: WORKSPACE_COLLECTION, localField: '_id.workspaceId', foreignField: '_id', as: 'w', pipeline: [{ $project: { name: 1 } }] } },
+      ]),
+      FeatureUsageLog.aggregate([
+        { $match: match },
+        { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } }, count: { $sum: 1 } } },
+        { $sort: { _id: 1 } },
+      ]),
+      FeatureUsageLog.aggregate([
+        { $match: match },
+        { $sort: { createdAt: -1 } },
+        { $limit: 40 },
+        { $addFields: { fkey: featureKey } },
+        { $lookup: { from: USER_COLLECTION, localField: 'userId', foreignField: '_id', as: 'u', pipeline: [{ $project: { name: 1, email: 1 } }] } },
+        { $lookup: { from: WORKSPACE_COLLECTION, localField: 'workspaceId', foreignField: '_id', as: 'w', pipeline: [{ $project: { name: 1 } }] } },
+      ]),
+    ]);
+
+    res.json({
+      success: true,
+      days,
+      totals: totals.map((t) => ({ feature: t._id, count: t.count, lastAt: t.lastAt })),
+      users: usersAgg.map((r) => ({
+        user: r.u?.[0] ? { name: r.u[0].name || '', email: r.u[0].email || '' } : null,
+        workspace: r.w?.[0] ? { name: r.w[0].name || '' } : null,
+        total: r.total,
+        perDay: Math.round((r.total / days) * 10) / 10,
+        lastAt: r.lastAt,
+        byFeature: Object.fromEntries((r.features || []).sort((a, b) => b.n - a.n).map((f) => [f.k, f.n])),
+      })),
+      daily: daily.map((d) => ({ date: d._id, count: d.count })),
+      recent: recent.map((r) => ({
+        feature: r.fkey || r.feature,
+        user: r.u?.[0] ? { name: r.u[0].name || '', email: r.u[0].email || '' } : null,
+        workspace: r.w?.[0] ? { name: r.w[0].name || '' } : null,
+        meta: r.meta || {},
+        createdAt: r.createdAt,
+      })),
+    });
+  } catch (err) {
+    console.error('[SuperAdmin] GET /creative-usage error:', err.message);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// POST /api/ecom/super-admin/creative-usage/backfill — reconstruit l'HISTORIQUE
+// d'utilisation IA depuis les contenus déjà en base (GeneratedMedia,
+// CreativeAsset) avec leurs dates d'origine. One-shot : refuse de tourner
+// deux fois (meta.backfill). Le chat, lui, n'a laissé aucune trace passée.
+router.post('/creative-usage/backfill', requireEcomAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const already = await FeatureUsageLog.countDocuments({ 'meta.backfill': true });
+    if (already > 0) {
+      return res.status(409).json({ success: false, message: `Historique déjà reconstruit (${already} entrées).` });
+    }
+
+    const GeneratedMedia = (await import('../models/GeneratedMedia.js')).default;
+    const CreativeAsset = (await import('../models/CreativeAsset.js')).default;
+
+    // Borne par feature : ne jamais recouvrir la période déjà tracée en live.
+    const cutoffFor = async (feature) => {
+      const first = await FeatureUsageLog.findOne({ feature }).sort({ createdAt: 1 }).select('createdAt').lean();
+      return first?.createdAt || new Date();
+    };
+
+    const inserted = {};
+    const insertBatch = async (feature, docs, kindOf) => {
+      const rows = docs
+        .filter((d) => d.workspaceId && d.userId)
+        .map((d) => ({
+          workspaceId: d.workspaceId,
+          userId: d.userId,
+          feature,
+          meta: { backfill: true, kind: kindOf(d) || '' },
+          createdAt: d.createdAt, // date d'ORIGINE préservée
+        }));
+      if (!rows.length) { inserted[feature] = (inserted[feature] || 0) + 0; return; }
+      const r = await FeatureUsageLog.insertMany(rows, { ordered: false });
+      inserted[feature] = (inserted[feature] || 0) + r.length;
+    };
+
+    // 1. Images builder / pages produits (GeneratedMedia type image).
+    const imgCutoff = await cutoffFor('builder_ai_image');
+    await insertBatch('builder_ai_image',
+      await GeneratedMedia.find({ type: 'image', createdAt: { $lt: imgCutoff } }).select('workspaceId userId kind createdAt').limit(20000).lean(),
+      (d) => d.kind);
+
+    // 2. Scènes vidéo / GIF (GeneratedMedia gif+video).
+    const vidCutoff = await cutoffFor('creative_video');
+    await insertBatch('creative_video',
+      await GeneratedMedia.find({ type: { $in: ['gif', 'video'] }, createdAt: { $lt: vidCutoff } }).select('workspaceId userId kind createdAt').limit(20000).lean(),
+      (d) => d.kind);
+
+    // 3. Vidéos finales enregistrées (CreativeAsset video) — mêmes bornes.
+    await insertBatch('creative_video',
+      await CreativeAsset.find({ type: 'video', createdAt: { $lt: vidCutoff } }).select('workspaceId userId meta createdAt').limit(20000).lean(),
+      (d) => d.meta?.kind || 'final-video');
+
+    // 4. Voix off (CreativeAsset audio).
+    const voiceCutoff = await cutoffFor('creative_voice');
+    await insertBatch('creative_voice',
+      await CreativeAsset.find({ type: 'audio', createdAt: { $lt: voiceCutoff } }).select('workspaceId userId createdAt').limit(20000).lean(),
+      () => 'voiceover');
+
+    // 5. Textes marketing (CreativeAsset text/launch).
+    const textCutoff = await cutoffFor('creative_text');
+    await insertBatch('creative_text',
+      await CreativeAsset.find({ type: { $in: ['text', 'launch'] }, createdAt: { $lt: textCutoff } }).select('workspaceId userId createdAt').limit(20000).lean(),
+      () => 'creative-center');
+
+    // 6. Affiches (CreativeAsset image) — seulement AVANT le premier log live
+    //    creative_generator (les affiches récentes sont déjà tracées en live).
+    const posterCutoff = await cutoffFor('creative_generator');
+    await insertBatch('creative_generator',
+      await CreativeAsset.find({ type: { $in: ['image', null] }, createdAt: { $lt: posterCutoff } }).select('workspaceId userId createdAt').limit(20000).lean(),
+      () => 'poster');
+
+    const total = Object.values(inserted).reduce((a, b) => a + b, 0);
+    await logAudit(req, 'BACKFILL_AI_USAGE', `AI usage history rebuilt: ${total} entries`, 'feature_usage', null);
+    res.json({ success: true, inserted, total });
+  } catch (err) {
+    console.error('[SuperAdmin] POST /creative-usage/backfill error:', err.message);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
 // PATCH /api/ecom/super-admin/workspaces/:id/generations — manually update generations
 // Accepte aussi `creativeCredits` (crédits images génératives type Meta/Google Ads).
 router.patch('/workspaces/:id/generations', requireEcomAuth, requireSuperAdmin, async (req, res) => {

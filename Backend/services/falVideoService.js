@@ -199,6 +199,43 @@ export async function klingImageToVideo(prompt, imageUrl, { durationSec = 10, re
 }
 
 /**
+ * PixVerse V6 (image → vidéo) via kie.ai — moteur des scènes UGC PARLÉES :
+ * audio NATIF (la personne dit les mots du prompt), multi-shot, contrôle
+ * visuel avancé. Tarif kie ~0,036-0,048 $/s en 720p. Endpoint générique
+ * jobs/createTask (mécanique submitKieTask partagée avec Grok/Kling).
+ * Durées PixVerse par paliers : 5 s ou 8 s. Résolutions : 360p/540p/720p/1080p.
+ * Env : KIE_PIXVERSE_MODEL (défaut pixverse/pixverse-v6-image-to-video),
+ * KIE_PIXVERSE_RESOLUTION (défaut 720p).
+ * @returns {Promise<string>} URL mp4
+ */
+export async function pixverseImageToVideo(prompt, imageUrl, { durationSec = 8, resolution = '', withAudio = true } = {}) {
+  if (!isKieVideoConfigured()) throw new Error('KIE_API_KEY manquante');
+  const { submitKieTask, pollKieTask } = await import('./nanoBananaService.js');
+  // Schéma kie.ai pixverse-v6/image-to-video (source : kie.ai/pixverse-v6) :
+  //   prompt:string* · image_urls:array* · duration:number (1-15 s) ·
+  //   quality:'360p'|'540p'|'720p'|'1080p'* · generate_audio_switch:boolean ·
+  //   template_id · seed · generate_multi_clip_switch. PAS de resolution/aspect_ratio.
+  const duration = Math.max(1, Math.min(15, Math.round(Number(durationSec) || 8)));
+  // Rendu FIXE 540p : meilleur rapport qualité/coût d'un modèle facturé à la
+  // seconde (0,036 $/s avec audio vs 0,048 $/s en 720p). Seule la variable
+  // d'env KIE_PIXVERSE_RESOLUTION peut forcer une autre résolution.
+  void resolution;
+  const envRes = String(process.env.KIE_PIXVERSE_RESOLUTION || '').trim();
+  const quality = ['360p', '540p', '720p', '1080p'].includes(envRes) ? envRes : '540p';
+  const input = {
+    prompt: String(prompt || '').slice(0, 2048),
+    image_urls: imageUrl && /^https?:\/\//i.test(String(imageUrl)) ? [String(imageUrl)] : [],
+    duration,
+    quality,
+    // Audio natif PixVerse V6 : indispensable pour les scènes parlées.
+    generate_audio_switch: withAudio !== false,
+  };
+  const model = String(process.env.KIE_PIXVERSE_MODEL || 'pixverse-v6/image-to-video').trim();
+  const taskId = await submitKieTask({ model, input }, 3);
+  return pollKieTask(taskId, { mediaType: 'video', maxWaitMs: 12 * 60 * 1000, label: 'PixVerse V6' });
+}
+
+/**
  * Veo 3.1 (Google) via kie.ai — le réalisme de référence pour les UGC :
  * personnes crédibles, gestes naturels, vrai 9:16 natif. Image + prompt →
  * clip ~8 s, sortie 720p par défaut (l'upgrade 1080p est un endpoint séparé,

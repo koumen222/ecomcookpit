@@ -78,6 +78,9 @@ router.post('/translate', requireEcomAuth, upload.single('video'), async (req, r
     return sendInsufficientCredits(res, 'translation', transResv);
   }
 
+  (await import('../models/FeatureUsageLog.js')).default
+    .track(req, 'creative_translation', { targetLang: String(targetLang).toLowerCase() });
+
   await VideoTranslationJob.push(jobId, {
     ...owner,
     status: 'processing', stage: 'En file', progress: 2,

@@ -999,6 +999,9 @@ router.post('/store-assistant', requireEcomAuth, async (req, res) => {
     if (!message || typeof message !== 'string' || !message.trim()) {
       return res.status(400).json({ success: false, message: 'Message requis' });
     }
+    // Historique d'utilisation IA : chaque message compté (fréquence par user).
+    (await import('../models/FeatureUsageLog.js')).default
+      .track(req, 'assistant_chat', { mode: String(req.body?.assistantMode || 'chat'), context: String(context || '') });
     if (!DEEPSEEK_API_KEY) {
       return res.status(503).json({ success: false, message: 'Service IA non disponible' });
     }
@@ -1136,6 +1139,8 @@ router.post('/generate-image', requireEcomAuth, async (req, res) => {
     if (!prompt || !String(prompt).trim()) {
       return res.status(400).json({ success: false, message: 'Décrivez l\'image souhaitée' });
     }
+    // edit = modification d'une image existante (sourceUrl) vs création pure.
+    (await import('../models/FeatureUsageLog.js')).default.track(req, 'builder_ai_image', { edit: !!sourceUrl });
     const { isOpenAiImageConfigured, generateOpenAiImage, generateOpenAiImageEdit } = await import('../services/openaiImageService.js');
     if (!isOpenAiImageConfigured()) {
       return res.status(503).json({ success: false, message: 'Génération d\'images non configurée' });
@@ -1185,10 +1190,10 @@ router.post('/generate-gif', requireEcomAuth, async (req, res) => {
       // UGC SANS lip sync : le créateur DIT cette phrase en français dans le
       // clip lui-même (voix native du moteur, audio conservé) — pas de TTS après.
       const speakClean = String(speakText || '').trim().slice(0, 400);
-      // Moteur des scènes parlées, choisi côté studio : grok (Imagine 1.5,
-      // 6 s) | kling (V3 Turbo, 10 s) | veo (3.1, 8 s). Les autres restent en
-      // secours automatique.
-      const talkEngine = ['grok', 'kling', 'veo'].includes(String(req.body?.talkEngine || '')) ? String(req.body.talkEngine) : 'grok';
+      // Moteur des scènes parlées, choisi côté studio : pixverse (V6, audio
+      // natif, 5-8 s) | grok (Imagine 1.5, 6 s) | kling (V3 Turbo, 10 s) |
+      // veo (3.1, 8 s). Les autres restent en secours automatique.
+      const talkEngine = ['pixverse', 'grok', 'kling', 'veo'].includes(String(req.body?.talkEngine || '')) ? String(req.body.talkEngine) : 'pixverse';
       // B-ROLL UGC : plan d'illustration COURT (produit en action) — style
       // réel + cadre 9:16 comme les scènes UGC, mais généré en Grok éco
       // (jamais Veo en tête : c'est un insert de 3 s).
@@ -1226,7 +1231,7 @@ router.post('/generate-gif', requireEcomAuth, async (req, res) => {
       if (!scenarioId && sceneTxt.length < 8 && briefLine.length < 8) {
         return res.status(400).json({ success: false, message: 'Choisissez un scénario ou décrivez la situation à illustrer' });
       }
-      const { isFalConfigured, isKieVideoConfigured, isXaiConfigured, isVeoConfigured, falImageToVideo, grokImageToVideo, xaiImageToVideo, veoImageToVideo, klingImageToVideo, mp4UrlToGifBuffer, addVoiceoverToVideo } = await import('../services/falVideoService.js');
+      const { isFalConfigured, isKieVideoConfigured, isXaiConfigured, isVeoConfigured, falImageToVideo, grokImageToVideo, xaiImageToVideo, veoImageToVideo, klingImageToVideo, pixverseImageToVideo, mp4UrlToGifBuffer, addVoiceoverToVideo } = await import('../services/falVideoService.js');
       // Providers par ordre de priorité. UGC : Veo 3.1 via kie.ai en PREMIER
       // (personnes et gestes les plus réalistes du marché, vrai 9:16 natif,
       // sortie 720p) ; les autres scénarios restent sur Grok (10× moins cher,
@@ -1237,9 +1242,14 @@ router.post('/generate-gif', requireEcomAuth, async (req, res) => {
       // le réalisme des personnes justifie Veo sur ces plans-là aussi).
       const isUgcScene = UGC_SCENARIOS.includes(scenarioId) || Boolean(charDesc) || isBroll;
       const forced = String(process.env.GIF_VIDEO_PROVIDER || '').toLowerCase();
-      // Scènes PARLÉES : le moteur choisi passe en tête, les deux autres en
+      // Scènes PARLÉES : le moteur choisi passe en tête, les autres en
       // secours automatique (tous savent faire parler le personnage).
-      const talkOrder = { grok: ['groktalk', 'klingtalk', 'veo'], kling: ['klingtalk', 'groktalk', 'veo'], veo: ['veo', 'groktalk', 'klingtalk'] }[talkEngine];
+      const talkOrder = {
+        pixverse: ['pixversetalk', 'klingtalk', 'groktalk', 'veo'],
+        grok: ['groktalk', 'pixversetalk', 'klingtalk', 'veo'],
+        kling: ['klingtalk', 'pixversetalk', 'groktalk', 'veo'],
+        veo: ['veo', 'pixversetalk', 'groktalk', 'klingtalk'],
+      }[talkEngine];
       const available = (speakClean
         ? talkOrder.map((id) => [id, id === 'veo' ? isVeoConfigured() : isKieVideoConfigured()])
         : [
@@ -1261,11 +1271,17 @@ router.post('/generate-gif', requireEcomAuth, async (req, res) => {
       const provider = providerOrder[0];
 
       // Débit Creative Center — après TOUTES les validations, avant les appels coûteux.
-      // stage 'character' = image de départ seule → tarif image ; sinon tarif vidéo.
+      // stage 'character' = image de départ seule → tarif image ; scène PARLÉE
+      // PixVerse (offre Pro, 10 s) → tarif video_pro ; sinon tarif vidéo éco.
       {
         const { reserveFeatureCredits, sendInsufficientCredits, getFeatureCost } = await import('../services/creativeCredits.js');
-        sceneResv = await reserveFeatureCredits(req.workspaceId, 'video', stage === 'character' ? await getFeatureCost('image') : undefined);
+        const override = stage === 'character' ? await getFeatureCost('image')
+          : (speakClean && talkEngine === 'pixverse') ? await getFeatureCost('video_pro')
+          : undefined;
+        sceneResv = await reserveFeatureCredits(req.workspaceId, 'video', override);
         if (!sceneResv.ok) { const r = sceneResv; sceneResv = null; return sendInsufficientCredits(res, 'video', r); }
+        (await import('../models/FeatureUsageLog.js')).default
+          .track(req, 'creative_video', { stage: String(stage || 'complete'), engine: speakClean ? talkEngine : provider, broll: !!isBroll });
       }
 
       const subjTxt = String(subject || '').trim();
@@ -1313,7 +1329,14 @@ router.post('/generate-gif', requireEcomAuth, async (req, res) => {
         const voiceProfile = charDesc
           ? `VOICE PROFILE (identical in EVERY clip of this series): the natural voice of ${charDesc} — same timbre, same medium pitch, same warm energy, same speaking style in every single clip, as if all clips were recorded in one take.`
           : 'VOICE PROFILE (identical in EVERY clip of this series): one consistent natural francophone voice — same timbre, pitch and energy in every clip, as if recorded in one take.';
-        motionPrompt = `Based on the uploaded image, animate the person speaking FLUENT NATIVE FRENCH directly to the camera, saying the exact words: « ${speakClean} ». ${voiceProfile} LANGUAGE (critical): the ENTIRE speech is in FRENCH ONLY — perfect natural French pronunciation and native francophone accent matching the person, never a single English word, never an anglophone accent. The mouth moves precisely to match this exact French phrasing. TIMING (critical): the person starts speaking at the VERY FIRST frame, with NO pause at the start. PACE (critical): a NATURAL CONSTANT conversational tempo of about 2.5 words per second — the EXACT SAME tempo in every clip of this video. NEVER stretch, slow down or drag the words to fill the clip duration, and NEVER rush or compress them to fit: keep the one true natural pace. If the sentence ends before the clip does, the person simply holds a warm confident look at the camera (a slight smile, a small nod) — no re-speaking, no filler sounds. The person stays in the EXACT same position and framing as the image, with ONLY subtle natural talking micro-movements: slight head motion, steady eye contact, tiny hand emphasis kept close to the body. ${noProduct ? 'No product anywhere in the frame.' : 'If a product is visible in the image, it stays EXACTLY as it is — same product, same label, same position in the hand — never lifted higher, swapped, opened, pointed at or demonstrated.'} STRICTLY FORBIDDEN: demonstrations, introducing or showing ANY other object or product, walking, standing up, scene or background change, camera movement, zooms, unrealistic gestures, morphing or extra fingers. Static camera, casual smartphone video look, bright natural light. No captions, no on-screen text.${tweakClean ? ` MERCHANT ADJUSTMENT (requested for this take — apply it while keeping every rule above; the instruction may be written in French): ${tweakClean}.` : ''}`;
+        // Règles de tempo selon l'offre : PixVerse (Pro) est facturé À LA
+        // SECONDE → la parole doit REMPLIR tout le clip, zéro silence, zéro
+        // seconde gaspillée. Grok (Éco, 6 s fixes) garde le tempo naturel
+        // constant avec fin en regard confiant si la phrase se termine avant.
+        const paceRules = talkEngine === 'pixverse'
+          ? 'TIMING (critical): the person starts speaking at the VERY FIRST frame and speaks CONTINUOUSLY until the VERY LAST frame — the voice covers EVERY second of the clip, NO silence at any moment, no pause at the start, no pause at the end, no dead air between sentences. PACE (critical): a lively energetic TikTok-creator delivery, adjusted so the sentence fills the WHOLE clip exactly — never finishing early, never dragging or stretching single words, never leaving quiet gaps.'
+          : 'TIMING (critical): the person starts speaking at the VERY FIRST frame, with NO pause at the start. PACE (critical): a NATURAL CONSTANT conversational tempo of about 2.5 words per second — the EXACT SAME tempo in every clip of this video. NEVER stretch, slow down or drag the words to fill the clip duration, and NEVER rush or compress them to fit: keep the one true natural pace. If the sentence ends before the clip does, the person simply holds a warm confident look at the camera (a slight smile, a small nod) — no re-speaking, no filler sounds.';
+        motionPrompt = `Based on the uploaded image, animate the person speaking FLUENT NATIVE FRENCH directly to the camera, saying the exact words: « ${speakClean} ». ${voiceProfile} LANGUAGE (critical): the ENTIRE speech is in FRENCH ONLY — perfect natural French pronunciation and native francophone accent matching the person, never a single English word, never an anglophone accent. The mouth moves precisely to match this exact French phrasing. ${paceRules} The person stays in the EXACT same position and framing as the image, with ONLY subtle natural talking micro-movements: slight head motion, steady eye contact, tiny hand emphasis kept close to the body. ${noProduct ? 'No product anywhere in the frame.' : 'If a product is visible in the image, it stays EXACTLY as it is — same product, same label, same position in the hand — never lifted higher, swapped, opened, pointed at or demonstrated.'} STRICTLY FORBIDDEN: demonstrations, introducing or showing ANY other object or product, walking, standing up, scene or background change, camera movement, zooms, unrealistic gestures, morphing or extra fingers. Static camera, casual smartphone video look, bright natural light. No captions, no on-screen text.${tweakClean ? ` MERCHANT ADJUSTMENT (requested for this take — apply it while keeping every rule above; the instruction may be written in French): ${tweakClean}.` : ''}`;
       } else if (DEEPSEEK_API_KEY) {
         try {
           const directorRaw = await callDeepseek([
@@ -1436,7 +1459,16 @@ Reply ONLY with JSON: {"start_frame_prompt":"...","motion_prompt":"..."} — sta
       const speakWords = speakClean.split(/\s+/).filter(Boolean).length;
       const idealDur = Math.ceil(speakWords / 2.5) + 1;
       const speakDur = Math.max(3, Math.min(15, speakWords ? idealDur : Math.round(Number(durationSec) || 10)));
-      const runProvider = (p) => (p === 'groktalk'
+      const runProvider = (p) => (p === 'pixversetalk'
+        // PixVerse V6 (offre Pro) : durée VERROUILLÉE côté serveur — 10 s pile
+        // par scène, jamais plus (facturé à la seconde), quel que soit le
+        // durationSec envoyé par le front. Ajustable via KIE_PIXVERSE_TALK_SEC.
+        ? pixverseImageToVideo(motionPrompt, startImage, {
+          durationSec: Math.max(5, Math.min(15, Number(process.env.KIE_PIXVERSE_TALK_SEC) || 10)),
+          resolution: talkRes,
+          withAudio: true,
+        })
+        : p === 'groktalk'
         ? grokImageToVideo(motionPrompt, startImage, { durationSec: 6, resolution: talkRes, aspectRatio: '9:16' }) // Grok Imagine 1.5 : 6 s (fixe API), le tempo constant vient du prompt + répliques ~15 mots
         : p === 'klingtalk'
         ? klingImageToVideo(motionPrompt, startImage, { durationSec: speakDur, resolution: '720p' }) // Kling : 720p minimum, mots DANS motionPrompt
@@ -1448,11 +1480,13 @@ Reply ONLY with JSON: {"start_frame_prompt":"...","motion_prompt":"..."} — sta
             ? grokImageToVideo(motionPrompt, startImage, { durationSec: gifSeconds })
             : falImageToVideo(motionPrompt, startImage, { durationSec: gifSeconds }));
       let videoUrl;
+      let usedProvider = '';
       {
         const failures = [];
         for (const p of providerOrder) {
           try {
             videoUrl = await runProvider(p);
+            usedProvider = p;
             break;
           } catch (provErr) {
             failures.push(`${p} : ${provErr.message}`);
@@ -1461,11 +1495,29 @@ Reply ONLY with JSON: {"start_frame_prompt":"...","motion_prompt":"..."} — sta
         }
         if (!videoUrl) throw new Error(`Génération vidéo impossible — ${failures.join(' ; ')}`);
       }
+      // Équité tarifaire : offre Pro (PixVerse) réservée mais scène rendue par
+      // un moteur de secours → on recrédite la différence Pro − Éco. Appelé
+      // juste avant les réponses succès (aucun risque de double compte avec
+      // le refund du catch, qui rembourse le solde restant de la réservation).
+      const settleProCredits = async () => {
+        if (!(sceneResv?.ok && speakClean && talkEngine === 'pixverse' && usedProvider && usedProvider !== 'pixversetalk')) return;
+        try {
+          const { getFeatureCost } = await import('../services/creativeCredits.js');
+          const diff = sceneResv.credits - await getFeatureCost('video');
+          if (diff > 0) {
+            await EcomWorkspace.updateOne({ _id: req.workspaceId }, { $inc: { creativeCreditsRemaining: diff } });
+            sceneResv.credits -= diff;
+            if (typeof sceneResv.remaining === 'number') sceneResv.remaining += diff;
+            console.log(`💳 [creativeCredits] +${diff} rendu (scène Pro servie par ${usedProvider} au tarif éco)`);
+          }
+        } catch (e) { console.warn('[BuilderAI] settleProCredits:', e.message); }
+      };
       if (stage === 'video') {
         const { uploadToR2 } = await import('../services/cloudflareImagesService.js');
         const rawVideo = Buffer.from((await axios.get(videoUrl, { responseType: 'arraybuffer', timeout: 120000, maxRedirects: 5 })).data);
         const rawUp = await uploadToR2(rawVideo, `ai-scene-preview-${Date.now()}.mp4`, 'video/mp4');
         if (!rawUp?.success) throw new Error(rawUp?.error || 'Publication de l’aperçu vidéo impossible');
+        await settleProCredits();
         return res.json({ success: true, videoUrl: rawUp.url, startImage, creditsUsed: sceneResv?.credits ?? 0, creditsRemaining: sceneResv?.remaining });
       }
       let voicedVideoBuffer = null;
@@ -1502,6 +1554,7 @@ Reply ONLY with JSON: {"start_frame_prompt":"...","motion_prompt":"..."} — sta
       GeneratedMedia.record({ ...mediaBase, type: 'gif', url: gifUp.url, kind: 'scene-gif' });
       GeneratedMedia.record({ ...mediaBase, type: 'video', url: mp4Url, kind: 'scene-video' });
 
+      await settleProCredits();
       return res.json({ success: true, url: gifUp.url, videoUrl: mp4Url, startImage, creditsUsed: sceneResv?.credits ?? 0, creditsRemaining: sceneResv?.remaining });
     }
 
@@ -1602,6 +1655,7 @@ router.post('/generate-text', requireEcomAuth, async (req, res) => {
     if (!DEEPSEEK_API_KEY) {
       return res.status(503).json({ success: false, message: 'Service IA non disponible' });
     }
+    (await import('../models/FeatureUsageLog.js')).default.track(req, 'creative_text', { purpose: String(purpose).slice(0, 60) });
 
     const isHtml = format === 'html';
     const words = Math.min(isHtml ? 300 : 150, Math.max(10, Number(maxWords) || 45));
@@ -1782,6 +1836,7 @@ router.post('/voiceover', requireEcomAuth, async (req, res) => {
     const { reserveFeatureCredits, sendInsufficientCredits } = await import('../services/creativeCredits.js');
     voiceResv = await reserveFeatureCredits(req.workspaceId, 'voice');
     if (!voiceResv.ok) return sendInsufficientCredits(res, 'voice', voiceResv);
+    (await import('../models/FeatureUsageLog.js')).default.track(req, 'creative_voice', {});
 
     const body = { text: clean, format: 'mp3', mp3_bitrate: 128, normalize: true, latency: 'normal' };
     if (referenceId) body.reference_id = String(referenceId);
@@ -1829,6 +1884,7 @@ router.post('/clone-product-page', requireEcomAuth, async (req, res) => {
     const { reserveFeatureCredits, sendInsufficientCredits } = await import('../services/creativeCredits.js');
     const cloneResv = await reserveFeatureCredits(req.workspaceId, 'clone');
     if (!cloneResv.ok) return sendInsufficientCredits(res, 'clone', cloneResv);
+    (await import('../models/FeatureUsageLog.js')).default.track(req, 'creative_clone', {});
 
     const { createCloneJob } = await import('../services/productCloneService.js');
     const jobId = createCloneJob({
@@ -1952,6 +2008,7 @@ router.post('/lipsync', requireEcomAuth, async (req, res) => {
     const { reserveFeatureCredits, sendInsufficientCredits } = await import('../services/creativeCredits.js');
     const lipResv = await reserveFeatureCredits(req.workspaceId, 'lipsync');
     if (!lipResv.ok) return sendInsufficientCredits(res, 'lipsync', lipResv);
+    (await import('../models/FeatureUsageLog.js')).default.track(req, 'creative_lipsync', { tier: tierClean });
     const owner = {
       workspaceId: req.workspaceId || null,
       userId: req.ecomUser?._id || null,
@@ -2266,6 +2323,7 @@ router.post('/montage', requireEcomAuth, async (req, res) => {
     const { reserveFeatureCredits, sendInsufficientCredits } = await import('../services/creativeCredits.js');
     const montageResv = await reserveFeatureCredits(req.workspaceId, 'montage');
     if (!montageResv.ok) return sendInsufficientCredits(res, 'montage', montageResv);
+    (await import('../models/FeatureUsageLog.js')).default.track(req, 'creative_montage', { scenes: scenes.length });
 
     const id = `mtg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     const job = { id, status: 'processing', progress: 3, url: null, durationSec: 0, format: spec.format || '9:16', error: null, warning: null, createdAt: Date.now() };

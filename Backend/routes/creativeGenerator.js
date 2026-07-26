@@ -1124,6 +1124,15 @@ router.get('/formats', requireEcomAuth, async (_req, res) => {
 
 // ── GET /api/ecom/ai/creative-generator/gallery ───────────────────────────────
 // List all stored creatives for the authenticated workspace, newest first
+// Libellés lisibles des générations « techniques » (GeneratedMedia.kind).
+const MEDIA_KIND_LABELS = {
+  'builder-image': 'Image builder',
+  'product-page-image': 'Image page produit',
+  'scene-video': 'Scène vidéo IA',
+  'scene-gif': 'GIF de scène',
+  'steps-gif': 'GIF étapes',
+};
+
 router.get('/gallery', requireEcomAuth, async (req, res) => {
   try {
     if (!req.workspaceId) return res.status(400).json({ error: 'workspaceId manquant' });
@@ -1136,16 +1145,50 @@ router.get('/gallery', requireEcomAuth, async (req, res) => {
     if (typeParam === 'image') filter.$or = [{ type: 'image' }, { type: { $exists: false } }];
     else if (typeParam !== 'all') filter.type = typeParam;
 
-    const [assets, total] = await Promise.all([
-      CreativeAsset.find(filter)
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limit)
-        .lean(),
+    // GALERIE UNIFIÉE : les assets enregistrés (CreativeAsset) + TOUTES les
+    // générations IA du workspace (GeneratedMedia : images du page builder,
+    // pages produits, scènes vidéo/GIF…), y compris les ANCIENNES générations
+    // jamais enregistrées en galerie. Fusion triée par date, paginée.
+    const includeMedia = ['all', 'image', 'video'].includes(typeParam);
+    const mediaFilter = { workspaceId: req.workspaceId };
+    if (typeParam === 'image') mediaFilter.type = { $in: ['image', 'gif'] };
+    else if (typeParam === 'video') mediaFilter.type = 'video';
+
+    const GeneratedMedia = (await import('../models/GeneratedMedia.js')).default;
+    const [assets, total, media, mediaTotal] = await Promise.all([
+      CreativeAsset.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
       CreativeAsset.countDocuments(filter),
+      includeMedia
+        ? GeneratedMedia.find(mediaFilter).sort({ createdAt: -1 }).skip(skip).limit(limit).lean()
+        : Promise.resolve([]),
+      includeMedia ? GeneratedMedia.countDocuments(mediaFilter) : Promise.resolve(0),
     ]);
 
-    res.json({ success: true, assets, total, page, pages: Math.ceil(total / limit) });
+    // Dédup par URL (une scène enregistrée en galerie existe dans les deux).
+    const seenUrls = new Set();
+    for (const a of assets) [a.imageUrl, a.videoUrl, a.audioUrl].forEach((u) => u && seenUrls.add(u));
+    const mapped = media
+      .filter((m) => m.url && !seenUrls.has(m.url))
+      .map((m) => ({
+        _id: m._id,
+        type: m.type === 'video' ? 'video' : 'image',
+        label: MEDIA_KIND_LABELS[m.kind] || 'Génération IA',
+        productName: String(m.prompt || '').slice(0, 120),
+        imageUrl: m.type === 'video' ? '' : m.url,
+        videoUrl: m.type === 'video' ? m.url : '',
+        audioUrl: '',
+        content: '',
+        source: 'media', // provenance : générations hors galerie (builder, pages…)
+        kind: m.kind || '',
+        createdAt: m.createdAt,
+      }));
+
+    const merged = [...assets, ...mapped]
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+      .slice(0, limit);
+    const grandTotal = total + mediaTotal;
+
+    res.json({ success: true, assets: merged, total: grandTotal, page, pages: Math.max(1, Math.ceil(grandTotal / limit)) });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -1159,7 +1202,12 @@ router.delete('/gallery/:id', requireEcomAuth, async (req, res) => {
       _id: req.params.id,
       workspaceId: req.workspaceId, // scope to workspace — no cross-workspace deletion
     });
-    if (!asset) return res.status(404).json({ error: 'Visuel introuvable' });
+    if (!asset) {
+      // Galerie unifiée : l'élément peut venir de GeneratedMedia (builder, pages…).
+      const GeneratedMedia = (await import('../models/GeneratedMedia.js')).default;
+      const media = await GeneratedMedia.findOneAndDelete({ _id: req.params.id, workspaceId: req.workspaceId });
+      if (!media) return res.status(404).json({ error: 'Visuel introuvable' });
+    }
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
