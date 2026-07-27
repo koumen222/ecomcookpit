@@ -97,14 +97,40 @@ export async function scrapeCompetitorPage(url) {
     if (m) { const n = Number(String(m[1]).replace(/[^\d]/g, '')); if (n > 0) out.price = n; }
   }
 
-  // 5. Texte brut nettoyé (pour l'IA de réécriture)
+  // 5. CONTENU INTÉGRAL structuré par sections : le clone doit reproduire
+  //    TOUTE la page (chaque section, dans l'ordre), pas un résumé. On retire
+  //    la navigation/le pied de page, puis on regroupe les textes sous leur
+  //    titre (h1-h4) en parcourant le document dans l'ordre.
+  try {
+    for (const n of doc.querySelectorAll('nav, header, footer, script, style, noscript, iframe, form, svg')) n.remove();
+    const sections = [];
+    let current = { heading: '', parts: [] };
+    const flush = () => {
+      const text = current.parts.join(' ').replace(/\s+/g, ' ').trim();
+      if (text.length > 30 || current.heading) sections.push({ heading: current.heading, text: text.slice(0, 2400) });
+    };
+    for (const el of doc.body ? doc.body.querySelectorAll('h1, h2, h3, h4, p, li, blockquote, dt, dd') : []) {
+      const t = (el.textContent || '').replace(/\s+/g, ' ').trim();
+      if (!t) continue;
+      if (/^H[1-4]$/.test(el.tagName)) {
+        flush();
+        current = { heading: t.slice(0, 160), parts: [] };
+      } else if (t.length > 2) {
+        current.parts.push(el.tagName === 'LI' ? `• ${t}` : t);
+      }
+    }
+    flush();
+    out.sections = sections.slice(0, 40);
+  } catch { out.sections = []; }
+
+  // Texte brut long en secours (pages sans structure de titres).
   out.rawText = html
     .replace(/<script[\s\S]*?<\/script>/gi, ' ')
     .replace(/<style[\s\S]*?<\/style>/gi, ' ')
     .replace(/<[^>]+>/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
-    .slice(0, 6000);
+    .slice(0, 16000);
 
   // Dédoublonnage + plafond d'images
   out.images = [...new Set(out.images)].filter(isLikelyProductImage).slice(0, 8);
@@ -112,39 +138,158 @@ export async function scrapeCompetitorPage(url) {
   return out;
 }
 
+/**
+ * RÉPLIQUE INTÉGRALE de la page source : structure, design et contenu tels
+ * quels — pas la structure des boutiques Scalor. Les scripts/trackers/forms
+ * sont retirés (le CTA Scalor prend le relais côté rendu), toutes les URLs
+ * (images, srcset, fonds CSS) sont absolutisées vers le site source (AUCUNE
+ * régénération d'images), et les feuilles de style sont inlinées pour que le
+ * design tienne debout hors du site d'origine.
+ */
+export async function replicateFullPage(url) {
+  const { JSDOM } = await import('jsdom');
+  const res = await axios.get(url, {
+    headers: { 'User-Agent': BROWSER_UA, Accept: 'text/html,application/xhtml+xml' },
+    timeout: 20000, maxRedirects: 5, responseType: 'text',
+    validateStatus: (s) => s >= 200 && s < 400,
+  });
+  const dom = new JSDOM(String(res.data || ''));
+  const doc = dom.window.document;
+  const abs = (v) => { try { return new URL(v, url).href; } catch { return v; } };
+  const absSrcset = (ss) => String(ss).split(',').map((p) => {
+    const [u, d] = p.trim().split(/\s+/);
+    return [abs(u), d].filter(Boolean).join(' ');
+  }).join(', ');
+
+  // 1. Purge : scripts, trackers, iframes
+  for (const n of doc.querySelectorAll('script, noscript, iframe, link[rel="preload"], link[rel="prefetch"], link[rel="modulepreload"]')) n.remove();
+
+  // 1b. Formulaires : DÉBALLÉS (pas supprimés) — leurs boutons « Ajouter au
+  //     panier » restent visibles dans la réplique ; côté boutique, chaque
+  //     clic ouvre le formulaire de commande Scalor.
+  for (const f of [...doc.querySelectorAll('form')]) {
+    const parent = f.parentNode;
+    if (!parent) { f.remove(); continue; }
+    while (f.firstChild) parent.insertBefore(f.firstChild, f);
+    f.remove();
+  }
+
+  // 1c. CHROME du site source HORS périmètre : on clone la PAGE PRODUIT,
+  //     pas l'en-tête, la navigation ni le pied de page de la boutique.
+  for (const n of doc.querySelectorAll('nav')) n.remove();
+  for (const n of [...doc.querySelectorAll('header, footer')]) {
+    // On préserve les <header>/<footer> internes au contenu (cartes, articles).
+    if (!n.closest('main, article, [class*="product" i]')) n.remove();
+  }
+  for (const n of doc.querySelectorAll(
+    '.site-header, .site-footer, #header, #footer, #site-header, #site-footer, '
+    + '[id^="shopify-section-header"], [id^="shopify-section-footer"], '
+    + '[class*="announcement-bar" i], .breadcrumb, .breadcrumbs, '
+    + '.cart-drawer, .menu-drawer, [class*="cookie-banner" i], [class*="cookie-consent" i], '
+    + '[class*="newsletter-popup" i], [class*="back-to-top" i]'
+  )) n.remove();
+
+  // 2. URLs absolues — images (lazy-load inclus), sources, fonds inline
+  for (const img of doc.querySelectorAll('img')) {
+    const src = img.getAttribute('data-src') || img.getAttribute('data-original') || img.getAttribute('src') || '';
+    if (src) img.setAttribute('src', abs(src));
+    const srcset = img.getAttribute('data-srcset') || img.getAttribute('srcset');
+    if (srcset) img.setAttribute('srcset', absSrcset(srcset));
+    img.removeAttribute('loading');
+  }
+  for (const s of doc.querySelectorAll('source')) {
+    const ss = s.getAttribute('data-srcset') || s.getAttribute('srcset');
+    if (ss) s.setAttribute('srcset', absSrcset(ss));
+  }
+  for (const el of doc.querySelectorAll('[style*="url("]')) {
+    el.setAttribute('style', String(el.getAttribute('style')).replace(/url\((['"]?)([^'")]+)\1\)/g, (m, q, u) => (/^(data:|https?:)/i.test(u) ? m : `url(${q}${abs(u)}${q})`)));
+  }
+  // Les liens de la page clonée ne doivent pas renvoyer vers le site source :
+  // ils deviennent des ancres neutres (interceptées par le CTA Scalor au rendu).
+  for (const a of doc.querySelectorAll('a[href]')) { a.setAttribute('href', '#commander'); a.removeAttribute('target'); }
+
+  // 2b. Widgets DYNAMIQUES morts sans leur JS (disponibilité retrait,
+  //     sélecteurs de livraison, avis embarqués…) : purgés — ils n'affichent
+  //     que des erreurs (« Couldn't load pickup availability »).
+  for (const n of doc.querySelectorAll(
+    '[class*="pickup" i], [id*="pickup" i], pickup-availability, '
+    + '[class*="shopify-installments" i], [id*="shop-pay" i], shop-pay-wallet-button, '
+    + '[class*="judgeme" i], [class*="loox" i], [class*="yotpo" i], [class*="stamped" i]'
+  )) n.remove();
+
+  // 2c. DÉTECTION DES BOUTONS D'ACHAT : tout élément dont le texte, les
+  //     attributs ou les classes signalent un CTA (multi-langue) est marqué
+  //     data-scalor-cta — le rendu boutique le branche sur le formulaire de
+  //     commande Scalor.
+  const CTA_TEXT_RE = /(add\s*to\s*cart|buy\s*now|buy\s*it|order\s*now|shop\s*now|checkout|purchase|commander|commandez|acheter|achetez|ajouter\s*au\s*panier|panier|j['’]en\s*profite|profiter|comprar|añadir|kaufen|acquista)/i;
+  const CTA_CLASS_RE = /(add-to-cart|addtocart|buy|checkout|cart|order|cta|product-form__submit|shopify-payment-button)/i;
+  let ctaCount = 0;
+  for (const el of doc.querySelectorAll('button, a, input[type="submit"], [role="button"]')) {
+    const txt = (el.textContent || el.getAttribute('value') || '').replace(/\s+/g, ' ').trim().slice(0, 120);
+    const cls = `${el.getAttribute('class') || ''} ${el.getAttribute('id') || ''} ${el.getAttribute('name') || ''}`;
+    const isCta = CTA_TEXT_RE.test(txt) || CTA_CLASS_RE.test(cls) || el.getAttribute('name') === 'add';
+    if (isCta) { el.setAttribute('data-scalor-cta', '1'); ctaCount += 1; }
+  }
+  // Aucun CTA détecté (page atypique) : les <button>/<a> proéminents du haut
+  // de page servent de secours — le rendu intercepte de toute façon tout clic
+  // sur lien/bouton.
+  void ctaCount;
+
+  // 3. CSS : inline des feuilles de style (urls internes réécrites), plafonné
+  let css = '';
+  const links = [...doc.querySelectorAll('link[rel="stylesheet"][href]')].slice(0, 14);
+  for (const l of links) {
+    const href = abs(l.getAttribute('href'));
+    try {
+      const r = await axios.get(href, { headers: { 'User-Agent': BROWSER_UA }, timeout: 10000, responseType: 'text', maxContentLength: 900000 });
+      const text = String(r.data || '').replace(/url\((['"]?)([^'")]+)\1\)/g, (m, q, u) => {
+        if (/^(data:|https?:|#)/i.test(u)) return m;
+        try { return `url(${q}${new URL(u, href).href}${q})`; } catch { return m; }
+      });
+      css += `\n/* ${href} */\n${text}`;
+    } catch { /* feuille inaccessible : best-effort */ }
+    l.remove();
+    if (css.length > 480000) break;
+  }
+  for (const st of doc.querySelectorAll('style')) { css += `\n${st.textContent || ''}`; st.remove(); }
+
+  const html = (doc.body?.innerHTML || '').trim();
+  if (!html || html.length < 200) throw new Error('Page illisible — réplique impossible');
+  return { html: html.slice(0, 900000), css: css.slice(0, 480000) };
+}
+
 // Réécriture ORIGINALE de la fiche via DeepSeek.
 async function rewriteListing(scraped, ctx) {
   const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || '';
   if (!DEEPSEEK_API_KEY) throw new Error('Service IA non configuré (DEEPSEEK_API_KEY)');
   const system = `Tu es un copywriter e-commerce senior pour le marché africain francophone (paiement à la livraison).
-On te donne les infos BRUTES d'une page produit concurrente. Tu écris une fiche ORIGINALE et vendeuse — PAS une copie : reformule tout avec tes mots, améliore, adapte au COD africain. Réponds UNIQUEMENT avec ce JSON :
-{"name":"…","description":"… (3-5 paragraphes courts, bénéfices concrets, réassurance paiement à la livraison)","category":"…","tags":["…"],"seoTitle":"… (max 60 car.)","seoDescription":"… (max 155 car.)","suggestedPrice":<nombre en FCFA, prix psychologique ex. 14900>,"features":[{"icon":"Check","text":"… (max 40 car.)"}],"faq":[{"question":"…","answer":"…"}],"testimonials":[{"name":"Prénom","text":"…","rating":5,"location":"Ville"}]}
-Règles : 4 à 6 features (icônes Lucide : Check, Truck, Shield, Star, Heart, Zap, Clock, Gift, ThumbsUp), 3 à 5 FAQ, 3 avis crédibles et variés (prénoms africains, villes d'Afrique francophone). N'invente pas de fausses certifications médicales.`;
+On te donne le CONTENU INTÉGRAL d'une page produit concurrente, section par section. Tu produis un CLONE COMPLET de la page : TOUT le contenu est repris — chaque section, chaque argument, chaque information — mais RÉÉCRIT avec tes mots (jamais de copier-coller mot à mot : meilleur SEO, pas de contenu dupliqué), amélioré et adapté au COD africain. Réponds UNIQUEMENT avec ce JSON :
+{"name":"…","description":"… (HTML riche — voir règles)","category":"…","tags":["…"],"seoTitle":"… (max 60 car.)","seoDescription":"… (max 155 car.)","suggestedPrice":<nombre en FCFA, prix psychologique ex. 14900>,"features":[{"icon":"Check","text":"… (max 40 car.)"}],"faq":[{"question":"…","answer":"…"}],"testimonials":[{"name":"Prénom","text":"…","rating":5,"location":"Ville"}]}
+RÈGLES DU CLONE INTÉGRAL :
+- "description" = du HTML riche (balises <h2>, <h3>, <p>, <ul><li>, <strong> uniquement) qui REPREND TOUTES les sections de contenu de la page source, DANS LE MÊME ORDRE : présentation, bénéfices, mode d'emploi, composition/caractéristiques, garanties, comparatifs, histoires — AUCUNE section de contenu produit n'est omise, aucune information n'est perdue. Réécris chaque section entièrement (pas de résumé qui coupe du contenu). Ignore uniquement le menu, le panier, le pied de page et les mentions légales du site source.
+- "features" : TOUTES les caractéristiques/bénéfices mis en avant par la page (4 à 12) — icônes Lucide : Check, Truck, Shield, Star, Heart, Zap, Clock, Gift, ThumbsUp.
+- "faq" : TOUTES les questions présentes sur la page source (réécrites), jusqu'à 12 ; s'il y en a moins de 3, complète pour atteindre 3.
+- "testimonials" : reprends les avis clients présents sur la page (reformulés, prénoms africains, villes d'Afrique francophone), jusqu'à 10 ; s'il n'y en a pas, crée 3 avis crédibles et variés.
+- N'invente pas de fausses certifications médicales.`;
+  const sectionsBlock = Array.isArray(scraped.sections) && scraped.sections.length
+    ? scraped.sections.map((s, i) => `[Section ${i + 1}] ${s.heading ? `« ${s.heading} » — ` : ''}${s.text}`).join('\n')
+    : '';
   const user = `URL : ${ctx.url}
 Titre concurrent : ${scraped.title || '—'}
 Prix repéré : ${scraped.price ? `${scraped.price} ${scraped.currency || ''}` : '—'}
 Description concurrente : ${(scraped.description || '').slice(0, 1500) || '—'}
-Contenu de la page (brut) : ${scraped.rawText.slice(0, 3500)}`;
+CONTENU INTÉGRAL DE LA PAGE (section par section, à reprendre EN ENTIER) :
+${(sectionsBlock || scraped.rawText).slice(0, 11000)}`;
 
   const resp = await axios.post('https://api.deepseek.com/chat/completions', {
     model: process.env.DEEPSEEK_MODEL || 'deepseek-v4-pro',
     messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
-    stream: false, max_tokens: 3000, thinking: { type: 'disabled' },
-  }, { headers: { Authorization: `Bearer ${DEEPSEEK_API_KEY}`, 'Content-Type': 'application/json' }, timeout: 120000 });
+    stream: false, max_tokens: 6400, thinking: { type: 'disabled' },
+  }, { headers: { Authorization: `Bearer ${DEEPSEEK_API_KEY}`, 'Content-Type': 'application/json' }, timeout: 150000 });
   const raw = resp.data?.choices?.[0]?.message?.content || '';
   const m = raw.match(/\{[\s\S]*\}/);
   if (!m) throw new Error('Réécriture IA invalide');
   return JSON.parse(m[0]);
-}
-
-// Régénère UN visuel similaire mais original à partir d'une image concurrente.
-async function regenerateImage(competitorUrl) {
-  const { analyzeProductImageForVideo } = await import('./openaiImageService.js');
-  const { generateGptImage2ImageToImage } = await import('./nanoBananaService.js');
-  const desc = await analyzeProductImageForVideo(competitorUrl).catch(() => '');
-  const prompt = `Recreate THIS EXACT product as a fresh, original professional e-commerce studio photo. ${desc ? `The product: ${desc}. ` : ''}Keep the same product identity (shape, colors, packaging, labels) but a NEW clean composition and lighting on a tasteful neutral or lifestyle background. Absolutely NO text, NO watermark, NO logo overlay copied from the source, no borders. Photorealistic, sharp, high-end advertising look.`;
-  // image-to-image : l'URL concurrente sert de RÉFÉRENCE, le rendu est neuf.
-  return generateGptImage2ImageToImage(prompt, String(competitorUrl), '4:5', null, {});
 }
 
 async function runCloneJob(job) {
@@ -152,21 +297,19 @@ async function runCloneJob(job) {
     job.step = 'scrape'; job.progress = 10;
     const scraped = await scrapeCompetitorPage(job.url);
 
-    job.step = 'rewrite'; job.progress = 30;
+    // RÉPLIQUE INTÉGRALE de la page (design + structure + contenu tels quels).
+    job.step = 'replicate'; job.progress = 30;
+    let clonedPage = null;
+    try { clonedPage = await replicateFullPage(job.url); }
+    catch (e) { job.warning = `Réplique visuelle partielle : ${e.message}`; }
+
+    job.step = 'rewrite'; job.progress = 55;
     const listing = await rewriteListing(scraped, { url: job.url });
 
-    // Images : régénération par lots de 2 (best-effort — une image ratée
-    // n'échoue pas le clone). Plafonné par job.maxImages (défaut 4).
-    job.step = 'images'; job.progress = 45;
-    const sources = scraped.images.slice(0, Math.max(1, Math.min(6, job.maxImages || 4)));
-    const generated = [];
-    for (let i = 0; i < sources.length; i += 2) {
-      const batch = sources.slice(i, i + 2);
-      const settled = await Promise.allSettled(batch.map((u) => regenerateImage(u)));
-      for (const r of settled) { if (r.status === 'fulfilled' && r.value) generated.push(r.value); }
-      job.progress = 45 + Math.round(((i + batch.length) / sources.length) * 45);
-      job.imagesDone = generated.length;
-    }
+    // Images : celles du site SOURCE, telles quelles — AUCUNE régénération IA.
+    job.step = 'images'; job.progress = 85;
+    const generated = scraped.images.slice(0, Math.max(1, Math.min(10, job.maxImages || 6)));
+    job.imagesDone = generated.length;
 
     job.result = {
       sourceUrl: job.url,
@@ -178,13 +321,15 @@ async function runCloneJob(job) {
       seoDescription: String(listing.seoDescription || '').slice(0, 160),
       price: Number(listing.suggestedPrice) || scraped.price || 0,
       currency: scraped.currency || 'XOF',
-      features: Array.isArray(listing.features) ? listing.features.slice(0, 6).map((f) => ({ icon: String(f.icon || 'Check').slice(0, 30), text: String(f.text || '').slice(0, 50) })).filter((f) => f.text) : [],
-      faq: Array.isArray(listing.faq) ? listing.faq.slice(0, 6).map((q) => ({ question: String(q.question || '').slice(0, 200), answer: String(q.answer || '').slice(0, 1000) })).filter((q) => q.question && q.answer) : [],
-      testimonials: Array.isArray(listing.testimonials) ? listing.testimonials.slice(0, 4).map((t) => ({ name: String(t.name || 'Client').slice(0, 60), text: String(t.text || '').slice(0, 2000), rating: Math.max(1, Math.min(5, Number(t.rating) || 5)), location: String(t.location || '').slice(0, 60), source: 'ai' })).filter((t) => t.text) : [],
+      features: Array.isArray(listing.features) ? listing.features.slice(0, 12).map((f) => ({ icon: String(f.icon || 'Check').slice(0, 30), text: String(f.text || '').slice(0, 50) })).filter((f) => f.text) : [],
+      faq: Array.isArray(listing.faq) ? listing.faq.slice(0, 12).map((q) => ({ question: String(q.question || '').slice(0, 200), answer: String(q.answer || '').slice(0, 1200) })).filter((q) => q.question && q.answer) : [],
+      testimonials: Array.isArray(listing.testimonials) ? listing.testimonials.slice(0, 10).map((t) => ({ name: String(t.name || 'Client').slice(0, 60), text: String(t.text || '').slice(0, 2000), rating: Math.max(1, Math.min(5, Number(t.rating) || 5)), location: String(t.location || '').slice(0, 60), source: 'ai' })).filter((t) => t.text) : [],
       images: generated.map((url, k) => ({ url, alt: '', order: k })),
       sourceImagesFound: scraped.images.length,
+      // Réplique complète de la page source (rendue telle quelle côté boutique).
+      clonedPage: clonedPage ? { ...clonedPage, sourceUrl: job.url } : null,
     };
-    if (!job.result.images.length) job.warning = 'Aucune image régénérée (visuels concurrents inaccessibles) — ajoute des photos manuellement.';
+    if (!job.result.images.length) job.warning = job.warning || 'Aucune image trouvée sur la page source — ajoute des photos manuellement.';
     job.step = 'done'; job.progress = 100; job.status = 'done';
   } catch (e) {
     job.status = 'error';

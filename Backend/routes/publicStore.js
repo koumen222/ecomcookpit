@@ -254,7 +254,8 @@ router.get('/:subdomain/products/:slug', readLimiter, resolveStoreBySubdomain, a
         productPageConfig: product.productPageConfig || null,
         premiumImages: product.premiumImages || null,
         testimonials: product.testimonials || [],
-        faq: product.faq || []
+        faq: product.faq || [],
+        variants: product.variants || null
       }
     });
   } catch (error) {

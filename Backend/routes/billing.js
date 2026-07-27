@@ -865,18 +865,28 @@ router.post('/buy-generation', requireEcomAuth, async (req, res) => {
 
 // ─── POST /buy-creative ───────────────────────────────────────────────────────
 // Buy creative image credits: packs of 10, 20, or 50 images (80 FCFA each).
+// Packs de crédits Creative Center — SOURCE DE VÉRITÉ des prix (le front
+// affiche les mêmes valeurs). 1 « créa » ≈ 20 crédits : le pack 10 créas
+// = 200 crédits = 10 000 FCFA. Hors pack : prix unitaire de la grille dynamique.
+const CREATIVE_CREDIT_PACKS = { 200: 10000, 400: 20000, 1000: 50000 };
+
 router.post('/buy-creative', requireEcomAuth, async (req, res) => {
   try {
     const { quantity, phone, clientName, workspaceId: bodyWsId } = req.body;
     const workspaceId = req.workspaceId || bodyWsId;
-    const PRICE_PER_CREDIT = 80; // FCFA
 
     if (!workspaceId) return res.status(400).json({ success: false, message: 'workspaceId requis' });
     if (!phone || String(phone).trim().length < 8) return res.status(400).json({ success: false, message: 'Numéro de téléphone requis' });
     if (!clientName || String(clientName).trim().length < 2) return res.status(400).json({ success: false, message: 'Nom requis' });
-    if (!Number.isInteger(quantity) || quantity < 1 || quantity > 500) return res.status(400).json({ success: false, message: 'Quantité invalide' });
+    if (!Number.isInteger(quantity) || quantity < 1 || quantity > 2000) return res.status(400).json({ success: false, message: 'Quantité invalide' });
 
-    const amount = quantity * PRICE_PER_CREDIT;
+    // Prix du pack si la quantité correspond, sinon linéaire au prix du crédit
+    // de la grille (modifiable au super admin).
+    const { getCreativePricingSnapshot } = await import('../services/creativeCredits.js');
+    const snap = await getCreativePricingSnapshot();
+    const unitPrice = Number(snap?.pricePerCreditFcfa) > 0 ? Number(snap.pricePerCreditFcfa) : 1000;
+    const amount = CREATIVE_CREDIT_PACKS[quantity] ?? quantity * unitPrice;
+    const PRICE_PER_CREDIT = Math.round(amount / quantity); // trace/historique
     const frontendUrl = process.env.FRONTEND_URL || 'https://scalor.net';
     const backendUrl = process.env.BACKEND_URL || 'https://api.scalor.net';
 

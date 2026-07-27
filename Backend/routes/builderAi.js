@@ -1953,15 +1953,200 @@ router.post('/clone-product-page/save', requireEcomAuth, async (req, res) => {
       seoTitle: String(p.seoTitle || '').slice(0, 70),
       seoDescription: String(p.seoDescription || '').slice(0, 160),
       images: Array.isArray(p.images) ? p.images.filter((im) => im?.url).slice(0, 10).map((im, k) => ({ url: String(im.url), alt: String(im.alt || '').slice(0, 200), order: k })) : [],
-      features: Array.isArray(p.features) ? p.features.slice(0, 8).map((f) => ({ icon: String(f.icon || 'Check').slice(0, 30), text: String(f.text || '').slice(0, 50) })).filter((f) => f.text) : [],
-      faq: Array.isArray(p.faq) ? p.faq.slice(0, 8).map((q) => ({ question: String(q.question || '').slice(0, 200), answer: String(q.answer || '').slice(0, 1000) })).filter((q) => q.question && q.answer) : [],
-      testimonials: Array.isArray(p.testimonials) ? p.testimonials.slice(0, 6).map((t) => ({ name: String(t.name || 'Client').slice(0, 60), text: String(t.text || '').slice(0, 2000), rating: Math.max(1, Math.min(5, Number(t.rating) || 5)), location: String(t.location || '').slice(0, 60), source: 'ai' })).filter((t) => t.text) : [],
+      features: Array.isArray(p.features) ? p.features.slice(0, 12).map((f) => ({ icon: String(f.icon || 'Check').slice(0, 30), text: String(f.text || '').slice(0, 50) })).filter((f) => f.text) : [],
+      faq: Array.isArray(p.faq) ? p.faq.slice(0, 12).map((q) => ({ question: String(q.question || '').slice(0, 200), answer: String(q.answer || '').slice(0, 1200) })).filter((q) => q.question && q.answer) : [],
+      testimonials: Array.isArray(p.testimonials) ? p.testimonials.slice(0, 10).map((t) => ({ name: String(t.name || 'Client').slice(0, 60), text: String(t.text || '').slice(0, 2000), rating: Math.max(1, Math.min(5, Number(t.rating) || 5)), location: String(t.location || '').slice(0, 60), source: 'ai' })).filter((t) => t.text) : [],
+      // Réplique INTÉGRALE de la page source : rendue telle quelle sur la
+      // boutique (design + structure d'origine), le CTA Scalor par-dessus.
+      ...(p.clonedPage?.html ? {
+        _pageData: {
+          clonedPage: {
+            html: String(p.clonedPage.html).slice(0, 900000),
+            css: String(p.clonedPage.css || '').slice(0, 480000),
+            sourceUrl: String(p.clonedPage.sourceUrl || p.sourceUrl || '').slice(0, 500),
+          },
+        },
+      } : {}),
       isPublished: false, // brouillon : le marchand vérifie puis publie
     });
     return res.json({ success: true, productId: String(sp._id), slug: sp.slug });
   } catch (err) {
     console.error('[BuilderAI] clone save error:', err.message);
     return res.status(500).json({ success: false, message: err.message || 'Création du produit impossible' });
+  }
+});
+
+// ─── POST /builder-ai/edit-cloned-page — édition CIBLÉE d'une page clonée ────
+// L'IA ne régénère JAMAIS la page : elle répond par des OPÉRATIONS de
+// remplacement chirurgicales ({find, replace} sur des extraits EXACTS du HTML)
+// appliquées côté serveur — la structure clonée reste intacte partout ailleurs.
+// Body : { instruction, html, css? } → { success, html, css, opsApplied }.
+router.post('/edit-cloned-page', requireEcomAuth, async (req, res) => {
+  let editResv = null;
+  try {
+    const instruction = String(req.body?.instruction || '').trim().slice(0, 600);
+    let html = String(req.body?.html || '');
+    let css = String(req.body?.css || '');
+    if (instruction.length < 3) return res.status(400).json({ success: false, message: 'Instruction requise' });
+    if (html.length < 50) return res.status(400).json({ success: false, message: 'HTML de la page requis' });
+    if (!DEEPSEEK_API_KEY) return res.status(503).json({ success: false, message: 'Service IA non disponible' });
+
+    // Débit : même tarif que les générations builder (1 crédit par défaut).
+    {
+      const { reserveFeatureCredits, sendInsufficientCredits } = await import('../services/creativeCredits.js');
+      editResv = await reserveFeatureCredits(req.workspaceId, 'builder_ai');
+      if (!editResv.ok) return sendInsufficientCredits(res, 'builder_ai', editResv);
+    }
+    (await import('../models/FeatureUsageLog.js')).default.track(req, 'builder_ai_image', { edit: true, kind: 'cloned-page' });
+
+    const system = `Tu modifies une page HTML EXISTANTE (page produit clonée) selon l'instruction du marchand.
+RÈGLE ABSOLUE : tu ne réécris JAMAIS la page. Tu réponds UNIQUEMENT avec ce JSON :
+{"ops":[{"find":"extrait EXACT et UNIQUE du HTML actuel (30 à 400 caractères, copié à l'identique)","replace":"le même extrait, modifié selon l'instruction"}],"css_append":"règles CSS à AJOUTER si nécessaire (sinon chaîne vide)"}
+Contraintes :
+- 1 à 8 ops maximum, chacune la plus PETITE possible pour réaliser l'instruction.
+- "find" doit être copié CARACTÈRE PAR CARACTÈRE depuis le HTML fourni (attributs, espaces, accents inclus), et assez long pour n'apparaître qu'une fois.
+- Pour SUPPRIMER un élément : "replace" est une chaîne vide et "find" couvre l'élément entier.
+- Pour un changement de style global (couleur d'un bouton…), préfère "css_append" avec un sélecteur existant de la page.
+- Ne touche à rien qui ne soit pas demandé. Aucun commentaire, aucun texte hors du JSON.`;
+    const userMsg = `INSTRUCTION : ${instruction}
+
+CSS ACTUEL (extrait) :
+${css.slice(0, 6000)}
+
+HTML ACTUEL :
+${html.slice(0, 110000)}`;
+
+    const resp = await axios.post('https://api.deepseek.com/chat/completions', {
+      model: process.env.DEEPSEEK_MODEL || 'deepseek-v4-pro',
+      messages: [{ role: 'system', content: system }, { role: 'user', content: userMsg }],
+      stream: false, max_tokens: 4000, thinking: { type: 'disabled' },
+    }, { headers: { Authorization: `Bearer ${DEEPSEEK_API_KEY}`, 'Content-Type': 'application/json' }, timeout: 120000 });
+
+    const raw = resp.data?.choices?.[0]?.message?.content || '';
+    const m = raw.match(/\{[\s\S]*\}/);
+    if (!m) throw new Error('Réponse IA invalide');
+    const parsed = JSON.parse(m[0]);
+    const ops = Array.isArray(parsed.ops) ? parsed.ops.slice(0, 8) : [];
+
+    let applied = 0;
+    for (const op of ops) {
+      const find = String(op?.find || '');
+      if (find.length < 8) continue;
+      const idx = html.indexOf(find);
+      if (idx === -1) continue;
+      html = html.slice(0, idx) + String(op?.replace ?? '') + html.slice(idx + find.length);
+      applied += 1;
+    }
+    const cssAppend = String(parsed.css_append || '').trim();
+    if (cssAppend) css = `${css}\n/* Modification IA */\n${cssAppend.slice(0, 8000)}`;
+
+    if (!applied && !cssAppend) {
+      await editResv.refund('aucune modification applicable');
+      return res.status(422).json({ success: false, message: 'L\'IA n\'a pas trouvé où appliquer cette modification — reformule (ex. cite le texte exact à changer).' });
+    }
+
+    return res.json({ success: true, html, css, opsApplied: applied, creditsUsed: editResv.credits, creditsRemaining: editResv.remaining });
+  } catch (err) {
+    if (editResv?.ok) await editResv.refund(err.message);
+    console.error('[BuilderAI] edit-cloned-page error:', err.message);
+    return res.status(500).json({ success: false, message: err.message || 'Modification impossible' });
+  }
+});
+
+// ─── POST /builder-ai/translate-cloned-page — traduction INTÉGRALE ───────────
+// Traduit TOUS les textes d'une page clonée (nœuds texte + alt/placeholder)
+// vers la langue cible, par lots, en préservant structure et design à 100 %.
+// Body : { html, targetLang } → { success, html, translated }.
+router.post('/translate-cloned-page', requireEcomAuth, async (req, res) => {
+  let trResv = null;
+  try {
+    const html = String(req.body?.html || '');
+    const targetLang = String(req.body?.targetLang || 'fr').trim().toLowerCase().slice(0, 8);
+    if (html.length < 50) return res.status(400).json({ success: false, message: 'HTML de la page requis' });
+    if (!DEEPSEEK_API_KEY) return res.status(503).json({ success: false, message: 'Service IA non disponible' });
+
+    {
+      const { reserveFeatureCredits, sendInsufficientCredits } = await import('../services/creativeCredits.js');
+      trResv = await reserveFeatureCredits(req.workspaceId, 'builder_ai');
+      if (!trResv.ok) return sendInsufficientCredits(res, 'builder_ai', trResv);
+    }
+    (await import('../models/FeatureUsageLog.js')).default.track(req, 'creative_text', { purpose: 'cloned-page-translation', targetLang });
+
+    const { JSDOM } = await import('jsdom');
+    const dom = new JSDOM(`<body>${html}</body>`);
+    const doc = dom.window.document;
+    const NodeFilter = dom.window.NodeFilter;
+
+    // 1. Collecte : tous les nœuds texte visibles + attributs porteurs de sens.
+    const entries = []; // { kind: 'text'|'attr', node, attr?, value }
+    const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT);
+    while (walker.nextNode()) {
+      const n = walker.currentNode;
+      const parentTag = n.parentElement?.tagName || '';
+      if (['STYLE', 'SCRIPT', 'NOSCRIPT'].includes(parentTag)) continue;
+      const v = String(n.textContent || '');
+      if (v.trim().length >= 2) entries.push({ kind: 'text', node: n, value: v });
+    }
+    for (const el of doc.body.querySelectorAll('[alt], [placeholder], [title], [aria-label]')) {
+      for (const attr of ['alt', 'placeholder', 'title', 'aria-label']) {
+        const v = el.getAttribute(attr);
+        if (v && v.trim().length >= 2) entries.push({ kind: 'attr', node: el, attr, value: v });
+      }
+    }
+    if (!entries.length) {
+      await trResv.refund('rien à traduire');
+      return res.status(422).json({ success: false, message: 'Aucun texte à traduire trouvé.' });
+    }
+
+    // 2. Traduction PAR LOTS (indices stables — le LLM renvoie le même nombre
+    //    de lignes). Les espaces de bord sont préservés autour du texte.
+    const BATCH = 60;
+    let translated = 0;
+    for (let i = 0; i < entries.length; i += BATCH) {
+      const chunk = entries.slice(i, i + BATCH);
+      const numbered = chunk.map((e, k) => `${k + 1}. ${e.value.replace(/\s+/g, ' ').trim().slice(0, 500)}`).join('\n');
+      const sys = `Translate each numbered line into ${targetLang.toUpperCase()} (natural, idiomatic, e-commerce register). `
+        + `Keep prices, numbers, units, brand and product names unchanged. `
+        + `Return strict JSON: {"t":["line 1", ...]} with exactly ${chunk.length} items, same order. No commentary.`;
+      let arr = [];
+      try {
+        const resp = await axios.post('https://api.deepseek.com/chat/completions', {
+          model: process.env.DEEPSEEK_MODEL || 'deepseek-v4-pro',
+          messages: [{ role: 'system', content: sys }, { role: 'user', content: numbered }],
+          stream: false, max_tokens: 6000, thinking: { type: 'disabled' },
+        }, { headers: { Authorization: `Bearer ${DEEPSEEK_API_KEY}`, 'Content-Type': 'application/json' }, timeout: 120000 });
+        const raw = resp.data?.choices?.[0]?.message?.content || '';
+        const mm = raw.match(/\{[\s\S]*\}/);
+        const parsed = mm ? JSON.parse(mm[0]) : null;
+        arr = Array.isArray(parsed?.t) ? parsed.t : [];
+      } catch { arr = []; }
+      for (let k = 0; k < chunk.length; k += 1) {
+        const t = String(arr[k] ?? '').trim();
+        if (!t) continue; // échec de ligne : texte d'origine conservé
+        const e = chunk[k];
+        if (e.kind === 'text') {
+          const lead = (e.value.match(/^\s*/) || [''])[0];
+          const trail = (e.value.match(/\s*$/) || [''])[0];
+          e.node.textContent = `${lead}${t}${trail}`;
+        } else {
+          e.node.setAttribute(e.attr, t);
+        }
+        translated += 1;
+      }
+    }
+
+    return res.json({
+      success: true,
+      html: doc.body.innerHTML,
+      translated,
+      total: entries.length,
+      creditsUsed: trResv.credits,
+      creditsRemaining: trResv.remaining,
+    });
+  } catch (err) {
+    if (trResv?.ok) await trResv.refund(err.message);
+    console.error('[BuilderAI] translate-cloned-page error:', err.message);
+    return res.status(500).json({ success: false, message: err.message || 'Traduction impossible' });
   }
 });
 

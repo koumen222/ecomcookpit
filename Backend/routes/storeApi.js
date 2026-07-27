@@ -862,7 +862,7 @@ router.get('/:subdomain/products/:slug', readLimiter, async (req, res) => {
       slug: req.params.slug,
       isPublished: true
     })
-    .select('name slug description price compareAtPrice currency country targetMarket city locale pageLanguage stock images category tags seoTitle seoDescription features faq testimonials _pageData productPageConfig contentTranslations')
+    .select('name slug description price compareAtPrice currency country targetMarket city locale pageLanguage stock images category tags seoTitle seoDescription features faq testimonials variants _pageData productPageConfig contentTranslations')
     .lean()
     .maxTimeMS(1200);
 
@@ -918,6 +918,7 @@ router.get('/:subdomain/products/:slug', readLimiter, async (req, res) => {
         features: product.features || [],
         faq: product.faq || [],
         testimonials: product.testimonials || [],
+        variants: product.variants || null,
         _pageData: product._pageData || null,
         productPageConfig: product.productPageConfig || null,
         ...(quantityOffer?.offers?.length > 0 ? {
@@ -1121,7 +1122,7 @@ router.get('/:subdomain/product-page/:slug', readLimiter, async (req, res) => {
 
     let [product, quantityOffer] = await withPublicTimeout(Promise.all([
       StoreProduct.findById(productIdDoc._id)
-        .select('name slug description price compareAtPrice currency country targetMarket city locale pageLanguage stock images category tags seoTitle seoDescription features faq testimonials _pageData productPageConfig contentTranslations')
+        .select('name slug description price compareAtPrice currency country targetMarket city locale pageLanguage stock images category tags seoTitle seoDescription features faq testimonials variants _pageData productPageConfig contentTranslations')
         .lean()
         .maxTimeMS(1200),
       QuantityOffer.findOne({
@@ -1182,6 +1183,7 @@ router.get('/:subdomain/product-page/:slug', readLimiter, async (req, res) => {
       features: product.features || [],
       faq: product.faq || [],
       testimonials: product.testimonials || [],
+      variants: product.variants || null,
       _pageData: product._pageData || null,
       productPageConfig: product.productPageConfig || null,
     };

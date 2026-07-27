@@ -2076,7 +2076,7 @@ router.post('/', requireEcomAuth, requireWorkspace, requireStoreOwner, checkPlan
       images, category, tags, isPublished,
       seoTitle, seoDescription, linkedProductId, currency,
       targetMarket, country, city, locale, pageLanguage,
-      testimonials, faq, _pageData, productPageConfig
+      testimonials, faq, variants, _pageData, productPageConfig
     } = req.body;
 
     const normalizedName = String(name || '').trim();
@@ -2156,6 +2156,7 @@ router.post('/', requireEcomAuth, requireWorkspace, requireStoreOwner, checkPlan
         createdBy: req.user.id,
         ...(testimonials?.length > 0 && { testimonials: normalizeTestimonials(testimonials) }),
         ...(faq?.length > 0 && { faq: normalizeFaq(faq) }),
+        ...(Array.isArray(variants) && variants.length > 0 && { variants }),
         ...(_pageData && { _pageData }),
         ...(productPageConfig && { productPageConfig })
       });

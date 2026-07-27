@@ -5,7 +5,7 @@
 //  1 crédit = PRICE_PER_CREDIT_FCFA (aligné sur /billing/buy-creative).
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const PRICE_PER_CREDIT_FCFA = 80;
+export const PRICE_PER_CREDIT_FCFA = 50; // aligné sur les packs (200 crédits = 10 000 FCFA)
 
 // key → { credits, label, unit } — unit = ce que couvre UN débit.
 export const CREATIVE_PRICING = {
