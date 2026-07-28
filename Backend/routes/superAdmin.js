@@ -1832,6 +1832,96 @@ router.get('/creative-generations', requireEcomAuth, requireSuperAdmin, async (r
 });
 
 // ── Utilisation IA : fréquence et historique (page super admin Creative) ────
+// GET /api/ecom/super-admin/creative-credits-ledger?days=30
+// → FACTURE STRICTE des crédits Creative Center : chaque débit/remboursement
+//   tracé (CreativeCreditLedger). Totaux nets par fonctionnalité (+ équivalent
+//   FCFA), série journalière, top comptes consommateurs, dernières écritures.
+router.get('/creative-credits-ledger', requireEcomAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const days = Math.max(1, Math.min(365, parseInt(req.query.days, 10) || 30));
+    const since = new Date(Date.now() - days * 24 * 3600 * 1000);
+    const CreativeCreditLedger = (await import('../models/CreativeCreditLedger.js')).default;
+    const { getCreativePricingSnapshot } = await import('../services/creativeCredits.js');
+    const snap = await getCreativePricingSnapshot();
+    const fcfaPerCredit = Number(snap?.pricePerCreditFcfa) || 0;
+    const match = { createdAt: { $gte: since } };
+
+    const signed = { $cond: [{ $eq: ['$type', 'debit'] }, '$credits', { $multiply: ['$credits', -1] }] };
+
+    const [byFeature, daily, topWorkspaces, recent, totals] = await Promise.all([
+      CreativeCreditLedger.aggregate([
+        { $match: match },
+        { $group: {
+          _id: '$feature',
+          debits: { $sum: { $cond: [{ $eq: ['$type', 'debit'] }, '$credits', 0] } },
+          refunds: { $sum: { $cond: [{ $eq: ['$type', 'refund'] }, '$credits', 0] } },
+          count: { $sum: { $cond: [{ $eq: ['$type', 'debit'] }, 1, 0] } },
+        } },
+        { $project: { feature: '$_id', debits: 1, refunds: 1, count: 1, net: { $subtract: ['$debits', '$refunds'] }, _id: 0 } },
+        { $sort: { net: -1 } },
+      ]),
+      CreativeCreditLedger.aggregate([
+        { $match: match },
+        { $group: {
+          _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
+          net: { $sum: signed },
+        } },
+        { $project: { date: '$_id', net: 1, _id: 0 } },
+        { $sort: { date: 1 } },
+      ]),
+      CreativeCreditLedger.aggregate([
+        { $match: match },
+        { $group: { _id: '$workspaceId', net: { $sum: signed }, moves: { $sum: 1 } } },
+        { $sort: { net: -1 } },
+        { $limit: 12 },
+      ]),
+      CreativeCreditLedger.find(match).sort({ createdAt: -1 }).limit(60).lean(),
+      CreativeCreditLedger.aggregate([
+        { $match: match },
+        { $group: {
+          _id: null,
+          debits: { $sum: { $cond: [{ $eq: ['$type', 'debit'] }, '$credits', 0] } },
+          refunds: { $sum: { $cond: [{ $eq: ['$type', 'refund'] }, '$credits', 0] } },
+          debitCount: { $sum: { $cond: [{ $eq: ['$type', 'debit'] }, 1, 0] } },
+          refundCount: { $sum: { $cond: [{ $eq: ['$type', 'refund'] }, 1, 0] } },
+        } },
+      ]),
+    ]);
+
+    // Noms des workspaces du top
+    const wsIds = topWorkspaces.map((w) => w._id).filter((id) => mongoose.Types.ObjectId.isValid(id));
+    const wsDocs = await Workspace.find({ _id: { $in: wsIds } }).select('name subdomain').lean();
+    const wsById = Object.fromEntries(wsDocs.map((w) => [String(w._id), w]));
+
+    const t = totals[0] || { debits: 0, refunds: 0, debitCount: 0, refundCount: 0 };
+    const net = t.debits - t.refunds;
+    res.json({
+      days,
+      pricePerCreditFcfa: fcfaPerCredit,
+      totals: {
+        debits: t.debits, refunds: t.refunds, net,
+        netFcfa: net * fcfaPerCredit,
+        debitCount: t.debitCount, refundCount: t.refundCount,
+      },
+      byFeature: byFeature.map((f) => ({ ...f, netFcfa: f.net * fcfaPerCredit })),
+      daily,
+      topWorkspaces: topWorkspaces.map((w) => ({
+        workspaceId: String(w._id),
+        name: wsById[String(w._id)]?.name || wsById[String(w._id)]?.subdomain || String(w._id).slice(-6),
+        net: w.net, netFcfa: w.net * fcfaPerCredit, moves: w.moves,
+      })),
+      recent: recent.map((e) => ({
+        at: e.createdAt, type: e.type, feature: e.feature, credits: e.credits,
+        balanceAfter: e.balanceAfter, meta: e.meta || null,
+        workspace: wsById[String(e.workspaceId)]?.name || String(e.workspaceId).slice(-6),
+      })),
+    });
+  } catch (error) {
+    console.error('Erreur ledger crédits:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // GET /api/ecom/super-admin/creative-usage?days=30
 // → totaux par fonctionnalité IA, fréquence du CHAT par utilisateur (qui,
 //   combien de messages, à quelle fréquence, dernier usage) et activité récente.

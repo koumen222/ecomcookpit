@@ -54,22 +54,35 @@ export async function isCreativeFreeModeEnabled() {
   return !!snap.freeMode;
 }
 
+/** Facture stricte : écriture ledger best-effort (jamais bloquante). */
+async function writeLedger(entry) {
+  try {
+    const CreativeCreditLedger = (await import('../models/CreativeCreditLedger.js')).default;
+    await CreativeCreditLedger.create(entry);
+  } catch (e) {
+    console.error('❌ [creativeCredits] Écriture ledger échouée:', e.message);
+  }
+}
+
 /**
  * Réserve les crédits d'une fonctionnalité pour un workspace.
+ * Chaque débit (et remboursement) est tracé dans CreativeCreditLedger —
+ * facture stricte pour le pilotage des coûts API.
  * @param {string} workspaceId
  * @param {string} feature  clé de CREATIVE_PRICING ('voice', 'video', …)
  * @param {number} [overrideCredits]  coût custom (ex. stage 'character' → tarif image)
+ * @param {object} [meta]  contexte facturé (stage, engine, quality…) → ledger
  * @returns {{ ok:true, credits, remaining, refund }|{ ok:false, credits, available }}
  *  refund(reason?) est idempotent — appelable sans risque dans plusieurs chemins d'échec.
  */
-export async function reserveFeatureCredits(workspaceId, feature, overrideCredits) {
+export async function reserveFeatureCredits(workspaceId, feature, overrideCredits, meta = null) {
   // Mode gratuit global (toggle super admin) : aucun débit, refund no-op.
   if (await isCreativeFreeModeEnabled()) {
     console.log(`🎁 [creativeCredits] Mode gratuit actif — 0 crédit débité (${feature})`);
-    return { ok: true, credits: 0, remaining: null, refund: async () => {}, freeMode: true };
+    return { ok: true, feature, credits: 0, remaining: null, refund: async () => {}, freeMode: true };
   }
   const credits = Number.isFinite(overrideCredits) ? overrideCredits : await getFeatureCost(feature);
-  if (!credits) return { ok: true, credits: 0, remaining: null, refund: async () => {} };
+  if (!credits) return { ok: true, feature, credits: 0, remaining: null, refund: async () => {} };
   if (!workspaceId) return { ok: false, credits, available: 0 };
 
   const ws = await EcomWorkspace.findOneAndUpdate(
@@ -83,12 +96,27 @@ export async function reserveFeatureCredits(workspaceId, feature, overrideCredit
     return { ok: false, credits, available: cur?.creativeCreditsRemaining ?? 0 };
   }
 
+  // Facture stricte : le débit est tracé immédiatement (non bloquant).
+  writeLedger({
+    workspaceId: String(workspaceId), type: 'debit', feature, credits,
+    balanceAfter: ws.creativeCreditsRemaining, ...(meta ? { meta } : {}),
+  });
+
   let refunded = false;
   const refund = async (reason = '') => {
     if (refunded) return;
     refunded = true;
     try {
-      await EcomWorkspace.updateOne({ _id: workspaceId }, { $inc: { creativeCreditsRemaining: credits } });
+      const after = await EcomWorkspace.findOneAndUpdate(
+        { _id: workspaceId },
+        { $inc: { creativeCreditsRemaining: credits } },
+        { new: true, select: 'creativeCreditsRemaining' },
+      );
+      writeLedger({
+        workspaceId: String(workspaceId), type: 'refund', feature, credits,
+        balanceAfter: after?.creativeCreditsRemaining ?? null,
+        meta: { ...(meta || {}), reason: String(reason || '').slice(0, 160) },
+      });
       console.log(`💳 [creativeCredits] +${credits} remboursé (${feature}${reason ? ` — ${String(reason).slice(0, 120)}` : ''})`);
     } catch (e) {
       console.error(`❌ [creativeCredits] Remboursement échoué (${feature}, ${credits}cr, ws=${workspaceId}):`, e.message);
@@ -96,7 +124,7 @@ export async function reserveFeatureCredits(workspaceId, feature, overrideCredit
   };
 
   console.log(`💳 [creativeCredits] -${credits} réservé (${feature}); reste=${ws.creativeCreditsRemaining}`);
-  return { ok: true, credits, remaining: ws.creativeCreditsRemaining, refund };
+  return { ok: true, feature, credits, remaining: ws.creativeCreditsRemaining, refund };
 }
 
 /** Réponse 402 normalisée — le front détecte error === 'INSUFFICIENT_CREDITS'. */

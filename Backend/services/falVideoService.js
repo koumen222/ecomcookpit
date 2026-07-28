@@ -216,12 +216,16 @@ export async function pixverseImageToVideo(prompt, imageUrl, { durationSec = 8, 
   //   quality:'360p'|'540p'|'720p'|'1080p'* · generate_audio_switch:boolean ·
   //   template_id · seed · generate_multi_clip_switch. PAS de resolution/aspect_ratio.
   const duration = Math.max(1, Math.min(15, Math.round(Number(durationSec) || 8)));
-  // Rendu FIXE 540p : meilleur rapport qualité/coût d'un modèle facturé à la
-  // seconde (0,036 $/s avec audio vs 0,048 $/s en 720p). Seule la variable
-  // d'env KIE_PIXVERSE_RESOLUTION peut forcer une autre résolution.
-  void resolution;
+  // Résolution : 540p par défaut (meilleur rapport qualité/coût — 0,036 $/s
+  // avec audio vs 0,048 $/s en 720p). L'option HD 720p choisie par le marchand
+  // (facturée ×2 crédits côté builderAi) est honorée ici ; '480p' (label éco
+  // du front) est mappé sur 540p, palier minimum utile de PixVerse.
+  // KIE_PIXVERSE_RESOLUTION reste un forçage global prioritaire.
+  const reqRes = String(resolution || '').trim() === '720p' ? '720p'
+    : ['360p', '540p', '1080p'].includes(String(resolution || '').trim()) ? String(resolution).trim()
+    : '540p';
   const envRes = String(process.env.KIE_PIXVERSE_RESOLUTION || '').trim();
-  const quality = ['360p', '540p', '720p', '1080p'].includes(envRes) ? envRes : '540p';
+  const quality = ['360p', '540p', '720p', '1080p'].includes(envRes) ? envRes : reqRes;
   const input = {
     prompt: String(prompt || '').slice(0, 2048),
     image_urls: imageUrl && /^https?:\/\//i.test(String(imageUrl)) ? [String(imageUrl)] : [],

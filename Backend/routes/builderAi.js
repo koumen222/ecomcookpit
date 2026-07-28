@@ -1289,17 +1289,34 @@ router.post('/generate-gif', requireEcomAuth, async (req, res) => {
       const provider = providerOrder[0];
 
       // Débit Creative Center — après TOUTES les validations, avant les appels coûteux.
-      // stage 'character' = image de départ seule → tarif image ; scène PARLÉE
-      // PixVerse (offre Pro, 10 s) → tarif video_pro ; sinon tarif vidéo éco.
+      // b-roll (vidéo OU image) → tarif broll ; avatar UGC (personnage généré,
+      // flag avatar:true) → tarif avatar ; stage 'character' hors avatar (image
+      // de scène) → tarif image ; scène PARLÉE PixVerse (offre Pro, 10 s) →
+      // tarif video_pro ; sinon tarif vidéo éco.
       {
         const { reserveFeatureCredits, sendInsufficientCredits, getFeatureCost } = await import('../services/creativeCredits.js');
-        const override = stage === 'character' ? await getFeatureCost('image')
-          : (speakClean && talkEngine === 'pixverse') ? await getFeatureCost('video_pro')
-          : undefined;
-        sceneResv = await reserveFeatureCredits(req.workspaceId, 'video', override);
-        if (!sceneResv.ok) { const r = sceneResv; sceneResv = null; return sendInsufficientCredits(res, 'video', r); }
+        const isAvatarGen = stage === 'character' && req.body?.avatar === true;
+        // HD 720p (sélecteur résolution du front) : crédits ×2 sur les rendus
+        // vidéo — l'API coûte ~2× plus cher qu'en 480/540p. Jamais sur les
+        // images (stage 'character').
+        const hd = talkRes === '720p' && stage !== 'character';
+        const billingFeature = isBroll ? 'broll'
+          : isAvatarGen ? 'avatar'
+          : stage === 'character' ? 'image'
+          : (speakClean && talkEngine === 'pixverse') ? 'video_pro'
+          : 'video';
+        let override = await getFeatureCost(billingFeature);
+        if (hd) override *= 2;
+        sceneResv = await reserveFeatureCredits(req.workspaceId, billingFeature, override, {
+          stage: String(stage || 'complete'),
+          engine: speakClean ? talkEngine : provider,
+          quality: hd ? '720p' : (talkRes || '480p'),
+          ...(isBroll ? { broll: true } : {}),
+          ...(isAvatarGen ? { avatar: true } : {}),
+        });
+        if (!sceneResv.ok) { const r = sceneResv; sceneResv = null; return sendInsufficientCredits(res, billingFeature, r); }
         (await import('../models/FeatureUsageLog.js')).default
-          .track(req, 'creative_video', { stage: String(stage || 'complete'), engine: speakClean ? talkEngine : provider, broll: !!isBroll });
+          .track(req, 'creative_video', { stage: String(stage || 'complete'), engine: speakClean ? talkEngine : provider, broll: !!isBroll, avatar: isAvatarGen, hd });
       }
 
       const subjTxt = String(subject || '').trim();
@@ -1521,11 +1538,26 @@ Reply ONLY with JSON: {"start_frame_prompt":"...","motion_prompt":"..."} — sta
         if (!(sceneResv?.ok && speakClean && talkEngine === 'pixverse' && usedProvider && usedProvider !== 'pixversetalk')) return;
         try {
           const { getFeatureCost } = await import('../services/creativeCredits.js');
-          const diff = sceneResv.credits - await getFeatureCost('video');
+          // Tarif éco équivalent — en conservant le multiplicateur HD éventuel
+          const ecoCost = (await getFeatureCost('video')) * (talkRes === '720p' ? 2 : 1);
+          const diff = sceneResv.credits - ecoCost;
           if (diff > 0) {
-            await EcomWorkspace.updateOne({ _id: req.workspaceId }, { $inc: { creativeCreditsRemaining: diff } });
+            const after = await EcomWorkspace.findOneAndUpdate(
+              { _id: req.workspaceId },
+              { $inc: { creativeCreditsRemaining: diff } },
+              { new: true, select: 'creativeCreditsRemaining' },
+            );
             sceneResv.credits -= diff;
             if (typeof sceneResv.remaining === 'number') sceneResv.remaining += diff;
+            // Facture stricte : l'ajustement d'équité est tracé comme refund
+            try {
+              const CreativeCreditLedger = (await import('../models/CreativeCreditLedger.js')).default;
+              await CreativeCreditLedger.create({
+                workspaceId: String(req.workspaceId), type: 'refund', feature: sceneResv.feature || 'video_pro',
+                credits: diff, balanceAfter: after?.creativeCreditsRemaining ?? null,
+                meta: { reason: `pro-fallback:${usedProvider}`, quality: talkRes || '480p' },
+              });
+            } catch (le) { console.error('❌ [creativeCredits] Ledger settle échoué:', le.message); }
             console.log(`💳 [creativeCredits] +${diff} rendu (scène Pro servie par ${usedProvider} au tarif éco)`);
           }
         } catch (e) { console.warn('[BuilderAI] settleProCredits:', e.message); }
