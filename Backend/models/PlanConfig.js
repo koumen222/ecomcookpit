@@ -87,6 +87,11 @@ planConfigSchema.statics.seedDefaults = async function () {
         { key: 'pro', 'limits.maxStores': { $lt: 3 } },
         { $set: { 'limits.maxStores': 3 } }
       );
+      // ultra : 10 boutiques (les DB existantes ont -1/illimité ou moins de 10)
+      await this.updateOne(
+        { key: 'ultra', $or: [{ 'limits.maxStores': null }, { 'limits.maxStores': { $lt: 10 } }] },
+        { $set: { 'limits.maxStores': 10 } }
+      );
     }
     if (!_pricingV2Migrated) {
       _pricingV2Migrated = true;
@@ -274,7 +279,7 @@ planConfigSchema.statics.seedDefaults = async function () {
         maxOrders: -1,
         maxCustomers: -1,
         maxProducts: -1,
-        maxStores: -1,
+        maxStores: 10, // Ultra : 10 boutiques
         maxUsers: -1,
         maxWhatsappInstances: 5,
         maxWhatsappMessagesPerDay: -1,

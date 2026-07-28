@@ -181,6 +181,49 @@ router.post('/', requireEcomAuth, checkPlanLimit('stores'), async (req, res) => 
       return res.status(403).json({ success: false, message: `Maximum ${MAX_STORES_PER_WORKSPACE} boutiques autorisées` });
     }
 
+    // ── MIGRATION AUTOMATIQUE de la boutique LEGACY (portée par le workspace) ──
+    // Créer une « seconde boutique » ne doit JAMAIS écraser la première : si le
+    // workspace porte encore une boutique legacy (aucun doc Store), on la
+    // matérialise D'ABORD en doc Store — même sous-domaine, mêmes réglages,
+    // mêmes pages — elle devient la boutique principale et récupère ses
+    // produits/commandes (storeId null). La nouvelle boutique est ensuite
+    // créée À CÔTÉ, jamais à la place.
+    if (storeCount === 0) {
+      const wsFull = await Workspace.findById(req.workspaceId)
+        .select('name subdomain storeSettings storeTheme storePages storeFooter storeLegalPages storeDomains createdAt')
+        .lean();
+      if (wsFull && hasLegacyWorkspaceStore(wsFull)) {
+        let legacySub = String(wsFull.subdomain || '').toLowerCase().trim();
+        if (!legacySub) {
+          let base = generateSubdomain(wsFull.storeSettings?.storeName || wsFull.name || 'boutique');
+          let candidate = base; let attempt = 0;
+          while (!(await isSubdomainAvailable(candidate))) { attempt += 1; candidate = `${base}-${attempt}`; }
+          legacySub = candidate;
+        }
+        const legacyStore = await Store.create({
+          workspaceId: req.workspaceId,
+          name: wsFull.storeSettings?.storeName || wsFull.name || 'Boutique',
+          subdomain: legacySub,
+          isActive: true,
+          storeSettings: wsFull.storeSettings || { isStoreEnabled: true },
+          ...(wsFull.storeTheme ? { storeTheme: wsFull.storeTheme } : {}),
+          ...(wsFull.storePages ? { storePages: wsFull.storePages } : {}),
+          ...(wsFull.storeFooter ? { storeFooter: wsFull.storeFooter } : {}),
+          ...(wsFull.storeLegalPages ? { storeLegalPages: wsFull.storeLegalPages } : {}),
+          ...(wsFull.storeDomains ? { storeDomains: wsFull.storeDomains } : {}),
+          createdBy: req.ecomUser._id,
+          ...(wsFull.createdAt ? { createdAt: wsFull.createdAt } : {}),
+        });
+        await Promise.all([
+          Workspace.updateOne({ _id: req.workspaceId }, { $set: { primaryStoreId: legacyStore._id } }),
+          StoreProduct.updateMany({ workspaceId: req.workspaceId, storeId: null }, { $set: { storeId: legacyStore._id } }),
+          StoreOrder.updateMany({ workspaceId: req.workspaceId, storeId: null }, { $set: { storeId: legacyStore._id } }),
+        ]);
+        invalidateStoreCache(legacySub);
+        console.log(`✅ [Stores] Boutique legacy migrée en doc Store ${legacyStore._id} (${legacySub}) — la nouvelle boutique sera créée à côté`);
+      }
+    }
+
     // Determine subdomain
     let finalSubdomain = subdomain ? subdomain.toLowerCase().trim() : null;
     if (!finalSubdomain) {

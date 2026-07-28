@@ -76,7 +76,7 @@ const DEFAULT_RUNTIME_LIMITS = {
     maxOrders: null,
     maxClients: null,
     maxProducts: null,
-    maxStores: null,
+    maxStores: 10, // le plan Ultra permet 10 boutiques
     maxUsers: null,
   }
 };
@@ -254,7 +254,23 @@ async function countByResource(resource, workspaceId) {
     }
     // Boutiques : ne compter que les actives — les boutiques supprimées
     // (soft-delete isActive:false) ne doivent pas consommer le quota du plan.
-    case 'stores': return Store.countDocuments({ ...filter, isActive: true }).catch(() => 0);
+    // Tant que la boutique historique vit encore directement sur Workspace,
+    // elle compte déjà pour 1. Sinon le middleware autoriserait un plan Free
+    // à migrer cette boutique puis à en créer une seconde dans la même requête.
+    case 'stores': {
+      const storeCount = await Store.countDocuments({ ...filter, isActive: true }).catch(() => 0);
+      if (storeCount > 0) return storeCount;
+      const ws = await Workspace.findById(workspaceId)
+        .select('subdomain storePages storeSettings')
+        .lean()
+        .catch(() => null);
+      const hasLegacyStore = Boolean(
+        ws?.subdomain
+        || ws?.storePages?.sections?.length > 0
+        || ws?.storeSettings?.isStoreEnabled === true
+      );
+      return hasLegacyStore ? 1 : 0;
+    }
     case 'whatsappInstances': return WhatsAppInstance.countDocuments(filter).catch(() => 0);
     case 'users': {
       // Count invited members only (exclude the workspace owner).
