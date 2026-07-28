@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import rateLimit from 'express-rate-limit';
 import geoip from 'geoip-lite';
 import StoreAnalytics from '../models/StoreAnalytics.js';
+import StoreVisitorPresence from '../models/StoreVisitorPresence.js';
 import StoreOrder from '../models/StoreOrder.js';
 import Order from '../models/Order.js';
 import Store from '../models/Store.js';
@@ -358,6 +359,230 @@ router.post('/track', trackRateLimit, async (req, res) => {
     res.json({ success: true });
   } catch (error) {
     console.error('Erreur tracking analytics:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ── Live View (visiteurs en temps réel, façon Shopify) ──────────────────────
+
+// Heartbeat toutes les ~20 s par visiteur → limite large pour les IP partagées (NAT mobile)
+const presenceRateLimit = rateLimit({
+  windowMs: 60 * 1000,
+  max: 240,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests' },
+});
+
+// Fenêtre "actif en ce moment" (identique à Shopify : 5 min)
+const LIVE_WINDOW_MS = 5 * 60 * 1000;
+
+/** Résout workspaceId / storeId / subdomain depuis un subdomain ou un hostname (custom domain). */
+async function resolvePresenceTarget(subdomain, hostname) {
+  if (subdomain && /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/.test(subdomain)) {
+    const storeDoc = await Store.findOne({ subdomain }).select('_id workspaceId').lean();
+    if (storeDoc) return { workspaceId: storeDoc.workspaceId, storeId: storeDoc._id, subdomain };
+    const ws = await EcomWorkspace.findOne({ subdomain }).select('_id').lean();
+    if (ws) return { workspaceId: ws._id, storeId: null, subdomain };
+  }
+  if (hostname) {
+    const cleanHost = String(hostname).toLowerCase().trim().replace(/^www\./, '').substring(0, 253);
+    if (cleanHost && !/localhost|127\.0\.0\.1|railway/.test(cleanHost)) {
+      const byDomain = await Store.findOne({ 'storeDomains.customDomain': cleanHost })
+        .select('_id workspaceId subdomain').lean();
+      if (byDomain) return { workspaceId: byDomain.workspaceId, storeId: byDomain._id, subdomain: byDomain.subdomain };
+      const ws = await EcomWorkspace.findOne({ 'storeDomains.customDomain': cleanHost })
+        .select('_id subdomain').lean();
+      if (ws) return { workspaceId: ws._id, storeId: null, subdomain: ws.subdomain };
+    }
+  }
+  return null;
+}
+
+const FUNNEL_STAGE_BY_EVENT = { browsing: 1, product: 2, checkout: 3, purchased: 4 };
+
+/**
+ * POST /api/ecom/store-analytics/presence
+ * Heartbeat du storefront public (~20 s). Upsert la présence du visiteur.
+ */
+router.post('/presence', presenceRateLimit, async (req, res) => {
+  try {
+    const {
+      subdomain, hostname, visitorId, sessionId,
+      page, productId, productName, device, browser, referrer, stage,
+    } = req.body || {};
+
+    if (!visitorId || typeof visitorId !== 'string' || visitorId.length > 64) {
+      return res.json({ success: true, skipped: true });
+    }
+    const ua = req.headers['user-agent'] || '';
+    if (isBot(ua)) return res.json({ success: true, skipped: true });
+
+    const target = await resolvePresenceTarget(subdomain, hostname);
+    if (!target) return res.json({ success: true, skipped: true });
+
+    // Geo : Cloudflare d'abord, sinon lookup IP (même logique que /track)
+    const cfCountry = req.headers['cf-ipcountry'];
+    let geoCountry = (cfCountry && cfCountry !== 'XX' && cfCountry !== 'T1') ? cfCountry : '';
+    let geoCity = req.headers['cf-ipcity'] || '';
+    if (!geoCountry || !geoCity) {
+      const geo = await lookupIpGeo(getClientIp(req));
+      if (!geoCountry) geoCountry = geo.country || '';
+      if (!geoCity) geoCity = geo.city || '';
+    }
+
+    const now = new Date();
+    const funnelStage = FUNNEL_STAGE_BY_EVENT[stage] || 1;
+    const safePath = String(page?.path || '').slice(0, 300);
+    const safeTitle = String(page?.title || '').slice(0, 200);
+
+    await StoreVisitorPresence.updateOne(
+      { subdomain: target.subdomain, visitorId },
+      {
+        $set: {
+          workspaceId: String(target.workspaceId),
+          storeId: target.storeId,
+          sessionId: String(sessionId || '').slice(0, 80),
+          page: { path: safePath, title: safeTitle },
+          productId: productId ? String(productId).slice(0, 40) : null,
+          productName: String(productName || '').slice(0, 160),
+          device: ['desktop', 'mobile', 'tablet'].includes(device) ? device : 'unknown',
+          browser: String(browser || '').slice(0, 40),
+          country: geoCountry,
+          city: geoCity,
+          lastSeenAt: now,
+        },
+        $setOnInsert: { firstSeenAt: now, referrer: String(referrer || '').slice(0, 300) },
+        $max: { funnelStage },
+      },
+      { upsert: true },
+    );
+
+    res.json({ success: true });
+  } catch (error) {
+    // Duplicate key possible sous forte concurrence d'upserts — sans gravité
+    if (error?.code === 11000) return res.json({ success: true });
+    console.warn('Erreur presence:', error.message);
+    res.status(200).json({ success: true, skipped: true });
+  }
+});
+
+/**
+ * GET /api/ecom/store-analytics/live
+ * Vue "En direct" (authentifié) : visiteurs actifs (5 min), pages vues par minute,
+ * top pages/localisations, commandes et checkouts récents.
+ */
+router.get('/live', requireEcomAuth, async (req, res) => {
+  try {
+    const workspaceId = String(req.workspaceId || '');
+    if (!workspaceId) return res.status(400).json({ error: 'workspaceId requis' });
+
+    // Scope boutique active (multi-boutique) — même logique que /dashboard
+    let storeSubdomain = null;
+    if (req.activeStoreId) {
+      const store = await Store.findById(req.activeStoreId).select('subdomain').lean();
+      if (store?.subdomain) storeSubdomain = store.subdomain;
+    }
+    if (!storeSubdomain) {
+      const ws = await EcomWorkspace.findById(workspaceId).select('subdomain').lean();
+      storeSubdomain = ws?.subdomain || null;
+    }
+
+    const now = Date.now();
+    const liveSince = new Date(now - LIVE_WINDOW_MS);
+    const last30min = new Date(now - 30 * 60 * 1000);
+
+    const presenceFilter = { workspaceId, lastSeenAt: { $gte: liveSince } };
+    const analyticsFilter = { workspaceId, timestamp: { $gte: last30min } };
+    if (storeSubdomain) {
+      presenceFilter.subdomain = storeSubdomain;
+      analyticsFilter.subdomain = storeSubdomain;
+    }
+
+    const [visitors, recentEvents] = await Promise.all([
+      StoreVisitorPresence.find(presenceFilter)
+        .sort({ lastSeenAt: -1 })
+        .limit(200)
+        .lean(),
+      StoreAnalytics.find({
+        ...analyticsFilter,
+        eventType: { $in: ['page_view', 'product_view', 'add_to_cart', 'checkout_started', 'order_placed'] },
+      })
+        .sort({ timestamp: -1 })
+        .limit(600)
+        .select('eventType timestamp page.path productName orderValue visitor.city visitor.country visitor.device')
+        .lean(),
+    ]);
+
+    // Série par minute (30 dernières minutes) pour le sparkline
+    const perMinute = Array.from({ length: 30 }, (_, i) => ({
+      t: new Date(now - (29 - i) * 60 * 1000).toISOString().slice(0, 16),
+      views: 0,
+    }));
+    const minuteIndex = new Map(perMinute.map((b, i) => [b.t, i]));
+    for (const ev of recentEvents) {
+      if (ev.eventType !== 'page_view' && ev.eventType !== 'product_view') continue;
+      const key = new Date(ev.timestamp).toISOString().slice(0, 16);
+      const idx = minuteIndex.get(key);
+      if (idx !== undefined) perMinute[idx].views += 1;
+    }
+
+    // Agrégats sur les visiteurs actifs
+    const topPages = {};
+    const topLocations = {};
+    const devices = { desktop: 0, mobile: 0, tablet: 0, unknown: 0 };
+    const funnel = { browsing: 0, product: 0, checkout: 0, purchased: 0 };
+    const stageKeys = ['browsing', 'product', 'checkout', 'purchased'];
+    for (const v of visitors) {
+      const p = v.page?.path || '/';
+      topPages[p] = (topPages[p] || 0) + 1;
+      const loc = [v.city, v.country].filter(Boolean).join(', ') || 'Inconnu';
+      topLocations[loc] = (topLocations[loc] || 0) + 1;
+      devices[v.device || 'unknown'] = (devices[v.device || 'unknown'] || 0) + 1;
+      funnel[stageKeys[(v.funnelStage || 1) - 1]] += 1;
+    }
+    const sortDesc = (obj) => Object.entries(obj)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 8)
+      .map(([key, count]) => ({ key, count }));
+
+    // Activité conversion récente (30 min)
+    const recentActivity = recentEvents
+      .filter((e) => ['add_to_cart', 'checkout_started', 'order_placed'].includes(e.eventType))
+      .slice(0, 20)
+      .map((e) => ({
+        type: e.eventType,
+        at: e.timestamp,
+        productName: e.productName || '',
+        orderValue: e.orderValue || 0,
+        city: e.visitor?.city || '',
+        country: e.visitor?.country || '',
+      }));
+
+    res.json({
+      activeCount: visitors.length,
+      visitors: visitors.slice(0, 60).map((v) => ({
+        visitorId: String(v.visitorId).slice(0, 8),
+        page: v.page || { path: '/', title: '' },
+        productName: v.productName || '',
+        device: v.device || 'unknown',
+        city: v.city || '',
+        country: v.country || '',
+        referrer: v.referrer || '',
+        stage: stageKeys[(v.funnelStage || 1) - 1],
+        firstSeenAt: v.firstSeenAt,
+        lastSeenAt: v.lastSeenAt,
+      })),
+      perMinute,
+      topPages: sortDesc(topPages),
+      topLocations: sortDesc(topLocations),
+      devices,
+      funnel,
+      recentActivity,
+      timestamp: new Date(),
+    });
+  } catch (error) {
+    console.error('Erreur live view:', error);
     res.status(500).json({ error: error.message });
   }
 });
