@@ -688,6 +688,8 @@ async function fetchInitialData(routeContext) {
               price: o.price,
               comparePrice: o.compare_price || 0,
               badge: o.label || '',
+              title: o.title || '',
+              subtitle: o.subtitle || '',
               selected: i === (qo.design?.highlight_offer ?? 0),
             })),
             design: qo.design || null,

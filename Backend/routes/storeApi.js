@@ -927,6 +927,8 @@ router.get('/:subdomain/products/:slug', readLimiter, async (req, res) => {
             price: o.price,
             comparePrice: o.compare_price || 0,
             badge: o.label || '',
+            title: o.title || '',
+            subtitle: o.subtitle || '',
             selected: i === (quantityOffer.design?.highlight_offer ?? 0),
           })),
           ...(quantityOffer.design ? { quantityOfferDesign: quantityOffer.design } : {})
@@ -1194,6 +1196,8 @@ router.get('/:subdomain/product-page/:slug', readLimiter, async (req, res) => {
         price: o.price,
         comparePrice: o.compare_price || 0,
         badge: o.label || '',
+        title: o.title || '',
+        subtitle: o.subtitle || '',
         selected: i === (quantityOffer.design?.highlight_offer ?? 0),
       }));
       if (quantityOffer.design) productData.quantityOfferDesign = quantityOffer.design;
