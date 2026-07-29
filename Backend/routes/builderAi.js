@@ -240,6 +240,24 @@ async function callModel(messages, _model) {
 const SYSTEM_PROMPT = `Tu es un assistant IA tout-puissant intégré dans un builder de page produit e-commerce.
 Tu peux TOUT modifier sur la page : contenu, couleurs, polices, code HTML/CSS/JS, images, sections. Tu ne refuses JAMAIS une demande. Tu exécutes TOUJOURS.
 
+AUCUNE LIMITE DE DESIGN : si la demande dépasse ce que les sections et réglages standards permettent (layout inédit, animations, style radical, composant qui n'existe pas), tu la réalises quand même — construis-le en HTML/CSS/JS via "customSections" (bloc autonome <style> préfixé + HTML + <script> léger) et/ou "customCss"/"customJs". Ne rabats JAMAIS la demande vers un gabarit standard « le plus proche » : livre EXACTEMENT ce qui est décrit.
+
+RÈGLES customSections (ajout / modification / suppression — édition libre) :
+- Le contexte fourni contient les sections existantes avec leurs "id". Renvoie UNIQUEMENT les sections concernées par la demande — jamais celles qui ne changent pas.
+- MODIFIER : renvoie la section avec le MÊME "id" et son "html" complet mis à jour → elle est remplacée (jamais dupliquée).
+- AJOUTER : renvoie une nouvelle entrée sans id (ou avec un id nouveau).
+- SUPPRIMER une section précise : renvoie {"id": "cs_…", "_remove": true}.
+- TOUT SUPPRIMER : renvoie "customSections": [].
+- Désactiver sans supprimer : renvoie la section avec "enabled": false.
+- "placement" : "top" (tout en haut de la page), "beforeCta" (JUSTE AVANT le bouton d'achat — urgence, compte à rebours), "afterCta" (JUSTE APRÈS le bouton d'achat — bannières promo, garanties), "bottom" (dans le flux de la page). « avant le bouton commander » → "beforeCta" ; « après le bouton » → "afterCta".
+- DÉPLACER une section : renvoie UNIQUEMENT {"id": "cs_…", "placement": "…"} — sans "html" (le contenu existant est conservé tel quel).
+- HONNÊTETÉ ABSOLUE : ne réponds « Fait » QUE si ton patch réalise réellement la demande. Si tu ne peux pas la réaliser avec les champs disponibles, dis-le clairement dans "reply" et propose l'alternative la plus proche — ne prétends JAMAIS avoir fait un changement que le patch ne contient pas.
+- ÉTAT RÉEL = LE CONTEXTE, PAS L'HISTORIQUE : le CONTEXTE ACTUEL fourni à chaque message reflète l'état RÉEL de la page (le html complet des customSections y figure). L'historique de conversation ne prouve RIEN : un patch précédent peut avoir échoué. Si l'utilisateur dit qu'un changement n'est pas visible, il a raison — vérifie le html dans le contexte : si le changement n'y est pas, renvoie IMMÉDIATEMENT un patch complet qui l'applique. Ne réponds JAMAIS « c'est déjà présent » si le contexte ne le montre pas.
+- INTERDIT : ne JAMAIS insérer du contenu visible via "customJs" (createElement/innerHTML/insertAdjacentElement) — le contenu doit TOUJOURS être une customSection (visible dans l'éditeur, modifiable, supprimable). "customJs" sert uniquement à la logique (compteurs, interactions sur des éléments existants).
+- JSON STRICT : n'échappe JAMAIS les apostrophes avec \\' (illégal en JSON) — écris l'apostrophe telle quelle.
+
+ANIMER LE BOUTON COMMANDER : utilise EXCLUSIVEMENT "pageConfigPatch": {"button": {"animation": "<id>"}} — appliqué automatiquement à tous les boutons d'achat (pages standard ET premium). Ids valides : pulse (pulsation), bounce (rebond), shake (vibration), glow (halo), breathe (respiration), wobble (balancement), heartbeat (battement), jelly (gélatine), swing (danse/pendule), tada, neon, gradient-shift, shimmer (reflet), rubber (élastique), flash, none (désactiver). « ça doit danser » → "swing" ou "tada". N'écris JAMAIS de customCss/customJs pour animer le bouton.
+
 Quand l'utilisateur demande une modification :
 1. Tu l'appliques immédiatement via un patch JSON
 2. Tu confirmes brièvement ce que tu as fait
@@ -610,7 +628,7 @@ ${compactSections.slice(0, 24000)}`;
 - Sections premium (ordre actuel): ${currentSectionOrder.join(', ')}
 - Sections cachées: ${hiddenSections.join(', ') || 'aucune'}
 - Sections classiques (general.sections — ordre = ordre page): ${JSON.stringify(classicSections).slice(0, 4000) || 'défauts (aucune personnalisation)'}
-- Sections personnalisées existantes (customSections — pour modifier, réutilise le même id): ${JSON.stringify((productPageConfig?.customSections || []).map((s, i) => ({ id: s.id || `cs_${i}`, label: s.label || 'Section IA', placement: s.placement === 'top' ? 'top' : 'bottom', enabled: s.enabled !== false, html: String(s.html || '').slice(0, 800) }))).slice(0, 4000)}
+- Sections personnalisées existantes (customSections — HTML COMPLET, c'est l'état RÉEL de la page ; pour modifier, réutilise le même id et renvoie le html entier mis à jour): ${JSON.stringify((productPageConfig?.customSections || []).map((s, i) => ({ id: s.id || `cs_${i}`, label: s.label || 'Section IA', placement: ['top', 'beforeCta', 'afterCta', 'bottom'].includes(s.placement) ? s.placement : 'bottom', enabled: s.enabled !== false, html: String(s.html || '').slice(0, 6000) }))).slice(0, 26000)}
 - Contenu premium (premiumPage): ${JSON.stringify(productPageConfig?.premiumPage || {}, (k, v) => (typeof v === 'string' && v.length > 300 ? `${v.slice(0, 280)}…` : v)).slice(0, 3000)}
 - Bouton: ${JSON.stringify(productPageConfig?.button || {}).slice(0, 200)}
 - Images actuelles: ${JSON.stringify(productPageConfig?.premiumImages || {}).slice(0, 400)}
@@ -634,24 +652,45 @@ ${compactSections.slice(0, 24000)}`;
     const rawContent = await callModel(messages, model);
 
     let parsed;
-    try {
-      // Strip markdown code fences then extract the FIRST complete JSON object
-      let cleaned = rawContent.replace(/```(?:json)?\s*/gi, '').replace(/```/g, '').trim();
-      const start = cleaned.indexOf('{');
-      if (start !== -1) {
-        // Walk forward to find the matching closing brace
-        let depth = 0, end = -1;
-        for (let i = start; i < cleaned.length; i++) {
-          if (cleaned[i] === '{') depth++;
-          else if (cleaned[i] === '}') { depth--; if (depth === 0) { end = i; break; } }
+    {
+      // Strip markdown code fences then extract the FIRST complete JSON object.
+      // Brace-walk STRING-AWARE : les { } à l'intérieur des chaînes (HTML/CSS/JS
+      // inline, @keyframes…) ne comptent pas — sinon l'objet est tronqué.
+      const stripped = String(rawContent || '').replace(/```(?:json)?\s*/gi, '').replace(/```/g, '').trim();
+      const extractJsonObject = (text) => {
+        const start = text.indexOf('{');
+        if (start === -1) return null;
+        let depth = 0, inStr = false, esc = false;
+        for (let i = start; i < text.length; i++) {
+          const ch = text[i];
+          if (esc) { esc = false; continue; }
+          if (ch === '\\') { if (inStr) esc = true; continue; }
+          if (ch === '"') { inStr = !inStr; continue; }
+          if (inStr) continue;
+          if (ch === '{') depth++;
+          else if (ch === '}') { depth--; if (depth === 0) return text.slice(start, i + 1); }
         }
-        if (end !== -1) cleaned = cleaned.slice(start, end + 1);
+        return null;
+      };
+      const candidate = extractJsonObject(stripped);
+      const tryParse = (s) => { try { return JSON.parse(s); } catch { return null; } };
+      if (candidate) {
+        parsed = tryParse(candidate)
+          // Réparation ciblée : \' est ILLÉGAL en JSON (les IA le produisent
+          // souvent dans du JS inline avec apostrophes françaises) → '
+          || tryParse(candidate.replace(/\\'/g, "'"));
       }
-      parsed = JSON.parse(cleaned);
-    } catch (_) {
-      // Réponse non-JSON (salutation, question, explication) → texte brut tel quel
-      const textReply = String(rawContent || '').replace(/```(?:json)?/gi, '').trim().slice(0, 1500);
-      parsed = { reply: textReply || "Je n'ai pas compris — reformulez votre demande.", pageConfigPatch: null, themePatch: null };
+      if (!parsed) {
+        if (candidate || stripped.startsWith('{')) {
+          // Ressemble à du JSON mais imparsable : ne JAMAIS afficher le JSON
+          // brut à l'utilisateur — message d'échec actionnable.
+          console.warn('[BuilderAI] Réponse JSON imparsable (%d chars)', stripped.length);
+          parsed = { reply: "Je n'ai pas réussi à appliquer cette modification (réponse mal formée). Reformule ou redemande — je réessaie.", pageConfigPatch: null, themePatch: null };
+        } else {
+          // Réponse non-JSON (salutation, question, explication) → texte brut tel quel
+          parsed = { reply: stripped.slice(0, 1500) || "Je n'ai pas compris — reformulez votre demande.", pageConfigPatch: null, themePatch: null };
+        }
+      }
     }
 
     console.log('[BuilderAI] Parsed response:', JSON.stringify(parsed, null, 2));
@@ -2005,6 +2044,111 @@ router.post('/clone-product-page/save', requireEcomAuth, async (req, res) => {
   } catch (err) {
     console.error('[BuilderAI] clone save error:', err.message);
     return res.status(500).json({ success: false, message: err.message || 'Création du produit impossible' });
+  }
+});
+
+// ─── POST /builder-ai/generate-custom-page — page produit SUR MESURE par IA ──
+// Design 100 % libre : l'IA construit EXACTEMENT ce que le marchand décrit,
+// sans aucun gabarit Scalor (palette, layout, sections, animations libres).
+// La page est stockée dans _pageData.clonedPage (même canal que le clone) →
+// rendue telle quelle sur la boutique, boutons d'achat branchés sur le
+// formulaire de commande, et modifiable dans l'éditeur de page (texte,
+// sections, retouches IA ciblées, traduction).
+// Body : { productId, brief } → { success, productId }
+const CUSTOM_PAGE_PROMPT = `Tu es un directeur artistique ET développeur front-end senior. Tu construis la PAGE PRODUIT COMPLÈTE d'une boutique e-commerce africaine francophone (devise FCFA, paiement à la livraison).
+
+LIBERTÉ TOTALE DE DESIGN — c'est la règle n°1 : tu suis EXACTEMENT le brief du marchand. Palette, ambiance, mise en page, ordre des sections, typographies (stack système), animations CSS, formes, illustrations CSS : tout est permis. AUCUN gabarit imposé. Si le brief demande du néon gaming, du luxe noir & or, un style marché coloré, du brutalisme — tu le fais à fond, sans l'adoucir.
+
+CONTRAINTES TECHNIQUES (les SEULES limites) :
+- UNE page autonome : un bloc <style> en tête (classes préfixées .scp-) puis le HTML sémantique. JS inline léger autorisé en <script> final (accordéon, slider, compteur) — AUCUNE dépendance externe, aucun CDN, aucun attribut on*.
+- Mobile-first (parfaite à 390 px de large), superbe aussi sur desktop.
+- Utilise les VRAIES images produit fournies (leurs URLs exactes dans des <img>) — jamais d'images externes, jamais de placeholder.
+- CHAQUE bouton d'achat porte data-scalor-cta="1" et href="#commander" — c'est ce qui ouvre le formulaire de commande de la boutique. Mets-en au moins 3 (héros, après l'argumentaire, fin de page) avec un libellé d'action clair.
+- Affiche le prix réel fourni (et le prix barré si fourni). Pas de header/nav/footer de site, pas de liens externes, pas de <html>/<head>/<body> (fragment injecté dans la page boutique).
+- Textes 100 % français, vendeurs et crédibles, construits à partir de la description fournie (bénéfices concrets, objections levées, urgence honnête).
+- Code DENSE et efficace : pas de commentaires, pas de répétitions inutiles — la page doit tenir dans ta réponse.
+
+RÉPONDS UNIQUEMENT AVEC LE CODE BRUT (le <style> puis le HTML puis l'éventuel <script>). Pas de markdown, pas d'explication.`;
+
+router.post('/generate-custom-page', requireEcomAuth, async (req, res) => {
+  let pageResv = null;
+  try {
+    const productId = String(req.body?.productId || '').trim();
+    const brief = String(req.body?.brief || '').trim().slice(0, 2500);
+    if (!mongoose.Types.ObjectId.isValid(productId)) return res.status(400).json({ success: false, message: 'Produit invalide' });
+    if (brief.length < 10) return res.status(400).json({ success: false, message: 'Décris la page voulue (au moins 10 caractères)' });
+    if (!DEEPSEEK_API_KEY) return res.status(503).json({ success: false, message: 'Service IA non disponible' });
+
+    const StoreProduct = (await import('../models/StoreProduct.js')).default;
+    const product = await StoreProduct.findOne({ _id: productId, workspaceId: req.workspaceId });
+    if (!product) return res.status(404).json({ success: false, message: 'Produit introuvable' });
+
+    // Débit : génération builder (grille Creative Center)
+    {
+      const { reserveFeatureCredits, sendInsufficientCredits } = await import('../services/creativeCredits.js');
+      pageResv = await reserveFeatureCredits(req.workspaceId, 'builder_ai', undefined, { custom_page: true });
+      if (!pageResv.ok) return sendInsufficientCredits(res, 'builder_ai', pageResv);
+    }
+
+    const imgs = (product.images || []).map((im) => im?.url).filter((u) => /^https?:\/\//.test(String(u || ''))).slice(0, 6);
+    const feats = (product.features || []).map((f) => f?.text).filter(Boolean).slice(0, 10);
+    const faqs = (product.faq || []).slice(0, 6).map((q) => `${q.question} → ${q.answer}`);
+    const testis = (product.testimonials || []).slice(0, 4).map((t) => `${t.name || 'Client'} (${t.rating || 5}★) : ${t.text}`);
+    const userParts = [
+      `PRODUIT : ${product.name}`,
+      `PRIX : ${product.price} ${product.currency || 'FCFA'}${product.compareAtPrice > product.price ? ` (prix barré : ${product.compareAtPrice} ${product.currency || 'FCFA'})` : ''}`,
+      `DESCRIPTION (matière première des textes) :\n${String(product.description || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 3000) || '—'}`,
+      imgs.length ? `IMAGES PRODUIT (utilise ces URLs exactes) :\n${imgs.join('\n')}` : 'IMAGES : aucune — compose sans image.',
+      feats.length ? `POINTS FORTS : ${feats.join(' · ')}` : '',
+      faqs.length ? `FAQ EXISTANTE :\n${faqs.join('\n')}` : '',
+      testis.length ? `TÉMOIGNAGES RÉELS :\n${testis.join('\n')}` : '',
+      `BRIEF DU MARCHAND (à suivre EXACTEMENT) :\n${brief}`,
+    ].filter(Boolean).join('\n\n');
+
+    const raw = String(await callModel([
+      { role: 'system', content: CUSTOM_PAGE_PROMPT },
+      { role: 'user', content: userParts },
+    ], 'deepseek') || '')
+      .replace(/^\s*```(?:html)?\s*/i, '')
+      .replace(/```\s*$/g, '')
+      .trim();
+    if (raw.length < 400) {
+      if (pageResv?.ok) await pageResv.refund('réponse IA trop courte');
+      return res.status(502).json({ success: false, message: 'Réponse IA incomplète — réessayez' });
+    }
+
+    // Sépare les blocs <style> (→ css) du reste (→ html)
+    let css = '';
+    const html = raw.replace(/<style[^>]*>([\s\S]*?)<\/style>/gi, (_, c) => { css += `\n${c}`; return ''; }).trim();
+
+    // Filet CTA : si l'IA a oublié le marquage, marquer les boutons d'achat évidents
+    let markedHtml = html;
+    if (!/data-scalor-cta/i.test(markedHtml)) {
+      markedHtml = markedHtml.replace(
+        /<(a|button)\b([^>]*)>([^<]{0,80}?(?:commander|acheter|j'?en profite|je le veux|ajouter au panier|order|buy)[^<]{0,80}?)<\/\1>/gi,
+        (m, tag, attrs, txt) => `<${tag}${attrs} data-scalor-cta="1">${txt}</${tag}>`,
+      );
+    }
+
+    product._pageData = {
+      ...(product._pageData || {}),
+      clonedPage: {
+        html: markedHtml.slice(0, 900000),
+        css: css.trim().slice(0, 480000),
+        sourceUrl: 'ai:custom',
+        brief: brief.slice(0, 500),
+        generatedAt: new Date(),
+      },
+    };
+    product.markModified('_pageData');
+    await product.save();
+
+    (await import('../models/FeatureUsageLog.js')).default.track(req, 'builder_ai_image', { custom_page: true });
+    return res.json({ success: true, productId: String(product._id), creditsUsed: pageResv?.credits ?? 0, creditsRemaining: pageResv?.remaining });
+  } catch (error) {
+    if (pageResv?.ok) await pageResv.refund(error.message);
+    console.error('[BuilderAI] generate-custom-page error:', error?.response?.status, error.message);
+    return res.status(500).json({ success: false, message: aiErrorMessage(error) });
   }
 });
 
