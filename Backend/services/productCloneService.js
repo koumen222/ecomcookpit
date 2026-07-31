@@ -14,6 +14,8 @@
 import axios from 'axios';
 import { parseAiJson } from '../utils/aiJson.js';
 
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 // ── Jobs de clonage en mémoire (TTL 30 min), comme les autres pipelines ──
 const cloneJobs = new Map();
 const JOB_TTL_MS = 30 * 60 * 1000;
@@ -307,7 +309,10 @@ export async function replicateFullPage(url) {
 // Réécriture ORIGINALE de la fiche via DeepSeek.
 async function rewriteListing(scraped, ctx) {
   const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || '';
-  if (!DEEPSEEK_API_KEY) throw new Error('Service IA non configuré (DEEPSEEK_API_KEY)');
+  const GROQ_API_KEY = process.env.GROQ_API_KEY || '';
+  if (!DEEPSEEK_API_KEY && !GROQ_API_KEY) {
+    throw new Error('Service IA non configuré (DEEPSEEK_API_KEY ou GROQ_API_KEY)');
+  }
   const system = `Tu es un copywriter e-commerce senior pour le marché africain francophone (paiement à la livraison).
 On te donne le CONTENU INTÉGRAL d'une page produit concurrente, section par section. Tu produis un CLONE COMPLET de la page : TOUT le contenu est repris — chaque section, chaque argument, chaque information — mais RÉÉCRIT avec tes mots (jamais de copier-coller mot à mot : meilleur SEO, pas de contenu dupliqué), amélioré et adapté au COD africain. Réponds UNIQUEMENT avec ce JSON :
 {"name":"…","description":"… (HTML riche — voir règles)","category":"…","tags":["…"],"seoTitle":"… (max 60 car.)","seoDescription":"… (max 155 car.)","suggestedPrice":<nombre en FCFA, prix psychologique ex. 14900>,"features":[{"icon":"Check","text":"… (max 40 car.)"}],"faq":[{"question":"…","answer":"…"}],"testimonials":[{"name":"Prénom","text":"…","rating":5,"location":"Ville"}]}
@@ -327,22 +332,70 @@ Description concurrente : ${(scraped.description || '').slice(0, 1500) || '—'}
 CONTENU INTÉGRAL DE LA PAGE (section par section, à reprendre EN ENTIER) :
 ${(sectionsBlock || scraped.rawText).slice(0, 11000)}`;
 
-  // 2 tentatives : les LLM sont non-déterministes, un JSON imparsable au
-  // premier appel passe presque toujours au second. En cas d'échec, la FIN de
-  // la réponse est loguée (diagnostic troncature / échappement).
-  for (let attempt = 1; attempt <= 2; attempt += 1) {
-    const resp = await axios.post('https://api.deepseek.com/chat/completions', {
+  const messages = [{ role: 'system', content: system }, { role: 'user', content: user }];
+  const providers = [
+    ...(DEEPSEEK_API_KEY ? [{
+      name: 'DeepSeek',
+      url: 'https://api.deepseek.com/chat/completions',
+      key: DEEPSEEK_API_KEY,
       model: process.env.DEEPSEEK_MODEL || 'deepseek-v4-pro',
-      messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
-      stream: false, max_tokens: 8000, thinking: { type: 'disabled' },
-    }, { headers: { Authorization: `Bearer ${DEEPSEEK_API_KEY}`, 'Content-Type': 'application/json' }, timeout: 150000 });
-    const raw = resp.data?.choices?.[0]?.message?.content || '';
-    const parsed = parseAiJson(raw);
-    if (parsed) return parsed;
-    const finish = resp.data?.choices?.[0]?.finish_reason || '?';
-    console.warn(`[Clone] réécriture IA imparsable (tentative ${attempt}/2, finish=${finish}, ${raw.length} car.) — fin de réponse : …${raw.slice(-400)}`);
+      extra: { thinking: { type: 'disabled' } },
+    }] : []),
+    ...(GROQ_API_KEY ? [{
+      name: 'Groq',
+      url: 'https://api.groq.com/openai/v1/chat/completions',
+      key: GROQ_API_KEY,
+      model: process.env.GROQ_MODEL || 'openai/gpt-oss-20b',
+      extra: { temperature: 0.35 },
+    }] : []),
+  ];
+
+  let lastStatus = null;
+  let lastMessage = '';
+  for (const provider of providers) {
+    // Une réponse JSON tronquée ou un 429 transitoire mérite une seconde
+    // tentative. Si DeepSeek reste saturé, Groq prend automatiquement le relais.
+    for (let attempt = 1; attempt <= 2; attempt += 1) {
+      try {
+        const resp = await axios.post(provider.url, {
+          model: provider.model,
+          messages,
+          stream: false,
+          max_tokens: 8000,
+          response_format: { type: 'json_object' },
+          ...provider.extra,
+        }, {
+          headers: { Authorization: `Bearer ${provider.key}`, 'Content-Type': 'application/json' },
+          timeout: 150000,
+        });
+        const raw = resp.data?.choices?.[0]?.message?.content || '';
+        const parsed = parseAiJson(raw);
+        if (parsed) {
+          console.log(`[Clone] réécriture réussie via ${provider.name} (${provider.model})`);
+          return parsed;
+        }
+        const finish = resp.data?.choices?.[0]?.finish_reason || '?';
+        lastMessage = `réponse JSON invalide (finish=${finish})`;
+        console.warn(`[Clone] ${provider.name} imparsable (tentative ${attempt}/2, finish=${finish}, ${raw.length} car.) — fin : …${raw.slice(-400)}`);
+      } catch (err) {
+        lastStatus = err?.response?.status || null;
+        lastMessage = err?.response?.data?.error?.message || err?.message || 'erreur inconnue';
+        console.warn(`[Clone] ${provider.name} en échec (tentative ${attempt}/2, HTTP ${lastStatus || 'réseau'}): ${lastMessage}`);
+      }
+
+      if (attempt < 2) {
+        // Retry-After DeepSeek est souvent proche d'une minute. On ne bloque
+        // pas le job aussi longtemps : petit backoff puis fournisseur suivant.
+        await wait(lastStatus === 429 ? 2500 : 750);
+      }
+    }
   }
-  throw new Error('Réécriture IA invalide — réessayez');
+
+  if (lastStatus === 429) {
+    throw new Error('Service IA temporairement saturé — réessayez dans quelques instants.');
+  }
+  console.error(`[Clone] tous les fournisseurs de texte ont échoué : ${lastMessage}`);
+  throw new Error('Réécriture IA indisponible — réessayez dans quelques instants.');
 }
 
 async function runCloneJob(job) {

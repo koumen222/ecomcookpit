@@ -1998,7 +1998,9 @@ router.post('/voiceover', requireEcomAuth, async (req, res) => {
 // POST /builder-ai/clone-product-page/save { product } → crée le StoreProduct
 router.post('/clone-product-page', requireEcomAuth, async (req, res) => {
   try {
-    if (!process.env.DEEPSEEK_API_KEY) return res.status(503).json({ success: false, message: 'Service IA non disponible' });
+    if (!process.env.DEEPSEEK_API_KEY && !process.env.GROQ_API_KEY) {
+      return res.status(503).json({ success: false, message: 'Service IA non disponible' });
+    }
     const { url = '', maxImages = 4 } = req.body || {};
     if (!/^https?:\/\/.+\..+/.test(String(url).trim())) {
       return res.status(400).json({ success: false, message: 'URL du produit concurrent requise (http/https)' });
