@@ -7,6 +7,7 @@ import axios from 'axios';
 import OpenAI from 'openai';
 import { uploadImage, isConfigured } from './cloudflareImagesService.js';
 import { callKieChatCompletion, isKieConfigured } from './kieChatService.js';
+import { parseAiJson } from '../utils/aiJson.js';
 
 let _openai = null;
 
@@ -209,13 +210,9 @@ RÈGLES STRICTES:
     throw kieErr;
   }
 
-  try {
-    return JSON.parse(raw);
-  } catch {
-    const match = raw.match(/\{[\s\S]+\}/);
-    if (match) return JSON.parse(match[0]);
-    throw new Error('Réponse IA invalide — veuillez réessayer');
-  }
+  const parsed = parseAiJson(raw);
+  if (!parsed) throw new Error('Réponse IA invalide — veuillez réessayer');
+  return parsed;
 }
 
 // ─── Step 3: DALL-E Marketing Images ─────────────────────────────────────────

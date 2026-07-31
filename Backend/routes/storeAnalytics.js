@@ -499,7 +499,12 @@ router.get('/live', requireEcomAuth, async (req, res) => {
       analyticsFilter.subdomain = storeSubdomain;
     }
 
-    const [visitors, recentEvents] = await Promise.all([
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+    const dayFilter = { workspaceId, eventType: 'page_view', timestamp: { $gte: startOfDay } };
+    if (storeSubdomain) dayFilter.subdomain = storeSubdomain;
+
+    const [visitors, recentEvents, todaySessions, lastView] = await Promise.all([
       StoreVisitorPresence.find(presenceFilter)
         .sort({ lastSeenAt: -1 })
         .limit(200)
@@ -512,6 +517,14 @@ router.get('/live', requireEcomAuth, async (req, res) => {
         .limit(600)
         .select('eventType timestamp page.path productName orderValue visitor.city visitor.country visitor.device')
         .lean(),
+      // Visites du jour (sessions distinctes) — pour le hero du dashboard
+      StoreAnalytics.distinct('sessionId', dayFilter),
+      // Dernière visite géolocalisée — notification façon Shopify
+      StoreAnalytics.findOne({
+        ...(storeSubdomain ? { subdomain: storeSubdomain } : {}),
+        workspaceId,
+        eventType: { $in: ['page_view', 'product_view'] },
+      }).sort({ timestamp: -1 }).select('timestamp visitor.city visitor.country page.path').lean(),
     ]);
 
     // Série par minute (30 dernières minutes) pour le sparkline
@@ -561,6 +574,13 @@ router.get('/live', requireEcomAuth, async (req, res) => {
 
     res.json({
       activeCount: visitors.length,
+      visitsToday: todaySessions.length,
+      lastVisit: lastView ? {
+        at: lastView.timestamp,
+        city: lastView.visitor?.city || '',
+        country: lastView.visitor?.country || '',
+        path: lastView.page?.path || '/',
+      } : null,
       visitors: visitors.slice(0, 60).map((v) => ({
         visitorId: String(v.visitorId).slice(0, 8),
         page: v.page || { path: '/', title: '' },

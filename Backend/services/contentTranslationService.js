@@ -12,6 +12,7 @@ import crypto from 'crypto';
 import Groq from 'groq-sdk';
 import StoreProduct from '../models/StoreProduct.js';
 import { callKieChatCompletion, extractKieContent, isKieConfigured } from './kieChatService.js';
+import { parseAiJsonArray } from '../utils/aiJson.js';
 
 let _groq = null;
 function getGroq() {
@@ -103,8 +104,7 @@ async function translateBatch(strings, targetLang) {
     });
     raw = response?.choices?.[0]?.message?.content || '[]';
   }
-  const match = raw.match(/\[[\s\S]*\]/);
-  const parsed = JSON.parse(match ? match[0] : raw);
+  const parsed = parseAiJsonArray(raw);
   if (!Array.isArray(parsed) || parsed.length !== strings.length) {
     throw new Error(`Lot de traduction invalide (${Array.isArray(parsed) ? parsed.length : 'non-array'}/${strings.length})`);
   }

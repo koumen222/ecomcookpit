@@ -237,6 +237,33 @@ async function callModel(messages, _model) {
   return callDeepseek(messages);
 }
 
+/**
+ * Parse ROBUSTE du JSON produit par un LLM :
+ *  - extraction du PREMIER objet balancé (les { } à l'intérieur des chaînes —
+ *    HTML/CSS inline, @keyframes… — ne comptent pas) ;
+ *  - réparation \' (échappement ILLÉGAL en JSON que les IA produisent souvent
+ *    dans du texte français) puis nouvelle tentative.
+ * Retourne null si vraiment imparsable — ne JAMAIS relancer JSON.parse brut.
+ */
+function parseAiJson(raw) {
+  const text = String(raw || '').replace(/```(?:json)?/gi, '').trim();
+  const start = text.indexOf('{');
+  if (start === -1) return null;
+  let depth = 0; let inStr = false; let esc = false; let end = -1;
+  for (let i = start; i < text.length; i += 1) {
+    const ch = text[i];
+    if (esc) { esc = false; continue; }
+    if (ch === '\\') { if (inStr) esc = true; continue; }
+    if (ch === '"') { inStr = !inStr; continue; }
+    if (inStr) continue;
+    if (ch === '{') depth += 1;
+    else if (ch === '}') { depth -= 1; if (depth === 0) { end = i; break; } }
+  }
+  const candidate = end !== -1 ? text.slice(start, end + 1) : text.slice(start);
+  try { return JSON.parse(candidate); } catch { /* retry réparé */ }
+  try { return JSON.parse(candidate.replace(/\\'/g, "'")); } catch { return null; }
+}
+
 const SYSTEM_PROMPT = `Tu es un assistant IA tout-puissant intégré dans un builder de page produit e-commerce.
 Tu peux TOUT modifier sur la page : contenu, couleurs, polices, code HTML/CSS/JS, images, sections. Tu ne refuses JAMAIS une demande. Tu exécutes TOUJOURS.
 
@@ -1893,10 +1920,8 @@ router.post('/launch-kit', requireEcomAuth, async (req, res) => {
     const userMsg = `Produit : ${productName || '(non précisé)'}\nDescription : ${ctx || '—'}\nLien : ${url || '—'}\nLangue de rédaction : ${langName}\nTon : ${tone}\nCible imposée par le marchand : ${audienceClean || '— (déduis la cible du produit)'}\nQui prononce le script face caméra : ${speakerClean || '— (créateur UGC générique)'}\nSuggestion du marchand pour les angles : ${angleSuggestion || '—'}\nDonnées commerciales : ${JSON.stringify(safeMarketInputs)}\nAngles marketing à respecter : ${adsAngles.length ? JSON.stringify(adsAngles) : '—'}\n\nGénère uniquement : ${wanted.join(', ')}. Réponds EXACTEMENT avec ce JSON :\n{${wanted.map(p => schemas[p]).join(',')}}\nÉcris tout en ${langName}.${audienceClean ? ` CONTRAINTE : chaque angle, hook et script s'adresse EXCLUSIVEMENT à cette cible : ${audienceClean}.` : ''}${angleSuggestion ? ` CONSIGNE DU MARCHAND (prioritaire pour les angles) : ${angleSuggestion} — au moins la moitié des angles suivent explicitement cette direction.` : ''}${speakerClean ? ` CONTRAINTE : le script est prononcé par cette personne : ${speakerClean} — adapte le ton, le vocabulaire et la posture à qui elle est (docteur/expert → autorité calme et rassurante, preuves ; client → témoignage authentique à la première personne ; vendeur → enthousiasme commerçant direct). Le texte doit sonner CRÉDIBLE dans sa bouche.` : ''}`;
 
     const raw = await callDeepseek([{ role: 'system', content: system }, { role: 'user', content: userMsg }]);
-    const match = String(raw || '').match(/\{[\s\S]*\}/);
-    if (!match) throw new Error('Réponse IA invalide');
-    let parsed;
-    try { parsed = JSON.parse(match[0]); } catch { throw new Error('JSON IA invalide'); }
+    const parsed = parseAiJson(raw);
+    if (!parsed) throw new Error('JSON IA invalide — réessaye');
 
     const kit = {};
     if (wanted.includes('angles')) kit.angles = Array.isArray(parsed.angles) ? parsed.angles.slice(0, nAngles).map(a => ({ ...a, hooks: Array.isArray(a.hooks) ? a.hooks.slice(0, 3) : [] })) : [];
@@ -2199,9 +2224,8 @@ ${html.slice(0, 110000)}`;
     }, { headers: { Authorization: `Bearer ${DEEPSEEK_API_KEY}`, 'Content-Type': 'application/json' }, timeout: 120000 });
 
     const raw = resp.data?.choices?.[0]?.message?.content || '';
-    const m = raw.match(/\{[\s\S]*\}/);
-    if (!m) throw new Error('Réponse IA invalide');
-    const parsed = JSON.parse(m[0]);
+    const parsed = parseAiJson(raw);
+    if (!parsed) throw new Error('Réponse IA invalide — réessaye');
     const ops = Array.isArray(parsed.ops) ? parsed.ops.slice(0, 8) : [];
 
     let applied = 0;
@@ -2292,8 +2316,7 @@ router.post('/translate-cloned-page', requireEcomAuth, async (req, res) => {
           stream: false, max_tokens: 6000, thinking: { type: 'disabled' },
         }, { headers: { Authorization: `Bearer ${DEEPSEEK_API_KEY}`, 'Content-Type': 'application/json' }, timeout: 120000 });
         const raw = resp.data?.choices?.[0]?.message?.content || '';
-        const mm = raw.match(/\{[\s\S]*\}/);
-        const parsed = mm ? JSON.parse(mm[0]) : null;
+        const parsed = parseAiJson(raw);
         arr = Array.isArray(parsed?.t) ? parsed.t : [];
       } catch { arr = []; }
       for (let k = 0; k < chunk.length; k += 1) {
@@ -2597,9 +2620,8 @@ Valeurs autorisées — transitions: ${TR.join(',')} ; kenBurns: ${KB.join(',')}
     const user = `Produit : ${String(productName).slice(0, 120) || '—'}\nContexte : ${String(productContext).replace(/<[^>]+>/g, ' ').slice(0, 600) || '—'}\nStoryboard : ${JSON.stringify(sc)}`;
 
     const raw = await callDeepseek([{ role: 'system', content: system }, { role: 'user', content: user }]);
-    const match = String(raw || '').match(/\{[\s\S]*\}/);
-    if (!match) throw new Error('Réponse IA invalide');
-    const d = JSON.parse(match[0]);
+    const d = parseAiJson(raw);
+    if (!d) throw new Error('Réponse IA invalide — réessaye');
     const pick = (v, list, fb) => (list.includes(v) ? v : fb);
     let accentCount = 0;
     const plan = {
@@ -2671,9 +2693,8 @@ ${lines.length ? lines.map((l, i) => `${i + 1}. ${l}`).join('\n') : '—'}
 Instruction du monteur : ${inst}`;
 
     const raw = await callDeepseek([{ role: 'system', content: system }, { role: 'user', content: user }]);
-    const match = String(raw || '').match(/\{[\s\S]*\}/);
-    if (!match) throw new Error('Réponse IA invalide');
-    const d = JSON.parse(match[0]);
+    const d = parseAiJson(raw);
+    if (!d) throw new Error('Réponse IA invalide — réessaye');
     const ROLES = ['hook', 'probleme', 'benefice', 'demo', 'preuve', 'cta'];
     const scene = {
       role: ROLES.includes(d.role) ? d.role : 'benefice',

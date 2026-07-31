@@ -7,6 +7,7 @@
  */
 
 import express from 'express';
+import { parseAiJson } from '../utils/aiJson.js';
 import axios from 'axios';
 import multer from 'multer';
 import { randomUUID } from 'crypto';
@@ -202,18 +203,9 @@ IMPORTANT:
     { role: 'system', content: 'Tu es un expert copywriting e-commerce Afrique. Retourne uniquement du JSON valide.' },
     { role: 'user', content: prompt },
   ]);
-  let cleaned = raw.replace(/```(?:json)?\s*/gi, '').replace(/```/g, '').trim();
-  const start = cleaned.indexOf('{');
-  const end = cleaned.lastIndexOf('}');
-  if (start === -1 || end === -1) throw new Error('Réponse le service invalide');
-  cleaned = cleaned.slice(start, end + 1);
-
-  try {
-    return JSON.parse(cleaned);
-  } catch {
-    cleaned = cleaned.replace(/,\s*([}\]])/g, '$1');
-    return JSON.parse(cleaned);
-  }
+  const parsed = parseAiJson(raw);
+  if (!parsed) throw new Error('Réponse IA invalide — réessayez');
+  return parsed;
 }
 
 /**

@@ -12,6 +12,7 @@
 // ensuite via la route de sauvegarde (permissions/store gérés là).
 // ─────────────────────────────────────────────────────────────────────────────
 import axios from 'axios';
+import { parseAiJson } from '../utils/aiJson.js';
 
 // ── Jobs de clonage en mémoire (TTL 30 min), comme les autres pipelines ──
 const cloneJobs = new Map();
@@ -204,9 +205,6 @@ export async function replicateFullPage(url) {
   for (const el of doc.querySelectorAll('[style*="url("]')) {
     el.setAttribute('style', String(el.getAttribute('style')).replace(/url\((['"]?)([^'")]+)\1\)/g, (m, q, u) => (/^(data:|https?:)/i.test(u) ? m : `url(${q}${abs(u)}${q})`)));
   }
-  // Les liens de la page clonée ne doivent pas renvoyer vers le site source :
-  // ils deviennent des ancres neutres (interceptées par le CTA Scalor au rendu).
-  for (const a of doc.querySelectorAll('a[href]')) { a.setAttribute('href', '#commander'); a.removeAttribute('target'); }
 
   // 2b. Widgets DYNAMIQUES morts sans leur JS (disponibilité retrait,
   //     sélecteurs de livraison, avis embarqués…) : purgés — ils n'affichent
@@ -227,30 +225,78 @@ export async function replicateFullPage(url) {
   for (const el of doc.querySelectorAll('button, a, input[type="submit"], [role="button"]')) {
     const txt = (el.textContent || el.getAttribute('value') || '').replace(/\s+/g, ' ').trim().slice(0, 120);
     const cls = `${el.getAttribute('class') || ''} ${el.getAttribute('id') || ''} ${el.getAttribute('name') || ''}`;
-    const isCta = CTA_TEXT_RE.test(txt) || CTA_CLASS_RE.test(cls) || el.getAttribute('name') === 'add';
+    const href = el.getAttribute('href') || '';
+    const isCta = CTA_TEXT_RE.test(txt) || CTA_CLASS_RE.test(cls) || el.getAttribute('name') === 'add'
+      || /(\/cart|\/checkout|\/panier|\/commande)/i.test(href);
     if (isCta) { el.setAttribute('data-scalor-cta', '1'); ctaCount += 1; }
   }
   // Aucun CTA détecté (page atypique) : les <button>/<a> proéminents du haut
   // de page servent de secours — le rendu intercepte de toute façon tout clic
   // sur lien/bouton.
   void ctaCount;
-
-  // 3. CSS : inline des feuilles de style (urls internes réécrites), plafonné
-  let css = '';
-  const links = [...doc.querySelectorAll('link[rel="stylesheet"][href]')].slice(0, 14);
-  for (const l of links) {
-    const href = abs(l.getAttribute('href'));
-    try {
-      const r = await axios.get(href, { headers: { 'User-Agent': BROWSER_UA }, timeout: 10000, responseType: 'text', maxContentLength: 900000 });
-      const text = String(r.data || '').replace(/url\((['"]?)([^'")]+)\1\)/g, (m, q, u) => {
-        if (/^(data:|https?:|#)/i.test(u)) return m;
-        try { return `url(${q}${new URL(u, href).href}${q})`; } catch { return m; }
-      });
-      css += `\n/* ${href} */\n${text}`;
-    } catch { /* feuille inaccessible : best-effort */ }
-    l.remove();
-    if (css.length > 480000) break;
+  // Liens : jamais vers le site source. Seuls les CTA gardent une ancre
+  // (#commander → formulaire). Les AUTRES liens perdent leur href — sinon un
+  // titre-lien s'affiche souligné bleu (style lien par défaut) et le clone ne
+  // ressemble plus à l'original.
+  for (const a of doc.querySelectorAll('a')) {
+    a.removeAttribute('target');
+    if (a.hasAttribute('data-scalor-cta')) a.setAttribute('href', '#commander');
+    else a.removeAttribute('href');
   }
+
+  // 2d. DÉTECTION DES PRIX : les montants du site SOURCE sont marqués
+  //     data-scalor-price ('1' = prix courant, 'compare' = prix barré) — le
+  //     rendu boutique les remplace par le prix RÉEL de la fiche produit.
+  //     Le clone n'affiche ainsi jamais un prix figé étranger.
+  const PRICE_CLASS_RE = /(price|prix|amount|money|cost|tarif)/i;
+  const COMPARE_CLASS_RE = /(compare|old|was|before|barr|regular|original)/i;
+  const CURRENCY_HINT_RE = /([$€£₦₵]|FCFA|F\s?CFA|XOF|XAF|GNF|CDF|USD|EUR|MAD|DHS?|KES|NGN|GHS|RWF)/i;
+  const PRICE_TEXT_RE = /^[^\d]{0,6}[\d][\d\s.,  ]{0,14}[^\d]{0,8}$/;
+  let priceCount = 0;
+  for (const el of doc.querySelectorAll('span, div, p, b, strong, ins, del, s, bdi, h1, h2, h3, h4')) {
+    if (priceCount >= 24) break;
+    if (el.children.length > 1) continue; // quasi-feuilles uniquement
+    if (el.closest('[data-scalor-price]')) continue; // pas d'imbrication
+    const txt = (el.textContent || '').replace(/\s+/g, ' ').trim();
+    if (!txt || txt.length > 32 || !/\d/.test(txt)) continue;
+    const cls = `${el.getAttribute('class') || ''} ${el.getAttribute('id') || ''}`;
+    const classHit = PRICE_CLASS_RE.test(cls);
+    const looksLikePrice = PRICE_TEXT_RE.test(txt) && (classHit || CURRENCY_HINT_RE.test(txt));
+    if (!looksLikePrice) continue;
+    const isCompare = COMPARE_CLASS_RE.test(cls)
+      || el.tagName === 'DEL' || el.tagName === 'S'
+      || /line-through/i.test(el.getAttribute('style') || '');
+    el.setAttribute('data-scalor-price', isCompare ? 'compare' : '1');
+    priceCount += 1;
+  }
+
+  // 3. CSS : inline des feuilles de style (urls internes réécrites), plafonné.
+  //    Les thèmes modernes (Shopify Dawn…) chargent des DIZAINES de petites
+  //    feuilles par composant (component-slider.css, component-media-gallery…)
+  //    — tronquer la liste CASSE le rendu (boutons de slider et loupes de zoom
+  //    empilés en vrac, doublons desktop/mobile visibles). On prend jusqu'à 40
+  //    feuilles (stylesheet + preload as=style), téléchargées en PARALLÈLE et
+  //    concaténées dans l'ORDRE du document (la cascade CSS en dépend).
+  const seenHref = new Set();
+  const links = [...doc.querySelectorAll('link[rel="stylesheet"][href], link[rel="preload"][as="style"][href]')]
+    .filter((l) => { const h = abs(l.getAttribute('href')); if (!h || seenHref.has(h)) return false; seenHref.add(h); return true; })
+    .slice(0, 40);
+  const sheets = await Promise.allSettled(links.map(async (l) => {
+    const href = abs(l.getAttribute('href'));
+    const r = await axios.get(href, { headers: { 'User-Agent': BROWSER_UA }, timeout: 10000, responseType: 'text', maxContentLength: 900000 });
+    const text = String(r.data || '').replace(/url\((['"]?)([^'")]+)\1\)/g, (m, q, u) => {
+      if (/^(data:|https?:|#)/i.test(u)) return m;
+      try { return `url(${q}${new URL(u, href).href}${q})`; } catch { return m; }
+    });
+    return { href, text };
+  }));
+  let css = '';
+  for (const res of sheets) {
+    if (res.status !== 'fulfilled') continue; // feuille inaccessible : best-effort
+    if (css.length > 480000) break;
+    css += `\n/* ${res.value.href} */\n${res.value.text}`;
+  }
+  for (const l of doc.querySelectorAll('link')) l.remove();
   for (const st of doc.querySelectorAll('style')) { css += `\n${st.textContent || ''}`; st.remove(); }
 
   const html = (doc.body?.innerHTML || '').trim();
@@ -281,15 +327,22 @@ Description concurrente : ${(scraped.description || '').slice(0, 1500) || '—'}
 CONTENU INTÉGRAL DE LA PAGE (section par section, à reprendre EN ENTIER) :
 ${(sectionsBlock || scraped.rawText).slice(0, 11000)}`;
 
-  const resp = await axios.post('https://api.deepseek.com/chat/completions', {
-    model: process.env.DEEPSEEK_MODEL || 'deepseek-v4-pro',
-    messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
-    stream: false, max_tokens: 6400, thinking: { type: 'disabled' },
-  }, { headers: { Authorization: `Bearer ${DEEPSEEK_API_KEY}`, 'Content-Type': 'application/json' }, timeout: 150000 });
-  const raw = resp.data?.choices?.[0]?.message?.content || '';
-  const m = raw.match(/\{[\s\S]*\}/);
-  if (!m) throw new Error('Réécriture IA invalide');
-  return JSON.parse(m[0]);
+  // 2 tentatives : les LLM sont non-déterministes, un JSON imparsable au
+  // premier appel passe presque toujours au second. En cas d'échec, la FIN de
+  // la réponse est loguée (diagnostic troncature / échappement).
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    const resp = await axios.post('https://api.deepseek.com/chat/completions', {
+      model: process.env.DEEPSEEK_MODEL || 'deepseek-v4-pro',
+      messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
+      stream: false, max_tokens: 8000, thinking: { type: 'disabled' },
+    }, { headers: { Authorization: `Bearer ${DEEPSEEK_API_KEY}`, 'Content-Type': 'application/json' }, timeout: 150000 });
+    const raw = resp.data?.choices?.[0]?.message?.content || '';
+    const parsed = parseAiJson(raw);
+    if (parsed) return parsed;
+    const finish = resp.data?.choices?.[0]?.finish_reason || '?';
+    console.warn(`[Clone] réécriture IA imparsable (tentative ${attempt}/2, finish=${finish}, ${raw.length} car.) — fin de réponse : …${raw.slice(-400)}`);
+  }
+  throw new Error('Réécriture IA invalide — réessayez');
 }
 
 async function runCloneJob(job) {
