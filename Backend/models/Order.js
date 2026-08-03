@@ -152,6 +152,13 @@ const orderSchema = new mongoose.Schema({
     trim: true,
     default: ''
   },
+  // Statut d'encaissement en ligne (miroir de StoreOrder.paymentStatus —
+  // renseigné par les webhooks KPay/Scalor Pay pour les commandes boutique).
+  paymentStatus: {
+    type: String,
+    enum: ['unpaid', 'pending', 'paid', 'failed'],
+    default: 'unpaid'
+  },
   // Closer assigné à cette commande
   closerId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -428,6 +435,14 @@ orderSchema.post('save', function (doc) {
     sendOrderConfirmationToClient(doc, workspaceId)
       .catch(err => console.error('❌ [Order hook] sendOrderConfirmationToClient:', err.message));
   }).catch(() => {});
+
+  // 3) Export Google Sheets de la boutique (si activé sur le Store) — commandes
+  //    storefront uniquement (source skelor/boutique), fire-and-forget.
+  if (doc.storeId && ['skelor', 'boutique'].includes(doc.source)) {
+    import('../services/storeSheetSync.js')
+      .then(({ syncOrderToSheet }) => syncOrderToSheet(doc))
+      .catch(err => console.error('❌ [Order hook] syncOrderToSheet:', err.message));
+  }
 });
 
 const Order = mongoose.model('Order', orderSchema);

@@ -348,7 +348,7 @@ async function resolveStore(subdomain) {
     isActive: { $ne: false },
     'storeSettings.isStoreEnabled': { $ne: false }
   })
-  .select('_id workspaceId name subdomain storeSettings storeTheme storePages storeFooter storeLegalPages storePixels storePayments storeDomains storeDeliveryZones whatsappAutoConfirm whatsappOrderTemplate whatsappAutoInstanceId whatsappAutoImageUrl whatsappAutoAudioUrl whatsappAutoVideoUrl whatsappAutoDocumentUrl whatsappAutoSendOrder whatsappAutoProductMediaRules updatedAt')
+  .select('_id workspaceId name subdomain market closerId storeSettings storeTheme storePages storeFooter storeLegalPages storePixels storePayments storeDomains storeDeliveryZones whatsappAutoConfirm whatsappOrderTemplate whatsappAutoInstanceId whatsappAutoImageUrl whatsappAutoAudioUrl whatsappAutoVideoUrl whatsappAutoDocumentUrl whatsappAutoSendOrder whatsappAutoProductMediaRules updatedAt')
   .lean()
   .maxTimeMS(1000);
 
@@ -707,6 +707,9 @@ router.get('/:subdomain', readLimiter, async (req, res) => {
             cod: workspace.storePayments?.cod?.enabled !== false, // activé par défaut
             scalorPay: workspace.storePayments?.scalor_pay?.enabled === true,
             whatsapp: workspace.storePayments?.whatsapp?.enabled === true,
+            kpay: workspace.storePayments?.kpay?.enabled === true
+              && !!workspace.storePayments?.kpay?.kpayApiKey
+              && !!workspace.storePayments?.kpay?.kpaySecretKey,
           },
         },
         // Page sections: null = never configured (use defaults), [] = builder empty page
@@ -1258,6 +1261,9 @@ router.get('/:subdomain/product-page/:slug', readLimiter, async (req, res) => {
             cod: workspace.storePayments?.cod?.enabled !== false, // activé par défaut
             scalorPay: workspace.storePayments?.scalor_pay?.enabled === true,
             whatsapp: workspace.storePayments?.whatsapp?.enabled === true,
+            kpay: workspace.storePayments?.kpay?.enabled === true
+              && !!workspace.storePayments?.kpay?.kpayApiKey
+              && !!workspace.storePayments?.kpay?.kpaySecretKey,
           },
         },
         product: productData,
@@ -1640,6 +1646,96 @@ router.post('/:subdomain/orders/:orderId/upsell', orderLimiter, async (req, res)
 // appelle cet endpoint pour ouvrir une session de paiement MoneyFusion sur le
 // compte plateforme. Le montant fait autorité côté serveur (order.total) : on ne
 // fait jamais confiance à un montant fourni par le client.
+// ─── KPay — encaissement Mobile Money avec les clés DU MARCHAND ──────────────
+// Mode GATEWAY : KPay héberge la page de paiement, on redirige le client.
+// Confirmation du paiement : webhook /api/ecom/kpay/webhook (+ vérif API).
+router.post('/:subdomain/kpay/checkout', orderLimiter, async (req, res) => {
+  try {
+    const workspace = await resolveStore(req.params.subdomain);
+    if (!workspace) {
+      return res.status(404).json({ success: false, message: 'Store not found' });
+    }
+
+    const kpayCfg = workspace.storePayments?.kpay;
+    const { isKpayConfigValid, initKpayGatewayPayment } = await import('../services/kpayService.js');
+    if (!isKpayConfigValid(kpayCfg)) {
+      return res.status(403).json({ success: false, message: 'KPay n\'est pas activé sur cette boutique' });
+    }
+
+    const { orderId, orderNumber, returnUrl: rawReturnUrl } = req.body || {};
+
+    const orderFilter = {
+      workspaceId: workspace._workspaceId,
+      status: { $ne: 'abandoned' },
+    };
+    if (workspace._storeId) orderFilter.storeId = workspace._storeId;
+    if (orderId && mongoose.Types.ObjectId.isValid(orderId)) orderFilter._id = orderId;
+    else if (orderNumber) orderFilter.orderNumber = String(orderNumber).trim();
+    else return res.status(400).json({ success: false, message: 'orderId ou orderNumber requis' });
+
+    const order = await StoreOrder.findOne(orderFilter);
+    if (!order) {
+      return res.status(404).json({ success: false, message: 'Commande introuvable' });
+    }
+    if (order.paymentStatus === 'paid') {
+      return res.status(200).json({ success: true, alreadyPaid: true, message: 'Commande déjà payée' });
+    }
+
+    const amount = Math.round(Number(order.total) || 0);
+    if (amount <= 0) {
+      return res.status(400).json({ success: false, message: 'Montant de commande invalide' });
+    }
+
+    const frontendUrl = process.env.FRONTEND_URL || 'https://scalor.net';
+    const returnUrl = /^https?:\/\//i.test(String(rawReturnUrl || '').trim())
+      ? String(rawReturnUrl).trim()
+      : `${frontendUrl}/order-confirmation?order=${encodeURIComponent(order.orderNumber)}`;
+
+    // externalId unique par tentative : _id de la StoreOrder + timestamp
+    // (évite le 409 KPay si le client abandonne puis retente). Le webhook
+    // retrouve la commande via kpayPaymentId, sinon via le préfixe _id.
+    const externalId = `${order._id}-${Date.now()}`;
+
+    let payment;
+    try {
+      payment = await initKpayGatewayPayment(kpayCfg, {
+        amount,
+        externalId,
+        description: `Commande ${order.orderNumber}`,
+        returnUrl,
+        cancelUrl: returnUrl,
+        metadata: {
+          orderId: String(order._id),
+          orderNumber: order.orderNumber,
+          workspaceId: String(workspace._workspaceId),
+          storeId: workspace._storeId ? String(workspace._storeId) : ''
+        }
+      });
+    } catch (err) {
+      console.error('[storeApi] KPay init error:', err.kpayBody || err.message);
+      return res.status(502).json({ success: false, message: `Erreur KPay : ${err.kpayBody?.message || err.message || 'initialisation impossible'}` });
+    }
+
+    order.paymentMethod = 'kpay';
+    order.paymentStatus = 'pending';
+    order.kpayPaymentId = payment.id;
+    order.kpayReference = payment.reference || null;
+    await order.save();
+
+    res.json({
+      success: true,
+      paymentUrl: payment.gatewayUrl,
+      paymentId: payment.id,
+      reference: payment.reference,
+      amount,
+      isTest: payment.isTest === true,
+    });
+  } catch (err) {
+    console.error('[storeApi] POST /kpay/checkout error:', err);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
 router.post('/:subdomain/scalor-pay/checkout', orderLimiter, async (req, res) => {
   try {
     const workspace = await resolveStore(req.params.subdomain);
@@ -2112,6 +2208,10 @@ router.post('/:subdomain/orders', orderLimiter, async (req, res) => {
 
         const mainOrder = new Order({
           workspaceId,
+          storeId: workspace._storeId || null,
+          // Closeuse de la boutique COPIÉE FIGÉE à la création — jamais
+          // recalculée : réassigner la boutique ne réécrit pas l'historique.
+          closerId: workspace.closerId || null,
           sourceId: orderSource?._id || null,
           sourceName: orderSource?.name || 'Scalor Store',
           orderId: order.orderNumber,

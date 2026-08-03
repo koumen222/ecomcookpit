@@ -526,6 +526,7 @@ BOUTIQUE:
 - Nom: ${s.storeName || 'Notre Boutique'}
 - Catégorie: ${productTypeLabel}
 - Produit phare: ${s.productDescription || ''}
+- Prix du produit phare: ${s.productPrice ? `${s.productPrice} ${s.storeCurrency || s.currency || 'FCFA'} — utilise CE prix tel quel dans les sections produits/offres, ne l'invente jamais` : 'non communiqué — ne mentionne aucun prix précis'}
 - Description: ${s.storeDescription || ''}
 - Ton: ${toneLabel}
 - Audience: ${genders} | ${ages} | ${regions}
@@ -973,7 +974,7 @@ router.put('/config', requireEcomAuth, requireWorkspace, requireStoreOwner, asyn
       // Nouveaux champs pour génération IA
       productType, audience, tone, city, country,
       logoVariant, logoSymbolStyle, logoConcept,
-      secondaryColor, productDescription,
+      secondaryColor, productDescription, productPrice,
       // Product page builder config (visual builder)
       productPageConfig,
       categoryRegistry,
@@ -1030,6 +1031,10 @@ router.put('/config', requireEcomAuth, requireWorkspace, requireStoreOwner, asyn
     if (country !== undefined) update['storeSettings.country'] = country;
     if (secondaryColor !== undefined) update['storeSettings.secondaryColor'] = secondaryColor;
     if (productDescription !== undefined) update['storeSettings.productDescription'] = productDescription;
+    if (productPrice !== undefined) {
+      const nPrice = parseInt(String(productPrice).replace(/[^\d]/g, ''), 10);
+      update['storeSettings.productPrice'] = Number.isFinite(nPrice) && nPrice > 0 ? String(nPrice) : '';
+    }
     // Product page builder config
     if (productPageConfig !== undefined) update['storeSettings.productPageConfig'] = productPageConfig;
     if (categoryRegistry !== undefined) {
