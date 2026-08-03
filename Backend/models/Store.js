@@ -30,27 +30,6 @@ const storeSchema = new mongoose.Schema({
     type: Boolean,
     default: true
   },
-  // Marché de la boutique — code pays ISO 3166-1 alpha-2 (CM, CI, SN, BJ, TG, TD…).
-  // Obligatoire à la création (routes/stores.js), pas d'enum figé : la liste
-  // s'étend sans migration. Passer à une collection Marché dédiée si un pays
-  // doit porter de la config (devise, zones, passerelle mobile money).
-  market: {
-    type: String,
-    uppercase: true,
-    trim: true,
-    default: null,
-    index: true
-  },
-  // Closeuse active de la boutique (une à la fois ; une closeuse peut couvrir
-  // plusieurs boutiques). Copiée FIGÉE sur Order.closerId à la création de
-  // chaque commande — jamais recalculée (le suivi perf/commission reste vrai
-  // après réassignation).
-  closerId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'EcomUser',
-    default: null,
-    index: true
-  },
   // Full store settings (mirrors Workspace.storeSettings)
   storeSettings: {
     type: mongoose.Schema.Types.Mixed,
@@ -74,10 +53,6 @@ const storeSchema = new mongoose.Schema({
   storeFooter: { type: mongoose.Schema.Types.Mixed, default: null },
   storeLegalPages: { type: mongoose.Schema.Types.Mixed, default: null },
   storePixels: { type: mongoose.Schema.Types.Mixed, default: {} },
-  // Synchro Google Sheets des commandes (service account) : chaque nouvelle
-  // commande de la boutique est ajoutée dans la feuille du marchand.
-  // { enabled, spreadsheetId, sheetName, lastSyncAt, lastError, lastErrorAt }
-  storeSheetSync: { type: mongoose.Schema.Types.Mixed, default: null },
   storePayments: { type: mongoose.Schema.Types.Mixed, default: {} },
   storeDomains: { type: mongoose.Schema.Types.Mixed, default: {} },
   storeDeliveryZones: {

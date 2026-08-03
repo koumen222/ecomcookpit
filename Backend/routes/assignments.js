@@ -672,11 +672,6 @@ router.post('/', requireEcomAuth, async (req, res) => {
       .filter(s => s.sourceId && (s.sourceId === 'legacy' || s.sourceId.length >= 24))
       .map(source => ({
         sourceId: source.sourceId,
-        // Périmètre boutique (scalor_store) : vide = toutes les boutiques
-        storeIds: (source.storeIds || [])
-          .map(id => String(id))
-          .filter(id => /^[0-9a-fA-F]{24}$/.test(id))
-          .map(id => new mongoose.Types.ObjectId(id)),
         assignedBy: req.ecomUser._id,
         assignedAt: new Date()
       }));
@@ -796,11 +791,6 @@ router.put('/:id', requireEcomAuth, async (req, res) => {
     if (Array.isArray(orderSources)) {
       assignment.orderSources = orderSources.map(source => ({
         sourceId: source.sourceId,
-        // Périmètre boutique (scalor_store) : vide = toutes les boutiques
-        storeIds: (source.storeIds || [])
-          .map(id => String(id))
-          .filter(id => /^[0-9a-fA-F]{24}$/.test(id))
-          .map(id => new mongoose.Types.ObjectId(id)),
         assignedBy: req.ecomUser._id,
         assignedAt: new Date()
       }));

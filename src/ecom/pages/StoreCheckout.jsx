@@ -651,6 +651,7 @@ const StoreCheckout = () => {
       storeName: store?.name || '',
       orderNumber: orderResult.orderNumber,
       totalLabel: formatPrice(orderResult.total, orderResult.currency),
+      productSummary: cartProducts.map((p) => `${p.name || p.productName || ''}${(p.quantity || 1) > 1 ? ` x${p.quantity}` : ''}`).filter(Boolean).join(', '),
       customerName: form.customerName,
       displayPhone,
       country: resolvedOrderCountry,

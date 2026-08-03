@@ -483,6 +483,7 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, pixels, store, p
       storeName: store?.name || '',
       orderNumber: orderResult.orderNumber,
       totalLabel: fmt(orderResult.total, orderResult.currency),
+      productSummary: `${product?.name || ''}${(form?.quantity || 1) > 1 ? ` x${form.quantity}` : ''}`,
       customerName: finalCustomerName,
       displayPhone,
       country: selectedCountry,

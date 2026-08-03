@@ -170,12 +170,11 @@ router.post('/service-agents', requireEcomAuth, requireSuperAdmin, async (req, r
     if (exists) {
       return res.status(409).json({ success: false, message: 'Un compte avec cet email existe déjà' });
     }
-    // NE PAS hacher ici : le hook pre('save') d'EcomUser hache déjà —
-    // hacher deux fois rend le mot de passe invérifiable au login.
+    const hashed = await bcrypt.hash(password, 10);
     const agent = new EcomUser({
       email: email.toLowerCase().trim(),
       name: name.trim(),
-      password,
+      password: hashed,
       role: 'service_client',
       isActive: true,
     });
@@ -198,8 +197,7 @@ router.patch('/service-agents/:id', requireEcomAuth, requireSuperAdmin, async (r
     if (email !== undefined) agent.email = email.toLowerCase().trim();
     if (password !== undefined) {
       if (password.length < 8) return res.status(400).json({ success: false, message: 'Mot de passe minimum 8 caractères' });
-      // Le hook pre('save') hache — pas de hachage manuel (sinon double hash).
-      agent.password = password;
+      agent.password = await bcrypt.hash(password, 10);
     }
     if (isActive !== undefined) agent.isActive = Boolean(isActive);
     await agent.save();
@@ -224,42 +222,21 @@ router.delete('/service-agents/:id', requireEcomAuth, requireSuperAdmin, async (
 
 // ─── Service Client — accès restreint (service_client + super_admin) ──────────
 
-// GET /api/ecom/super-admin/service-client/workspace/:id — fiche d'UN workspace
-// (agents support : champs limités, jamais la liste complète)
-router.get('/service-client/workspace/:id', requireEcomAuth, requireServiceClient, async (req, res) => {
-  try {
-    const ws = await Workspace.findById(req.params.id)
-      .select('name plan isActive freeGenerationsRemaining paidGenerationsRemaining simpleGenerationsRemaining creativeCreditsRemaining totalGenerations trialEndsAt planExpiresAt createdAt subdomain storeSettings.storeName')
-      .lean();
-    if (!ws) return res.status(404).json({ success: false, message: 'Workspace introuvable' });
-    res.json({ success: true, data: ws });
-  } catch (err) {
-    console.error('[ServiceClient] GET workspace error:', err.message);
-    res.status(500).json({ success: false, message: 'Erreur serveur' });
-  }
-});
-
 // GET /api/ecom/service-client/search — recherche users (pour les agents)
 router.get('/service-client/search', requireEcomAuth, requireServiceClient, async (req, res) => {
   try {
     const { q = '', limit = 10 } = req.query;
-    // Sans terme de recherche : liste des utilisateurs récents (la console
-    // support affiche directement les users à l'ouverture).
-    const baseFilter = { role: { $nin: ['super_admin', 'service_client'] } };
-    const filter = q.trim()
-      ? {
-          ...baseFilter,
-          $or: [
-            { email: { $regex: q.trim(), $options: 'i' } },
-            { name:  { $regex: q.trim(), $options: 'i' } },
-          ],
-        }
-      : baseFilter;
-    const users = await EcomUser.find(filter)
+    if (!q.trim()) return res.json({ success: true, data: [] });
+    const users = await EcomUser.find({
+      role: { $nin: ['super_admin', 'service_client'] },
+      $or: [
+        { email: { $regex: q.trim(), $options: 'i' } },
+        { name:  { $regex: q.trim(), $options: 'i' } },
+      ],
+    })
       .select('name email isActive role workspaceId createdAt lastLogin')
       .populate('workspaceId', 'name plan planExpiresAt')
-      .sort({ createdAt: -1 })
-      .limit(Math.min(50, Number(limit) || 10))
+      .limit(Number(limit))
       .lean();
     res.json({ success: true, data: users });
   } catch (err) {
@@ -747,7 +724,7 @@ router.delete('/users/:id',
 // PUT /api/ecom/super-admin/workspaces/:id/toggle - Activer/désactiver un workspace
 router.put('/workspaces/:id/toggle',
   requireEcomAuth,
-  requireServiceClient,
+  requireSuperAdmin,
   async (req, res) => {
     try {
       const workspace = await Workspace.findById(req.params.id);
@@ -1350,7 +1327,7 @@ router.put('/support/:sessionId/status', requireEcomAuth, requireSuperAdmin, asy
 });
 
 // POST /api/ecom/super-admin/support/send-to-user — Envoyer un message à un utilisateur spécifique
-router.post('/support/send-to-user', requireEcomAuth, requireServiceClient, async (req, res) => {
+router.post('/support/send-to-user', requireEcomAuth, requireSuperAdmin, async (req, res) => {
   try {
     const { userId, text, subject, agentName } = req.body;
     if (!userId || !text?.trim()) {
@@ -1444,7 +1421,7 @@ router.get('/workspaces', requireEcomAuth, requireSuperAdmin, async (req, res) =
     if (search) filter.name = { $regex: search, $options: 'i' };
 
     const workspaces = await Workspace.find(filter)
-      .select('name slug plan planExpiresAt trialStartedAt trialEndsAt trialUsed owner freeGenerationsRemaining paidGenerationsRemaining creativeCreditsRemaining totalGenerations maxStoresOverride')
+      .select('name slug plan planExpiresAt trialStartedAt trialEndsAt trialUsed owner freeGenerationsRemaining paidGenerationsRemaining creativeCreditsRemaining totalGenerations')
       .populate('owner', 'email name')
       .sort({ createdAt: -1 })
       .limit(limit * 1)
@@ -1460,33 +1437,7 @@ router.get('/workspaces', requireEcomAuth, requireSuperAdmin, async (req, res) =
 });
 
 // PATCH /api/ecom/super-admin/workspaces/:id/plan — manually set plan
-// ── Limite de boutiques par ESPACE (override du plan) ────────────────────────
-// limite_effective = maxStoresOverride ?? plan.maxStores. body:
-// { maxStoresOverride: number>=0 } pour fixer, { maxStoresOverride: null } pour
-// revenir à la limite du plan.
-router.patch('/workspaces/:id/store-limit', requireEcomAuth, requireSuperAdmin, async (req, res) => {
-  try {
-    const raw = req.body?.maxStoresOverride;
-    let override = null;
-    if (raw !== null && raw !== undefined && raw !== '') {
-      override = Number.parseInt(String(raw), 10);
-      if (!Number.isFinite(override) || override < 0 || override > 1000) {
-        return res.status(400).json({ success: false, message: 'maxStoresOverride invalide (entier 0-1000, ou null pour revenir au plan)' });
-      }
-    }
-    const workspace = await Workspace.findById(req.params.id);
-    if (!workspace) return res.status(404).json({ success: false, message: 'Workspace introuvable' });
-    workspace.maxStoresOverride = override;
-    await workspace.save();
-    await logAudit(req, 'SET_STORE_LIMIT', `maxStoresOverride=${override === null ? 'null (plan)' : override} pour ${workspace.name}`, 'workspace', workspace._id);
-    res.json({ success: true, data: { workspaceId: workspace._id, maxStoresOverride: workspace.maxStoresOverride } });
-  } catch (err) {
-    console.error('[SuperAdmin] store-limit error:', err);
-    res.status(500).json({ success: false, message: 'Erreur serveur' });
-  }
-});
-
-router.patch('/workspaces/:id/plan', requireEcomAuth, requireServiceClient, async (req, res) => {
+router.patch('/workspaces/:id/plan', requireEcomAuth, requireSuperAdmin, async (req, res) => {
   try {
     const { plan, durationMonths = 1 } = req.body;
     if (!['free', 'starter', 'pro', 'ultra'].includes(plan)) {
@@ -2146,7 +2097,7 @@ router.post('/creative-usage/backfill', requireEcomAuth, requireSuperAdmin, asyn
 
 // PATCH /api/ecom/super-admin/workspaces/:id/generations — manually update generations
 // Accepte aussi `creativeCredits` (crédits images génératives type Meta/Google Ads).
-router.patch('/workspaces/:id/generations', requireEcomAuth, requireServiceClient, async (req, res) => {
+router.patch('/workspaces/:id/generations', requireEcomAuth, requireSuperAdmin, async (req, res) => {
   try {
     const { freeGenerations, paidGenerations, creativeCredits } = req.body;
 
@@ -3676,74 +3627,5 @@ router.get('/boutique-stats',
     }
   }
 );
-
-// ─── Encaissement plateforme (abonnements + crédits) ─────────────────────────
-// KPay activable comme moyen de paiement principal depuis le Super Admin.
-
-// GET /super-admin/payment-config
-router.get('/payment-config', requireEcomAuth, requireSuperAdmin, async (_req, res) => {
-  try {
-    const { default: PlatformPaymentConfig } = await import('../models/PlatformPaymentConfig.js');
-    const doc = await PlatformPaymentConfig.getSingleton();
-    const backendUrl = process.env.BACKEND_URL || 'https://api.scalor.net';
-    res.json({
-      success: true,
-      data: {
-        billingProvider: doc.billingProvider,
-        kpay: {
-          apiKey: doc.kpay?.apiKey || '',
-          secretKey: doc.kpay?.secretKey || '',
-          webhookSecret: doc.kpay?.webhookSecret || ''
-        },
-        kpayFallbackPrefixes: Array.isArray(doc.kpayFallbackPrefixes) ? doc.kpayFallbackPrefixes : ['228'],
-        webhookUrl: `${backendUrl}/api/ecom/kpay/webhook`,
-        updatedAt: doc.updatedAt
-      }
-    });
-  } catch (err) {
-    console.error('[SuperAdmin] GET payment-config error:', err);
-    res.status(500).json({ success: false, message: 'Erreur serveur' });
-  }
-});
-
-// PUT /super-admin/payment-config — { billingProvider, kpay: { apiKey, secretKey, webhookSecret } }
-router.put('/payment-config', requireEcomAuth, requireSuperAdmin, async (req, res) => {
-  try {
-    const { billingProvider, kpay } = req.body || {};
-    if (billingProvider && !['moneyfusion', 'kpay'].includes(billingProvider)) {
-      return res.status(400).json({ success: false, message: 'billingProvider invalide' });
-    }
-    const { default: PlatformPaymentConfig } = await import('../models/PlatformPaymentConfig.js');
-    const doc = await PlatformPaymentConfig.getSingleton();
-
-    if (billingProvider) doc.billingProvider = billingProvider;
-    if (kpay && typeof kpay === 'object') {
-      doc.kpay = {
-        apiKey: typeof kpay.apiKey === 'string' ? kpay.apiKey.trim() : (doc.kpay?.apiKey || ''),
-        secretKey: typeof kpay.secretKey === 'string' ? kpay.secretKey.trim() : (doc.kpay?.secretKey || ''),
-        webhookSecret: typeof kpay.webhookSecret === 'string' ? kpay.webhookSecret.trim() : (doc.kpay?.webhookSecret || '')
-      };
-    }
-    // Indicatifs routés vers MoneyFusion (pays non couverts par KPay, ex. 228 = Togo)
-    if (Array.isArray(req.body.kpayFallbackPrefixes)) {
-      doc.kpayFallbackPrefixes = req.body.kpayFallbackPrefixes
-        .map(p => String(p).replace(/\D/g, ''))
-        .filter(p => p.length >= 1 && p.length <= 4);
-    }
-
-    // Garde-fou : impossible d'activer KPay sans clés
-    if (doc.billingProvider === 'kpay' && (!doc.kpay?.apiKey || !doc.kpay?.secretKey)) {
-      return res.status(400).json({ success: false, message: 'Renseignez les clés API KPay avant d\'activer KPay' });
-    }
-
-    doc.updatedBy = req.ecomUser._id;
-    await doc.save();
-
-    res.json({ success: true, message: 'Configuration de paiement enregistrée', data: { billingProvider: doc.billingProvider } });
-  } catch (err) {
-    console.error('[SuperAdmin] PUT payment-config error:', err);
-    res.status(500).json({ success: false, message: 'Erreur serveur' });
-  }
-});
 
 export default router;

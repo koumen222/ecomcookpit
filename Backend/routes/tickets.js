@@ -18,7 +18,6 @@ import mongoose from 'mongoose';
 import Ticket from '../models/Ticket.js';
 import Client from '../models/Client.js';
 import Order from '../models/Order.js';
-import EcomUser from '../models/EcomUser.js';
 import { requireEcomAuth, requireWorkspace } from '../middleware/ecomAuth.js';
 import { dispatchTicketToClaude } from '../services/ticketDispatchService.js';
 // NB : FeatureUsageLog est importé dynamiquement dans enrichTicketContext.
@@ -142,112 +141,6 @@ async function enrichTicketContext(workspaceId, { customerPhone, customerEmail, 
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /api/tickets — création + auto-enrichissement
 // ─────────────────────────────────────────────────────────────────────────────
-// ─────────────────────────────────────────────────────────────────────────────
-// AGENTS SUPPORT (service_client) — signaler bugs & améliorations.
-// Pas de workspace propre : le ticket est rattaché au workspace du SUPER ADMIN
-// pour apparaître directement sur son tableau /super-admin/tickets.
-// Déclaré AVANT les routes /:id pour ne pas être capturé par elles.
-// ─────────────────────────────────────────────────────────────────────────────
-
-const requireSupportRole = (req, res, next) => {
-  if (!req.ecomUser || !['service_client', 'super_admin'].includes(req.ecomUser.role)) {
-    return res.status(403).json({ success: false, message: 'Accès réservé à l\'équipe support' });
-  }
-  next();
-};
-
-const resolveSuperAdminWorkspaceId = async () => {
-  const sa = await EcomUser.findOne({ role: 'super_admin', workspaceId: { $ne: null } })
-    .select('workspaceId').lean();
-  return sa?.workspaceId || null;
-};
-
-// POST /agent — { title, description, type: 'bug'|'amelioration', priority? }
-router.post('/agent', requireEcomAuth, requireSupportRole, async (req, res) => {
-  try {
-    const { title, description, type = 'bug', priority, links } = req.body || {};
-    if (!title || !String(title).trim()) {
-      return res.status(400).json({ success: false, message: 'Titre requis' });
-    }
-    if (!description || String(description).trim().length < 10) {
-      return res.status(400).json({ success: false, message: 'Description requise (10 caractères minimum)' });
-    }
-    if (priority && !Ticket.PRIORITIES.includes(priority)) {
-      return res.status(400).json({ success: false, message: `Priorité invalide (${Ticket.PRIORITIES.join(', ')})` });
-    }
-    // Liens joints (captures / vidéos) : http(s) uniquement, 10 max.
-    const rawLinks = Array.isArray(links) ? links : String(links || '').split(/\n|,/);
-    const attachments = rawLinks
-      .map((l) => String(l || '').trim())
-      .filter((l) => /^https?:\/\/\S+$/i.test(l))
-      .slice(0, 10)
-      .map((l) => l.slice(0, 600));
-    const kind = type === 'amelioration' ? 'amelioration' : 'bug';
-    const category = kind === 'bug' ? 'bug_technique' : 'autre';
-    const workspaceId = req.workspaceId || await resolveSuperAdminWorkspaceId();
-    if (!workspaceId) {
-      return res.status(500).json({ success: false, message: 'Aucun workspace super admin pour rattacher le ticket' });
-    }
-    const userId = req.user._id || req.user.id;
-    const reporter = req.ecomUser?.email || 'agent support';
-
-    const ticket = await Ticket.create({
-      workspaceId,
-      createdBy: userId,
-      title: String(title).trim(),
-      description: String(description).trim(),
-      category,
-      priority: priority || 'medium',
-      context: {
-        userSnapshot: { reportedBy: reporter, reporterRole: req.ecomUser?.role || '', kind },
-        attachments,
-        screenshotUrl: attachments[0] || '',
-      },
-      status: 'nouveau',
-      claudeAnalysis: { status: category === 'bug_technique' ? 'pending' : 'skipped' },
-      history: [historyEntry('creation', userId, `Signalé par ${reporter} (${kind === 'bug' ? 'bug' : 'amélioration'})`)],
-    });
-
-    console.log(`🎫 [Tickets] Agent ${reporter} → ${ticket._id} (${kind}/${ticket.priority})`);
-
-    // Même pipeline que la création standard : bug technique → Claude Code.
-    if (category === 'bug_technique') {
-      dispatchTicketToClaude(ticket)
-        .then(async () => {
-          ticket.status = 'analyse_en_cours';
-          ticket.claudeAnalysis.status = 'running';
-          ticket.history.push(historyEntry('analyse_lancee', 'system', 'Envoyé à Claude Code (GitHub Actions)'));
-          await ticket.save();
-        })
-        .catch((e) => console.warn(`⚠️ [Tickets] dispatch Claude échoué (${ticket._id}):`, e.message));
-    }
-
-    return res.status(201).json({
-      success: true,
-      data: { _id: ticket._id, title: ticket.title, category: ticket.category, priority: ticket.priority, status: ticket.status, createdAt: ticket.createdAt },
-    });
-  } catch (error) {
-    console.error('❌ POST /api/ecom/tickets/agent:', error.message);
-    return res.status(500).json({ success: false, message: 'Erreur serveur' });
-  }
-});
-
-// GET /agent/mine — mes signalements (suivi de statut)
-router.get('/agent/mine', requireEcomAuth, requireSupportRole, async (req, res) => {
-  try {
-    const userId = req.user._id || req.user.id;
-    const tickets = await Ticket.find({ createdBy: userId })
-      .sort({ createdAt: -1 })
-      .limit(50)
-      .select('title category priority status createdAt context.userSnapshot.kind context.attachments')
-      .lean();
-    return res.json({ success: true, data: tickets });
-  } catch (error) {
-    console.error('❌ GET /api/ecom/tickets/agent/mine:', error.message);
-    return res.status(500).json({ success: false, message: 'Erreur serveur' });
-  }
-});
-
 router.post('/', requireEcomAuth, requireWorkspace, async (req, res) => {
   try {
     const {

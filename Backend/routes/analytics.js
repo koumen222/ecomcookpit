@@ -1,6 +1,4 @@
 import express from 'express';
-import mongoose from 'mongoose';
-import StoreVisitorPresence from '../models/StoreVisitorPresence.js';
 import AnalyticsEvent from '../models/AnalyticsEvent.js';
 import AnalyticsSession from '../models/AnalyticsSession.js';
 import EcomUser from '../models/EcomUser.js';
@@ -1671,15 +1669,11 @@ router.get('/users-activity',
   requireSuperAdmin,
   async (req, res) => {
     try {
-      const __t0 = Date.now();
       const { page = 1, limit = 50 } = req.query;
       const skip = (parseInt(page) - 1) * parseInt(limit);
       const yearAgo = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000);
-      const startOfToday = new Date(); startOfToday.setHours(0, 0, 0, 0);
-      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-      const SALE_STATUSES = { $nin: ['abandoned', 'cancelled'] };
 
-      // Vague 1 — requêtes LÉGÈRES en parallèle (index en place, réponses petites)
+      // Single parallel batch — all 8 queries fire simultaneously
       const [
         recentLoginUsers,
         totalLogins,
@@ -1689,6 +1683,8 @@ router.get('/users-activity',
         users,
         workspaces,
         stores,
+        orderStats,
+        productStats,
       ] = await Promise.all([
         // Recent logins from EcomUser.lastLogin (fast indexed query, no AnalyticsEvent scan)
         EcomUser.find(
@@ -1707,35 +1703,17 @@ router.get('/users-activity',
         EcomUser.countDocuments({ workspaceId: null }),
         Workspace.countDocuments(),
         // Store activity data
-        EcomUser.find({}, { email: 1, name: 1, role: 1, workspaceId: 1, workspaces: 1, isActive: 1, lastLogin: 1, createdAt: 1 }).limit(5000).maxTimeMS(8000).lean(),
-        Workspace.find({}, { name: 1, slug: 1, owner: 1, subdomain: 1, primaryStoreId: 1, createdAt: 1, storeSettings: 1, isActive: 1 }).limit(5000).maxTimeMS(8000).lean(),
-        Store.find({}, { workspaceId: 1, name: 1, subdomain: 1, createdBy: 1, createdAt: 1, isActive: 1, storeSettings: 1 }).limit(5000).maxTimeMS(8000).lean(),
+        EcomUser.find({}, { email: 1, name: 1, role: 1, workspaceId: 1, workspaces: 1, isActive: 1, lastLogin: 1, createdAt: 1 }).limit(5000).lean(),
+        Workspace.find({}, { name: 1, slug: 1, owner: 1, subdomain: 1, primaryStoreId: 1, createdAt: 1, storeSettings: 1, isActive: 1 }).limit(5000).lean(),
+        Store.find({}, { workspaceId: 1, name: 1, subdomain: 1, createdBy: 1, createdAt: 1, isActive: 1, storeSettings: 1 }).limit(5000).lean(),
+        StoreOrder.aggregate([
+          { $match: { createdAt: { $gte: yearAgo } } },
+          { $group: { _id: { workspaceId: '$workspaceId', storeId: '$storeId' }, totalOrders: { $sum: 1 }, totalRevenue: { $sum: { $ifNull: ['$total', 0] } }, lastOrderAt: { $max: '$createdAt' } } }
+        ]),
+        StoreProduct.aggregate([
+          { $group: { _id: { workspaceId: '$workspaceId', storeId: '$storeId' }, totalProducts: { $sum: 1 }, publishedProducts: { $sum: { $cond: [{ $eq: ['$isPublished', true] }, 1, 0] } }, lastProductAt: { $max: '$createdAt' }, productNames: { $push: '$name' }, productSlugs: { $push: '$slug' } } }
+        ]),
       ]);
-
-      // Vague 2 — agrégats LOURDS en SÉQUENCE : lancés tous en parallèle, ils
-      // saturaient la mémoire d'un mongod modeste (connexion coupée en plein
-      // calcul → ECONNRESET → page jamais chargée). Chaque étape est bornée
-      // (maxTimeMS) avec repli : la page répond TOUJOURS, même dégradée.
-      const orderStats = await StoreOrder.aggregate([
-        { $match: { createdAt: { $gte: yearAgo } } },
-        { $group: { _id: { workspaceId: '$workspaceId', storeId: '$storeId' }, totalOrders: { $sum: 1 }, totalRevenue: { $sum: { $ifNull: ['$total', 0] } }, lastOrderAt: { $max: '$createdAt' } } }
-      ]).option({ maxTimeMS: 10000 }).catch((e) => { console.warn('[Analytics] orderStats en échec:', e.message); return []; });
-
-      const productStats = await StoreProduct.aggregate([
-        { $group: { _id: { workspaceId: '$workspaceId', storeId: '$storeId' }, totalProducts: { $sum: 1 }, publishedProducts: { $sum: { $cond: [{ $eq: ['$isPublished', true] }, 1, 0] } }, lastProductAt: { $max: '$createdAt' }, productNames: { $push: '$name' }, productSlugs: { $push: '$slug' } } }
-      ]).option({ maxTimeMS: 10000 }).catch((e) => { console.warn('[Analytics] productStats en échec:', e.message); return []; });
-
-      // CA + commandes du JOUR par boutique (hors abandons/annulations)
-      const todayStats = await StoreOrder.aggregate([
-        { $match: { createdAt: { $gte: startOfToday }, status: SALE_STATUSES } },
-        { $group: { _id: { workspaceId: '$workspaceId', storeId: '$storeId' }, orders: { $sum: 1 }, revenue: { $sum: { $ifNull: ['$total', 0] } } } },
-      ]).option({ maxTimeMS: 8000 }).catch(() => []);
-
-      // CA + commandes des 7 DERNIERS JOURS par boutique
-      const weekStats = await StoreOrder.aggregate([
-        { $match: { createdAt: { $gte: sevenDaysAgo }, status: SALE_STATUSES } },
-        { $group: { _id: { workspaceId: '$workspaceId', storeId: '$storeId' }, orders: { $sum: 1 }, revenue: { $sum: { $ifNull: ['$total', 0] } } } },
-      ]).option({ maxTimeMS: 8000 }).catch(() => []);
 
       const recentLogins = recentLoginUsers.map(u => ({ _id: u._id, date: u.lastLogin, email: u.email, name: u.name, role: u.role, workspaceId: u.workspaceId, country: null, city: null, device: null, browser: null }));
       const inactiveWorkspaces = 0;
@@ -1756,9 +1734,6 @@ router.get('/users-activity',
           entry,
         ])
       );
-
-      const todayStatsMap = new Map(todayStats.map((e) => [storeKey(e._id?.workspaceId, e._id?.storeId), e]));
-      const weekStatsMap = new Map(weekStats.map((e) => [storeKey(e._id?.workspaceId, e._id?.storeId), e]));
 
       const usersById = new Map(users.map((user) => [String(user._id), user]));
       const workspacesById = new Map(workspaces.map((workspace) => [String(workspace._id), workspace]));
@@ -1800,10 +1775,6 @@ router.get('/users-activity',
           publishedProducts: storeProducts?.publishedProducts || 0,
           lastOrderAt: storeOrders?.lastOrderAt || null,
           lastProductAt: storeProducts?.lastProductAt || null,
-          todayOrders: todayStatsMap.get(statsKey)?.orders || 0,
-          todayRevenue: todayStatsMap.get(statsKey)?.revenue || 0,
-          weekOrders: weekStatsMap.get(statsKey)?.orders || 0,
-          weekRevenue: weekStatsMap.get(statsKey)?.revenue || 0,
           productPreviews: ((storeProducts?.productNames || []).slice(0, 5)).map((name, index) => ({
             name,
             slug: (storeProducts?.productSlugs || [])[index] || '',
@@ -1842,10 +1813,6 @@ router.get('/users-activity',
           publishedProducts: legacyProducts?.publishedProducts || 0,
           lastOrderAt: legacyOrders?.lastOrderAt || null,
           lastProductAt: legacyProducts?.lastProductAt || null,
-          todayOrders: todayStatsMap.get(legacyKey)?.orders || 0,
-          todayRevenue: todayStatsMap.get(legacyKey)?.revenue || 0,
-          weekOrders: weekStatsMap.get(legacyKey)?.orders || 0,
-          weekRevenue: weekStatsMap.get(legacyKey)?.revenue || 0,
           productPreviews: ((legacyProducts?.productNames || []).slice(0, 5)).map((name, index) => ({
             name,
             slug: (legacyProducts?.productSlugs || [])[index] || '',
@@ -2068,45 +2035,9 @@ router.get('/users-activity',
         totalEstimatedProfit: 0,
       });
 
-      // ── POULS PLATEFORME : dernière commande + CA jour / 7 jours globaux ──
-      // La dernière commande se DÉDUIT des agrégats par boutique (max de
-      // lastOrderAt), puis un findOne CIBLÉ (workspace+store, index existant
-      // { workspaceId, status, createdAt }) récupère son montant — AUCUN tri
-      // global sans index sur la collection des commandes.
-      const sumAgg = (rows) => rows.reduce((a, r) => ({ orders: a.orders + (r.orders || 0), revenue: a.revenue + (r.revenue || 0) }), { orders: 0, revenue: 0 });
-      let lastOrder = null;
-      let lastRecord = null;
-      boutiqueRecords.forEach((r) => {
-        if (r.lastOrderAt && (!lastRecord || new Date(r.lastOrderAt) > new Date(lastRecord.lastOrderAt))) lastRecord = r;
-      });
-      if (lastRecord) {
-        const q = {
-          workspaceId: lastRecord.workspaceId,
-          storeId: lastRecord.isLegacyStore ? null : lastRecord._id,
-          status: { $ne: 'abandoned' },
-        };
-        const doc = await StoreOrder.findOne(q, { total: 1, currency: 1, createdAt: 1, status: 1 })
-          .sort({ createdAt: -1 }).maxTimeMS(5000).lean().catch(() => null);
-        lastOrder = {
-          at: doc?.createdAt || lastRecord.lastOrderAt,
-          total: doc?.total || 0,
-          currency: doc?.currency || lastRecord.currency || 'XAF',
-          status: doc?.status || '',
-          storeName: lastRecord.name || '',
-          storeSubdomain: lastRecord.subdomain || '',
-        };
-      }
-      const pulse = {
-        lastOrder,
-        today: sumAgg(todayStats),
-        week: sumAgg(weekStats),
-      };
-
-      console.log(`[Analytics] users-activity générée en ${Date.now() - __t0} ms (${boutiqueRecords.length} boutiques)`);
       res.json({
         success: true,
         data: {
-          pulse,
           recentLogins,
           totalLogins,
           activeByRole,
@@ -2127,159 +2058,6 @@ router.get('/users-activity',
       });
     } catch (error) {
       console.error('Analytics users-activity error:', error);
-      res.status(500).json({ success: false, message: 'Erreur serveur' });
-    }
-  }
-);
-
-// ──────────────────────────────────────────────────────────
-// GET /api/ecom/analytics/store-detail?workspaceId=…&storeId=…|legacy
-// Stats COMPLÈTES d'une boutique (drill-down depuis la page Activité) :
-// CA jour/7j/30j/total, commandes par statut, série 14 jours, top produits,
-// dernières commandes, visiteurs en ligne.
-// ──────────────────────────────────────────────────────────
-router.get('/store-detail',
-  requireEcomAuth,
-  requireSuperAdmin,
-  async (req, res) => {
-    try {
-      const { workspaceId, storeId } = req.query;
-      if (!workspaceId || !mongoose.Types.ObjectId.isValid(workspaceId)) {
-        return res.status(400).json({ success: false, message: 'workspaceId invalide' });
-      }
-      const match = { workspaceId: new mongoose.Types.ObjectId(workspaceId) };
-      const isLegacy = storeId === 'legacy' || !storeId;
-      if (!isLegacy) {
-        if (!mongoose.Types.ObjectId.isValid(storeId)) {
-          return res.status(400).json({ success: false, message: 'storeId invalide' });
-        }
-        match.storeId = new mongoose.Types.ObjectId(storeId);
-      }
-      const productMatch = { workspaceId: match.workspaceId, ...(match.storeId ? { storeId: match.storeId } : {}) };
-
-      const SALE = { $nin: ['abandoned', 'cancelled'] };
-      const now = Date.now();
-      const startOfToday = new Date(); startOfToday.setHours(0, 0, 0, 0);
-      const d7 = new Date(now - 7 * 24 * 3600 * 1000);
-      const d30 = new Date(now - 30 * 24 * 3600 * 1000);
-      const d14 = new Date(now - 14 * 24 * 3600 * 1000);
-
-      const periodPipe = (from) => ([
-        ...(from ? [{ $match: { createdAt: { $gte: from }, status: SALE } }] : [{ $match: { status: SALE } }]),
-        { $group: { _id: null, orders: { $sum: 1 }, revenue: { $sum: { $ifNull: ['$total', 0] } }, units: { $sum: { $sum: { $map: { input: { $ifNull: ['$products', []] }, as: 'p', in: { $ifNull: ['$$p.quantity', 1] } } } } } } },
-      ]);
-
-      const [facets, storeDoc, workspaceDoc, productsCount, publishedCount] = await Promise.all([
-        StoreOrder.aggregate([
-          { $match: match },
-          { $facet: {
-            byStatus: [
-              { $group: { _id: '$status', count: { $sum: 1 }, revenue: { $sum: { $ifNull: ['$total', 0] } } } },
-              { $sort: { count: -1 } },
-            ],
-            today: periodPipe(startOfToday),
-            week: periodPipe(d7),
-            month: periodPipe(d30),
-            all: periodPipe(null),
-            daily: [
-              { $match: { createdAt: { $gte: d14 }, status: SALE } },
-              { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } }, orders: { $sum: 1 }, revenue: { $sum: { $ifNull: ['$total', 0] } } } },
-              { $sort: { _id: 1 } },
-            ],
-            topProducts: [
-              { $match: { status: SALE } },
-              { $unwind: '$products' },
-              { $group: {
-                _id: '$products.productId',
-                name: { $last: '$products.name' },
-                image: { $last: '$products.image' },
-                units: { $sum: { $ifNull: ['$products.quantity', 1] } },
-                revenue: { $sum: { $multiply: [{ $ifNull: ['$products.price', 0] }, { $ifNull: ['$products.quantity', 1] }] } },
-                orders: { $sum: 1 },
-                lastOrderAt: { $max: '$createdAt' },
-              } },
-              { $sort: { revenue: -1 } },
-              { $limit: 10 },
-            ],
-            recentOrders: [
-              { $sort: { createdAt: -1 } },
-              { $limit: 12 },
-              { $project: { orderNumber: 1, customerName: 1, city: 1, total: 1, currency: 1, status: 1, channel: 1, createdAt: 1, products: { $slice: ['$products', 3] } } },
-            ],
-            lastOrder: [
-              { $match: { status: { $ne: 'abandoned' } } },
-              { $sort: { createdAt: -1 } },
-              { $limit: 1 },
-              { $project: { total: 1, currency: 1, createdAt: 1, status: 1 } },
-            ],
-          } },
-        ]),
-        isLegacy ? null : Store.findById(storeId, { name: 1, subdomain: 1, createdAt: 1, isActive: 1, storeSettings: 1, createdBy: 1 }).lean(),
-        Workspace.findById(workspaceId, { name: 1, subdomain: 1, owner: 1, createdAt: 1, storeSettings: 1 }).lean(),
-        StoreProduct.countDocuments(productMatch),
-        StoreProduct.countDocuments({ ...productMatch, isPublished: true }),
-      ]);
-
-      const f = facets?.[0] || {};
-      const one = (arr) => (Array.isArray(arr) && arr[0]) || { orders: 0, revenue: 0, units: 0 };
-      const subdomain = storeDoc?.subdomain || workspaceDoc?.subdomain || '';
-
-      // Visiteurs EN LIGNE (présence < 5 min) + propriétaire
-      const [liveVisitors, ownerDoc] = await Promise.all([
-        subdomain
-          ? StoreVisitorPresence.countDocuments({ subdomain, lastSeenAt: { $gte: new Date(now - 5 * 60 * 1000) } }).catch(() => 0)
-          : 0,
-        workspaceDoc?.owner ? EcomUser.findById(workspaceDoc.owner, { email: 1, name: 1 }).lean() : null,
-      ]);
-
-      // Série 14 jours COMPLÈTE (jours sans vente inclus)
-      const dailyMap = new Map((f.daily || []).map((d) => [d._id, d]));
-      const daily = [];
-      for (let i = 13; i >= 0; i -= 1) {
-        const day = new Date(now - i * 24 * 3600 * 1000);
-        const key = day.toISOString().slice(0, 10);
-        const row = dailyMap.get(key);
-        daily.push({ date: key, orders: row?.orders || 0, revenue: row?.revenue || 0 });
-      }
-
-      const allP = one(f.all);
-      res.json({
-        success: true,
-        data: {
-          store: {
-            name: storeDoc?.storeSettings?.storeName || storeDoc?.name || workspaceDoc?.storeSettings?.storeName || workspaceDoc?.name || '',
-            subdomain,
-            url: subdomain ? `https://${subdomain}.scalor.net` : '',
-            currency: storeDoc?.storeSettings?.storeCurrency || workspaceDoc?.storeSettings?.storeCurrency || 'XAF',
-            isActive: (storeDoc ? storeDoc.isActive !== false : true),
-            createdAt: storeDoc?.createdAt || workspaceDoc?.createdAt || null,
-            workspaceName: workspaceDoc?.name || '',
-            ownerEmail: ownerDoc?.email || '',
-            ownerName: ownerDoc?.name || '',
-            isLegacyStore: isLegacy,
-            productsCount,
-            publishedCount,
-            liveVisitors,
-          },
-          periods: {
-            today: one(f.today),
-            week: one(f.week),
-            month: one(f.month),
-            all: allP,
-          },
-          averageOrderValue: allP.orders > 0 ? allP.revenue / allP.orders : 0,
-          byStatus: (f.byStatus || []).map((r) => ({ status: r._id, count: r.count, revenue: r.revenue })),
-          daily,
-          topProducts: (f.topProducts || []).map((r) => ({
-            productId: String(r._id || ''), name: r.name || '—', image: r.image || '',
-            units: r.units || 0, revenue: r.revenue || 0, orders: r.orders || 0, lastOrderAt: r.lastOrderAt || null,
-          })),
-          recentOrders: f.recentOrders || [],
-          lastOrder: (f.lastOrder || [])[0] || null,
-        },
-      });
-    } catch (error) {
-      console.error('Analytics store-detail error:', error);
       res.status(500).json({ success: false, message: 'Erreur serveur' });
     }
   }

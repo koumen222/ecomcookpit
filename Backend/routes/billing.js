@@ -19,8 +19,7 @@ import PlanConfig from '../models/PlanConfig.js';
 import GenerationPayment from '../models/GenerationPayment.js';
 import GenerationPricingConfig from '../models/GenerationPricingConfig.js';
 import EcomUser from '../models/EcomUser.js';
-import AffiliateUser from '../models/AffiliateUser.js';
-import AffiliateConversion from '../models/AffiliateConversion.js';
+import { creditPlanPaymentConversion } from '../services/affiliateService.js';
 import Order from '../models/Order.js';
 import { requireEcomAuth } from '../middleware/ecomAuth.js';
 import { getPlanRuntimeSnapshot } from '../middleware/planLimits.js';
@@ -28,7 +27,6 @@ import { PLAN_DURATION, getPlanCheckoutAmount } from '../services/billingPricing
 import { clearSubscriptionWarning, downgradeWorkspaceToFree } from '../services/workspacePlanService.js';
 import { sendNotificationEmail } from '../core/notifications/email.service.js';
 import { validatePromoCode, markPromoCodeUsed } from '../services/promoCodeService.js';
-import { getPlatformKpayConfig, getPlatformKpayConfigForPhone, initKpayGatewayPayment, getKpayPayment } from '../services/kpayService.js';
 
 const router = express.Router();
 
@@ -143,7 +141,7 @@ async function applyGenerationPayment(payment) {
  * - sets plan to 'pro'
  * - records the payment token
  */
-export async function applyPlanPayment(payment) {
+async function applyPlanPayment(payment) {
   const workspace = await EcomWorkspace.findById(payment.workspaceId);
   if (!workspace) return;
 
@@ -251,33 +249,17 @@ async function sendSubscriptionActivatedEmail(workspace, payment) {
 }
 
 /**
- * If the paying user was referred by an affiliate, create a 50% commission.
+ * Commission d'abonnement pour l'affilié référent.
+ * Logique centralisée dans affiliateService : % configurable (défaut 50, à
+ * vie), idempotent par PlanPayment (webhook rejoué = 0 doublon), anti
+ * auto-parrainage, lien/clic d'origine rattachés.
  */
 async function creditPaymentCommission(payment) {
-  const user = await EcomUser.findById(payment.userId).select('referredByAffiliateCode');
+  const user = await EcomUser.findById(payment.userId)
+    .select('email referredByAffiliateCode referredByAffiliateLinkCode referredByClickId');
   if (!user?.referredByAffiliateCode) return;
 
-  const affiliate = await AffiliateUser.findOne({
-    referralCode: user.referredByAffiliateCode,
-    isActive: true
-  });
-  if (!affiliate) return;
-
-  const commissionAmount = Math.round(payment.amount * 0.5);
-  await AffiliateConversion.create({
-    affiliateId: affiliate._id,
-    affiliateCode: affiliate.referralCode,
-    conversionType: 'payment',
-    referredUserId: user._id,
-    orderAmount: payment.amount,
-    commissionType: 'percentage',
-    commissionValue: 50,
-    commissionAmount,
-    status: 'approved',
-    statusNote: `50% commission sur paiement ${payment.plan} (${payment.durationMonths} mois)`
-  });
-
-  console.log(`[affiliate] ${commissionAmount} FCFA payment commission for affiliate ${affiliate.referralCode} (payment ${payment._id})`);
+  await creditPlanPaymentConversion({ payment, user });
 }
 
 // ─── GET /plan ────────────────────────────────────────────────────────────────
@@ -339,7 +321,7 @@ router.get('/plan', requireEcomAuth, async (req, res) => {
     }
 
     const workspace = await EcomWorkspace.findById(workspaceId).select(
-      'plan planExpiresAt planPaymentToken trialStartedAt trialEndsAt trialUsed maxStoresOverride'
+      'plan planExpiresAt planPaymentToken trialStartedAt trialEndsAt trialUsed'
     );
     if (!workspace) {
       return res.status(404).json({ success: false, message: 'Workspace introuvable' });
@@ -370,12 +352,7 @@ router.get('/plan', requireEcomAuth, async (req, res) => {
         ? 'pro' // essai 7j → bénéfices du plan Scalor + IA (pro)
         : 'free';
 
-    const { limits: planLimits } = await getPlanRuntimeSnapshot(effectivePlan);
-    // Limite de boutiques EFFECTIVE : l'override par espace (super admin)
-    // prime sur le plan — même règle que checkPlanLimit/getEffectiveStoreLimit.
-    // Copie locale : le snapshot peut être partagé/caché, on ne le mute pas.
-    const limits = { ...planLimits };
-    if (workspace.maxStoresOverride != null) limits.maxStores = workspace.maxStoresOverride;
+    const { limits } = await getPlanRuntimeSnapshot(effectivePlan);
 
     // Count orders this month so the frontend can display a quota warning
     let ordersThisMonth = null;
@@ -566,62 +543,6 @@ router.post('/checkout', requireEcomAuth, async (req, res) => {
     const planLabels = { starter: 'Scalor', pro: 'Scalor + IA', ultra: 'Scalor IA Pro' };
     const planLabel = planLabels[planName] || 'Scalor';
 
-    // ── KPay actif (Super Admin) : moyen de paiement principal de la plateforme ──
-    const kpayCfg = await getPlatformKpayConfigForPhone(phone);
-    if (kpayCfg) {
-      try {
-        const kp = await initKpayGatewayPayment(kpayCfg, {
-          amount: Number(amount),
-          externalId: `plan-${workspaceId}-${Date.now()}`,
-          description: `${planLabel} — ${durationMonths} mois`,
-          returnUrl: `${frontendUrl}/ecom/billing/success`,
-          metadata: {
-            kind: 'plan',
-            workspaceId: workspaceId.toString(),
-            userId: req.ecomUser._id.toString(),
-            plan: normalizedPlan,
-            durationMonths
-          }
-        });
-
-        const payment = new PlanPayment({
-          workspaceId,
-          userId: req.ecomUser._id,
-          plan: planName,
-          durationMonths,
-          amount,
-          provider: 'kpay',
-          mfToken: kp.id, // id KPay (pay_xxx) — même rôle de jeton unique
-          paymentUrl: kp.gatewayUrl || '',
-          status: 'pending',
-          phone: String(phone).trim(),
-          clientName: String(clientName).trim(),
-          promoCodeId: appliedPromo?.promoCodeId || null,
-          promoCode: appliedPromo?.code || null,
-          originalAmount: appliedPromo ? appliedPromo.originalAmount : baseAmount,
-          discountAmount: appliedPromo?.discountAmount || 0
-        });
-        await payment.save();
-
-        return res.json({
-          success: true,
-          provider: 'kpay',
-          mfToken: kp.id,
-          paymentUrl: kp.gatewayUrl,
-          message: 'Paiement en cours',
-          amount,
-          originalAmount: baseAmount,
-          discountAmount: appliedPromo?.discountAmount || 0,
-          promoCode: appliedPromo?.code || null,
-          plan: normalizedPlan,
-          durationMonths
-        });
-      } catch (err) {
-        console.error('[billing] KPay init /checkout error:', err.kpayBody || err.message);
-        return res.status(502).json({ success: false, message: `Erreur KPay : ${err.kpayBody?.message || err.message || 'initialisation impossible'}` });
-      }
-    }
-
     // Corps du premier appel MoneyFusion pour l'achat d'un plan.
     // `personal_Info` sert de contexte de réconciliation quand MoneyFusion
     // redirige l'utilisateur ou déclenche le webhook serveur.
@@ -774,7 +695,7 @@ async function applyCreativePayment(payment) {
   }
 }
 
-export async function applyCreditPayment(payment) {
+async function applyCreditPayment(payment) {
   if (!payment) return null;
   if ((payment.type || 'generation') === 'creative') {
     await applyCreativePayment(payment);
@@ -784,51 +705,7 @@ export async function applyCreditPayment(payment) {
   return GenerationPayment.findById(payment._id).lean();
 }
 
-// Mappe un statut KPay (PENDING/PROCESSING/COMPLETED/FAILED/CANCELLED)
-// vers le vocabulaire billing historique ('pending' | 'paid' | 'failure').
-function mapKpayStatus(kpStatus) {
-  if (kpStatus === 'COMPLETED') return 'paid';
-  if (kpStatus === 'FAILED' || kpStatus === 'CANCELLED') return 'failure';
-  return 'pending';
-}
-
-// Équivalent KPay de syncCreditPaymentStatus (crédits générations/images).
-async function syncKpayCreditPaymentStatus(payment) {
-  if (payment.status === 'paid') {
-    if (payment.creditApplied !== true) {
-      const updated = await applyCreditPayment(payment);
-      return { status: 'paid', payment: updated || payment };
-    }
-    return { status: 'paid', payment };
-  }
-  // Statut d'un paiement DÉJÀ créé en KPay : config plateforme sans filtre pays
-  const kpayCfg = await getPlatformKpayConfig();
-  if (!kpayCfg) return { status: payment.status, payment };
-
-  const kp = await getKpayPayment(kpayCfg, payment.mfToken);
-  const mapped = mapKpayStatus(kp.status);
-  if (kp.provider) {
-    await GenerationPayment.findByIdAndUpdate(payment._id, { $set: { paymentMethod: kp.provider } });
-  }
-  if (mapped === 'paid') {
-    const updated = await applyCreditPayment(payment);
-    return { status: 'paid', payment: updated || payment };
-  }
-  if (mapped !== payment.status) {
-    const updated = await GenerationPayment.findByIdAndUpdate(
-      payment._id,
-      { $set: { status: mapped } },
-      { new: true }
-    );
-    return { status: mapped, payment: updated || payment };
-  }
-  return { status: payment.status, payment };
-}
-
 async function syncCreditPaymentStatus(payment) {
-  if (payment.provider === 'kpay') {
-    return syncKpayCreditPaymentStatus(payment);
-  }
   if (payment.status === 'paid') {
     if (payment.creditApplied !== true) {
       const updated = await applyCreditPayment(payment);
@@ -909,40 +786,6 @@ router.post('/buy-generation', requireEcomAuth, async (req, res) => {
     const frontendUrl = process.env.FRONTEND_URL || 'https://scalor.net';
     const backendUrl = process.env.BACKEND_URL || 'https://api.scalor.net';
 
-    // ── KPay actif (Super Admin) : crédits générations via gateway KPay ──
-    const kpayCfg = await getPlatformKpayConfigForPhone(phone);
-    if (kpayCfg) {
-      try {
-        const kp = await initKpayGatewayPayment(kpayCfg, {
-          amount,
-          externalId: `gen-${workspaceId}-${Date.now()}`,
-          description: `Scalor — ${quantity} génération${quantity > 1 ? 's' : ''} IA`,
-          returnUrl: `${frontendUrl}/ecom/billing/generation-success`,
-          metadata: { kind: 'generation', workspaceId: workspaceId.toString(), userId: req.ecomUser._id.toString(), quantity }
-        });
-
-        const payment = new GenerationPayment({
-          workspaceId,
-          userId: req.ecomUser._id,
-          quantity,
-          pricePerGeneration,
-          amount,
-          provider: 'kpay',
-          mfToken: kp.id,
-          paymentUrl: kp.gatewayUrl || '',
-          status: 'pending',
-          phone: String(phone).trim(),
-          clientName: String(clientName).trim()
-        });
-        await payment.save();
-
-        return res.json({ success: true, provider: 'kpay', mfToken: kp.id, paymentUrl: kp.gatewayUrl, message: 'Paiement en cours', amount, quantity, pricePerGeneration });
-      } catch (err) {
-        console.error('[billing] KPay init /buy-generation error:', err.kpayBody || err.message);
-        return res.status(502).json({ success: false, message: `Erreur KPay : ${err.kpayBody?.message || err.message || 'initialisation impossible'}` });
-      }
-    }
-
     const paymentData = {
       totalPrice: amount,
       article: [{ [`Scalor - ${quantity} Génération${quantity > 1 ? 's' : ''} IA`]: amount }],
@@ -1022,55 +865,30 @@ router.post('/buy-generation', requireEcomAuth, async (req, res) => {
 
 // ─── POST /buy-creative ───────────────────────────────────────────────────────
 // Buy creative image credits: packs of 10, 20, or 50 images (80 FCFA each).
+// Packs de crédits Creative Center — SOURCE DE VÉRITÉ des prix (le front
+// affiche les mêmes valeurs). 1 « créa » ≈ 20 crédits : le pack 10 créas
+// = 200 crédits = 10 000 FCFA. Hors pack : prix unitaire de la grille dynamique.
+const CREATIVE_CREDIT_PACKS = { 200: 10000, 400: 20000, 1000: 50000 };
+
 router.post('/buy-creative', requireEcomAuth, async (req, res) => {
   try {
     const { quantity, phone, clientName, workspaceId: bodyWsId } = req.body;
     const workspaceId = req.workspaceId || bodyWsId;
-    const PRICE_PER_CREDIT = 80; // FCFA
 
     if (!workspaceId) return res.status(400).json({ success: false, message: 'workspaceId requis' });
     if (!phone || String(phone).trim().length < 8) return res.status(400).json({ success: false, message: 'Numéro de téléphone requis' });
     if (!clientName || String(clientName).trim().length < 2) return res.status(400).json({ success: false, message: 'Nom requis' });
-    if (!Number.isInteger(quantity) || quantity < 1 || quantity > 500) return res.status(400).json({ success: false, message: 'Quantité invalide' });
+    if (!Number.isInteger(quantity) || quantity < 1 || quantity > 2000) return res.status(400).json({ success: false, message: 'Quantité invalide' });
 
-    const amount = quantity * PRICE_PER_CREDIT;
+    // Prix du pack si la quantité correspond, sinon linéaire au prix du crédit
+    // de la grille (modifiable au super admin).
+    const { getCreativePricingSnapshot } = await import('../services/creativeCredits.js');
+    const snap = await getCreativePricingSnapshot();
+    const unitPrice = Number(snap?.pricePerCreditFcfa) > 0 ? Number(snap.pricePerCreditFcfa) : 1000;
+    const amount = CREATIVE_CREDIT_PACKS[quantity] ?? quantity * unitPrice;
+    const PRICE_PER_CREDIT = Math.round(amount / quantity); // trace/historique
     const frontendUrl = process.env.FRONTEND_URL || 'https://scalor.net';
     const backendUrl = process.env.BACKEND_URL || 'https://api.scalor.net';
-
-    // ── KPay actif (Super Admin) : crédits images via gateway KPay ──
-    const kpayCfg = await getPlatformKpayConfigForPhone(phone);
-    if (kpayCfg) {
-      try {
-        const kp = await initKpayGatewayPayment(kpayCfg, {
-          amount,
-          externalId: `crea-${workspaceId}-${Date.now()}`,
-          description: `Scalor — ${quantity} crédit${quantity > 1 ? 's' : ''} image IA`,
-          returnUrl: `${frontendUrl}/ecom/creatives`,
-          metadata: { kind: 'creative', workspaceId: workspaceId.toString(), userId: req.ecomUser._id.toString(), quantity }
-        });
-
-        const payment = new GenerationPayment({
-          workspaceId,
-          userId: req.ecomUser._id,
-          type: 'creative',
-          quantity,
-          pricePerGeneration: PRICE_PER_CREDIT,
-          amount,
-          provider: 'kpay',
-          mfToken: kp.id,
-          paymentUrl: kp.gatewayUrl || '',
-          status: 'pending',
-          phone: String(phone).trim(),
-          clientName: String(clientName).trim(),
-        });
-        await payment.save();
-
-        return res.json({ success: true, provider: 'kpay', mfToken: kp.id, paymentUrl: kp.gatewayUrl, amount, quantity });
-      } catch (err) {
-        console.error('[billing] KPay init /buy-creative error:', err.kpayBody || err.message);
-        return res.status(502).json({ success: false, message: `Erreur KPay : ${err.kpayBody?.message || err.message || 'initialisation impossible'}` });
-      }
-    }
 
     const paymentData = {
       totalPrice: amount,
@@ -1149,27 +967,6 @@ router.get('/status/:token', requireEcomAuth, async (req, res) => {
     // If already paid, return immediately
     if (payment.status === 'paid') {
       return res.json({ success: true, status: 'paid', payment });
-    }
-
-    // ── Paiement KPay : vérification via l'API KPay (clés plateforme, sans filtre pays) ──
-    if (payment.provider === 'kpay') {
-      const kpayCfg = await getPlatformKpayConfig();
-      if (!kpayCfg) {
-        return res.json({ success: true, status: payment.status, payment });
-      }
-      const kp = await getKpayPayment(kpayCfg, payment.mfToken);
-      const mapped = mapKpayStatus(kp.status);
-      if (kp.provider) payment.paymentMethod = kp.provider;
-      if (mapped === payment.status) {
-        return res.json({ success: true, status: payment.status, payment });
-      }
-      payment.status = mapped;
-      if (mapped === 'paid') {
-        await applyPlanPayment(payment);
-      } else {
-        await payment.save();
-      }
-      return res.json({ success: true, status: mapped, payment });
     }
 
     // Fetch fresh status from MoneyFusion

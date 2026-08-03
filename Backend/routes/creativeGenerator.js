@@ -12,8 +12,6 @@ import axios from 'axios';
 import multer from 'multer';
 import { randomUUID } from 'crypto';
 import { requireEcomAuth } from '../middleware/ecomAuth.js';
-import { ecomAuthOrGuest, clientIp } from '../middleware/guestAuth.js';
-import GuestSession from '../models/GuestSession.js';
 import { generateGptImage2ImageToImage, getImageGenerationStats } from '../services/nanoBananaService.js';
 import { uploadImage } from '../services/cloudflareImagesService.js';
 import { extractProductInfo } from '../services/geminiProductExtractor.js';
@@ -792,7 +790,6 @@ async function runCreativeJob(job, params) {
   const {
     url, description, visualTemplate, imageQuality, selectedFormats,
     resolvedImageBuffer, logoBuffer, workspaceId, userId, neededCredits,
-    guestId = null,
   } = params;
   const creatives = job.creatives;
   let refunded = 0;
@@ -868,12 +865,11 @@ async function runCreativeJob(job, params) {
         creatives.push({ id: format.id, label: format.label, aspectRatio: format.aspectRatio, imageUrl: finalUrl, usedProductImage: true });
 
         // Sauvegarde galerie — awaited pour visibilité des erreurs
-        if ((workspaceId && userId) || guestId) {
+        if (workspaceId && userId) {
           try {
             await CreativeAsset.create({
-              workspaceId: workspaceId || null,
-              userId: userId || null,
-              guestId: guestId || null,
+              workspaceId,
+              userId,
               productName: analysis.productName || '',
               formatId: format.id,
               label: format.label,
@@ -882,7 +878,7 @@ async function runCreativeJob(job, params) {
               category: analysis.category || '',
               template: visualTemplate || '',
             });
-            console.log(`  ✅ ${format.id} saved to gallery${guestId ? ' (guest)' : ''}`);
+            console.log(`  ✅ ${format.id} saved to gallery`);
           } catch (dbErr) {
             console.error(`  ❌ CreativeAsset save failed for ${format.id}:`, dbErr.message);
           }
@@ -958,7 +954,7 @@ async function runCreativeJob(job, params) {
 
 // ── POST /api/ecom/ai/creative-generator ──────────────────────────────────────
 // Valide, réserve les crédits, lance le job en arrière-plan, rend le jobId.
-router.post('/', ecomAuthOrGuest, upload.fields([
+router.post('/', requireEcomAuth, upload.fields([
   { name: 'productImage', maxCount: 1 },
   { name: 'logoImage', maxCount: 1 },
 ]), async (req, res) => {
@@ -982,17 +978,9 @@ router.post('/', ecomAuthOrGuest, upload.fields([
     }
 
     // Select formats
-    let selectedFormats = formats?.length > 0
+    const selectedFormats = formats?.length > 0
       ? CREATIVE_FORMATS.filter(f => formats.includes(f.id))
       : CREATIVE_FORMATS;
-
-    // ── Mode invité : 1 génération gratuite, formats plafonnés à 2 ──────────
-    // Quota réservé ICI (atomique) — rendu si la validation échoue plus bas ?
-    // Non : la réservation se fait juste avant le lancement du job (après les
-    // validations 400), pour ne jamais consommer l'essai sur une requête invalide.
-    if (req.isGuest) {
-      selectedFormats = selectedFormats.slice(0, 2);
-    }
 
     console.log(`🎨 Creative Generator: image=${!!productImageBuffer} url=${url || 'none'} desc=${description ? 'yes' : 'no'} → ${selectedFormats.map(f => f.id).join(', ')}`);
 
@@ -1020,35 +1008,13 @@ router.post('/', ecomAuthOrGuest, upload.fields([
       return res.status(400).json({ success: false, error: 'Aucune image produit fournie — impossible de générer en mode image-to-image. Uploadez une photo du produit.' });
     }
 
-    // ── Invité : réserver l'unique essai gratuit (atomique) + garde-fou IP ──
-    if (req.isGuest) {
-      const ip = clientIp(req);
-      const since = new Date(Date.now() - 24 * 3600 * 1000);
-      const ipUsed = await GuestSession.countDocuments({ ip, generationsUsed: { $gt: 0 }, updatedAt: { $gte: since } });
-      if (ipUsed >= 3) {
-        return res.status(429).json({ success: false, guestLimitReached: true, error: 'Limite d’essais gratuits atteinte pour aujourd’hui — crée un compte gratuit pour continuer.' });
-      }
-      const reserved = await GuestSession.findOneAndUpdate(
-        { guestId: req.guestId, claimedBy: null, $expr: { $lt: ['$generationsUsed', '$generationsLimit'] } },
-        { $inc: { generationsUsed: 1 } },
-        { new: true }
-      );
-      if (!reserved) {
-        return res.status(403).json({
-          success: false,
-          guestLimitReached: true,
-          error: 'Ton essai gratuit est déjà utilisé — crée un compte gratuit pour continuer à générer.',
-        });
-      }
-    }
-
     // Reserve credits atomically before costly calls.
     // Failed images are refunded after the batch, so one successful creative = one consumed credit.
     // Mode gratuit global (toggle super admin) : neededCredits=0 → aucun débit,
     // et refundUnused (garde `neededCredits <= refunded`) devient no-op.
-    const freeModeActive = req.isGuest ? true : await isCreativeFreeModeEnabled();
+    const freeModeActive = await isCreativeFreeModeEnabled();
     const neededCredits = freeModeActive ? 0 : selectedFormats.length;
-    if (!req.isGuest && !req.workspaceId) {
+    if (!req.workspaceId) {
       return res.status(400).json({ success: false, error: 'Workspace requis pour générer des créatives.' });
     }
     let reservedWorkspace = null;
@@ -1075,11 +1041,10 @@ router.post('/', ecomAuthOrGuest, upload.fields([
     }
 
     // Créer le job et lancer la génération en arrière-plan
-    const userId = req.isGuest ? null : (req.user?.id || req.ecomUser?._id || null);
+    const userId = req.user?.id || req.ecomUser?._id || null;
     const job = {
       id: randomUUID(),
-      workspaceId: req.isGuest ? null : String(req.workspaceId),
-      guestId: req.isGuest ? req.guestId : null,
+      workspaceId: String(req.workspaceId),
       status: 'running',
       step: 'queued',
       progress: { done: 0, total: selectedFormats.length },
@@ -1098,8 +1063,7 @@ router.post('/', ecomAuthOrGuest, upload.fields([
       selectedFormats,
       resolvedImageBuffer,
       logoBuffer,
-      workspaceId: req.isGuest ? null : req.workspaceId,
-      guestId: req.isGuest ? req.guestId : null,
+      workspaceId: req.workspaceId,
       userId,
       neededCredits,
     }).catch((err) => {
@@ -1123,51 +1087,14 @@ router.post('/', ecomAuthOrGuest, upload.fields([
 });
 
 // ── GET /api/ecom/ai/creative-generator/jobs/:id — état d'un job ─────────────
-router.get('/jobs/:id', ecomAuthOrGuest, async (req, res) => {
+router.get('/jobs/:id', requireEcomAuth, (req, res) => {
   const job = creativeJobs.get(req.params.id);
-  const ownsAsGuest = !!(job && req.isGuest && job.guestId && job.guestId === req.guestId);
-  let ownsAsUser = !!(job && !req.isGuest && job.workspaceId && job.workspaceId === String(req.workspaceId));
-  // Job lancé en invité, consulté après connexion : accessible si l'utilisateur
-  // a réclamé (claim) cette session invitée — résultat alors DÉVERROUILLÉ.
-  if (job && !req.isGuest && !ownsAsUser && job.guestId) {
-    try {
-      const sess = await GuestSession.findOne({ guestId: job.guestId }).select('claimedBy').lean();
-      const uid = req.user?.id || req.ecomUser?._id;
-      ownsAsUser = !!(sess?.claimedBy && String(sess.claimedBy) === String(uid));
-    } catch { /* ignore */ }
-  }
-  if (!job || (!ownsAsGuest && !ownsAsUser)) {
+  if (!job || job.workspaceId !== String(req.workspaceId)) {
     return res.status(404).json({
       success: false,
       message: 'Job introuvable (le serveur a peut-être redémarré) — vos visuels déjà générés sont dans la galerie.',
     });
   }
-
-  // ── Invité : le résultat reste VERROUILLÉ côté serveur (aucune URL) ────────
-  // L'invité voit l'avancement et le nombre de visuels prêts ; les images ne
-  // sont renvoyées qu'après connexion (claim → galerie / ce même endpoint).
-  if (ownsAsGuest) {
-    const lockedCreatives = job.creatives.map((c) => ({
-      id: c.id, label: c.label, aspectRatio: c.aspectRatio,
-      ready: !!c.imageUrl, error: c.error || null,
-    }));
-    return res.json({
-      success: true,
-      job: {
-        id: job.id,
-        status: job.status,
-        step: job.step,
-        progress: job.progress,
-        locked: true,
-        creatives: lockedCreatives,
-        result: job.status === 'done'
-          ? { success: true, locked: true, count: job.creatives.filter((c) => c.imageUrl).length }
-          : null,
-        error: job.error,
-      },
-    });
-  }
-
   res.json({
     success: true,
     job: {
@@ -1183,7 +1110,7 @@ router.get('/jobs/:id', ecomAuthOrGuest, async (req, res) => {
 });
 
 // ── GET /api/ai/creative-generator/formats ────────────────────────────────────
-router.get('/formats', ecomAuthOrGuest, async (_req, res) => {
+router.get('/formats', requireEcomAuth, async (_req, res) => {
   res.json({ formats: CREATIVE_FORMATS });
 });
 
@@ -1198,13 +1125,8 @@ const MEDIA_KIND_LABELS = {
   'steps-gif': 'GIF étapes',
 };
 
-router.get('/gallery', ecomAuthOrGuest, async (req, res) => {
+router.get('/gallery', requireEcomAuth, async (req, res) => {
   try {
-    // Invité : la galerie est vide par design — ses visuels sont verrouillés
-    // jusqu'à la connexion (claim), on n'expose jamais leurs URLs ici.
-    if (req.isGuest) {
-      return res.json({ success: true, assets: [], total: 0, page: 1, pages: 1, locked: true });
-    }
     if (!req.workspaceId) return res.status(400).json({ error: 'workspaceId manquant' });
     const page  = Math.max(1, parseInt(req.query.page)  || 1);
     const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20));

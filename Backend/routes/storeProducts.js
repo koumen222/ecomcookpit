@@ -651,28 +651,15 @@ const upload = multer({
  * GET /store-products
  * List all store products for the current workspace (dashboard).
  * Supports pagination: ?page=1&limit=20&category=&search=
- * ?storeId=<id> : cible explicitement une boutique du workspace (au lieu de la
- * boutique active) — utilisé par le sélecteur produits des attributions closeuse.
  */
 router.get('/', requireEcomAuth, requireWorkspace, async (req, res) => {
   try {
-    const { page = 1, limit = 20, category, search, isPublished, storeId } = req.query;
+    const { page = 1, limit = 20, category, search, isPublished } = req.query;
     const pageNum = Math.max(1, parseInt(page));
     const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 20));
 
     // Build filter — scoped to active store
     const filter = buildStoreFilter(req);
-
-    // Override explicite : boutique ciblée (vérifiée comme appartenant au workspace)
-    if (storeId && /^[0-9a-fA-F]{24}$/.test(String(storeId))) {
-      const targetStore = await Store.findOne({ _id: storeId, workspaceId: req.workspaceId })
-        .select('_id')
-        .lean();
-      if (!targetStore) {
-        return res.status(404).json({ success: false, message: 'Boutique introuvable dans ce workspace' });
-      }
-      filter.storeId = targetStore._id;
-    }
     if (category) filter.category = category;
     if (isPublished !== undefined) filter.isPublished = isPublished === 'true';
     if (search) {

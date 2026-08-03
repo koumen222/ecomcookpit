@@ -252,6 +252,7 @@ export function buildStorefrontOrderWhatsappMessage({
   storeName = '',
   orderNumber = '',
   totalLabel = '',
+  productSummary = '',
   customerName = '',
   displayPhone = '',
   country = '',
@@ -267,6 +268,7 @@ export function buildStorefrontOrderWhatsappMessage({
   const details = [
     orderNumber ? `📦 *Commande N° ${orderNumber}*` : '',
     totalLabel ? `💰 *Montant : ${totalLabel}*` : '',
+    productSummary ? `🛒 Produit : ${productSummary}` : '',
     customerName ? `👤 Nom : ${customerName}` : '',
     displayPhone ? `📞 Téléphone : ${displayPhone}` : '',
     country ? `🌍 Pays : ${country}` : '',

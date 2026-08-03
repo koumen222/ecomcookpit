@@ -17,13 +17,6 @@ const assignmentSchema = new mongoose.Schema({
       type: String, // Can be 'legacy' or WorkspaceSettings.sources[].id
       required: true
     },
-    // Périmètre boutique (source scalor_store uniquement) : la closeuse ne voit
-    // que les commandes des boutiques listées. Vide = toutes les boutiques
-    // (rétro-compatible avec les attributions existantes).
-    storeIds: [{
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Store'
-    }],
     assignedAt: {
       type: Date,
       default: Date.now

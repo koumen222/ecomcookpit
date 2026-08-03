@@ -124,7 +124,6 @@ router.get('/:subdomain', readLimiter, resolveStoreBySubdomain, async (req, res)
           cod: payCfg.cod?.enabled !== false, // activé par défaut
           scalorPay: payCfg.scalor_pay?.enabled === true,
           whatsapp: payCfg.whatsapp?.enabled === true,
-          kpay: payCfg.kpay?.enabled === true && !!payCfg.kpay?.kpayApiKey && !!payCfg.kpay?.kpaySecretKey,
         },
       }
     });
@@ -632,10 +631,6 @@ router.post('/:subdomain/orders', orderLimiter, resolveStoreBySubdomain, async (
         const mainOrder = new Order({
           workspaceId,
           storeId: req.storeId || null,
-          // Closeuse de la boutique COPIÉE FIGÉE à la création — jamais
-          // recalculée : le suivi perf/commission par closeuse reste vrai
-          // après réassignation de la boutique.
-          closerId: req.store?.closerId || null,
           sourceId: orderSource?._id || null,
           sourceName: orderSource?.name || 'Scalor Store',
           orderId: order.orderNumber,

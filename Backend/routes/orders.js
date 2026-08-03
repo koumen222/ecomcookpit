@@ -123,81 +123,6 @@ async function resolveProductNames(assignments) {
   return [...new Set([...sheetNames, ...populatedNames, ...dbProductNames])].filter(Boolean);
 }
 
-/**
- * Périmètre boutique par source (scalor_store) à partir des attributions.
- * Retourne un map sid → { restricted, storeIds:[String] }.
- * Une entrée orderSources SANS storeIds = accès à toutes les boutiques
- * (restricted=false) — rétro-compatible ; sinon union des storeIds.
- */
-function computeStoreScope(assignments) {
-  const scope = {};
-  for (const a of assignments) {
-    for (const os of (a.orderSources || [])) {
-      const sid = String(os.sourceId || '');
-      if (!sid) continue;
-      const entry = scope[sid] || (scope[sid] = { restricted: true, storeIds: new Set() });
-      const ids = (os.storeIds || []).map(String).filter(Boolean);
-      if (ids.length === 0) entry.restricted = false;
-      else ids.forEach(id => entry.storeIds.add(id));
-    }
-  }
-  for (const sid of Object.keys(scope)) {
-    scope[sid] = {
-      restricted: scope[sid].restricted && scope[sid].storeIds.size > 0,
-      storeIds: [...scope[sid].storeIds]
-    };
-  }
-  return scope;
-}
-
-/** Ajoute le filtre storeId à une condition source scalor_store si le périmètre est restreint. */
-function applyStoreScopeToCondition(cond, sid, sourceTypeMap, storeScope) {
-  if (!cond) return cond;
-  const s = storeScope?.[sid];
-  if (sourceTypeMap?.[sid] === 'scalor_store' && s?.restricted) {
-    return { ...cond, storeId: { $in: s.storeIds.map(id => new mongoose.Types.ObjectId(id)) } };
-  }
-  return cond;
-}
-
-const escapeRegex = (str) => String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&').trim();
-
-/**
- * Conditions produit du filtre closeuse, scoppées par boutique quand le
- * productAssignment appartient à une source scalor_store restreinte.
- */
-async function buildProductConditions(assignments, sourceTypeMap, storeScope) {
-  const openPAs = [];
-  const restrictedGroups = {}; // key = sid → { storeIds, pas: [] }
-  for (const a of assignments) {
-    for (const pa of (a.productAssignments || [])) {
-      const sid = String(pa.sourceId || '');
-      const s = storeScope?.[sid];
-      if (sourceTypeMap?.[sid] === 'scalor_store' && s?.restricted) {
-        const g = restrictedGroups[sid] || (restrictedGroups[sid] = { storeIds: s.storeIds, pas: [] });
-        g.pas.push(pa);
-      } else {
-        openPAs.push(pa);
-      }
-    }
-  }
-
-  const conditions = [];
-  const openNames = await resolveProductNames([{ productAssignments: openPAs }]);
-  openNames.forEach(name => conditions.push({ product: { $regex: escapeRegex(name), $options: 'i' } }));
-
-  for (const sid of Object.keys(restrictedGroups)) {
-    const g = restrictedGroups[sid];
-    const names = await resolveProductNames([{ productAssignments: g.pas }]);
-    const storeIn = { $in: g.storeIds.map(id => new mongoose.Types.ObjectId(id)) };
-    names.forEach(name => conditions.push({
-      product: { $regex: escapeRegex(name), $options: 'i' },
-      storeId: storeIn
-    }));
-  }
-  return conditions;
-}
-
 // Helper: récupère le téléphone depuis rawData si clientPhone est vide
 const PHONE_RAWDATA_KEYS = /^(tel|telephone|phone|mobile|whatsapp|gsm|portable|contact|numero|cellulaire)/i;
 function recoverPhoneFromRawData(order) {
@@ -258,14 +183,14 @@ async function applyCloseuseVisibilityFilter(req, filter) {
     const assignedCityNames = allAssignments.flatMap(a => (a.cityAssignments || []).flatMap(ca => ca.cityNames || []));
     const assignedSourceIds = [...new Set(allAssignments.flatMap(a => (a.orderSources || []).map(os => String(os.sourceId)).filter(Boolean)))];
     const sourceTypeMap = await loadSourceTypeMap(req.workspaceId);
-    // Périmètre boutique (scalor_store) : sources et produits scoppés par storeId
-    const storeScope = computeStoreScope(allAssignments);
+    const allProductNames = await resolveProductNames(allAssignments);
     assignedSourceIds.forEach(sid => {
-      const cond = applyStoreScopeToCondition(buildSourceCondition(sid, sourceTypeMap), sid, sourceTypeMap, storeScope);
+      const cond = buildSourceCondition(sid, sourceTypeMap);
       if (cond) allConditions.push(cond);
     });
-    const productConditions = await buildProductConditions(allAssignments, sourceTypeMap, storeScope);
-    productConditions.forEach(cond => allConditions.push(cond));
+    allProductNames.forEach(name => allConditions.push({
+      product: { $regex: name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').trim(), $options: 'i' }
+    }));
     assignedCityNames.forEach(name => allConditions.push({
       city: { $regex: `^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').trim()}$`, $options: 'i' }
     }));
@@ -863,22 +788,23 @@ router.get('/my-commissions', requireEcomAuth, async (req, res) => {
     const assignedSourceIds = [...new Set(
       allAssignments.flatMap(a => (a.orderSources || []).map(os => String(os.sourceId)).filter(Boolean))
     )];
+    const allProductNames = await resolveProductNames(allAssignments);
 
     // Construire toutes les conditions (sources, produits, villes)
     const allConditions = [];
 
-    // Condition 1: Commandes des sources assignées (scoppées par boutique si périmètre restreint)
+    // Condition 1: Commandes des sources assignées (utilise buildSourceCondition)
     const sourceTypeMap = await loadSourceTypeMap(req.workspaceId);
-    const storeScope = computeStoreScope(allAssignments);
     for (const sourceId of assignedSourceIds) {
-      const cond = applyStoreScopeToCondition(buildSourceCondition(sourceId, sourceTypeMap), sourceId, sourceTypeMap, storeScope);
+      const cond = buildSourceCondition(sourceId, sourceTypeMap);
       if (cond) allConditions.push(cond);
     }
 
-    // Condition 2: Commandes des produits assignés (scoppées par boutique pour scalor restreint)
-    const productConditions = await buildProductConditions(allAssignments, sourceTypeMap, storeScope);
-    for (const cond of productConditions) {
-      allConditions.push(cond);
+    // Condition 2: Commandes des produits assignés
+    for (const name of allProductNames) {
+      allConditions.push({
+        product: { $regex: name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').trim(), $options: 'i' }
+      });
     }
 
     // Condition 3: Commandes des villes assignées
@@ -4471,18 +4397,6 @@ router.get('/:id', requireEcomAuth, async (req, res) => {
 
     // Vérifier les permissions pour les closeuses
     if (getEffectiveRole(req) === 'ecom_closeuse') {
-      const myId = String(req.ecomUser._id);
-      // Règle 1 (alignée sur la liste) : commande affectée nominativement → toujours visible
-      const orderCloserId = order.closerId ? String(order.closerId?._id || order.closerId) : null;
-      if (orderCloserId === myId) {
-        fixOrderPhone(order);
-        return res.json({ success: true, data: order });
-      }
-      // Règle 2 : commande réservée à une AUTRE closeuse → jamais visible
-      if (orderCloserId && orderCloserId !== myId) {
-        return res.status(403).json({ success: false, message: 'Accès refusé: cette commande ne vous est pas assignée.' });
-      }
-
       const allAssignments = await CloseuseAssignment.find({
         closeuseId: req.ecomUser._id,
         workspaceId: req.workspaceId,
@@ -4498,22 +4412,16 @@ router.get('/:id', requireEcomAuth, async (req, res) => {
       )];
       const assignedCityNames = allAssignments.flatMap(a => (a.cityAssignments || []).flatMap(ca => ca.cityNames || []));
 
-      const sourceTypeMap = await loadSourceTypeMap(req.workspaceId);
-      // Périmètre boutique (scalor_store) : évaluation en mémoire du storeId
-      const storeScope = computeStoreScope(allAssignments);
-      const orderStoreId = order.storeId ? String(order.storeId) : null;
-      const matchesStoreScope = (cond) => {
-        if (!cond?.storeId?.$in) return true;
-        return !!orderStoreId && cond.storeId.$in.some(id => String(id) === orderStoreId);
-      };
+      // Résoudre tous les noms de produits (sheets + DB Products + StoreProducts)
+      const allProductNames = await resolveProductNames(allAssignments);
 
       // Source match: utilise buildSourceCondition pour gérer scalor_store, shopify, legacy, sheets
       let sourceMatch = false;
       if (assignedSourceIds.length > 0) {
+        const sourceTypeMap = await loadSourceTypeMap(req.workspaceId);
         sourceMatch = assignedSourceIds.some(sourceId => {
-          const cond = applyStoreScopeToCondition(buildSourceCondition(sourceId, sourceTypeMap), sourceId, sourceTypeMap, storeScope);
+          const cond = buildSourceCondition(sourceId, sourceTypeMap);
           if (!cond) return false;
-          if (!matchesStoreScope(cond)) return false;
           // Évaluer la condition sur l'order en mémoire
           if (cond.source?.$in) return cond.source.$in.includes(order.source);
           if (typeof cond.source === 'string') return order.source === cond.source;
@@ -4524,14 +4432,9 @@ router.get('/:id', requireEcomAuth, async (req, res) => {
         });
       }
 
-      // Produits scoppés par boutique pour les sources scalor restreintes
-      const productConditions = await buildProductConditions(allAssignments, sourceTypeMap, storeScope);
-      const productMatch = productConditions.some(cond => {
-        const name = cond.product?.$regex;
-        if (!name || !order.product) return false;
-        if (!matchesStoreScope(cond)) return false;
-        return new RegExp(name, 'i').test(order.product);
-      });
+      const productMatch = allProductNames.some(name =>
+        name && order.product && order.product.trim().toLowerCase().includes(name.trim().toLowerCase())
+      );
 
       const cityMatch = assignedCityNames.some(city =>
         city && order.city && order.city.trim().toLowerCase() === city.trim().toLowerCase()

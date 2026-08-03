@@ -296,21 +296,6 @@ const LIMIT_KEY_BY_RESOURCE = {
 };
 
 /**
- * Limite de boutiques effective d'un espace : override par espace ?? plan.
- * Retourne { max, overridden, planKey } — max null/-1 = illimité.
- */
-export async function getEffectiveStoreLimit(workspaceId) {
-  const { planKey } = await resolveEffectivePlan(workspaceId);
-  const plans = await getPlanConfigs();
-  const cfg = plans[planKey] || plans.free;
-  let max = cfg?.limits?.maxStores ?? null;
-  let overridden = false;
-  const ws = await Workspace.findById(workspaceId).select('maxStoresOverride').lean().catch(() => null);
-  if (ws && ws.maxStoresOverride != null) { max = ws.maxStoresOverride; overridden = true; }
-  return { max, overridden, planKey };
-}
-
-/**
  * Block POST/create when the resource count reaches the plan limit.
  * Usage: router.post('/', requireEcomAuth, checkPlanLimit('orders'), handler)
  */
@@ -325,13 +310,7 @@ export function checkPlanLimit(resource) {
       const plans = await getPlanConfigs();
       const cfg = plans[planKey] || plans.free;
       const limitKey = LIMIT_KEY_BY_RESOURCE[resource];
-      let max = cfg?.limits?.[limitKey];
-      // Limite de boutiques : l'override par espace (super admin) PRIME sur le
-      // plan — limite_effective = workspace.maxStoresOverride ?? plan.maxStores.
-      if (resource === 'stores') {
-        const ws = await Workspace.findById(workspaceId).select('maxStoresOverride').lean().catch(() => null);
-        if (ws && ws.maxStoresOverride != null) max = ws.maxStoresOverride;
-      }
+      const max = cfg?.limits?.[limitKey];
       const planLabel = getPlanLabel(planKey, cfg);
 
       if (max == null || max === -1) return next();

@@ -5,7 +5,6 @@ import multer from 'multer';
 import FormData from 'form-data';
 import mongoose from 'mongoose';
 import { requireEcomAuth } from '../middleware/ecomAuth.js';
-import { ecomAuthOrGuest, clientIp } from '../middleware/guestAuth.js';
 import { toUserAiError } from '../utils/aiErrorMessages.js';
 import EcomWorkspace from '../models/Workspace.js';
 import Order from '../models/Order.js';
@@ -1947,9 +1946,8 @@ router.post('/launch-kit', requireEcomAuth, async (req, res) => {
 
 // ─── POST /builder-ai/voiceover — Voix-off via Fish Audio ────────────────────
 // Body: { text, referenceId? } → { success, url } (mp3 hébergé sur R2)
-router.post('/voiceover', ecomAuthOrGuest, async (req, res) => {
+router.post('/voiceover', requireEcomAuth, async (req, res) => {
   let voiceResv = null; // réservation de crédits (remboursée dans le catch si échec)
-  let guestReserved = null; // session invitée après réservation d'un essai voix
   try {
     const FISH_API_KEY = process.env.FISH_API_KEY || process.env.FISHAUDIO_API_KEY || '';
     if (!FISH_API_KEY) return res.status(503).json({ success: false, message: 'Voix-off non configurée — ajoutez FISH_API_KEY dans le .env backend' });
@@ -1958,32 +1956,11 @@ router.post('/voiceover', ecomAuthOrGuest, async (req, res) => {
     if (clean.length < 2) return res.status(400).json({ success: false, message: 'Texte de narration requis' });
     if (clean.length > 5000) return res.status(400).json({ success: false, message: 'Texte trop long (max 5000 caractères)' });
 
-    if (req.isGuest) {
-      // ── Mode invité (page publique « voix off gratuite ») ────────────────
-      // 2 générations par session invitée, texte plafonné, garde-fou par IP.
-      if (clean.length > 600) return res.status(400).json({ success: false, message: 'Texte trop long pour l’essai gratuit (max 600 caractères) — crée un compte gratuit pour les scripts longs.' });
-      const GuestSession = (await import('../models/GuestSession.js')).default;
-      const ip = clientIp(req);
-      const since = new Date(Date.now() - 24 * 3600 * 1000);
-      const ipUsed = await GuestSession.countDocuments({ ip, voiceGenerationsUsed: { $gt: 0 }, updatedAt: { $gte: since } });
-      if (ipUsed >= 5) {
-        return res.status(429).json({ success: false, guestLimitReached: true, message: 'Limite d’essais gratuits atteinte pour aujourd’hui — crée un compte gratuit pour continuer.' });
-      }
-      guestReserved = await GuestSession.findOneAndUpdate(
-        { guestId: req.guestId, claimedBy: null, $expr: { $lt: ['$voiceGenerationsUsed', '$voiceGenerationsLimit'] } },
-        { $inc: { voiceGenerationsUsed: 1 } },
-        { new: true }
-      );
-      if (!guestReserved) {
-        return res.status(403).json({ success: false, guestLimitReached: true, message: 'Tes essais gratuits de voix off sont épuisés — crée un compte gratuit pour continuer.' });
-      }
-    } else {
-      // Débit Creative Center : 1 voix off = featureCost('voice') crédits.
-      const { reserveFeatureCredits, sendInsufficientCredits } = await import('../services/creativeCredits.js');
-      voiceResv = await reserveFeatureCredits(req.workspaceId, 'voice');
-      if (!voiceResv.ok) return sendInsufficientCredits(res, 'voice', voiceResv);
-      (await import('../models/FeatureUsageLog.js')).default.track(req, 'creative_voice', {});
-    }
+    // Débit Creative Center : 1 voix off = featureCost('voice') crédits.
+    const { reserveFeatureCredits, sendInsufficientCredits } = await import('../services/creativeCredits.js');
+    voiceResv = await reserveFeatureCredits(req.workspaceId, 'voice');
+    if (!voiceResv.ok) return sendInsufficientCredits(res, 'voice', voiceResv);
+    (await import('../models/FeatureUsageLog.js')).default.track(req, 'creative_voice', {});
 
     const body = { text: clean, format: 'mp3', mp3_bitrate: 128, normalize: true, latency: 'normal' };
     if (referenceId) body.reference_id = String(referenceId);
@@ -2003,34 +1980,9 @@ router.post('/voiceover', ecomAuthOrGuest, async (req, res) => {
     const { uploadToR2 } = await import('../services/cloudflareImagesService.js');
     const up = await uploadToR2(audioBuffer, `voiceover-${Date.now()}.mp3`, 'audio/mpeg');
     if (!up?.success || !up.url) throw new Error(up?.error || 'Publication audio impossible');
-
-    // Invité : l'audio est écoutable tout de suite ; il est AUSSI enregistré
-    // comme asset invité pour être rattaché au compte à la connexion (claim).
-    if (req.isGuest) {
-      try {
-        const CreativeAsset = (await import('../models/CreativeAsset.js')).default;
-        await CreativeAsset.create({
-          guestId: req.guestId,
-          type: 'audio',
-          label: 'Voix off (essai gratuit)',
-          productName: clean.slice(0, 80),
-          audioUrl: up.url,
-        });
-      } catch (assetErr) { console.warn('[BuilderAI] guest voice asset save failed:', assetErr.message); }
-      const remaining = Math.max(0, (guestReserved.voiceGenerationsLimit ?? 2) - guestReserved.voiceGenerationsUsed);
-      return res.json({ success: true, url: up.url, guest: true, voiceRemaining: remaining });
-    }
-
     return res.json({ success: true, url: up.url, creditsUsed: voiceResv.credits, creditsRemaining: voiceResv.remaining });
   } catch (err) {
     if (voiceResv?.ok) await voiceResv.refund(err.message);
-    // Invité : rendre l'essai si la génération a échoué après réservation
-    if (guestReserved) {
-      try {
-        const GuestSession = (await import('../models/GuestSession.js')).default;
-        await GuestSession.updateOne({ guestId: req.guestId, voiceGenerationsUsed: { $gt: 0 } }, { $inc: { voiceGenerationsUsed: -1 } });
-      } catch { /* noop */ }
-    }
     const status = err?.response?.status;
     let msg = err.message;
     if (err?.response?.data) { try { msg = Buffer.from(err.response.data).toString('utf8').slice(0, 300) || msg; } catch { /* noop */ } }
@@ -2521,7 +2473,7 @@ router.get('/lipsync/jobs/:id', requireEcomAuth, async (req, res) => {
 // → { success, total, page, pageSize, voices:[{ id, title, description,
 //     languages, tags, cover, sampleUrl, sampleText, author, likeCount, taskCount }] }
 const _voicesCache = new Map(); // clé JSON → { at, data } (TTL 5 min)
-router.get('/voices', ecomAuthOrGuest, async (req, res) => {
+router.get('/voices', requireEcomAuth, async (req, res) => {
   try {
     const FISH_API_KEY = process.env.FISH_API_KEY || process.env.FISHAUDIO_API_KEY || '';
     if (!FISH_API_KEY) return res.status(503).json({ success: false, message: 'Voix non configurées — ajoutez FISH_API_KEY dans le .env backend' });
