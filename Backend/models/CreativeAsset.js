@@ -6,18 +6,24 @@ import mongoose from 'mongoose';
  */
 const creativeAssetSchema = new mongoose.Schema(
   {
+    // required:false depuis le mode invité — un asset généré sans compte n'a
+    // pas encore de workspace/user : il porte guestId, rattaché au claim.
     workspaceId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'EcomWorkspace',
-      required: true,
+      required: false,
+      default: null,
       index: true,
     },
     userId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'EcomUser',
-      required: true,
+      required: false,
+      default: null,
       index: true,
     },
+    // Session invitée d'origine (nettoyé lors du rattachement à un compte)
+    guestId: { type: String, default: null, index: true },
     productName: { type: String, default: '', trim: true },
     type:        { type: String, default: 'image', enum: ['image', 'text', 'video', 'audio', 'launch'], index: true },
     formatId:    { type: String, default: '' },   // ex: 'hero-benefits'

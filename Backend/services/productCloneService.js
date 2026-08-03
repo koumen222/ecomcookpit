@@ -221,7 +221,7 @@ export async function replicateFullPage(url) {
   //     attributs ou les classes signalent un CTA (multi-langue) est marqué
   //     data-scalor-cta — le rendu boutique le branche sur le formulaire de
   //     commande Scalor.
-  const CTA_TEXT_RE = /(add\s*to\s*cart|buy\s*now|buy\s*it|order\s*now|shop\s*now|checkout|purchase|commander|commandez|acheter|achetez|ajouter\s*au\s*panier|panier|j['’]en\s*profite|profiter|comprar|añadir|kaufen|acquista)/i;
+  const CTA_TEXT_RE = /(add\s*to\s*cart|buy\s*now|buy\s*it|order\s*now|shop\s*now|checkout|purchase|commander|commandez|acheter|achetez|ajouter\s*au\s*panier|panier|j['’]en\s*profite|profiter|comprar|añadir|kaufen|acquista|aggiungi(?:\s*al\s*carrello)?|carrello|ordina|compra|prova[\w®\s]{0,24}\bora\b)/i;
   const CTA_CLASS_RE = /(add-to-cart|addtocart|buy|checkout|cart|order|cta|product-form__submit|shopify-payment-button)/i;
   let ctaCount = 0;
   for (const el of doc.querySelectorAll('button, a, input[type="submit"], [role="button"]')) {
@@ -229,7 +229,9 @@ export async function replicateFullPage(url) {
     const cls = `${el.getAttribute('class') || ''} ${el.getAttribute('id') || ''} ${el.getAttribute('name') || ''}`;
     const href = el.getAttribute('href') || '';
     const isCta = CTA_TEXT_RE.test(txt) || CTA_CLASS_RE.test(cls) || el.getAttribute('name') === 'add'
-      || /(\/cart|\/checkout|\/panier|\/commande)/i.test(href);
+      || /(\/cart|\/checkout|\/panier|\/commande)/i.test(href)
+      // Ancre interne vers la zone d'achat (« Prova Ora » → #shopify-section-…__main)
+      || /^#.*(product|main|buy|order|acquist|commander)/i.test(href);
     if (isCta) { el.setAttribute('data-scalor-cta', '1'); ctaCount += 1; }
   }
   // Aucun CTA détecté (page atypique) : les <button>/<a> proéminents du haut
@@ -314,7 +316,7 @@ async function rewriteListing(scraped, ctx) {
     throw new Error('Service IA non configuré (DEEPSEEK_API_KEY ou GROQ_API_KEY)');
   }
   const system = `Tu es un copywriter e-commerce senior pour le marché africain francophone (paiement à la livraison).
-On te donne le CONTENU INTÉGRAL d'une page produit concurrente, section par section. Tu produis un CLONE COMPLET de la page : TOUT le contenu est repris — chaque section, chaque argument, chaque information — mais RÉÉCRIT avec tes mots (jamais de copier-coller mot à mot : meilleur SEO, pas de contenu dupliqué), amélioré et adapté au COD africain. Réponds UNIQUEMENT avec ce JSON :
+On te donne le CONTENU INTÉGRAL d'une page produit concurrente, section par section. La page source peut être dans N'IMPORTE QUELLE langue (italien, anglais, espagnol…) : ta fiche est TOUJOURS rédigée en FRANÇAIS — traduis fidèlement, ne laisse aucune phrase dans la langue source. Tu produis un CLONE COMPLET de la page : TOUT le contenu est repris — chaque section, chaque argument, chaque information — mais RÉÉCRIT avec tes mots (jamais de copier-coller mot à mot : meilleur SEO, pas de contenu dupliqué), amélioré et adapté au COD africain. Réponds UNIQUEMENT avec ce JSON :
 {"name":"…","description":"… (HTML riche — voir règles)","category":"…","tags":["…"],"seoTitle":"… (max 60 car.)","seoDescription":"… (max 155 car.)","suggestedPrice":<nombre en FCFA, prix psychologique ex. 14900>,"features":[{"icon":"Check","text":"… (max 40 car.)"}],"faq":[{"question":"…","answer":"…"}],"testimonials":[{"name":"Prénom","text":"…","rating":5,"location":"Ville"}]}
 RÈGLES DU CLONE INTÉGRAL :
 - "description" = du HTML riche (balises <h2>, <h3>, <p>, <ul><li>, <strong> uniquement) qui REPREND TOUTES les sections de contenu de la page source, DANS LE MÊME ORDRE : présentation, bénéfices, mode d'emploi, composition/caractéristiques, garanties, comparatifs, histoires — AUCUNE section de contenu produit n'est omise, aucune information n'est perdue. Réécris chaque section entièrement (pas de résumé qui coupe du contenu). Ignore uniquement le menu, le panier, le pied de page et les mentions légales du site source.

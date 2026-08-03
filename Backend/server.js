@@ -269,8 +269,8 @@ app.use((req, res, next) => {
 app.use(express.json({
   limit: '10mb',
   verify: (req, _res, buf) => {
-    // Capture raw body for webhook HMAC verification (Shopify + generic orders)
-    if (req.url && (req.url.startsWith('/api/webhooks/') || req.url.startsWith('/webhook/orders/'))) {
+    // Capture raw body for webhook HMAC verification (Shopify + generic orders + KPay)
+    if (req.url && (req.url.startsWith('/api/webhooks/') || req.url.startsWith('/webhook/orders/') || req.url.startsWith('/api/ecom/kpay/webhook'))) {
       req.rawBody = buf;
     }
   }
@@ -363,6 +363,9 @@ const startServer = async () => {
 
     // ─── Route map: file → mount path ──────────────────────────────────
     const routes = [
+      // ─── Liens courts (scalor.net/s/…) ────────────────────────────────
+      ['./routes/shortLinks.js',               '/s'],
+      ['./routes/shortLinksAdmin.js',          '/api/ecom/links'],
       // ─── Provider Management API (independent from ecomAuth) ─────────────
       ['./routes/provider.js',                '/api/provider'],
       // ─── Ecom Platform routes ──────────────────────────────────────────
@@ -418,6 +421,7 @@ const startServer = async () => {
       ['./routes/stores.js',                  '/api/ecom/stores'],
       ['./routes/storeAdmin.js',              '/api/ecom/store'],
       ['./routes/scalorPay.js',               '/api/ecom/scalor-pay'],
+      ['./routes/kpay.js',                    '/api/ecom/kpay'],
       ['./routes/storeAnalytics.js',          '/api/ecom/store-analytics'],
       ['./routes/publicStore.js',             '/api/public/store'],
       // ─── Classement public « Top vendeurs » (landing, sans auth) ──────
@@ -430,6 +434,8 @@ const startServer = async () => {
       // ─── AI Product Page Generator ───────────────────────────────────
       ['./routes/productPageGenerator.js',    '/api/ai/product-generator'],
       ['./routes/creativeGenerator.js',        '/api/ecom/ai/creative-generator'],
+      // ─── Sessions invité Creative Center (essai sans compte + claim) ──
+      ['./routes/guestSession.js',             '/api/ecom/guest'],
       // ─── Caddy On-Demand TLS domain validation ─────────────────────────
       ['./routes/caddyDomain.js',             '/api/caddy'],
       // ─── Diagnostics ──────────────────────────────────────────────────────

@@ -42,6 +42,8 @@ const ticketSchema = new mongoose.Schema({
     relatedSentryIssues: { type: [mongoose.Schema.Types.Mixed], default: [] },      // [{issueId, title, url, lastSeen}] — Sentry non branché à ce jour, rempli manuellement ou par intégration future
     recentUserActions: { type: [mongoose.Schema.Types.Mixed], default: [] },        // dernières commandes + FeatureUsageLog
     screenshotUrl: { type: String, default: '' },
+    // Liens joints au signalement (captures d'écran, vidéos de repro…).
+    attachments: { type: [String], default: [] },
   },
 
   // ── Analyse Claude (job asynchrone, bug_technique uniquement) ──────────────

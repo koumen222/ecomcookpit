@@ -41,6 +41,13 @@ const generationPaymentSchema = new mongoose.Schema({
     type: Number,
     required: true
   },
+  // Prestataire de paiement : 'moneyfusion' (historique) ou 'kpay'.
+  // Pour KPay, mfToken porte l'id de paiement KPay (pay_xxx).
+  provider: {
+    type: String,
+    enum: ['moneyfusion', 'kpay'],
+    default: 'moneyfusion'
+  },
   // MoneyFusion tokenPay — unique identifier returned at checkout
   mfToken: {
     type: String,

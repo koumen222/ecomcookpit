@@ -13,6 +13,13 @@ const workspaceSchema = new mongoose.Schema({
     lowercase: true,
     trim: true
   },
+  // Override super-admin de la limite de boutiques du plan pour CET espace.
+  // null = pas d'override → la limite du plan (PlanConfig.limits.maxStores)
+  // s'applique. limite_effective = maxStoresOverride ?? plan.maxStores.
+  maxStoresOverride: {
+    type: Number,
+    default: null
+  },
   owner: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'EcomUser',
@@ -252,6 +259,12 @@ const workspaceSchema = new mongoose.Schema({
   freeGenerationsRemaining: {
     type: Number,
     default: 1,
+    min: 0
+  },
+  // Pages gratuites (style hero_page) déjà consommées — 5 offertes par boutique.
+  heroFreeGenerationsUsed: {
+    type: Number,
+    default: 0,
     min: 0
   },
   totalGenerations: {

@@ -122,6 +122,17 @@ const storeOrderSchema = new mongoose.Schema({
     index: true,
     sparse: true
   },
+  // Identifiants KPay (si paymentMethod = 'kpay') — pay_xxx + référence interne KPay.
+  kpayPaymentId: {
+    type: String,
+    default: null,
+    index: true,
+    sparse: true
+  },
+  kpayReference: {
+    type: String,
+    default: null
+  },
   paidAt: {
     type: Date,
     default: null
@@ -236,6 +247,10 @@ storeOrderSchema.index({ workspaceId: 1, orderNumber: 1 });
 storeOrderSchema.index({ workspaceId: 1, phone: 1 });
 // Checkout recovery lookup
 storeOrderSchema.index({ workspaceId: 1, storeId: 1, checkoutSessionId: 1 });
+// Requêtes PLATEFORME (super-admin) : dernière commande globale, CA du jour /
+// des 7 derniers jours toutes boutiques — tri/filtre par date SANS workspaceId.
+// Les index composés ci-dessus ne servent pas ces requêtes (préfixe workspaceId).
+storeOrderSchema.index({ createdAt: -1 });
 
 /**
  * Paginated query with workspace isolation.
