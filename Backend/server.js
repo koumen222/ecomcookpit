@@ -422,6 +422,7 @@ const startServer = async () => {
       ['./routes/storeAdmin.js',              '/api/ecom/store'],
       ['./routes/scalorPay.js',               '/api/ecom/scalor-pay'],
       ['./routes/kpay.js',                    '/api/ecom/kpay'],
+      ['./routes/kpay.js',                    '/api/ecom/kpay'],
       ['./routes/storeAnalytics.js',          '/api/ecom/store-analytics'],
       ['./routes/publicStore.js',             '/api/public/store'],
       // ─── Classement public « Top vendeurs » (landing, sans auth) ──────
@@ -465,6 +466,8 @@ const startServer = async () => {
       ['./routes/builderAi.js',                '/api/ecom/builder-ai'],
       // ─── Traduction / doublage vidéo ──────────────────────────────────────
       ['./routes/videoTranslation.js',         '/api/ecom/video-translation'],
+      // ─── Montage automatique IA (outil Montage Auto) ──────────────────────
+      ['./routes/autoMontage.js',              '/api/ecom/auto-montage'],
       // ─── Montage automatique IA (outil Montage Auto) ──────────────────────
       ['./routes/autoMontage.js',              '/api/ecom/auto-montage'],
       // ─── Promo Codes (super admin) ─────────────────────────────────────

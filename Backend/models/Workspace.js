@@ -267,6 +267,18 @@ const workspaceSchema = new mongoose.Schema({
     default: 0,
     min: 0
   },
+  // Pages gratuites (style hero_page) déjà consommées — 5 offertes par boutique.
+  heroFreeGenerationsUsed: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  // Pages gratuites (style hero_page) déjà consommées — 5 offertes par boutique.
+  heroFreeGenerationsUsed: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
   totalGenerations: {
     type: Number,
     default: 0,

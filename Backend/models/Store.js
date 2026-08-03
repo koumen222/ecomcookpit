@@ -78,6 +78,10 @@ const storeSchema = new mongoose.Schema({
   // commande de la boutique est ajoutée dans la feuille du marchand.
   // { enabled, spreadsheetId, sheetName, lastSyncAt, lastError, lastErrorAt }
   storeSheetSync: { type: mongoose.Schema.Types.Mixed, default: null },
+  // Synchro Google Sheets des commandes (service account) : chaque nouvelle
+  // commande de la boutique est ajoutée dans la feuille du marchand.
+  // { enabled, spreadsheetId, sheetName, lastSyncAt, lastError, lastErrorAt }
+  storeSheetSync: { type: mongoose.Schema.Types.Mixed, default: null },
   storePayments: { type: mongoose.Schema.Types.Mixed, default: {} },
   storeDomains: { type: mongoose.Schema.Types.Mixed, default: {} },
   storeDeliveryZones: {

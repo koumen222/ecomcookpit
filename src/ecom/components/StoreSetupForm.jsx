@@ -20,7 +20,7 @@ export const DEFAULT_STORE_SETUP = {
 
 export const slugifySubdomain = (name) => String(name || '')
   .toLowerCase()
-  .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  .normalize('NFD').replace(/[̀-ͯ]/g, '')
   .replace(/[^a-z0-9\s-]/g, '')
   .replace(/\s+/g, '-')
   .replace(/-+/g, '-')

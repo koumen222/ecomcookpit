@@ -446,7 +446,7 @@ const FILLER_WORDS = new Set([
 ]);
 
 const normWord = (w) => String(w || '').toLowerCase().normalize('NFD')
-  .replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9']/g, '');
+  .replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9']/g, '');
 
 // Retourne un Set d'indices de mots à supprimer : fillers + répétitions
 // immédiates du même mot (« je je pense » → premier « je » retiré).

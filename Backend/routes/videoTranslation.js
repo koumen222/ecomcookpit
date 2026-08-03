@@ -81,6 +81,9 @@ router.post('/translate', requireEcomAuth, upload.single('video'), async (req, r
   (await import('../models/FeatureUsageLog.js')).default
     .track(req, 'creative_translation', { targetLang: String(targetLang).toLowerCase() });
 
+  (await import('../models/FeatureUsageLog.js')).default
+    .track(req, 'creative_translation', { targetLang: String(targetLang).toLowerCase() });
+
   await VideoTranslationJob.push(jobId, {
     ...owner,
     status: 'processing', stage: 'En file', progress: 2,
@@ -128,6 +131,75 @@ router.post('/translate', requireEcomAuth, upload.single('video'), async (req, r
       await fs.rm(videoPath, { force: true }).catch(() => {});
     }
   })();
+});
+
+// ─── Voix off Scalor sur la vidéo ORIGINALE ──────────────────────────────────
+// POST /video-translation/:jobId/revoice { voiceRefId? }
+// Le texte TRADUIT du job → voix off Fish Audio → assemblage ffmpeg sur la
+// vidéo de base (piste audio remplacée). Suivi via le poll du job
+// (revoiceStatus/revoiceProgress/revoiceUrl).
+router.post('/:jobId/revoice', requireEcomAuth, async (req, res) => {
+  try {
+    const job = await VideoTranslationJob.findOne({ jobId: req.params.jobId }).lean();
+    if (!job) return res.status(404).json({ success: false, message: 'Job introuvable ou expiré.' });
+    if (job.workspaceId && req.workspaceId && String(job.workspaceId) !== String(req.workspaceId)) {
+      return res.status(403).json({ success: false, message: 'Accès refusé.' });
+    }
+    if (job.status !== 'done') return res.status(400).json({ success: false, message: 'La traduction n\'est pas terminée.' });
+    if (!job.translatedText) return res.status(400).json({ success: false, message: 'Texte traduit indisponible pour ce job (relancez une traduction).' });
+    if (!job.originalUrl) return res.status(400).json({ success: false, message: 'Vidéo originale indisponible pour ce job (relancez une traduction).' });
+    if (job.revoiceStatus === 'processing') return res.status(409).json({ success: false, message: 'Assemblage déjà en cours.' });
+
+    const FISH_API_KEY = process.env.FISH_API_KEY || process.env.FISHAUDIO_API_KEY || '';
+    if (!FISH_API_KEY) return res.status(503).json({ success: false, message: 'Voix off non configurée (FISH_API_KEY).' });
+
+    const voiceRefId = String(req.body?.voiceRefId || '').trim();
+    const jobId = job.jobId;
+    await VideoTranslationJob.push(jobId, { revoiceStatus: 'processing', revoiceProgress: 5, revoiceError: null, revoiceUrl: null });
+    res.status(202).json({ success: true, jobId });
+
+    // ── Worker asynchrone : TTS Fish → ffmpeg (audio remplacé) → R2 ──
+    (async () => {
+      try {
+        const axios = (await import('axios')).default;
+        const body = { text: job.translatedText.slice(0, 9000), format: 'mp3', mp3_bitrate: 128, normalize: true, latency: 'normal' };
+        if (voiceRefId) body.reference_id = voiceRefId;
+        const fishRes = await axios.post('https://api.fish.audio/v1/tts', body, {
+          headers: { Authorization: `Bearer ${FISH_API_KEY}`, 'Content-Type': 'application/json', model: process.env.FISH_MODEL || 's2.1-pro-free' },
+          responseType: 'arraybuffer',
+          timeout: 240000,
+        });
+        const audioBuffer = Buffer.from(fishRes.data);
+        if (!audioBuffer?.length) throw new Error('Voix off vide.');
+        await VideoTranslationJob.push(jobId, { revoiceProgress: 55 });
+
+        // Assemblage : vidéo ORIGINALE + voix off (durée de la vidéo respectée).
+        const { addVoiceoverToVideo } = await import('../services/falVideoService.js');
+        const maxSeconds = Math.max(5, Number(job.durationSec) || 600);
+        const finalBuffer = await addVoiceoverToVideo(job.originalUrl, audioBuffer, { maxSeconds });
+        await VideoTranslationJob.push(jobId, { revoiceProgress: 85 });
+
+        const { uploadToR2 } = await import('../services/cloudflareImagesService.js');
+        const up = await uploadToR2(finalBuffer, `video-translation/revoice-${Date.now()}.mp4`, 'video/mp4');
+        if (!up?.success || !up.url) throw new Error(up?.error || 'Publication impossible.');
+
+        await VideoTranslationJob.push(jobId, { revoiceStatus: 'done', revoiceProgress: 100, revoiceUrl: up.url });
+        // Galerie + historique (best-effort)
+        const { recordFinalCreativeVideo } = await import('../services/creativeFinalVideoService.js');
+        await recordFinalCreativeVideo({
+          workspaceId: job.workspaceId, userId: job.userId, videoUrl: up.url,
+          label: `Vidéo traduite + voix off · ${String(job.targetLang || '').toUpperCase()}`,
+          kind: 'video-translation-revoice', durationSec: job.durationSec || 0,
+          meta: { jobId, voiceRefId },
+        });
+      } catch (err) {
+        console.error('[VideoTranslation] revoice failed:', err.message);
+        await VideoTranslationJob.push(jobId, { revoiceStatus: 'error', revoiceError: String(err.message || 'Échec de l\'assemblage.').slice(0, 300) });
+      }
+    })();
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
 });
 
 // ─── Voix off Scalor sur la vidéo ORIGINALE ──────────────────────────────────

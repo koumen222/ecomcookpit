@@ -5,30 +5,6 @@ import { authApi, warmUpBackend } from '../services/ecommApi';
 import { getContextualError } from '../utils/errorMessages';
 import { getPendingPlanSelection } from '../utils/pendingPlanFlow.js';
 import { loadGsi, renderGsiButton } from '../utils/googleGsi.js';
-import { captureAffiliateAttributionFromSearch, getAffiliateAttribution } from '../utils/affiliateAttribution.js';
-
-// Attribution affiliée : params URL (prioritaires, last-click) puis stockage 60j.
-// Retourne { affiliateCode, affiliateLinkCode, affiliateClickId } pour l'API.
-function resolveAffiliateSignupAttribution(search = '') {
-  const params = new URLSearchParams(search || '');
-  const urlCode = String(params.get('aff') || '').trim().toUpperCase();
-  if (urlCode) {
-    return {
-      affiliateCode: urlCode,
-      affiliateLinkCode: String(params.get('aff_link') || '').trim().toUpperCase() || undefined,
-      affiliateClickId: String(params.get('aff_click') || '').trim() || undefined
-    };
-  }
-  const stored = getAffiliateAttribution();
-  if (stored?.affiliateCode) {
-    return {
-      affiliateCode: stored.affiliateCode,
-      affiliateLinkCode: stored.affiliateLinkCode || undefined,
-      affiliateClickId: stored.clickId || undefined
-    };
-  }
-  return { affiliateCode: '', affiliateLinkCode: undefined, affiliateClickId: undefined };
-}
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '559924689181-rpkv8ji3029kvrtsvt3qceusmsh1i4p2.apps.googleusercontent.com';
 const FORMATION_PATH = '/ecom/formation';
@@ -44,15 +20,8 @@ const Register = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const joinMode = new URLSearchParams(location.search).get('mode') === 'join';
-  // Attribution affiliée : URL en priorité, sinon stockage last-click 60j
-  const affiliateAttribution = resolveAffiliateSignupAttribution(location.search);
-  const affiliateCode = affiliateAttribution.affiliateCode;
+  const affiliateCode = new URLSearchParams(location.search).get('aff') || '';
   const inviteToken = new URLSearchParams(location.search).get('invite') || '';
-
-  // Persister l'attribution si l'arrivée se fait directement avec ?aff=
-  useEffect(() => {
-    captureAffiliateAttributionFromSearch(location.search);
-  }, [location.search]);
   const { register, googleLogin } = useEcomAuth();
   const pendingPlanSelection = getPendingPlanSelection();
 
@@ -150,8 +119,7 @@ const Register = () => {
 
     setLoading(true); setError('');
     try {
-      const attribution = resolveAffiliateSignupAttribution(window.location.search);
-      const result = await googleLogin(response.credential, attribution.affiliateCode || undefined, attribution);
+      const result = await googleLogin(response.credential, affiliateCode || undefined);
       console.log('✅ [Google Auth] Login réussi (Register):', { user: result.data?.user?.email });
       const u = result.data?.user;
       if (result.data?.isNewUser === true && offerFormationAfterAuth(u)) return;
@@ -160,7 +128,7 @@ const Register = () => {
       console.error('❌ [Google Auth] Erreur:', err);
       setError(getContextualError(err, 'login'));
     } finally { setLoading(false); }
-  }, [googleLogin, navigateAfterAuth, offerFormationAfterAuth]);
+  }, [affiliateCode, googleLogin, navigateAfterAuth, offerFormationAfterAuth]);
 
   // Garde le callback à jour sans relancer l'effet de chargement GSI.
   const googleCallbackRef = useRef(handleGoogleCallback);
@@ -238,17 +206,7 @@ const Register = () => {
     if (!canSubmit) return;
     setLoading(true); setError('');
     try {
-      const signupAttribution = resolveAffiliateSignupAttribution(window.location.search);
-      const result = await register({
-        email,
-        password: formData.password,
-        name: formData.name.trim(),
-        phone: formData.phone.trim(),
-        acceptPrivacy: true,
-        affiliateCode: signupAttribution.affiliateCode || undefined,
-        affiliateLinkCode: signupAttribution.affiliateLinkCode,
-        affiliateClickId: signupAttribution.affiliateClickId
-      });
+      const result = await register({ email, password: formData.password, name: formData.name.trim(), phone: formData.phone.trim(), acceptPrivacy: true, affiliateCode: affiliateCode || undefined });
       const registeredUser = result?.data?.user || { workspaceId: result?.data?.workspace?._id || result?.data?.workspace?.id || null };
       const isFreshSignup = result?.data?.isNewUser === true || /compte créé/i.test(result?.message || '');
       if (isFreshSignup && offerFormationAfterAuth(registeredUser)) return;

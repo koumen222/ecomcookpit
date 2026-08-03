@@ -1736,6 +1736,96 @@ router.post('/:subdomain/kpay/checkout', orderLimiter, async (req, res) => {
   }
 });
 
+// ─── KPay — encaissement Mobile Money avec les clés DU MARCHAND ──────────────
+// Mode GATEWAY : KPay héberge la page de paiement, on redirige le client.
+// Confirmation du paiement : webhook /api/ecom/kpay/webhook (+ vérif API).
+router.post('/:subdomain/kpay/checkout', orderLimiter, async (req, res) => {
+  try {
+    const workspace = await resolveStore(req.params.subdomain);
+    if (!workspace) {
+      return res.status(404).json({ success: false, message: 'Store not found' });
+    }
+
+    const kpayCfg = workspace.storePayments?.kpay;
+    const { isKpayConfigValid, initKpayGatewayPayment } = await import('../services/kpayService.js');
+    if (!isKpayConfigValid(kpayCfg)) {
+      return res.status(403).json({ success: false, message: 'KPay n\'est pas activé sur cette boutique' });
+    }
+
+    const { orderId, orderNumber, returnUrl: rawReturnUrl } = req.body || {};
+
+    const orderFilter = {
+      workspaceId: workspace._workspaceId,
+      status: { $ne: 'abandoned' },
+    };
+    if (workspace._storeId) orderFilter.storeId = workspace._storeId;
+    if (orderId && mongoose.Types.ObjectId.isValid(orderId)) orderFilter._id = orderId;
+    else if (orderNumber) orderFilter.orderNumber = String(orderNumber).trim();
+    else return res.status(400).json({ success: false, message: 'orderId ou orderNumber requis' });
+
+    const order = await StoreOrder.findOne(orderFilter);
+    if (!order) {
+      return res.status(404).json({ success: false, message: 'Commande introuvable' });
+    }
+    if (order.paymentStatus === 'paid') {
+      return res.status(200).json({ success: true, alreadyPaid: true, message: 'Commande déjà payée' });
+    }
+
+    const amount = Math.round(Number(order.total) || 0);
+    if (amount <= 0) {
+      return res.status(400).json({ success: false, message: 'Montant de commande invalide' });
+    }
+
+    const frontendUrl = process.env.FRONTEND_URL || 'https://scalor.net';
+    const returnUrl = /^https?:\/\//i.test(String(rawReturnUrl || '').trim())
+      ? String(rawReturnUrl).trim()
+      : `${frontendUrl}/order-confirmation?order=${encodeURIComponent(order.orderNumber)}`;
+
+    // externalId unique par tentative : _id de la StoreOrder + timestamp
+    // (évite le 409 KPay si le client abandonne puis retente). Le webhook
+    // retrouve la commande via kpayPaymentId, sinon via le préfixe _id.
+    const externalId = `${order._id}-${Date.now()}`;
+
+    let payment;
+    try {
+      payment = await initKpayGatewayPayment(kpayCfg, {
+        amount,
+        externalId,
+        description: `Commande ${order.orderNumber}`,
+        returnUrl,
+        cancelUrl: returnUrl,
+        metadata: {
+          orderId: String(order._id),
+          orderNumber: order.orderNumber,
+          workspaceId: String(workspace._workspaceId),
+          storeId: workspace._storeId ? String(workspace._storeId) : ''
+        }
+      });
+    } catch (err) {
+      console.error('[storeApi] KPay init error:', err.kpayBody || err.message);
+      return res.status(502).json({ success: false, message: 'Erreur lors de l\'initialisation du paiement KPay' });
+    }
+
+    order.paymentMethod = 'kpay';
+    order.paymentStatus = 'pending';
+    order.kpayPaymentId = payment.id;
+    order.kpayReference = payment.reference || null;
+    await order.save();
+
+    res.json({
+      success: true,
+      paymentUrl: payment.gatewayUrl,
+      paymentId: payment.id,
+      reference: payment.reference,
+      amount,
+      isTest: payment.isTest === true,
+    });
+  } catch (err) {
+    console.error('[storeApi] POST /kpay/checkout error:', err);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
 router.post('/:subdomain/scalor-pay/checkout', orderLimiter, async (req, res) => {
   try {
     const workspace = await resolveStore(req.params.subdomain);

@@ -11,6 +11,10 @@ const offerItemSchema = new mongoose.Schema({
   // Vide → le front affiche "N unité(s)" par défaut.
   title:         { type: String, trim: true, default: '' },
   subtitle:      { type: String, trim: true, default: '' },
+  // Message personnalisé du palier ("1 paquet", "2 paquets + 1 OFFERT"…).
+  // Vide → le front affiche "N unité(s)" par défaut.
+  title:         { type: String, trim: true, default: '' },
+  subtitle:      { type: String, trim: true, default: '' },
   // Modal-compatible aliases (saved alongside for direct use)
   qty:           { type: Number, default: 1 },
   comparePrice:  { type: Number, default: 0 },

@@ -34,10 +34,7 @@ const storeVisitorPresenceSchema = new mongoose.Schema({
   funnelStage: { type: Number, default: 1, min: 1, max: 4 },
 
   firstSeenAt: { type: Date, default: Date.now },
-  // L'index TTL déclaré plus bas couvre aussi les filtres sur lastSeenAt.
-  // Ne pas ajouter un second index simple sur la même clé : MongoDB peut
-  // refuser sa création avec IndexOptionsConflict.
-  lastSeenAt:  { type: Date, default: Date.now },
+  lastSeenAt:  { type: Date, default: Date.now, index: true },
 }, {
   timestamps: false,
   collection: 'store_visitor_presence',

@@ -598,6 +598,9 @@ export const authApi = {
   // Vérifier la disponibilité d'un sous-domaine (PUBLIC — funnel « boutique d'abord »)
   checkSubdomainPublic: (subdomain) => ecomApi.get(`/auth/check-subdomain/${encodeURIComponent(subdomain)}`),
 
+  // Vérifier la disponibilité d'un sous-domaine (PUBLIC — funnel « boutique d'abord »)
+  checkSubdomainPublic: (subdomain) => ecomApi.get(`/auth/check-subdomain/${encodeURIComponent(subdomain)}`),
+
   // Connexion / inscription via Google
   googleAuth: (data) => ecomApi.post('/auth/google', data),
 
