@@ -11,7 +11,7 @@ import Product from '../models/Product.js';
 import Workspace from '../models/Workspace.js';
 import PlanConfig from '../models/PlanConfig.js';
 import PlanPayment from '../models/PlanPayment.js';
-import { requireEcomAuth, requireSuperAdmin } from '../middleware/ecomAuth.js';
+import { requireEcomAuth, requireSuperAdmin, requireMarketingStats } from '../middleware/ecomAuth.js';
 
 const router = express.Router();
 const FALLBACK_MONTHLY_PRICES = {
@@ -437,7 +437,7 @@ router.post('/track', async (req, res) => {
 // ──────────────────────────────────────────────────────────
 router.get('/overview',
   requireEcomAuth,
-  requireSuperAdmin,
+  requireMarketingStats,
   async (req, res) => {
     try {
       const { range = '30d', startDate, endDate } = req.query;
@@ -615,7 +615,7 @@ router.get('/overview',
 // ──────────────────────────────────────────────────────────
 router.get('/merchant-acquisition',
   requireEcomAuth,
-  requireSuperAdmin,
+  requireMarketingStats,
   async (req, res) => {
     try {
       const { range = '30d', startDate, endDate } = req.query;
@@ -721,7 +721,7 @@ router.get('/merchant-acquisition',
 // ──────────────────────────────────────────────────────────
 router.get('/engagement',
   requireEcomAuth,
-  requireSuperAdmin,
+  requireMarketingStats,
   async (req, res) => {
     try {
       const { range = '30d', startDate, endDate } = req.query;
@@ -1321,7 +1321,7 @@ router.get('/engagement',
 // ──────────────────────────────────────────────────────────
 router.get('/funnel',
   requireEcomAuth,
-  requireSuperAdmin,
+  requireMarketingStats,
   async (req, res) => {
     try {
       const { range = '30d', startDate, endDate } = req.query;
@@ -1406,7 +1406,7 @@ router.get('/funnel',
 // ──────────────────────────────────────────────────────────
 router.get('/traffic',
   requireEcomAuth,
-  requireSuperAdmin,
+  requireMarketingStats,
   async (req, res) => {
     try {
       const { range = '30d', startDate, endDate } = req.query;
@@ -1495,7 +1495,7 @@ router.get('/traffic',
 // ──────────────────────────────────────────────────────────
 router.get('/countries',
   requireEcomAuth,
-  requireSuperAdmin,
+  requireMarketingStats,
   async (req, res) => {
     try {
       const { range = '30d', startDate, endDate } = req.query;
@@ -1600,7 +1600,7 @@ router.get('/countries',
 // ──────────────────────────────────────────────────────────
 router.get('/pages',
   requireEcomAuth,
-  requireSuperAdmin,
+  requireMarketingStats,
   async (req, res) => {
     try {
       const { range = '30d', startDate, endDate } = req.query;

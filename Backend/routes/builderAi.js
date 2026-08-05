@@ -103,6 +103,20 @@ const DOWNLOAD_HOST_ALLOWLIST = [
   /(^|\.)fish\.audio$/i,
   /(^|\.)kie\.ai$/i,
   /(^|\.)aiquickdraw\.com$/i,
+  // ── Hôtes des fournisseurs de médias IA — sans eux le proxy renvoyait 403
+  //    et le téléchargement se dégradait en simple ouverture d'onglet.
+  /(^|\.)blob\.core\.windows\.net$/i,     // images OpenAI (gpt-image / DALL·E)
+  /(^|\.)oaiusercontent\.com$/i,           // OpenAI (nouveaux domaines)
+  /(^|\.)replicate\.delivery$/i,           // Replicate
+  /(^|\.)pixverse\.ai$/i,                  // PixVerse (UGC Pro)
+  /(^|\.)media\.pixverse\.ai$/i,
+  /(^|\.)x\.ai$/i,                         // xAI / Grok
+  /(^|\.)googleusercontent\.com$/i,        // Veo / Google
+  /(^|\.)googleapis\.com$/i,
+  /(^|\.)cloudfront\.net$/i,               // CDN AWS générique
+  /(^|\.)amazonaws\.com$/i,                // S3 direct
+  /(^|\.)klingai\.com$/i,                  // Kling
+  /(^|\.)tempfile\.aiquickdraw\.com$/i,
 ];
 
 function isDownloadHostAllowed(hostname = '') {
@@ -493,7 +507,7 @@ EXEMPLES :
 
 router.post('/chat', requireEcomAuth, async (req, res) => {
   try {
-    const { message, productPageConfig, theme, productName, sections, model = 'claude', history = [] } = req.body;
+    const { message, productPageConfig, theme, productName, sections, model = 'claude', history = [], images = [], exampleUrl = '' } = req.body;
 
     if (!message || typeof message !== 'string' || message.trim().length < 2) {
       return res.status(400).json({ success: false, message: 'Message requis' });
@@ -522,6 +536,15 @@ router.post('/chat', requireEcomAuth, async (req, res) => {
     const isThemeMode = !isStorepageMode && themeDesign && typeof themeDesign === 'object';
 
     let systemPrompt = SYSTEM_PROMPT;
+    // Honnêteté imposée : l'assistant annonçait « Fait ! » sans produire de
+    // patch. Il doit soit modifier réellement, soit le dire clairement.
+    const HONESTY = `
+
+RÈGLES D'HONNÊTETÉ (prioritaires) :
+- N'annonce JAMAIS qu'une modification est faite si tu ne renvoies pas le patch correspondant dans ta réponse JSON. Sans patch, dis explicitement que tu n'as pas pu appliquer le changement et demande la précision qui te manque.
+- N'écris pas « Fait ! » par politesse : décris en une phrase ce que tu as RÉELLEMENT modifié (section + champ).
+- Si des images sont jointes, appuie-toi UNIQUEMENT sur la description vision fournie. Si l'analyse est indisponible, demande à l'utilisateur de décrire l'image — ne devine pas.
+- Pour une photo de personne, si aucune URL d'image n'est fournie, tu ne peux pas « changer la photo » : demande à l'utilisateur de téléverser l'image voulue. N'affirme pas l'avoir changée.`;
     let contextSummary;
 
     if (isThemeMode) {
@@ -665,7 +688,7 @@ ${compactSections.slice(0, 24000)}`;
     }
 
     const messages = [
-      { role: 'system', content: systemPrompt },
+      { role: 'system', content: systemPrompt + HONESTY },
       { role: 'user', content: contextSummary },
     ];
 
@@ -675,7 +698,52 @@ ${compactSections.slice(0, 24000)}`;
       }
     }
 
-    messages.push({ role: 'user', content: message.trim() });
+    // Images jointes : le modèle de chat n'est pas multimodal — on les décrit
+    // par vision et on injecte la description. Sans ça, l'assistant « voit »
+    // une URL et invente le contenu (bug : photos et sections hors sujet).
+    let imgNotes = '';
+    const imgUrls = (Array.isArray(images) ? images : [])
+      .map((u) => String(u || '').trim())
+      .filter((u) => /^https?:\/\//.test(u))
+      .slice(0, 3);
+    if (imgUrls.length) {
+      try {
+        const { describeImageForAssistant } = await import('../services/openaiImageService.js');
+        const settled = await Promise.allSettled(imgUrls.map((u) => describeImageForAssistant(u)));
+        const parts = settled.map((r, i) => `Image ${i + 1} (${imgUrls[i]}) : ${(r.status === 'fulfilled' && r.value) ? r.value : 'analyse indisponible'}`);
+        imgNotes = `\n\n[IMAGES JOINTES — description vision, fais-y référence explicitement]\n${parts.join('\n')}`;
+      } catch {
+        imgNotes = `\n\n[${imgUrls.length} image(s) jointe(s) — analyse indisponible : demande à l'utilisateur ce qu'elles montrent au lieu de deviner]`;
+      }
+    }
+
+    // Page d'exemple fournie par le marchand : on récupère son contenu texte
+    // pour que l'IA s'en inspire (structure, arguments, ton) sans copier.
+    let exampleNotes = '';
+    const exUrl = String(exampleUrl || '').trim();
+    if (/^https?:\/\//.test(exUrl)) {
+      try {
+        const r = await axios.get(exUrl, {
+          timeout: 20000, maxRedirects: 3,
+          headers: { 'User-Agent': 'Mozilla/5.0 (compatible; ScalorBot/1.0)' },
+        });
+        const html = String(r.data || '');
+        const text = html
+          .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+          .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+          .replace(/<[^>]+>/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim()
+          .slice(0, 6000);
+        const imgs = [...html.matchAll(/<img[^>]+src=["']([^"']+)["']/gi)]
+          .map((m) => m[1]).filter((u) => /^https?:\/\//.test(u)).slice(0, 8);
+        exampleNotes = `\n\n[PAGE D'EXEMPLE FOURNIE PAR LE MARCHAND — ${exUrl}]\nInspire-toi de sa STRUCTURE (ordre et type de sections), de son argumentaire et de son ton. N'en copie pas le texte mot pour mot : adapte au produit du marchand.\nContenu extrait : ${text}\nImages repérées : ${imgs.join(' | ') || 'aucune'}`;
+      } catch (e) {
+        exampleNotes = `\n\n[PAGE D'EXEMPLE ${exUrl} — inaccessible : ${e.message}. Demande au marchand une capture d'écran à la place.]`;
+      }
+    }
+
+    messages.push({ role: 'user', content: message.trim() + imgNotes + exampleNotes });
 
     const rawContent = await callModel(messages, model);
 
@@ -2902,6 +2970,68 @@ router.get('/montage/jobs/:id', requireEcomAuth, async (req, res) => {
     warning: job.warning || null,
     musicApplied: !!job.musicApplied,
   });
+});
+
+
+// ── GET /builder-ai/avatar-presets — 10 avatars UGC prédéfinis, images
+//    générées par l'API OpenAI (gpt-image) puis MISES EN CACHE sur R2 :
+//    générées une seule fois pour toute la plateforme, pas par marchand.
+// ──────────────────────────────────────────────────────────────────────────────
+const AVATAR_PRESETS_DEF = [
+  { id: 'aicha',      label: 'Aïcha · cliente enthousiaste', gender: 'femme', age: '25', role: 'client',  desc: 'Jeune femme africaine de 25 ans, souriante, look moderne urbain' },
+  { id: 'kwame',      label: 'Kwame · client convaincu',     gender: 'homme', age: '32', role: 'client',  desc: 'Homme africain de 32 ans, allure soignée, ton posé' },
+  { id: 'grace',      label: 'Mama Grace · mère de famille', gender: 'femme', age: '45', role: 'client',  desc: 'Femme africaine de 45 ans, chaleureuse, style pagne moderne' },
+  { id: 'diallo',     label: 'Dr. Diallo · expert santé',    gender: 'homme', age: '40', role: 'docteur', desc: 'Médecin africain de 40 ans en blouse blanche, cabinet médical' },
+  { id: 'ibrahim',    label: 'Coach Ibrahim · sportif',      gender: 'homme', age: '28', role: 'client',  desc: 'Coach sportif africain de 28 ans, musclé, tenue de sport, salle' },
+  { id: 'fatou',      label: 'Fatou · étudiante',            gender: 'femme', age: '21', role: 'client',  desc: 'Étudiante africaine de 21 ans, style jeune et tendance' },
+  { id: 'ngozi',      label: 'Ngozi · vendeuse experte',     gender: 'femme', age: '35', role: 'vendeur', desc: 'Commerçante africaine de 35 ans dans sa boutique' },
+  { id: 'awa',        label: 'Awa · esthéticienne',          gender: 'femme', age: '30', role: 'docteur', desc: 'Esthéticienne africaine de 30 ans en institut, peau éclatante' },
+  { id: 'sow',        label: 'Papa Sow · senior',            gender: 'homme', age: '58', role: 'client',  desc: 'Homme africain de 58 ans, cheveux grisonnants, salon chaleureux' },
+  { id: 'yannick',    label: 'Yannick · entrepreneur',       gender: 'homme', age: '35', role: 'client',  desc: 'Entrepreneur africain de 35 ans, chemise élégante, bureau moderne' },
+];
+
+let _avatarCache = null;
+router.get('/avatar-presets', requireEcomAuth, async (_req, res) => {
+  try {
+    if (_avatarCache) return res.json({ success: true, data: _avatarCache });
+
+    const { default: PlatformPaymentConfig } = await import('../models/PlatformPaymentConfig.js').catch(() => ({ default: null }));
+    void PlatformPaymentConfig; // (cache mémoire suffisant ici)
+
+    const { generateNanoBananaImage } = await import('../services/nanoBananaService.js');
+    const { uploadToR2 } = await import('../services/cloudflareImagesService.js');
+
+    const built = await Promise.all(AVATAR_PRESETS_DEF.map(async (a) => {
+      try {
+        const prompt = `Ultra realistic vertical portrait photo (9:16) of ${a.desc}. Authentic African person, natural skin texture with real pores and small imperfections, soft natural lighting, sharp focus on the face, looking straight at the camera, friendly confident expression, waist-up framing, hands free at the sides, realistic everyday environment in the background slightly blurred. Shot on a smartphone front camera, user generated content style. NO text, NO watermark, NO logo, no plastic AI look.`;
+        const out = await generateNanoBananaImage(prompt, '9:16', 1);
+        const pick = (v) => {
+          if (!v) return '';
+          if (typeof v === 'string') return v;
+          if (Array.isArray(v)) return pick(v[0]);
+          return v.url || v.imageUrl || pick(v.urls) || pick(v.images) || pick(v.data) || '';
+        };
+        const url = pick(out);
+        if (!url) throw new Error('image vide');
+        // Ré-héberge sur R2 pour un lien stable (les URLs fournisseur expirent).
+        try {
+          const axiosMod = (await import('axios')).default;
+          const buf = Buffer.from((await axiosMod.get(url, { responseType: 'arraybuffer', timeout: 30000 })).data);
+          const up = await uploadToR2(buf, `avatar-preset-${a.id}.png`, 'image/png');
+          return { ...a, image: up?.url || url };
+        } catch { return { ...a, image: url }; }
+      } catch (e) {
+        console.warn(`[avatar-presets] ${a.id} échec:`, e.message);
+        return { ...a, image: '' };
+      }
+    }));
+
+    _avatarCache = built;
+    res.json({ success: true, data: built });
+  } catch (err) {
+    console.error('[BuilderAI] avatar-presets error:', err.message);
+    res.status(500).json({ success: false, message: 'Génération des avatars impossible' });
+  }
 });
 
 export default router;

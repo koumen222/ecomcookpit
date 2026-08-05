@@ -454,6 +454,19 @@ export const requireServiceClient = (req, res, next) => {
   next();
 };
 
+// Middleware stats plateforme : agents marketing (lecture seule) OU super admin.
+// Même logique que requireServiceClient — le rôle 'marketing' est un rôle
+// d'équipe Scalor, sans workspace, limité aux pages stats.
+export const requireMarketingStats = (req, res, next) => {
+  if (!req.ecomUser || !['super_admin', 'marketing'].includes(req.ecomUser.role)) {
+    return res.status(403).json({
+      success: false,
+      message: 'Accès réservé à l’équipe Scalor (marketing)'
+    });
+  }
+  next();
+};
+
 // Middleware pour vérifier que l'utilisateur a un workspace
 export const requireWorkspace = (req, res, next) => {
   console.log('🏢 requireWorkspace - workspaceId:', req.workspaceId);

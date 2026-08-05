@@ -22,7 +22,8 @@ import StoreOrder from '../models/StoreOrder.js';
 import Store from '../models/Store.js';
 import WhatsAppInstance from '../models/WhatsAppInstance.js';
 import ScalorUser from '../models/ScalorUser.js';
-import { requireEcomAuth, requireSuperAdmin, requireServiceClient } from '../middleware/ecomAuth.js';
+import ShopifyStore from '../models/ShopifyStore.js';
+import { requireEcomAuth, requireSuperAdmin, requireServiceClient, requireMarketingStats } from '../middleware/ecomAuth.js';
 import bcrypt from 'bcryptjs';
 import { invalidatePlanCache } from '../middleware/planLimits.js';
 import { logAudit, auditSensitiveAccess, AuditLog } from '../middleware/security.js';
@@ -216,6 +217,88 @@ router.delete('/service-agents/:id', requireEcomAuth, requireSuperAdmin, async (
     const agent = await EcomUser.findOneAndDelete({ _id: req.params.id, role: 'service_client' });
     if (!agent) return res.status(404).json({ success: false, message: 'Agent introuvable' });
     await logAudit(req, 'DELETE_SERVICE_AGENT', `Agent service client supprimé: ${agent.email}`, 'user', agent._id);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// ─── Agents Marketing (équipe Scalor — accès stats en lecture) ───────────────
+// Même logique que les agents service client : comptes plateforme créés par le
+// super admin, sans workspace, rôle dédié 'marketing'.
+
+// GET /api/ecom/super-admin/marketing-agents — liste des agents marketing
+router.get('/marketing-agents', requireEcomAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const agents = await EcomUser.find({ role: 'marketing' })
+      .select('name email isActive createdAt lastLogin')
+      .sort({ createdAt: -1 })
+      .lean();
+    res.json({ success: true, data: agents });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// POST /api/ecom/super-admin/marketing-agents — créer un agent marketing
+router.post('/marketing-agents', requireEcomAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { name, email, password } = req.body;
+    if (!email || !password || !name) {
+      return res.status(400).json({ success: false, message: 'Nom, email et mot de passe requis' });
+    }
+    if (password.length < 8) {
+      return res.status(400).json({ success: false, message: 'Mot de passe minimum 8 caractères' });
+    }
+    const exists = await EcomUser.findOne({ email: email.toLowerCase().trim() });
+    if (exists) {
+      return res.status(409).json({ success: false, message: 'Un compte avec cet email existe déjà' });
+    }
+    // NE PAS hacher ici : le hook pre('save') d'EcomUser hache déjà.
+    const agent = new EcomUser({
+      email: email.toLowerCase().trim(),
+      name: name.trim(),
+      password,
+      role: 'marketing',
+      isActive: true,
+    });
+    await agent.save();
+    await logAudit(req, 'CREATE_MARKETING_AGENT', `Agent marketing créé: ${agent.email}`, 'user', agent._id);
+    res.json({ success: true, data: { _id: agent._id, name: agent.name, email: agent.email, isActive: agent.isActive, createdAt: agent.createdAt } });
+  } catch (err) {
+    console.error('[SuperAdmin] POST /marketing-agents error:', err.message);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// PATCH /api/ecom/super-admin/marketing-agents/:id — modifier (nom, email, mot de passe, statut)
+router.patch('/marketing-agents/:id', requireEcomAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { name, email, password, isActive } = req.body;
+    const agent = await EcomUser.findOne({ _id: req.params.id, role: 'marketing' });
+    if (!agent) return res.status(404).json({ success: false, message: 'Agent introuvable' });
+    if (name !== undefined) agent.name = name.trim();
+    if (email !== undefined) agent.email = email.toLowerCase().trim();
+    if (password !== undefined) {
+      if (password.length < 8) return res.status(400).json({ success: false, message: 'Mot de passe minimum 8 caractères' });
+      // Le hook pre('save') hache — pas de hachage manuel (sinon double hash).
+      agent.password = password;
+    }
+    if (isActive !== undefined) agent.isActive = Boolean(isActive);
+    await agent.save();
+    await logAudit(req, 'UPDATE_MARKETING_AGENT', `Agent marketing modifié: ${agent.email}`, 'user', agent._id);
+    res.json({ success: true, data: { _id: agent._id, name: agent.name, email: agent.email, isActive: agent.isActive } });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// DELETE /api/ecom/super-admin/marketing-agents/:id — supprimer un agent
+router.delete('/marketing-agents/:id', requireEcomAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const agent = await EcomUser.findOneAndDelete({ _id: req.params.id, role: 'marketing' });
+    if (!agent) return res.status(404).json({ success: false, message: 'Agent introuvable' });
+    await logAudit(req, 'DELETE_MARKETING_AGENT', `Agent marketing supprimé: ${agent.email}`, 'user', agent._id);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Erreur serveur' });
@@ -635,7 +718,7 @@ router.put('/users/:id/role',
   async (req, res) => {
     try {
       const { role } = req.body;
-      if (!['super_admin', 'ecom_admin', 'ecom_closeuse', 'ecom_compta', 'ecom_livreur'].includes(role)) {
+      if (!['super_admin', 'ecom_admin', 'ecom_closeuse', 'ecom_compta', 'ecom_livreur', 'service_client', 'marketing'].includes(role)) {
         return res.status(400).json({ success: false, message: 'Rôle invalide' });
       }
 
@@ -2217,7 +2300,7 @@ router.patch('/workspaces/:id/generations', requireEcomAuth, requireServiceClien
 const GROWTH_FALLBACK_PRICES = { free: 0, starter: 6900, pro: 14900, ultra: 29899 };
 
 // GET /api/ecom/super-admin/growth?activeDays=30
-router.get('/growth', requireEcomAuth, requireSuperAdmin, async (req, res) => {
+router.get('/growth', requireEcomAuth, requireMarketingStats, async (req, res) => {
   try {
     const now = new Date();
     const activeDays = Math.min(365, Math.max(1, Number(req.query.activeDays) || 30));
@@ -2846,7 +2929,7 @@ router.post('/deactivate-trial', requireEcomAuth, requireSuperAdmin, async (req,
 // GET /api/ecom/super-admin/feature-analytics
 router.get('/feature-analytics',
   requireEcomAuth,
-  requireSuperAdmin,
+  requireMarketingStats,
   async (req, res) => {
     try {
       const { days = 30, workspaceId } = req.query;
@@ -3163,7 +3246,12 @@ const _dashCache = makeCache(300_000); // 5-minute TTL
 
 function dashDateFilter(range = '30d') {
   const now = new Date();
-  const ms = { '24h': 86400000, '7d': 604800000, '30d': 2592000000, '90d': 7776000000 };
+  // 'all' = toute la période (depuis l'origine) — pas de borne basse.
+  if (range === 'all') return { since: new Date(0), until: now };
+  const ms = {
+    '24h': 86400000, '7d': 604800000, '30d': 2592000000, '90d': 7776000000,
+    '180d': 15552000000, '365d': 31536000000,
+  };
   return { since: new Date(now.getTime() - (ms[range] || ms['30d'])), until: now };
 }
 
@@ -3338,6 +3426,27 @@ router.get('/dashboard-summary',
         ]),
         // [35] Utilisateurs (léger) — activité réelle = lastLogin ∪ sessions
         () => EcomUser.find({}, { lastLogin: 1, createdAt: 1, role: 1, isActive: 1 }).lean(),
+        // [36] Boutiques Shopify connectées (total)
+        () => ShopifyStore.countDocuments({}),
+        // [37] Boutiques Shopify actives
+        () => ShopifyStore.countDocuments({ isActive: true }),
+        // [38] Connexions Shopify SUR LA PÉRIODE
+        () => ShopifyStore.countDocuments({ createdAt: { $gte: since, $lte: until } }),
+        // [39] Marchands DISTINCTS ayant connecté Shopify — l'intégration passe
+        // par webhook : la vérité est dans les commandes, pas dans ShopifyStore.
+        () => Order.distinct('workspaceId', { source: 'shopify' }),
+        // [40] Commandes issues de Shopify sur la période (volume + CA)
+        () => Order.aggregate([
+          { $match: { source: 'shopify', date: { $gte: since, $lte: until } } },
+          { $group: {
+            _id: { $ifNull: ['$currency', 'XAF'] },
+            orders: { $sum: 1 },
+            // Shopify : `price` = total_price de la commande, `quantity` = nb d'articles.
+          // Multiplier les deux gonflerait le CA — on somme le total tel quel.
+          revenue: { $sum: { $ifNull: ['$price', 0] } },
+          } },
+          { $sort: { orders: -1 } },
+        ]),
       ], 10);
 
       // ── Unpack results by index ────────────────────────────────────────────
@@ -3377,6 +3486,11 @@ router.get('/dashboard-summary',
       const funnelVisitors    = settled(r[33], []);
       const perUserSessions   = settled(r[34], []);
       const usersLightArr     = settled(r[35], []);
+      const shopifyTotal      = settled(r[36], 0);
+      const shopifyActive     = settled(r[37], 0);
+      const shopifyInRange    = settled(r[38], 0);
+      const shopifyMerchants  = settled(r[39], []);
+      const shopifyOrdersAgg  = settled(r[40], []);
 
       // ── Derived stats ──────────────────────────────────────────────────────
       let totalActive = 0, totalInactive = 0, neverLoggedIn = 0;
@@ -3386,7 +3500,19 @@ router.get('/dashboard-summary',
         neverLoggedIn += row.neverLoggedIn || 0;
         return { _id: row._id, count: row.total };
       });
-      const userStatsFull = { byRole, totalUsers, totalActive, totalInactive, neverLoggedIn };
+      // Comptes créés SUR LA PÉRIODE sélectionnée (signups) + actifs parmi eux :
+      // la carte Utilisateurs affiche le total période, pas seulement le global.
+      const usersInRange = usersLightArr.filter(u => {
+        const c = u.createdAt ? new Date(u.createdAt) : null;
+        return c && c >= since && c <= until;
+      });
+      const activeInRange = usersInRange.filter(u => u.isActive !== false).length;
+      const userStatsFull = {
+        byRole, totalUsers, totalActive, totalInactive, neverLoggedIn,
+        usersInRange: usersInRange.length,
+        activeInRange,
+        signupsInRange: signups,
+      };
 
       const memberMap = {};
       memberCounts.forEach(m => { memberMap[String(m._id)] = m.count; });
@@ -3467,11 +3593,26 @@ router.get('/dashboard-summary',
           users: [], // kept for shape compatibility; full list via /users endpoint
           stats: userStatsFull,
         },
+        // Intégration Shopify : marchands ayant connecté une boutique.
+        shopify: {
+          totalStores: shopifyTotal,
+          activeStores: shopifyActive,
+          storesInRange: shopifyInRange,
+          merchants: Array.isArray(shopifyMerchants) ? shopifyMerchants.length : 0,
+          ordersInRange: (shopifyOrdersAgg || []).reduce((a, r) => a + (r.orders || 0), 0),
+          revenueInRange: Math.round(shopifyOrdersAgg?.[0]?.revenue || 0),
+          revenueCurrency: shopifyOrdersAgg?.[0]?._id || 'XAF',
+          shareOfWorkspaces: totalWorkspaces
+            ? Math.round(((Array.isArray(shopifyMerchants) ? shopifyMerchants.length : 0) / totalWorkspaces) * 1000) / 10
+            : 0,
+        },
         workspaces: {
           workspaces: workspacesWithCounts,
           totalWorkspaces,
           totalActive: totalActiveWs,
           totalMembers,
+          // Total des COMPTES utilisateurs actifs (demandé sur la carte).
+          totalActiveAccounts: totalActive,
         },
         overview: {
           kpis: {
@@ -3573,7 +3714,7 @@ router.get('/dashboard-quick',
 // ──────────────────────────────────────────────────────────────────────────────
 router.get('/boutique-stats',
   requireEcomAuth,
-  requireSuperAdmin,
+  requireMarketingStats,
   async (req, res) => {
     try {
       const { workspaceId, storeId } = req.query;
@@ -3742,6 +3883,223 @@ router.put('/payment-config', requireEcomAuth, requireSuperAdmin, async (req, re
     res.json({ success: true, message: 'Configuration de paiement enregistrée', data: { billingProvider: doc.billingProvider } });
   } catch (err) {
     console.error('[SuperAdmin] PUT payment-config error:', err);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+
+// ══════════════════════════════════════════════════════════════════════════════
+// GET /super-admin/shopify-stats — statistiques complètes de l'intégration
+// Shopify. « Connecté » = workspace ayant AU MOINS une commande source:shopify
+// (l'intégration se fait par webhook, pas seulement via l'app OAuth).
+// CA groupé PAR DEVISE : additionner XAF et USD n'aurait aucun sens.
+// ══════════════════════════════════════════════════════════════════════════════
+router.get('/shopify-stats', requireEcomAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { range = '30d' } = req.query;
+    const { since, until } = dashDateFilter(range);
+    const M = { source: 'shopify' };
+    const MR = { ...M, date: { $gte: since, $lte: until } };
+
+    const [
+      merchantIds, storesOAuth, webhookReady, ordersTotal, ordersInRange,
+      revByCurrency, byStatus, topMerchants, daily, firstOrder,
+      recentOrders, topProducts,
+    ] = await Promise.all([
+      Order.distinct('workspaceId', M),
+      ShopifyStore.countDocuments({}).catch(() => 0),
+      Workspace.countDocuments({ shopifyWebhookToken: { $ne: null } }),
+      Order.countDocuments(M),
+      Order.countDocuments(MR),
+      Order.aggregate([
+        { $match: MR },
+        { $group: {
+          _id: { $ifNull: ['$currency', 'XAF'] },
+          orders: { $sum: 1 },
+          // Shopify : `price` = total_price de la commande, `quantity` = nb d'articles.
+          // Multiplier les deux gonflerait le CA — on somme le total tel quel.
+          revenue: { $sum: { $ifNull: ['$price', 0] } },
+        } },
+        { $sort: { orders: -1 } },
+      ]),
+      Order.aggregate([
+        { $match: MR },
+        { $group: { _id: { $ifNull: ['$status', 'pending'] }, count: { $sum: 1 } } },
+        { $sort: { count: -1 } },
+      ]),
+      Order.aggregate([
+        { $match: MR },
+        { $group: {
+          _id: '$workspaceId',
+          orders: { $sum: 1 },
+          revenue: { $sum: { $ifNull: ['$price', 0] } },
+          currency: { $first: { $ifNull: ['$currency', 'XAF'] } },
+          last: { $max: '$date' },
+        } },
+        { $sort: { orders: -1 } },
+        { $limit: 15 },
+      ]),
+      Order.aggregate([
+        { $match: MR },
+        { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$date' } }, orders: { $sum: 1 } } },
+        { $sort: { _id: 1 } },
+        { $limit: 400 },
+      ]),
+      Order.findOne(M).sort({ date: 1 }).select('date').lean(),
+      // Dernières commandes Shopify (flux temps réel)
+      Order.find(M)
+        .sort({ date: -1 })
+        .limit(25)
+        .select('orderId clientName clientPhone city product quantity price currency status date createdAt workspaceId')
+        .lean(),
+      // Top produits vendus via Shopify
+      Order.aggregate([
+        { $match: MR },
+        { $group: {
+          _id: '$product',
+          orders: { $sum: 1 },
+          units: { $sum: { $ifNull: ['$quantity', 1] } },
+          // Shopify : `price` = total_price de la commande, `quantity` = nb d'articles.
+          // Multiplier les deux gonflerait le CA — on somme le total tel quel.
+          revenue: { $sum: { $ifNull: ['$price', 0] } },
+          currency: { $first: { $ifNull: ['$currency', 'XAF'] } },
+        } },
+        { $sort: { orders: -1 } },
+        { $limit: 12 },
+      ]),
+    ]);
+
+    // Noms de workspace résolus par mongoose (indépendant du nom de collection
+    // et des différences de type sur les ids) — plus fiable qu'un $lookup.
+    const wsIds = [
+      ...topMerchants.map(m => m._id),
+      ...recentOrders.map(o => o.workspaceId),
+    ].filter(Boolean);
+    const wsDocs = wsIds.length
+      ? await Workspace.find({ _id: { $in: wsIds } }).select('name plan').lean()
+      : [];
+    const wsMap = new Map(wsDocs.map(w => [String(w._id), w]));
+    const wsName = (id) => wsMap.get(String(id))?.name || 'Workspace supprimé';
+    const wsPlan = (id) => wsMap.get(String(id))?.plan || '—';
+
+    // Devise majoritaire = référence affichée en gros
+    const main = revByCurrency[0] || { _id: 'XAF', orders: 0, revenue: 0 };
+    const merchants = merchantIds.filter(Boolean).length;
+    const totalWs = await Workspace.estimatedDocumentCount();
+
+    res.json({
+      success: true,
+      data: {
+        range,
+        merchants,
+        storesOAuth,
+        webhookReady,
+        shareOfWorkspaces: totalWs ? Math.round((merchants / totalWs) * 1000) / 10 : 0,
+        ordersTotal,
+        ordersInRange,
+        avgBasket: main.orders ? Math.round(main.revenue / main.orders) : 0,
+        mainCurrency: main._id,
+        mainRevenue: Math.round(main.revenue),
+        revenueByCurrency: revByCurrency.map(r => ({ currency: r._id, orders: r.orders, revenue: Math.round(r.revenue) })),
+        byStatus: byStatus.map(r => ({ status: r._id, count: r.count })),
+        topMerchants: topMerchants.map(m => ({
+          workspaceId: m._id, name: wsName(m._id), plan: wsPlan(m._id), orders: m.orders,
+          revenue: Math.round(m.revenue), currency: m.currency, lastOrderAt: m.last,
+        })),
+        daily: daily.map(d => ({ date: d._id, orders: d.orders })),
+        firstOrderAt: firstOrder?.date || null,
+        recentOrders: (recentOrders || []).map(o => ({
+          _id: o._id, orderId: o.orderId || '', client: o.clientName || '',
+          phone: o.clientPhone || '', city: o.city || '', product: o.product || '',
+          quantity: o.quantity || 1, price: Math.round(o.price || 0),
+          currency: o.currency || 'XAF', status: o.status || 'pending',
+          date: o.date || o.createdAt, workspace: wsName(o.workspaceId),
+        })),
+        topProducts: (topProducts || []).map(p => ({
+          product: p._id || '—', orders: p.orders, units: p.units,
+          revenue: Math.round(p.revenue), currency: p.currency,
+        })),
+      },
+    });
+  } catch (err) {
+    console.error('[SuperAdmin] shopify-stats error:', err.message);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+
+// ── GET /super-admin/shopify-orders — liste paginée + recherche + filtres ────
+router.get('/shopify-orders', requireEcomAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { range = 'all', q = '', status = '', workspaceId = '', page = 1, limit = 50 } = req.query;
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const lim = Math.min(200, Math.max(1, parseInt(limit, 10) || 50));
+    const filter = { source: 'shopify' };
+    if (range !== 'all') {
+      const { since, until } = dashDateFilter(range);
+      filter.date = { $gte: since, $lte: until };
+    }
+    if (status) filter.status = status;
+    if (workspaceId && mongoose.Types.ObjectId.isValid(workspaceId)) filter.workspaceId = workspaceId;
+    if (q.trim()) {
+      const rx = new RegExp(q.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+      filter.$or = [
+        { orderId: rx }, { clientName: rx }, { clientPhone: rx },
+        { city: rx }, { product: rx }, { notes: rx },
+      ];
+    }
+
+    const [orders, total, sumAgg] = await Promise.all([
+      Order.find(filter)
+        .sort({ date: -1 })
+        .skip((pageNum - 1) * lim)
+        .limit(lim)
+        .select('orderId clientName clientPhone clientPhoneNormalized city address product quantity price currency status date createdAt workspaceId sourceName notes closerId deliveryStatus paymentStatus')
+        .lean(),
+      Order.countDocuments(filter),
+      Order.aggregate([
+        { $match: filter },
+        { $group: { _id: { $ifNull: ['$currency', 'XAF'] }, revenue: { $sum: { $ifNull: ['$price', 0] } }, count: { $sum: 1 } } },
+        { $sort: { count: -1 } },
+      ]),
+    ]);
+
+    const wsDocs = await Workspace.find({ _id: { $in: orders.map(o => o.workspaceId).filter(Boolean) } })
+      .select('name plan').lean();
+    const wsMap = new Map(wsDocs.map(w => [String(w._id), w]));
+
+    res.json({
+      success: true,
+      data: {
+        orders: orders.map(o => ({
+          ...o,
+          workspace: wsMap.get(String(o.workspaceId))?.name || 'Workspace supprimé',
+          workspacePlan: wsMap.get(String(o.workspaceId))?.plan || '—',
+        })),
+        pagination: { page: pageNum, limit: lim, total, pages: Math.ceil(total / lim) },
+        totals: sumAgg.map(r => ({ currency: r._id, revenue: Math.round(r.revenue), count: r.count })),
+      },
+    });
+  } catch (err) {
+    console.error('[SuperAdmin] shopify-orders error:', err.message);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// ── GET /super-admin/shopify-orders/:id — détail COMPLET (payload Shopify) ───
+router.get('/shopify-orders/:id', requireEcomAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ success: false, message: 'ID invalide' });
+    }
+    const order = await Order.findById(req.params.id).lean();
+    if (!order) return res.status(404).json({ success: false, message: 'Commande introuvable' });
+    const ws = order.workspaceId
+      ? await Workspace.findById(order.workspaceId).select('name plan subdomain').lean()
+      : null;
+    res.json({ success: true, data: { order, workspace: ws } });
+  } catch (err) {
+    console.error('[SuperAdmin] shopify-order detail error:', err.message);
     res.status(500).json({ success: false, message: 'Erreur serveur' });
   }
 });

@@ -151,6 +151,10 @@ router.post('/:jobId/revoice', requireEcomAuth, async (req, res) => {
     if (!FISH_API_KEY) return res.status(503).json({ success: false, message: 'Voix off non configurée (FISH_API_KEY).' });
 
     const voiceRefId = String(req.body?.voiceRefId || '').trim();
+    // Texte retouché côté frontend (segments édités) : prioritaire sur le
+    // texte traduit stocké — permet de corriger la voix off avant assemblage.
+    const editedText = typeof req.body?.text === 'string' ? req.body.text.trim() : '';
+    const ttsSource = editedText || job.translatedText;
     const jobId = job.jobId;
     await VideoTranslationJob.push(jobId, { revoiceStatus: 'processing', revoiceProgress: 5, revoiceError: null, revoiceUrl: null });
     res.status(202).json({ success: true, jobId });
@@ -159,7 +163,7 @@ router.post('/:jobId/revoice', requireEcomAuth, async (req, res) => {
     (async () => {
       try {
         const axios = (await import('axios')).default;
-        const body = { text: job.translatedText.slice(0, 9000), format: 'mp3', mp3_bitrate: 128, normalize: true, latency: 'normal' };
+        const body = { text: ttsSource.slice(0, 9000), format: 'mp3', mp3_bitrate: 128, normalize: true, latency: 'normal' };
         if (voiceRefId) body.reference_id = voiceRefId;
         const fishRes = await axios.post('https://api.fish.audio/v1/tts', body, {
           headers: { Authorization: `Bearer ${FISH_API_KEY}`, 'Content-Type': 'application/json', model: process.env.FISH_MODEL || 's2.1-pro-free' },
