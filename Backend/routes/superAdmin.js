@@ -4104,4 +4104,531 @@ router.get('/shopify-orders/:id', requireEcomAuth, requireSuperAdmin, async (req
   }
 });
 
+// ════════════════════════════════════════════════════════════════════════════
+// USAGE — Tableau de bord unifié de l'utilisation des fonctionnalités
+// Regroupe FeatureUsageLog (21 features tracées), les générations de pages
+// produits et la consommation de crédits Creative Center.
+// GET /api/ecom/super-admin/usage?days=30&granularity=day|week&workspaceId=
+// GET /api/ecom/super-admin/usage/feature/:feature?days=30
+// ════════════════════════════════════════════════════════════════════════════
+
+const USAGE_TZ = process.env.USAGE_TIMEZONE || 'Africa/Douala';
+
+// Catalogue complet : sert à afficher AUSSI les fonctionnalités jamais
+// utilisées (impossible à déduire des logs, par définition).
+const USAGE_FEATURE_CATALOG = [
+  { key: 'product_page_generator', label: 'Générateur de page produit', group: 'IA / Contenu' },
+  { key: 'creative_generator',     label: 'Générateur de créas',        group: 'IA / Contenu' },
+  { key: 'creative_text',          label: 'Texte IA',                   group: 'IA / Contenu' },
+  { key: 'builder_ai_image',       label: 'Image IA',                   group: 'IA / Contenu' },
+  { key: 'creative_video',         label: 'Vidéo IA',                   group: 'IA / Contenu' },
+  { key: 'creative_voice',         label: 'Voix off',                   group: 'IA / Contenu' },
+  { key: 'creative_montage',       label: 'Montage vidéo',              group: 'IA / Contenu' },
+  { key: 'creative_lipsync',       label: 'Avatar parlant (lipsync)',   group: 'IA / Contenu' },
+  { key: 'creative_translation',   label: 'Traduction / doublage',      group: 'IA / Contenu' },
+  { key: 'creative_clone',         label: 'Clone de page produit',      group: 'IA / Contenu' },
+  { key: 'assistant_chat',         label: 'Assistant IA (chat)',        group: 'IA / Assistance' },
+  { key: 'commercial_ia',          label: 'Commercial IA (Rita)',       group: 'IA / Assistance' },
+  { key: 'whatsapp_campaign',      label: 'Campagne WhatsApp',          group: 'WhatsApp' },
+  { key: 'whatsapp_auto_confirm',  label: 'WhatsApp auto-confirmation', group: 'WhatsApp' },
+  { key: 'boutique_store',         label: 'Boutique en ligne',          group: 'Ventes' },
+  { key: 'order_created',          label: 'Commande manuelle',          group: 'Ventes' },
+  { key: 'order_shopify',          label: 'Commande Shopify',           group: 'Ventes' },
+  { key: 'order_skelor',           label: 'Commande Skelo',             group: 'Ventes' },
+  { key: 'delivery_offer',         label: 'Offre livreur',              group: 'Logistique' },
+  { key: 'pixel_tracking',         label: 'Pixel publicitaire',         group: 'Configuration' },
+  { key: 'custom_domain',          label: 'Domaine personnalisé',       group: 'Configuration' },
+];
+
+/** Liste continue de jours 'YYYY-MM-DD' entre deux bornes (fuseau USAGE_TZ). */
+function usageDayKeys(since, until) {
+  const fmt = new Intl.DateTimeFormat('fr-CA', { timeZone: USAGE_TZ, year: 'numeric', month: '2-digit', day: '2-digit' });
+  const keys = [];
+  const cursor = new Date(since.getTime());
+  while (cursor <= until) {
+    keys.push(fmt.format(cursor));
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return [...new Set(keys)];
+}
+
+/** Lundi de la semaine ISO contenant la date 'YYYY-MM-DD' (renvoie 'YYYY-MM-DD'). */
+function usageWeekKey(dayKey) {
+  const d = new Date(`${dayKey}T00:00:00Z`);
+  const dow = (d.getUTCDay() + 6) % 7; // 0 = lundi
+  d.setUTCDate(d.getUTCDate() - dow);
+  return d.toISOString().slice(0, 10);
+}
+
+/** Agrège une série journalière [{ date, ...nums }] en semaines. */
+function usageRollupWeekly(daily, numericKeys, setKeys = []) {
+  const out = new Map();
+  for (const row of daily) {
+    const wk = usageWeekKey(row.date);
+    if (!out.has(wk)) {
+      const seed = { date: wk };
+      numericKeys.forEach((k) => { seed[k] = 0; });
+      setKeys.forEach((k) => { seed[`_${k}`] = new Set(); });
+      out.set(wk, seed);
+    }
+    const acc = out.get(wk);
+    numericKeys.forEach((k) => { acc[k] += Number(row[k] || 0); });
+    setKeys.forEach((k) => { (row[`_${k}`] || []).forEach((v) => acc[`_${k}`].add(v)); });
+  }
+  return [...out.values()]
+    .map((r) => {
+      setKeys.forEach((k) => { r[k] = r[`_${k}`].size; delete r[`_${k}`]; });
+      return r;
+    })
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
+
+router.get('/usage', requireEcomAuth, requireMarketingStats, async (req, res) => {
+  try {
+    const days = Math.min(Math.max(Number(req.query.days) || 30, 1), 365);
+    const granularity = req.query.granularity === 'week' ? 'week' : 'day';
+    const { workspaceId } = req.query;
+
+    const now = new Date();
+    const since = new Date(now.getTime() - days * 24 * 3600 * 1000);
+    const prevSince = new Date(now.getTime() - 2 * days * 24 * 3600 * 1000);
+
+    const scope = workspaceId ? { workspaceId: new mongoose.Types.ObjectId(workspaceId) } : {};
+    const match = { ...scope, createdAt: { $gte: since } };
+    const prevMatch = { ...scope, createdAt: { $gte: prevSince, $lt: since } };
+
+    // Échec = meta.success explicitement false (les logs anciens sans le champ
+    // comptent comme succès, conformément au default du modèle).
+    const FAILED = { $cond: [{ $eq: ['$meta.success', false] }, 1, 0] };
+    const dayExpr = { $dateToString: { format: '%Y-%m-%d', date: '$createdAt', timezone: USAGE_TZ } };
+
+    const [
+      totals,
+      prevTotals,
+      dailyRaw,
+      dailyByFeatureRaw,
+      featureAggRaw,
+      prevFeatureAggRaw,
+      lastPerFeatureRaw,
+      topUsersRaw,
+      topWorkspacesRaw,
+      heatmapRaw,
+      recentEventsRaw,
+      recentFailuresRaw,
+      creativeCreditsRaw,
+      generationOverviewRaw,
+    ] = await Promise.all([
+      // 1. Totaux période courante
+      FeatureUsageLog.aggregate([
+        { $match: match },
+        { $group: {
+          _id: null,
+          total: { $sum: 1 },
+          failed: { $sum: FAILED },
+          users: { $addToSet: '$userId' },
+          workspaces: { $addToSet: '$workspaceId' },
+          features: { $addToSet: '$feature' },
+          avgDurationMs: { $avg: '$meta.durationMs' },
+        } },
+        { $project: {
+          _id: 0, total: 1, failed: 1, avgDurationMs: 1,
+          users: { $size: '$users' }, workspaces: { $size: '$workspaces' }, features: { $size: '$features' },
+        } },
+      ]),
+
+      // 2. Totaux période précédente (croissance)
+      FeatureUsageLog.aggregate([
+        { $match: prevMatch },
+        { $group: { _id: null, total: { $sum: 1 }, failed: { $sum: FAILED }, users: { $addToSet: '$userId' }, workspaces: { $addToSet: '$workspaceId' } } },
+        { $project: { _id: 0, total: 1, failed: 1, users: { $size: '$users' }, workspaces: { $size: '$workspaces' } } },
+      ]),
+
+      // 3. Série journalière globale (roulée en semaines côté JS si demandé)
+      FeatureUsageLog.aggregate([
+        { $match: match },
+        { $group: { _id: dayExpr, total: { $sum: 1 }, failed: { $sum: FAILED }, users: { $addToSet: '$userId' }, workspaces: { $addToSet: '$workspaceId' } } },
+        { $project: { _id: 0, date: '$_id', total: 1, failed: 1, userIds: '$users', workspaceIds: '$workspaces' } },
+        { $sort: { date: 1 } },
+      ]),
+
+      // 4. Série journalière par fonctionnalité (graphe empilé)
+      FeatureUsageLog.aggregate([
+        { $match: match },
+        { $group: { _id: { date: dayExpr, feature: '$feature' }, total: { $sum: 1 }, failed: { $sum: FAILED } } },
+        { $project: { _id: 0, date: '$_id.date', feature: '$_id.feature', total: 1, failed: 1 } },
+        { $sort: { date: 1 } },
+      ]),
+
+      // 5. Détail par fonctionnalité
+      FeatureUsageLog.aggregate([
+        { $match: match },
+        { $group: {
+          _id: '$feature',
+          total: { $sum: 1 },
+          failed: { $sum: FAILED },
+          users: { $addToSet: '$userId' },
+          workspaces: { $addToSet: '$workspaceId' },
+          avgDurationMs: { $avg: '$meta.durationMs' },
+          lastUsedAt: { $max: '$createdAt' },
+          firstUsedAt: { $min: '$createdAt' },
+        } },
+        { $project: {
+          _id: 0, feature: '$_id', total: 1, failed: 1, avgDurationMs: 1, lastUsedAt: 1, firstUsedAt: 1,
+          users: { $size: '$users' }, workspaces: { $size: '$workspaces' },
+        } },
+        { $sort: { total: -1 } },
+      ]),
+
+      // 6. Volume par fonctionnalité — période précédente (tendance)
+      FeatureUsageLog.aggregate([
+        { $match: prevMatch },
+        { $group: { _id: '$feature', total: { $sum: 1 } } },
+      ]),
+
+      // 7. Dernière utilisation de chaque fonctionnalité : par qui, quand, succès ?
+      FeatureUsageLog.aggregate([
+        { $match: match },
+        { $sort: { createdAt: -1 } },
+        { $group: {
+          _id: '$feature',
+          createdAt: { $first: '$createdAt' },
+          userId: { $first: '$userId' },
+          workspaceId: { $first: '$workspaceId' },
+          success: { $first: '$meta.success' },
+          errorMessage: { $first: '$meta.errorMessage' },
+          durationMs: { $first: '$meta.durationMs' },
+        } },
+        { $lookup: { from: USER_COLLECTION, localField: 'userId', foreignField: '_id', as: 'u' } },
+        { $lookup: { from: WORKSPACE_COLLECTION, localField: 'workspaceId', foreignField: '_id', as: 'w' } },
+        { $project: {
+          _id: 0, feature: '$_id', createdAt: 1, success: 1, errorMessage: 1, durationMs: 1,
+          userEmail: { $arrayElemAt: ['$u.email', 0] },
+          userName: { $arrayElemAt: ['$u.name', 0] },
+          workspaceName: { $arrayElemAt: ['$w.name', 0] },
+        } },
+      ]),
+
+      // 8. Top utilisateurs — qui utilise quoi
+      FeatureUsageLog.aggregate([
+        { $match: match },
+        { $group: {
+          _id: '$userId',
+          total: { $sum: 1 },
+          failed: { $sum: FAILED },
+          features: { $addToSet: '$feature' },
+          lastUsedAt: { $max: '$createdAt' },
+          workspaces: { $addToSet: '$workspaceId' },
+        } },
+        { $sort: { total: -1 } },
+        { $limit: 30 },
+        { $lookup: { from: USER_COLLECTION, localField: '_id', foreignField: '_id', as: 'u' } },
+        { $lookup: { from: WORKSPACE_COLLECTION, localField: 'workspaces', foreignField: '_id', as: 'w' } },
+        { $project: {
+          _id: 1, total: 1, failed: 1, features: 1, lastUsedAt: 1,
+          email: { $arrayElemAt: ['$u.email', 0] },
+          name: { $arrayElemAt: ['$u.name', 0] },
+          role: { $arrayElemAt: ['$u.role', 0] },
+          workspaceName: { $arrayElemAt: ['$w.name', 0] },
+          plan: { $arrayElemAt: ['$w.plan', 0] },
+        } },
+      ]),
+
+      // 9. Top workspaces
+      FeatureUsageLog.aggregate([
+        { $match: match },
+        { $group: { _id: '$workspaceId', total: { $sum: 1 }, failed: { $sum: FAILED }, features: { $addToSet: '$feature' }, users: { $addToSet: '$userId' }, lastUsedAt: { $max: '$createdAt' } } },
+        { $sort: { total: -1 } },
+        { $limit: 30 },
+        { $lookup: { from: WORKSPACE_COLLECTION, localField: '_id', foreignField: '_id', as: 'w' } },
+        { $project: {
+          _id: 1, total: 1, failed: 1, lastUsedAt: 1, features: 1,
+          users: { $size: '$users' },
+          name: { $arrayElemAt: ['$w.name', 0] },
+          plan: { $arrayElemAt: ['$w.plan', 0] },
+        } },
+      ]),
+
+      // 10. Heatmap jour de semaine × heure (quand ça travaille)
+      FeatureUsageLog.aggregate([
+        { $match: match },
+        { $group: {
+          _id: {
+            dow: { $dayOfWeek: { date: '$createdAt', timezone: USAGE_TZ } },   // 1 = dimanche
+            hour: { $hour: { date: '$createdAt', timezone: USAGE_TZ } },
+          },
+          total: { $sum: 1 },
+        } },
+        { $project: { _id: 0, dow: '$_id.dow', hour: '$_id.hour', total: 1 } },
+      ]),
+
+      // 11. Flux récent — la dernière activité, par qui, quand, succès/échec
+      FeatureUsageLog.aggregate([
+        { $match: match },
+        { $sort: { createdAt: -1 } },
+        { $limit: 80 },
+        { $lookup: { from: USER_COLLECTION, localField: 'userId', foreignField: '_id', as: 'u' } },
+        { $lookup: { from: WORKSPACE_COLLECTION, localField: 'workspaceId', foreignField: '_id', as: 'w' } },
+        { $project: {
+          _id: 1, feature: 1, createdAt: 1,
+          success: '$meta.success', errorMessage: '$meta.errorMessage', durationMs: '$meta.durationMs',
+          productName: '$meta.productName', generationType: '$meta.generationType',
+          userEmail: { $arrayElemAt: ['$u.email', 0] },
+          userName: { $arrayElemAt: ['$u.name', 0] },
+          userRole: { $arrayElemAt: ['$u.role', 0] },
+          workspaceName: { $arrayElemAt: ['$w.name', 0] },
+        } },
+      ]),
+
+      // 12. Échecs récents (diagnostic)
+      FeatureUsageLog.aggregate([
+        { $match: { ...match, 'meta.success': false } },
+        { $sort: { createdAt: -1 } },
+        { $limit: 40 },
+        { $lookup: { from: USER_COLLECTION, localField: 'userId', foreignField: '_id', as: 'u' } },
+        { $lookup: { from: WORKSPACE_COLLECTION, localField: 'workspaceId', foreignField: '_id', as: 'w' } },
+        { $project: {
+          _id: 1, feature: 1, createdAt: 1, errorMessage: '$meta.errorMessage',
+          userEmail: { $arrayElemAt: ['$u.email', 0] },
+          workspaceName: { $arrayElemAt: ['$w.name', 0] },
+        } },
+      ]),
+
+      // 13. Crédits Creative Center consommés par fonctionnalité
+      (async () => {
+        try {
+          const CreativeCreditLedger = (await import('../models/CreativeCreditLedger.js')).default;
+          return await CreativeCreditLedger.aggregate([
+            { $match: { createdAt: { $gte: since } } },
+            { $group: {
+              _id: '$feature',
+              debit: { $sum: { $cond: [{ $eq: ['$type', 'debit'] }, '$credits', 0] } },
+              refund: { $sum: { $cond: [{ $eq: ['$type', 'refund'] }, '$credits', 0] } },
+              movements: { $sum: 1 },
+            } },
+            { $project: { _id: 0, feature: '$_id', debit: 1, refund: 1, movements: 1, net: { $subtract: ['$debit', '$refund'] } } },
+            { $sort: { net: -1 } },
+          ]);
+        } catch { return []; }
+      })(),
+
+      // 14. Pages produits générées (détail métier)
+      ProductPageGenerationLog.aggregate([
+        { $match: { createdAt: { $gte: since }, ...(workspaceId ? { workspaceId: new mongoose.Types.ObjectId(workspaceId) } : {}) } },
+        { $group: {
+          _id: null,
+          total: { $sum: 1 },
+          credits: { $sum: '$creditsUsed' },
+          completed: { $sum: { $cond: [{ $eq: ['$status', 'completed'] }, 1, 0] } },
+          failed: { $sum: { $cond: [{ $in: ['$status', ['failed', 'partial_failure']] }, 1, 0] } },
+          users: { $addToSet: '$userId' },
+          workspaces: { $addToSet: '$workspaceId' },
+        } },
+        { $project: { _id: 0, total: 1, credits: 1, completed: 1, failed: 1, users: { $size: '$users' }, workspaces: { $size: '$workspaces' } } },
+      ]),
+    ]);
+
+    // ── Séries continues (jours sans activité inclus → courbe honnête) ──
+    const allDays = usageDayKeys(since, now);
+    const dailyMap = new Map(dailyRaw.map((d) => [d.date, d]));
+    const dailySeries = allDays.map((date) => {
+      const r = dailyMap.get(date);
+      return {
+        date,
+        total: r?.total || 0,
+        failed: r?.failed || 0,
+        success: (r?.total || 0) - (r?.failed || 0),
+        users: r?.userIds?.length || 0,
+        workspaces: r?.workspaceIds?.length || 0,
+        _users: (r?.userIds || []).map(String),
+        _workspaces: (r?.workspaceIds || []).map(String),
+      };
+    });
+
+    const series = granularity === 'week'
+      ? usageRollupWeekly(dailySeries, ['total', 'failed', 'success'], ['users', 'workspaces'])
+      : dailySeries.map(({ _users, _workspaces, ...r }) => r);
+
+    // Cumul pour la courbe de croissance
+    let running = 0;
+    const growthSeries = series.map((r) => { running += r.total; return { date: r.date, cumulative: running, total: r.total }; });
+
+    // Série empilée par fonctionnalité
+    const byFeatureDayMap = new Map();
+    for (const row of dailyByFeatureRaw) {
+      if (!byFeatureDayMap.has(row.date)) byFeatureDayMap.set(row.date, { date: row.date });
+      byFeatureDayMap.get(row.date)[row.feature] = row.total;
+    }
+    const featureSeriesDaily = allDays.map((date) => byFeatureDayMap.get(date) || { date });
+    const activeFeatureKeys = [...new Set(dailyByFeatureRaw.map((r) => r.feature))];
+    const featureSeries = granularity === 'week'
+      ? usageRollupWeekly(
+          featureSeriesDaily.map((r) => { const o = { date: r.date }; activeFeatureKeys.forEach((k) => { o[k] = r[k] || 0; }); return o; }),
+          activeFeatureKeys
+        )
+      : featureSeriesDaily;
+
+    // ── Fusion catalogue + agrégats + tendance + dernière utilisation ──
+    const aggMap = new Map(featureAggRaw.map((f) => [f.feature, f]));
+    const prevMap = new Map(prevFeatureAggRaw.map((f) => [f._id, f.total]));
+    const lastMap = new Map(lastPerFeatureRaw.map((f) => [f.feature, f]));
+    const creditsMap = new Map(creativeCreditsRaw.map((c) => [c.feature, c]));
+    const grandTotal = totals?.[0]?.total || 0;
+
+    const features = USAGE_FEATURE_CATALOG.map((cat) => {
+      const a = aggMap.get(cat.key);
+      const total = a?.total || 0;
+      const prev = prevMap.get(cat.key) || 0;
+      const last = lastMap.get(cat.key) || null;
+      return {
+        ...cat,
+        total,
+        failed: a?.failed || 0,
+        success: total - (a?.failed || 0),
+        successRate: total ? Math.round(((total - (a?.failed || 0)) / total) * 1000) / 10 : null,
+        users: a?.users || 0,
+        workspaces: a?.workspaces || 0,
+        avgDurationMs: a?.avgDurationMs ? Math.round(a.avgDurationMs) : null,
+        share: grandTotal ? Math.round((total / grandTotal) * 1000) / 10 : 0,
+        previousTotal: prev,
+        trendPct: prev ? Math.round(((total - prev) / prev) * 1000) / 10 : (total ? null : 0),
+        firstUsedAt: a?.firstUsedAt || null,
+        lastUse: last,
+        credits: creditsMap.get(cat.key)?.net ?? null,
+      };
+    }).sort((a, b) => b.total - a.total);
+
+    const cur = totals?.[0] || { total: 0, failed: 0, users: 0, workspaces: 0, features: 0, avgDurationMs: null };
+    const prv = prevTotals?.[0] || { total: 0, failed: 0, users: 0, workspaces: 0 };
+    const pct = (a, b) => (b ? Math.round(((a - b) / b) * 1000) / 10 : (a ? null : 0));
+
+    res.json({
+      success: true,
+      params: { days, granularity, workspaceId: workspaceId || null, timezone: USAGE_TZ },
+      summary: {
+        total: cur.total,
+        failed: cur.failed,
+        successRate: cur.total ? Math.round(((cur.total - cur.failed) / cur.total) * 1000) / 10 : null,
+        users: cur.users,
+        workspaces: cur.workspaces,
+        activeFeatures: cur.features,
+        catalogFeatures: USAGE_FEATURE_CATALOG.length,
+        avgPerDay: Math.round((cur.total / days) * 10) / 10,
+        avgDurationMs: cur.avgDurationMs ? Math.round(cur.avgDurationMs) : null,
+        previous: prv,
+        growth: { total: pct(cur.total, prv.total), users: pct(cur.users, prv.users), workspaces: pct(cur.workspaces, prv.workspaces) },
+      },
+      series,
+      growthSeries,
+      featureSeries,
+      featureSeriesKeys: activeFeatureKeys,
+      features,
+      unusedFeatures: features.filter((f) => f.total === 0).map((f) => ({ key: f.key, label: f.label, group: f.group })),
+      topUsers: topUsersRaw,
+      topWorkspaces: topWorkspacesRaw,
+      heatmap: heatmapRaw,
+      recentEvents: recentEventsRaw,
+      recentFailures: recentFailuresRaw,
+      creativeCredits: creativeCreditsRaw,
+      productPages: generationOverviewRaw?.[0] || { total: 0, credits: 0, completed: 0, failed: 0, users: 0, workspaces: 0 },
+      catalog: USAGE_FEATURE_CATALOG,
+    });
+  } catch (err) {
+    console.error('[SuperAdmin] usage error:', err.message);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ── Drill-down ultra détaillé d'UNE fonctionnalité ──────────────────────────
+router.get('/usage/feature/:feature', requireEcomAuth, requireMarketingStats, async (req, res) => {
+  try {
+    const feature = String(req.params.feature);
+    if (!USAGE_FEATURE_CATALOG.some((f) => f.key === feature)) {
+      return res.status(400).json({ success: false, message: 'Fonctionnalité inconnue' });
+    }
+    const days = Math.min(Math.max(Number(req.query.days) || 30, 1), 365);
+    const now = new Date();
+    const since = new Date(now.getTime() - days * 24 * 3600 * 1000);
+    const match = { feature, createdAt: { $gte: since } };
+
+    const FAILED = { $cond: [{ $eq: ['$meta.success', false] }, 1, 0] };
+    const dayExpr = { $dateToString: { format: '%Y-%m-%d', date: '$createdAt', timezone: USAGE_TZ } };
+
+    const [dailyRaw, users, workspaces, events, errors, hours, durations] = await Promise.all([
+      FeatureUsageLog.aggregate([
+        { $match: match },
+        { $group: { _id: dayExpr, total: { $sum: 1 }, failed: { $sum: FAILED }, users: { $addToSet: '$userId' } } },
+        { $project: { _id: 0, date: '$_id', total: 1, failed: 1, users: { $size: '$users' } } },
+        { $sort: { date: 1 } },
+      ]),
+      FeatureUsageLog.aggregate([
+        { $match: match },
+        { $group: { _id: '$userId', total: { $sum: 1 }, failed: { $sum: FAILED }, lastUsedAt: { $max: '$createdAt' }, firstUsedAt: { $min: '$createdAt' } } },
+        { $sort: { total: -1 } },
+        { $limit: 40 },
+        { $lookup: { from: USER_COLLECTION, localField: '_id', foreignField: '_id', as: 'u' } },
+        { $project: { _id: 1, total: 1, failed: 1, lastUsedAt: 1, firstUsedAt: 1, email: { $arrayElemAt: ['$u.email', 0] }, name: { $arrayElemAt: ['$u.name', 0] }, role: { $arrayElemAt: ['$u.role', 0] } } },
+      ]),
+      FeatureUsageLog.aggregate([
+        { $match: match },
+        { $group: { _id: '$workspaceId', total: { $sum: 1 }, failed: { $sum: FAILED }, users: { $addToSet: '$userId' }, lastUsedAt: { $max: '$createdAt' } } },
+        { $sort: { total: -1 } },
+        { $limit: 40 },
+        { $lookup: { from: WORKSPACE_COLLECTION, localField: '_id', foreignField: '_id', as: 'w' } },
+        { $project: { _id: 1, total: 1, failed: 1, lastUsedAt: 1, users: { $size: '$users' }, name: { $arrayElemAt: ['$w.name', 0] }, plan: { $arrayElemAt: ['$w.plan', 0] } } },
+      ]),
+      FeatureUsageLog.aggregate([
+        { $match: match },
+        { $sort: { createdAt: -1 } },
+        { $limit: 120 },
+        { $lookup: { from: USER_COLLECTION, localField: 'userId', foreignField: '_id', as: 'u' } },
+        { $lookup: { from: WORKSPACE_COLLECTION, localField: 'workspaceId', foreignField: '_id', as: 'w' } },
+        { $project: {
+          _id: 1, createdAt: 1, meta: 1,
+          success: '$meta.success', errorMessage: '$meta.errorMessage', durationMs: '$meta.durationMs',
+          userEmail: { $arrayElemAt: ['$u.email', 0] }, userName: { $arrayElemAt: ['$u.name', 0] },
+          workspaceName: { $arrayElemAt: ['$w.name', 0] },
+        } },
+      ]),
+      FeatureUsageLog.aggregate([
+        { $match: { ...match, 'meta.success': false } },
+        { $group: { _id: { $ifNull: ['$meta.errorMessage', 'Erreur non détaillée'] }, count: { $sum: 1 }, lastAt: { $max: '$createdAt' } } },
+        { $sort: { count: -1 } },
+        { $limit: 15 },
+      ]),
+      FeatureUsageLog.aggregate([
+        { $match: match },
+        { $group: { _id: { $hour: { date: '$createdAt', timezone: USAGE_TZ } }, total: { $sum: 1 } } },
+        { $project: { _id: 0, hour: '$_id', total: 1 } },
+        { $sort: { hour: 1 } },
+      ]),
+      FeatureUsageLog.aggregate([
+        { $match: { ...match, 'meta.durationMs': { $gt: 0 } } },
+        { $group: { _id: null, avg: { $avg: '$meta.durationMs' }, min: { $min: '$meta.durationMs' }, max: { $max: '$meta.durationMs' }, count: { $sum: 1 } } },
+        { $project: { _id: 0, avg: { $round: ['$avg', 0] }, min: 1, max: 1, count: 1 } },
+      ]),
+    ]);
+
+    const allDays = usageDayKeys(since, now);
+    const map = new Map(dailyRaw.map((d) => [d.date, d]));
+    const daily = allDays.map((date) => ({ date, total: map.get(date)?.total || 0, failed: map.get(date)?.failed || 0, users: map.get(date)?.users || 0 }));
+
+    res.json({
+      success: true,
+      feature,
+      label: USAGE_FEATURE_CATALOG.find((f) => f.key === feature)?.label || feature,
+      days,
+      daily,
+      users,
+      workspaces,
+      events,
+      errors,
+      hours,
+      duration: durations?.[0] || null,
+    });
+  } catch (err) {
+    console.error('[SuperAdmin] usage/feature error:', err.message);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 export default router;

@@ -186,6 +186,7 @@ export async function submitKieTask(body, maxRetries = 3) {
       const errMsg = response.data?.msg || response.data?.message || JSON.stringify(response.data).slice(0, 400);
       console.warn(`⚠️ le service submit attempt ${attempt}/${maxRetries} failed (code ${response.data?.code}): ${errMsg}`);
 
+      if (isNonRetryable(errMsg)) throw new Error(errMsg);
       if (attempt < maxRetries) {
         const delay = attempt * 2000;
         console.log(`⏳ Retry in ${delay / 1000}s...`);
@@ -198,6 +199,7 @@ export async function submitKieTask(body, maxRetries = 3) {
       const errMsg = err.response?.data?.msg || err.response?.data?.message || err.message;
       const status = err.response?.status;
       console.warn(`⚠️ le service submit attempt ${attempt}/${maxRetries} error (HTTP ${status || '?'}): ${errMsg}`);
+      if (isNonRetryable(errMsg)) throw new Error(errMsg);
       if (attempt < maxRetries) {
         const delay = status === 429 ? 10000 + attempt * 2000 : attempt * 2000;
         console.log(`⏳ Retry in ${delay / 1000}s...`);
@@ -207,6 +209,13 @@ export async function submitKieTask(body, maxRetries = 3) {
       }
     }
   }
+}
+
+
+// Un solde fournisseur épuisé ne se règle pas en réessayant : inutile de
+// brûler 3 tentatives (et 3 appels facturés) sur une erreur définitive.
+function isNonRetryable(msg) {
+  return /credits?\s*insufficient|insufficient\s*(credit|balance|funds)|balance\s*isn.?t\s*enough|top\s*up|quota\s*(exceeded|exhausted)|payment\s*required/i.test(String(msg || ''));
 }
 
 export async function pollKieTask(taskId, { maxWaitMs = IMAGE_GEN_MAX_WAIT_MS, mediaType = 'image', label = 'Kie.ai' } = {}) {

@@ -67,16 +67,28 @@ const SYMBOL_ACCENTS = {
 };
 
 // Exporté : réutilisé par autoEditService (montage automatique IA).
+// Un ffmpeg fige (filtre en deadlock, entree corrompue) ne rend jamais la main :
+// sans plafond, le montage restait en 'processing' pour toujours et le client
+// sondait un pourcentage immobile. 10 min couvrent tres largement un segment de
+// 60 s maximum re-encode avec sous-titres.
+const FFMPEG_TIMEOUT_MS = 10 * 60 * 1000;
+
 export function runFfmpeg(args) {
   const bin = resolveFfmpeg();
   return new Promise((resolve, reject) => {
     const child = spawn(bin, args, { stdio: ['ignore', 'ignore', 'pipe'] });
     let stderr = '';
+    let settled = false;
+    const done = (fn, arg) => { if (settled) return; settled = true; clearTimeout(timer); fn(arg); };
+    const timer = setTimeout(() => {
+      try { child.kill('SIGKILL'); } catch { /* deja mort */ }
+      done(reject, new Error(`ffmpeg bloqué au-delà de ${Math.round(FFMPEG_TIMEOUT_MS / 60000)} min — commande abandonnée`));
+    }, FFMPEG_TIMEOUT_MS);
     child.stderr.on('data', (c) => { stderr += c.toString(); });
-    child.on('error', reject);
+    child.on('error', (e) => done(reject, e));
     child.on('close', (code) => {
-      if (code === 0) resolve();
-      else reject(new Error(stderr.trim().split('\n').slice(-4).join(' | ') || `ffmpeg exited ${code}`));
+      if (code === 0) done(resolve);
+      else done(reject, new Error(stderr.trim().split('\n').slice(-4).join(' | ') || `ffmpeg exited ${code}`));
     });
   });
 }

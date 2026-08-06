@@ -1395,14 +1395,26 @@ router.post('/generate-gif', requireEcomAuth, async (req, res) => {
       // le réalisme des personnes justifie Veo sur ces plans-là aussi).
       const isUgcScene = UGC_SCENARIOS.includes(scenarioId) || Boolean(charDesc) || isBroll;
       const forced = String(process.env.GIF_VIDEO_PROVIDER || '').toLowerCase();
-      // Scènes PARLÉES : le moteur choisi passe en tête, les autres en
-      // secours automatique (tous savent faire parler le personnage).
-      const talkOrder = {
+      // Scènes PARLÉES : UNIQUEMENT le moteur choisi par le marchand.
+      //
+      // La bascule automatique vers les autres fournisseurs a été retirée :
+      // chaque tentative ratée consomme quand même le quota du fournisseur,
+      // donc une scène en échec pouvait brûler 4 appels (et, avec la reprise
+      // qui retente une fois, jusqu'à 8) — sur des modèles que le marchand
+      // n'avait pas choisis et dont il ne voyait jamais le nom.
+      // Un échec doit échouer : la scène est régénérable d'un clic, à
+      // l'identique, sur le moteur choisi.
+      // Échappatoire explicite si la bascule redevient souhaitable un jour :
+      // UGC_TALK_FALLBACK=1 dans le .env backend.
+      const talkFallback = String(process.env.UGC_TALK_FALLBACK || '') === '1';
+      const talkChains = {
         pixverse: ['pixversetalk', 'klingtalk', 'groktalk', 'veo'],
         grok: ['groktalk', 'pixversetalk', 'klingtalk', 'veo'],
         kling: ['klingtalk', 'pixversetalk', 'groktalk', 'veo'],
         veo: ['veo', 'pixversetalk', 'groktalk', 'klingtalk'],
-      }[talkEngine];
+      };
+      const talkChain = talkChains[talkEngine] || talkChains.grok;
+      const talkOrder = talkFallback ? talkChain : [talkChain[0]];
       const available = (speakClean
         ? talkOrder.map((id) => [id, id === 'veo' ? isVeoConfigured() : isKieVideoConfigured()])
         : [
@@ -1587,11 +1599,26 @@ Reply ONLY with JSON: {"start_frame_prompt":"...","motion_prompt":"..."} — sta
         try {
           // Photo de référence du créateur : 2ᵉ image de référence du modèle
           // (même visage, même carnation), la photo produit reste la 1ʳᵉ.
+          // CONTINUITE : une UGC est tournee d'une traite. Autoriser le
+          // changement de tenue et de decor (« only the pose, outfit and
+          // setting may change ») faisait changer de chemise ET de piece d'une
+          // scene a l'autre — le spectateur voit trois personnes differentes.
+          // Tenue et decor sont donc VERROUILLES ; seuls la pose, les mains et
+          // le cadrage bougent. Le front verrouille en plus au niveau PIXEL :
+          // il reutilise la premiere image face cam rendue pour les suivantes.
           const personClause = charRef
-            ? '\nThe person must match the SECOND reference photo exactly: same face, same skin tone, same hair — only the pose, outfit and setting may change.'
+            ? '\nThe person must match the SECOND reference photo exactly: same face, same skin tone, same hair, THE SAME CLOTHES (identical garment, identical color and pattern) and THE SAME room and background — only the pose, the hands and the camera framing may change. Do NOT change the outfit. Do NOT change the location.'
             : '';
           // Rappel du style téléphone réel au moment de la génération d'image
           // (le modèle d'image a tendance à retomber dans le rendu pub léché).
+          // PLANS SANS PRODUIT : la photo de reference du createur le montre
+          // EN TRAIN DE TENIR le produit. Sans consigne explicite de retrait,
+          // le modele reproduit « la meme scene » et redessine un flacon DE
+          // MEMOIRE — donc un AUTRE produit, autre packaging, autre logo, en
+          // main sur un plan censement sans produit. On exige des mains vides.
+          const emptyHandsClause = noProduct
+            ? '\nThe person is holding NOTHING: remove every product, bottle, box, jar, tube, pouch, sachet or packaged object visible in the reference photo. Both hands are empty and clearly shown as empty. No product on the table, no product in the background, no label and no packaging anywhere in the frame. Do NOT invent, replace or substitute any product.'
+            : '';
           const realClause = isUgcScene ? `\n${UGC_REAL_STYLE}` : '';
           // UGC = VERTICAL 9:16 obligatoire (TikTok/Reels). Kling/Veo suivent
           // le ratio de l'image d'entrée : une image carrée donnerait une
@@ -1599,10 +1626,10 @@ Reply ONLY with JSON: {"start_frame_prompt":"...","motion_prompt":"..."} — sta
           // l'image de départ directement en 9:16.
           const imgRatio = isUgcScene ? '9:16' : 'auto';
           startImage = hasSourcePhoto
-            ? await generateGptImage2ImageToImage(`${startFramePrompt}\nUse the provided photo as the EXACT product reference: same product, same packaging, same colors and labels. No added text.${personClause}${realClause}${isUgcScene ? '\nVERTICAL 9:16 portrait framing (smartphone video frame).' : ''}`, String(sourceUrl), imgRatio, charRef || null, {})
+            ? await generateGptImage2ImageToImage(`${startFramePrompt}\nUse the provided photo as the EXACT product reference: same product, same packaging, same colors and labels. No added text.${personClause}${emptyHandsClause}${realClause}${isUgcScene ? '\nVERTICAL 9:16 portrait framing (smartphone video frame).' : ''}`, String(sourceUrl), imgRatio, charRef || null, {})
             : (charRef
-              ? await generateGptImage2ImageToImage(`${startFramePrompt}\nThe person must match the reference photo exactly: same face, same skin tone, same hair — only the pose, outfit and setting may change. No added text.${realClause}${isUgcScene ? '\nVERTICAL 9:16 portrait framing (smartphone video frame).' : ''}`, charRef, imgRatio, null, {})
-              : await generateNanoBananaImage(`${startFramePrompt}${realClause}`, isUgcScene ? '9:16' : '1:1', 1));
+              ? await generateGptImage2ImageToImage(`${startFramePrompt}\nThe person must match the reference photo exactly: same face, same skin tone, same hair, THE SAME CLOTHES (identical garment, identical color and pattern) and THE SAME room and background — only the pose, the hands and the camera framing may change. Do NOT change the outfit. Do NOT change the location. No added text.${emptyHandsClause}${realClause}${isUgcScene ? '\nVERTICAL 9:16 portrait framing (smartphone video frame).' : ''}`, charRef, imgRatio, null, {})
+              : await generateNanoBananaImage(`${startFramePrompt}${emptyHandsClause}${realClause}`, isUgcScene ? '9:16' : '1:1', 1));
         } catch (imgErr) {
           console.warn('[BuilderAI] scene start-image failed, fallback to raw photo:', imgErr.message);
           if (!startImage) {
@@ -1627,14 +1654,24 @@ Reply ONLY with JSON: {"start_frame_prompt":"...","motion_prompt":"..."} — sta
       // (débit rapide) — d'où des scènes qui parlaient à des vitesses
       // différentes. Bornes Kling 3-15 s ; Grok clampe sur 5-10 s.
       const speakWords = speakClean.split(/\s+/).filter(Boolean).length;
-      const idealDur = Math.ceil(speakWords / 2.5) + 1;
+      // Débit de parole retenu pour dimensionner le clip. Le prompt réclame
+      // une diction « TikTok » énergique, que les modèles rendent autour de
+      // 3,4 mots/s — pas 2,5. Sous-estimer le débit, c'est commander un clip
+      // trop long : le modèle finit sa phrase et le reste est du silence.
+      // Ajustable sans redéploiement via SPEAK_WORDS_PER_SEC.
+      const wps = Math.max(2, Math.min(5, Number(process.env.SPEAK_WORDS_PER_SEC) || 3.4));
+      const idealDur = Math.ceil(speakWords / wps);
       const speakDur = Math.max(3, Math.min(15, speakWords ? idealDur : Math.round(Number(durationSec) || 10)));
       const runProvider = (p) => (p === 'pixversetalk'
-        // PixVerse V6 (offre Pro) : durée VERROUILLÉE côté serveur — 10 s pile
-        // par scène, jamais plus (facturé à la seconde), quel que soit le
-        // durationSec envoyé par le front. Ajustable via KIE_PIXVERSE_TALK_SEC.
+        // PixVerse V6 (offre Pro) : durée CALÉE SUR LA RÉPLIQUE, comme Kling.
+        // Elle était verrouillée à 10 s quel que soit le texte : une réplique
+        // de 28 mots dite en 8 s laissait 2 s de silence en fin de plan — et
+        // le clip est facturé à la seconde, donc ce silence était payé.
+        // KIE_PIXVERSE_TALK_SEC force encore une durée fixe si besoin.
         ? pixverseImageToVideo(motionPrompt, startImage, {
-          durationSec: Math.max(5, Math.min(15, Number(process.env.KIE_PIXVERSE_TALK_SEC) || 10)),
+          durationSec: Number(process.env.KIE_PIXVERSE_TALK_SEC)
+            ? Math.max(5, Math.min(15, Number(process.env.KIE_PIXVERSE_TALK_SEC)))
+            : Math.max(5, Math.min(10, speakDur)),
           resolution: talkRes,
           withAudio: true,
         })
@@ -1663,7 +1700,31 @@ Reply ONLY with JSON: {"start_frame_prompt":"...","motion_prompt":"..."} — sta
             console.warn(`[BuilderAI] i2v ${p} a échoué (${provErr.message})${providerOrder[providerOrder.indexOf(p) + 1] ? ' — bascule sur le suivant' : ''}`);
           }
         }
-        if (!videoUrl) throw new Error(`Génération vidéo impossible — ${failures.join(' ; ')}`);
+        if (!videoUrl) {
+          const detail = failures.join(' ; ');
+          // ── SOLDE FOURNISSEUR ÉPUISÉ ───────────────────────────────────
+          // Ce n'est ni la faute du marchand ni un problème de SES crédits :
+          // c'est notre compte chez le prestataire qui est vide. Il reçoit un
+          // message d'attente, jamais l'erreur brute ; le super admin est
+          // prévenu tout de suite pour recharger.
+          const { isProviderOutOfCredits, alertProviderOutOfCredits, PROVIDER_DOWN_MESSAGE } =
+            await import('../services/providerAlertService.js');
+          if (isProviderOutOfCredits(detail)) {
+            alertProviderOutOfCredits({
+              provider: providerOrder.join('+'), rawError: detail,
+              feature: isBroll ? 'b-roll' : (speakClean ? 'scène parlée' : 'vidéo'),
+              workspaceId: req.workspaceId ? String(req.workspaceId) : null,
+            }).catch(() => {});
+            const err = new Error(PROVIDER_DOWN_MESSAGE);
+            err.providerDown = true;
+            throw err;
+          }
+          // Sans bascule, une seule ligne d'échec : on nomme le moteur choisi
+          // pour que le marchand sache ce qui a lâché.
+          throw new Error(providerOrder.length === 1
+            ? `Génération impossible sur le moteur choisi (${providerOrder[0]}) — ${detail}`
+            : `Génération vidéo impossible — ${detail}`);
+        }
       }
       // Équité tarifaire : offre Pro (PixVerse) réservée mais scène rendue par
       // un moteur de secours → on recrédite la différence Pro − Éco. Appelé
@@ -1826,6 +1887,13 @@ Style CONSTANT sur toutes les étapes : même produit, même décor, même écla
   } catch (error) {
     // Stack complète en log : indispensable pour diagnostiquer les 500 en prod.
     if (sceneResv?.ok) await sceneResv.refund(error.message);
+    // Fournisseur à sec : ce n'est pas une erreur du marchand. Message
+    // d'attente, code dédié pour que le front l'affiche autrement, et 503
+    // (indisponibilité temporaire) plutôt que 500.
+    if (error.providerDown) {
+      console.error('[BuilderAI] fournisseur indisponible (solde épuisé):', error.message);
+      return res.status(503).json({ success: false, error: 'PROVIDER_UNAVAILABLE', providerDown: true, message: error.message });
+    }
     console.error('[BuilderAI] generate-gif error:', error.message, '\n', error.stack);
     return res.status(500).json({ success: false, message: toUserAiError(error, 'Génération du GIF impossible, réessayez') });
   }
@@ -2896,7 +2964,13 @@ router.post('/montage', requireEcomAuth, async (req, res) => {
           },
           (pct) => {
             const next = Math.max(job.progress, Math.min(97, pct));
-            if (next !== job.progress) { job.progress = next; pushJob({ progress: next }); }
+            // progressAt : horodatage du DERNIER avancement reel. Le GET s'en
+            // sert pour declarer un rendu bloque. Sans lui, un ffmpeg fige
+            // laissait le job en 'processing' indefiniment sur l'instance qui
+            // rend (le job etait servi depuis la Map, la regle d'obsolescence
+            // de la base n'etait jamais consultee) : cote client, un
+            // pourcentage figé pour toujours.
+            if (next !== job.progress) { job.progress = next; job.progressAt = Date.now(); pushJob({ progress: next }); }
           },
         );
         const { uploadToR2 } = await import('../services/cloudflareImagesService.js');
@@ -2941,6 +3015,13 @@ router.post('/montage', requireEcomAuth, async (req, res) => {
 router.get('/montage/jobs/:id', requireEcomAuth, async (req, res) => {
   // 1. Instance qui rend le montage : réponse mémoire (fraîche, gratuite).
   let job = montageJobs.get(req.params.id);
+  // Meme regle d'obsolescence que pour la base : un rendu qui n'avance plus
+  // depuis 3 min est bloque (ffmpeg fige, filtre en deadlock). Sans ce test le
+  // client sondait un pourcentage immobile jusqu'a son propre delai de 20 min.
+  if (job && job.status === 'processing'
+    && Date.now() - (job.progressAt || job.createdAt || 0) > 3 * 60 * 1000) {
+    job = { ...job, status: 'error', error: 'Montage bloqué (aucun avancement depuis 3 min) — relance le montage.' };
+  }
   // 2. Autre instance (cluster) ou process redémarré : lecture en base.
   if (!job) {
     try {
@@ -2973,61 +3054,131 @@ router.get('/montage/jobs/:id', requireEcomAuth, async (req, res) => {
 });
 
 
-// ── GET /builder-ai/avatar-presets — 10 avatars UGC prédéfinis, images
-//    générées par l'API OpenAI (gpt-image) puis MISES EN CACHE sur R2 :
-//    générées une seule fois pour toute la plateforme, pas par marchand.
+// ── GET /builder-ai/avatar-presets — 20 avatars UGC prédéfinis, images
+//    générées par l'API image, ré-hébergées sur R2 et PERSISTÉES EN BASE :
+//    une image générée l'est pour de bon.
+//
+//    L'ancienne version gardait le résultat dans `let _avatarCache = null`, une
+//    variable de module. Elle disparaissait à chaque redémarrage et à chaque
+//    déploiement, et n'était pas partagée entre instances : les avatars étaient
+//    donc régénérés en boucle, avec l'attente et le coût API correspondants.
+//    Pire, un échec ponctuel était mis en cache avec `image: ''` et l'avatar
+//    restait vide jusqu'au redémarrage suivant. Ici : chaque image est
+//    enregistrée DÈS qu'elle est prête, un échec n'est pas enregistré (donc
+//    réessayé au prochain appel), et changer la consigne visuelle régénère via
+//    l'empreinte du prompt.
 // ──────────────────────────────────────────────────────────────────────────────
 const AVATAR_PRESETS_DEF = [
-  { id: 'aicha',      label: 'Aïcha · cliente enthousiaste', gender: 'femme', age: '25', role: 'client',  desc: 'Jeune femme africaine de 25 ans, souriante, look moderne urbain' },
-  { id: 'kwame',      label: 'Kwame · client convaincu',     gender: 'homme', age: '32', role: 'client',  desc: 'Homme africain de 32 ans, allure soignée, ton posé' },
-  { id: 'grace',      label: 'Mama Grace · mère de famille', gender: 'femme', age: '45', role: 'client',  desc: 'Femme africaine de 45 ans, chaleureuse, style pagne moderne' },
-  { id: 'diallo',     label: 'Dr. Diallo · expert santé',    gender: 'homme', age: '40', role: 'docteur', desc: 'Médecin africain de 40 ans en blouse blanche, cabinet médical' },
-  { id: 'ibrahim',    label: 'Coach Ibrahim · sportif',      gender: 'homme', age: '28', role: 'client',  desc: 'Coach sportif africain de 28 ans, musclé, tenue de sport, salle' },
-  { id: 'fatou',      label: 'Fatou · étudiante',            gender: 'femme', age: '21', role: 'client',  desc: 'Étudiante africaine de 21 ans, style jeune et tendance' },
-  { id: 'ngozi',      label: 'Ngozi · vendeuse experte',     gender: 'femme', age: '35', role: 'vendeur', desc: 'Commerçante africaine de 35 ans dans sa boutique' },
-  { id: 'awa',        label: 'Awa · esthéticienne',          gender: 'femme', age: '30', role: 'docteur', desc: 'Esthéticienne africaine de 30 ans en institut, peau éclatante' },
-  { id: 'sow',        label: 'Papa Sow · senior',            gender: 'homme', age: '58', role: 'client',  desc: 'Homme africain de 58 ans, cheveux grisonnants, salon chaleureux' },
-  { id: 'yannick',    label: 'Yannick · entrepreneur',       gender: 'homme', age: '35', role: 'client',  desc: 'Entrepreneur africain de 35 ans, chemise élégante, bureau moderne' },
+  { id: 'aicha',     label: 'Aïcha · cliente enthousiaste', gender: 'femme', age: '25', role: 'client',  desc: 'Jeune femme africaine de 25 ans, souriante, look moderne urbain' },
+  { id: 'kwame',     label: 'Kwame · client convaincu',     gender: 'homme', age: '32', role: 'client',  desc: 'Homme africain de 32 ans, allure soignée, ton posé' },
+  { id: 'grace',     label: 'Mama Grace · mère de famille', gender: 'femme', age: '45', role: 'client',  desc: 'Femme africaine de 45 ans, chaleureuse, style pagne moderne' },
+  { id: 'diallo',    label: 'Dr. Diallo · expert santé',    gender: 'homme', age: '40', role: 'docteur', desc: 'Médecin africain de 40 ans en blouse blanche, cabinet médical' },
+  { id: 'ibrahim',   label: 'Coach Ibrahim · sportif',      gender: 'homme', age: '28', role: 'client',  desc: 'Coach sportif africain de 28 ans, musclé, tenue de sport, salle' },
+  { id: 'fatou',     label: 'Fatou · étudiante',            gender: 'femme', age: '21', role: 'client',  desc: 'Étudiante africaine de 21 ans, style jeune et tendance' },
+  { id: 'ngozi',     label: 'Ngozi · vendeuse experte',     gender: 'femme', age: '35', role: 'vendeur', desc: 'Commerçante africaine de 35 ans dans sa boutique' },
+  { id: 'awa',       label: 'Awa · esthéticienne',          gender: 'femme', age: '30', role: 'docteur', desc: 'Esthéticienne africaine de 30 ans en institut, peau éclatante' },
+  { id: 'sow',       label: 'Papa Sow · senior',            gender: 'homme', age: '58', role: 'client',  desc: 'Homme africain de 58 ans, cheveux grisonnants, salon chaleureux' },
+  { id: 'yannick',   label: 'Yannick · entrepreneur',       gender: 'homme', age: '35', role: 'client',  desc: 'Entrepreneur africain de 35 ans, chemise élégante, bureau moderne' },
+  // ── 10 profils ajoutés : ils couvrent les niches qui n'avaient aucun visage
+  //    crédible (cheveux, barbe, nutrition, soin infirmier, bricolage, auto).
+  { id: 'nadia',     label: 'Nadia · coiffeuse',            gender: 'femme', age: '27', role: 'vendeur', desc: 'Coiffeuse africaine de 27 ans dans son salon moderne, coiffure soignée' },
+  { id: 'omar',      label: 'Omar · barbier',               gender: 'homme', age: '30', role: 'vendeur', desc: 'Barbier africain de 30 ans, barbe entretenue, salon de barbier moderne' },
+  { id: 'aminata',   label: 'Aminata · nutritionniste',     gender: 'femme', age: '36', role: 'docteur', desc: 'Nutritionniste africaine de 36 ans en blouse claire, bureau lumineux' },
+  { id: 'clarisse',  label: 'Clarisse · infirmière',        gender: 'femme', age: '33', role: 'docteur', desc: 'Infirmière africaine de 33 ans en tenue médicale bleue, clinique propre' },
+  { id: 'moussa',    label: 'Moussa · artisan',             gender: 'homme', age: '42', role: 'client',  desc: 'Artisan africain de 42 ans, tenue de travail, atelier bien rangé' },
+  { id: 'boubacar',  label: 'Boubacar · chauffeur',         gender: 'homme', age: '38', role: 'client',  desc: 'Chauffeur africain de 38 ans, chemise simple, intérieur de voiture propre' },
+  { id: 'sarah',     label: 'Sarah · lifestyle',            gender: 'femme', age: '24', role: 'client',  desc: 'Jeune femme africaine de 24 ans, style lifestyle soigné, appartement lumineux' },
+  { id: 'david',     label: 'David · passionné tech',       gender: 'homme', age: '23', role: 'client',  desc: 'Jeune homme africain de 23 ans, style tech décontracté, bureau avec écrans' },
+  { id: 'mariam',    label: 'Mariam · jeune maman',         gender: 'femme', age: '31', role: 'client',  desc: 'Jeune femme africaine de 31 ans, tenue confortable de maison, salon chaleureux' },
+  { id: 'pierre',    label: 'Pierre · pharmacien',          gender: 'homme', age: '45', role: 'docteur', desc: 'Pharmacien africain de 45 ans en blouse blanche, officine avec rayonnages' },
 ];
 
+const avatarPrompt = (a) => `Ultra realistic vertical portrait photo (9:16) of ${a.desc}. Authentic African person, natural skin texture with real pores and small imperfections, soft natural lighting, sharp focus on the face, looking straight at the camera, friendly confident expression, waist-up framing, hands free at the sides, realistic everyday environment in the background slightly blurred. Shot on a smartphone front camera, user generated content style. NO text, NO watermark, NO logo, no plastic AI look.`;
+// Empreinte volontairement artisanale (djb2) : pas d'import supplémentaire dans
+// ce fichier, et on n'a besoin que de détecter « la consigne a changé ».
+const avatarPromptHash = (a) => {
+  const str = avatarPrompt(a);
+  let h = 5381;
+  for (let i = 0; i < str.length; i += 1) h = ((h * 33) ^ str.charCodeAt(i)) >>> 0;
+  return h.toString(36);
+};
+
+// Cache mémoire = raccourci UNIQUEMENT quand la série est complète. Dès qu'une
+// image manque on repasse par la base : c'est ce qui rattrape les échecs sans
+// attendre un redémarrage.
 let _avatarCache = null;
+
 router.get('/avatar-presets', requireEcomAuth, async (_req, res) => {
   try {
-    if (_avatarCache) return res.json({ success: true, data: _avatarCache });
+    if (_avatarCache && _avatarCache.length === AVATAR_PRESETS_DEF.length && _avatarCache.every((a) => a.image)) {
+      return res.json({ success: true, data: _avatarCache });
+    }
+    const CreativeAvatarPreset = (await import('../models/CreativeAvatarPreset.js')).default;
+    let stored = new Map();
+    try {
+      const docs = await CreativeAvatarPreset.find({}).lean();
+      stored = new Map(docs.map((d) => [d.presetId, d]));
+    } catch (e) {
+      console.warn('[avatar-presets] lecture base impossible:', e.message);
+    }
 
-    const { default: PlatformPaymentConfig } = await import('../models/PlatformPaymentConfig.js').catch(() => ({ default: null }));
-    void PlatformPaymentConfig; // (cache mémoire suffisant ici)
+    const missing = AVATAR_PRESETS_DEF.filter((a) => {
+      const d = stored.get(a.id);
+      return !d?.image || d.promptHash !== avatarPromptHash(a);
+    });
 
-    const { generateNanoBananaImage } = await import('../services/nanoBananaService.js');
-    const { uploadToR2 } = await import('../services/cloudflareImagesService.js');
-
-    const built = await Promise.all(AVATAR_PRESETS_DEF.map(async (a) => {
-      try {
-        const prompt = `Ultra realistic vertical portrait photo (9:16) of ${a.desc}. Authentic African person, natural skin texture with real pores and small imperfections, soft natural lighting, sharp focus on the face, looking straight at the camera, friendly confident expression, waist-up framing, hands free at the sides, realistic everyday environment in the background slightly blurred. Shot on a smartphone front camera, user generated content style. NO text, NO watermark, NO logo, no plastic AI look.`;
-        const out = await generateNanoBananaImage(prompt, '9:16', 1);
-        const pick = (v) => {
-          if (!v) return '';
-          if (typeof v === 'string') return v;
-          if (Array.isArray(v)) return pick(v[0]);
-          return v.url || v.imageUrl || pick(v.urls) || pick(v.images) || pick(v.data) || '';
-        };
-        const url = pick(out);
-        if (!url) throw new Error('image vide');
-        // Ré-héberge sur R2 pour un lien stable (les URLs fournisseur expirent).
+    if (missing.length) {
+      console.log(`[avatar-presets] ${missing.length}/${AVATAR_PRESETS_DEF.length} à générer`);
+      const { generateNanoBananaImage } = await import('../services/nanoBananaService.js');
+      const { uploadToR2 } = await import('../services/cloudflareImagesService.js');
+      const pick = (v) => {
+        if (!v) return '';
+        if (typeof v === 'string') return v;
+        if (Array.isArray(v)) return pick(v[0]);
+        return v.url || v.imageUrl || pick(v.urls) || pick(v.images) || pick(v.data) || '';
+      };
+      const buildOne = async (a) => {
         try {
-          const axiosMod = (await import('axios')).default;
-          const buf = Buffer.from((await axiosMod.get(url, { responseType: 'arraybuffer', timeout: 30000 })).data);
-          const up = await uploadToR2(buf, `avatar-preset-${a.id}.png`, 'image/png');
-          return { ...a, image: up?.url || url };
-        } catch { return { ...a, image: url }; }
-      } catch (e) {
-        console.warn(`[avatar-presets] ${a.id} échec:`, e.message);
-        return { ...a, image: '' };
+          const url = pick(await generateNanoBananaImage(avatarPrompt(a), '9:16', 1));
+          if (!url) throw new Error('image vide');
+          let finalUrl = url;
+          // Ré-héberge sur R2 : les URLs fournisseur expirent, et une URL morte
+          // en base serait pire qu'une image absente.
+          try {
+            const axiosMod = (await import('axios')).default;
+            const buf = Buffer.from((await axiosMod.get(url, { responseType: 'arraybuffer', timeout: 30000 })).data);
+            const up = await uploadToR2(buf, `avatar-preset-${a.id}.png`, 'image/png');
+            if (up?.url) finalUrl = up.url;
+          } catch (e) {
+            console.warn(`[avatar-presets] ${a.id} R2 échec (URL fournisseur conservée):`, e.message);
+          }
+          // Enregistré DÈS maintenant : si la requête expire côté client, le
+          // travail déjà fait est acquis et l'appel suivant reprend la suite.
+          try {
+            await CreativeAvatarPreset.updateOne(
+              { presetId: a.id },
+              { $set: { image: finalUrl, promptHash: avatarPromptHash(a) } },
+              { upsert: true },
+            );
+          } catch (e) {
+            console.warn(`[avatar-presets] ${a.id} écriture base échouée:`, e.message);
+          }
+          stored.set(a.id, { presetId: a.id, image: finalUrl });
+        } catch (e) {
+          console.warn(`[avatar-presets] ${a.id} échec:`, e.message); // non enregistré → réessayé
+        }
+      };
+      // 4 de front : 20 générations simultanées saturent le fournisseur et font
+      // expirer la requête entière.
+      const POOL = 4;
+      for (let i = 0; i < missing.length; i += POOL) {
+        await Promise.all(missing.slice(i, i + POOL).map(buildOne));
       }
-    }));
+    }
 
-    _avatarCache = built;
-    res.json({ success: true, data: built });
+    const data = AVATAR_PRESETS_DEF.map((a) => ({ ...a, image: stored.get(a.id)?.image || '' }));
+    _avatarCache = data;
+    res.json({ success: true, data });
   } catch (err) {
     console.error('[BuilderAI] avatar-presets error:', err.message);
     res.status(500).json({ success: false, message: 'Génération des avatars impossible' });

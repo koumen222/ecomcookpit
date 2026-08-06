@@ -129,6 +129,98 @@ const CREATIVE_FORMATS = [
     slideType: 'social-proof',
     description: 'Plusieurs clients satisfaits avec le produit',
   },
+  // ── Formats complémentaires ────────────────────────────────────────────────
+  {
+    id: 'before-after',
+    label: 'Avant / Après',
+    aspectRatio: '1:1',
+    slideType: 'before-after',
+    description: 'Transformation sur la même personne, J1 → J30',
+  },
+  {
+    id: 'whats-inside',
+    label: 'Contenu du colis',
+    aspectRatio: '1:1',
+    slideType: 'whats-inside',
+    description: 'Tout ce que le client reçoit, étalé et étiqueté',
+  },
+  {
+    id: 'size-guide',
+    label: 'Taille & dimensions',
+    aspectRatio: '1:1',
+    slideType: 'size-guide',
+    description: 'Cotes du produit + comparaison à un objet connu',
+  },
+  {
+    id: 'ingredients',
+    label: 'Composition',
+    aspectRatio: '1:1',
+    slideType: 'ingredients',
+    description: 'Composants / matières mis en scène et nommés',
+  },
+  {
+    id: 'offer-promo',
+    label: 'Offre choc',
+    aspectRatio: '1:1',
+    slideType: 'offer-promo',
+    description: 'Prix barré, prix promo, badge de remise',
+  },
+  {
+    id: 'bundle-pack',
+    label: 'Lot / Pack',
+    aspectRatio: '1:1',
+    slideType: 'bundle-pack',
+    description: 'Plusieurs unités groupées + économie affichée',
+  },
+  {
+    id: 'guarantee',
+    label: 'Garantie & livraison',
+    aspectRatio: '1:1',
+    slideType: 'guarantee',
+    description: 'Paiement à la livraison, garantie, délai',
+  },
+  {
+    id: 'faq',
+    label: 'Questions fréquentes',
+    aspectRatio: '1:1',
+    slideType: 'faq',
+    description: '3 objections traitées en cartes Q/R',
+  },
+  {
+    id: 'in-hand',
+    label: 'Produit en situation',
+    aspectRatio: '1:1',
+    slideType: 'in-hand',
+    description: 'Gros plan lifestyle, produit en main ou porté',
+  },
+  {
+    id: 'detail-zoom',
+    label: 'Zoom qualité',
+    aspectRatio: '1:1',
+    slideType: 'detail-zoom',
+    description: 'Macro sur la finition, légendes de détail',
+  },
+  {
+    id: 'brand-story',
+    label: 'Histoire de marque',
+    aspectRatio: '1:1',
+    slideType: 'brand-story',
+    description: 'Origine, savoir-faire et valeurs de la marque',
+  },
+  {
+    id: 'routine',
+    label: 'Moment d\'usage',
+    aspectRatio: '1:1',
+    slideType: 'routine',
+    description: 'Matin / journée / soir — quand l\'utiliser',
+  },
+  {
+    id: 'stats',
+    label: 'Résultats chiffrés',
+    aspectRatio: '1:1',
+    slideType: 'stats',
+    description: 'Gros pourcentages et chiffres de résultats',
+  },
 ];
 
 /**
@@ -421,14 +513,25 @@ function getCategoryStyle(category = '', brandColors = '') {
 }
 
 function buildCreativePrompt(analysis, format, hasRefImage, visualTemplate = 'general', hasLogo = false) {
-  const { keyBenefits, painPoints, usageSteps, brandColors, slogans, emotionalHook, category } = analysis;
+  const {
+    keyBenefits, painPoints, usageSteps, brandColors, slogans, emotionalHook, category,
+    productName, targetAudience, priceRange, promoAngle, shortDescription,
+  } = analysis;
 
   const b1 = keyBenefits?.[0] || 'Efficace';
   const b2 = keyBenefits?.[1] || 'Naturel';
   const b3 = keyBenefits?.[2] || 'Premium';
+  const b4 = keyBenefits?.[3] || 'Qualité garantie';
+  const b5 = keyBenefits?.[4] || 'Satisfaction assurée';
   const p1 = painPoints?.[0] || 'Fatigue';
   const p2 = painPoints?.[1] || 'Stress';
   const p3 = painPoints?.[2] || 'Inconfort';
+  const p4 = painPoints?.[3] || 'Manque de temps';
+  const pname = productName || 'le produit';
+  const audience = targetAudience || 'clients en Afrique';
+  const price = priceRange || '';
+  const angle = promoAngle || emotionalHook || 'Offre limitée';
+  const pitch = shortDescription || emotionalHook || 'La solution qu\'il vous faut';
   const s1 = usageSteps?.[0] || 'Ouvrir';
   const s2 = usageSteps?.[1] || 'Appliquer';
   const s3 = usageSteps?.[2] || 'Profiter des résultats';
@@ -558,6 +661,155 @@ Bold headline: "ILS L'ADORENT" with ★★★★★ golden stars row.
 Each card: round profile photo of African person, ★★★★★, one short quote in French, first name + African city.
 Product hero shot centered between cards, glowing, clearly recognizable.
 Bottom badge: "★ +2000 clients satisfaits en Afrique" in accent color.
+Accent color: ${accent}.
+${ANCHOR}`.trim(),
+
+    // ── 8. Avant / Après (transformation dans le temps) ─────────────────────────
+    'before-after': `
+Premium product listing image — RESULTS TRANSFORMATION on the SAME person.
+Vertical split with a thin white divider line down the middle, both halves showing THE SAME African person, same framing, same angle, same clothing.
+LEFT half labelled "JOUR 1": the starting state, honest and natural, slightly flat lighting, subdued colors.
+RIGHT half labelled "APRÈS 30 JOURS": visibly improved state, radiant, warm confident expression, bright vibrant lighting.
+Small product shot bottom-right corner over the right half, clean and recognizable.
+Top headline: "${b1.toUpperCase()}". Bottom pill in accent color: "Résultats visibles — ${b2}".
+Realistic, believable difference — no exaggerated or medically impossible change.
+Accent color: ${accent}.
+${ANCHOR}`.trim(),
+
+    // ── 9. Contenu du colis ─────────────────────────────────────────────────────
+    'whats-inside': `
+Premium product listing image — WHAT'S IN THE BOX (knolling flat-lay).
+Top-down view on a clean surface: the product with its packaging and every accessory laid out in a neat grid, evenly spaced, perfectly aligned, generous margins.
+Each item has a thin accent-color leader line pointing to a small white label with short French text.
+Bold headline top: "CE QUE VOUS RECEVEZ".
+Bottom-right pill in accent color: "Livré prêt à l'emploi".
+No person in this visual. Every laid-out item must plausibly belong to ${pname}.
+Accent color: ${accent}.
+${ANCHOR}`.trim(),
+
+    // ── 10. Taille & dimensions ─────────────────────────────────────────────────
+    'size-guide': `
+Premium product listing image — SIZE & DIMENSIONS.
+Product centered on a clean technical background with a subtle measurement grid.
+Thin accent-color dimension arrows with tick ends along the height and the width, each with a small white measurement label.
+To the right, a scale reference at true relative size: an open human hand or a smartphone next to the product, so the real size is instantly readable.
+Bold headline top-left: "DIMENSIONS RÉELLES".
+Bottom strip: "Format ${b3.toLowerCase()} — facile à transporter".
+Clean technical-catalog feel, precise and uncluttered.
+Accent color: ${accent}.
+${ANCHOR}`.trim(),
+
+    // ── 11. Composition ─────────────────────────────────────────────────────────
+    'ingredients': `
+Premium product listing image — COMPOSITION BREAKDOWN.
+Product hero shot centered, slightly elevated, with a soft glow halo.
+Arranged around it: the actual components, materials or raw ingredients that make up ${pname}, photographed realistically at natural scale, each connected to the product by a thin accent-color line ending in a small white label.
+Only elements that genuinely belong to THIS product — never generic leaves, flowers or petals added for decoration.
+Bold headline top: "CE QU'IL Y A DEDANS".
+Bottom row: three small accent-color pills "${b1}" · "${b2}" · "${b3}".
+Accent color: ${accent}.
+${ANCHOR}`.trim(),
+
+    // ── 12. Offre choc ──────────────────────────────────────────────────────────
+    'offer-promo': `
+Premium product listing image — PROMOTIONAL OFFER.
+Product hero shot on the left, large, brightly lit, bursting out of a bold accent-color radial burst background.
+Right side, stacked and dominant: a large struck-through old price, then the new price in very large bold numerals${price ? ` (price range: ${price})` : ''}, then a bright red circular badge with a big discount percentage.
+Top headline: "${angle.toUpperCase()}".
+Bottom bar in accent color with white text: "Offre limitée — commandez maintenant".
+Energetic, high-contrast, retail-flyer punch — but still clean and premium, never cluttered.
+Accent color: ${accent}.
+${ANCHOR}`.trim(),
+
+    // ── 13. Lot / Pack ──────────────────────────────────────────────────────────
+    'bundle-pack': `
+Premium product listing image — VALUE BUNDLE.
+Three identical units of the product grouped together in a confident row, the front one sharp and fully readable, the two behind slightly angled and receding.
+Large accent-color ribbon across the top-left corner reading "PACK ÉCONOMIQUE".
+Right side: a big bold savings callout in a circular badge, plus a short stack of three white pills: "${b1}" · "${b2}" · "Livraison offerte".
+Bottom bar: "Le pack le plus commandé".
+Identical packaging on all three units — same label, same colors, no variation.
+Accent color: ${accent}.
+${ANCHOR}`.trim(),
+
+    // ── 14. Garantie & livraison ────────────────────────────────────────────────
+    'guarantee': `
+Premium product listing image — GUARANTEE & DELIVERY (African e-commerce reassurance).
+Product hero shot centered, clean and prominent, with a soft protective glow.
+Four large reassurance blocks arranged around it, each a white rounded card with a bold icon and short French text:
+"Paiement à la livraison" (banknote icon) · "Livraison 24-72 h" (delivery scooter icon) · "Satisfait ou remboursé" (shield icon) · "Service client réactif" (headset icon).
+Top headline: "COMMANDEZ EN TOUTE CONFIANCE".
+Bottom bar in accent color: "Vous payez seulement à la réception".
+Accent color: ${accent}.
+${ANCHOR}`.trim(),
+
+    // ── 15. Questions fréquentes ────────────────────────────────────────────────
+    'faq': `
+Premium product listing image — FAQ / OBJECTION HANDLING.
+Bold headline top: "VOS QUESTIONS".
+Three wide white rounded cards stacked vertically, generous spacing, soft shadows.
+Each card: an accent-color circle with a "?" on the left, a short bold French question, and one short reassuring answer line below it.
+Questions to render, adapted to ${pname}: "Est-ce que ça marche vraiment ?" · "Combien de temps avant résultat ?" · "Est-ce adapté à ${audience} ?".
+Small product shot bottom-right, clean and recognizable.
+Text must be short, perfectly legible, max ~7 words per line.
+Accent color: ${accent}.
+${ANCHOR}`.trim(),
+
+    // ── 16. Produit en situation ────────────────────────────────────────────────
+    'in-hand': `
+Premium product listing image — LIFESTYLE CLOSE-UP, almost no text.
+Tight editorial close-up of the product being held, worn or used by an African person in a real everyday setting matching its actual use.
+Product perfectly sharp and fully readable in the foreground, person and background softly out of focus, shallow depth of field, natural warm light.
+Single short caption bottom-left in clean type: "${slogan}".
+No cards, no badges, no icons, no comparison elements — just one strong photographic moment.
+Accent color used only as a thin bottom accent line: ${accent}.
+${ANCHOR}`.trim(),
+
+    // ── 17. Zoom qualité ────────────────────────────────────────────────────────
+    'detail-zoom': `
+Premium product listing image — QUALITY DETAIL MACRO.
+Large product shot on the left, and on the right two circular magnified insets with thin accent-color borders, each zooming into a real quality detail of ${pname} (finish, texture, seam, closure, material grain).
+Thin accent-color leader lines connect each inset to the exact point it magnifies on the product.
+Each inset has a short white label: "${b1}" and "${b2}".
+Top headline: "LE DÉTAIL QUI CHANGE TOUT".
+Bottom pill: "${b3}".
+Extreme micro-detail and true material rendering in the insets.
+Accent color: ${accent}.
+${ANCHOR}`.trim(),
+
+    // ── 18. Histoire de marque ──────────────────────────────────────────────────
+    'brand-story': `
+Premium product listing image — BRAND STORY.
+Left two-thirds: a warm documentary-style portrait of an African maker, artisan or founder in their real work environment, holding or presenting ${pname}, authentic natural light, genuine proud expression.
+Right third: a clean vertical text column on a solid light panel — small heading "NOTRE HISTOIRE", three short French value lines with small icons: "${b1}" · "${b2}" · "Fait avec soin".
+Product shot at the bottom of the text column, clean and recognizable.
+Warm, human, editorial-documentary feel — not a studio ad.
+Accent color: ${accent}.
+${ANCHOR}`.trim(),
+
+    // ── 19. Moment d'usage ──────────────────────────────────────────────────────
+    'routine': `
+Premium product listing image — WHEN TO USE IT (3 moments).
+Three equal vertical panels side by side, separated by thin accent-color dividers.
+Panel 1 "MATIN": warm sunrise light, African person starting the day, using ${pname} naturally.
+Panel 2 "JOURNÉE": bright daylight, same person in an active everyday moment with the product at hand.
+Panel 3 "SOIR": soft warm lamp light, same person winding down, product visible.
+Same person across all three panels — identical face and styling.
+Top headline across the full width: "À TOUT MOMENT DE VOTRE JOURNÉE".
+Bottom strip in accent color: "${p1}" · "${p4}".
+Accent color: ${accent}.
+${ANCHOR}`.trim(),
+
+    // ── 20. Résultats chiffrés ──────────────────────────────────────────────────
+    'stats': `
+Premium product listing image — RESULTS IN NUMBERS.
+Bold headline top: "LES RÉSULTATS PARLENT".
+Three very large percentage figures in bold accent-color numerals across the middle, each above a short French caption:
+"92%" — "${b1}" · "87%" — "${b2}" · "95%" — "${b3}".
+Below each figure, a thin horizontal progress bar filled proportionally in accent color on a light track.
+Product hero shot on the right side, clean, prominent, well lit.
+Bottom line in small type: "Sur la base des retours clients".
+Numbers must be perfectly legible with clean kerning — the figures are the hero of this layout.
 Accent color: ${accent}.
 ${ANCHOR}`.trim(),
 

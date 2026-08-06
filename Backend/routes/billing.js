@@ -1021,19 +1021,25 @@ router.post('/buy-generation', requireEcomAuth, async (req, res) => {
 });
 
 // ─── POST /buy-creative ───────────────────────────────────────────────────────
-// Buy creative image credits: packs of 10, 20, or 50 images (80 FCFA each).
+// Achat de crédits créatifs. Le prix du crédit vient de la grille tarifaire
+// (config/creativePricing.js) — il était codé en dur à 80 ici pendant que la
+// grille annonçait 50 et que le front affichait des packs à 50 : le marchand
+// payait 60 % de plus que le montant affiché sur le bouton.
 router.post('/buy-creative', requireEcomAuth, async (req, res) => {
   try {
     const { quantity, phone, clientName, workspaceId: bodyWsId } = req.body;
     const workspaceId = req.workspaceId || bodyWsId;
-    const PRICE_PER_CREDIT = 80; // FCFA
+    const { PRICE_PER_CREDIT_FCFA, packPrice } = await import('../config/creativePricing.js');
+    const PRICE_PER_CREDIT = PRICE_PER_CREDIT_FCFA; // FCFA — source unique
 
     if (!workspaceId) return res.status(400).json({ success: false, message: 'workspaceId requis' });
     if (!phone || String(phone).trim().length < 8) return res.status(400).json({ success: false, message: 'Numéro de téléphone requis' });
     if (!clientName || String(clientName).trim().length < 2) return res.status(400).json({ success: false, message: 'Nom requis' });
     if (!Number.isInteger(quantity) || quantity < 1 || quantity > 500) return res.status(400).json({ success: false, message: 'Quantité invalide' });
 
-    const amount = quantity * PRICE_PER_CREDIT;
+    // Pack (quantité exacte) → son montant remisé ; sinon prix normal.
+    const amount = packPrice(quantity) ?? (quantity * PRICE_PER_CREDIT);
+    const unitPaid = Math.round(amount / quantity);
     const frontendUrl = process.env.FRONTEND_URL || 'https://scalor.net';
     const backendUrl = process.env.BACKEND_URL || 'https://api.scalor.net';
 
@@ -1054,7 +1060,7 @@ router.post('/buy-creative', requireEcomAuth, async (req, res) => {
           userId: req.ecomUser._id,
           type: 'creative',
           quantity,
-          pricePerGeneration: PRICE_PER_CREDIT,
+          pricePerGeneration: unitPaid,
           amount,
           provider: 'kpay',
           mfToken: kp.id,
@@ -1094,7 +1100,7 @@ router.post('/buy-creative', requireEcomAuth, async (req, res) => {
       userId: req.ecomUser._id,
       type: 'creative',
       quantity,
-      pricePerGeneration: PRICE_PER_CREDIT,
+      pricePerGeneration: unitPaid,
       amount,
       mfToken,
       paymentUrl: paymentUrl || '',
