@@ -4,6 +4,7 @@ import axios from 'axios';
 import sharp from 'sharp';
 import { s3Client, R2_CONFIG, getR2PublicUrl } from '../config/r2.js';
 import { generateKieGptImage2, isKieImageConfigured } from './kieImageService.js';
+import { generateOpenAiImage, isOpenAiImageConfigured } from './openaiImageService.js';
 import { generateGeminiTextToImage, isGeminiConfigured } from './geminiImageService.js';
 
 const PAGE_WIDTH = 595.28;
@@ -572,24 +573,37 @@ export function generateEbookPdfBuffer(ebook = {}, productData = {}, storeContex
   return buildPdfBuffer(doc.finish(), coverImageJpegBuffer, chapterImages);
 }
 
-// Try KIE NanoBanana first, fall back to Gemini if KIE fails (401, 500, timeout)
+// ORDRE DES FOURNISSEURS D'IMAGE : OpenAI d'abord, KIE et Gemini en SECOURS.
+// KIE était le fournisseur principal ici — le seul endroit du backend où c'était
+// encore le cas, tous les autres chemins d'image passant déjà par OpenAI en tête
+// (voir nanoBananaService). Résultat : les illustrations d'ebook ne ressemblaient
+// pas au reste de la plateforme. KIE reste dans la chaîne, mais en repli.
 async function generateImageUrl(prompt, aspectRatio) {
-  // Primary: KIE GPT Image 2 (uses KIE_API_KEY, same key as chat)
+  // 1. OpenAI — le rendu de référence de la plateforme.
+  if (isOpenAiImageConfigured()) {
+    try {
+      const url = await generateOpenAiImage(prompt, aspectRatio);
+      if (url) return url;
+    } catch (openaiErr) {
+      console.warn(`[EbookPDF] OpenAI image en échec (${openaiErr.message}) — repli sur KIE…`);
+    }
+  }
+  // 2. Repli : KIE GPT Image 2 (même clé que le chat).
   if (isKieImageConfigured()) {
     try {
       const url = await generateKieGptImage2(prompt, aspectRatio);
-      if (url) return url;
+      if (url) { console.log('[EbookPDF] repli KIE OK'); return url; }
     } catch (kieErr) {
-      console.warn(`[EbookPDF] KIE GPT Image 2 failed (${kieErr.message}) — trying Gemini...`);
+      console.warn(`[EbookPDF] KIE en échec (${kieErr.message}) — repli sur Gemini…`);
     }
   }
-  // Fallback: Gemini text-to-image
+  // 3. Dernier repli : Gemini text-to-image.
   if (isGeminiConfigured()) {
     try {
       const url = await generateGeminiTextToImage(prompt, aspectRatio);
-      if (url) { console.log('[EbookPDF] Gemini image fallback OK'); return url; }
+      if (url) { console.log('[EbookPDF] repli Gemini OK'); return url; }
     } catch (gemErr) {
-      console.warn(`[EbookPDF] Gemini image also failed: ${gemErr.message}`);
+      console.warn(`[EbookPDF] Gemini aussi en échec : ${gemErr.message}`);
     }
   }
   return null;
