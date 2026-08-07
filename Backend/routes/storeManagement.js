@@ -1,4 +1,4 @@
-import { deepseekClient } from '../services/deepseekChatService.js';
+import { textClient as deepseekClient } from '../services/textProviderService.js';
 import express from 'express';
 import Groq from 'groq-sdk';
 import EcomWorkspace from '../models/Workspace.js';

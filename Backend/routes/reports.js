@@ -1,4 +1,4 @@
-import { deepseekComplete, isDeepseekConfigured } from '../services/deepseekChatService.js';
+import { completeText as deepseekComplete, isTextProviderConfigured as isDeepseekConfigured } from '../services/textProviderService.js';
 import express from 'express';
 import mongoose from 'mongoose';
 import fetch from 'node-fetch';

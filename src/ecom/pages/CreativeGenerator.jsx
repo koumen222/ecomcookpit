@@ -2,6 +2,7 @@ import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Link2, Sparkles, Download, RefreshCw, Image, Globe, Loader2, CheckCircle, AlertCircle, ChevronDown, Copy, ExternalLink, Upload, X, FileText, Zap, Shield, Star, LayoutGrid, Package, Wallet, Plus, CreditCard, Target, List, Scale, Users } from 'lucide-react';
 import ecomApi from '../services/ecommApi.js';
+import FeatureFeedbackModal, { shouldAskFeedback } from '../components/FeatureFeedbackModal.jsx';
 
 const FORMATS = [
   { id: 'hero-benefits', label: 'Bénéfices', icon: Sparkles, desc: 'Produit + bénéfices clés' },
@@ -63,6 +64,8 @@ const CreativeGenerator = () => {
   const [buySuccess, setBuySuccess] = useState(null);
   const pendingTokenRef = useRef(null);
   const pollIntervalRef = useRef(null);
+
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
 
   const toggleFormat = (id) => {
     setSelectedFormats(prev =>
@@ -181,6 +184,9 @@ const CreativeGenerator = () => {
       });
       setResult(res.data);
       if (res.data.creditsRemaining !== undefined) setCredits(res.data.creditsRemaining);
+      if (shouldAskFeedback('creative_generator')) {
+        setTimeout(() => setFeedbackOpen(true), 2500);
+      }
     } catch (err) {
       const errData = err.response?.data;
       if (err.response?.status === 402) {
@@ -224,6 +230,15 @@ const CreativeGenerator = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
+
+      {/* Feedback après génération réussie */}
+      {feedbackOpen && (
+        <FeatureFeedbackModal
+          feature="creative_generator"
+          meta={{ template: visualTemplate, formats: selectedFormats.length }}
+          onClose={() => setFeedbackOpen(false)}
+        />
+      )}
 
       {/* Buy Credits Modal — bottom-sheet */}
       {showBuyModal && (

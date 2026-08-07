@@ -317,7 +317,7 @@ function getCategoryStyle(category = '', brandColors = '') {
   if (/listing-green|marketplace-green|wellness-listing|amazon-green/.test(cat)) {
     return {
       bgStyle: 'bright clean white background with soft pastel green radial gradients, subtle light wood base at bottom, premium natural wellness listing style',
-      decorativeElements: 'fresh green leaves in corners, realistic ingredient elements (roots, herbs, capsules or drops matching product), soft layered light circles in background, clean spacing',
+      decorativeElements: 'soft layered light circles in background, clean spacing, subtle premium glow — NO leaves, roots, herbs or ingredient props around the product',
       badge: 'Round badge "NATURAL VITALITY" — rich emerald green (#0f7a46), white leaf icon, embossed premium seal',
       accentColor: brandColors || 'emerald green (#0f7a46) and fresh lime (#7cb342)',
       personStyle: 'African wellness lifestyle model, healthy confident expression, clean activewear or medical-lifestyle context, bright natural lighting',
@@ -367,7 +367,7 @@ function getCategoryStyle(category = '', brandColors = '') {
   if (/mode|vêtement|vetement|robe|wax|tissu|fashion|clothing|bijou|sac|chaussure|shoe|bag|jewel/.test(cat)) {
     return {
       bgStyle: 'soft warm cream-white (#faf7f2) with blush rose gradient (#fff0ec) on edges, elegant fashion editorial feel',
-      decorativeElements: 'delicate gold foil brushstroke accents in 2 corners, thin single elegant lines, subtle fabric texture watermark, small scattered flower petals (rose or hibiscus)',
+      decorativeElements: 'delicate gold foil brushstroke accents in 2 corners, thin single elegant lines, subtle fabric texture watermark — NO flower petals or botanical props',
       badge: 'Round badge "MADE IN AFRICA" — rich gold (#c9a84c), elegant serif arc text, crown icon center, luxe embossed wax seal style',
       accentColor: brandColors || 'gold (#c9a84c) and warm cream',
       personStyle: 'stylish African woman or man, fashion-forward outfit featuring the product, editorial magazine pose, dramatic rim lighting, model-quality presentation',
@@ -392,7 +392,7 @@ function getCategoryStyle(category = '', brandColors = '') {
   if (/beaut|cosmét|soin|skin|crème|creme|sérum|serum|makeup|maquillage|parfum|cheveux|hair/.test(cat)) {
     return {
       bgStyle: 'pure white (#ffffff) with very soft ivory radial glow at center (#fffdf9 at edges), clean luxury beauty aesthetic',
-      decorativeElements: 'realistic botanical leaves and flowers (eucalyptus, rose petals, or plant matching the product ingredients) placed in upper-right and lower-left corners, vivid lush green and pink, elegantly composed flat-lay style',
+      decorativeElements: 'clean luxury negative space, soft ivory glow and delicate light reflections — NO botanical leaves, flowers or petals around the product',
       badge: 'Round badge "ALL NATURAL" — dark forest green (#1a5c2a), white leaf icon center, embossed wax stamp style',
       accentColor: brandColors || 'soft forest green (#1a5c2a) and gold (#c9a84c)',
       personStyle: 'African woman (very dark ebony skin, flawless radiant complexion), natural afro or long braids, applying or holding the product near her face, warm flattering studio lighting, close-up beauty portrait angle',
@@ -417,7 +417,7 @@ function getCategoryStyle(category = '', brandColors = '') {
   if (/aliment|food|nutri|santé|sante|health|wellness|supplement|complément|protéine|protein|minceur|régime|diet|bio|organic/.test(cat)) {
     return {
       bgStyle: 'pure white (#ffffff) with very subtle warm orange-yellow radial glow at center, fresh energetic feel',
-      decorativeElements: 'photorealistic fresh ingredients scattered naturally: fruits (citrus slices, berries), herbs (mint, ginger), or grains/seeds — whichever matches the product — vibrant saturated colors, some slightly overlapping the product',
+      decorativeElements: 'clean energetic gradients and crisp light accents — NO fruits, herbs, grains or ingredient props scattered around the product',
       badge: 'Round badge "100% NATUREL" — dark green (#1a5c2a), white leaf or shield icon, embossed stamp with "BIO" in bold',
       accentColor: brandColors || 'vibrant green (#2e7d32) and warm orange (#e65100)',
       personStyle: 'African person, sporty casual outfit, energetic healthy glowing expression, genuine confident smile, before/after transformation energy, full of vitality',
@@ -425,11 +425,11 @@ function getCategoryStyle(category = '', brandColors = '') {
       benefitIcons: ['💪 Énergie Maximale', '🌿 100% Bio', '⚡ Résultats Rapides', '🛡️ Système Immunitaire'],
       layoutStyle: 'nutrition-energy',
       artDirection: 'fresh natural-nutrition campaign, vibrant health brand',
-      surface: 'bright white or light stone with fresh ingredients',
+      surface: 'bright white or light stone, clean and uncluttered',
       lighting: 'bright natural daylight, crisp appetizing highlights',
       palette: 'vibrant green #2e7d32, warm orange #e65100, white',
       typography: 'bold rounded sans, energetic, clear numerals',
-      camera: 'dynamic hero with ingredient motion, 50mm, sharp',
+      camera: 'dynamic product hero, 50mm, sharp',
       finish: 'saturated, fresh, high-clarity color grade',
       problemColor: '#f5f5f5',
       solutionHighlight: 'warm golden glow halo around the product, clean and appetizing',

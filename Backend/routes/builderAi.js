@@ -17,7 +17,7 @@ import StockOrder from '../models/StockOrder.js';
 import Supplier from '../models/Supplier.js';
 import { executeScalorAgentActions } from '../services/scalorAgentActionService.js';
 import { parseScalorAgentActionBlocks } from '../services/scalorAgentBlockParser.js';
-import { deepseekClient, isDeepseekConfigured } from '../services/deepseekChatService.js';
+import { textClient as deepseekClient, isTextProviderConfigured as isDeepseekConfigured } from '../services/textProviderService.js';
 import { recordFinalCreativeVideo } from '../services/creativeFinalVideoService.js';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
@@ -1328,7 +1328,76 @@ router.post('/generate-image', requireEcomAuth, async (req, res) => {
 // Body scene : { mode:'scene', prompt, sourceUrl?, subject?, durationSec? }
 // Body steps : { steps: [string 2..5], sourceUrl?, subject?, aspectRatio?, frameDelayMs? }
 // → { success, url (gif), videoUrl? (mp4), frames?: [urls] }
+// ── Jobs de scène ASYNCHRONES (anti-duplication kie) ────────────────────────
+// Une scène parlée met 2 à 6 min à générer. En mode synchrone, toute réponse
+// HTTP perdue en route (proxy, coupure réseau, redéploiement) faisait croire
+// au studio que la scène avait échoué : il RELANÇAIT la scène entière —
+// nouvelle réservation de Sparks, nouvelle image de départ, NOUVELLE tâche
+// kie — pendant que la première continuait en arrière-plan. Constat : 4
+// scènes commandées, 6 à 8 tâches kie facturées. En mode async (async:true),
+// la route répond { jobId } en moins d'une seconde ; le studio POLLE ensuite
+// GET /scene-jobs/:id — un GET est rejouable à l'infini sans jamais relancer
+// la génération. La sceneKey (stable par scène d'un même tournage) déduplique
+// en plus les re-POST : même clé sur un job en cours ou réussi → même jobId,
+// jamais une 2ᵉ génération ; un job en ÉCHEC laisse passer une vraie relance.
+const sceneJobs = new Map();     // jobId → { status, httpStatus, body, at }
+const sceneJobKeys = new Map();  // sceneKey → jobId
+const SCENE_JOB_TTL_MS = 30 * 60 * 1000;
+function sweepSceneJobs() {
+  const now = Date.now();
+  for (const [id, j] of sceneJobs) { if (now - j.at > SCENE_JOB_TTL_MS) sceneJobs.delete(id); }
+  for (const [k, id] of sceneJobKeys) { if (!sceneJobs.has(id)) sceneJobKeys.delete(k); }
+}
+
 router.post('/generate-gif', requireEcomAuth, async (req, res) => {
+  // Mode asynchrone (scènes du studio) : MÊME logique — le handler existant
+  // n'est pas modifié, il « répond » dans le job via un res factice au lieu
+  // du socket. Les autres modes (steps, b-rolls sans async) restent synchrones.
+  if (req.body?.mode === 'scene' && req.body?.async === true) {
+    sweepSceneJobs();
+    const sceneKey = String(req.body?.sceneKey || '').slice(0, 160);
+    if (sceneKey && sceneJobKeys.has(sceneKey)) {
+      const existingId = sceneJobKeys.get(sceneKey);
+      const ex = existingId ? sceneJobs.get(existingId) : null;
+      if (ex && (ex.status === 'running' || (ex.status === 'done' && ex.body?.success))) {
+        return res.json({ success: true, jobId: existingId, dedup: true });
+      }
+    }
+    const jobId = `scn-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    if (sceneKey) sceneJobKeys.set(sceneKey, jobId);
+    sceneJobs.set(jobId, { status: 'running', httpStatus: 0, body: null, at: Date.now() });
+    const jobRes = {
+      _st: 200,
+      status(c) { this._st = c; return this; },
+      json(body) {
+        const j = sceneJobs.get(jobId);
+        if (j && j.status === 'running') {
+          sceneJobs.set(jobId, { status: body && body.success ? 'done' : 'error', httpStatus: this._st, body: body || null, at: Date.now() });
+        }
+        return this;
+      },
+    };
+    runGenerateGif(req, jobRes).catch((e) => {
+      const j = sceneJobs.get(jobId);
+      if (j && j.status === 'running') {
+        sceneJobs.set(jobId, { status: 'error', httpStatus: 500, body: { success: false, message: e.message || 'Génération impossible' }, at: Date.now() });
+      }
+    });
+    return res.json({ success: true, jobId });
+  }
+  return runGenerateGif(req, res);
+});
+
+// État du job de scène : GET sans effet de bord, rejouable à volonté (c'est
+// tout l'intérêt face au POST : re-demander l'état ne coûte jamais rien).
+router.get('/scene-jobs/:id', requireEcomAuth, (req, res) => {
+  const j = sceneJobs.get(String(req.params.id || ''));
+  if (!j) return res.status(404).json({ success: false, message: 'Job de scène introuvable (expiré ou serveur redémarré) — relance la scène' });
+  if (j.status === 'running') return res.json({ success: true, status: 'running' });
+  return res.json({ success: true, status: j.status, httpStatus: j.httpStatus, result: j.body });
+});
+
+async function runGenerateGif(req, res) {
   let sceneResv = null; // réservation de crédits du mode scène (remboursée si échec)
   try {
     const { steps, sourceUrl = null, subject = '', aspectRatio = '1:1', frameDelayMs = 1300, mode = 'steps', prompt = '', durationSec = 5 } = req.body || {};
@@ -1346,7 +1415,9 @@ router.post('/generate-gif', requireEcomAuth, async (req, res) => {
       // Moteur des scènes parlées, choisi côté studio : pixverse (V6, audio
       // natif, 5-8 s) | grok (Imagine 1.5, 6 s) | kling (V3 Turbo, 10 s) |
       // veo (3.1, 8 s). Les autres restent en secours automatique.
-      const talkEngine = ['pixverse', 'grok', 'kling', 'veo'].includes(String(req.body?.talkEngine || '')) ? String(req.body.talkEngine) : 'pixverse';
+      // Repli sur grok, l'offre Standard : une requête qui oublie talkEngine ne
+      // doit pas facturer le tarif Pro au marchand sans qu'il l'ait demandé.
+      const talkEngine = ['pixverse', 'grok', 'kling', 'veo'].includes(String(req.body?.talkEngine || '')) ? String(req.body.talkEngine) : 'grok';
       // B-ROLL UGC : plan d'illustration COURT (produit en action) — style
       // réel + cadre 9:16 comme les scènes UGC, mais généré en Grok éco
       // (jamais Veo en tête : c'est un insert de 3 s).
@@ -1357,6 +1428,23 @@ router.post('/generate-gif', requireEcomAuth, async (req, res) => {
       // Ajustement demandé à la RÉGÉNÉRATION d'une scène (« moins de gestes »,
       // « il sourit », « parle plus vite »…) — appliqué en plus des verrous.
       const tweakClean = String(req.body?.sceneTweak || '').trim().slice(0, 300);
+      // ── RECADRAGE JUMP-CUT (anti-duplication visuelle) ───────────────────
+      // Toutes les scènes d'un même type (produit / face cam) partaient de la
+      // MÊME image de départ, avec position et cadrage verrouillés par le
+      // prompt parlé → des clips quasi IDENTIQUES à l'écran : « la même scène
+      // générée 2 fois ». Flagrant sur l'offre Pro : 4 scènes, produit sur
+      // les plans 0, 2 ET 3 — les deux derniers, jumeaux, se suivent.
+      // À partir de la 2ᵉ scène d'un type, le front envoie frameVariant
+      // ('closer'|'wider') avec preparedImageUrl vide : l'image de départ est
+      // régénérée depuis la référence (verrous tenue/décor conservés) mais
+      // avec un cadrage différent — le jump-cut des vrais UGC coupés dans une
+      // seule prise.
+      const frameVariant = ['closer', 'wider'].includes(String(req.body?.frameVariant || '')) ? String(req.body.frameVariant) : '';
+      const variantClause = frameVariant
+        ? `\nJUMP-CUT REFRAME (another shot of the SAME continuous filming session): keep the SAME person, SAME clothes, SAME hairstyle, SAME room and SAME light as the reference photo, but change ONLY the camera framing — ${frameVariant === 'closer'
+          ? 'a slightly CLOSER handheld selfie framing (tight chest-up, the face noticeably larger in frame) with a subtly different natural head and hand pose'
+          : 'a slightly WIDER handheld framing (waist-up, a bit more of the room visible) with a subtly different natural head and hand pose'}. It must read as a different cut of the same take — never a pixel-identical copy of the reference framing.`
+        : '';
       if (stage === 'voice') {
         if (!/^https?:\/\//.test(String(preparedVideoUrl))) {
           return res.status(400).json({ success: false, message: 'La vidéo à sonoriser est requise' });
@@ -1495,7 +1583,7 @@ router.post('/generate-gif', requireEcomAuth, async (req, res) => {
       //    chronométrées. Règles dures : GIF e-com muet, AUCUN texte incrusté.
       let startFramePrompt = '';
       // Phrase de voix off du plan : le réalisateur doit l'ILLUSTRER visuellement
-      // (plante citée → la plante à l'écran, processus → les gestes, etc.).
+      // (processus → les gestes, effet visible → montré ; JAMAIS d'ingrédients bruts posés en décor).
       const voiceLine = String(voiceoverText || '').trim().slice(0, 300);
       let motionPrompt = `${sceneTxt || scenarioId}${subjForPrompt ? ` (product: ${subjForPrompt})` : ''}${noProduct ? '. NO product anywhere in the frame — lifestyle/emotional shot only' : ''}${voiceLine ? `. The visuals must illustrate: "${voiceLine}"` : ''}. Smooth realistic physically consistent motion, professional lighting. Absolutely no on-screen text, no captions, no logos.`;
       if (speakClean) {
@@ -1511,12 +1599,19 @@ router.post('/generate-gif', requireEcomAuth, async (req, res) => {
         const voiceProfile = charDesc
           ? `VOICE PROFILE (identical in EVERY clip of this series): the natural voice of ${charDesc} — same timbre, same medium pitch, same warm energy, same speaking style in every single clip, as if all clips were recorded in one take.`
           : 'VOICE PROFILE (identical in EVERY clip of this series): one consistent natural francophone voice — same timbre, pitch and energy in every clip, as if recorded in one take.';
-        // Règles de tempo selon l'offre : PixVerse (Pro) est facturé À LA
-        // SECONDE → la parole doit REMPLIR tout le clip, zéro silence, zéro
-        // seconde gaspillée. Grok (Éco, 6 s fixes) garde le tempo naturel
-        // constant avec fin en regard confiant si la phrase se termine avant.
+        // Règles de tempo selon l'offre. PixVerse (Pro) : l'ancienne consigne
+        // « parler CHAQUE seconde du clip, zéro silence jusqu'à la dernière
+        // frame » rendait la répétition inévitable — quand la phrase était
+        // dite avant la fin du clip, la seule façon pour le modèle d'obéir
+        // était de la REDIRE (symptôme : « la même scène générée 2 fois »).
+        // La phrase est donc dite UNE SEULE FOIS, débit TikTok calé sur la
+        // durée ; si elle finit un peu avant, regard confiant en SILENCE — ce
+        // reliquat est rogné à l'assemblage (detectSpeechWindow ne garde que
+        // la fenêtre de parole), donc il ne coûte rien dans la vidéo finale.
+        // Grok (Éco, 6 s fixes) garde le tempo naturel constant avec fin en
+        // regard confiant si la phrase se termine avant.
         const paceRules = talkEngine === 'pixverse'
-          ? 'TIMING (critical): the person starts speaking at the VERY FIRST frame and speaks CONTINUOUSLY until the VERY LAST frame — the voice covers EVERY second of the clip, NO silence at any moment, no pause at the start, no pause at the end, no dead air between sentences. PACE (critical): a lively energetic TikTok-creator delivery, adjusted so the sentence fills the WHOLE clip exactly — never finishing early, never dragging or stretching single words, never leaving quiet gaps.'
+          ? 'TIMING (critical): the person starts speaking at the VERY FIRST frame — no pause, no breath, no dead air at the start. THE SENTENCE IS SAID EXACTLY ONCE (critical): never repeat the sentence or any part of it, never restart it, never re-speak it to fill remaining time, never add filler words or extra invented lines — one single take of this exact sentence, then the mouth stays closed. PACE (critical): a lively energetic TikTok-creator delivery, adjusted so ONE reading of the sentence fills the clip as closely as possible — brisk and continuous while speaking, never dragging or stretching single words. If the sentence ends a moment before the clip does, the person simply holds a warm confident look at the camera (a slight smile, a small nod) in SILENCE — no re-speaking, no filler sounds.'
           : 'TIMING (critical): the person starts speaking at the VERY FIRST frame, with NO pause at the start. PACE (critical): a NATURAL CONSTANT conversational tempo of about 2.5 words per second — the EXACT SAME tempo in every clip of this video. NEVER stretch, slow down or drag the words to fill the clip duration, and NEVER rush or compress them to fit: keep the one true natural pace. If the sentence ends before the clip does, the person simply holds a warm confident look at the camera (a slight smile, a small nod) — no re-speaking, no filler sounds.';
         motionPrompt = `Based on the uploaded image, animate the person speaking FLUENT NATIVE FRENCH directly to the camera, saying the exact words: « ${speakClean} ». ${voiceProfile} LANGUAGE (critical): the ENTIRE speech is in FRENCH ONLY — perfect natural French pronunciation and native francophone accent matching the person, never a single English word, never an anglophone accent. The mouth moves precisely to match this exact French phrasing. ${paceRules} The person stays in the EXACT same position and framing as the image, with ONLY subtle natural talking micro-movements: slight head motion, steady eye contact, tiny hand emphasis kept close to the body. ${noProduct ? 'No product anywhere in the frame.' : 'If a product is visible in the image, it stays EXACTLY as it is — same product, same label, same position in the hand — never lifted higher, swapped, opened, pointed at or demonstrated.'} STRICTLY FORBIDDEN: demonstrations, introducing or showing ANY other object or product, walking, standing up, scene or background change, camera movement, zooms, unrealistic gestures, morphing or extra fingers. Static camera, casual smartphone video look, bright natural light. No captions, no on-screen text.${tweakClean ? ` MERCHANT ADJUSTMENT (requested for this take — apply it while keeping every rule above; the instruction may be written in French): ${tweakClean}.` : ''}`;
       } else if (DEEPSEEK_API_KEY) {
@@ -1536,13 +1631,13 @@ Scenario rules — always deduce specifics from the ACTUAL product (use the visu
 - rotation: the product ALONE rotating slowly on a clean studio background (no person).
 - free: follow the merchant's description faithfully.
 ILLUSTRATE THE MESSAGE — applies to EVERY scenario and is CRITICAL for 'free' storyboard plans. The visuals must SHOW what the words say (spoken line + merchant text are the brief):
-- A plant or ingredient is named (aloe, ginger, shea, turmeric, moringa, collagen…) → put it PHYSICALLY in frame: fresh leaves, roots, butter, powder or extract styled on set next to the action, or make it the macro hero of the shot (water droplets, rich texture). A named ingredient must NEVER stay invisible.
-- Composition / formula / "made with…" → the actual ingredients artfully arranged around the product, a texture close-up, powder or a drop falling, liquid infusing or swirling.
+- A plant or ingredient is named (aloe, ginger, shea, turmeric, moringa, collagen…) → NEVER place raw ingredients on set: no loose leaves, roots, fruits, vegetables, herbs, seeds, powders or extracts lying on the table or scattered around. The PACKAGED PRODUCT is the only product-related prop. Evoke the ingredient through the product itself and its USE: the pour, the steam, the lather, the texture of the finished product in a macro shot, or the person's gesture — never through produce used as decoration.
+- Composition / formula / "made with…" → a texture close-up of the FINISHED product (a drop falling, liquid swirling, steam rising, cream texture) — never raw ingredients arranged around the product.
 - A process is described (how it's made, how it works, steps of use) → stage the process itself as concrete filmed actions the camera follows (hands performing each step in order, the mechanism visibly operating) — never people vaguely smiling instead of the process.
 - An INTERNAL body effect is described (lungs clearing, mucus dissolving, digestion, hair regrowth, skin repairing…) → make the WHOLE shot a premium 3D medical-animation style visualization of that organ/process in action (clean, realistic anatomy, no text) — like the anatomy inserts of top-performing TikTok health ads.
 - The product produces a visible effect in use (vapor, steam, foam, lather, texture, glow) → show that effect clearly on camera during the action; it is the proof.
 - A problem or a result is mentioned → make it VISIBLE on screen (the problem state, then the visible improvement).
-Everything must fit ONE continuous shot: bring the evoked elements INTO the set as props, textures and gestures rather than imagining a second shot.
+Everything must fit ONE continuous shot: bring the message to life through the person's gestures, the product itself and its visible effects (steam, texture, pour) — never by adding prop objects or raw ingredients to the set.
 PRECISION RULES for motion_prompt — this is the most important part:
 - Write it as a chronological TIMELINE covering exactly ${gifSeconds} seconds (never more than 6), in 2-second beats: "0-2s: ... 2-4s: ... 4-6s: ...".
 - ONE atomic, physically plausible action per beat (which hand, exact gesture, where eyes look, what the product does). No vague verbs like "uses" or "enjoys" — name the concrete gesture.
@@ -1550,10 +1645,10 @@ PRECISION RULES for motion_prompt — this is the most important part:
 - Camera: prefer DYNAMIC, energetic movement — a confident push-in, a quick reveal pan, a punchy dolly or lively handheld energy — to feel scroll-stopping (reserve a locked-off shot only for a clean product spot). State one clear camera behavior for the whole shot.
 - ENERGY (crucial): the clip must feel DYNAMIC and lively — purposeful, visible motion in EVERY beat, snappy pacing, engaging body language and expressions; never a static, slow or sleepy shot. Think TikTok/Reels ad energy.
 - PHYSICAL CONSISTENCY: no morphing, no objects appearing or vanishing mid-shot, hands keep five natural fingers, and the product's geometry, colors and label never change during the shot.
-QUALITY BAR for start_frame_prompt: ${isUgcScene ? `${UGC_REAL_STYLE} Ingredients or products in frame stay appetizing and clearly visible, but styled like real life (on a kitchen table, a shelf), never like a studio ad set.` : 'a photorealistic, professionally lit commercial frame — one clear subject, clean composition, flattering key light coherent with the setting, sharp focus, natural skin, premium appetizing styling of any ingredients (fresh, glistening, precisely arranged); it must read as a high-end ad still, never a casual snapshot.'}${charDesc ? `
+QUALITY BAR for start_frame_prompt: ${isUgcScene ? `${UGC_REAL_STYLE} The product stays clearly visible and appetizing, styled like real life (on a kitchen table, a shelf), never like a studio ad set — and NO raw ingredients, fruits, vegetables, leaves or roots placed around it.` : 'a photorealistic, professionally lit commercial frame — one clear subject, clean composition, flattering key light coherent with the setting, sharp focus, natural skin; the set stays CLEAN: no raw ingredients, fruits, vegetables, leaves, roots or powders arranged as decoration; it must read as a high-end ad still, never a casual snapshot.'}${charDesc ? `
 CREATOR IMPOSED BY THE MERCHANT — non-negotiable: whenever a person appears, it is EXACTLY this person: ${charDesc}. Respect every attribute literally (gender, age range, skin tone, style). NATURAL RENDERING REQUIRED: realistic skin texture with visible pores, no beauty-filter or airbrushed look, believable everyday person (not a model), candid smartphone-quality feel appropriate for authentic UGC.` : ''}
 HARD CONSTRAINTS for BOTH prompts: absolutely NO on-screen text, NO captions, NO subtitles, NO watermarks, NO logo overlays, and no visual storytelling that depends on audible dialogue; realistic people and lighting; modern African urban setting whenever people appear; the product must stay EXACTLY as provided — same shape, colors, packaging and labels, never invent readable text on it; one single continuous shot with smooth motion.${isUgcScene ? ' UGC LOOK applies to the MOTION too: the clip must feel like a casual handheld smartphone video (natural bright light, true-to-life colors, believable everyday person) — never a polished dark cinematic commercial.' : ''}
-Reply ONLY with JSON: {"start_frame_prompt":"...","motion_prompt":"..."} — start_frame_prompt (English, max 100 words) describes the FIRST still frame and must already place everything needed for beat 0-2s (including any ingredients/props the message requires); motion_prompt (English, max 130 words) is the timeline starting from exactly that frame.${noProduct ? '\n\nABSOLUTE OVERRIDE — NO PRODUCT: this scene must contain NO product at all. Do NOT show, hold, place, reveal or reference any product, package, bottle, box, jar, tube or label anywhere. It is a lifestyle / emotional / contextual shot of the person and setting ONLY. Ignore every instruction above about featuring or preserving the product.' : ''}`,
+Reply ONLY with JSON: {"start_frame_prompt":"...","motion_prompt":"..."} — start_frame_prompt (English, max 100 words) describes the FIRST still frame and must already place everything needed for beat 0-2s (the person, the packaged product and the setting — no raw-ingredient props); motion_prompt (English, max 130 words) is the timeline starting from exactly that frame.${noProduct ? '\n\nABSOLUTE OVERRIDE — NO PRODUCT: this scene must contain NO product at all. Do NOT show, hold, place, reveal or reference any product, package, bottle, box, jar, tube or label anywhere. It is a lifestyle / emotional / contextual shot of the person and setting ONLY. Ignore every instruction above about featuring or preserving the product.' : ''}`,
             },
             {
               role: 'user',
@@ -1571,7 +1666,7 @@ Reply ONLY with JSON: {"start_frame_prompt":"...","motion_prompt":"..."} — sta
         }
       }
       if (!startFramePrompt) {
-        startFramePrompt = `First frame of a short silent e-commerce clip: ${sceneTxt || scenarioId}${subjForPrompt ? ` — product: ${subjForPrompt}` : ''}${noProduct ? ' — absolutely NO product visible, lifestyle/emotional shot only' : ''}${charDesc ? `. The person shown is EXACTLY: ${charDesc} (respect gender, age range and skin tone literally, natural realistic skin, no beauty-filter look)` : ''}${voiceLine ? `. The frame must illustrate: "${voiceLine}" (show the named ingredients/process physically)` : ''}. ${isUgcScene ? UGC_REAL_STYLE : 'Photorealistic, professionally lit commercial photo, sharp focus, composition ready to be animated.'} No text anywhere.`;
+        startFramePrompt = `First frame of a short silent e-commerce clip: ${sceneTxt || scenarioId}${subjForPrompt ? ` — product: ${subjForPrompt}` : ''}${noProduct ? ' — absolutely NO product visible, lifestyle/emotional shot only' : ''}${charDesc ? `. The person shown is EXACTLY: ${charDesc} (respect gender, age range and skin tone literally, natural realistic skin, no beauty-filter look)` : ''}${voiceLine ? `. The frame must illustrate: "${voiceLine}" (through the person's gesture and the packaged product — never raw ingredients, fruits, vegetables or leaves placed as props)` : ''}. ${isUgcScene ? UGC_REAL_STYLE : 'Photorealistic, professionally lit commercial photo, sharp focus, composition ready to be animated.'} No text anywhere.`;
       }
 
       // 1bis. ÉCHELLE RÉELLE du produit : les modèles d'image ont tendance à
@@ -1626,10 +1721,10 @@ Reply ONLY with JSON: {"start_frame_prompt":"...","motion_prompt":"..."} — sta
           // l'image de départ directement en 9:16.
           const imgRatio = isUgcScene ? '9:16' : 'auto';
           startImage = hasSourcePhoto
-            ? await generateGptImage2ImageToImage(`${startFramePrompt}\nUse the provided photo as the EXACT product reference: same product, same packaging, same colors and labels. No added text.${personClause}${emptyHandsClause}${realClause}${isUgcScene ? '\nVERTICAL 9:16 portrait framing (smartphone video frame).' : ''}`, String(sourceUrl), imgRatio, charRef || null, {})
+            ? await generateGptImage2ImageToImage(`${startFramePrompt}\nUse the provided photo as the EXACT product reference: same product, same packaging, same colors and labels. No added text.${personClause}${emptyHandsClause}${realClause}${variantClause}${isUgcScene ? '\nVERTICAL 9:16 portrait framing (smartphone video frame).' : ''}`, String(sourceUrl), imgRatio, charRef || null, {})
             : (charRef
-              ? await generateGptImage2ImageToImage(`${startFramePrompt}\nThe person must match the reference photo exactly: same face, same skin tone, same hair, THE SAME CLOTHES (identical garment, identical color and pattern) and THE SAME room and background — only the pose, the hands and the camera framing may change. Do NOT change the outfit. Do NOT change the location. No added text.${emptyHandsClause}${realClause}${isUgcScene ? '\nVERTICAL 9:16 portrait framing (smartphone video frame).' : ''}`, charRef, imgRatio, null, {})
-              : await generateNanoBananaImage(`${startFramePrompt}${emptyHandsClause}${realClause}`, isUgcScene ? '9:16' : '1:1', 1));
+              ? await generateGptImage2ImageToImage(`${startFramePrompt}\nThe person must match the reference photo exactly: same face, same skin tone, same hair, THE SAME CLOTHES (identical garment, identical color and pattern) and THE SAME room and background — only the pose, the hands and the camera framing may change. Do NOT change the outfit. Do NOT change the location. No added text.${emptyHandsClause}${realClause}${variantClause}${isUgcScene ? '\nVERTICAL 9:16 portrait framing (smartphone video frame).' : ''}`, charRef, imgRatio, null, {})
+              : await generateNanoBananaImage(`${startFramePrompt}${emptyHandsClause}${realClause}${variantClause}`, isUgcScene ? '9:16' : '1:1', 1));
         } catch (imgErr) {
           console.warn('[BuilderAI] scene start-image failed, fallback to raw photo:', imgErr.message);
           if (!startImage) {
@@ -1667,11 +1762,16 @@ Reply ONLY with JSON: {"start_frame_prompt":"...","motion_prompt":"..."} — sta
         // Elle était verrouillée à 10 s quel que soit le texte : une réplique
         // de 28 mots dite en 8 s laissait 2 s de silence en fin de plan — et
         // le clip est facturé à la seconde, donc ce silence était payé.
+        // ARRONDI (et non ceil comme speakDur) : chaque seconde de clip
+        // au-delà du temps de parole réel est une invitation à REDIRE la
+        // phrase (scène dupliquée). round colle la durée au débit constaté ;
+        // une demi-seconde trop courte se rattrape au débit, une seconde de
+        // trop se paie en répétition.
         // KIE_PIXVERSE_TALK_SEC force encore une durée fixe si besoin.
         ? pixverseImageToVideo(motionPrompt, startImage, {
           durationSec: Number(process.env.KIE_PIXVERSE_TALK_SEC)
             ? Math.max(5, Math.min(15, Number(process.env.KIE_PIXVERSE_TALK_SEC)))
-            : Math.max(5, Math.min(10, speakDur)),
+            : Math.max(5, Math.min(10, speakWords ? Math.round(speakWords / wps) : speakDur)),
           resolution: talkRes,
           withAudio: true,
         })
@@ -1897,7 +1997,7 @@ Style CONSTANT sur toutes les étapes : même produit, même décor, même écla
     console.error('[BuilderAI] generate-gif error:', error.message, '\n', error.stack);
     return res.status(500).json({ success: false, message: toUserAiError(error, 'Génération du GIF impossible, réessayez') });
   }
-});
+}
 
 // ─── Génération de texte court (DeepSeek) pour les formulaires admin ────────
 // Body: { purpose, context?, instruction?, maxWords? } → { success, text }

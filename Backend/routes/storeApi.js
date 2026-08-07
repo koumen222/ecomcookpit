@@ -253,6 +253,17 @@ function normalizeQuantity(value) {
   return Math.max(1, parseInt(value, 10) || 1);
 }
 
+// Rendu texte d'une variante : « Taille: M, Couleur: Noir ». Une seule
+// fonction pour tous les canaux (résumé back-office, rawData, notifications)
+// — le jour où le séparateur change, il change partout.
+function formatVariants(list) {
+  if (!Array.isArray(list) || !list.length) return '';
+  return list
+    .map((v) => `${String(v?.name || '').trim()}: ${String(v?.value || '').trim()}`)
+    .filter((s) => s !== ': ')
+    .join(', ');
+}
+
 function normalizeOfferQuantity(value) {
   const qty = parseInt(value, 10);
   return Number.isFinite(qty) && qty > 0 ? qty : null;
@@ -1869,7 +1880,11 @@ router.post('/:subdomain/orders', orderLimiter, async (req, res) => {
       }
     }
 
-    const { customerName, phone, phoneCode, email, address, city, country, products, notes, channel, deliveryType, deliveryCost, orderBump, bumpProductIds, metaEventId, metaSourceUrl, affiliateCode, affiliateLinkCode, checkoutSessionId } = req.body;
+    // `variants` à la racine : ancienne forme envoyée par QuickOrderModal.
+    // Conservée en repli, mais la forme qui fait foi est `products[].variants`
+    // — au niveau racine, une variante n'est rattachable à aucune ligne dès
+    // qu'il y a plus d'un produit.
+    const { customerName, phone, phoneCode, email, address, city, country, products, notes, channel, deliveryType, deliveryCost, orderBump, bumpProductIds, metaEventId, metaSourceUrl, affiliateCode, affiliateLinkCode, checkoutSessionId, variants: rootVariants } = req.body;
 
     if (!customerName || !phone || !products?.length) {
       return res.status(400).json({
@@ -1901,12 +1916,30 @@ router.post('/:subdomain/orders', orderLimiter, async (req, res) => {
       }
     }
 
+    // Variantes : paires nom/valeur, nettoyées et bornées. Accepte les deux
+    // formes que produisent les tunnels ([{name,value}] et {Taille:'M'}) pour
+    // qu'aucun formulaire n'ait à être migré avant que ça marche. Longueurs et
+    // nombre plafonnés : la liste vient du navigateur, jamais de confiance.
+    const normalizeVariants = (raw) => {
+      const src = Array.isArray(raw)
+        ? raw
+        : (raw && typeof raw === 'object' ? Object.entries(raw).map(([name, value]) => ({ name, value })) : []);
+      return src
+        .map((v) => ({
+          name: String(v?.name ?? '').trim().slice(0, 60),
+          value: String(v?.value ?? v?.option ?? '').trim().slice(0, 120),
+        }))
+        .filter((v) => v.name && v.value)
+        .slice(0, 8);
+    };
+
     const requestedProducts = products.map((item) => ({
       ...item,
       productId: normalizeObjectIdLike(item?.productId || item?._id || item?.id),
       quantity: normalizeQuantity(item?.quantity),
       offerPrice: toPositiveNumber(item?.offerPrice),
       offerQty: normalizeOfferQuantity(item?.offerQty),
+      variants: normalizeVariants(item?.variants),
     }));
 
     const invalidProduct = requestedProducts.find((item) => !mongoose.Types.ObjectId.isValid(item.productId));
@@ -1992,12 +2025,20 @@ router.post('/:subdomain/orders', orderLimiter, async (req, res) => {
         effectiveUnitPrice = Math.round(itemTotal / qty);
       }
 
+      // Repli racine seulement en mono-produit : à plusieurs lignes, on ne
+      // saurait pas à laquelle rattacher la variante, et deviner serait pire
+      // que ne rien écrire.
+      const lineVariants = item.variants?.length
+        ? item.variants
+        : (requestedProducts.length === 1 ? normalizeVariants(rootVariants) : []);
+
       orderProducts.push({
         productId: dbProduct._id,
         name: dbProduct.name,
         price: effectiveUnitPrice,
         quantity: qty,
-        image: dbProduct.images?.[0]?.url || ''
+        image: dbProduct.images?.[0]?.url || '',
+        ...(lineVariants.length ? { variants: lineVariants } : {}),
       });
 
       if (dbProduct.currency) {
@@ -2185,6 +2226,9 @@ router.post('/:subdomain/orders', orderLimiter, async (req, res) => {
           },
           line_items: orderProducts.map(p => ({
             title: p.name,
+            // Nom Shopify-compatible : les intégrations qui lisent rawData
+            // savent déjà quoi faire d'un variant_title.
+            variant_title: formatVariants(p.variants) || undefined,
             quantity: p.quantity,
             price: String(p.price),
             product_id: p.productId.toString()
@@ -2198,9 +2242,14 @@ router.post('/:subdomain/orders', orderLimiter, async (req, res) => {
           delivery_cost: order.deliveryCost || 0
         };
 
+        // POINT DE LEVIER : tout le back-office, les notifications WhatsApp,
+        // la synchro Sheets et l'agent IA lisent `Order.product`, une simple
+        // chaîne. Y écrire la variante ici la fait apparaître partout d'un
+        // coup, sans toucher aux quinze consommateurs en aval.
         const productSummary = orderProducts.map(p => {
           const qty = p.quantity > 1 ? ` x${p.quantity}` : '';
-          return `${p.name}${qty}`;
+          const variant = formatVariants(p.variants);
+          return `${p.name}${variant ? ` (${variant})` : ''}${qty}`;
         }).join(', ');
 
         const normalizedPhone = order.phone.replace(/\D/g, '');

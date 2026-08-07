@@ -12,7 +12,7 @@ import StoreProduct from '../models/StoreProduct.js';
 import StoreOrder from '../models/StoreOrder.js';
 import { requireEcomAuth, invalidateUserCache } from '../middleware/ecomAuth.js';
 import { checkPlanLimit, getEffectiveStoreLimit } from '../middleware/planLimits.js';
-import { deepseekComplete } from '../services/deepseekChatService.js';
+import { completeText as deepseekComplete } from '../services/textProviderService.js';
 import { invalidateStoreCache } from './storeApi.js';
 import { invalidateStorefrontCache } from './publicStorefront.js';
 import { buildFallbackSections, buildFallbackFooterAndLegal } from './storeManagement.js';

@@ -2196,13 +2196,80 @@ const upload = multer({
 // Pages gratuites (style hero_page) offertes par boutique/workspace.
 const HERO_FREE_LIMIT = 5;
 
+// ── Extraction SANS IA du dernier message ────────────────────────────────────
+// Les quatre premières questions du brief se répondent par un mot, presque
+// toujours en cliquant une puce ("Classique", "Français", "Vert"). Faire un
+// aller-retour vers le modèle pour reconnaître "vert" coûte plusieurs secondes
+// d'attente pour zéro intelligence ajoutée. Ces regex servent donc DEUX fois :
+// en voie rapide avant l'appel, et en rattrapage après (le modèle oublie).
+function heuristicUpdates(lastUserRaw, known) {
+  const lu = String(lastUserRaw || '').toLowerCase();
+  const out = {};
+  const has = (k) => Boolean(known[k] || out[k]);
+
+  if (!has('language')) {
+    if (/fran|french/.test(lu)) out.language = 'fr';
+    else if (/angl|english/.test(lu)) out.language = 'en';
+    else if (/espa|spanish/.test(lu)) out.language = 'es';
+  }
+  if (!has('brandColor')) {
+    const hexM = lu.match(/#[0-9a-f]{6}\b/);
+    if (hexM) out.brandColor = hexM[0];
+    else if (/auto|laisse|choisis|peu importe|comme tu veux|pas de pr[ée]f/.test(lu)) out.brandColor = 'auto';
+    else if (/roug/.test(lu)) out.brandColor = '#DC2626';
+    else if (/bleu/.test(lu)) out.brandColor = '#1E40AF';
+    else if (/vert/.test(lu)) out.brandColor = '#0F6B4F';
+    else if (/dor[ée]|\bor\b|gold/.test(lu)) out.brandColor = '#B45309';
+    else if (/rose/.test(lu)) out.brandColor = '#DB2777';
+    else if (/violet/.test(lu)) out.brandColor = '#7C3AED';
+    else if (/noir/.test(lu)) out.brandColor = '#111827';
+    else if (/orange/.test(lu)) out.brandColor = '#EA580C';
+  }
+  if (!has('productType')) {
+    if (/te[cx]h|électro|electro|téléphone|telephone|ordinateur|montre|airpod|écouteur|ecouteur|casque|gadget/.test(lu)) out.productType = 'tech';
+    else if (/beaut|cosm|crème|creme|sérum|serum|soin|maquillage/.test(lu)) out.productType = 'beauty';
+    else if (/sant|nutrition|complément|complement|vitamine|gélule|gelule/.test(lu)) out.productType = 'health';
+    else if (/mode|vêtement|vetement|accessoire|sac|chauss|bijou|montre de luxe/.test(lu)) out.productType = 'fashion';
+    else if (/maison|cuisine|déco|deco|ménage|menage/.test(lu)) out.productType = 'home';
+    else if (/g[ée]n[ée]ral|autre/.test(lu)) out.productType = 'general';
+  }
+  // L'URL se lit sur le contenu BRUT : la casse d'un chemin est significative.
+  if (!has('url')) {
+    const um = String(lastUserRaw || '').match(/https?:\/\/[^\s<>"')\]]+/i);
+    if (um) out.url = um[0].slice(0, 600);
+  }
+  return out;
+}
+
+// Question suivante, écrite d'avance. Le script est fixe : quand on sait quel
+// champ manque, on sait quoi demander — le modèle n'apporte rien ici.
+const NEXT_QUESTION = {
+  language: { reply: 'Et tu la veux en quelle langue ?', suggestions: ['Français', 'English', 'Español'] },
+  productType: { reply: 'On range ça dans quelle catégorie ?', suggestions: ['Beauté & Cosmétique', 'Santé & Nutrition', 'Tech & Électronique', 'Mode & Accessoires'] },
+  brandColor: { reply: 'Une couleur de marque en tête pour tes visuels ?', suggestions: ['Vert', 'Bleu royal', 'Doré premium', 'Je te laisse choisir'] },
+  product: { reply: 'Parfait. Maintenant raconte-moi ton produit : ce que c\'est, à qui ça sert, ce qui le rend différent. Un lien marche aussi.', suggestions: [] },
+};
+
+function missingField(b) {
+  // pageStyle n'est plus demandé : il vaut toujours 'classic'.
+  if (!b.language) return 'language';
+  if (!b.productType) return 'productType';
+  if (!b.brandColor) return 'brandColor';
+  if (!b.url && !b.description) return 'product';
+  return null;
+}
+
 router.post('/chat', requireEcomAuth, async (req, res) => {
   try {
     const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || '';
     if (!DEEPSEEK_API_KEY) return res.status(503).json({ success: false, message: 'Assistant indisponible (IA non configurée)' });
 
     const history = Array.isArray(req.body?.messages) ? req.body.messages.slice(-14) : [];
-    const brief = req.body?.brief || {};
+    // Le style de page n'est plus un choix : la page de vente classique est le
+    // seul format. On le force ici plutôt que de le retirer de `briefComplete`
+    // — le reste de la chaîne (client, génération) continue de lire un brief
+    // de même forme, sans branche conditionnelle en plus.
+    const brief = { ...(req.body?.brief || {}), pageStyle: 'classic' };
     // Photos déjà ajoutées côté interface + brief déjà complet AVANT ce tour :
     // une fois le bloc photos affiché, l'assistant ne doit PLUS revenir dessus.
     const photoCount = Math.max(0, Number(req.body?.photoCount) || 0);
@@ -2214,34 +2281,68 @@ router.post('/chat', requireEcomAuth, async (req, res) => {
     const system = `Tu es l'assistant Scalor : tu aides un marchand africain à créer sa PAGE PRODUIT par une vraie conversation, chaleureuse et efficace (tutoiement).
 
 TON OBJECTIF : collecter ce brief, UNE question à la fois, dans cet ordre (saute ce qui est déjà connu) :
-1. pageStyle — "classic" (page de vente complète : hero, bénéfices, avis, FAQ), "infographics" (pile d'infographies verticales 9:16) ou "hero_page" (Page gratuite — page complète avec hero généré par IA, 5 offertes par boutique).
-2. language — "fr", "en" ou "es".
-3. productType — "beauty" (beauté/cosmétique), "health" (santé/nutrition), "tech", "fashion" (mode/accessoires), "home" (maison/cuisine) ou "general".
-4. brandColor — la couleur dominante des affiches et visuels de la page. L'utilisateur répond en langage naturel : convertis en hex («rouge» → "#DC2626", «bleu» → "#1E40AF", «vert» → "#0F6B4F", «doré/or» → "#B45309", «rose» → "#DB2777", «violet» → "#7C3AED", «noir» → "#111827", «orange» → "#EA580C") ; s'il donne un hex, garde-le ; s'il te laisse choisir ou n'a pas de préférence, renvoie "auto".
-5. LE PRODUIT : soit un LIEN (url — Amazon, Alibaba, AliExpress, site…), soit une DESCRIPTION libre (description). C'est l'info la plus importante : nom, ce que ça fait, points forts.
-Les PHOTOS s'ajoutent via l'interface (pas ton travail — mentionne-les seulement à la fin).
+1. language — "fr", "en" ou "es".
+2. productType — "beauty" (beauté/cosmétique), "health" (santé/nutrition), "tech", "fashion" (mode/accessoires), "home" (maison/cuisine) ou "general".
+3. brandColor — la couleur dominante des affiches et visuels de la page. L'utilisateur répond en langage naturel : convertis en hex («rouge» → "#DC2626", «bleu» → "#1E40AF", «vert» → "#0F6B4F", «doré/or» → "#B45309", «rose» → "#DB2777", «violet» → "#7C3AED", «noir» → "#111827", «orange» → "#EA580C") ; s'il donne un hex, garde-le ; s'il te laisse choisir ou n'a pas de préférence, renvoie "auto".
+4. LE PRODUIT : soit un LIEN (url — Amazon, Alibaba, AliExpress, site…), soit une DESCRIPTION libre (description). C'est l'info la plus importante : nom, ce que ça fait, points forts.
+Les PHOTOS ne sont PAS ton travail : elles se joignent à tout moment via l'icône image, à GAUCHE du champ de saisie, en bas. Ne les réclame JAMAIS tant que le brief n'est pas complet — enchaîne tes questions normalement, même si l'utilisateur vient d'en joindre une (elle est gardée, dis-le en trois mots au plus et continue). SI ET SEULEMENT SI l'utilisateur demande où les mettre, réponds exactement « avec l'icône image à gauche du champ de saisie, en bas », rien d'autre.
 
 ÉTAT ACTUEL DU BRIEF (déjà connu, ne redemande JAMAIS) : ${JSON.stringify(brief)}
 ${briefAlreadyComplete ? `
-BRIEF DÉJÀ COMPLET — le bloc d'ajout de photos (cadre en pointillés « Ajoute tes photos ici ») et le bouton « Générer » sont DÉJÀ AFFICHÉS juste EN DESSOUS de cette conversation${photoCount > 0 ? ` (${photoCount} photo${photoCount > 1 ? 's' : ''} déjà ajoutée${photoCount > 1 ? 's' : ''})` : ''}. NE REPARLE PLUS des photos de toi-même — pas de rappel, pas de « n'oublie pas tes photos ». EXCEPTION : si l'utilisateur demande OÙ ajouter les photos, réponds précisément « dans le cadre en pointillés juste en dessous de ce message — clique dessus ou glisse tes photos dedans », rien d'autre. Si l'utilisateur donne encore des détails produit, renvoie updates.description enrichie et confirme en UNE phrase, en l'invitant à cliquer sur « Générer ». S'il dit que c'est bon, réponds en une phrase qu'il n'a plus qu'à cliquer sur « Générer ».
+BRIEF DÉJÀ COMPLET — le bloc « Photos du produit » et le bouton « Générer » sont DÉJÀ AFFICHÉS juste EN DESSOUS de cette conversation${photoCount > 0 ? ` (${photoCount} photo${photoCount > 1 ? 's' : ''} déjà ajoutée${photoCount > 1 ? 's' : ''})` : ''}. NE REPARLE PLUS des photos de toi-même — pas de rappel, pas de « n'oublie pas tes photos ». EXCEPTION : si l'utilisateur demande OÙ ajouter les photos, réponds précisément « dans le bloc juste en dessous de ce message, ou avec l'icône image à gauche du champ de saisie », rien d'autre. Si l'utilisateur donne encore des détails produit, renvoie updates.description enrichie et confirme en UNE phrase, en l'invitant à cliquer sur « Générer ». S'il dit que c'est bon, réponds en une phrase qu'il n'a plus qu'à cliquer sur « Générer ».
 ` : ''}
 RÈGLES :
 - Si l'utilisateur donne PLUSIEURS infos d'un coup, extrais tout.
 - Comprends le langage naturel («je vends des cremes», «un truc pour la cuisine», «en français», «le style gratuit»…).
 - Questions COURTES (1-2 phrases max), zéro jargon, un peu de peps. Jamais de listes à puces.
-- Quand style + langue + type + (url OU description) sont connus → done=true IMMÉDIATEMENT, reply invite à ajouter les photos puis générer. Tu peux poser UNE question bonus (points forts) mais done reste true ; si l'utilisateur répond « non », « rien » ou « c'est tout », n'insiste jamais.
+- Le STYLE de page ne se demande JAMAIS : il n'y a qu'un format, la page de vente classique. Ne propose ni infographies ni page gratuite, ils n'existent plus.
+- Quand langue + type + couleur + (url OU description) sont connus → done=true IMMÉDIATEMENT, reply invite à ajouter les photos puis générer. Tu peux poser UNE question bonus (points forts) mais done reste true ; si l'utilisateur répond « non », « rien » ou « c'est tout », n'insiste jamais.
 - Quand l'utilisateur ajoute des détails produit (points forts, autonomie…), renvoie updates.description avec la description COMPLÈTE enrichie (anciens + nouveaux détails).
 - Si l'utilisateur pose une question, réponds-y d'abord, puis reviens au brief.
 
 RÉPONDS UNIQUEMENT avec ce JSON (rien d'autre, pas de \\' dans les chaînes) :
-{"reply": "ta réponse conversationnelle", "updates": {"pageStyle": "...", "language": "...", "productType": "...", "url": "...", "description": "..."}, "suggestions": ["raccourci 1", "raccourci 2"], "done": false}
+{"reply": "ta réponse conversationnelle", "updates": {"language": "...", "productType": "...", "brandColor": "...", "url": "...", "description": "..."}, "suggestions": ["raccourci 1", "raccourci 2"], "done": false}
 - "updates" : SEULEMENT les champs nouvellement déduits du dernier message (omets les autres).
-- "suggestions" : 2 à 4 réponses rapides cliquables adaptées à TA question (ex: ["Classique", "Infographies 9:16", "Page gratuite"]) ; [] si question ouverte.
+- "suggestions" : 2 à 4 réponses rapides cliquables adaptées à TA question (ex: ["Français", "English", "Español"]) ; [] si question ouverte.
 - "done" : true seulement quand le brief est complet.`;
 
     // L'historique assistant est RÉENCODÉ dans le format JSON attendu : sinon
     // le modèle imite ses anciens messages en texte pur dès le 2e tour et
     // cesse de répondre en JSON.
+    // ── VOIE RAPIDE — répondre sans appeler le modèle ──────────────────────
+    // Quand l'utilisateur clique une puce ("Classique", "Vert"), la réponse
+    // tient en un mot et la question suivante est écrite d'avance. Passer par
+    // DeepSeek coûtait plusieurs secondes d'attente pour reconnaître "vert" et
+    // relire une question déjà connue. Conditions strictes : message court, pas
+    // de lien, et au moins un champ réellement identifié — au moindre doute on
+    // laisse le modèle faire son travail.
+    const lastUserMsg = [...cleanHistory].reverse().find((m) => m.role === 'user');
+    const lastUserRaw = String(lastUserMsg?.content || '').trim();
+    const fastUpdates = heuristicUpdates(lastUserRaw, brief);
+    const fastMerged = { ...brief, ...fastUpdates };
+    const fastNext = missingField(fastMerged);
+    const looksLikeChipAnswer = lastUserRaw.length > 0 && lastUserRaw.length <= 48
+      && !/https?:\/\//i.test(lastUserRaw)
+      && !/[.!?]\s/.test(lastUserRaw);
+
+    if (looksLikeChipAnswer && Object.keys(fastUpdates).length > 0 && fastNext && fastNext !== 'product') {
+      const q = NEXT_QUESTION[fastNext];
+      return res.json({
+        success: true,
+        data: { reply: q.reply, updates: fastUpdates, suggestions: q.suggestions, done: false },
+      });
+    }
+    // Cas particulier : le dernier champ (le produit) est le seul qui demande
+    // vraiment de la lecture — mais poser la question, non. Si tout le reste
+    // vient d'être rempli d'un mot, on enchaîne sans modèle.
+    if (looksLikeChipAnswer && Object.keys(fastUpdates).length > 0 && fastNext === 'product') {
+      const q = NEXT_QUESTION.product;
+      return res.json({
+        success: true,
+        data: { reply: q.reply, updates: fastUpdates, suggestions: [], done: false },
+      });
+    }
+
     const modelHistory = cleanHistory.map((m) => (
       m.role === 'assistant' ? { role: 'assistant', content: JSON.stringify({ reply: m.content }) } : m
     ));
@@ -2273,11 +2374,13 @@ RÉPONDS UNIQUEMENT avec ce JSON (rien d'autre, pas de \\' dans les chaînes) :
     // ── Updates : validés du modèle + HEURISTIQUE de secours sur le dernier
     //    message (le modèle oublie parfois d'extraire — le serveur rattrape).
     const ALLOWED = {
-      pageStyle: ['classic', 'infographics', 'hero_page'],
+      // pageStyle absent VOLONTAIREMENT : il est forcé à 'classic' ci-dessous.
+      // Le laisser ici aurait permis au modèle de le réécrire en 'infographics'
+      // et de ressusciter un format qu'on vient de retirer.
       language: ['fr', 'en', 'es'],
       productType: ['beauty', 'health', 'tech', 'fashion', 'home', 'general'],
     };
-    const updates = {};
+    const updates = { pageStyle: 'classic' };
     const u = (parsed && parsed.updates) || {};
     for (const k of Object.keys(ALLOWED)) {
       if (typeof u[k] === 'string' && ALLOWED[k].includes(u[k])) updates[k] = u[k];
@@ -2291,46 +2394,39 @@ RÉPONDS UNIQUEMENT avec ce JSON (rien d'autre, pas de \\' dans les chaînes) :
     if (typeof u.description === 'string' && u.description.trim().length > 8) updates.description = u.description.trim().slice(0, 2400);
 
     const lastUser = [...cleanHistory].reverse().find((m) => m.role === 'user');
-    const lu = (lastUser?.content || '').toLowerCase();
     const has = (k) => Boolean(brief[k] || updates[k]);
-    if (!has('pageStyle')) {
-      if (/infograph/.test(lu)) updates.pageStyle = 'infographics';
-      else if (/gratuit/.test(lu)) updates.pageStyle = 'hero_page';
-      else if (/classiqu|page de vente|vente compl/.test(lu)) updates.pageStyle = 'classic';
+
+    // Rattrapage : le modèle oublie parfois d'extraire un champ pourtant
+    // évident. Mêmes regex que la voie rapide — une seule source de vérité.
+    for (const [k, v] of Object.entries(heuristicUpdates(lastUser?.content, { ...brief, ...updates }))) {
+      if (updates[k] === undefined) updates[k] = v;
     }
-    if (!has('language')) {
-      if (/fran|french/.test(lu)) updates.language = 'fr';
-      else if (/angl|english/.test(lu)) updates.language = 'en';
-      else if (/espa|spanish/.test(lu)) updates.language = 'es';
-    }
-    if (!has('brandColor')) {
-      const hexM = lu.match(/#[0-9a-f]{6}\b/);
-      if (hexM) updates.brandColor = hexM[0];
-      else if (/auto|laisse|choisis|peu importe|comme tu veux|pas de pr[ée]f/.test(lu)) updates.brandColor = 'auto';
-      else if (/roug/.test(lu)) updates.brandColor = '#DC2626';
-      else if (/bleu/.test(lu)) updates.brandColor = '#1E40AF';
-      else if (/vert/.test(lu)) updates.brandColor = '#0F6B4F';
-      else if (/dor[ée]|\bor\b|gold/.test(lu)) updates.brandColor = '#B45309';
-      else if (/rose/.test(lu)) updates.brandColor = '#DB2777';
-      else if (/violet/.test(lu)) updates.brandColor = '#7C3AED';
-      else if (/noir/.test(lu)) updates.brandColor = '#111827';
-      else if (/orange/.test(lu)) updates.brandColor = '#EA580C';
-    }
-    if (!has('productType')) {
-      if (/te[cx]h|électro|electro|téléphone|telephone|ordinateur|montre|airpod|écouteur|ecouteur|casque|gadget/.test(lu)) updates.productType = 'tech';
-      else if (/beaut|cosm|crème|creme|sérum|serum|soin|maquillage/.test(lu)) updates.productType = 'beauty';
-      else if (/sant|nutrition|complément|complement|vitamine|gélule|gelule/.test(lu)) updates.productType = 'health';
-      else if (/mode|vêtement|vetement|accessoire|sac|chauss|bijou|montre de luxe/.test(lu)) updates.productType = 'fashion';
-      else if (/maison|cuisine|déco|deco|ménage|menage/.test(lu)) updates.productType = 'home';
-      else if (/g[ée]n[ée]ral|autre/.test(lu)) updates.productType = 'general';
+
+    // ── DESCRIPTION : le dernier champ sans filet, et le plus coûteux à rater.
+    // Sans lui, briefComplete restait faux POUR TOUJOURS : l'état est absorbant
+    // (le brief renvoyé au tour suivant est toujours incomplet), donc le bouton
+    // « Générer » n'apparaissait jamais quoi que tape l'utilisateur. On ne pose
+    // ce repli QUE si tout le reste est connu — c'est alors que le dernier
+    // message ne peut raisonnablement parler que du produit.
+    if (!has('url') && !has('description')
+        && has('pageStyle') && has('language') && has('productType') && has('brandColor')) {
+      const raw = String(lastUser?.content || '').trim();
+      if (raw.length > 15 && !/^https?:\/\//i.test(raw)) {
+        updates.description = raw.slice(0, 2400);
+      }
     }
 
     // ── done : décidé PAR LE SERVEUR — brief complet = on peut générer, même
     //    si le modèle veut encore poser des questions bonus.
     const merged = { ...brief, ...updates };
     const briefComplete = Boolean(merged.pageStyle && merged.language && merged.productType && merged.brandColor && (merged.url || merged.description));
-    const refused = /^(nn?|non|rien|c'?est tout|stop|ça va|ca va|ok)\b/.test(lu.trim());
-    const done = briefComplete && (parsed?.done === true || refused || true);
+    // `done` VAUT `briefComplete`, point. L'expression précédente
+    // `briefComplete && (parsed?.done === true || refused || true)` se terminait
+    // par `|| true` : la parenthèse valait toujours vrai. Elle laissait croire
+    // que l'avis du modèle comptait alors qu'il était ignoré — on l'écrit tel
+    // que ça se comporte. Le détecteur de refus (« non », « c'est tout ») qui
+    // l'accompagnait est parti avec : il ne servait qu'à cette expression.
+    const done = briefComplete;
 
     if (!reply) {
       reply = done
@@ -2344,8 +2440,7 @@ RÉPONDS UNIQUEMENT avec ce JSON (rien d'autre, pas de \\' dans les chaînes) :
     let suggestions = Array.isArray(parsed?.suggestions) ? parsed.suggestions.slice(0, 4).map((x) => String(x).slice(0, 60)).filter(Boolean) : [];
     if (done) suggestions = [];
     else if (!suggestions.length) {
-      if (!merged.pageStyle) suggestions = ['Classique', 'Infographies 9:16', 'Page gratuite'];
-      else if (!merged.language) suggestions = ['Français', 'English', 'Español'];
+      if (!merged.language) suggestions = ['Français', 'English', 'Español'];
       else if (!merged.productType) suggestions = ['Beauté & Cosmétique', 'Santé & Nutrition', 'Tech & Électronique', 'Mode & Accessoires'];
       else if (!merged.brandColor) suggestions = ['Vert', 'Bleu royal', 'Doré premium', 'Je te laisse choisir'];
     }

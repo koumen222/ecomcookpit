@@ -6,7 +6,8 @@
 import axios from 'axios';
 import OpenAI from 'openai';
 import { uploadImage, isConfigured } from './cloudflareImagesService.js';
-import { callKieChatCompletion, isKieConfigured } from './kieChatService.js';
+import { callKieChatCompletion } from './kieChatService.js';
+import { isTextProviderConfigured } from './textProviderService.js';
 import { parseAiJson } from '../utils/aiJson.js';
 
 let _openai = null;
@@ -107,7 +108,7 @@ export async function scrapeAlibaba(url) {
 
 export async function analyzeWithGPT(scraped) {
   const openai = getOpenAI();
-  if (!isKieConfigured() && !openai) {
+  if (!isTextProviderConfigured() && !openai) {
     throw new Error('Aucune clé IA configurée. Ajoutez le service ou le service dans les variables d\'environnement.');
   }
 

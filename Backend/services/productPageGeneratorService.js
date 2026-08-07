@@ -7,21 +7,20 @@
  * 4. Upload R2 → Assemble page produit
  */
 
-import { deepseekClient, callDeepseekChat } from './deepseekChatService.js';
+import { textClient as deepseekClient, callTextCompletion as callDeepseekChat } from './textProviderService.js';
 import axios from 'axios';
 import Groq from 'groq-sdk';
 import sharp from 'sharp';
 import { uploadImage, isConfigured } from './cloudflareImagesService.js';
 import { generateAnimatedGifFromImages, generateKieImageToVideo, generateGptImage2ImageToImage } from './nanoBananaService.js';
 import { randomUUID } from 'crypto';
-import { callKieChatCompletion, callKieGeminiChat, isKieConfigured } from './kieChatService.js';
+import { callKieChatCompletion, callKieGeminiChat } from './kieChatService.js';
+import { isTextProviderConfigured } from './textProviderService.js';
 import { GENERIC_AI_ERROR } from '../utils/aiErrorMessages.js';
 
-const KIE_API_KEY = process.env.KIE_API_KEY || '';
-const KIE_CLAUDE_URL = 'https://api.kie.ai/claude/v1/messages';
-
+// eslint-disable-next-line no-unused-vars -- conserve pour un futur etage dedie
 async function callClaudeForEbook(systemPrompt, userPrompt) {
-  // Décision produit : texte = DeepSeek uniquement
+  // Cascade texte : DeepSeek -> Groq -> KIE
   const { content: dsContent } = await callDeepseekChat({
     messages: [
       { role: 'system', content: systemPrompt },
@@ -31,30 +30,6 @@ async function callClaudeForEbook(systemPrompt, userPrompt) {
     timeoutMs: 180000,
   });
   return dsContent;
-}
-
-// Ancien chemin KIE Claude — conservé pour rollback rapide, plus appelé.
-// eslint-disable-next-line no-unused-vars
-async function _legacyCallClaudeForEbook(systemPrompt, userPrompt) {
-  const body = {
-    model: 'claude-sonnet-4-6',
-    max_tokens: 16000,
-    stream: false,
-    system: systemPrompt,
-    messages: [{ role: 'user', content: userPrompt }],
-  };
-  const res = await axios.post(KIE_CLAUDE_URL, body, {
-    headers: { 'Authorization': `Bearer ${KIE_API_KEY}`, 'Content-Type': 'application/json' },
-    timeout: 180000,
-  });
-  // KIE peut retourner HTTP 200 avec un message d'erreur dans le body
-  const kieError = res.data?.message || res.data?.error || '';
-  if (kieError && !res.data?.content) {
-    throw new Error(`KIE Claude: ${kieError}`);
-  }
-  const content = res.data?.content;
-  if (Array.isArray(content)) return content.filter(b => b.type === 'text').map(b => b.text || '').join('');
-  return typeof content === 'string' ? content : '';
 }
 
 let _groq = null;
@@ -926,10 +901,10 @@ JSON structure:
   // Each provider has its own try/catch so a failure doesn't skip the next
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-  // ── 1. GPT 5.4 via Kie (primary) ─────────────────────────────────────────
-  if (isKieConfigured()) {
+  // ── 1. Cascade texte : DeepSeek → Groq → KIE ─────────────────────────────
+  if (isTextProviderConfigured()) {
     try {
-      console.log('[EbookGen] GPT 5.4 via Kie...');
+      console.log('[EbookGen] cascade texte (DeepSeek → Groq → KIE)...');
       const kie = await callKieChatCompletion({
         messages: [
           { role: 'system', content: systemPrompt },
@@ -942,40 +917,17 @@ JSON structure:
       });
       const parsed = parseGroqJSON(kie.content || '{}');
       if (parsed && (parsed.ebook || parsed.title)) {
-        console.log('[EbookGen] GPT 5.4 OK');
+        console.log('[EbookGen] cascade OK');
         return normalizeBonusEbook(parsed, fallback, userOverrides);
       }
-      console.warn('[EbookGen] GPT 5.4 response non parseable — passage Claude...');
+      console.warn('[EbookGen] réponse non parseable — 2e passage...');
     } catch (kieErr) {
-      console.warn(`[EbookGen] GPT 5.4 échoué (${kieErr.message}) — passage Claude...`);
+      console.warn(`[EbookGen] cascade échouée (${kieErr.message}) — 2e passage...`);
     }
   }
 
-  // ── 2. Claude Sonnet 4.6 via Kie (fallback, 2 attempts) ──────────────────
-  if (KIE_API_KEY) {
-    for (let attempt = 1; attempt <= 2; attempt++) {
-      try {
-        console.log(`[EbookGen] Claude Sonnet 4.6 via Kie (attempt ${attempt}/2)...`);
-        const rawContent = await callClaudeForEbook(systemPrompt, userPrompt);
-        const parsed = parseGroqJSON(rawContent || '{}');
-        if (parsed && (parsed.ebook || parsed.title)) {
-          console.log('[EbookGen] Claude OK');
-          return normalizeBonusEbook(parsed, fallback, userOverrides);
-        }
-        console.warn('[EbookGen] Claude response non parseable');
-        break;
-      } catch (claudeErr) {
-        const isTransient = claudeErr.message.includes('500') || claudeErr.message.includes('502') || claudeErr.message.includes('503') || claudeErr.message.includes('timeout');
-        if (attempt < 2 && isTransient) {
-          console.warn(`[EbookGen] Claude erreur transitoire (${claudeErr.message}) — retry dans 8s...`);
-          await sleep(8000);
-        } else {
-          console.warn(`[EbookGen] Claude échoué (${claudeErr.message}) — passage Groq...`);
-          break;
-        }
-      }
-    }
-  }
+  // L'ancien etage 2 (Claude Sonnet via KIE) a ete supprime : il rappelait la
+  // meme cascade que l'etage 1, soit 3 cascades x 3 providers sur un echec.
 
   // ── 3. Groq fallback ─────────────────────────────────────────────────────
   const groq = deepseekClient; // texte → DeepSeek uniquement
@@ -1344,9 +1296,9 @@ function buildPremiumImagePrompts(result = {}, genderClause = 'authentic Black A
 
 export async function analyzePremiumProductPage(scrapedData, imageBuffers = [], storeContext = {}, premiumContext = {}) {
   const groq = deepseekClient; // texte → DeepSeek uniquement
-  // KIE est le service primaire ici — Groq n'est qu'un secours. L'un des deux suffit.
-  if (!groq && !isKieConfigured()) {
-    throw new Error('Aucun service IA configuré (GROQ_API_KEY ou KIE_API_KEY requis).');
+  // Cascade texte : DeepSeek primaire, Groq puis KIE en secours. Un provider suffit.
+  if (!groq && !isTextProviderConfigured()) {
+    throw new Error('Aucun service IA configuré (DEEPSEEK_API_KEY, GROQ_API_KEY ou KIE_API_KEY requis).');
   }
 
   const title = cleanScrapedText(scrapedData.title || 'Produit');
@@ -1507,8 +1459,8 @@ ${premiumContract}`;
 
   let result;
   try {
-    if (isKieConfigured()) {
-      // Gemini 2.5 Flash — UNE SEULE tâche texte, photos incluses (multimodal)
+    if (isTextProviderConfigured()) {
+      // Cascade : DeepSeek en texte seul, Gemini via KIE dès qu'il y a des photos
       console.log('🤖 Génération premium via Gemini 2.5 Flash (1 appel)...');
       const kie = await callKieGeminiChat({ messages });
       result = parseGroqJSON(kie.content || '{}');
@@ -1598,8 +1550,8 @@ export async function analyzeWithVision(scrapedData, imageBuffers = [], marketin
   const groq = deepseekClient; // texte → DeepSeek uniquement
   // Groq OU KIE suffit : sans GROQ_API_KEY, on bascule directement sur KIE
   // (avant : throw immédiat même avec KIE_API_KEY configurée → génération impossible en local)
-  if (!groq && !isKieConfigured()) {
-    throw new Error('Aucun service IA configuré (GROQ_API_KEY ou KIE_API_KEY requis).');
+  if (!groq && !isTextProviderConfigured()) {
+    throw new Error('Aucun service IA configuré (DEEPSEEK_API_KEY, GROQ_API_KEY ou KIE_API_KEY requis).');
   }
 
   const title = cleanScrapedText(scrapedData.title || '');
@@ -2109,9 +2061,9 @@ Le champ "prompt_avant_apres" doit décrire un AVANT/APRÈS SPÉCIFIQUE à CE pr
 
   // ══ Tentative PRINCIPALE : Gemini 2.5 Flash via KIE — UNE SEULE tâche texte ══
   // Multimodal (photos incluses), rapide, réponse complète en un appel.
-  if (isKieConfigured()) {
+  if (isTextProviderConfigured()) {
     try {
-      console.log('🤖 Génération texte page produit via Gemini 2.5 Flash (1 appel)...');
+      console.log('🤖 Génération texte page produit (cascade DeepSeek → Groq → KIE)...');
       const kie = await callKieGeminiChat({ messages });
       console.log('📝 Gemini raw response length:', (kie.content || '').length);
       result = parseGroqJSON(kie.content || '{}');
@@ -2159,7 +2111,7 @@ Le champ "prompt_avant_apres" doit décrire un AVANT/APRÈS SPÉCIFIQUE à CE pr
     // Fallback KIE pour garantir la génération même si Groq échoue/absent.
     // Tentative 1 : messages complets (images incluses — KIE gère input_image).
     // Tentative 2 : texte seul si la variante vision est refusée.
-    if (isKieConfigured()) {
+    if (isTextProviderConfigured()) {
       const textOnlyKieMessages = [
         messages[0],
         {

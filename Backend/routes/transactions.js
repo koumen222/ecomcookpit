@@ -15,7 +15,7 @@ import {
   notifyBudgetExceeded,
   notifyCriticalTransaction
 } from '../core/notifications/notification.service.js';
-import { deepseekComplete } from '../services/deepseekChatService.js';
+import { completeText as deepseekComplete } from '../services/textProviderService.js';
 
 // Helper texte — DeepSeek uniquement (décision produit), avec retry sur erreurs transitoires
 async function kieAiChat(prompt, maxTokens = 2000, retries = 3) {

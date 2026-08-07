@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import EcomUser from '../models/EcomUser.js';
 import Workspace from '../models/Workspace.js';
 import FeatureUsageLog from '../models/FeatureUsageLog.js';
+import FeatureFeedback from '../models/FeatureFeedback.js';
 import PlanPayment from '../models/PlanPayment.js';
 import PlanConfig, { PLAN_KEYS } from '../models/PlanConfig.js';
 import GenerationPricingConfig from '../models/GenerationPricingConfig.js';
@@ -4628,6 +4629,123 @@ router.get('/usage/feature/:feature', requireEcomAuth, requireMarketingStats, as
   } catch (err) {
     console.error('[SuperAdmin] usage/feature error:', err.message);
     res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// FEEDBACKS UTILISATEURS — avis recueillis après chaque génération
+// (page produit, créas, vidéo, image…) via le modal FeatureFeedbackModal.
+// GET   /api/ecom/super-admin/feedback?days=30&feature=&rating=&status=&page=1&limit=50
+// PATCH /api/ecom/super-admin/feedback/:id/status  { status: 'new'|'seen'|'resolved' }
+// ════════════════════════════════════════════════════════════════════════════
+
+router.get('/feedback', requireEcomAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { days = 30, feature, rating, status, workspaceId, page = 1, limit = 50 } = req.query;
+
+    const filter = {};
+    const daysNum = Number(days);
+    if (Number.isFinite(daysNum) && daysNum > 0) {
+      filter.createdAt = { $gte: new Date(Date.now() - daysNum * 24 * 3600 * 1000) };
+    }
+    if (feature) filter.feature = String(feature);
+    if (status) filter.status = String(status);
+    if (workspaceId && mongoose.Types.ObjectId.isValid(workspaceId)) {
+      filter.workspaceId = new mongoose.Types.ObjectId(workspaceId);
+    }
+    if (rating === 'negative') filter.rating = { $lte: 2 };
+    else if (rating === 'positive') filter.rating = { $gte: 4 };
+    else if (rating && Number.isFinite(Number(rating))) filter.rating = Number(rating);
+
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const limitNum = Math.min(200, Math.max(1, parseInt(limit, 10) || 50));
+    const skip = (pageNum - 1) * limitNum;
+
+    const [items, total, statsAgg, perFeature] = await Promise.all([
+      FeatureFeedback.find(filter)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limitNum)
+        .populate('workspaceId', 'name slug')
+        .populate('userId', 'email name')
+        .lean(),
+      FeatureFeedback.countDocuments(filter),
+
+      // Stats globales sur le scope filtré (hors pagination)
+      FeatureFeedback.aggregate([
+        { $match: filter },
+        { $group: {
+          _id: '$rating',
+          count: { $sum: 1 },
+        } },
+      ]),
+
+      // Moyenne + volume par feature (sur le scope temporel/status, sans le filtre feature/rating
+      // pour que le tableau "par fonctionnalité" reste complet)
+      FeatureFeedback.aggregate([
+        { $match: {
+          ...(filter.createdAt ? { createdAt: filter.createdAt } : {}),
+          ...(filter.status ? { status: filter.status } : {}),
+        } },
+        { $group: {
+          _id: '$feature',
+          count: { $sum: 1 },
+          avgRating: { $avg: '$rating' },
+          negatives: { $sum: { $cond: [{ $lte: ['$rating', 2] }, 1, 0] } },
+          withComment: { $sum: { $cond: [{ $gt: [{ $strLenCP: { $ifNull: ['$comment', ''] } }, 0] }, 1, 0] } },
+        } },
+        { $sort: { count: -1 } },
+      ]),
+    ]);
+
+    const distribution = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+    let sum = 0;
+    let scopeTotal = 0;
+    for (const row of statsAgg) {
+      distribution[row._id] = row.count;
+      sum += row._id * row.count;
+      scopeTotal += row.count;
+    }
+
+    res.json({
+      success: true,
+      data: {
+        items,
+        total,
+        page: pageNum,
+        limit: limitNum,
+        stats: {
+          total: scopeTotal,
+          avgRating: scopeTotal ? +(sum / scopeTotal).toFixed(2) : null,
+          distribution,
+          negatives: (distribution[1] || 0) + (distribution[2] || 0),
+          positives: (distribution[4] || 0) + (distribution[5] || 0),
+        },
+        perFeature,
+      },
+    });
+  } catch (err) {
+    console.error('[SuperAdmin] feedback list error:', err.message);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+router.patch('/feedback/:id/status', requireEcomAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { status } = req.body || {};
+    if (!['new', 'seen', 'resolved'].includes(status)) {
+      return res.status(400).json({ success: false, message: 'Statut invalide.' });
+    }
+    const doc = await FeatureFeedback.findByIdAndUpdate(
+      req.params.id,
+      { status },
+      { new: true }
+    ).lean();
+    if (!doc) return res.status(404).json({ success: false, message: 'Feedback introuvable.' });
+    res.json({ success: true, item: doc });
+  } catch (err) {
+    console.error('[SuperAdmin] feedback status error:', err.message);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
   }
 });
 

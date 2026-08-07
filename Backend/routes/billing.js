@@ -1050,7 +1050,7 @@ router.post('/buy-creative', requireEcomAuth, async (req, res) => {
         const kp = await initKpayGatewayPayment(kpayCfg, {
           amount,
           externalId: `crea-${workspaceId}-${Date.now()}`,
-          description: `Scalor — ${quantity} crédit${quantity > 1 ? 's' : ''} image IA`,
+          description: `Scalor — ${quantity} Spark${quantity > 1 ? 's' : ''}`,
           returnUrl: `${frontendUrl}/ecom/creatives`,
           metadata: { kind: 'creative', workspaceId: workspaceId.toString(), userId: req.ecomUser._id.toString(), quantity }
         });
@@ -1080,7 +1080,7 @@ router.post('/buy-creative', requireEcomAuth, async (req, res) => {
 
     const paymentData = {
       totalPrice: amount,
-      article: [{ [`Scalor - ${quantity} Crédit${quantity > 1 ? 's' : ''} Image IA`]: amount }],
+      article: [{ [`Scalor - ${quantity} Spark${quantity > 1 ? 's' : ''}`]: amount }],
       personal_Info: [{ workspaceId: workspaceId.toString(), userId: req.ecomUser._id.toString(), type: 'creative', quantity }],
       numeroSend: String(phone).trim(),
       nomclient: String(clientName).trim(),

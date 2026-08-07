@@ -3,8 +3,10 @@
 //   • Resend (API)  — TOUS les emails transactionnels (otp, notification,
 //     custom, contact, app, ...) quand EMAIL_PROVIDER=resend.
 //   • SMTP auto-hébergé (Postfix — mail.scalor.net, cf. routes/mailServerAdmin.js)
-//     — TOUJOURS utilisé pour le marketing (source campaign / campaign_test),
-//     et fallback de tout le reste si Resend n'est pas configuré.
+//     — marketing MARCHAND (source campaign / campaign_test) et fallback de
+//     tout le reste si Resend n'est pas configuré.
+//   • Resend sur sous-domaine dédié — marketing PLATEFORME
+//     (source platform_campaign), voir MARKETING_EMAIL_FROM.
 //
 // Config par variables d'env (prioritaires) :
 //   EMAIL_PROVIDER (resend|smtp, def: smtp)   RESEND_API_KEY
@@ -33,16 +35,65 @@ let transporterPromise = null;
 let resendClient = null;
 
 // ── Choix du canal ───────────────────────────────────────────────────────────
-// Le marketing reste TOUJOURS sur le SMTP auto-hébergé (réputation Postfix,
-// froms personnalisés par campagne). Tout le reste part via l'API Resend dès
-// que EMAIL_PROVIDER=resend et qu'une clé API est présente.
+// Trois familles, trois traitements :
+//
+//  1. Marketing MARCHAND (`campaign`, `campaign_test`) — un marchand écrit à
+//     SES clients. Reste sur le SMTP auto-hébergé : From personnalisé par
+//     marchand, que Resend refuserait faute de domaine vérifié.
+//  2. Marketing PLATEFORME (`platform_campaign`) — le super admin écrit aux
+//     utilisateurs de Scalor. Part par Resend depuis un SOUS-DOMAINE dédié.
+//     Isoler ce trafic protège la réputation de scalor.net, qui porte les OTP
+//     et les reçus : une campagne mal reçue ne doit pas empêcher quelqu'un de
+//     recevoir son code de connexion.
+//  3. Tout le reste (transactionnel) — Resend dès que EMAIL_PROVIDER=resend.
 const MARKETING_SOURCES = new Set(['campaign', 'campaign_test']);
+const PLATFORM_MARKETING_SOURCES = new Set(['platform_campaign', 'platform_campaign_test']);
+
+export function isPlatformMarketingSource(source = '') {
+  return PLATFORM_MARKETING_SOURCES.has(String(source));
+}
+
+/**
+ * Expéditeur du marketing plateforme.
+ *
+ * Un sous-domaine dédié isole la réputation, mais il doit d'abord être VÉRIFIÉ
+ * chez Resend — sinon 100 % des envois échouent avec « domain is not verified ».
+ * Sans MARKETING_EMAIL_FROM explicite, on reste donc sur le domaine déjà
+ * vérifié (celui de EMAIL_FROM, qui porte les OTP), avec une adresse locale
+ * distincte : partager la réputation vaut mieux que ne rien envoyer.
+ */
+export function marketingFrom() {
+  const name = String(process.env.MARKETING_EMAIL_FROM_NAME || process.env.EMAIL_FROM_NAME || 'Scalor').trim();
+  const withName = (addr) => (name ? `${name} <${addr}>` : addr);
+
+  const explicit = String(process.env.MARKETING_EMAIL_FROM || '').trim();
+  if (explicit) return explicit.includes('<') ? explicit : withName(explicit);
+
+  const base = String(process.env.EMAIL_FROM || 'noreply@scalor.net');
+  const domain = (base.includes('@') ? base.split('@')[1] : 'scalor.net').replace(/[>\s"']/g, '').trim();
+  const local = String(process.env.MARKETING_EMAIL_LOCALPART || 'news').trim();
+  return withName(`${local}@${domain}`);
+}
+
+/** Adresse de réponse du marketing — une vraie boîte lue, pas un noreply. */
+export function marketingReplyTo() {
+  return String(process.env.MARKETING_EMAIL_REPLY_TO || process.env.EMAIL_REPLY_TO || '').trim();
+}
 
 export function resolveEmailProvider(source = 'app') {
+  const hasResend = !!String(process.env.RESEND_API_KEY || '').trim();
+
+  if (PLATFORM_MARKETING_SOURCES.has(String(source))) {
+    if (hasResend) return 'resend';
+    console.warn('[mailer] marketing plateforme : RESEND_API_KEY absente — repli sur SMTP');
+    return 'smtp';
+  }
+
   if (MARKETING_SOURCES.has(String(source))) return 'smtp';
+
   const wanted = String(process.env.EMAIL_PROVIDER || 'smtp').trim().toLowerCase();
   if (wanted !== 'resend') return 'smtp';
-  if (!String(process.env.RESEND_API_KEY || '').trim()) {
+  if (!hasResend) {
     console.warn('[mailer] EMAIL_PROVIDER=resend mais RESEND_API_KEY absente — envoi via SMTP');
     return 'smtp';
   }
@@ -238,6 +289,13 @@ async function sendViaResend({ from, to, subject, html, text, replyTo, headers, 
     });
 
     if (response?.error) {
+      const raw = response.error.message || 'Erreur Resend';
+      // Le refus le plus fréquent, et le seul dont la correction est une action
+      // précise : le message brut de Resend est en anglais et ne dit pas quel
+      // réglage changer.
+      const friendly = /not verified/i.test(raw)
+        ? `Le domaine de l'expéditeur « ${String(fromText).split('@').pop().replace('>', '')} » n'est pas vérifié chez Resend. Vérifie-le sur resend.com/domains, ou pointe MARKETING_EMAIL_FROM sur un domaine déjà vérifié.`
+        : raw;
       return {
         success: false,
         from: fromText,
@@ -247,7 +305,7 @@ async function sendViaResend({ from, to, subject, html, text, replyTo, headers, 
         accepted: [],
         rejected: [],
         envelope: null,
-        error: response.error.message || 'Erreur Resend'
+        error: friendly
       };
     }
 

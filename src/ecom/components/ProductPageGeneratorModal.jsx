@@ -10,6 +10,7 @@ import PaymentModalFrame from './PaymentModalFrame.jsx';
 import InfographicsGeneratorPanel from './InfographicsGeneratorPanel.jsx';
 import ErrorBanner from './ErrorBanner.jsx';
 import DigitalProductEbookModal from './DigitalProductEbookModal.jsx';
+import FeatureFeedbackModal, { shouldAskFeedback } from './FeatureFeedbackModal.jsx';
 
 // Product-generator is mounted at /api/ai/product-generator (outside /api/ecom).
 // We must always use API origin only, never a base path like /api/ecom.
@@ -737,6 +738,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
   const clearDraft = () => { try { localStorage.removeItem(DRAFT_KEY); } catch {} };
 
   const [phase, setPhase] = useState('input');
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [draftBanner, setDraftBanner] = useState(() => {
     try {
       const d = JSON.parse(localStorage.getItem('generatedProductDraft') || 'null');
@@ -997,6 +999,9 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
         setShowConfetti(false);
         setPhase('preview');
         setActiveTab('page');
+        if (shouldAskFeedback('product_page_generator')) {
+          setTimeout(() => setFeedbackOpen(true), 2500);
+        }
       }, 2000);
     };
 
@@ -1627,6 +1632,9 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
             setShowConfetti(false);
             setPhase('preview');
             setActiveTab('page');
+            if (shouldAskFeedback('product_page_generator')) {
+              setTimeout(() => setFeedbackOpen(true), 2500);
+            }
           }, 2000);
         }
       } else {
@@ -4252,6 +4260,13 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, initial
       </div>
     </div>
   </div>
+    {feedbackOpen && (
+      <FeatureFeedbackModal
+        feature="product_page_generator"
+        meta={{ pageStyle, template: visualTemplate, productName: product?.title || product?.name || undefined }}
+        onClose={() => setFeedbackOpen(false)}
+      />
+    )}
     <DigitalProductEbookModal
       open={showDigitalProductModal}
       productName={product?.title || product?.name || ''}

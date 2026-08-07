@@ -14,6 +14,7 @@ import {
   X,
 } from 'lucide-react';
 import DigitalProductEbookModal from './DigitalProductEbookModal.jsx';
+import FeatureFeedbackModal, { shouldAskFeedback } from './FeatureFeedbackModal.jsx';
 
 const API_ORIGIN = (() => {
   const raw = String(import.meta.env.VITE_BACKEND_URL || '').trim();
@@ -162,6 +163,7 @@ const PremiumProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, 
   const fileInputRef = useRef(null);
   const abortRef = useRef(null);
   const [phase, setPhase] = useState(initialTaskId ? 'loading' : 'input');
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [inputMode, setInputMode] = useState('url');
   const [url, setUrl] = useState('');
   const [description, setDescription] = useState('');
@@ -326,6 +328,9 @@ const PremiumProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, 
           setProgress(100);
           setPhase('preview');
           setImageJobId(null);
+          if (data.status === 'done' && shouldAskFeedback('product_page_generator')) {
+            setTimeout(() => setFeedbackOpen(true), 2500);
+          }
           return;
         }
 
@@ -409,6 +414,9 @@ const PremiumProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, 
       } else {
         setProgress(100);
         setPhase('preview');
+        if (shouldAskFeedback('product_page_generator')) {
+          setTimeout(() => setFeedbackOpen(true), 2500);
+        }
       }
     } catch (generateError) {
       if (generateError.name === 'AbortError') return;
@@ -802,6 +810,13 @@ const PremiumProductPageGeneratorModal = ({ onClose, onApply, pageMode = false, 
         onRegenerate={() => setDigitalProductResult(null)}
         onSave={() => { setShowDigitalProductModal(false); setDigitalProductResult(null); }}
       />
+      {feedbackOpen && (
+        <FeatureFeedbackModal
+          feature="product_page_generator"
+          meta={{ pageStyle: 'premium', productName: product?.title || product?.name || undefined }}
+          onClose={() => setFeedbackOpen(false)}
+        />
+      )}
     </>
   );
 

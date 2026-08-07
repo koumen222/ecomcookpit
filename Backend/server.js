@@ -380,9 +380,12 @@ const startServer = async () => {
       ['./routes/transactions.js',            '/api/ecom/transactions'],
       ['./routes/notificationPreferences.js', '/api/ecom/notification-preferences'],
       ['./routes/users.js',                   '/api/ecom/users'],
+      ['./routes/feedback.js',                '/api/ecom/feedback'],
       ['./routes/superAdmin.js',              '/api/ecom/super-admin'],
       ['./routes/mailServerAdmin.js',         '/api/ecom/super-admin/mail-server'],
       ['./routes/superAdminPush.js',          '/api/ecom/super-admin/push'],
+      ['./routes/platformMarketing.js',       '/api/ecom/super-admin/marketing'],
+      ['./routes/announcements.js',           '/api/ecom/announcements'],
       ['./routes/support.js',                 '/api/ecom/support'],
       ['./routes/tickets.js',                 '/api/ecom/tickets'],
       ['./routes/analytics.js',               '/api/ecom/analytics'],
@@ -434,6 +437,7 @@ const startServer = async () => {
       // ─── AI Product Page Generator ───────────────────────────────────
       ['./routes/productPageGenerator.js',    '/api/ai/product-generator'],
       ['./routes/creativeGenerator.js',        '/api/ecom/ai/creative-generator'],
+      ['./routes/creativeJourneys.js',         '/api/ecom/creative/journeys'],
       // ─── Sessions invité Creative Center (essai sans compte + claim) ──
       ['./routes/guestSession.js',             '/api/ecom/guest'],
       // ─── Caddy On-Demand TLS domain validation ─────────────────────────

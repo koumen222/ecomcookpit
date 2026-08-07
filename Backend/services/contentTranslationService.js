@@ -11,7 +11,7 @@
 import crypto from 'crypto';
 import Groq from 'groq-sdk';
 import StoreProduct from '../models/StoreProduct.js';
-import { callKieChatCompletion, extractKieContent, isKieConfigured } from './kieChatService.js';
+import { callTextCompletion, isTextProviderConfigured } from './textProviderService.js';
 import { parseAiJsonArray } from '../utils/aiJson.js';
 
 let _groq = null;
@@ -78,7 +78,7 @@ function setAtPath(root, path, value) {
   node[path[path.length - 1]] = value;
 }
 
-/** Traduit un lot de chaînes via le LLM (KIE prioritaire, Groq en secours) — ordre préservé. */
+/** Traduit un lot de chaînes via la cascade texte (DeepSeek → Groq → KIE) — ordre préservé. */
 async function translateBatch(strings, targetLang) {
   const langName = LANG_NAMES[targetLang] || 'English';
   const messages = [
@@ -89,21 +89,17 @@ async function translateBatch(strings, targetLang) {
     { role: 'user', content: JSON.stringify(strings) },
   ];
 
-  let raw = '';
-  if (isKieConfigured()) {
-    const data = await callKieChatCompletion({ messages, temperature: 0.2, maxTokens: 8000, reasoningEffort: 'low', timeoutMs: 60000 });
-    raw = extractKieContent(data) || '[]';
-  } else {
-    const groq = getGroq();
-    if (!groq) throw new Error('Aucun fournisseur LLM configuré (KIE_API_KEY ou GROQ_API_KEY)');
-    const response = await groq.chat.completions.create({
-      model: process.env.GROQ_MODEL || 'openai/gpt-oss-20b',
-      temperature: 0.2,
-      max_tokens: 8000,
-      messages,
-    });
-    raw = response?.choices?.[0]?.message?.content || '[]';
+  if (!isTextProviderConfigured()) {
+    throw new Error('Aucun fournisseur LLM configuré (DEEPSEEK_API_KEY, GROQ_API_KEY ou KIE_API_KEY)');
   }
+  const data = await callTextCompletion({
+    messages,
+    temperature: 0.2,
+    maxTokens: 8000,
+    timeoutMs: 60000,
+    contextLabel: 'TRADUCTION',
+  });
+  const raw = data.content || '[]';
   const parsed = parseAiJsonArray(raw);
   if (!Array.isArray(parsed) || parsed.length !== strings.length) {
     throw new Error(`Lot de traduction invalide (${Array.isArray(parsed) ? parsed.length : 'non-array'}/${strings.length})`);

@@ -8,7 +8,8 @@
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import Groq from 'groq-sdk';
-import { callKieChatCompletion, isKieConfigured } from './kieChatService.js';
+import { callKieChatCompletion } from './kieChatService.js';
+import { isTextProviderConfigured } from './textProviderService.js';
 
 const GEMINI_API_KEY = process.env.NANOBANANA_API_KEY || process.env.GEMINI_API_KEY;
 
@@ -221,8 +222,8 @@ IMPORTANT: Ne retourne QUE le JSON, sans markdown ni texte supplémentaire.`;
   } catch (err) {
     console.error(`❌ ${GEMINI_MODEL} échoué:`, err.message);
 
-    // ── Fallback KIE (Gemini 3.1 Pro via endpoint OpenAI-compatible) ─────
-    if (isKieConfigured()) {
+    // ── Secours : cascade texte DeepSeek → Groq → KIE ────────────────────
+    if (isTextProviderConfigured()) {
       try {
         console.log('🔄 service de secours pour extraction...');
         const kieResp = await callKieChatCompletion({

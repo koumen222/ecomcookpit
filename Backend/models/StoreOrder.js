@@ -80,7 +80,22 @@ const storeOrderSchema = new mongoose.Schema({
     name: { type: String, required: true },
     price: { type: Number, required: true },
     quantity: { type: Number, required: true, min: 1, default: 1 },
-    image: { type: String, default: '' }
+    image: { type: String, default: '' },
+    // Variante choisie par le client — « Taille: M », « Couleur: Noir ».
+    // Stockée PAR LIGNE et non au niveau commande : deux tailles du même
+    // produit sont deux lignes, pas une commande à deux tailles.
+    // _id: false → ce sont des paires nom/valeur, pas des sous-documents.
+    // default: undefined → les commandes antérieures restent sans le champ
+    // plutôt que de se voir attribuer un tableau vide qui ferait croire à une
+    // absence de choix alors qu'aucun choix n'était possible.
+    variants: {
+      type: [{
+        name: { type: String, trim: true, default: '' },
+        value: { type: String, trim: true, default: '' },
+        _id: false,
+      }],
+      default: undefined,
+    }
   }],
   total: {
     type: Number,

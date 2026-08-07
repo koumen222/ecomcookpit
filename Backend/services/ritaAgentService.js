@@ -6,6 +6,7 @@ import RitaConversationMemory from '../models/RitaConversationMemory.js';
 import Workspace from '../models/Workspace.js';
 import WhatsAppInstance from '../models/WhatsAppInstance.js';
 import evolutionApiService from './evolutionApiService.js';
+import { callTextCompletion } from './textProviderService.js';
 import { Readable } from 'stream';
 
 const HAS_GROQ_API_KEY = !!process.env.GROQ_API_KEY;
@@ -13,11 +14,8 @@ const HAS_GROQ_API_KEY = !!process.env.GROQ_API_KEY;
 // Les fonctionnalités IA concernées renverront leur fallback au moment de l'appel.
 const groq = HAS_GROQ_API_KEY ? new Groq({ apiKey: process.env.GROQ_API_KEY }) : null;
 const FISH_AUDIO_DIRECT_API_KEY = process.env.FISH_AUDIO_API_KEY || '';
-const KIE_API_KEY = process.env.KIE_API_KEY || process.env.NANOBANANA_API_KEY || '';
-const KIE_BASE_URL = (process.env.KIE_BASE_URL || 'https://api.kie.ai').replace(/\/+$/, '');
-const KIE_MODEL_PATH = process.env.KIE_MODEL_PATH || '/gpt-5-2/v1/chat/completions';
-const KIE_TIMEOUT_MS = Number(process.env.KIE_TIMEOUT_MS || 120000);
-const RITA_TEXT_PROVIDER = String(process.env.RITA_TEXT_PROVIDER || 'groq').trim().toLowerCase();
+// Ordre des providers texte : gere globalement par textProviderService
+// (DeepSeek -> Groq -> KIE). Forcable via AI_TEXT_PRIMARY.
 const DEFAULT_RITA_GROQ_MODELS = Object.freeze([
   { model: 'openai/gpt-oss-20b', reasoning_effort: 'medium' },
   { model: 'meta-llama/llama-4-scout-17b-16e-instruct' },
@@ -613,199 +611,32 @@ function stripControlTags(value = '') {
     .trim();
 }
 
-function normalizeKieMessages(messages = []) {
-  return (messages || []).map((message) => {
-    const role = ['developer', 'system', 'user', 'assistant', 'tool'].includes(message?.role)
-      ? message.role
-      : 'user';
-
-    if (Array.isArray(message?.content)) {
-      return {
-        role,
-        content: message.content,
-      };
-    }
-
-    return {
-      role,
-      content: [
-        {
-          type: 'text',
-          text: String(message?.content || ''),
-        },
-      ],
-    };
-  });
-}
-
-function normalizeLLMMessages(messages = []) {
-  return (messages || []).map((message) => {
-    const role = message?.role === 'assistant' ? 'assistant' : message?.role === 'system' ? 'system' : 'user';
-    return {
-      role,
-      content: String(message?.content || ''),
-    };
-  });
-}
-
-function extractKieContent(data = {}) {
-  const content = data?.choices?.[0]?.message?.content;
-  if (typeof content === 'string') return content.trim();
-
-  if (Array.isArray(content)) {
-    return content
-      .map((chunk) => {
-        if (typeof chunk === 'string') return chunk;
-        if (chunk?.type === 'text') return chunk?.text || '';
-        return '';
-      })
-      .join('')
-      .trim();
-  }
-
-  return '';
-}
-
-async function callKieChatCompletion({
-  messages,
-  temperature = 0.4,
-  maxTokens = 4096,
-  reasoningEffort = 'low',
-  includeThoughts = false,
-}) {
-  if (!KIE_API_KEY) {
-    throw new Error('le service non configuré');
-  }
-
-  const payload = {
-    messages: normalizeKieMessages(messages),
-    stream: false,
-    include_thoughts: includeThoughts,
-    reasoning_effort: reasoningEffort,
-    max_tokens: maxTokens,
-    temperature,
-  };
-
-  const response = await axios.post(`${KIE_BASE_URL}${KIE_MODEL_PATH}`, payload, {
-    headers: {
-      Authorization: `Bearer ${KIE_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    timeout: KIE_TIMEOUT_MS,
-  });
-
-  const text = extractKieContent(response.data);
-  if (!text) {
-    throw new Error('le service response vide');
-  }
-  return text;
-}
-
-async function callGroqTextCompletion({
-  messages,
-  temperature = 0.4,
-  maxTokens = 4096,
-  models = DEFAULT_RITA_GROQ_MODELS,
-}) {
-  if (!HAS_GROQ_API_KEY) {
-    throw new Error('le service non configuré');
-  }
-
-  let lastError = null;
-
-  for (const modelCfg of models) {
-    try {
-      const reqParams = {
-        model: modelCfg.model,
-        messages: normalizeLLMMessages(messages),
-        temperature,
-        max_completion_tokens: maxTokens,
-        top_p: 0.95,
-      };
-      if (modelCfg.reasoning_effort) reqParams.reasoning_effort = modelCfg.reasoning_effort;
-
-      const completion = await groq.chat.completions.create(reqParams);
-      let content = completion.choices[0]?.message?.content?.trim() || '';
-
-      if (!content && completion.choices[0]?.message?.reasoning) {
-        const reasoning = completion.choices[0].message.reasoning;
-        const thinkEnd = reasoning.lastIndexOf('</think>');
-        if (thinkEnd !== -1) {
-          content = reasoning.substring(thinkEnd + 8).trim();
-        }
-      }
-
-      if (content) {
-        return {
-          content,
-          modelUsed: modelCfg.model,
-        };
-      }
-
-      lastError = new Error(`${modelCfg.model} a retourne une reponse vide`);
-    } catch (error) {
-      lastError = error;
-    }
-  }
-
-  throw lastError || new Error('le service response vide');
-}
+// Le client KIE local a ete supprime : Rita passe par la cascade texte
+// centrale (textProviderService.js), ou KIE n'est plus que dernier recours.
 
 async function callPreferredRitaTextCompletion({
   messages,
   temperature = 0.4,
   maxTokens = 4096,
   reasoningEffort = process.env.KIE_REASONING_EFFORT || 'low',
-  includeThoughts = false,
+  includeThoughts = false, // eslint-disable-line no-unused-vars -- obsolete
   groqModels = DEFAULT_RITA_GROQ_MODELS,
   contextLabel = 'RITA',
 }) {
-  const providers = RITA_TEXT_PROVIDER === 'kie' ? ['kie', 'groq'] : ['groq', 'kie'];
-  let lastError = null;
-
-  for (const provider of providers) {
-    if (provider === 'groq') {
-      try {
-        const groqResult = await callGroqTextCompletion({
-          messages,
-          temperature,
-          maxTokens,
-          models: groqModels,
-        });
-        return {
-          content: groqResult.content,
-          provider: 'groq',
-          modelUsed: groqResult.modelUsed,
-        };
-      } catch (error) {
-        lastError = error;
-        const hasFallback = providers.includes('kie');
-        console.warn(`⚠️ [${contextLabel}] le service indisponible: ${error.message}${hasFallback ? ' — service de secours' : ''}`);
-      }
-      continue;
-    }
-
-    try {
-      const kieText = await callKieChatCompletion({
-        messages,
-        temperature,
-        maxTokens,
-        reasoningEffort,
-        includeThoughts,
-      });
-      return {
-        content: kieText,
-        provider: 'kie',
-        modelUsed: process.env.KIE_MODEL_PATH || 'kie-gpt-5-2',
-      };
-    } catch (error) {
-      lastError = error;
-      const hasFallback = providers.includes('groq');
-      console.warn(`⚠️ [${contextLabel}] le service indisponible: ${error.message}${hasFallback ? ' — service de secours' : ''}`);
-    }
-  }
-
-  throw lastError || new Error('Aucun modele texte configure');
+  // Cascade centrale : DeepSeek (primaire) -> Groq (secours) -> KIE (dernier recours).
+  const result = await callTextCompletion({
+    messages: normalizeLLMMessages(messages),
+    temperature,
+    maxTokens,
+    reasoningEffort,
+    groqModels,
+    contextLabel,
+  });
+  return {
+    content: result.content,
+    provider: result.provider,
+    modelUsed: result.modelUsed,
+  };
 }
 
 function extractProductFromOrderTag(text = '') {

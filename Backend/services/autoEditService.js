@@ -28,8 +28,7 @@ import {
   runFfmpeg, runFfmpegCapture, probeDuration, downloadWithRetry, FONTS_DIR,
 } from './videoMontageService.js';
 import { extractAudio, transcribeSegments } from './videoTranslationService.js';
-import { callDeepseekChat } from './deepseekChatService.js';
-import { callKieChatCompletion, isKieConfigured } from './kieChatService.js';
+import { callTextCompletion } from './textProviderService.js';
 import { generateNanoBananaImage } from './nanoBananaService.js';
 import { grokImageToVideo } from './falVideoService.js';
 import cloudflareImagesService from './cloudflareImagesService.js';
@@ -622,18 +621,17 @@ JSON : { "analysis": "...", "dropWordRanges": [[s,e],...], "hookText": "...", "b
 
   let raw = null;
   try {
-    const r = await callDeepseekChat({ messages, temperature: 0.3, maxTokens: 3200, responseFormat: { type: 'json_object' } });
-    raw = r?.content || r?.choices?.[0]?.message?.content || null;
+    // Cascade texte : DeepSeek primaire, Groq puis KIE en secours.
+    const r = await callTextCompletion({
+      messages,
+      temperature: 0.3,
+      maxTokens: 3200,
+      responseFormat: { type: 'json_object' },
+      contextLabel: 'AutoEdit',
+    });
+    raw = r?.content || null;
   } catch (e) {
-    console.warn('[AutoEdit] monteur IA primaire indisponible:', e.message);
-    if (isKieConfigured()) {
-      try {
-        const r = await callKieChatCompletion({ messages, temperature: 0.3, maxTokens: 3200 });
-        raw = r?.content || null;
-      } catch (e2) {
-        console.warn('[AutoEdit] monteur IA fallback indisponible:', e2.message);
-      }
-    }
+    console.warn('[AutoEdit] monteur IA indisponible (tous providers):', e.message);
   }
 
   if (!raw) return fallbackPlan(segments, brollCount);
@@ -661,13 +659,16 @@ JSON : { "analysis": "...", "dropWordRanges": [[s,e],...], "hookText": "...", "b
         ];
         let raw2 = null;
         try {
-          const r2 = await callDeepseekChat({ messages: retryMessages, temperature: 0.4, maxTokens: 800, responseFormat: { type: 'json_object' } });
-          raw2 = r2?.content || r2?.choices?.[0]?.message?.content || null;
-        } catch {
-          if (isKieConfigured()) {
-            const r2 = await callKieChatCompletion({ messages: retryMessages, temperature: 0.4, maxTokens: 800 });
-            raw2 = r2?.content || null;
-          }
+          const r2 = await callTextCompletion({
+            messages: retryMessages,
+            temperature: 0.4,
+            maxTokens: 800,
+            responseFormat: { type: 'json_object' },
+            contextLabel: 'AutoEdit/critic',
+          });
+          raw2 = r2?.content || null;
+        } catch (e2) {
+          console.warn('[AutoEdit] critic pass indisponible (tous providers):', e2.message);
         }
         if (raw2) {
           const j2 = raw2.replace(/```json|```/g, '').trim();

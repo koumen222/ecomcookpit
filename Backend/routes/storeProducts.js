@@ -20,7 +20,7 @@ import {
   chargeGenerationCredits,
   isGenerationCreditError,
 } from '../services/generationCreditService.js';
-import { deepseekClient } from '../services/deepseekChatService.js';
+import { textClient as deepseekClient } from '../services/textProviderService.js';
 
 
 const router = express.Router();
@@ -1918,6 +1918,38 @@ function normalizeFaq(raw) {
     .filter(f => f.question && f.answer);
 }
 
+/**
+ * Normalise les variantes : { name, options: [str], images: [{option,url}] }.
+ * `StoreProduct.variants` est un Mixed — sans passage ici, le client écrit ce
+ * qu'il veut dans le document, y compris des tableaux non bornés. Les images
+ * dont l'option n'existe plus sont coupées : elles ne servent plus à rien et
+ * font grossir le produit à chaque enregistrement.
+ */
+function normalizeVariants(raw) {
+  if (!Array.isArray(raw)) return undefined;
+  const str = (v, max) => String(v ?? '').trim().slice(0, max);
+  return raw
+    .map((v) => {
+      const options = [...new Set((Array.isArray(v?.options) ? v.options : []).map((o) => str(o, 120)).filter(Boolean))].slice(0, 50);
+      const images = (Array.isArray(v?.images) ? v.images : [])
+        .map((im) => ({ option: str(im?.option, 120), url: str(im?.url, 1000) }))
+        .filter((im) => im.option && im.url && options.includes(im.option))
+        .slice(0, 50);
+      const swatches = (Array.isArray(v?.swatches) ? v.swatches : [])
+        .map((sw) => ({ name: str(sw?.name, 120), hex: str(sw?.hex, 32) }))
+        .filter((sw) => sw.name)
+        .slice(0, 50);
+      return {
+        name: str(v?.name, 60),
+        options,
+        ...(images.length > 0 && { images }),
+        ...(swatches.length > 0 && { swatches }),
+      };
+    })
+    .filter((v) => v.name && v.options.length > 0)
+    .slice(0, 10);
+}
+
 function buildSystemProductPayload({ name, price, stock, workspaceId, userId }) {
   const sellingPrice = Number(price) || 0;
   const inferredCost = sellingPrice > 0 ? Math.max(0, Math.floor(sellingPrice * 0.4)) : 0;
@@ -2169,7 +2201,7 @@ router.post('/', requireEcomAuth, requireWorkspace, requireStoreOwner, checkPlan
         createdBy: req.user.id,
         ...(testimonials?.length > 0 && { testimonials: normalizeTestimonials(testimonials) }),
         ...(faq?.length > 0 && { faq: normalizeFaq(faq) }),
-        ...(Array.isArray(variants) && variants.length > 0 && { variants }),
+        ...(Array.isArray(variants) && variants.length > 0 && { variants: normalizeVariants(variants) }),
         ...(_pageData && { _pageData }),
         ...(productPageConfig && { productPageConfig })
       });
@@ -2272,7 +2304,7 @@ router.put('/:id', requireEcomAuth, requireWorkspace, requireStoreOwner, async (
     if (linkedProductId !== undefined) update.linkedProductId = linkedProductId || null;
     if (testimonials !== undefined) update.testimonials = normalizeTestimonials(testimonials);
     if (faq !== undefined) update.faq = normalizeFaq(faq);
-    if (variants !== undefined) update.variants = variants;
+    if (variants !== undefined) update.variants = normalizeVariants(variants);
     if (_pageData !== undefined) update._pageData = _pageData;
     if (pageBuilder !== undefined) update.pageBuilder = pageBuilder;
     if (productPageConfig !== undefined) update.productPageConfig = productPageConfig;

@@ -16,7 +16,8 @@ import dotenv from 'dotenv';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.join(__dirname, '..', '.env') });
 
-const { callKieChatCompletion, extractKieContent, isKieConfigured } = await import('../services/kieChatService.js');
+const { callKieChatCompletion, extractKieContent } = await import('../services/kieChatService.js');
+const { isTextProviderConfigured } = await import('../services/textProviderService.js');
 
 const ECOM_DIR = process.env.SCALOR_NEXT_ECOM || path.resolve(__dirname, '../../../scalor-next/src/ecom');
 const GENERATED = path.join(ECOM_DIR, 'i18n/platform-generated.js');
@@ -123,7 +124,7 @@ async function translateBatch(strings, langName) {
 }
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
-if (!isKieConfigured()) {
+if (!isTextProviderConfigured()) {
   console.error('❌ KIE_API_KEY manquante dans Backend/.env');
   process.exit(1);
 }

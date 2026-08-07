@@ -6,7 +6,7 @@ import Order from '../models/Order.js';
 import Workspace from '../models/Workspace.js';
 import RitaConfig from '../models/RitaConfig.js';
 import { analyzeImage, buildImageResponsePrompt } from './agentImageService.js';
-import { callKieChatCompletion, isKieConfigured } from './kieChatService.js';
+import { callTextCompletion, isTextProviderConfigured } from './textProviderService.js';
 
 let groqClient = null;
 
@@ -429,9 +429,8 @@ Génère une réponse qui:
 };
 
 const generateAgentResponse = async (conversation, clientMessage, intent, sentiment) => {
-  const groq = initGroq();
-  if (!isKieConfigured() && !groq) {
-    throw new Error('Aucun modele texte configure (le service ou le service manquant)');
+  if (!isTextProviderConfigured()) {
+    throw new Error('Aucun modele texte configure (DEEPSEEK_API_KEY, GROQ_API_KEY ou KIE_API_KEY)');
   }
 
   // Charger ProductConfig + RitaConfig en parallèle
@@ -457,39 +456,22 @@ const generateAgentResponse = async (conversation, clientMessage, intent, sentim
     const startTime = Date.now();
     let response = '';
     let tokensUsed = 0;
-    let modelUsed = process.env.AGENT_GROQ_MODEL || 'openai/gpt-oss-20b';
+    let modelUsed = process.env.DEEPSEEK_MODEL || 'deepseek-v4-pro';
 
-    try {
-      if (!groq) {
-        throw new Error('le service non configuré');
-      }
-      const completion = await groq.chat.completions.create({
-        model: process.env.AGENT_GROQ_MODEL || 'openai/gpt-oss-20b',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt }
-        ],
-        max_tokens: 300,
-        temperature: 0.7,
-      });
-      response = completion.choices[0].message.content.trim();
-      tokensUsed = completion.usage?.total_tokens || 0;
-    } catch (groqErr) {
-      console.warn(`⚠️ [AGENT] le service indisponible, service de secours: ${groqErr.message}`);
-      const kieResult = await callKieChatCompletion({
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt }
-        ],
-        maxTokens: 300,
-        temperature: 0.7,
-        reasoningEffort: process.env.KIE_REASONING_EFFORT || 'low',
-        includeThoughts: false,
-      });
-      response = kieResult.content;
-      tokensUsed = kieResult?.usage?.total_tokens || 0;
-      modelUsed = process.env.KIE_MODEL_PATH || 'kie-gpt-5-2';
-    }
+    // Cascade texte : DeepSeek primaire, Groq puis KIE en secours.
+    const aiResult = await callTextCompletion({
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+      ],
+      maxTokens: 300,
+      temperature: 0.7,
+      groqModels: [{ model: process.env.AGENT_GROQ_MODEL || 'openai/gpt-oss-20b' }],
+      contextLabel: 'AGENT',
+    });
+    response = String(aiResult.content || '').trim();
+    tokensUsed = aiResult?.usage?.total_tokens || 0;
+    modelUsed = aiResult.modelUsed || modelUsed;
 
     const processingTime = Date.now() - startTime;
 
@@ -1045,8 +1027,7 @@ const processIncomingImageMessage = async (conversation, base64Image, mimetype, 
  * Génère une réponse agent en tenant compte du contexte image.
  */
 const generateAgentImageResponse = async (conversation, imageContext, caption) => {
-  const groq = initGroq();
-  if (!isKieConfigured() && !groq) throw new Error('Aucun modele texte configure (le service ou le service manquant)');
+  if (!isTextProviderConfigured()) throw new Error('Aucun modele texte configure (DEEPSEEK_API_KEY, GROQ_API_KEY ou KIE_API_KEY)');
 
   const productConfig = await ProductConfig.findByProductName(
     conversation.workspaceId,
@@ -1076,39 +1057,22 @@ Génère une réponse naturelle qui:
 
   let response = '';
   let tokensUsed = 0;
-  let modelUsed = process.env.AGENT_GROQ_MODEL || 'meta-llama/llama-4-scout-17b-16e-instruct';
+  let modelUsed = process.env.DEEPSEEK_MODEL || 'deepseek-v4-pro';
 
-  try {
-    if (!groq) {
-      throw new Error('le service non configuré');
-    }
-    const completion = await groq.chat.completions.create({
-      model: process.env.AGENT_GROQ_MODEL || 'meta-llama/llama-4-scout-17b-16e-instruct',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
-      ],
-      max_tokens: 300,
-      temperature: 0.7,
-    });
-    response = completion.choices[0].message.content.trim();
-    tokensUsed = completion.usage?.total_tokens || 0;
-  } catch (groqErr) {
-    console.warn(`⚠️ [AGENT] le service indisponible (image-context), service de secours: ${groqErr.message}`);
-    const kieResult = await callKieChatCompletion({
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
-      ],
-      maxTokens: 300,
-      temperature: 0.7,
-      reasoningEffort: process.env.KIE_REASONING_EFFORT || 'low',
-      includeThoughts: false,
-    });
-    response = kieResult.content;
-    tokensUsed = kieResult?.usage?.total_tokens || 0;
-    modelUsed = process.env.KIE_MODEL_PATH || 'kie-gpt-5-2';
-  }
+  // Le contexte image est deja decrit en texte ici : la cascade texte suffit.
+  const aiResult = await callTextCompletion({
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt }
+    ],
+    maxTokens: 300,
+    temperature: 0.7,
+    groqModels: [{ model: process.env.AGENT_GROQ_MODEL || 'meta-llama/llama-4-scout-17b-16e-instruct' }],
+    contextLabel: 'AGENT/image',
+  });
+  response = String(aiResult.content || '').trim();
+  tokensUsed = aiResult?.usage?.total_tokens || 0;
+  modelUsed = aiResult.modelUsed || modelUsed;
 
   const processingTime = Date.now() - startTime;
 

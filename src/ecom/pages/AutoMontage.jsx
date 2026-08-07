@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ecomApi from '../services/ecommApi';
+import FeatureFeedbackModal, { shouldAskFeedback } from '../components/FeatureFeedbackModal.jsx';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Montage Auto — outil de montage vidéo automatique (séparé du Creative Center).
@@ -35,6 +36,7 @@ const AutoMontage = () => {
   const [job, setJob] = useState(null);
   const [error, setError] = useState('');
   const [needCredits, setNeedCredits] = useState(null);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
   const pollRef = useRef(null);
 
   useEffect(() => {
@@ -72,7 +74,13 @@ const AutoMontage = () => {
         const j = r.data?.job;
         if (!j) return;
         setJob(j);
-        if (j.status === 'done') { clearInterval(pollRef.current); setPhase('done'); }
+        if (j.status === 'done') {
+          clearInterval(pollRef.current);
+          setPhase('done');
+          if (shouldAskFeedback('creative_montage')) {
+            setTimeout(() => setFeedbackOpen(true), 2500);
+          }
+        }
         if (j.status === 'error') { clearInterval(pollRef.current); setError(j.error || 'Échec du montage.'); setPhase('error'); }
       } catch { /* erreur réseau transitoire : on continue de poller */ }
     }, 2500);
@@ -118,6 +126,13 @@ const AutoMontage = () => {
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-6 space-y-5">
+      {feedbackOpen && (
+        <FeatureFeedbackModal
+          feature="creative_montage"
+          meta={{ formats: formats.join(','), brollCount, captionStyle }}
+          onClose={() => setFeedbackOpen(false)}
+        />
+      )}
       <div>
         <h1 className="text-2xl font-black text-gray-900">Montage Auto</h1>
         <p className="text-sm text-gray-600 mt-1">

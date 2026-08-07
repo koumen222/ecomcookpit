@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import {
   BarChart3, Users, Building2, Activity, FileText,
   Clock, Bell, MessageSquare, Zap, Settings, RefreshCw,
-  CheckCircle2, AlertCircle, DollarSign, Layers, List, Store,
+  CheckCircle2, AlertCircle, DollarSign, Layers, List, Store, Star,
 } from 'lucide-react';
 
 const NAV = [
@@ -20,6 +20,7 @@ const NAV = [
   { to: '/ecom/super-admin/whatsapp-logs',         label: 'WA Logs',      icon: List          },
   { to: '/ecom/super-admin/scalor-whatsapp',       label: 'WA Scalor',    icon: Layers        },
   { to: '/ecom/super-admin/feature-analytics',     label: 'Features',     icon: Zap           },
+  { to: '/ecom/super-admin/feedbacks',             label: 'Feedbacks',    icon: Star          },
   { to: '/ecom/super-admin/settings',              label: 'Config',       icon: Settings      },
 ];
 

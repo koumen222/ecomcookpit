@@ -11,90 +11,28 @@ import Workspace from '../models/Workspace.js';
 import { requireEcomAuth } from '../middleware/ecomAuth.js';
 import { emitSupportConversationUpdate } from '../services/socketService.js';
 import { sendWhatsAppMessage } from '../services/whatsappService.js';
-import { deepseekComplete } from '../services/deepseekChatService.js';
+import { completeText, isTextProviderConfigured } from '../services/textProviderService.js';
 
 const router = express.Router();
 const VALID_CATEGORIES = ['general', 'bug', 'billing', 'feature', 'account', 'other'];
 const VALID_PRIORITIES = ['low', 'normal', 'high', 'urgent'];
 const SUPPORT_AI_THRESHOLD = Number(process.env.SUPPORT_AI_CONFIDENCE_THRESHOLD || 78);
-const KIE_API_KEY = process.env.KIE_API_KEY || '';
-const KIE_BASE_URL = process.env.KIE_BASE_URL || 'https://api.kie.ai';
-const GROQ_API_KEY = process.env.GROQ_API_KEY || '';
-const GROQ_MODEL = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
 const FRONTEND_BASE_URL = (process.env.FRONTEND_URL || 'https://scalor.net').replace(/\/$/, '');
 const ADMIN_NOTIFICATION_COOLDOWN_MS = 10 * 60 * 1000;
 
-async function callKieAI(prompt) {
-  if (!KIE_API_KEY) {
-    console.warn('[Support AI le service] le service not set, skipping AI reply');
-    return null;
-  }
-  try {
-    console.log('[Support AI le service] Calling API...');
-    const res = await fetch(`${KIE_BASE_URL}/codex/v1/responses`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${KIE_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'gpt-5-5',
-        stream: false,
-        input: [{ role: 'user', content: [{ type: 'input_text', text: prompt }] }],
-        reasoning: { effort: 'low' },
-      }),
-    });
-    if (!res.ok) {
-      const errBody = await res.text().catch(() => '');
-      console.error('[Support AI le service] HTTP error:', res.status, errBody.slice(0, 200));
-      return null;
-    }
-    const data = await res.json();
-    const message = data?.output?.find(o => o.type === 'message');
-    const text = message?.content?.find(c => c.type === 'output_text')?.text || '';
-    console.log('[Support AI le service] Reply:', text.slice(0, 80));
-    return text.trim() || null;
-  } catch (err) {
-    console.error('[Support AI le service] Error:', err.message);
-    return null;
-  }
-}
-
-async function callGroqAI(prompt) {
-  if (!GROQ_API_KEY) return null;
-  try {
-    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: GROQ_MODEL,
-        messages: [{ role: 'user', content: prompt }],
-        max_tokens: 200,
-        temperature: 0.7,
-      }),
-    });
-    if (!res.ok) return null;
-    const data = await res.json();
-    const text = data?.choices?.[0]?.message?.content || '';
-    return text.trim() || null;
-  } catch (err) {
-    console.error('[Support AI GROQ] Error:', err.message);
-    return null;
-  }
-}
-
 async function callSupportAI(prompt) {
-  // Décision produit : texte = DeepSeek uniquement (anciens providers en secours)
+  // Cascade texte : DeepSeek (primaire) -> Groq (secours) -> KIE (dernier recours).
   try {
-    const text = await deepseekComplete(prompt, { maxTokens: 200, temperature: 0.7 });
-    if (text) return text;
+    const text = await completeText(prompt, {
+      maxTokens: 200,
+      temperature: 0.7,
+      contextLabel: 'Support AI',
+    });
+    return text || null;
   } catch (err) {
-    console.error('[Support AI DeepSeek] Error:', err.message);
+    console.error('[Support AI] tous les providers ont echoue:', err.message);
+    return null;
   }
-  const kieReply = await callKieAI(prompt);
-  if (kieReply) return kieReply;
-  console.log('[Support AI] le service failed, trying GROQ fallback...');
-  return callGroqAI(prompt);
 }
 
 function normalizeText(value, maxLength = 2000) {
@@ -221,7 +159,7 @@ function buildSupportKnowledgeBase() {
 }
 
 async function getSupportAiDecision({ conversation, latestMessage, workspaceContext }) {
-  if (!KIE_API_KEY) {
+  if (!isTextProviderConfigured()) {
     return {
       confidence: 0,
       shouldReply: false,

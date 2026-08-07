@@ -199,6 +199,20 @@ export async function submitKieTask(body, maxRetries = 3) {
       const errMsg = err.response?.data?.msg || err.response?.data?.message || err.message;
       const status = err.response?.status;
       console.warn(`⚠️ le service submit attempt ${attempt}/${maxRetries} error (HTTP ${status || '?'}): ${errMsg}`);
+      // ── AMBIGUÏTÉ = PAS DE RESOUMISSION ────────────────────────────────
+      // Un timeout (ECONNABORTED), une connexion coupée après envoi
+      // (ECONNRESET, socket hang up) ou un 5xx de passerelle ne disent PAS
+      // que la tâche n'existe pas : kie l'a souvent déjà créée, seule la
+      // réponse s'est perdue. Rejouer createTask dans ce cas crée une tâche
+      // ORPHELINE, jamais pollée mais facturée (constat : 4 scènes → 6-8
+      // tâches kie). On ne rejoue que les échecs CERTAINS : réponse HTTP
+      // 4xx reçue (kie a refusé, aucune tâche créée) ou requête jamais
+      // partie (ECONNREFUSED, ENOTFOUND, EAI_AGAIN).
+      const neverReached = ['ECONNREFUSED', 'ENOTFOUND', 'EAI_AGAIN'].includes(err.code);
+      const refusedByKie = Boolean(err.response) && status < 500;
+      if (!refusedByKie && !neverReached) {
+        throw new Error(`le service submit interrompu (${err.code || `HTTP ${status || '?'}`}) — tâche possiblement déjà créée côté kie, resoumission automatique refusée : ${errMsg}`);
+      }
       if (isNonRetryable(errMsg)) throw new Error(errMsg);
       if (attempt < maxRetries) {
         const delay = status === 429 ? 10000 + attempt * 2000 : attempt * 2000;

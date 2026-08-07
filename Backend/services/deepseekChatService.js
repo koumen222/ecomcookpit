@@ -27,9 +27,9 @@ export function hasImageContent(messages = []) {
 }
 
 // Aplatit les contenus structurés en texte simple (DeepSeek attend des strings)
-function toDeepseekMessages(messages = []) {
+export function toDeepseekMessages(messages = []) {
   return (messages || []).map((m) => {
-    const role = ['system', 'user', 'assistant'].includes(m?.role) ? m.role : 'user';
+    const role = ['system', 'user', 'assistant', 'tool'].includes(m?.role) ? m.role : 'user';
     let content = m?.content;
     if (Array.isArray(content)) {
       content = content
@@ -37,7 +37,19 @@ function toDeepseekMessages(messages = []) {
         .filter(Boolean)
         .join('\n');
     }
-    return { role, content: String(content ?? '') };
+    const out = { role, content: String(content ?? '') };
+    // Une boucle d'agent renvoie au modèle SES propres appels d'outils puis
+    // leurs résultats. Aplatir ces messages en simple texte cassait le lien
+    // entre l'appel et sa réponse : le modèle rappelait le même outil en
+    // boucle, persuadé de ne jamais avoir reçu de résultat.
+    if (role === 'assistant' && Array.isArray(m?.tool_calls) && m.tool_calls.length) {
+      out.tool_calls = m.tool_calls;
+    }
+    if (role === 'tool') {
+      out.tool_call_id = m?.tool_call_id || '';
+      if (m?.name) out.name = m.name;
+    }
+    return out;
   });
 }
 
@@ -51,6 +63,8 @@ export async function callDeepseekChat({
   temperature = 0.4,
   maxTokens = 4096,
   responseFormat,
+  tools,
+  toolChoice,
   timeoutMs,
 } = {}) {
   if (!DEEPSEEK_API_KEY) throw new Error('DEEPSEEK_API_KEY non configurée');
@@ -70,6 +84,12 @@ export async function callDeepseekChat({
     thinking: { type: process.env.DEEPSEEK_THINKING === 'enabled' ? 'enabled' : 'disabled' },
   };
   if (responseFormat) payload.response_format = responseFormat;
+  // Function calling au format OpenAI. Sans ce passage, tout appelant fournissant
+  // des `tools` repartait chez KIE /codex — donc hors DeepSeek.
+  if (Array.isArray(tools) && tools.length > 0) {
+    payload.tools = tools;
+    if (toolChoice) payload.tool_choice = toolChoice;
+  }
 
   const doPost = (body) => axios.post(DEEPSEEK_URL, body, {
     headers: { 'Authorization': `Bearer ${DEEPSEEK_API_KEY}`, 'Content-Type': 'application/json' },
@@ -93,6 +113,11 @@ export async function callDeepseekChat({
   const choice = response.data?.choices?.[0];
   const content = choice?.message?.content;
   const text = typeof content === 'string' ? content.trim() : '';
+  const toolCalls = choice?.message?.tool_calls || null;
+  // Une réponse en function calling n'a pas de texte : ce n'est pas une réponse vide.
+  if (!text && Array.isArray(toolCalls) && toolCalls.length > 0) {
+    return { content: '', toolCalls, usage: response.data?.usage || null, raw: response.data };
+  }
   if (!text) {
     const finishReason = choice?.finish_reason || 'inconnu';
     const hadReasoning = Boolean(choice?.message?.reasoning_content);
@@ -100,7 +125,7 @@ export async function callDeepseekChat({
     throw new Error(`Réponse DeepSeek vide (finish_reason=${finishReason}${hadReasoning ? ', budget consommé par la réflexion' : ''})`);
   }
 
-  return { content: text, usage: response.data?.usage || null, raw: response.data };
+  return { content: text, toolCalls, usage: response.data?.usage || null, raw: response.data };
 }
 
 /**
