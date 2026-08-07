@@ -34,7 +34,10 @@ const notificationSchema = new mongoose.Schema({
       'team_product_created', 'team_product_updated', 'team_product_deleted',
       'team_report_generated', 'team_inventory_update',
       'new_message', 'new_dm', 'new_delivery', 'order_assigned_to_you', 'order_taken',
-      'auto_whatsapp_sent'
+      'auto_whatsapp_sent',
+      // Jalons marchands (1re commande, 1M FCFA…) — services/milestoneService.js.
+      // Hors enum, Notification.create throw et le jalon se perdrait en silence.
+      'milestone'
     ],
     index: true
   },

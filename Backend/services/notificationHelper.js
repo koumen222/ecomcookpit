@@ -318,6 +318,16 @@ export const notifyOrderStatus = async (workspaceId, order, newStatus) => {
     console.warn('⚠️ Erreur envoi notification push statut commande:', pushError.message);
   }
 
+  // Jalons de CHIFFRE D'AFFAIRES : le CA canonique ne compte que les commandes
+  // LIVRÉES — c'est donc ici, au passage à `delivered`, que « 1 000 000 FCFA »
+  // peut se franchir, jamais à la création. Import dynamique + fire-and-forget :
+  // le changement de statut n'attend pas et ne peut pas échouer à cause de ça.
+  if (newStatus === 'delivered') {
+    import('./milestoneService.js')
+      .then(({ checkMilestones }) => checkMilestones(workspaceId, { families: ['revenue'] }))
+      .catch((e) => console.error('❌ [Milestone] delivered hook:', e.message));
+  }
+
   return notification;
 };
 

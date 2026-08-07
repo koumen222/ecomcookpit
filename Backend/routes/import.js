@@ -495,6 +495,12 @@ router.post('/run', requireEcomAuth, validateEcomAccess('products', 'write'), as
     // Notification interne
     if (successCount > 0 || updatedCount > 0) {
       notifyImportCompleted(req.workspaceId, { imported: successCount, updated: updatedCount, errors: errors.length }).catch(() => {});
+      // Jalons : les bulkWrite passent SOUS les hooks Mongoose — sans cet appel
+      // explicite, un marchand qui importe son historique (620 commandes d'un
+      // coup) ne verrait jamais ni sa 100e commande ni son premier million.
+      import('../services/milestoneService.js')
+        .then(({ checkMilestones }) => checkMilestones(req.workspaceId))
+        .catch(() => {});
     }
 
     // Finalize import record

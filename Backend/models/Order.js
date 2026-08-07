@@ -443,6 +443,14 @@ orderSchema.post('save', function (doc) {
       .then(({ syncOrderToSheet }) => syncOrderToSheet(doc))
       .catch(err => console.error('❌ [Order hook] syncOrderToSheet:', err.message));
   }
+
+  // 4) Jalons marchands (1re commande, 100e…) — TOUTES les créations passent
+  //    ici sauf les bulkWrite d'import, qui appellent checkMilestones
+  //    explicitement. Import dynamique : Order.js ne doit tirer aucun service
+  //    au chargement (cycles). Fire-and-forget : ne bloque jamais la commande.
+  import('../services/milestoneService.js')
+    .then(({ checkMilestones }) => checkMilestones(workspaceId, { families: ['orders'] }))
+    .catch(err => console.error('❌ [Order hook] milestones:', err.message));
 });
 
 const Order = mongoose.model('Order', orderSchema);

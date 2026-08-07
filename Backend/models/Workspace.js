@@ -254,6 +254,15 @@ const workspaceSchema = new mongoose.Schema({
     default: []
   },
 
+  // Jalons marchands déjà célébrés (services/milestoneService.js) — clés
+  // 'orders_1', 'revenue_1m'… Même mécanique que planExpiryReminderStages :
+  // un tableau de drapeaux, $addToSet atomique, jamais nettoyé. NE PAS
+  // renommer une clé en production : le jalon se redéclencherait.
+  reachedMilestones: {
+    type: [String],
+    default: [],
+  },
+
   // ─── Product Page Generator Tracking ─────────────────────────────────────
   // Legacy fields (backward compat — still used for old single-tier flow)
   freeGenerationsRemaining: {

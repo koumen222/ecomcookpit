@@ -1340,6 +1340,44 @@ router.post('/generate-image', requireEcomAuth, async (req, res) => {
 // la génération. La sceneKey (stable par scène d'un même tournage) déduplique
 // en plus les re-POST : même clé sur un job en cours ou réussi → même jobId,
 // jamais une 2ᵉ génération ; un job en ÉCHEC laisse passer une vraie relance.
+// ── BUDGET DUR PAR TOURNAGE (garde-fou financier) ───────────────────────────
+// Le studio annonce sceneKey (`<tournage>:<index>`) et sceneTotal (N scènes
+// prévues). Le serveur REFUSE toute génération au-delà de : index < N,
+// 2 tentatives max par scène (l'initiale + une relance après échec), et
+// 2×N appels fournisseur max pour tout le tournage. Une vidéo de 4 scènes ne
+// peut donc JAMAIS déclencher plus de générations que son plan — quel que
+// soit le bug de relance, le double clic ou la reconnexion côté navigateur.
+// Le refus intervient APRÈS la réservation de Sparks (aussitôt remboursée) et
+// AVANT tout appel fournisseur : zéro argent ne sort quand le plafond parle.
+const shootBudgets = new Map(); // tournageId → { total, perIndex: Map, count, at }
+const SHOOT_TTL_MS = 4 * 60 * 60 * 1000;
+function consumeShootBudget(sceneKey, sceneTotal) {
+  const m = /^(.+):(\d+)$/.exec(String(sceneKey || ''));
+  if (!m) return { ok: true }; // pas de clé de tournage (régénération manuelle, b-roll…) : hors budget
+  const total = Math.max(0, Math.min(20, Math.round(Number(sceneTotal) || 0)));
+  if (!total) return { ok: true }; // ancien front sans sceneTotal : pas de plafond fiable
+  const id = m[1];
+  const idx = Number(m[2]);
+  const now = Date.now();
+  for (const [k, b] of shootBudgets) { if (now - b.at > SHOOT_TTL_MS) shootBudgets.delete(k); }
+  let budget = shootBudgets.get(id);
+  if (!budget) { budget = { total, perIndex: new Map(), count: 0, at: now }; shootBudgets.set(id, budget); }
+  budget.at = now;
+  if (idx >= budget.total) {
+    return { ok: false, why: `Scène ${idx + 1} hors plan : ce tournage annonce ${budget.total} scènes — génération refusée (garde-fou budget).` };
+  }
+  const attempts = budget.perIndex.get(idx) || 0;
+  if (attempts >= 2) {
+    return { ok: false, why: `Scène ${idx + 1} : 2 tentatives déjà effectuées — génération refusée (garde-fou budget). Relance la vidéo si besoin.` };
+  }
+  if (budget.count >= budget.total * 2) {
+    return { ok: false, why: `Plafond du tournage atteint (${budget.total * 2} générations pour ${budget.total} scènes) — garde-fou budget.` };
+  }
+  budget.perIndex.set(idx, attempts + 1);
+  budget.count += 1;
+  return { ok: true };
+}
+
 const sceneJobs = new Map();     // jobId → { status, httpStatus, body, at }
 const sceneJobKeys = new Map();  // sceneKey → jobId
 const SCENE_JOB_TTL_MS = 30 * 60 * 1000;
@@ -1552,6 +1590,23 @@ async function runGenerateGif(req, res) {
         if (!sceneResv.ok) { const r = sceneResv; sceneResv = null; return sendInsufficientCredits(res, billingFeature, r); }
         (await import('../models/FeatureUsageLog.js')).default
           .track(req, 'creative_video', { stage: String(stage || 'complete'), engine: speakClean ? talkEngine : provider, broll: !!isBroll, avatar: isAvatarGen, hd });
+      }
+
+      // ── GARDE-FOU BUDGET : consommé APRÈS la réservation de Sparks (elle
+      //    est remboursée en cas de refus — une réservation ratée pour solde
+      //    insuffisant ne brûle donc pas une tentative), et AVANT l'image de
+      //    départ et tout appel fournisseur : quand le plafond parle, zéro
+      //    argent n'est sorti. Ne s'applique qu'aux scènes parlées d'un
+      //    tournage (sceneKey du studio) — b-rolls et régénérations manuelles
+      //    restent des dépenses explicites, hors plafond.
+      if (speakClean && !isBroll) {
+        const gate = consumeShootBudget(req.body?.sceneKey, req.body?.sceneTotal);
+        if (!gate.ok) {
+          if (sceneResv?.ok) await sceneResv.refund('garde-fou budget tournage');
+          sceneResv = null;
+          console.warn(`[BuilderAI] garde-fou budget : ${gate.why} (key=${String(req.body?.sceneKey || '').slice(0, 60)})`);
+          return res.status(429).json({ success: false, message: gate.why });
+        }
       }
 
       const subjTxt = String(subject || '').trim();

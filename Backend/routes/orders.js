@@ -2381,6 +2381,14 @@ router.post('/sync-sheets', requireEcomAuth, validateEcomAccess('orders', 'write
             totalImported += result.upsertedCount || 0;
             totalUpdated += result.modifiedCount || 0;
             console.log(`✅ [${syncId}] Bulk write terminé: ${result.upsertedCount} insérés, ${result.modifiedCount} modifiés`);
+            // Jalons : bulkWrite = pas de hooks Mongoose → check explicite
+            // (idempotent, fire-and-forget). Les statuts livrés pouvant venir
+            // de la feuille, on vérifie les DEUX familles.
+            if ((result.upsertedCount || 0) + (result.modifiedCount || 0) > 0) {
+              import('../services/milestoneService.js')
+                .then(({ checkMilestones }) => checkMilestones(req.workspaceId))
+                .catch(() => {});
+            }
             
             // Émettre progression: notifications
             syncProgressEmitter.emit('progress', {
